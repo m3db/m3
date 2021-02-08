@@ -3717,6 +3717,20 @@ func (mr *MockOnColdFlushNamespaceMockRecorder) CheckpointAndMaybeCompact() *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckpointAndMaybeCompact", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).CheckpointAndMaybeCompact))
 }
 
+// Abort mocks base method
+func (m *MockOnColdFlushNamespace) Abort() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Abort")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Abort indicates an expected call of Abort
+func (mr *MockOnColdFlushNamespaceMockRecorder) Abort() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Abort", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).Abort))
+}
+
 // Done mocks base method
 func (m *MockOnColdFlushNamespace) Done() error {
 	m.ctrl.T.Helper()

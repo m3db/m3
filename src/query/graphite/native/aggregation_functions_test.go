@@ -443,6 +443,7 @@ func TestDivideSeriesLists(t *testing.T) {
 	require.Error(t, err)
 }
 
+//nolint:govet
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
 	defer ctx.Close()
@@ -548,10 +549,12 @@ func TestApplyByNode(t *testing.T) {
 			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
 
 	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s1.disk.bytes_*", gomock.Any()).Return(
-		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
-			common.NewTestSeriesValues(ctx, 60000, []float64{90, 80, 70})),
+		&storage.FetchResult{SeriesList: []*ts.Series{
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, 60000, []float64{90, 80, 70})),
 			ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
-				common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
+				common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30})),
+		}}, nil).Times(2)
 
 	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s2.disk.bytes_used", gomock.Any()).Return(
 		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
@@ -562,7 +565,8 @@ func TestApplyByNode(t *testing.T) {
 			ts.NewSeries(ctx, "servers.s2.disk.bytes_free", start,
 				common.NewTestSeriesValues(ctx, 60000, []float64{99, 98, 97})),
 			ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
-				common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil).Times(2)
+				common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3})),
+		}}, nil).Times(2)
 
 	tests := []struct {
 		nodeNum          int

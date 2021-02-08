@@ -39,8 +39,6 @@ type QueryLimits interface {
 	DocsLimit() LookbackLimit
 	// BytesReadLimit limits queries by a global concurrent count of bytes read from disk.
 	BytesReadLimit() LookbackLimit
-	// DiskSeriesReadLimit limits queries by a global concurrent count of time series read from disk.
-	DiskSeriesReadLimit() LookbackLimit
 
 	// AnyExceeded returns an error if any of the query limits are exceeded.
 	AnyExceeded() error

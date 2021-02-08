@@ -1763,12 +1763,26 @@ func (n *dbNamespace) aggregateTiles(
 		blockReaders = append(blockReaders, reader)
 	}
 
+	// Cold flusher builds the reverse index for target (current) ns.
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
 	if err != nil {
 		return 0, err
 	}
 
-	var processedTileCount int64
+	var (
+		processedTileCount int64
+		aggregationSuccess bool
+	)
+	defer func() {
+		if aggregationSuccess {
+			return
+		}
+		// Abort buildling reverse index if aggregation fails.
+		if err := onColdFlushNs.Abort(); err != nil {
+			n.log.Error("error aborting cold flush",
+				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
+		}
+	}()
 	for _, targetShard := range targetShards {
 		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
 		if err != nil {
@@ -1802,6 +1816,8 @@ func (n *dbNamespace) aggregateTiles(
 		}
 	}
 
+	// Aggregation success, mark so we don't abort reverse index building (cold flusher).
+	aggregationSuccess = true
 	if err := onColdFlushNs.Done(); err != nil {
 		return 0, err
 	}

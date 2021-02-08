@@ -1017,6 +1017,7 @@ type OnColdFlush interface {
 // OnColdFlushNamespace performs work on a per namespace level.
 type OnColdFlushNamespace interface {
 	persist.OnFlushSeries
+	Abort() error
 	Done() error
 }
 
