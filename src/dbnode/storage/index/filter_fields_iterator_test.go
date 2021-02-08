@@ -43,7 +43,7 @@ func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b")}
-	reader := newMockSegmentReader(ctrl, map[string][]string{})
+	reader := newMockSegmentReader(ctrl, map[string]terms{})
 	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
@@ -59,7 +59,7 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	reader := newMockSegmentReader(ctrl, map[string][]string{"a": nil})
+	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}})
 	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
@@ -78,7 +78,7 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	reader := newMockSegmentReader(ctrl, map[string][]string{"d": nil, "b": nil, "e": nil})
+	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "b": {}, "e": {}})
 	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
@@ -97,7 +97,7 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	reader := newMockSegmentReader(ctrl, map[string][]string{"d": nil, "e": nil, "c": nil})
+	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "e": {}, "c": {}})
 	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
@@ -116,7 +116,7 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	reader := newMockSegmentReader(ctrl, map[string][]string{"a": nil, "b": nil, "c": nil})
+	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "b": {}, "c": {}})
 	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
@@ -144,7 +144,7 @@ func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	reader := newMockSegmentReader(ctrl, map[string][]string{"a": nil, "c": nil})
+	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "c": {}})
 	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)

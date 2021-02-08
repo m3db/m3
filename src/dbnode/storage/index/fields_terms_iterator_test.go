@@ -23,6 +23,7 @@ package index
 import (
 	"bytes"
 	"fmt"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"sort"
 	"strings"
 	"testing"
@@ -173,8 +174,8 @@ func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	reader := newMockSegmentReader(ctrl, map[string][]string{
-		"a": nil,
+	reader := newMockSegmentReader(ctrl, map[string]terms{
+		"a": {},
 	})
 	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: false})
 	require.NoError(t, err)
@@ -182,12 +183,45 @@ func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
 	requireSlicesEqual(t, []pair{{"a", ""}}, slice)
 }
 
+func TestFieldsTermsIteratorRestrictByQueryFields(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	pl0 := roaring.NewPostingsList()
+	require.NoError(t, pl0.Insert(postings.ID(42)))
+
+	pl1 := roaring.NewPostingsList()
+	require.NoError(t, pl1.Insert(postings.ID(1)))
+
+	pl2 := roaring.NewPostingsList()
+	require.NoError(t, pl2.Insert(postings.ID(2)))
+
+	reader := newMockSegmentReader(ctrl, map[string]terms{
+		"foo": {values: []term{{value: "foo_0"}}, postings: pl0},
+		"bar": {values: []term{{value: "bar_0"}}, postings: pl1},
+		"baz": {values: []term{{value: "baz_0"}}, postings: pl2},
+	})
+
+	// Simulate term query for "bar":
+	reader.EXPECT().MatchField([]byte("bar")).Return(pl1, nil)
+
+	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
+		iterateTerms: false,
+		restrictByQuery: &Query{
+			Query: idx.NewFieldQuery([]byte("bar")),
+		},
+	})
+	require.NoError(t, err)
+	slice := toSlice(t, iter)
+	requireSlicesEqual(t, []pair{{"bar", ""}}, slice)
+}
+
 func TestFieldsTermsIteratorEmptyTermInclude(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	reader := newMockSegmentReader(ctrl, map[string][]string{
-		"a": nil,
+	reader := newMockSegmentReader(ctrl, map[string]terms{
+		"a": {},
 	})
 	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
@@ -270,11 +304,22 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 	}, slice)
 }
 
-func newMockSegmentReader(ctrl *gomock.Controller, tagValues map[string][]string) *segment.MockReader {
-	fields := make([]iterpoint, 0, len(tagValues))
-	for k := range tagValues {
+type terms struct {
+	values   []term
+	postings postings.List
+}
+
+type term struct {
+	value    string
+	postings postings.List
+}
+
+func newMockSegmentReader(ctrl *gomock.Controller, termValues map[string]terms) *segment.MockReader {
+	fields := make([]iterpoint, 0, len(termValues))
+	for field, terms := range termValues {
 		fields = append(fields, iterpoint{
-			value: k,
+			value:    field,
+			postings: terms.postings,
 		})
 	}
 	sort.Slice(fields, func(i, j int) bool {
@@ -287,12 +332,15 @@ func newMockSegmentReader(ctrl *gomock.Controller, tagValues map[string][]string
 	r.EXPECT().FieldsPostingsList().Return(fieldsPostingsListIterator, nil).AnyTimes()
 
 	for _, f := range fields {
-		termValues := tagValues[f.value]
-		sort.Strings(termValues)
+		termValues := termValues[f.value].values
+		sort.Slice(termValues, func(i, j int) bool {
+			return termValues[i].value < termValues[j].value
+		})
 		terms := make([]iterpoint, 0, len(termValues))
 		for _, t := range termValues {
 			terms = append(terms, iterpoint{
-				value: t,
+				value:    t.value,
+				postings: t.postings,
 			})
 		}
 		termIterator := &stubTermIterator{points: terms}
@@ -317,7 +365,7 @@ func (s *stubFieldsPostingsListIterator) Next() bool {
 }
 
 func (s *stubFieldsPostingsListIterator) Current() ([]byte, postings.List) {
-	return []byte(s.current.value), nil
+	return []byte(s.current.value), s.current.postings
 }
 
 func (s *stubFieldsPostingsListIterator) Err() error {
@@ -351,7 +399,7 @@ func (s *stubTermIterator) Next() bool {
 }
 
 func (s *stubTermIterator) Current() ([]byte, postings.List) {
-	return []byte(s.current.value), nil
+	return []byte(s.current.value), s.current.postings
 }
 
 func (s *stubTermIterator) Err() error {
@@ -405,8 +453,9 @@ func (s *stubFieldIterator) Close() error {
 }
 
 type iterpoint struct {
-	err   error
-	value string
+	err      error
+	value    string
+	postings postings.List
 }
 
 type pair struct {
@@ -475,6 +524,7 @@ func toSlice(t *testing.T, iter fieldsAndTermsIterator) []pair {
 			Value: string(v),
 		})
 	}
+	require.NoError(t, iter.Err())
 	return pairs
 }
 
