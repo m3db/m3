@@ -31,6 +31,7 @@ type fstTermsIterOpts struct {
 	seg         *fsSegment
 	fst         *vellum.FST
 	finalizeFST bool
+	fieldsFST   bool
 }
 
 func (o fstTermsIterOpts) Close() error {
