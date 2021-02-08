@@ -399,7 +399,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 	_, err = b.Query(context.NewContext(), cancellable,
 		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
-	require.Equal(t, errCancelledQuery, err)
+	require.Equal(t, ErrCancelledQuery, err)
 }
 
 func TestBlockQueryExecutorError(t *testing.T) {

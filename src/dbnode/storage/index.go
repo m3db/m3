@@ -1511,9 +1511,10 @@ func (i *nsIndex) query(
 }
 
 type monitorResult struct {
-	success bool
+	// the query completed before being canceled or a timeout, not necessarily successfully.
+	completed      bool
 	parentCanceled bool
-	timeout bool
+	timeout        bool
 }
 
 func (i *nsIndex) queryWithSpan(
@@ -1594,7 +1595,7 @@ func (i *nsIndex) queryWithSpan(
 			}
 			select {
 			case <-queryDoneCh:
-				monitor = monitorResult{success: true}
+				monitor = monitorResult{completed: true}
 			case <-stdCtx.Done():
 				monitor = monitorResult{parentCanceled: true}
 			case <-ticker.C:
@@ -1662,7 +1663,7 @@ func (i *nsIndex) queryWithSpan(
 	if !(timeout > 0) {
 		// No timeout, just blockingly wait.
 		wg.Wait()
-		monitor = monitorResult{success: true}
+		monitor = monitorResult{completed: true}
 	} else {
 		// wait for the goroutine monitor to return success or timeout.
 		monitor = <-monitorCh
@@ -1676,8 +1677,9 @@ func (i *nsIndex) queryWithSpan(
 	err = state.multiErr.FinalError()
 	state.Unlock()
 
-	if err != nil {
+	if err != nil && err != index.ErrCancelledQuery {
 		// an unexpected error occurred processing the query, bail without updating timing metrics.
+		// if the err ir ErrCancelledQuery, the monitor will report a timeout.
 		return false, err
 	}
 
