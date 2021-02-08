@@ -1076,8 +1076,8 @@ type aggregationValue struct {
 type aggregationValues []aggregationValue
 
 func (vals aggregationValues) index(k aggregationKey) int {
-	for i, val := range vals {
-		if val.key.Equal(k) {
+	for i := range vals {
+		if vals[i].key.Equal(k) {
 			return i
 		}
 	}
