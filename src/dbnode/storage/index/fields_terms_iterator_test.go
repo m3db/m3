@@ -532,7 +532,7 @@ func toSlice(iter fieldsAndTermsIterator) ([]pair, error) {
 			Value: string(v),
 		})
 	}
-	return pairs, nil
+	return pairs, iter.Err()
 }
 
 func requireSlicesEqual(t *testing.T, a, b []pair) {
