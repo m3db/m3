@@ -378,6 +378,10 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNamespaceIndexQueryTimeout(t *testing.T) {
+	
+}
+
 func verifyFlushForShards(
 	t *testing.T,
 	ctrl *gomock.Controller,

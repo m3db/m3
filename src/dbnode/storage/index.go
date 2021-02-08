@@ -22,6 +22,7 @@ package storage
 
 import (
 	"bytes"
+	stdctx "context"
 	"errors"
 	"fmt"
 	"math"
@@ -1509,6 +1510,12 @@ func (i *nsIndex) query(
 	return exhaustive, nil
 }
 
+type monitorResult struct {
+	success bool
+	parentCanceled bool
+	timeout bool
+}
+
 func (i *nsIndex) queryWithSpan(
 	ctx context.Context,
 	query index.Query,
@@ -1556,17 +1563,51 @@ func (i *nsIndex) queryWithSpan(
 		state = asyncQueryExecState{
 			exhaustive: true,
 		}
-		deadline = start.Add(timeout)
-		wg       sync.WaitGroup
+		deadline               = start.Add(timeout)
+		wg                     sync.WaitGroup
+		queryDoneCh            = make(chan struct{})
+		monitorCh              = make(chan monitorResult)
+		totalWaitTime          time.Duration
+		indexMatchingStartTime = time.Now()
 	)
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
 	// no child async task modifies the result after this method returns.
 	cancellable := xresource.NewCancellableLifetime()
+	// always cancel to cleanup. this might be a no-op if it was already canceled by the background goroutine.
 	defer cancellable.Cancel()
 
-	indexMatchingStartTime := time.Now()
-	var totalWaitTime time.Duration
+	if timeout > 0 {
+		// launch a goroutine to watch for query completion.
+		go func() {
+			wg.Wait()
+			close(queryDoneCh)
+		}()
+		// launch a goroutine to monitor the timeout and caller cancellation. if canceled early, propagate the
+		// cancellation to the worker so it can give up the worker resource that others are waiting for.
+		go func() {
+			var monitor monitorResult
+			ticker := time.NewTicker(timeout)
+			stdCtx, ctxFound := ctx.GoContext()
+			if !ctxFound {
+				stdCtx = stdctx.Background()
+			}
+			select {
+			case <-queryDoneCh:
+				monitor = monitorResult{success: true}
+			case <-stdCtx.Done():
+				monitor = monitorResult{parentCanceled: true}
+			case <-ticker.C:
+				monitor = monitorResult{timeout: true}
+			}
+			// Make sure to always free the timer/ticker so they don't sit around.
+			ticker.Stop()
+			// Cancel the current execution to interrupt the current worker if there is a timeout. Safe to always
+			// cancel since a successful query doesn't check the canceled state anymore.
+			cancellable.Cancel()
+			monitorCh <- monitor
+		}()
+	}
 
 	for _, block := range blocks {
 		// Capture block for async query execution below.
@@ -1590,74 +1631,41 @@ func (i *nsIndex) queryWithSpan(
 			break
 		}
 
-		if applyTimeout := timeout > 0; !applyTimeout {
+		wg.Add(1)
+		var scheduleResult xsync.ScheduleResult
+		if timeout <= 0 {
 			// No timeout, just wait blockingly for a worker.
-			wg.Add(1)
-			scheduleResult := i.queryWorkersPool.GoInstrument(func() {
+			scheduleResult = i.queryWorkersPool.GoInstrument(func() {
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
-				wg.Done()
 			})
-			totalWaitTime += scheduleResult.WaitTime
-			continue
-		}
-
-		// Need to apply timeout to the blocking wait call for a worker.
-		var timedOut bool
-		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
-			wg.Add(1)
-			scheduleResult := i.queryWorkersPool.GoWithTimeoutInstrument(func() {
+		} else if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
+			// Need to apply timeout to the blocking wait call for a worker.
+			scheduleResult = i.queryWorkersPool.GoWithTimeoutInstrument(func() {
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
-				wg.Done()
 			}, timeLeft)
-			totalWaitTime += scheduleResult.WaitTime
-			timedOut = !scheduleResult.Available
-
-			if timedOut {
-				// Did not launch task, need to ensure don't wait for it.
-				wg.Done()
-			}
 		} else {
-			timedOut = true
+			scheduleResult = xsync.ScheduleResult{Available: false, WaitTime: 0}
 		}
+		totalWaitTime += scheduleResult.WaitTime
 
-		if timedOut {
-			// Exceeded our deadline waiting for this block's query to start.
-			return false, fmt.Errorf("index query timed out: %s", timeout.String())
+		if scheduleResult.Available {
+			wg.Done()
+		} else {
+			// timeout waiting for a worker. break and wait below for the background monitor to return the timeout.
+			// the wg is not marked Done to ensure the monitor reports a timeout.
+			break
 		}
 	}
 
 	// Wait for queries to finish.
+	var monitor monitorResult
 	if !(timeout > 0) {
 		// No timeout, just blockingly wait.
 		wg.Wait()
+		monitor = monitorResult{success: true}
 	} else {
-		// Need to abort early if timeout hit.
-		timeLeft := deadline.Sub(i.nowFn())
-		if timeLeft <= 0 {
-			return false, fmt.Errorf("index query timed out: %s", timeout.String())
-		}
-
-		var (
-			ticker  = time.NewTicker(timeLeft)
-			doneCh  = make(chan struct{})
-			aborted bool
-		)
-		go func() {
-			wg.Wait()
-			close(doneCh)
-		}()
-		select {
-		case <-ticker.C:
-			aborted = true
-		case <-doneCh:
-		}
-
-		// Make sure to always free the timer/ticker so they don't sit around.
-		ticker.Stop()
-
-		if aborted {
-			return false, fmt.Errorf("index query timed out: %s", timeout.String())
-		}
+		// wait for the goroutine monitor to return success or timeout.
+		monitor = <-monitorCh
 	}
 
 	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.TotalDocsCount()))
@@ -1669,9 +1677,16 @@ func (i *nsIndex) queryWithSpan(
 	state.Unlock()
 
 	if err != nil {
+		// an unexpected error occurred processing the query, bail without updating timing metrics.
 		return false, err
 	}
 
+	if monitor.parentCanceled {
+		// caller canceled early, don't update the timing metrics since they will be misleading.
+		return false, fmt.Errorf("index query canceled by caller: %s", timeout.String())
+	}
+
+	// update timing metrics even if the query was canceled due to a timeout
 	queryRuntime := time.Since(indexMatchingStartTime)
 	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
 
@@ -1683,6 +1698,10 @@ func (i *nsIndex) queryWithSpan(
 	i.metrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
 	i.metrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
 	i.metrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
+
+	if monitor.timeout {
+		return false, fmt.Errorf("index query timed out: %s", timeout.String())
+	}
 
 	return exhaustive, nil
 }
