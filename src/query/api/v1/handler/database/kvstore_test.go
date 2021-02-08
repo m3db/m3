@@ -89,6 +89,11 @@ func TestUpdateQueryLimits(t *testing.T) {
 					LookbackSeconds: 15,
 					ForceExceeded:   true,
 				},
+				MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
 			},
 			commit: true,
 		},
@@ -101,6 +106,11 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 				MaxRecentlyQueriedSeriesDiskBytesRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
 					Limit:           1,
 					LookbackSeconds: 15,
 					ForceExceeded:   true,
@@ -143,11 +153,17 @@ func TestUpdateQueryLimits(t *testing.T) {
 				LookbackSeconds: 30,
 				ForceExceeded:   false,
 			},
+			MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
+				Limit:           100,
+				LookbackSeconds: 300,
+				ForceExceeded:   false,
+			},
 		}
 		mockVal := kv.NewMockValue(ctrl)
 		storeMock.EXPECT().Get(kvconfig.QueryLimits).Return(mockVal, nil)
 		mockVal.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v *kvpb.QueryLimits) error {
 			v.MaxRecentlyQueriedSeriesBlocks = oldLimits.MaxRecentlyQueriedSeriesBlocks
+			v.MaxRecentlyQueriedSeriesDiskRead = oldLimits.MaxRecentlyQueriedSeriesDiskRead
 			return nil
 		})
 		if test.commit {
@@ -165,6 +181,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 		require.Equal(t, kvconfig.QueryLimits, r.Key)
 		require.Equal(t, *oldLimits.MaxRecentlyQueriedSeriesBlocks, *oldResult.MaxRecentlyQueriedSeriesBlocks)
 		require.Nil(t, oldResult.MaxRecentlyQueriedSeriesDiskBytesRead)
+		require.Equal(t, *oldLimits.MaxRecentlyQueriedSeriesDiskRead, *oldResult.MaxRecentlyQueriedSeriesDiskRead)
 		require.Equal(t, json.RawMessage(limitJSON), r.New)
 		require.Equal(t, 0, r.Version)
 	}
