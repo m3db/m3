@@ -41,6 +41,7 @@ const (
 type queryLimits struct {
 	docsLimit           *lookbackLimit
 	bytesReadLimit      *lookbackLimit
+	seriesDiskReadLimit *lookbackLimit
 }
 
 type lookbackLimit struct {
@@ -89,17 +90,21 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 		iOpts                   = options.InstrumentOptions()
 		docsLimitOpts           = options.DocsLimitOpts()
 		bytesReadLimitOpts      = options.BytesReadLimitOpts()
+		diskSeriesReadLimitOpts = options.DiskSeriesReadLimitOpts()
 		sourceLoggerBuilder     = options.SourceLoggerBuilder()
 
 		docsLimit = newLookbackLimit(
 			iOpts, docsLimitOpts, "docs-matched", sourceLoggerBuilder)
 		bytesReadLimit = newLookbackLimit(
 			iOpts, bytesReadLimitOpts, "disk-bytes-read", sourceLoggerBuilder)
+		seriesDiskReadLimit = newLookbackLimit(
+			iOpts, diskSeriesReadLimitOpts, "disk-series-read", sourceLoggerBuilder)
 	)
 
 	return &queryLimits{
 		docsLimit:           docsLimit,
 		bytesReadLimit:      bytesReadLimit,
+		seriesDiskReadLimit: seriesDiskReadLimit,
 	}, nil
 }
 
@@ -152,10 +157,15 @@ func (q *queryLimits) BytesReadLimit() LookbackLimit {
 	return q.bytesReadLimit
 }
 
+func (q *queryLimits) DiskSeriesReadLimit() LookbackLimit {
+	return q.seriesDiskReadLimit
+}
+
 func (q *queryLimits) Start() {
 	// Lock on explicit start to avoid any collision with asynchronous updating
 	// which will call stop/start if the lookback has changed.
 	q.docsLimit.startWithLock()
+	q.seriesDiskReadLimit.startWithLock()
 	q.bytesReadLimit.startWithLock()
 }
 
@@ -163,11 +173,15 @@ func (q *queryLimits) Stop() {
 	// Lock on explicit stop to avoid any collision with asynchronous updating
 	// which will call stop/start if the lookback has changed.
 	q.docsLimit.stopWithLock()
+	q.seriesDiskReadLimit.stopWithLock()
 	q.bytesReadLimit.stopWithLock()
 }
 
 func (q *queryLimits) AnyExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
+		return err
+	}
+	if err := q.seriesDiskReadLimit.exceeded(); err != nil {
 		return err
 	}
 	return q.bytesReadLimit.exceeded()

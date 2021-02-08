@@ -846,6 +846,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		fetchStart:      startTime,
 		dataReadMetrics: s.metrics.queryTimingDataRead,
 		totalMetrics:    s.metrics.queryTimingFetchTagged,
+		blocksReadLimit: s.queryLimits.DiskSeriesReadLimit(),
 	}), nil
 }
 
@@ -903,6 +904,7 @@ type fetchTaggedResultsIterOpts struct {
 	totalDocsCount  int
 	dataReadMetrics index.QueryMetrics
 	totalMetrics    index.QueryMetrics
+	blocksReadLimit limits.LookbackLimit
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
@@ -964,6 +966,10 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 			for blockIter.Next(ctx) {
 				curr := blockIter.Current()
 				blockReaders = append(blockReaders, curr)
+				if err := i.blocksReadLimit.Inc(len(blockReaders), nil); err != nil {
+					i.err = err
+					return false
+				}
 			}
 			if blockIter.Err() != nil {
 				i.err = blockIter.Err()
