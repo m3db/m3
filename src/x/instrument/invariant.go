@@ -60,6 +60,7 @@ func EmitInvariantViolation(opts Options) {
 	// NB(prateek): there's no need to cache this metric. It should be never
 	// be called in production systems unless something is seriously messed
 	// up. At which point, the extra map alloc should be of no concern.
+	// TODO: Require a "name" tag here to add to the metric with "error_type".
 	opts.MetricsScope().Counter(InvariantViolatedMetricName).Inc(1)
 
 	panicIfEnvSet()

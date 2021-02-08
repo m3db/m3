@@ -859,7 +859,8 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
-			s.logger.Error("purgeExpiredSeries encountered invalid series read/write count",
+			instrument.EmitInvariantViolation(s.opts.InstrumentOptions())
+			s.logger.Debug("purgeExpiredSeries encountered invalid series read/write count",
 				zap.String("series", series.ID().String()),
 				zap.Int32("readerWriterCount", count))
 			continue
