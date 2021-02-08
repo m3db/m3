@@ -23,10 +23,12 @@ package index
 import (
 	"bytes"
 	"fmt"
-	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -35,11 +37,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/util"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -316,10 +316,10 @@ type term struct {
 
 func newMockSegmentReader(ctrl *gomock.Controller, termValues map[string]terms) *segment.MockReader {
 	fields := make([]iterpoint, 0, len(termValues))
-	for field, terms := range termValues {
+	for field := range termValues {
 		fields = append(fields, iterpoint{
 			value:    field,
-			postings: terms.postings,
+			postings: termValues[field].postings,
 		})
 	}
 	sort.Slice(fields, func(i, j int) bool {

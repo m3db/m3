@@ -23,11 +23,12 @@ package index
 import (
 	"errors"
 
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
 var (
