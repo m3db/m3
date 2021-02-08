@@ -1567,7 +1567,6 @@ func (i *nsIndex) queryWithSpan(
 
 	indexMatchingStartTime := time.Now()
 	var totalWaitTime time.Duration
-	var waitTimeLock sync.Mutex
 
 	for _, block := range blocks {
 		// Capture block for async query execution below.
@@ -1594,14 +1593,11 @@ func (i *nsIndex) queryWithSpan(
 		if applyTimeout := timeout > 0; !applyTimeout {
 			// No timeout, just wait blockingly for a worker.
 			wg.Add(1)
-			enqueueTime := time.Now()
-			i.queryWorkersPool.Go(func() {
-				waitTimeLock.Lock()
-				totalWaitTime += time.Since(enqueueTime)
-				waitTimeLock.Unlock()
+			scheduleResult := i.queryWorkersPool.GoInstrument(func() {
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			})
+			totalWaitTime += scheduleResult.WaitTime
 			continue
 		}
 
@@ -1609,14 +1605,12 @@ func (i *nsIndex) queryWithSpan(
 		var timedOut bool
 		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
 			wg.Add(1)
-			enqueueTime := time.Now()
-			timedOut := !i.queryWorkersPool.GoWithTimeout(func() {
-				waitTimeLock.Lock()
-				totalWaitTime += time.Since(enqueueTime)
-				waitTimeLock.Unlock()
+			schedulResult := i.queryWorkersPool.GoWithTimeoutInstrument(func() {
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			}, timeLeft)
+			totalWaitTime += schedulResult.WaitTime
+			timedOut = !schedulResult.Available
 
 			if timedOut {
 				// Did not launch task, need to ensure don't wait for it.
