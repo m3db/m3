@@ -1569,7 +1569,6 @@ func (i *nsIndex) queryWithSpan(
 		queryDoneCh            = make(chan struct{})
 		monitorCh              = make(chan monitorResult)
 		totalWaitTime          time.Duration
-		indexMatchingStartTime = time.Now()
 	)
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
@@ -1689,7 +1688,7 @@ func (i *nsIndex) queryWithSpan(
 	}
 
 	// update timing metrics even if the query was canceled due to a timeout
-	queryRuntime := time.Since(indexMatchingStartTime)
+	queryRuntime := time.Since(start)
 	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
 
 	i.metrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
