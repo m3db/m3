@@ -35,6 +35,8 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	xtest "github.com/m3db/m3/src/x/test"
 )
@@ -62,7 +64,8 @@ func TestFieldsTermsIteratorPropertyTest(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			observed := toSlice(t, iter)
+			observed, err := toSlice(iter)
+			require.NoError(t, err)
 			requireSlicesEqual(t, expected, observed)
 			return true, nil
 		},
@@ -97,7 +100,7 @@ func TestFieldsTermsIteratorPropertyTestNoPanic(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			toSlice(t, iter)
+			_, _ = toSlice(iter)
 			return true, nil
 		},
 		genIterableSegment(ctrl),
@@ -149,9 +152,9 @@ func genIterableSegment(ctrl *gomock.Controller) gopter.Gen {
 
 			r := segment.NewMockReader(ctrl)
 
-			fieldIterator := &stubFieldIterator{points: fields}
+			fieldsPostingsListIterator := &stubFieldsPostingsListIterator{points: fields}
 
-			r.EXPECT().Fields().Return(fieldIterator, nil).AnyTimes()
+			r.EXPECT().FieldsPostingsList().Return(fieldsPostingsListIterator, nil).AnyTimes()
 
 			for f, values := range tagValues {
 				sort.Slice(values, func(i, j int) bool {

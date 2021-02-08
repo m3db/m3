@@ -312,6 +312,35 @@ func TestPostingsListEqualForMatchField(t *testing.T) {
 		})
 	}
 }
+
+func TestPostingsListEqualForMatchFieldWithFieldsPostingsList(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			for _, tc := range newTestCases(t, test.docs) {
+				tc := tc
+				t.Run(tc.name, func(t *testing.T) {
+					expSeg, obsSeg := tc.expected, tc.observed
+					expReader, err := expSeg.Reader()
+					require.NoError(t, err)
+					obsReader, err := obsSeg.Reader()
+					require.NoError(t, err)
+
+					obsFieldsPostingsIter, err := obsReader.FieldsPostingsList()
+					require.NoError(t, err)
+
+					for obsFieldsPostingsIter.Next() {
+						f, obsPl := obsFieldsPostingsIter.Current()
+						expPl, err := expReader.MatchField(f)
+						require.NoError(t, err)
+						require.True(t, expPl.Equal(obsPl),
+							fmt.Sprintf("field[%s] - [%v] != [%v]", string(f), pprintIter(expPl), pprintIter(obsPl)))
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestPostingsListEqualForMatchTerm(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
@@ -326,6 +355,38 @@ func TestPostingsListEqualForMatchTerm(t *testing.T) {
 			memFields := toSlice(t, memFieldsIter)
 
 			for _, f := range memFields {
+				memTermsIter, err := memSeg.Terms(f)
+				require.NoError(t, err)
+				memTerms := toTermPostings(t, memTermsIter)
+
+				for term := range memTerms {
+					memPl, err := memReader.MatchTerm(f, []byte(term))
+					require.NoError(t, err)
+					fstPl, err := fstReader.MatchTerm(f, []byte(term))
+					require.NoError(t, err)
+					require.True(t, memPl.Equal(fstPl),
+						fmt.Sprintf("%s:%s - [%v] != [%v]", string(f), term, pprintIter(memPl), pprintIter(fstPl)))
+				}
+			}
+		})
+	}
+}
+
+func TestPostingsListEqualForMatchTermWithFieldsPostingsList(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+			memReader, err := memSeg.Reader()
+			require.NoError(t, err)
+			fstReader, err := fstSeg.Reader()
+			require.NoError(t, err)
+
+			fstFieldsPostingsIter, err := fstReader.FieldsPostingsList()
+			require.NoError(t, err)
+
+			for fstFieldsPostingsIter.Next() {
+				f, _ := fstFieldsPostingsIter.Current()
+
 				memTermsIter, err := memSeg.Terms(f)
 				require.NoError(t, err)
 				memTerms := toTermPostings(t, memTermsIter)
