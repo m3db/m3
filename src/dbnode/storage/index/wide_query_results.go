@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -59,7 +60,8 @@ type wideResults struct {
 	// document is discovered whose shard exceeds the last shard this results
 	// is responsible for, using the fact that incoming documents are sorted by
 	// shard then by ID.
-	pastLastShard bool
+	pastLastShard  bool
+	resultDuration ResultDurations
 }
 
 // NewWideQueryResults returns a new wide query results object.
@@ -88,6 +90,24 @@ func NewWideQueryResults(
 	}
 
 	return results
+}
+
+func (r *wideResults) TotalDuration() ResultDurations {
+	r.RLock()
+	defer r.RUnlock()
+	return r.resultDuration
+}
+
+func (r *wideResults) AddBlockProcessingDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddProcessing(duration)
+}
+
+func (r *wideResults) AddBlockSearchDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddSearch(duration)
 }
 
 func (r *wideResults) EnforceLimits() bool {
