@@ -23,6 +23,7 @@ package index
 import (
 	stdlibctx "context"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -371,8 +373,10 @@ func TestBlockQueryAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -390,8 +394,10 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 	cancellable := xresource.NewCancellableLifetime()
 	cancellable.Cancel()
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), cancellable,
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 	require.Equal(t, errCancelledQuery, err)
 }
@@ -410,8 +416,10 @@ func TestBlockQueryExecutorError(t *testing.T) {
 		return nil, fmt.Errorf("random-err")
 	}
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -433,8 +441,10 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	randErr := fmt.Errorf("random-err")
 	seg.EXPECT().Reader().Return(nil, randErr)
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -473,8 +483,10 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	randErr := fmt.Errorf("random-err")
 	seg3.EXPECT().Reader().Return(nil, randErr)
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -500,8 +512,10 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 		exec.EXPECT().Execute(gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
 		exec.EXPECT().Close(),
 	)
+
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -523,7 +537,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -564,7 +578,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -572,6 +586,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 1
@@ -617,7 +632,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(false),
@@ -656,7 +671,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -664,6 +679,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 1
@@ -709,7 +725,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -717,6 +733,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 2
@@ -762,7 +779,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -770,6 +787,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	docsLimit := 1
@@ -813,7 +831,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -821,6 +839,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	docsLimit := 2
@@ -875,12 +894,13 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 
@@ -929,7 +949,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -939,6 +959,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 
@@ -1949,8 +1970,7 @@ func TestBlockAggregate(t *testing.T) {
 	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 
 	snap := scope.Snapshot()
-	tallytest.AssertCounterValue(t, 4, snap, "query-limit.total-docs-matched", nil)
-	tallytest.AssertCounterValue(t, 8, snap, "aggregate-added-counter", nil)
+	tallytest.AssertCounterValue(t, 3, snap, "query-limit.total-docs-matched", nil)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -2258,5 +2278,199 @@ func testDoc3() doc.Metadata {
 				Value: []byte("other"),
 			},
 		},
+	}
+}
+
+func optionsWithAggResultsPool(capacity int) Options {
+	pool := NewAggregateResultsEntryArrayPool(
+		AggregateResultsEntryArrayPoolOpts{
+			Capacity: capacity,
+		},
+	)
+
+	pool.Init()
+	return testOpts.SetAggregateResultsEntryArrayPool(pool)
+}
+
+func buildSegment(t *testing.T, term string, fields []string, opts mem.Options) *readableSeg {
+	seg, err := mem.NewSegment(opts)
+	require.NoError(t, err)
+
+	docFields := make([]doc.Field, 0, len(fields))
+	sort.Strings(fields)
+	for _, field := range fields {
+		docFields = append(docFields, doc.Field{Name: []byte(term), Value: []byte(field)})
+	}
+
+	_, err = seg.Insert(doc.Metadata{Fields: docFields})
+	require.NoError(t, err)
+
+	require.NoError(t, seg.Seal())
+	return newReadableSeg(seg, testOpts)
+}
+
+func TestBlockAggregateBatching(t *testing.T) {
+	memOpts := mem.NewOptions()
+
+	var (
+		batchSizeMap      = make(map[string][]string)
+		batchSizeSegments = make([]*readableSeg, 0, defaultQueryDocsBatchSize)
+	)
+
+	for i := 0; i < defaultQueryDocsBatchSize; i++ {
+		fields := make([]string, 0, defaultQueryDocsBatchSize)
+		for j := 0; j < defaultQueryDocsBatchSize; j++ {
+			fields = append(fields, fmt.Sprintf("bar_%d", j))
+		}
+
+		if i == 0 {
+			batchSizeMap["foo"] = fields
+		}
+
+		batchSizeSegments = append(batchSizeSegments, buildSegment(t, "foo", fields, memOpts))
+	}
+
+	tests := []struct {
+		name                string
+		batchSize           int
+		segments            []*readableSeg
+		expectedDocsMatched int64
+		expected            map[string][]string
+	}{
+		{
+			name:      "single term multiple fields duplicated across readers",
+			batchSize: 3,
+			segments: []*readableSeg{
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+			},
+			expectedDocsMatched: 1,
+			expected: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+		},
+		{
+			name:      "multiple term multiple fields",
+			batchSize: 3,
+			segments: []*readableSeg{
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bag", "bat"}, memOpts),
+				buildSegment(t, "qux", []string{"bar", "baz"}, memOpts),
+			},
+			expectedDocsMatched: 2,
+			expected: map[string][]string{
+				"foo": {"bag", "bar", "bat", "baz"},
+				"qux": {"bar", "baz"},
+			},
+		},
+		{
+			name: "term present in first and third reader",
+			// NB: expecting three batches due to the way batches are split (on the
+			// first different term ID in a batch), will look like this:
+			// [{foo [bar baz]} {dog [bar baz]} {qux [bar]}
+			// [{qux [baz]} {qaz [bar baz]} {foo [bar]}]
+			// [{foo [baz]}]
+			batchSize: 3,
+			segments: []*readableSeg{
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "dog", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "qux", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "qaz", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+			},
+			expectedDocsMatched: 7,
+			expected: map[string][]string{
+				"foo": {"bar", "baz"},
+				"dog": {"bar", "baz"},
+				"qux": {"bar", "baz"},
+				"qaz": {"bar", "baz"},
+			},
+		},
+		{
+			name:                "batch size case",
+			batchSize:           defaultQueryDocsBatchSize,
+			segments:            batchSizeSegments,
+			expectedDocsMatched: 1,
+			expected:            batchSizeMap,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope := tally.NewTestScope("", nil)
+			iOpts := instrument.NewOptions().SetMetricsScope(scope)
+			limitOpts := limits.NewOptions().
+				SetInstrumentOptions(iOpts).
+				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+			queryLimits, err := limits.NewQueryLimits((limitOpts))
+			require.NoError(t, err)
+			testOpts = optionsWithAggResultsPool(tt.batchSize).
+				SetInstrumentOptions(iOpts).
+				SetQueryLimits(queryLimits)
+
+			testMD := newTestNSMetadata(t)
+			start := time.Now().Truncate(time.Hour)
+			blk, err := NewBlock(start, testMD, BlockOptions{},
+				namespace.NewRuntimeOptionsManager("foo"), testOpts)
+			require.NoError(t, err)
+
+			b, ok := blk.(*block)
+			require.True(t, ok)
+
+			// NB: wrap existing aggregate results fn to more easily inspect batch size.
+			addAggregateResultsFn := b.addAggregateResultsFn
+			b.addAggregateResultsFn = func(
+				cancellable *xresource.CancellableLifetime,
+				results AggregateResults,
+				batch []AggregateResultsEntry,
+				source []byte,
+			) ([]AggregateResultsEntry, int, int, error) {
+				// NB: since both terms and values count towards the batch size, initialize
+				// this with batch size to account for terms.
+				count := len(batch)
+				for _, entry := range batch {
+					count += len(entry.Terms)
+				}
+
+				require.True(t, count <= tt.batchSize,
+					fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
+
+				return addAggregateResultsFn(cancellable, results, batch, source)
+			}
+
+			b.mutableSegments.foregroundSegments = tt.segments
+			results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+				Type: AggregateTagNamesAndValues,
+			}, testOpts)
+
+			ctx := context.NewContext()
+			defer ctx.BlockingClose()
+
+			exhaustive, err := b.Aggregate(
+				ctx,
+				xresource.NewCancellableLifetime(),
+				QueryOptions{},
+				results,
+				emptyLogFields)
+			require.NoError(t, err)
+			require.True(t, exhaustive)
+
+			snap := scope.Snapshot()
+			tallytest.AssertCounterValue(t, tt.expectedDocsMatched, snap, "query-limit.total-docs-matched", nil)
+			resultsMap := make(map[string][]string, results.Map().Len())
+			for _, res := range results.Map().Iter() {
+				vals := make([]string, 0, res.Value().valuesMap.Len())
+				for _, val := range res.Value().valuesMap.Iter() {
+					vals = append(vals, val.Key().String())
+				}
+
+				sort.Strings(vals)
+				resultsMap[res.Key().String()] = vals
+			}
+
+			assert.Equal(t, tt.expected, resultsMap)
+		})
 	}
 }

@@ -71,8 +71,11 @@ type WorkerPool interface {
 	// Init initializes the pool.
 	Init()
 
-	// Go waits until the next wbyorker becomes available and executes it.
+	// Go waits until the next worker becomes available and executes it.
 	Go(work Work)
+
+	// GoInstrument instruments Go with timing information.
+	GoInstrument(work Work) ScheduleResult
 
 	// GoIfAvailable performs the work inside a worker if one is available and
 	// returns true, or false otherwise.
@@ -82,6 +85,18 @@ type WorkerPool interface {
 	// available, returning true if a worker becomes available, or false
 	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GoWithTimeoutInstrument instruments GoWithTimeout with timing information.
+	GoWithTimeoutInstrument(work Work, timeout time.Duration) ScheduleResult
+}
+
+// ScheduleResult is the result of scheduling a goroutine in the worker pool.
+type ScheduleResult struct {
+	// Available is true if the goroutine was scheduled in the worker pool. False if the request timed out before a
+	// worker became available.
+	Available bool
+	// WaitTime is how long the goroutine had to wait before receiving a worker from the pool or timing out.
+	WaitTime time.Duration
 }
 
 // PooledWorkerPoolOptions is the options for a PooledWorkerPool.

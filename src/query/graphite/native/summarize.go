@@ -177,7 +177,8 @@ func smartSummarize(
 		results[i] = series.RenamedTo(newName)
 	}
 
-	r := ts.NewSeriesList()
+	// Retain whether sort was applied or not and metadata.
+	r := ts.SeriesList(series)
 	r.Values = results
 	return r, nil
 }
@@ -242,7 +243,7 @@ var (
 		specificationFunc: averageSpecificationFunc,
 	}
 	medianFuncInfo = funcInfo{
-		fname:             "median",
+		fname: "median",
 		// median does not have a consolidationFunc
 		specificationFunc: medianSpecificationFunc,
 	}

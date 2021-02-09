@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -39,7 +40,11 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-var _ AdminClient = (*TCPClient)(nil)
+var (
+	_ AdminClient = (*TCPClient)(nil)
+
+	errNilPlacement = errors.New("placement is nil")
+)
 
 // TCPClient sends metrics to M3 Aggregator via over custom TCP protocol.
 type TCPClient struct {
@@ -229,6 +234,9 @@ func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
 		return nil, 0, err
 	}
 	defer onStagedPlacementDoneFn()
+	if stagedPlacement == nil {
+		return nil, 0, errNilPlacement
+	}
 
 	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
 	if err != nil {
@@ -247,6 +255,9 @@ func (c *TCPClient) ActivePlacementVersion() (int, error) {
 		return 0, err
 	}
 	defer onStagedPlacementDoneFn()
+	if stagedPlacement == nil {
+		return 0, errNilPlacement
+	}
 
 	return stagedPlacement.Version(), nil
 }
@@ -273,6 +284,10 @@ func (c *TCPClient) write(
 	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
 		return err
+	}
+	if stagedPlacement == nil {
+		onStagedPlacementDoneFn()
+		return errNilPlacement
 	}
 	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
 	if err != nil {

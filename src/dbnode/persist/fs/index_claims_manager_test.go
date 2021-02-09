@@ -129,7 +129,7 @@ func TestIndexClaimsManagerOutOfRetention(t *testing.T) {
 		md,
 		blockStart,
 	)
-	require.Equal(t, ErrOutOfRetentionClaim, err)
+	require.Equal(t, ErrIndexOutOfRetention, err)
 
 	// Verify that the out of retention entry has been deleted as well.
 	_, ok = mgr.volumeIndexClaims[md.ID().String()][xtime.ToUnixNano(blockStart)]

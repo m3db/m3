@@ -23,6 +23,7 @@ package index
 import (
 	"math"
 	"sync"
+	"time"
 
 	"github.com/uber-go/tally"
 
@@ -48,6 +49,7 @@ type aggregatedResults struct {
 	pool             AggregateResultsPool
 	valuesPool       AggregateValuesPool
 	encodedDocReader docs.EncodedDocumentReader
+	resultDuration   ResultDurations
 
 	iOpts instrument.Options
 }
@@ -143,6 +145,24 @@ func NewAggregateResults(
 	}
 }
 
+func (r *aggregatedResults) TotalDuration() ResultDurations {
+	r.RLock()
+	defer r.RUnlock()
+	return r.resultDuration
+}
+
+func (r *aggregatedResults) AddBlockProcessingDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddProcessing(duration)
+}
+
+func (r *aggregatedResults) AddBlockSearchDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddSearch(duration)
+}
+
 func (r *aggregatedResults) EnforceLimits() bool { return true }
 
 func (r *aggregatedResults) Reset(
@@ -176,6 +196,8 @@ func (r *aggregatedResults) Reset(
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
 	r.size = 0
+
+	r.resultDuration = ResultDurations{}
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -225,9 +247,14 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		}
 	}
 
-	docs := 0
-	numInserts := 0
-	for _, entry := range batch {
+	var (
+		docs       int
+		numInserts int
+		entry      AggregateResultsEntry
+	)
+
+	for idx := 0; idx < len(batch); idx++ {
+		entry = batch[idx]
 		r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 
 		if docs >= remainingDocs || numInserts >= remainingInserts {

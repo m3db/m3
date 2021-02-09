@@ -319,11 +319,11 @@ func (b bootstrapProcess) logFields(
 		zap.Duration("dataRange", dataTimeWindow.End.Sub(dataTimeWindow.Start)),
 	}
 	if namespace.Options().IndexOptions().Enabled() {
-		fields = append(fields, []zapcore.Field{
+		fields = append(fields,
 			zap.Time("indexFrom", indexTimeWindow.Start),
 			zap.Time("indexTo", indexTimeWindow.End),
 			zap.Duration("indexRange", indexTimeWindow.End.Sub(indexTimeWindow.Start)),
-		}...)
+		)
 	}
 	return fields
 }

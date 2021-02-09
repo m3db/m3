@@ -174,7 +174,7 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// WideQuery performs a wide blockwise query that provides batched results
 	// that can exceed query limits.
@@ -395,7 +395,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -509,13 +509,6 @@ type Shard interface {
 	// BootstrapState returns the shards' bootstrap state.
 	BootstrapState() BootstrapState
 
-	// ScanData performs a "full table scan" on the given block,
-	// calling processor function on every entry read.
-	ScanData(
-		blockStart time.Time,
-		processor fs.DataEntryProcessor,
-	) error
-
 	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
 	// on the latest volume of the given block.
 	OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error)
@@ -563,7 +556,7 @@ type databaseShard interface {
 		id ident.ID,
 		start, end time.Time,
 		nsCtx namespace.Context,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// FetchWideEntry retrieves wide entry for an ID for the
 	// block at time start.
@@ -1021,6 +1014,7 @@ type OnColdFlush interface {
 // OnColdFlushNamespace performs work on a per namespace level.
 type OnColdFlushNamespace interface {
 	persist.OnFlushSeries
+	Abort() error
 	Done() error
 }
 

@@ -419,7 +419,6 @@ func LabelMatchersToModelMatcher(
 ) (models.Matchers, error) {
 	matchers := make(models.Matchers, 0, len(lMatchers))
 	for _, m := range lMatchers {
-		// here.
 		matchType, err := promTypeToM3(m.Type)
 		if err != nil {
 			return nil, err
