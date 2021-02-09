@@ -23,7 +23,6 @@ package placement
 import (
 	"errors"
 	"sort"
-	"sync"
 
 	"go.uber.org/atomic"
 
@@ -34,24 +33,23 @@ import (
 var (
 	errNoApplicablePlacement       = errors.New("no applicable placement found")
 	errActiveStagedPlacementClosed = errors.New("active staged placement is closed")
+	errPlacementInvalidType        = errors.New("corrupt placement")
+
+	_noPlacements Placements
 )
 
 type activeStagedPlacement struct {
-	sync.RWMutex
-
-	placements            Placements
-	version               int
+	closed                atomic.Bool
+	expiring              atomic.Int32
 	nowFn                 clock.NowFn
 	onPlacementsAddedFn   OnPlacementsAddedFn
 	onPlacementsRemovedFn OnPlacementsRemovedFn
-
-	expiring atomic.Int32
-	closed   bool
-	doneFn   DoneFn
+	placements            atomic.Value
+	version               int
 }
 
 func newActiveStagedPlacement(
-	placements []Placement,
+	placements Placements,
 	version int,
 	opts ActiveStagedPlacementOptions,
 ) *activeStagedPlacement {
@@ -59,13 +57,12 @@ func newActiveStagedPlacement(
 		opts = NewActiveStagedPlacementOptions()
 	}
 	p := &activeStagedPlacement{
-		placements:            placements,
 		version:               version,
 		nowFn:                 opts.ClockOptions().NowFn(),
 		onPlacementsAddedFn:   opts.OnPlacementsAddedFn(),
 		onPlacementsRemovedFn: opts.OnPlacementsRemovedFn(),
 	}
-	p.doneFn = p.onPlacementDone
+	p.placements.Store(placements)
 
 	if p.onPlacementsAddedFn != nil {
 		p.onPlacementsAddedFn(placements)
@@ -74,27 +71,18 @@ func newActiveStagedPlacement(
 	return p
 }
 
-func (p *activeStagedPlacement) ActivePlacement() (Placement, DoneFn, error) {
-	p.RLock()
-	placement, err := p.activePlacementWithLock(p.nowFn().UnixNano())
-	if err != nil {
-		p.RUnlock()
-		return nil, nil, err
-	}
-	return placement, p.doneFn, nil
-}
-
 func (p *activeStagedPlacement) Close() error {
-	p.Lock()
-	defer p.Unlock()
-
-	if p.closed {
+	if !p.closed.CAS(false, true) {
 		return errActiveStagedPlacementClosed
 	}
 	if p.onPlacementsRemovedFn != nil {
-		p.onPlacementsRemovedFn(p.placements)
+		pl, ok := p.placements.Load().(Placements)
+		if ok {
+			p.onPlacementsRemovedFn(pl)
+		}
 	}
-	p.placements = nil
+	p.placements.Store(_noPlacements)
+
 	return nil
 }
 
@@ -102,18 +90,25 @@ func (p *activeStagedPlacement) Version() int {
 	return p.version
 }
 
-func (p *activeStagedPlacement) onPlacementDone() { p.RUnlock() }
-
-func (p *activeStagedPlacement) activePlacementWithLock(timeNanos int64) (Placement, error) {
-	if p.closed {
+func (p *activeStagedPlacement) ActivePlacement() (Placement, error) {
+	if p.closed.Load() {
 		return nil, errActiveStagedPlacementClosed
 	}
-	idx := p.placements.ActiveIndex(timeNanos)
+
+	// placements themselves are subject to mutability races, but even in historical design, there was no actual
+	// need to enforce it, as long as we ensure callback ordering, and that is still the case.
+	placements, ok := p.placements.Load().(Placements)
+	if !ok {
+		return nil, errPlacementInvalidType
+	}
+
+	idx := placements.ActiveIndex(p.nowFn().UnixNano())
 	if idx < 0 {
 		return nil, errNoApplicablePlacement
 	}
-	placement := p.placements[idx]
-	// If the placement that's in effect is not the first placment, expire the stale ones.
+
+	placement := placements[idx]
+	// If the placement that's in effect is not the first placement, expire the stale ones.
 	if idx > 0 && p.expiring.CAS(0, 1) {
 		go p.expire()
 	}
@@ -123,28 +118,27 @@ func (p *activeStagedPlacement) activePlacementWithLock(timeNanos int64) (Placem
 func (p *activeStagedPlacement) expire() {
 	// NB(xichen): this improves readability at the slight cost of lambda capture
 	// because this code path is triggered very infrequently.
-	cleanup := func() {
-		p.Unlock()
-		p.expiring.Store(0)
-	}
-	p.Lock()
-	defer cleanup()
+	defer p.expiring.Store(0)
 
-	if p.closed {
+	if p.closed.Load() {
 		return
 	}
-	idx := p.placements.ActiveIndex(p.nowFn().UnixNano())
+
+	placements, ok := p.placements.Load().(Placements)
+	if !ok {
+		return
+	}
+
+	idx := placements.ActiveIndex(p.nowFn().UnixNano())
 	if idx <= 0 {
 		return
 	}
+
 	if p.onPlacementsRemovedFn != nil {
-		p.onPlacementsRemovedFn(p.placements[:idx])
+		p.onPlacementsRemovedFn(placements[:idx])
 	}
-	n := copy(p.placements[0:], p.placements[idx:])
-	for i := n; i < len(p.placements); i++ {
-		p.placements[i] = nil
-	}
-	p.placements = p.placements[:n]
+
+	p.placements.Store(placements[idx:])
 }
 
 type stagedPlacement struct {
