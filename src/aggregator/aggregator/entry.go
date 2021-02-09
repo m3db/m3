@@ -1077,7 +1077,7 @@ type aggregationValues []aggregationValue
 
 func (vals aggregationValues) index(k aggregationKey) int {
 	// keep in sync with aggregationKey.Equal()
-	//
+	// this is >2x slower if not inlined manually.
 	for i := range vals {
 		if vals[i].key.aggregationID == k.aggregationID &&
 			vals[i].key.storagePolicy == k.storagePolicy &&
