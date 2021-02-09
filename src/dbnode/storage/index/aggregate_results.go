@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 type aggregatedResults struct {
@@ -43,8 +42,8 @@ type aggregatedResults struct {
 	size           int
 	totalDocsCount int
 
-	idPool    ident.Pool
-	bytesPool pool.CheckedBytesPool
+	reusableID *ident.ReusableBytesID
+	idPool     ident.Pool
 
 	pool             AggregateResultsPool
 	valuesPool       AggregateValuesPool
@@ -64,6 +63,9 @@ type usageMetrics struct {
 
 	totalFields   tally.Counter
 	dedupedFields tally.Counter
+
+	totalBytes   tally.Counter
+	dedupedBytes tally.Counter
 }
 
 func (m *usageMetrics) IncTotal(val int64) {
@@ -101,6 +103,20 @@ func (m *usageMetrics) IncDedupedFields(val int64) {
 	}
 }
 
+func (m *usageMetrics) IncTotalBytes(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
+	if m.totalBytes != nil {
+		m.totalBytes.Inc(val)
+	}
+}
+
+func (m *usageMetrics) IncDedupedBytes(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
+	if m.dedupedBytes != nil {
+		m.dedupedBytes.Inc(val)
+	}
+}
+
 // NewAggregateUsageMetrics builds a new aggregated usage metrics.
 func NewAggregateUsageMetrics(ns ident.ID, iOpts instrument.Options) AggregateUsageMetrics {
 	if ns == nil {
@@ -120,6 +136,8 @@ func NewAggregateUsageMetrics(ns ident.ID, iOpts instrument.Options) AggregateUs
 		dedupedTerms:  buildCounter("deduped-terms"),
 		totalFields:   buildCounter("total-fields"),
 		dedupedFields: buildCounter("deduped-fields"),
+		totalBytes:    buildCounter("total-bytes"),
+		dedupedBytes:  buildCounter("deduped-bytes"),
 	}
 }
 
@@ -139,9 +157,9 @@ func NewAggregateResults(
 		iOpts:         opts.InstrumentOptions(),
 		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:        opts.IdentifierPool(),
-		bytesPool:     opts.CheckedBytesPool(),
 		pool:          opts.AggregateResultsPool(),
 		valuesPool:    opts.AggregateValuesPool(),
+		reusableID:    ident.NewReusableBytesID(),
 	}
 }
 
@@ -228,11 +246,11 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	// NB: already hit doc limit.
 	if remainingDocs <= 0 {
 		for idx := 0; idx < len(batch); idx++ {
-			batch[idx].Field.Finalize()
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(batch[idx].Field)))
 			for _, term := range batch[idx].Terms {
-				r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
-				term.Finalize()
+				r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(term)))
 			}
 		}
 
@@ -256,66 +274,53 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	for idx := 0; idx < len(batch); idx++ {
 		entry = batch[idx]
 		r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
+		r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(entry.Field)))
 
 		if docs >= remainingDocs || numInserts >= remainingInserts {
-			entry.Field.Finalize()
-			for _, term := range entry.Terms {
-				r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
-				term.Finalize()
-			}
-
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
 			r.size += numInserts
 			r.totalDocsCount += docs
 			return r.size, r.totalDocsCount
 		}
 
 		docs++
-		f := entry.Field
-		aggValues, ok := r.resultsMap.Get(f)
+		r.reusableID.Reset(entry.Field)
+		aggValues, ok := r.resultsMap.Get(r.reusableID)
 		if !ok {
 			if remainingInserts > numInserts {
 				r.aggregateOpts.AggregateUsageMetrics.IncDedupedFields(1)
 
 				numInserts++
+				r.aggregateOpts.AggregateUsageMetrics.IncDedupedBytes(int64(len(entry.Field)))
 				aggValues = r.valuesPool.Get()
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
-				r.resultsMap.SetUnsafe(f, aggValues, AggregateResultsMapSetUnsafeOptions{
-					NoCopyKey:     true,
+				r.resultsMap.SetUnsafe(r.reusableID, aggValues, AggregateResultsMapSetUnsafeOptions{
+					NoCopyKey:     false,
 					NoFinalizeKey: false,
 				})
-			} else {
-				// this value exceeds the limit, so should be released to the underling
-				// pool without adding to the map.
-				f.Finalize()
 			}
-		} else {
-			// because we already have a entry for this field, we release the ident back to
-			// the underlying pool.
-			f.Finalize()
 		}
 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(t)))
 			if remainingDocs > docs {
 				docs++
-				if !valuesMap.Contains(t) {
-					// we can avoid the copy because we assume ownership of the passed ident.ID,
-					// but still need to finalize it.
+				r.reusableID.Reset(t)
+				if !valuesMap.Contains(r.reusableID) {
 					if remainingInserts > numInserts {
+						numInserts++
 						r.aggregateOpts.AggregateUsageMetrics.IncDedupedTerms(1)
-						valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
-							NoCopyKey:     true,
+						r.aggregateOpts.AggregateUsageMetrics.IncDedupedBytes(int64(len(t)))
+						valuesMap.SetUnsafe(r.reusableID, struct{}{}, AggregateValuesMapSetUnsafeOptions{
+							NoCopyKey:     false,
 							NoFinalizeKey: false,
 						})
-						numInserts++
-						continue
 					}
 				}
 			}
-
-			t.Finalize()
 		}
 	}
 

@@ -36,13 +36,13 @@ import (
 func entries(entries ...AggregateResultsEntry) []AggregateResultsEntry { return entries }
 
 func genResultsEntry(field string, terms ...string) AggregateResultsEntry {
-	entryTerms := make([]ident.ID, 0, len(terms))
+	entryTerms := make([][]byte, 0, len(terms))
 	for _, term := range terms {
-		entryTerms = append(entryTerms, ident.StringID(term))
+		entryTerms = append(entryTerms, []byte(term))
 	}
 
 	return AggregateResultsEntry{
-		Field: ident.StringID(field),
+		Field: []byte(field),
 		Terms: entryTerms,
 	}
 }
@@ -85,6 +85,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 1, "total-fields": 1, "deduped-fields": 1,
 				"total-terms": 0, "deduped-terms": 0,
+				"total-bytes": 3, "deduped-bytes": 3,
 			},
 		},
 		{
@@ -96,6 +97,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 2, "total-fields": 2, "deduped-fields": 1,
 				"total-terms": 0, "deduped-terms": 0,
+				"total-bytes": 6, "deduped-bytes": 3,
 			},
 		},
 		{
@@ -107,6 +109,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 2, "total-fields": 2, "deduped-fields": 2,
 				"total-terms": 0, "deduped-terms": 0,
+				"total-bytes": 6, "deduped-bytes": 6,
 			},
 		},
 		{
@@ -118,6 +121,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 2, "total-fields": 1, "deduped-fields": 1,
 				"total-terms": 1, "deduped-terms": 1,
+				"total-bytes": 6, "deduped-bytes": 6,
 			},
 		},
 		{
@@ -129,6 +133,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 6, "total-fields": 1, "deduped-fields": 1,
 				"total-terms": 5, "deduped-terms": 3,
+				"total-bytes": 18, "deduped-bytes": 12,
 			},
 		},
 		{
@@ -142,6 +147,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 7, "total-fields": 2, "deduped-fields": 1,
 				"total-terms": 5, "deduped-terms": 3,
+				"total-bytes": 21, "deduped-bytes": 12,
 			},
 		},
 		{
@@ -153,6 +159,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 5, "total-fields": 2, "deduped-fields": 2,
 				"total-terms": 3, "deduped-terms": 3,
+				"total-bytes": 15, "deduped-bytes": 15,
 			},
 		},
 
@@ -166,6 +173,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 5, "total-fields": 1, "deduped-fields": 1,
 				"total-terms": 4, "deduped-terms": 3,
+				"total-bytes": 15, "deduped-bytes": 12,
 			},
 		},
 		{
@@ -178,6 +186,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 5, "total-fields": 1, "deduped-fields": 1,
 				"total-terms": 4, "deduped-terms": 3,
+				"total-bytes": 15, "deduped-bytes": 12,
 			},
 		},
 
@@ -191,6 +200,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 4, "total-fields": 1, "deduped-fields": 1,
 				"total-terms": 3, "deduped-terms": 2,
+				"total-bytes": 12, "deduped-bytes": 9,
 			},
 		},
 		{
@@ -203,6 +213,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 5, "total-fields": 1, "deduped-fields": 1,
 				"total-terms": 4, "deduped-terms": 1,
+				"total-bytes": 15, "deduped-bytes": 6,
 			},
 		},
 		{
@@ -215,6 +226,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 4, "total-fields": 2, "deduped-fields": 2,
 				"total-terms": 2, "deduped-terms": 1,
+				"total-bytes": 12, "deduped-bytes": 9,
 			},
 		},
 		{
@@ -227,6 +239,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 4, "total-fields": 2, "deduped-fields": 2,
 				"total-terms": 2, "deduped-terms": 1,
+				"total-bytes": 12, "deduped-bytes": 9,
 			},
 		},
 		{
@@ -240,6 +253,7 @@ func TestWithLimits(t *testing.T) {
 			exMetrics: map[string]int64{
 				"total": 4, "total-fields": 2, "deduped-fields": 2,
 				"total-terms": 2, "deduped-terms": 1,
+				"total-bytes": 12, "deduped-bytes": 9,
 			},
 		},
 	}
