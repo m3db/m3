@@ -1076,8 +1076,14 @@ type aggregationValue struct {
 type aggregationValues []aggregationValue
 
 func (vals aggregationValues) index(k aggregationKey) int {
+	// keep in sync with aggregationKey.Equal()
+	//
 	for i := range vals {
-		if vals[i].key.Equal(k) {
+		if vals[i].key.aggregationID == k.aggregationID &&
+			vals[i].key.storagePolicy == k.storagePolicy &&
+			vals[i].key.pipeline.Equal(k.pipeline) &&
+			vals[i].key.numForwardedTimes == k.numForwardedTimes &&
+			vals[i].key.idPrefixSuffixType == k.idPrefixSuffixType {
 			return i
 		}
 	}
