@@ -36,8 +36,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
@@ -69,6 +67,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
