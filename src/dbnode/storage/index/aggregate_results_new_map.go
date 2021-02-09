@@ -21,9 +21,7 @@
 package index
 
 import (
-	"bytes"
-
-	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/cespare/xxhash/v2"
 )
@@ -32,21 +30,19 @@ const (
 	defaultInitialAggregatedResultsMapSize = 10
 )
 
-func newAggregateResultsMap(bytesPool pool.BytesPool) *AggregateResultsMap {
+func newAggregateResultsMap(idPool ident.Pool) *AggregateResultsMap {
 	return _AggregateResultsMapAlloc(_AggregateResultsMapOptions{
-		hash: func(k []byte) AggregateResultsMapHash {
-			return AggregateResultsMapHash(xxhash.Sum64(k))
+		hash: func(k ident.ID) AggregateResultsMapHash {
+			return AggregateResultsMapHash(xxhash.Sum64(k.Bytes()))
 		},
-		equals: func(x, y []byte) bool {
-			return bytes.Equal(x, y)
+		equals: func(x, y ident.ID) bool {
+			return x.Equal(y)
 		},
-		copy: func(k []byte) []byte {
-			cloned := bytesPool.Get(len(k))
-			copy(cloned, k)
-			return cloned
+		copy: func(k ident.ID) ident.ID {
+			return idPool.Clone(k)
 		},
-		finalize: func(k []byte) {
-			bytesPool.Put(k)
+		finalize: func(k ident.ID) {
+			k.Finalize()
 		},
 		initialSize: defaultInitialAggregatedResultsMapSize,
 	})

@@ -204,12 +204,12 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 
 		rMap := results.Map()
 		require.Equal(t, 1, rMap.Len())
-		seenIters, found := rMap.Get([]byte("name"))
+		seenIters, found := rMap.Get(ident.StringID("name"))
 		require.True(t, found)
 
 		vMap := seenIters.Map()
 		require.Equal(t, 1, vMap.Len())
-		require.True(t, vMap.Contains([]byte("value")))
+		require.True(t, vMap.Contains(ident.StringID("value")))
 	}
 }
 

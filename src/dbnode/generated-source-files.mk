@@ -13,7 +13,7 @@ genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all genny-list-
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
-genny-map-all:                                       \
+genny-map-all:                                         \
 	genny-map-client-received-blocks                   \
 	genny-map-storage-block-retriever                  \
 	genny-map-storage-bootstrap-namespaces             \
@@ -55,7 +55,7 @@ genny-map-storage-block-retriever:
 # Map generation rule for storage/bootstrap/NamespacesMap
 .PHONY: genny-map-storage-bootstrap-namespaces
 genny-map-storage-bootstrap-namespaces:
-	cd $(m3x_package_path) && make idhashmap-gen                  \
+	cd $(m3x_package_path) && make idhashmap-gen                    \
 		pkg=bootstrap                                               \
 		value_type=Namespace                                        \
 		target_package=$(m3db_package)/src/dbnode/storage/bootstrap \
@@ -69,7 +69,7 @@ genny-map-storage-bootstrap-namespaces:
 # Map generation rule for storage/bootstrap/NamespaceResultsMap
 .PHONY: genny-map-storage-bootstrap-namespace-results
 genny-map-storage-bootstrap-namespace-results:
-	cd $(m3x_package_path) && make idhashmap-gen                  \
+	cd $(m3x_package_path) && make idhashmap-gen                    \
 		pkg=bootstrap                                               \
 		value_type=NamespaceResult                                  \
 		target_package=$(m3db_package)/src/dbnode/storage/bootstrap \
@@ -91,9 +91,9 @@ genny-map-storage-bootstrap-result:
 # Map generation rule for storage package maps (to avoid double build over each other
 # when generating map source files in parallel, run these sequentially)
 .PHONY: genny-map-storage
-genny-map-storage:               \
-	genny-map-storage-shard        \
-	genny-map-storage-dirty-series \
+genny-map-storage:                      \
+	genny-map-storage-shard             \
+	genny-map-storage-dirty-series      \
 
 # Map generation rule for storage/shardMap
 .PHONY: genny-map-storage-shard
@@ -115,7 +115,7 @@ genny-map-storage-namespace-metadata:
 	cd $(m3x_package_path) && make idhashmap-gen                  \
 		pkg=namespace                                               \
 		value_type=Metadata                                         \
-		target_package=$(m3db_package)/src/dbnode/namespace         \
+		target_package=$(m3db_package)/src/dbnode/namespace \
 		rename_type_prefix=metadata                                 \
 		rename_constructor=newMetadataMap                           \
 		rename_constructor_options=metadataMapOptions
@@ -134,7 +134,7 @@ genny-map-storage-repair:
 # Map generation rule for persist/fs
 .PHONY: genny-map-persist-fs
 genny-map-persist-fs:
-	cd $(m3x_package_path) && make idhashmap-gen               \
+	cd $(m3x_package_path) && make idhashmap-gen                 \
 		pkg=fs                                                   \
 		value_type=checked.Bytes                                 \
 		target_package=$(m3db_package)/src/dbnode/persist/fs     \
@@ -149,25 +149,26 @@ genny-map-persist-fs:
 # Map generation rule for storage/index/ResultsMap
 .PHONY: genny-map-storage-index-results
 genny-map-storage-index-results:
-	cd $(m3x_package_path) && make byteshashmap-gen \
-		pkg=index                                     \
-		value_type=doc.Document                       \
-		rename_type_prefix=Results                    \
-		rename_nogen_key=true                         \
-		rename_nogen_value=true                       \
-		target_package=$(m3db_package)/src/dbnode/storage/index
+	cd $(m3x_package_path) && make byteshashmap-gen             \
+		pkg=index                                               \
+		value_type=doc.Document                        \
+		target_package=$(m3db_package)/src/dbnode/storage/index \
+		rename_nogen_key=true                                   \
+		rename_nogen_value=true                                 \
+		rename_type_prefix=Results
 	# Rename generated map file
 	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/results_map_gen.go
 
 # Map generation rule for storage/index/AggregateValuesMap
 .PHONY: genny-map-storage-index-aggregate-values
 genny-map-storage-index-aggregate-values:
-	cd $(m3x_package_path) && make byteshashmap-gen \
-		pkg=index                                     \
-		value_type=struct{}                           \
-		rename_type_prefix=AggregateValues            \
-		rename_nogen_key=true                         \
-		rename_nogen_value=true                       \
+	cd $(m3x_package_path) && make hashmap-gen \
+		pkg=index                                \
+		key_type=ident.ID                        \
+		value_type=struct{}                      \
+		rename_type_prefix=AggregateValues       \
+		rename_nogen_key=true                    \
+		rename_nogen_value=true                  \
 		target_package=$(m3db_package)/src/dbnode/storage/index
 	# Rename generated map file
 	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_values_map_gen.go
@@ -175,10 +176,10 @@ genny-map-storage-index-aggregate-values:
 # Map generation rule for storage/index/AggregateResultsMap
 .PHONY: genny-map-storage-index-aggregation-results
 genny-map-storage-index-aggregation-results: genny-map-storage-index-aggregate-values
-	cd $(m3x_package_path) && make byteshashmap-gen  \
-		pkg=index                                      \
-		value_type=AggregateValues                     \
-		rename_type_prefix=AggregateResults            \
+	cd $(m3x_package_path) && make idhashmap-gen  \
+		pkg=index                                   \
+		value_type=AggregateValues                  \
+		rename_type_prefix=AggregateResults         \
 		target_package=$(m3db_package)/src/dbnode/storage/index
 	# Rename generated map file
 	mv -f $(m3db_package_path)/src/dbnode/storage/index/map_gen.go $(m3db_package_path)/src/dbnode/storage/index/aggregate_results_map_gen.go
@@ -188,7 +189,7 @@ genny-map-storage-index-aggregation-results: genny-map-storage-index-aggregate-v
 # Map generation rule for storage/DirtySeriesMap
 .PHONY: genny-map-storage-dirty-series
 genny-map-storage-dirty-series:
-	cd $(m3x_package_path) && make hashmap-gen          \
+	cd $(m3x_package_path) && make hashmap-gen            \
 		pkg=storage                                       \
 		key_type=idAndBlockStart                          \
 		value_type=*idElement                             \
@@ -299,10 +300,10 @@ genny-list-all:                              \
 .PHONY: genny-list-storage-id
 genny-list-storage-id:
 	cd $(m3x_package_path) && make genny-pooled-elem-list-gen \
-		pkg=storage                                             \
-		value_type=doc.Metadata                                 \
-		rename_type_prefix=id                                   \
-		rename_type_middle=ID                                   \
+		pkg=storage                                           \
+		value_type=doc.Metadata                               \
+		rename_type_prefix=id                                 \
+		rename_type_middle=ID                                 \
 		target_package=github.com/m3db/m3/src/dbnode/storage
 	# Rename generated list file
 	mv -f $(m3db_package_path)/src/dbnode/storage/list_gen.go $(m3db_package_path)/src/dbnode/storage/id_list_gen.go

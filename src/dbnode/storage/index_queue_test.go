@@ -391,12 +391,12 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 
 	rMap := results.Map()
 	require.Equal(t, 1, rMap.Len())
-	seenIters, found := rMap.Get([]byte("name"))
+	seenIters, found := rMap.Get(ident.StringID("name"))
 	require.True(t, found)
 
 	vMap := seenIters.Map()
 	require.Equal(t, 1, vMap.Len())
-	assert.True(t, vMap.Contains([]byte("value")))
+	assert.True(t, vMap.Contains(ident.StringID("value")))
 }
 
 func TestNamespaceIndexInsertWideQuery(t *testing.T) {

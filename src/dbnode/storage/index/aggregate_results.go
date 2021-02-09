@@ -155,7 +155,7 @@ func NewAggregateResults(
 		nsID:          namespaceID,
 		aggregateOpts: aggregateOpts,
 		iOpts:         opts.InstrumentOptions(),
-		resultsMap:    newAggregateResultsMap(opts.CheckedBytesPool().BytesPool()),
+		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:        opts.IdentifierPool(),
 		pool:          opts.AggregateResultsPool(),
 		valuesPool:    opts.AggregateValuesPool(),
