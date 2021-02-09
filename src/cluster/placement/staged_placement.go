@@ -33,8 +33,10 @@ import (
 var (
 	errNoApplicablePlacement       = errors.New("no applicable placement found")
 	errActiveStagedPlacementClosed = errors.New("active staged placement is closed")
-	errPlacementCastError          = errors.New("type assertion failed, corrupt placement")
+	errPlacementInvalidType        = errors.New("type assertion failed, corrupt placement")
 )
+
+var _noPlacements Placements
 
 type activeStagedPlacement struct {
 	placements            atomic.Value
@@ -79,8 +81,8 @@ func (p *activeStagedPlacement) Close() error {
 			p.onPlacementsRemovedFn(pl)
 		}
 	}
-	var pl Placements
-	p.placements.Store(pl) // prevent type assertion failure
+	p.placements.Store(_noPlacements)
+
 	return nil
 }
 
@@ -91,7 +93,7 @@ func (p *activeStagedPlacement) Version() int {
 func (p *activeStagedPlacement) ActivePlacement() (Placement, error) {
 	placements, ok := p.placements.Load().(Placements)
 	if !ok {
-		return nil, errPlacementCastError
+		return nil, errPlacementInvalidType
 	}
 
 	if p.closed.Load() {

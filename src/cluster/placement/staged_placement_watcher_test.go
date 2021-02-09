@@ -54,7 +54,7 @@ func TestStagedPlacementWatcherActiveStagedPlacementNotWatching(t *testing.T) {
 
 func TestStagedPlacementWatcherActiveStagedPlacementSuccess(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.watching.Store(true)
+	require.NoError(t, watcher.Watch())
 	_, err := watcher.ActiveStagedPlacement()
 	require.NoError(t, err)
 }
@@ -69,7 +69,7 @@ func TestStagedPlacementWatcherUnwatchSuccess(t *testing.T) {
 	watcher.watching.Store(true)
 	require.NoError(t, watcher.Unwatch())
 	require.False(t, watcher.watching.Load())
-	require.Nil(t, watcher.placement)
+	require.Nil(t, watcher.placement.Load())
 }
 
 func TestStagedPlacementWatcherToStagedPlacementNotWatching(t *testing.T) {
@@ -127,10 +127,9 @@ func TestStagedPlacementWatcherProcessSuccess(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
 	watcher.watching.Store(true)
 	watcher.nowFn = func() time.Time { return time.Unix(0, 99999) }
-	var mpl ActiveStagedPlacement = &mockPlacement{
+	watcher.placement.Store(plValue{p: &mockPlacement{
 		closeFn: func() error { numCloses++; return nil },
-	}
-	watcher.placement.Store(mpl)
+	}})
 
 	require.NoError(t, watcher.process(pss))
 	require.NotNil(t, watcher.placement)

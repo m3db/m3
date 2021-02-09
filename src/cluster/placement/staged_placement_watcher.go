@@ -22,7 +22,6 @@ package placement
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -41,14 +40,18 @@ var (
 )
 
 type stagedPlacementWatcher struct {
-	runtime.Value
-	mtx sync.Mutex
-
+	mtx           sync.Mutex
+	value         runtime.Value
 	nowFn         clock.NowFn
 	placementOpts ActiveStagedPlacementOptions
+	watching      atomic.Bool
+	placement     atomic.Value
+}
 
-	watching  atomic.Bool
-	placement atomic.Value
+// plValue is a wrapper for type-safe interface storage in atomic.Value,
+// as the concrete type has to be the same for each .Store() call.
+type plValue struct {
+	p ActiveStagedPlacement
 }
 
 // NewStagedPlacementWatcher creates a new staged placement watcher.
@@ -64,7 +67,7 @@ func NewStagedPlacementWatcher(opts StagedPlacementWatcherOptions) StagedPlaceme
 		SetKVStore(opts.StagedPlacementStore()).
 		SetUnmarshalFn(watcher.toStagedPlacement).
 		SetProcessFn(watcher.process)
-	watcher.Value = runtime.NewValue(opts.StagedPlacementKey(), valueOpts)
+	watcher.value = runtime.NewValue(opts.StagedPlacementKey(), valueOpts)
 	return watcher
 }
 
@@ -73,7 +76,7 @@ func (t *stagedPlacementWatcher) Watch() error {
 		return errPlacementWatcherIsWatching
 	}
 
-	return t.Value.Watch()
+	return t.value.Watch()
 }
 
 func (t *stagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacement, error) {
@@ -82,14 +85,13 @@ func (t *stagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacement,
 	}
 
 	pl := t.placement.Load()
-	placement, ok := pl.(ActiveStagedPlacement)
-	fmt.Printf("%+v\n", t)
-	fmt.Printf("%+v\n", t.placement.Load())
+	placement, ok := pl.(plValue)
+
 	if !ok {
 		return nil, errPlacementWatcherCastError
 	}
 
-	return placement, nil
+	return placement.p, nil
 }
 
 func (t *stagedPlacementWatcher) Unwatch() error {
@@ -98,12 +100,12 @@ func (t *stagedPlacementWatcher) Unwatch() error {
 	}
 
 	pl := t.placement.Load()
-	placement, ok := pl.(ActiveStagedPlacement)
-	if ok && placement != nil {
-		placement.Close() //nolint:errcheck
+	placement, ok := pl.(plValue)
+	if ok && placement.p != nil {
+		placement.p.Close() //nolint:errcheck
 	}
 
-	t.Value.Unwatch()
+	t.value.Unwatch()
 	return nil
 }
 
@@ -120,6 +122,7 @@ func (t *stagedPlacementWatcher) toStagedPlacement(value kv.Value) (interface{},
 		return nil, err
 	}
 	version := value.Version()
+
 	return NewStagedPlacementFromProto(version, &proto, t.placementOpts)
 }
 
@@ -134,11 +137,11 @@ func (t *stagedPlacementWatcher) process(value interface{}) error {
 	placement := ps.ActiveStagedPlacement(t.nowFn().UnixNano())
 
 	pl := t.placement.Load()
-	oldPlacement, ok := pl.(ActiveStagedPlacement)
-	if ok && oldPlacement != nil {
-		oldPlacement.Close() //nolint:errcheck
+	oldPlacement, ok := pl.(plValue)
+	if ok && oldPlacement.p != nil {
+		oldPlacement.p.Close() //nolint:errcheck
 	}
 
-	t.placement.Store(placement)
+	t.placement.Store(plValue{p: placement})
 	return nil
 }
