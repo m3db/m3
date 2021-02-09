@@ -556,8 +556,10 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		wg.Wait()
 	}
 
-	r := ts.NewSeriesList()
+	// Retain metadata but we definitely did not retain sort order.
+	r := ts.SeriesList(seriesList)
 	r.Values = output
+	r.SortApplied = false
 	return r, nil
 }
 

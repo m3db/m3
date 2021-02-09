@@ -72,10 +72,10 @@ var (
 // PipelineMetadata contains pipeline metadata.
 type PipelineMetadata struct {
 	// List of aggregation types.
-	AggregationID aggregation.ID `json:"aggregation"`
+	AggregationID aggregation.ID `json:"aggregation,omitempty"`
 
 	// List of storage policies.
-	StoragePolicies policy.StoragePolicies `json:"storagePolicies"`
+	StoragePolicies policy.StoragePolicies `json:"storagePolicies,omitempty"`
 
 	// Pipeline operations.
 	Pipeline applied.Pipeline `json:"-"` // NB: not needed for JSON marshaling for now.
@@ -84,10 +84,10 @@ type PipelineMetadata struct {
 	DropPolicy policy.DropPolicy `json:"dropPolicy,omitempty"`
 
 	// Tags.
-	Tags []models.Tag `json:"tags"`
+	Tags []models.Tag `json:"tags,omitempty"`
 
 	// GraphitePrefix is the list of graphite prefixes to apply.
-	GraphitePrefix [][]byte `json:"graphitePrefix"`
+	GraphitePrefix [][]byte `json:"graphitePrefix,omitempty"`
 }
 
 // Equal returns true if two pipeline metadata are considered equal.
@@ -267,7 +267,7 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 
 // Metadata represents the metadata associated with a metric.
 type Metadata struct {
-	Pipelines PipelineMetadatas `json:"pipelines"`
+	Pipelines PipelineMetadatas `json:"pipelines,omitempty"`
 }
 
 // IsDefault returns whether this is the default metadata.
@@ -370,13 +370,13 @@ func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
 
 // StagedMetadata represents metadata with a staged cutover time.
 type StagedMetadata struct {
-	Metadata `json:"metadata"`
+	Metadata `json:"metadata,omitempty"`
 
 	// Cutover is when the metadata is applicable.
-	CutoverNanos int64 `json:"cutoverNanos"`
+	CutoverNanos int64 `json:"cutoverNanos,omitempty"`
 
 	// Tombstoned determines whether the associated metric has been tombstoned.
-	Tombstoned bool `json:"tombstoned"`
+	Tombstoned bool `json:"tombstoned,omitempty"`
 }
 
 // Equal returns true if two staged metadatas are considered equal.

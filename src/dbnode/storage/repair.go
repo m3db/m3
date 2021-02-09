@@ -791,7 +791,11 @@ func (r shardRepairer) shadowCompare(
 		readCtx.Reset()
 		defer readCtx.BlockingCloseReset()
 
-		unfilteredLocalSeriesDataBlocks, err := shard.ReadEncoded(readCtx, seriesID, start, end, nsCtx)
+		iter, err := shard.ReadEncoded(readCtx, seriesID, start, end, nsCtx)
+		if err != nil {
+			return err
+		}
+		unfilteredLocalSeriesDataBlocks, err := iter.ToSlices(readCtx)
 		if err != nil {
 			return err
 		}

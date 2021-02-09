@@ -262,13 +262,17 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	nsCtx := namespace.Context{}
 
 	// Test fine grained range
-	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	iter, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	assert.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 
 	// Test wide range
-	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	iter, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	assert.NoError(t, err)
+	results, err = iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
@@ -393,7 +397,9 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				ctx := context.NewContext()
 				defer ctx.Close()
 
-				results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				iter, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				require.NoError(t, err)
+				results, err := iter.ToSlices(ctx)
 				require.NoError(t, err)
 
 				var expectedData []DecodedTestValue
@@ -462,10 +468,10 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	defer ctx.Close()
 	nsCtx := namespace.Context{}
 
-	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
+	iter, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
-	assert.Nil(t, results)
+	assert.Nil(t, iter)
 }
 
 func TestSeriesFlushNoBlock(t *testing.T) {
@@ -1187,7 +1193,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	iter, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	require.NoError(t, err)
+	encoded, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
@@ -1271,8 +1279,10 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
+	iter, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
 		curr.Add(time.Minute), namespace.Context{})
+	require.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 	values, err := decodedReaderValues(results, opts, namespace.Context{})
 	require.NoError(t, err)

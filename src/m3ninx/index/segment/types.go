@@ -69,6 +69,7 @@ type Reader interface {
 	index.Reader
 	FieldsIterable
 	TermsIterable
+	FieldsPostingsListIterable
 
 	// ContainsField returns a bool indicating if the Segment contains the provided field.
 	ContainsField(field []byte) (bool, error)

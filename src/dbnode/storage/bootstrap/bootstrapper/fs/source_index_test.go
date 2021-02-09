@@ -26,6 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -37,8 +40,6 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 type testTimesOptions struct {
@@ -465,7 +466,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 
 	// Now write index block segment from first two data blocks
 	testData := testGoodTaggedSeriesDataBlocks()
-	shards := map[uint32]struct{}{testShard: struct{}{}}
+	shards := map[uint32]struct{}{testShard: {}}
 	writeTSDBPersistedIndexBlock(t, dir, testNsMetadata(t), times.start, shards,
 		append(testData[0], testData[1]...))
 
@@ -526,8 +527,53 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 // right now it only builds a partial segment for the second of three index
 // blocks it is trying to build.
 func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
+	tests := []testOptions{
+		{
+			name:                         "now",
+			now:                          time.Now(),
+			expectedInfoFiles:            2,
+			expectedSegmentsFirstBlock:   1,
+			expectedSegmentsSecondBlock:  1,
+			expectedOutOfRetentionBlocks: 0,
+		},
+		{
+			name:                         "now + 4h",
+			now:                          time.Now().Add(time.Hour * 4),
+			expectedInfoFiles:            1,
+			expectedSegmentsFirstBlock:   0,
+			expectedSegmentsSecondBlock:  1,
+			expectedOutOfRetentionBlocks: 1,
+		},
+		{
+			name:                         "now + 8h",
+			now:                          time.Now().Add(time.Hour * 8),
+			expectedInfoFiles:            0,
+			expectedSegmentsFirstBlock:   0,
+			expectedSegmentsSecondBlock:  0,
+			expectedOutOfRetentionBlocks: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t, test)
+		})
+	}
+}
+
+type testOptions struct {
+	name                         string
+	now                          time.Time
+	expectedInfoFiles            int
+	expectedSegmentsFirstBlock   int
+	expectedSegmentsSecondBlock  int
+	expectedOutOfRetentionBlocks int64
+}
+
+func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, test testOptions) {
 	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
+	defer func() {
+		require.NoError(t, os.RemoveAll(dir))
+	}()
 
 	timesOpts := testTimesOptions{
 		numBlocks: 3,
@@ -543,7 +589,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	opts = opts.
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
-	at := time.Now()
+	at := test.now
 	resultOpts := opts.ResultOptions()
 	clockOpts := resultOpts.ClockOptions().
 		SetNowFn(func() time.Time {
@@ -563,13 +609,12 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	retentionPeriod := testBlockSize
 	for {
 		// Make sure that retention is set to end half way through the first block
-		flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, at)
+		flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, time.Now())
 		if flushStart.Before(firstIndexBlockStart.Add(testIndexBlockSize)) {
 			break
 		}
 		retentionPeriod += testBlockSize
 	}
-
 	ropts := testRetentionOptions.
 		SetBlockSize(testBlockSize).
 		SetRetentionPeriod(retentionPeriod)
@@ -598,7 +643,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
 		src.fsopts.InfoReaderBufferSize())
-	require.Equal(t, 2, len(infoFiles))
+	require.Equal(t, test.expectedInfoFiles, len(infoFiles), "index info files")
 
 	for _, infoFile := range infoFiles {
 		require.NoError(t, infoFile.Err.Error())
@@ -629,28 +674,36 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	require.True(t, ok)
 	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
-	require.Equal(t, 1, len(block.Segments()))
-	segment := block.Segments()[0]
-	require.True(t, ok)
-	require.True(t, segment.IsPersisted())
+	require.Equal(t, test.expectedSegmentsFirstBlock, len(block.Segments()), "first block segment count")
+	if len(block.Segments()) > 0 {
+		segment := block.Segments()[0]
+		require.True(t, segment.IsPersisted(), "should be persisted")
+	}
 
 	// Check that the second is not a mutable segment
 	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
 	require.True(t, ok)
 	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
-	require.Equal(t, 1, len(block.Segments()))
-	segment = block.Segments()[0]
-	require.True(t, ok)
-	require.True(t, segment.IsPersisted())
+	require.Equal(t, test.expectedSegmentsSecondBlock, len(block.Segments()), "second block segment count")
+	if len(block.Segments()) > 0 {
+		segment := block.Segments()[0]
+		require.True(t, segment.IsPersisted(), "should be persisted")
+	}
 
 	// Validate results
-	validateGoodTaggedSeries(t, firstIndexBlockStart, indexResults, timesOpts)
+	if test.expectedSegmentsFirstBlock > 0 {
+		validateGoodTaggedSeries(t, firstIndexBlockStart, indexResults, timesOpts)
+	}
 
 	// Validate that wrote the block out (and no index blocks
 	// were read as existing index blocks on disk)
 	counters := scope.Snapshot().Counters()
-	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
-	require.Equal(t, int64(2), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+	require.Equal(t, int64(0),
+		counters["fs-bootstrapper.persist-index-blocks-read+"].Value(), "index blocks read")
+	require.Equal(t, int64(test.expectedInfoFiles),
+		counters["fs-bootstrapper.persist-index-blocks-write+"].Value(), "index blocks")
+	require.Equal(t, test.expectedOutOfRetentionBlocks,
+		counters["fs-bootstrapper.persist-index-blocks-out-of-retention+"].Value(), "out of retention blocks")
 	tester.EnsureNoWrites()
 }
