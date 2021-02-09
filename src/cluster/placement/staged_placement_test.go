@@ -315,7 +315,7 @@ func TestActiveStagedPlacementActivePlacementClosed(t *testing.T) {
 	p.placements.Store(pl)
 	p.closed.Store(true)
 
-	_, err := p.ActivePlacement()
+	err := p.Close()
 	require.Equal(t, errActiveStagedPlacementClosed, err)
 }
 
