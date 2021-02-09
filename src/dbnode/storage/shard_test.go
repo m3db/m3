@@ -1855,14 +1855,11 @@ func TestShardAggregateTiles(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
-		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute}
-
-		firstSourceBlockEntries  = 3
-		secondSourceBlockEntries = 2
-		maxSourceBlockEntries    = 3
+		opts            = AggregateTilesOptions{
+			Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute,
+		}
 
 		expectedProcessedTileCount = int64(4)
 
@@ -1872,44 +1869,8 @@ func TestShardAggregateTiles(t *testing.T) {
 	aggregator := NewMockTileAggregator(ctrl)
 	testOpts := DefaultTestOptions().SetTileAggregator(aggregator)
 
-	sourceShard := testDatabaseShard(t, testOpts)
-	defer assert.NoError(t, sourceShard.Close())
-
-	reader0, volume0 := getMockReader(
-		ctrl, t, sourceShard, start, nil)
-	reader0.EXPECT().Entries().Return(firstSourceBlockEntries)
-
-	secondSourceBlockStart := start.Add(sourceBlockSize)
-	reader1, volume1 := getMockReader(
-		ctrl, t, sourceShard, secondSourceBlockStart, nil)
-	reader1.EXPECT().Entries().Return(secondSourceBlockEntries)
-
-	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
-	reader2, volume2 := getMockReader(
-		ctrl, t, sourceShard, thirdSourceBlockStart, fs.ErrCheckpointFileNotFound)
-
-	blockReaders := []fs.DataFileSetReader{reader0, reader1, reader2}
-	sourceBlockVolumes := []shardBlockVolume{
-		{start, volume0},
-		{secondSourceBlockStart, volume1},
-		{thirdSourceBlockStart, volume2},
-	}
-
 	targetShard := testDatabaseShardWithIndexFn(t, testOpts, nil, true)
 	defer assert.NoError(t, targetShard.Close())
-
-	writer := fs.NewMockStreamingWriter(ctrl)
-	gomock.InOrder(
-		writer.EXPECT().Open(fs.StreamingWriterOpenOptions{
-			NamespaceID:         targetShard.namespace.ID(),
-			ShardID:             targetShard.shard,
-			BlockStart:          opts.Start,
-			BlockSize:           targetBlockSize,
-			VolumeIndex:         1,
-			PlannedRecordsCount: uint(maxSourceBlockEntries),
-		}),
-		writer.EXPECT().Close(),
-	)
 
 	var (
 		noOpColdFlushNs = &persist.NoOpColdFlushNamespace{}
@@ -1917,43 +1878,14 @@ func TestShardAggregateTiles(t *testing.T) {
 		targetNs        = NewMockNamespace(ctrl)
 	)
 
-	sourceNs.EXPECT().ID().Return(sourceShard.namespace.ID())
-
 	aggregator.EXPECT().
-		AggregateTiles(ctx, sourceNs, targetNs, sourceShard.ID(), gomock.Len(2), writer,
-			noOpColdFlushNs, opts).
-		Return(expectedProcessedTileCount, nil)
+		AggregateTiles(ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts).
+		Return(expectedProcessedTileCount, 33, nil)
 
 	processedTileCount, err := targetShard.AggregateTiles(
-		ctx, sourceNs, targetNs, sourceShard.ID(), blockReaders, writer,
-		sourceBlockVolumes, noOpColdFlushNs, opts)
+		ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expectedProcessedTileCount, processedTileCount)
-}
-
-func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
-	defer assert.NoError(t, targetShard.Close())
-
-	var (
-		start              = time.Now()
-		blockReaders       []fs.DataFileSetReader
-		sourceBlockVolumes = []shardBlockVolume{{start, 0}}
-		writer             = fs.NewMockStreamingWriter(ctrl)
-		sourceNs           = NewMockNamespace(ctrl)
-		targetNs           = NewMockNamespace(ctrl)
-	)
-
-	_, err := targetShard.AggregateTiles(
-		ctx, sourceNs, targetNs, 1, blockReaders, writer, sourceBlockVolumes,
-		&persist.NoOpColdFlushNamespace{}, AggregateTilesOptions{})
-	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 
 func TestOpenStreamingReader(t *testing.T) {
