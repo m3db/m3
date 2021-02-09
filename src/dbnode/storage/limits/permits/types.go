@@ -23,12 +23,12 @@ package permits
 
 import "github.com/m3db/m3/src/x/context"
 
-// Managers is the set of permits managers.
-type Managers interface {
+// Options is the permit options.
+type Options interface {
 	// SeriesReadPermitsManager returns the series read permits manager.
 	SeriesReadPermitsManager() Manager
 	// SetSeriesReadPermitsManager sets the series read permits manager.
-	SetSeriesReadPermitsManager(manager Manager) Managers
+	SetSeriesReadPermitsManager(manager Manager) Options
 }
 
 // Manager manages a set of permits.

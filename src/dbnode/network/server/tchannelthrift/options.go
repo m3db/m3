@@ -45,7 +45,7 @@ type options struct {
 	maxOutstandingWriteRequests int
 	maxOutstandingReadRequests  int
 	queryLimits                 limits.QueryLimits
-	permitsManagers             permits.Managers
+	permitsOptions              permits.Options
 }
 
 // NewOptions creates new options.
@@ -88,7 +88,7 @@ func NewOptions() Options {
 		tagDecoderPool:           tagDecoderPool,
 		checkedBytesWrapperPool:  bytesWrapperPool,
 		queryLimits:              limits.NoOpQueryLimits(),
-		permitsManagers:          permits.DefaultManagers(),
+		permitsOptions:           permits.NewOptions(),
 	}
 }
 
@@ -212,12 +212,12 @@ func (o *options) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
 }
 
-func (o *options) SetPermitsManagers(value permits.Managers) Options {
+func (o *options) SetPermitsOptions(value permits.Options) Options {
 	opts := *o
-	opts.permitsManagers = value
+	opts.permitsOptions = value
 	return &opts
 }
 
-func (o *options) PermitsManagers() permits.Managers {
-	return o.permitsManagers
+func (o *options) PermitsOptions() permits.Options {
+	return o.permitsOptions
 }

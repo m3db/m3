@@ -353,7 +353,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
 		queryLimits:              opts.QueryLimits(),
-		seriesReadPermitsManager: opts.PermitsManagers().SeriesReadPermitsManager(),
+		seriesReadPermitsManager: opts.PermitsOptions().SeriesReadPermitsManager(),
 	}
 }
 

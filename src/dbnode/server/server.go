@@ -487,7 +487,7 @@ func Run(runOpts RunOptions) {
 	seriesReadPermitsManager.Start()
 	defer seriesReadPermitsManager.Stop()
 
-	permitsManagers := permits.DefaultManagers().
+	permitsOpts := permits.NewOptions().
 		SetSeriesReadPermitsManager(seriesReadPermitsManager)
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
@@ -723,7 +723,7 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
 		SetQueryLimits(queryLimits).
-		SetPermitsManagers(permitsManagers)
+		SetPermitsOptions(permitsOpts)
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.

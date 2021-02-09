@@ -20,25 +20,25 @@
 
 package permits
 
-type managers struct {
+type options struct {
 	seriesReadManager Manager
 }
 
-// DefaultManagers return a new set of default permit managers.
-func DefaultManagers() Managers {
-	return &managers{
+// NewOptions return a new set of default permit managers.
+func NewOptions() Options {
+	return &options{
 		seriesReadManager: NewNoOpPermitsManager(),
 	}
 }
 
 // SetSeriesReadPermitsManager sets the series read permits manager.
-func (o *managers) SetSeriesReadPermitsManager(value Manager) Managers {
+func (o *options) SetSeriesReadPermitsManager(value Manager) Options {
 	opts := *o
 	opts.seriesReadManager = value
 	return &opts
 }
 
 // SeriesReadPermitsManager returns the series read permits manager.
-func (o *managers) SeriesReadPermitsManager() Manager {
+func (o *options) SeriesReadPermitsManager() Manager {
 	return o.seriesReadManager
 }

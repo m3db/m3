@@ -109,9 +109,9 @@ type Options interface {
 	// SetQueryLimits sets the QueryLimits.
 	SetQueryLimits(value limits.QueryLimits) Options
 
-	// PermitsManagers returns the permits Managers.
-	PermitsManagers() permits.Managers
+	// PermitsOptions returns the permits options.
+	PermitsOptions() permits.Options
 
-	// SetPermitsManagers sets the permits Managers.
-	SetPermitsManagers(value permits.Managers) Options
+	// SetPermitsOptions sets the permits options.
+	SetPermitsOptions(value permits.Options) Options
 }
