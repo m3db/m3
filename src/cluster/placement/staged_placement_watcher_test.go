@@ -21,11 +21,13 @@
 package placement
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/stretchr/testify/require"
 )
@@ -135,6 +137,53 @@ func TestStagedPlacementWatcherProcessSuccess(t *testing.T) {
 	require.NotNil(t, watcher.placement)
 	require.Equal(t, [][]Instance{testActivePlacements[1].Instances()}, allInstances)
 	require.Equal(t, 1, numCloses)
+}
+
+func BenchmarkStagedPlacementWatcherActiveStagedPlacement(b *testing.B) {
+	store := mem.NewStore()
+	_, err := store.SetIfNotExists(testStagedPlacementKey, testStagedPlacementProto)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	watcherOpts := testStagedPlacementWatcherOptions().SetStagedPlacementStore(store)
+	watcher := NewStagedPlacementWatcher(watcherOpts)
+
+	w, ok := watcher.(*stagedPlacementWatcher)
+	if !ok {
+		b.Fatal("type assertion failed")
+	}
+	w.watching.Store(true)
+	w.placement.Store(plValue{p: newActiveStagedPlacement(
+		testActivePlacements,
+		0,
+		NewActiveStagedPlacementOptions().SetClockOptions(
+			clock.NewOptions().SetNowFn(func() time.Time {
+				return time.Unix(0, testActivePlacements[0].CutoverNanos())
+			}),
+		),
+	)})
+
+	var asp Placement
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			pl, err := watcher.ActiveStagedPlacement()
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			curpl, err := pl.ActivePlacement()
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			asp = curpl
+		}
+	})
+
+	runtime.KeepAlive(asp)
 }
 
 func testStagedPlacementWatcher(t *testing.T) (*stagedPlacementWatcher, kv.Store) {
