@@ -23,6 +23,9 @@ package metadata
 import (
 	"runtime"
 	"testing"
+
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 func isDefault(m StagedMetadatas) bool {
@@ -30,11 +33,22 @@ func isDefault(m StagedMetadatas) bool {
 }
 
 func BenchmarkMetadata_IsDefault(b *testing.B) {
-	m := testLargeStagedMetadatas
-	m = append(m, testLargeStagedMetadatas...)
+	m := StagedMetadatas{
+		StagedMetadata{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: Metadata{
+				Pipelines: []PipelineMetadata{
+					{
+						AggregationID:   aggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{},
+					},
+				},
+			},
+		},
+	}
 	for i := 0; i < b.N; i++ {
-		m[0].CutoverNanos = int64(i)
-		if isDefault(m) {
+		if !isDefault(m) {
 			b.Fail()
 		}
 	}
