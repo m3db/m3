@@ -17,30 +17,56 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-syntax = "proto3";
 
-package kvpb;
+package instrument
 
-message KeyValueUpdate {
-	string key = 1;
-	string value = 2;
-	bool commit = 3;
+import (
+	"runtime"
+	"testing"
+	"time"
+
+	"github.com/uber-go/tally"
+)
+
+func BenchmarkSampledTimer(b *testing.B) {
+	tm := MustCreateSampledTimer(tally.NoopScope.Timer("test"), 0.5)
+	benchRecord(b, tm)
+	runtime.KeepAlive(tm)
 }
 
-message KeyValueUpdateResult {
-	string key = 1;
-	string old = 2;
-	string new = 3;
+func BenchmarkSampledTimerLowRate(b *testing.B) {
+	tm := MustCreateSampledTimer(tally.NoopScope.Timer("test"), 0.5)
+	benchRecord(b, tm)
+	runtime.KeepAlive(tm)
 }
 
-message QueryLimits {
-	QueryLimit maxRecentlyQueriedSeriesBlocks = 1;
-	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
-	QueryLimit maxRecentlyQueriedSeriesDiskRead = 3;
+func BenchmarkSampledTimerStopwatch(b *testing.B) {
+	tm := MustCreateSampledTimer(tally.NoopScope.Timer("test"), 0.5)
+	benchStopwatch(b, tm)
+	runtime.KeepAlive(tm)
 }
 
-message QueryLimit {
-	int64 limit = 1;
-	int64 lookbackSeconds = 2;
-	bool forceExceeded = 3;
+func BenchmarkSampledTimerStopwatchLowRate(b *testing.B) {
+	tm := MustCreateSampledTimer(tally.NoopScope.Timer("test"), 0.01)
+	benchStopwatch(b, tm)
+	runtime.KeepAlive(tm)
+}
+
+func benchStopwatch(b *testing.B, tm tally.Timer) {
+	b.RunParallel(func(pb *testing.PB) {
+		var sw tally.Stopwatch
+		for pb.Next() {
+			sw = tm.Start()
+			sw.Stop()
+		}
+		runtime.KeepAlive(sw)
+	})
+}
+
+func benchRecord(b *testing.B, tm tally.Timer) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			tm.Record(1 * time.Second)
+		}
+	})
 }

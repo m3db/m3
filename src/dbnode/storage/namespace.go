@@ -1730,6 +1730,7 @@ func (n *dbNamespace) aggregateTiles(
 		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
 		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
 		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
+		processedShards    = opts.InsOptions.MetricsScope().Counter("processed-shards")
 	)
 
 	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
@@ -1739,24 +1740,6 @@ func (n *dbNamespace) aggregateTiles(
 
 	if n.BootstrapState() != Bootstrapped || sourceNs.BootstrapState() != Bootstrapped {
 		return 0, errNamespaceNotBootstrapped
-	}
-
-	var (
-		processedShards   = opts.InsOptions.MetricsScope().Counter("processed-shards")
-		targetShards      = n.OwnedShards()
-		bytesPool         = sourceNs.StorageOptions().BytesPool()
-		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
-		blockReaders      []fs.DataFileSetReader
-		sourceBlockStarts []time.Time
-	)
-
-	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
-		reader, err := fs.NewReader(bytesPool, fsOptions)
-		if err != nil {
-			return 0, err
-		}
-		sourceBlockStarts = append(sourceBlockStarts, sourceBlockStart)
-		blockReaders = append(blockReaders, reader)
 	}
 
 	// Cold flusher builds the reverse index for target (current) ns.
@@ -1773,37 +1756,15 @@ func (n *dbNamespace) aggregateTiles(
 		if aggregationSuccess {
 			return
 		}
-		// Abort buildling reverse index if aggregation fails.
+		// Abort building reverse index if aggregation fails.
 		if err := onColdFlushNs.Abort(); err != nil {
 			n.log.Error("error aborting cold flush",
 				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
 		}
 	}()
-	for _, targetShard := range targetShards {
-		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
-		if err != nil {
-			return 0, fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
-		}
-
-		sourceBlockVolumes := make([]shardBlockVolume, 0, len(sourceBlockStarts))
-		for _, sourceBlockStart := range sourceBlockStarts {
-			latestVolume, err := sourceShard.LatestVolume(sourceBlockStart)
-			if err != nil {
-				n.log.Error("error getting shards latest volume",
-					zap.Error(err), zap.Uint32("shard", sourceShard.ID()), zap.Time("blockStart", sourceBlockStart))
-				return 0, err
-			}
-			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
-		}
-
-		writer, err := fs.NewStreamingWriter(n.opts.CommitLogOptions().FilesystemOptions())
-		if err != nil {
-			return 0, err
-		}
-
+	for _, targetShard := range n.OwnedShards() {
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			ctx, sourceNs, n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes,
-			onColdFlushNs, opts)
+			ctx, sourceNs, n, targetShard.ID(), onColdFlushNs, opts)
 
 		processedTileCount += shardProcessedTileCount
 		processedShards.Inc(1)

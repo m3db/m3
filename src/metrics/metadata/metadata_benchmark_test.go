@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package metadata
 
 import (
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-
-	"go.uber.org/zap/zapcore"
+	"runtime"
+	"testing"
 )
 
-type bootstrapStep interface {
-	prepare(totalRanges result.ShardTimeRanges) (bootstrapStepPreparedResult, error)
-	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	mergeResults(totalUnfulfilled result.ShardTimeRanges)
+func isDefault(m StagedMetadatas) bool {
+	return m.IsDefault()
 }
 
-type bootstrapStepPreparedResult struct {
-	currAvailable result.ShardTimeRanges
-}
-
-type bootstrapStepStatus struct {
-	fulfilled result.ShardTimeRanges
-	logFields []zapcore.Field
+func BenchmarkMetadata_IsDefault(b *testing.B) {
+	m := testLargeStagedMetadatas
+	m = append(m, testLargeStagedMetadatas...)
+	for i := 0; i < b.N; i++ {
+		m[0].CutoverNanos = int64(i)
+		if isDefault(m) {
+			b.Fail()
+		}
+	}
+	runtime.KeepAlive(m)
 }

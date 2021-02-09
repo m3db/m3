@@ -44,7 +44,6 @@ func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{})
-	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
@@ -60,7 +59,6 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}})
-	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
@@ -79,7 +77,6 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "b": {}, "e": {}})
-	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
@@ -98,7 +95,6 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "e": {}, "c": {}})
-	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
@@ -117,7 +113,6 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "b": {}, "c": {}})
-	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
@@ -145,7 +140,6 @@ func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "c": {}})
-	reader.EXPECT().Close().Return(nil).Times(1)
 
 	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)

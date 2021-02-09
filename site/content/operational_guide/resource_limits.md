@@ -53,6 +53,15 @@ per second safely with your deployment and you want to use the default lookback
 of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
 a 15s lookback.
 
+The third limit `maxRecentlyQueriedSeriesDiskRead` caps the series IDs matched by incoming 
+queries. This originally was distinct from the limit `maxRecentlyQueriedSeriesBlocks`, which
+also limits the memory cost of specific series matched, because of an inefficiency
+in how allocations would occur even for series known to not be present on disk for a given
+shard. This inefficiency has been resolved https://github.com/m3db/m3/pull/3103 and therefore
+this limit should be tracking memory cost linearly relative to `maxRecentlyQueriedSeriesBlocks`.
+It is recommended to defer to using `maxRecentlyQueriedSeriesBlocks` over 
+`maxRecentlyQueriedSeriesDiskRead` given both should cap the resources similarly.
+
 ### Annotated configuration
 
 ```yaml
@@ -75,6 +84,18 @@ limits:
     # settings to understand how many datapoints that may actually translate 
     # to (e.g. 2 hour blocks for unaggregated data with 30s scrape interval
     # will translate to 240 datapoints per single time series block matched).
+    value: 0
+    # Lookback sets the time window that this limit is enforced over, every 
+    # lookback period the global count is reset to zero and when the limit 
+    # is reached it will reject any further time series blocks being matched 
+    # and read until the lookback period resets.
+    lookback: 15s
+
+  # If set, will enforce a maximum on the series read from disk.
+  # This limit can be used to ensure queries that match an extremely high 
+  # volume of series can be limited before even reading the underlying series data from disk.
+  maxRecentlyQueriedSeriesDiskRead:
+    # Value sets the maximum number of series read from disk.
     value: 0
     # Lookback sets the time window that this limit is enforced over, every 
     # lookback period the global count is reset to zero and when the limit 
@@ -112,6 +133,11 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
       "lookbackSeconds":15,
       "forceExceeded":false
     },
+    "maxRecentlyQueriedSeriesDiskRead": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
+    }
   },
   "commit":true
 }'
