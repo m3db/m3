@@ -1585,7 +1585,7 @@ func TestServiceFetchTagged(t *testing.T) {
 				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions())
 
 			queryLimits, err := limits.NewQueryLimits(limitsOpts)
-			permitManagers := permits.NewOptions().
+			permitOpts := permits.NewOptions().
 				SetSeriesReadPermitsManager(permits.NewLookbackLimitPermitManager(
 					testTChannelThriftOptions.InstrumentOptions(),
 					limitsOpts.DiskSeriesReadLimitOpts(),
@@ -1593,8 +1593,9 @@ func TestServiceFetchTagged(t *testing.T) {
 					limitsOpts.SourceLoggerBuilder()))
 
 			require.NoError(t, err)
-			testTChannelThriftOptions = testTChannelThriftOptions.SetQueryLimits(queryLimits).
-				SetPermitsManagers(permitManagers)
+			testTChannelThriftOptions = testTChannelThriftOptions.
+				SetQueryLimits(queryLimits).
+				SetPermitsOptions(permitOpts)
 
 			service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
