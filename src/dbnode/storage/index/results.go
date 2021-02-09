@@ -23,6 +23,7 @@ package index
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -51,8 +52,8 @@ type results struct {
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool       QueryResultsPool
-	noFinalize bool
+	pool           QueryResultsPool
+	resultDuration ResultDurations
 }
 
 // NewQueryResults returns a new query results object.
@@ -70,6 +71,24 @@ func NewQueryResults(
 		pool:       indexOpts.QueryResultsPool(),
 		reusableID: ident.NewReusableBytesID(),
 	}
+}
+
+func (r *results) TotalDuration() ResultDurations {
+	r.RLock()
+	defer r.RUnlock()
+	return r.resultDuration
+}
+
+func (r *results) AddBlockProcessingDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddProcessing(duration)
+}
+
+func (r *results) AddBlockSearchDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddSearch(duration)
 }
 
 func (r *results) EnforceLimits() bool { return true }
@@ -90,6 +109,8 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	// Reset all keys in the map next, this will finalize the keys.
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
+
+	r.resultDuration = ResultDurations{}
 
 	r.opts = opts
 

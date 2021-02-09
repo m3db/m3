@@ -23,11 +23,12 @@ package index
 import (
 	"errors"
 
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
 var (
@@ -49,23 +50,23 @@ func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
 	return o.allowFn(f)
 }
 
-func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsIterator, error) {
+func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 	if o.fieldIterFn == nil {
-		return r.Fields()
+		return r.FieldsPostingsList()
 	}
 	return o.fieldIterFn(r)
 }
 
 type allowFn func(field []byte) bool
 
-type newFieldIterFn func(r segment.Reader) (segment.FieldsIterator, error)
+type newFieldIterFn func(r segment.Reader) (segment.FieldsPostingsListIterator, error)
 
 type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
 	err       error
-	fieldIter segment.FieldsIterator
+	fieldIter segment.FieldsPostingsListIterator
 	termIter  segment.TermsIterator
 
 	current struct {
@@ -145,10 +146,33 @@ func (fti *fieldsAndTermsIter) setNextField() bool {
 	}
 
 	for fieldIter.Next() {
-		field := fieldIter.Current()
+		field, pl := fieldIter.Current()
 		if !fti.opts.allow(field) {
 			continue
 		}
+		if fti.restrictByPostings == nil {
+			// No restrictions.
+			fti.current.field = field
+			return true
+		}
+
+		bitmap, ok := roaring.BitmapFromPostingsList(pl)
+		if !ok {
+			fti.err = errUnpackBitmapFromPostingsList
+			return false
+		}
+
+		// Check field is part of at least some of the documents we're
+		// restricted to providing results for based on intersection
+		// count.
+		// Note: IntersectionCount is significantly faster than intersecting and
+		// counting results and also does not allocate.
+		if n := fti.restrictByPostings.IntersectionCount(bitmap); n < 1 {
+			// No match, not next result.
+			continue
+		}
+
+		// Matches, this is next result.
 		fti.current.field = field
 		return true
 	}
@@ -213,7 +237,7 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 			return false, errUnpackBitmapFromPostingsList
 		}
 
-		// Check term isn part of at least some of the documents we're
+		// Check term is part of at least some of the documents we're
 		// restricted to providing results for based on intersection
 		// count.
 		// Note: IntersectionCount is significantly faster than intersecting and

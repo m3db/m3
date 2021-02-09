@@ -597,9 +597,6 @@ func (r *blockRetriever) streamRequest(
 	startTime time.Time,
 ) error {
 	req.resultWg.Add(1)
-	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
-		return err
-	}
 	req.shard = shard
 
 	// NB(r): If the ID is a ident.BytesID then we can just hold

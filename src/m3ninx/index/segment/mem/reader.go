@@ -70,6 +70,10 @@ func (r *reader) Terms(field []byte) (sgmt.TermsIterator, error) {
 	return r.segment.Terms(field)
 }
 
+func (r *reader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	return r.segment.FieldsPostingsList()
+}
+
 func (r *reader) MatchField(field []byte) (postings.List, error) {
 	// falling back to regexp .* as this segment implementation is only used in tests.
 	return r.MatchRegexp(field, index.DotStarCompiledRegex())

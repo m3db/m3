@@ -417,10 +417,12 @@ func (b *block) Query(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	start := time.Now()
 	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
+	results.AddBlockProcessingDuration(time.Since(start))
 
 	return exhaustive, err
 }
@@ -527,6 +529,8 @@ func (b *block) queryWithSpan(
 		return false, err
 	}
 
+	results.AddBlockSearchDuration(iter.SearchDuration())
+
 	return opts.exhaustive(size, docsCount), nil
 }
 
@@ -624,7 +628,7 @@ func (b *block) aggregateWithSpan(
 			}
 			return aggOpts.FieldFilter.Allow(field)
 		},
-		fieldIterFn: func(r segment.Reader) (segment.FieldsIterator, error) {
+		fieldIterFn: func(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 			// NB(prateek): we default to using the regular (FST) fields iterator
 			// unless we have a predefined list of fields we know we need to restrict
 			// our search to, in which case we iterate that list and check if known values
@@ -636,7 +640,7 @@ func (b *block) aggregateWithSpan(
 			// to this function is expected to have (FieldsFilter) pretty small. If that changes
 			// in the future, we can revisit this.
 			if len(aggOpts.FieldFilter) == 0 {
-				return r.Fields()
+				return r.FieldsPostingsList()
 			}
 			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
 		},

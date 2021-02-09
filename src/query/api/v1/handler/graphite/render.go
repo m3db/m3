@@ -200,6 +200,7 @@ func (h *renderHandler) serveHTTP(
 	for _, r := range results {
 		numSeries += r.Len()
 		if !r.SortApplied {
+			// Use sort.Stable for deterministic output.
 			sort.Stable(ts.SeriesByName(r.Values))
 		}
 	}

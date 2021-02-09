@@ -41,11 +41,21 @@ func (p *workerPool) Init() {
 }
 
 func (p *workerPool) Go(work Work) {
+	p.GoInstrument(work)
+}
+
+func (p *workerPool) GoInstrument(work Work) ScheduleResult {
+	start := time.Now()
 	token := <-p.workCh
+	wait := time.Since(start)
 	go func() {
 		work()
 		p.workCh <- token
 	}()
+	return ScheduleResult{
+		Available: true,
+		WaitTime:  wait,
+	}
 }
 
 func (p *workerPool) GoIfAvailable(work Work) bool {
@@ -62,6 +72,10 @@ func (p *workerPool) GoIfAvailable(work Work) bool {
 }
 
 func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
+	return p.GoWithTimeoutInstrument(work, timeout).Available
+}
+
+func (p *workerPool) GoWithTimeoutInstrument(work Work, timeout time.Duration) ScheduleResult {
 	// Attempt to try writing without allocating a ticker.
 	select {
 	case token := <-p.workCh:
@@ -69,7 +83,7 @@ func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
 			work()
 			p.workCh <- token
 		}()
-		return true
+		return ScheduleResult{Available: true}
 	default:
 	}
 
@@ -77,14 +91,16 @@ func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
 	ticker := time.NewTicker(timeout)
 	defer ticker.Stop()
 
+	start := time.Now()
 	select {
 	case token := <-p.workCh:
+		wait := time.Since(start)
 		go func() {
 			work()
 			p.workCh <- token
 		}()
-		return true
+		return ScheduleResult{Available: true, WaitTime: wait}
 	case <-ticker.C:
-		return false
+		return ScheduleResult{Available: false, WaitTime: timeout}
 	}
 }

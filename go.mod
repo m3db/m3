@@ -90,7 +90,7 @@ require (
 	github.com/uber-go/tally v3.3.13+incompatible
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
-	github.com/uber/tchannel-go v1.14.0
+	github.com/uber/tchannel-go v1.20.1
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	github.com/wjdp/htmltest v0.13.0

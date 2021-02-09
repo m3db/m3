@@ -42,7 +42,9 @@ if ! command -v nc && [[ "$BUILDKITE" == "true" ]]; then
 	trap cleanup_nc EXIT
 fi
 
-scripts/docker-integration-tests/setup.sh
+if [[ -z "$SKIP_SETUP" ]] || [[ "$SKIP_SETUP" == "false" ]]; then
+	scripts/docker-integration-tests/setup.sh
+fi
 
 NUM_TESTS=${#TESTS[@]}
 MIN_IDX=$((NUM_TESTS*BUILDKITE_PARALLEL_JOB/BUILDKITE_PARALLEL_JOB_COUNT))
@@ -56,7 +58,7 @@ for test in "${TESTS[@]}"; do
 		docker rm -f $(docker ps -aq) 2>/dev/null || true
 		echo "----------------------------------------------"
 		echo "running $test"
-		if ! $test; then
+		if ! (export M3_PATH=$(pwd) && $test); then
 			echo "--- :bk-status-failed: $test FAILED"
 			exit 1
 		fi
