@@ -1084,18 +1084,18 @@ func (mr *MockBlockMockRecorder) WriteBatch(inserts interface{}) *gomock.Call {
 }
 
 // Query mocks base method
-func (m *MockBlock) Query(ctx context.Context, cancellable *resource.CancellableLifetime, query Query, opts QueryOptions, results DocumentResults, logFields []log.Field) (bool, error) {
+func (m *MockBlock) Query(ctx context.Context, query Query, opts QueryOptions, results DocumentResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Query", ctx, cancellable, query, opts, results, logFields)
+	ret := m.ctrl.Call(m, "Query", ctx, query, opts, results, logFields)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Query indicates an expected call of Query
-func (mr *MockBlockMockRecorder) Query(ctx, cancellable, query, opts, results, logFields interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) Query(ctx, query, opts, results, logFields interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), ctx, cancellable, query, opts, results, logFields)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), ctx, query, opts, results, logFields)
 }
 
 // Aggregate mocks base method

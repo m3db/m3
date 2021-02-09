@@ -21,6 +21,7 @@
 package storage
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -42,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	xresource "github.com/m3db/m3/src/x/resource"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -347,7 +347,7 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	mockBlock.EXPECT().Close().Return(nil)
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	start := now.Add(-3 * test.indexBlockSize)
@@ -390,11 +390,15 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 	now := time.Now().Truncate(test.indexBlockSize)
 	query := index.Query{Query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
 	idx := test.index.(*nsIndex)
-	idx.state.runtimeOpts.defaultQueryTimeout = time.Second * 1
 
 	defer func() {
 		require.NoError(t, idx.Close())
 	}()
+
+	stdCtx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Second)
+	defer cancel()
+	ctx := context.NewWithGoContext(stdCtx)
+	defer ctx.Close()
 
 	mockBlock := index.NewMockBlock(ctrl)
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
@@ -402,29 +406,22 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
 	mockBlock.EXPECT().
-		Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			ctx context.Context,
-			c *xresource.CancellableLifetime,
 			q index.Query,
 			opts index.QueryOptions,
 			r index.QueryResults,
 			logFields []opentracinglog.Field,
 		) (bool, error) {
-			for {
-				if !c.TryCheckout() {
-					return false, index.ErrCancelledQuery
-				}
-				time.Sleep(time.Millisecond)
-				c.ReleaseCheckout()
+			select {
+			case <-ctx.MustGoContext().Done():
+				return false, index.ErrCancelledQuery
 			}
 		})
 	mockBlock.EXPECT().Close().Return(nil)
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 	idx.updateBlockStartsWithLock()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
 
 	start := blockTime
 	end := blockTime.Add(test.indexBlockSize)

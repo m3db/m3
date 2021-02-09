@@ -22,7 +22,6 @@ package storage
 
 import (
 	"bytes"
-	stdctx "context"
 	"errors"
 	"fmt"
 	"math"
@@ -182,7 +181,6 @@ type nsIndexRuntimeOptions struct {
 	insertMode          index.InsertMode
 	maxQuerySeriesLimit int64
 	maxQueryDocsLimit   int64
-	defaultQueryTimeout time.Duration
 }
 
 // NB(prateek): the returned filesets are strictly before the given time, i.e. they
@@ -405,10 +403,7 @@ func newNamespaceIndexWithOptions(
 	return idx, nil
 }
 
-func (i *nsIndex) SetRuntimeOptions(value runtime.Options) {
-	i.state.Lock()
-	i.state.runtimeOpts.defaultQueryTimeout = value.IndexDefaultQueryTimeout()
-	i.state.Unlock()
+func (i *nsIndex) SetRuntimeOptions(runtime.Options) {
 }
 
 func (i *nsIndex) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptions) {
@@ -1539,7 +1534,6 @@ func (i *nsIndex) queryWithSpan(
 
 	// Enact overrides for query options
 	opts = i.overriddenOptsForQueryWithRLock(opts)
-	timeout := i.timeoutForQueryWithRLock(ctx)
 
 	// Retrieve blocks to query, then we can release lock
 	// NB(r): Important not to block ticking, and other tasks by
@@ -1561,47 +1555,9 @@ func (i *nsIndex) queryWithSpan(
 		state = asyncQueryExecState{
 			exhaustive: true,
 		}
-		deadline      = start.Add(timeout)
 		wg            sync.WaitGroup
 		totalWaitTime time.Duration
 	)
-
-	// Create a cancellable lifetime and cancel it at end of this method so that
-	// no child async task modifies the result after this method returns.
-	cancellable := xresource.NewCancellableLifetime()
-	// always cancel to cleanup. this might be a no-op if it was already canceled by the background task to interrupt
-	// the workers.
-	defer cancellable.Cancel()
-
-	stdCtx, ctxFound := ctx.GoContext()
-	if !ctxFound {
-		stdCtx = stdctx.Background()
-	}
-	select {
-	case <-stdCtx.Done():
-		return false, fmt.Errorf("caller canceled the query before it started")
-	default:
-	}
-
-	if timeout > 0 {
-		// launch a goroutine to interrupt the query workers after the timeout.
-		fnDoneCh := make(chan struct{}, 1) // don't block the defer in the case of a timeout.
-		defer func() {
-			fnDoneCh <- struct{}{}
-		}()
-		go func() {
-			ticker := time.NewTicker(timeout)
-			select {
-			case <-fnDoneCh:
-				// query finished before the timeout. the fn return will call cancel.
-			case <-ticker.C:
-				// interrupt the query workers after the timeout.
-				cancellable.Cancel()
-			}
-			// Make sure to always free the timer/ticker so they don't sit around.
-			ticker.Stop()
-		}()
-	}
 
 	for _, block := range blocks {
 		// Capture block for async query execution below.
@@ -1626,24 +1582,11 @@ func (i *nsIndex) queryWithSpan(
 		}
 
 		wg.Add(1)
-		var scheduleResult xsync.ScheduleResult
-		if timeout <= 0 {
-			// No timeout, just wait blockingly for a worker.
-			scheduleResult = i.queryWorkersPool.GoInstrument(func() {
-				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
-				wg.Done()
-			})
-		} else if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
-			// Need to apply timeout to the blocking wait call for a worker.
-			scheduleResult = i.queryWorkersPool.GoWithTimeoutInstrument(func() {
-				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
-				wg.Done()
-			}, timeLeft)
-		} else {
-			scheduleResult = xsync.ScheduleResult{Available: false, WaitTime: 0}
-		}
+		scheduleResult := i.queryWorkersPool.GoWithCtx(ctx.MustGoContext(), func() {
+			execBlockFn(ctx, nil, block, query, opts, &state, results, logFields)
+			wg.Done()
+		})
 		totalWaitTime += scheduleResult.WaitTime
-
 		if !scheduleResult.Available {
 			state.Lock()
 			state.multiErr = state.multiErr.Add(index.ErrCancelledQuery)
@@ -1654,16 +1597,9 @@ func (i *nsIndex) queryWithSpan(
 		}
 	}
 
-	queryDoneCh := make(chan bool, 1) // don't block goroutine exit when writing.
-	go func() {
-		wg.Wait()
-		queryDoneCh <- true
-	}()
-	select {
-	case <-stdCtx.Done():
-		return false, fmt.Errorf("caller canceled the query")
-	case <-queryDoneCh:
-	}
+	// wait for all workers to finish. if the caller cancels the call, the workers will be interrupted and eventually
+	// finish.
+	wg.Wait()
 
 	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.TotalDocsCount()))
 
@@ -1697,7 +1633,7 @@ func (i *nsIndex) queryWithSpan(
 
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
+	_ *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1723,7 +1659,7 @@ func (i *nsIndex) execBlockQueryFn(
 		return
 	}
 
-	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, docResults, logFields)
+	blockExhaustive, err := block.Query(ctx, query, opts, docResults, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1744,7 +1680,7 @@ func (i *nsIndex) execBlockQueryFn(
 
 func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
+	_ *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1770,7 +1706,7 @@ func (i *nsIndex) execBlockWideQueryFn(
 		return
 	}
 
-	_, err := block.Query(ctx, cancellable, query, opts, docResults, logFields)
+	_, err := block.Query(ctx, query, opts, docResults, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1839,14 +1775,6 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		state.multiErr = state.multiErr.Add(err)
 	}
 	state.exhaustive = state.exhaustive && blockExhaustive
-}
-
-func (i *nsIndex) timeoutForQueryWithRLock(
-	ctx context.Context,
-) time.Duration {
-	// TODO(r): Allow individual queries to specify timeouts using
-	// deadlines passed by the context.
-	return i.state.runtimeOpts.defaultQueryTimeout
 }
 
 func (i *nsIndex) overriddenOptsForQueryWithRLock(

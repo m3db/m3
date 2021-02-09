@@ -22,6 +22,7 @@
 package sync
 
 import (
+	"context"
 	"time"
 )
 
@@ -102,5 +103,27 @@ func (p *workerPool) GoWithTimeoutInstrument(work Work, timeout time.Duration) S
 		return ScheduleResult{Available: true, WaitTime: wait}
 	case <-ticker.C:
 		return ScheduleResult{Available: false, WaitTime: timeout}
+	}
+}
+
+func (p *workerPool) GoWithCtx(ctx context.Context, work Work) ScheduleResult {
+	// Don't give out a token if the ctx has already been canceled.
+	select {
+	case <-ctx.Done():
+		return ScheduleResult{Available: false, WaitTime: 0}
+	default:
+	}
+
+	start := time.Now()
+	select {
+	case token := <-p.workCh:
+		wait := time.Since(start)
+		go func() {
+			work()
+			p.workCh <- token
+		}()
+		return ScheduleResult{Available: true, WaitTime: wait}
+	case <-ctx.Done():
+		return ScheduleResult{Available: false, WaitTime: time.Since(start)}
 	}
 }

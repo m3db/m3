@@ -415,7 +415,6 @@ type Block interface {
 	// Query resolves the given query into known IDs.
 	Query(
 		ctx context.Context,
-		cancellable *xresource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
 		results DocumentResults,
