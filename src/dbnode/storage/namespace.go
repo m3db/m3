@@ -1061,16 +1061,12 @@ func (n *dbNamespace) Bootstrap(
 		}
 
 		// Check if there are unfulfilled ranges
-		fulfilled := true
 		if ranges, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
-			fulfilled = false
+			continue
 		} else if n.reverseIndex != nil {
 			if ranges, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
-				fulfilled = false
+				continue
 			}
-		}
-		if !fulfilled {
-			continue
 		}
 
 		wg.Add(1)
