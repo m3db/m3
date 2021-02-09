@@ -644,7 +644,7 @@ func (b *block) aggregateWithSpan(
 			if len(aggOpts.FieldFilter) == 0 {
 				return r.FieldsPostingsList()
 			}
-			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
+			return newFilterFieldsIterator(b.iopts, r, aggOpts.FieldFilter)
 		},
 	}
 

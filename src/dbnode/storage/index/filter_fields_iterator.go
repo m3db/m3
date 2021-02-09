@@ -24,8 +24,11 @@ import (
 	"bytes"
 	"errors"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
@@ -33,6 +36,7 @@ var (
 )
 
 func newFilterFieldsIterator(
+	iOpts instrument.Options,
 	reader segment.Reader,
 	fields AggregateFieldFilter,
 ) (segment.FieldsPostingsListIterator, error) {
@@ -44,6 +48,7 @@ func newFilterFieldsIterator(
 		return nil, err
 	}
 	return &filterFieldsIterator{
+		iOpts:      iOpts,
 		reader:     reader,
 		fieldsIter: fieldsIter,
 		fields:     fields,
@@ -52,6 +57,7 @@ func newFilterFieldsIterator(
 }
 
 type filterFieldsIterator struct {
+	iOpts      instrument.Options
 	reader     segment.Reader
 	fieldsIter segment.FieldsPostingsListIterator
 	fields     AggregateFieldFilter
@@ -94,5 +100,13 @@ func (f *filterFieldsIterator) Err() error {
 }
 
 func (f *filterFieldsIterator) Close() error {
-	return f.fieldsIter.Close()
+	if err := f.fieldsIter.Close(); err != nil {
+		instrument.EmitAndLogInvariantViolation(
+			f.iOpts,
+			func(l *zap.Logger) {
+				l.Error("error when closing filterFieldsIterator", zap.Error(err))
+			})
+		return err
+	}
+	return nil
 }
