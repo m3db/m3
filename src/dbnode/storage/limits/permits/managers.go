@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,56 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package limits
+package permits
 
-type noOpQueryLimits struct {
+type managers struct {
+	seriesReadManager Manager
 }
 
-type noOpLookbackLimit struct {
+// DefaultManagers return a new set of default permit managers.
+func DefaultManagers() Managers {
+	return &managers{
+		seriesReadManager: NewNoOpPermitsManager(),
+	}
 }
 
-var (
-	_ QueryLimits   = (*noOpQueryLimits)(nil)
-	_ LookbackLimit = (*noOpLookbackLimit)(nil)
-)
-
-// NoOpQueryLimits returns inactive query limits.
-func NoOpQueryLimits() QueryLimits {
-	return &noOpQueryLimits{}
+// SetSeriesReadPermitsManager sets the series read permits manager.
+func (o *managers) SetSeriesReadPermitsManager(value Manager) Managers {
+	opts := *o
+	opts.seriesReadManager = value
+	return &opts
 }
 
-func (q *noOpQueryLimits) DocsLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
-}
-
-func (q *noOpQueryLimits) BytesReadLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
-}
-
-func (q *noOpQueryLimits) AnyExceeded() error {
-	return nil
-}
-
-func (q *noOpQueryLimits) Stop() {
-}
-
-func (q *noOpQueryLimits) Start() {
-}
-
-func (q *noOpLookbackLimit) Options() LookbackLimitOptions {
-	return LookbackLimitOptions{}
-}
-
-func (q *noOpLookbackLimit) Update(LookbackLimitOptions) error {
-	return nil
-}
-
-func (q *noOpLookbackLimit) Inc(int, []byte) error {
-	return nil
-}
-
-func (q *noOpLookbackLimit) Start() {
-}
-
-func (q *noOpLookbackLimit) Stop() {
+// SeriesReadPermitsManager returns the series read permits manager.
+func (o *managers) SeriesReadPermitsManager() Manager {
+	return o.seriesReadManager
 }

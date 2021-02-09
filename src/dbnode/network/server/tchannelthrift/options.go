@@ -22,6 +22,7 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/clock"
@@ -44,6 +45,7 @@ type options struct {
 	maxOutstandingWriteRequests int
 	maxOutstandingReadRequests  int
 	queryLimits                 limits.QueryLimits
+	permitsManagers             permits.Managers
 }
 
 // NewOptions creates new options.
@@ -86,6 +88,7 @@ func NewOptions() Options {
 		tagDecoderPool:           tagDecoderPool,
 		checkedBytesWrapperPool:  bytesWrapperPool,
 		queryLimits:              limits.NoOpQueryLimits(),
+		permitsManagers:          permits.DefaultManagers(),
 	}
 }
 
@@ -207,4 +210,14 @@ func (o *options) SetQueryLimits(value limits.QueryLimits) Options {
 
 func (o *options) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
+}
+
+func (o *options) SetPermitsManagers(value permits.Managers) Options {
+	opts := *o
+	opts.permitsManagers = value
+	return &opts
+}
+
+func (o *options) PermitsManagers() permits.Managers {
+	return o.permitsManagers
 }

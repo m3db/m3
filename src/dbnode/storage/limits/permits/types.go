@@ -17,30 +17,36 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-syntax = "proto3";
 
-package kvpb;
+// Package permits contains logic for granting permits to resources.
+package permits
 
-message KeyValueUpdate {
-	string key = 1;
-	string value = 2;
-	bool commit = 3;
+import "github.com/m3db/m3/src/x/context"
+
+// Managers is the set of permits managers.
+type Managers interface {
+	// SeriesReadPermitsManager returns the series read permits manager.
+	SeriesReadPermitsManager() Manager
+	// SetSeriesReadPermitsManager sets the series read permits manager.
+	SetSeriesReadPermitsManager(manager Manager) Managers
 }
 
-message KeyValueUpdateResult {
-	string key = 1;
-	string old = 2;
-	string new = 3;
+// Manager manages a set of permits.
+type Manager interface {
+	// NewPermits builds a new set of permits.
+	NewPermits(ctx context.Context) Permits
 }
 
-message QueryLimits {
-	QueryLimit maxRecentlyQueriedSeriesBlocks = 1;
-	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
-	QueryLimit maxRecentlyQueriedSeriesDiskRead = 3;
-}
+// Permits are the set of permits that individual codepaths will utilize.
+type Permits interface {
+	// Acquire blocks until an available resource is made available for the request permit
+	Acquire(ctx context.Context) error
 
-message QueryLimit {
-	int64 limit = 1;
-	int64 lookbackSeconds = 2;
-	bool forceExceeded = 3;
+	// TryAcquire attempts to acquire an available resource without blocking, returning
+	// true if an resource was acquired.
+	TryAcquire(ctx context.Context) (bool, error)
+
+	// Release gives back one acquired permit from the specific permits instance.
+	// Cannot release more permits than have been acquired.
+	Release()
 }

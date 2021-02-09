@@ -56,6 +56,11 @@ type LookbackLimit interface {
 	Inc(new int, source []byte) error
 	// Update changes the lookback limit settings.
 	Update(opts LookbackLimitOptions) error
+
+	// Start begins background resetting of the lookback limit.
+	Start()
+	// Stop end background resetting of the lookback limit.
+	Stop()
 }
 
 // LookbackLimitOptions holds options for a lookback limit to be enforced.

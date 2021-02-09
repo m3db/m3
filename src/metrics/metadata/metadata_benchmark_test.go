@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,56 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package limits
+package metadata
 
-type noOpQueryLimits struct {
-}
+import (
+	"runtime"
+	"testing"
 
-type noOpLookbackLimit struct {
-}
-
-var (
-	_ QueryLimits   = (*noOpQueryLimits)(nil)
-	_ LookbackLimit = (*noOpLookbackLimit)(nil)
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
-// NoOpQueryLimits returns inactive query limits.
-func NoOpQueryLimits() QueryLimits {
-	return &noOpQueryLimits{}
+func isDefault(m StagedMetadatas) bool {
+	return m.IsDefault()
 }
 
-func (q *noOpQueryLimits) DocsLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
-}
-
-func (q *noOpQueryLimits) BytesReadLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
-}
-
-func (q *noOpQueryLimits) AnyExceeded() error {
-	return nil
-}
-
-func (q *noOpQueryLimits) Stop() {
-}
-
-func (q *noOpQueryLimits) Start() {
-}
-
-func (q *noOpLookbackLimit) Options() LookbackLimitOptions {
-	return LookbackLimitOptions{}
-}
-
-func (q *noOpLookbackLimit) Update(LookbackLimitOptions) error {
-	return nil
-}
-
-func (q *noOpLookbackLimit) Inc(int, []byte) error {
-	return nil
-}
-
-func (q *noOpLookbackLimit) Start() {
-}
-
-func (q *noOpLookbackLimit) Stop() {
+func BenchmarkMetadata_IsDefault(b *testing.B) {
+	m := StagedMetadatas{
+		StagedMetadata{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: Metadata{
+				Pipelines: []PipelineMetadata{
+					{
+						AggregationID:   aggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{},
+					},
+				},
+			},
+		},
+	}
+	for i := 0; i < b.N; i++ {
+		if !isDefault(m) {
+			b.Fail()
+		}
+	}
+	runtime.KeepAlive(m)
 }

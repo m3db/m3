@@ -39,8 +39,8 @@ const (
 )
 
 type queryLimits struct {
-	docsLimit           *lookbackLimit
-	bytesReadLimit      *lookbackLimit
+	docsLimit      *lookbackLimit
+	bytesReadLimit *lookbackLimit
 }
 
 type lookbackLimit struct {
@@ -86,10 +86,10 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 	}
 
 	var (
-		iOpts                   = options.InstrumentOptions()
-		docsLimitOpts           = options.DocsLimitOpts()
-		bytesReadLimitOpts      = options.BytesReadLimitOpts()
-		sourceLoggerBuilder     = options.SourceLoggerBuilder()
+		iOpts               = options.InstrumentOptions()
+		docsLimitOpts       = options.DocsLimitOpts()
+		bytesReadLimitOpts  = options.BytesReadLimitOpts()
+		sourceLoggerBuilder = options.SourceLoggerBuilder()
 
 		docsLimit = newLookbackLimit(
 			iOpts, docsLimitOpts, "docs-matched", sourceLoggerBuilder)
@@ -98,9 +98,19 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 	)
 
 	return &queryLimits{
-		docsLimit:           docsLimit,
-		bytesReadLimit:      bytesReadLimit,
+		docsLimit:      docsLimit,
+		bytesReadLimit: bytesReadLimit,
 	}, nil
+}
+
+// NewLookbackLimit returns a new lookback limit.
+func NewLookbackLimit(
+	instrumentOpts instrument.Options,
+	opts LookbackLimitOptions,
+	name string,
+	sourceLoggerBuilder SourceLoggerBuilder,
+) LookbackLimit {
+	return newLookbackLimit(instrumentOpts, opts, name, sourceLoggerBuilder)
 }
 
 func newLookbackLimit(
@@ -153,17 +163,13 @@ func (q *queryLimits) BytesReadLimit() LookbackLimit {
 }
 
 func (q *queryLimits) Start() {
-	// Lock on explicit start to avoid any collision with asynchronous updating
-	// which will call stop/start if the lookback has changed.
-	q.docsLimit.startWithLock()
-	q.bytesReadLimit.startWithLock()
+	q.docsLimit.Start()
+	q.bytesReadLimit.Start()
 }
 
 func (q *queryLimits) Stop() {
-	// Lock on explicit stop to avoid any collision with asynchronous updating
-	// which will call stop/start if the lookback has changed.
-	q.docsLimit.stopWithLock()
-	q.bytesReadLimit.stopWithLock()
+	q.docsLimit.Stop()
+	q.bytesReadLimit.Stop()
 }
 
 func (q *queryLimits) AnyExceeded() error {
@@ -257,13 +263,17 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 	return nil
 }
 
-func (q *lookbackLimit) startWithLock() {
+func (q *lookbackLimit) Start() {
+	// Lock on explicit start to avoid any collision with asynchronous updating
+	// which will call stop/start if the lookback has changed.
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	q.start()
 }
 
-func (q *lookbackLimit) stopWithLock() {
+func (q *lookbackLimit) Stop() {
+	// Lock on explicit stop to avoid any collision with asynchronous updating
+	// which will call stop/start if the lookback has changed.
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	q.stop()
