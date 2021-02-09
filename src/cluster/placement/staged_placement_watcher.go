@@ -41,11 +41,11 @@ var (
 
 type stagedPlacementWatcher struct {
 	mtx           sync.Mutex
-	value         runtime.Value
 	nowFn         clock.NowFn
-	placementOpts ActiveStagedPlacementOptions
-	watching      atomic.Bool
 	placement     atomic.Value
+	placementOpts ActiveStagedPlacementOptions
+	value         runtime.Value
+	watching      atomic.Bool
 }
 
 // plValue is a wrapper for type-safe interface storage in atomic.Value,

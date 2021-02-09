@@ -33,19 +33,19 @@ import (
 var (
 	errNoApplicablePlacement       = errors.New("no applicable placement found")
 	errActiveStagedPlacementClosed = errors.New("active staged placement is closed")
-	errPlacementInvalidType        = errors.New("type assertion failed, corrupt placement")
+	errPlacementInvalidType        = errors.New("corrupt placement")
+
+	_noPlacements Placements
 )
 
-var _noPlacements Placements
-
 type activeStagedPlacement struct {
-	placements            atomic.Value
-	version               int
+	closed                atomic.Bool
+	expiring              atomic.Int32
 	nowFn                 clock.NowFn
 	onPlacementsAddedFn   OnPlacementsAddedFn
 	onPlacementsRemovedFn OnPlacementsRemovedFn
-	expiring              atomic.Int32
-	closed                atomic.Bool
+	placements            atomic.Value
+	version               int
 }
 
 func newActiveStagedPlacement(
@@ -91,13 +91,15 @@ func (p *activeStagedPlacement) Version() int {
 }
 
 func (p *activeStagedPlacement) ActivePlacement() (Placement, error) {
+	if p.closed.Load() {
+		return nil, errActiveStagedPlacementClosed
+	}
+
+	// placements themselves are subject to mutability races, but even in historical design, there was no actual
+	// need to enforce it, as long as we ensure callback ordering, and that is still the case.
 	placements, ok := p.placements.Load().(Placements)
 	if !ok {
 		return nil, errPlacementInvalidType
-	}
-
-	if p.closed.Load() {
-		return nil, errActiveStagedPlacementClosed
 	}
 
 	idx := placements.ActiveIndex(p.nowFn().UnixNano())
