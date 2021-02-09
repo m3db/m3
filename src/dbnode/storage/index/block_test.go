@@ -1891,6 +1891,18 @@ func TestBlockAggregate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+	limitOpts := limits.NewOptions().
+		SetInstrumentOptions(iOpts).
+		SetDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute}).
+		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+	queryLimits, err := limits.NewQueryLimits((limitOpts))
+	require.NoError(t, err)
+	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
+
+	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
+	seriesLimit := 10
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
@@ -1913,7 +1925,7 @@ func TestBlockAggregate(t *testing.T) {
 	}
 
 	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
-		SizeLimit: 3,
+		SizeLimit: seriesLimit,
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
@@ -1925,24 +1937,23 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	gomock.InOrder(
-		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f1"), []byte("t2")),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f2"), []byte("t1")),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f1"), []byte("t3")),
-		iter.EXPECT().Next().Return(false),
-		iter.EXPECT().Err().Return(nil),
-		iter.EXPECT().Close().Return(nil),
-	)
+	iter.EXPECT().Reset(reader, gomock.Any()).Return(nil)
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f1"), []byte("t2"))
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f2"), []byte("t1"))
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f1"), []byte("t3"))
+	iter.EXPECT().Next().Return(false)
+	iter.EXPECT().Err().Return(nil)
+	iter.EXPECT().Close().Return(nil)
+
 	exhaustive, err := b.Aggregate(
 		ctx,
 		xresource.NewCancellableLifetime(),
-		QueryOptions{SeriesLimit: 3},
+		QueryOptions{SeriesLimit: seriesLimit},
 		results,
 		emptyLogFields)
 	require.NoError(t, err)
@@ -1957,6 +1968,9 @@ func TestBlockAggregate(t *testing.T) {
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
 	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+
+	snap := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 3, snap, "query-limit.total-docs-matched", nil)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -2025,7 +2039,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	require.False(t, exhaustive)
 
 	assertAggregateResultsMapEquals(t, map[string][]string{
-		"f1": {"t1"},
+		"f1": {},
 	}, results)
 
 	sp.Finish()
@@ -2420,10 +2434,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 					count += len(entry.Terms)
 				}
 
-				// FIXME: this currently fails, but will be fixed after
-				// https://github.com/m3db/m3/pull/3133 is reverted.
-				// require.True(t, count <= tt.batchSize,
-				// 	fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
+				require.True(t, count <= tt.batchSize,
+					fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
 
 				return addAggregateResultsFn(cancellable, results, batch, source)
 			}

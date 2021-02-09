@@ -149,7 +149,6 @@ type block struct {
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
 
 	metrics blockMetrics
@@ -259,7 +258,6 @@ func NewBlock(
 		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
@@ -412,7 +410,7 @@ func (b *block) Query(
 	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results BaseResults,
+	results DocumentResults,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
@@ -434,7 +432,7 @@ func (b *block) queryWithSpan(
 	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results BaseResults,
+	results DocumentResults,
 	sp opentracing.Span,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
@@ -549,7 +547,7 @@ func (b *block) closeAsync(closer io.Closer) {
 
 func (b *block) addQueryResults(
 	cancellable *xresource.CancellableLifetime,
-	results BaseResults,
+	results DocumentResults,
 	batch []doc.Document,
 	source []byte,
 ) ([]doc.Document, int, int, error) {
@@ -567,7 +565,7 @@ func (b *block) addQueryResults(
 		return batch, 0, 0, errCancelledQuery
 	}
 
-	// try to add the docs to the xresource.
+	// try to add the docs to the resource.
 	size, docsCount, err := results.AddDocuments(batch)
 
 	// immediately release the checkout on the lifetime of query.
@@ -658,15 +656,21 @@ func (b *block) aggregateWithSpan(
 	}
 
 	var (
-		source     = opts.Source
-		size       = results.Size()
-		docsCount  = results.TotalDocsCount()
-		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
-		batchSize  = cap(batch)
-		iterClosed = false // tracking whether we need to free the iterator at the end.
+		source        = opts.Source
+		size          = results.Size()
+		resultCount   = results.TotalDocsCount()
+		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
+		maxBatch      = cap(batch)
+		iterClosed    = false // tracking whether we need to free the iterator at the end.
+		fieldAppended bool
+		termAppended  bool
+		lastField     []byte
+		batchedFields int
+		currFields    int
+		currTerms     int
 	)
-	if batchSize == 0 {
-		batchSize = defaultAggregateResultsEntryBatchSize
+	if maxBatch == 0 {
+		maxBatch = defaultAggregateResultsEntryBatchSize
 	}
 
 	// cleanup at the end
@@ -692,8 +696,16 @@ func (b *block) aggregateWithSpan(
 		}))
 	}
 
+	if opts.SeriesLimit > 0 && opts.SeriesLimit < maxBatch {
+		maxBatch = opts.SeriesLimit
+	}
+
+	if opts.DocsLimit > 0 && opts.DocsLimit < maxBatch {
+		maxBatch = opts.DocsLimit
+	}
+
 	for _, reader := range readers {
-		if opts.LimitsExceeded(size, docsCount) {
+		if opts.LimitsExceeded(size, resultCount) {
 			break
 		}
 
@@ -702,22 +714,63 @@ func (b *block) aggregateWithSpan(
 			return false, err
 		}
 		iterClosed = false // only once the iterator has been successfully Reset().
-
 		for iter.Next() {
-			if opts.LimitsExceeded(size, docsCount) {
+			if opts.LimitsExceeded(size, resultCount) {
 				break
 			}
 
 			field, term := iter.Current()
-			batch = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
-			if len(batch) < batchSize {
+
+			// TODO: remove this legacy doc tracking implementation when alternative
+			// limits are in place.
+			if results.EnforceLimits() {
+				if lastField == nil {
+					lastField = append(lastField, field...)
+					batchedFields++
+					if err := b.docsLimit.Inc(1, source); err != nil {
+						return false, err
+					}
+				} else if !bytes.Equal(lastField, field) {
+					lastField = lastField[:0]
+					lastField = append(lastField, field...)
+					batchedFields++
+					if err := b.docsLimit.Inc(1, source); err != nil {
+						return false, err
+					}
+				}
+
+				// NB: this logic increments the doc count to account for where the
+				// legacy limits would have been updated. It increments by two to
+				// reflect the term appearing as both the last element of the previous
+				// batch, as well as the first element in the next batch.
+				if batchedFields > maxBatch {
+					if err := b.docsLimit.Inc(2, source); err != nil {
+						return false, err
+					}
+
+					batchedFields = 1
+				}
+			}
+
+			batch, fieldAppended, termAppended = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
+			if fieldAppended {
+				currFields++
+			}
+			if termAppended {
+				currTerms++
+			}
+			// continue appending to the batch until we hit our max batch size.
+			if currFields+currTerms < maxBatch {
 				continue
 			}
 
-			batch, size, docsCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
+			batch, size, resultCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
 			if err != nil {
 				return false, err
 			}
+
+			currFields = 0
+			currTerms = 0
 		}
 
 		if err := iter.Err(); err != nil {
@@ -731,21 +784,25 @@ func (b *block) aggregateWithSpan(
 	}
 
 	// Add last batch to results if remaining.
-	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
+	for len(batch) > 0 {
+		batch, size, resultCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	return opts.exhaustive(size, docsCount), nil
+	return opts.exhaustive(size, resultCount), nil
 }
 
+// appendFieldAndTermToBatch adds the provided field / term onto the batch,
+// optionally reusing the last element of the batch if it pertains to the same field.
+// First boolean result indicates that a unique field was added to the batch
+// and the second boolean indicates if a unique term was added.
 func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
 	includeTerms bool,
-) []AggregateResultsEntry {
+) ([]AggregateResultsEntry, bool, bool) {
 	// NB(prateek): we make a copy of the (field, term) entries returned
 	// by the iterator during traversal, because the []byte are only valid per entry during
 	// the traversal (i.e. calling Next() invalidates the []byte). We choose to do this
@@ -754,10 +811,11 @@ func (b *block) appendFieldAndTermToBatch(
 	// idents is transferred to the results map, which either hangs on to them (if they are new),
 	// or finalizes them if they are duplicates.
 	var (
-		entry            AggregateResultsEntry
-		lastField        []byte
-		lastFieldIsValid bool
-		reuseLastEntry   bool
+		entry                       AggregateResultsEntry
+		lastField                   []byte
+		lastFieldIsValid            bool
+		reuseLastEntry              bool
+		newFieldAdded, newTermAdded bool
 	)
 	// we are iterating multiple segments so we may receive duplicates (same field/term), but
 	// as we are iterating one segment at a time, and because the underlying index structures
@@ -780,6 +838,7 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
+		newFieldAdded = true
 		// allocate id because this is the first time we've seen it
 		// NB(r): Iterating fields FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -788,6 +847,7 @@ func (b *block) appendFieldAndTermToBatch(
 	}
 
 	if includeTerms {
+		newTermAdded = true
 		// terms are always new (as far we know without checking the map for duplicates), so we allocate
 		// NB(r): Iterating terms FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -800,7 +860,8 @@ func (b *block) appendFieldAndTermToBatch(
 	} else {
 		batch = append(batch, entry)
 	}
-	return batch
+
+	return batch, newFieldAdded, newTermAdded
 }
 
 func (b *block) pooledID(id []byte) ident.ID {
@@ -811,19 +872,14 @@ func (b *block) pooledID(id []byte) ident.ID {
 	return b.opts.IdentifierPool().BinaryID(data)
 }
 
+// addAggregateResults adds the fields on the batch
+// to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
 	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
-	// update recently queried docs to monitor memory.
-	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch), source); err != nil {
-			return batch, 0, 0, err
-		}
-	}
-
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
@@ -831,8 +887,8 @@ func (b *block) addAggregateResults(
 		return batch, 0, 0, errCancelledQuery
 	}
 
-	// try to add the docs to the xresource.
-	size, docsCount := results.AddFields(batch)
+	// try to add the docs to the resource.
+	size, resultCount := results.AddFields(batch)
 
 	// immediately release the checkout on the lifetime of query.
 	cancellable.ReleaseCheckout()
@@ -845,7 +901,7 @@ func (b *block) addAggregateResults(
 	batch = batch[:0]
 
 	// return results.
-	return batch, size, docsCount, nil
+	return batch, size, resultCount, nil
 }
 
 func (b *block) AddResults(

@@ -168,16 +168,23 @@ type BaseResults interface {
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
+	// Finalize releases any resources held by the Results object,
+	// including returning it to a backing pool.
+	Finalize()
+}
+
+// DocumentResults is a collection of query results that allow accumulation of
+// document values, it is synchronized when access to the results set is used
+// as documented by the methods.
+type DocumentResults interface {
+	BaseResults
+
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
-
-	// Finalize releases any resources held by the Results object,
-	// including returning it to a backing pool.
-	Finalize()
 }
 
 // ResultDurations holds various timing information for a query result.
@@ -207,7 +214,7 @@ func (r ResultDurations) AddSearch(duration time.Duration) ResultDurations {
 // QueryResults is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
 type QueryResults interface {
-	BaseResults
+	DocumentResults
 
 	// Reset resets the Results object to initial state.
 	Reset(nsID ident.ID, opts QueryResultsOptions)
@@ -292,6 +299,9 @@ type AggregateResultsOptions struct {
 	// overflown will return early successfully.
 	SizeLimit int
 
+	// DocsLimit limits the amount of documents
+	DocsLimit int
+
 	// Type determines what result is required.
 	Type AggregationType
 
@@ -301,6 +311,24 @@ type AggregateResultsOptions struct {
 	// RestrictByQuery is a query to restrict the set of documents that must
 	// be present for an aggregated term to be returned.
 	RestrictByQuery *Query
+
+	// AggregateUsageMetrics are aggregate usage metrics that track field
+	// and term counts for aggregate queries.
+	AggregateUsageMetrics AggregateUsageMetrics
+}
+
+// AggregateUsageMetrics are metrics for aggregate query usage.
+type AggregateUsageMetrics interface {
+	// IncTotal increments the total metric count.
+	IncTotal(val int64)
+	// IncTotalTerms increments the totalTerms metric count.
+	IncTotalTerms(val int64)
+	// IncDedupedTerms increments the dedupedTerms metric count.
+	IncDedupedTerms(val int64)
+	// IncTotalFields increments the totalFields metric count.
+	IncTotalFields(val int64)
+	// IncDedupedFields increments the dedupedFields metric count.
+	IncDedupedFields(val int64)
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
@@ -390,7 +418,7 @@ type Block interface {
 		cancellable *xresource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
-		results BaseResults,
+		results DocumentResults,
 		logFields []opentracinglog.Field,
 	) (bool, error)
 
