@@ -92,7 +92,7 @@ func TestQueryLimits(t *testing.T) {
 	require.True(t, xerrors.IsInvalidParams(err))
 	require.True(t, IsQueryLimitExceededError(err))
 
-	opts = testQueryLimitOptions(docOpts, bytesOpts, instrument.NewOptions())
+	opts = testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, instrument.NewOptions())
 	queryLimits, err = NewQueryLimits(opts)
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
