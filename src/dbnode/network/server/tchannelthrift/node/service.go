@@ -912,6 +912,7 @@ type fetchTaggedResultsIterOpts struct {
 	totalDocsCount  int
 	dataReadMetrics index.QueryMetrics
 	totalMetrics    index.QueryMetrics
+	blocksReadLimit limits.LookbackLimit
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic

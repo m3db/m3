@@ -469,6 +469,7 @@ func Run(runOpts RunOptions) {
 	limitOpts := limits.NewOptions().
 		SetDocsLimitOpts(docsLimit).
 		SetBytesReadLimitOpts(bytesReadLimit).
+		SetDiskSeriesReadLimitOpts(diskSeriesReadLimit).
 		SetInstrumentOptions(iOpts)
 	if builder := opts.SourceLoggerBuilder(); builder != nil {
 		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
