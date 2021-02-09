@@ -243,6 +243,44 @@ func (mr *MockDocumentResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockDocumentResults)(nil).TotalDocsCount))
 }
 
+// TotalDuration mocks base method
+func (m *MockDocumentResults) TotalDuration() ResultDurations {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDuration")
+	ret0, _ := ret[0].(ResultDurations)
+	return ret0
+}
+
+// TotalDuration indicates an expected call of TotalDuration
+func (mr *MockDocumentResultsMockRecorder) TotalDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDuration", reflect.TypeOf((*MockDocumentResults)(nil).TotalDuration))
+}
+
+// AddBlockProcessingDuration mocks base method
+func (m *MockDocumentResults) AddBlockProcessingDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockProcessingDuration", duration)
+}
+
+// AddBlockProcessingDuration indicates an expected call of AddBlockProcessingDuration
+func (mr *MockDocumentResultsMockRecorder) AddBlockProcessingDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockProcessingDuration", reflect.TypeOf((*MockDocumentResults)(nil).AddBlockProcessingDuration), duration)
+}
+
+// AddBlockSearchDuration mocks base method
+func (m *MockDocumentResults) AddBlockSearchDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockSearchDuration", duration)
+}
+
+// AddBlockSearchDuration indicates an expected call of AddBlockSearchDuration
+func (mr *MockDocumentResultsMockRecorder) AddBlockSearchDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockSearchDuration", reflect.TypeOf((*MockDocumentResults)(nil).AddBlockSearchDuration), duration)
+}
+
 // EnforceLimits mocks base method
 func (m *MockDocumentResults) EnforceLimits() bool {
 	m.ctrl.T.Helper()
