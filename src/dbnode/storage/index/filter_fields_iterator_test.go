@@ -23,8 +23,6 @@ package index
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -36,7 +34,7 @@ func TestNewFilterFieldsIteratorError(t *testing.T) {
 	defer ctrl.Finish()
 
 	r := segment.NewMockReader(ctrl)
-	_, err := newFilterFieldsIterator(instrument.NewTestOptions(t), r, nil)
+	_, err := newFilterFieldsIterator(r, nil)
 	require.Error(t, err)
 }
 
@@ -47,7 +45,7 @@ func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{})
 
-	iter, err := newFilterFieldsIterator(instrument.NewTestOptions(t), reader, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.False(t, iter.Next())
@@ -62,7 +60,7 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}})
 
-	iter, err := newFilterFieldsIterator(instrument.NewTestOptions(t), reader, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -80,7 +78,7 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "b": {}, "e": {}})
 
-	iter, err := newFilterFieldsIterator(instrument.NewTestOptions(t), reader, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -98,7 +96,7 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "e": {}, "c": {}})
 
-	iter, err := newFilterFieldsIterator(instrument.NewTestOptions(t), reader, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -116,7 +114,7 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "b": {}, "c": {}})
 
-	iter, err := newFilterFieldsIterator(instrument.NewTestOptions(t), reader, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -143,7 +141,7 @@ func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
 	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "c": {}})
 
-	iter, err := newFilterFieldsIterator(instrument.NewTestOptions(t), reader, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())

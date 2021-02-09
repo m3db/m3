@@ -539,7 +539,11 @@ func (b *block) queryWithSpan(
 func (b *block) closeAsync(closer io.Closer) {
 	if err := closer.Close(); err != nil {
 		// Note: This only happens if closing the readers isn't clean.
-		b.logger.Error("could not close query index block resource", zap.Error(err))
+		instrument.EmitAndLogInvariantViolation(
+			b.iopts,
+			func(l *zap.Logger) {
+				l.Error("could not close query index block resource", zap.Error(err))
+			})
 	}
 }
 
@@ -644,7 +648,7 @@ func (b *block) aggregateWithSpan(
 			if len(aggOpts.FieldFilter) == 0 {
 				return r.FieldsPostingsList()
 			}
-			return newFilterFieldsIterator(b.iopts, r, aggOpts.FieldFilter)
+			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
 		},
 	}
 
