@@ -1040,14 +1040,14 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 	results := queryResult.Results
 	for _, entry := range results.Map().Iter() {
 		responseElem := &rpc.AggregateQueryResultTagNameElement{
-			TagName: entry.Key().String(),
+			TagName: string(entry.Key()),
 		}
 		tagValues := entry.Value()
 		tagValuesMap := tagValues.Map()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
 		for _, entry := range tagValuesMap.Iter() {
 			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryResultTagValueElement{
-				TagValue: entry.Key().String(),
+				TagValue: string(entry.Key()),
 			})
 		}
 		response.Results = append(response.Results, responseElem)
@@ -1084,7 +1084,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	results := queryResult.Results
 	for _, entry := range results.Map().Iter() {
 		responseElem := &rpc.AggregateQueryRawResultTagNameElement{
-			TagName: entry.Key().Bytes(),
+			TagName: entry.Key(),
 		}
 		tagValues := entry.Value()
 		if tagValues.HasValues() {
@@ -1092,7 +1092,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
 			for _, entry := range tagValuesMap.Iter() {
 				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
-					TagValue: entry.Key().Bytes(),
+					TagValue: entry.Key(),
 				})
 			}
 		}

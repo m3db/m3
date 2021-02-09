@@ -2102,8 +2102,8 @@ func TestServiceAggregate(t *testing.T) {
 
 	resMap := index.NewAggregateResults(ident.StringID(nsID),
 		index.AggregateResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), index.MustNewAggregateValues(testIndexOptions))
-	resMap.Map().Set(ident.StringID("bar"), index.MustNewAggregateValues(testIndexOptions,
+	resMap.Map().Set([]byte("foo"), index.MustNewAggregateValues(testIndexOptions))
+	resMap.Map().Set([]byte("bar"), index.MustNewAggregateValues(testIndexOptions,
 		ident.StringID("baz"), ident.StringID("barf")))
 
 	var (
@@ -2193,8 +2193,8 @@ func TestServiceAggregateNameOnly(t *testing.T) {
 
 	resMap := index.NewAggregateResults(ident.StringID(nsID),
 		index.AggregateResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), index.AggregateValues{})
-	resMap.Map().Set(ident.StringID("bar"), index.AggregateValues{})
+	resMap.Map().Set([]byte("foo"), index.AggregateValues{})
+	resMap.Map().Set([]byte("bar"), index.AggregateValues{})
 	var (
 		seriesLimit int64 = 10
 		docsLimit   int64 = 10

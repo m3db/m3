@@ -54,11 +54,11 @@ func toMap(res AggregateResults) map[string][]string {
 		terms := entry.value.Map().Iter()
 		resultTerms := make([]string, 0, len(terms))
 		for _, term := range terms {
-			resultTerms = append(resultTerms, term.Key().String())
+			resultTerms = append(resultTerms, string(term.Key()))
 		}
 
 		sort.Strings(resultTerms)
-		resultMap[entry.Key().String()] = resultTerms
+		resultMap[string(entry.Key())] = resultTerms
 	}
 
 	return resultMap
@@ -294,7 +294,7 @@ func TestAggResultsReset(t *testing.T) {
 	require.Equal(t, 2, size)
 	require.Equal(t, 2, docsCount)
 
-	aggVals, ok := res.Map().Get(ident.StringID("foo"))
+	aggVals, ok := res.Map().Get([]byte("foo"))
 	require.True(t, ok)
 	require.Equal(t, 1, aggVals.Size())
 
@@ -306,7 +306,7 @@ func TestAggResultsReset(t *testing.T) {
 
 	newID := ident.StringID("qaz")
 	res.Reset(newID, AggregateResultsOptions{SizeLimit: 100})
-	_, ok = res.Map().Get(ident.StringID("foo"))
+	_, ok = res.Map().Get([]byte("foo"))
 	require.False(t, ok)
 	require.Equal(t, 0, aggVals.Size())
 	require.Equal(t, 0, res.Size())
@@ -344,7 +344,7 @@ func TestAggResultFinalize(t *testing.T) {
 
 	// Ensure the data is present.
 	rMap := res.Map()
-	aggVals, ok := rMap.Get(ident.StringID("foo"))
+	aggVals, ok := rMap.Get([]byte("foo"))
 	require.True(t, ok)
 	require.Equal(t, 1, aggVals.Size())
 
@@ -352,15 +352,10 @@ func TestAggResultFinalize(t *testing.T) {
 	res.Finalize()
 
 	// Ensure data was removed by call to Finalize().
-	aggVals, ok = rMap.Get(ident.StringID("foo"))
+	aggVals, ok = rMap.Get([]byte("foo"))
 	require.False(t, ok)
 	require.Nil(t, aggVals.Map())
 	require.Equal(t, 0, res.Size())
-
-	for _, entry := range rMap.Iter() {
-		id := entry.Key()
-		require.False(t, id.IsNoFinalize())
-	}
 }
 
 func TestResetUpdatesMetics(t *testing.T) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,6 @@
 // see https://github.com/mauricelam/genny
 
 package index
-
-import (
-	"github.com/m3db/m3/src/x/ident"
-)
 
 // Copyright (c) 2019 Uber Technologies, Inc.
 //
@@ -77,16 +73,16 @@ import (
 type AggregateResultsMapHash uint64
 
 // AggregateResultsMapHashFn is the hash function to execute when hashing a key.
-type AggregateResultsMapHashFn func(ident.ID) AggregateResultsMapHash
+type AggregateResultsMapHashFn func([]byte) AggregateResultsMapHash
 
 // AggregateResultsMapEqualsFn is the equals key function to execute when detecting equality of a key.
-type AggregateResultsMapEqualsFn func(ident.ID, ident.ID) bool
+type AggregateResultsMapEqualsFn func([]byte, []byte) bool
 
 // AggregateResultsMapCopyFn is the copy key function to execute when copying the key.
-type AggregateResultsMapCopyFn func(ident.ID) ident.ID
+type AggregateResultsMapCopyFn func([]byte) []byte
 
 // AggregateResultsMapFinalizeFn is the finalize key function to execute when finished with a key.
-type AggregateResultsMapFinalizeFn func(ident.ID)
+type AggregateResultsMapFinalizeFn func([]byte)
 
 // AggregateResultsMap uses the genny package to provide a generic hash map that can be specialized
 // by running the following command from this root of the repository:
@@ -143,12 +139,12 @@ type AggregateResultsMapEntry struct {
 }
 
 type _AggregateResultsMapKey struct {
-	key      ident.ID
+	key      []byte
 	finalize bool
 }
 
 // Key returns the map entry key.
-func (e AggregateResultsMapEntry) Key() ident.ID {
+func (e AggregateResultsMapEntry) Key() []byte {
 	return e.key.key
 }
 
@@ -167,7 +163,7 @@ func _AggregateResultsMapAlloc(opts _AggregateResultsMapOptions) *AggregateResul
 	return m
 }
 
-func (m *AggregateResultsMap) newMapKey(k ident.ID, opts _AggregateResultsMapKeyOptions) _AggregateResultsMapKey {
+func (m *AggregateResultsMap) newMapKey(k []byte, opts _AggregateResultsMapKeyOptions) _AggregateResultsMapKey {
 	key := _AggregateResultsMapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
@@ -185,7 +181,7 @@ func (m *AggregateResultsMap) removeMapKey(hash AggregateResultsMapHash, key _Ag
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *AggregateResultsMap) Get(k ident.ID) (AggregateValues, bool) {
+func (m *AggregateResultsMap) Get(k []byte) (AggregateValues, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -199,7 +195,7 @@ func (m *AggregateResultsMap) Get(k ident.ID) (AggregateValues, bool) {
 }
 
 // Set will set the value for an identifier.
-func (m *AggregateResultsMap) Set(k ident.ID, v AggregateValues) {
+func (m *AggregateResultsMap) Set(k []byte, v AggregateValues) {
 	m.set(k, v, _AggregateResultsMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -215,7 +211,7 @@ type AggregateResultsMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *AggregateResultsMap) SetUnsafe(k ident.ID, v AggregateValues, opts AggregateResultsMapSetUnsafeOptions) {
+func (m *AggregateResultsMap) SetUnsafe(k []byte, v AggregateValues, opts AggregateResultsMapSetUnsafeOptions) {
 	m.set(k, v, _AggregateResultsMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -227,7 +223,7 @@ type _AggregateResultsMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *AggregateResultsMap) set(k ident.ID, v AggregateValues, opts _AggregateResultsMapKeyOptions) {
+func (m *AggregateResultsMap) set(k []byte, v AggregateValues, opts _AggregateResultsMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -261,13 +257,13 @@ func (m *AggregateResultsMap) Len() int {
 
 // Contains returns true if value exists for key, false otherwise, it is
 // shorthand for a call to Get that doesn't return the value.
-func (m *AggregateResultsMap) Contains(k ident.ID) bool {
+func (m *AggregateResultsMap) Contains(k []byte) bool {
 	_, ok := m.Get(k)
 	return ok
 }
 
 // Delete will remove a value set in the map for the specified key.
-func (m *AggregateResultsMap) Delete(k ident.ID) {
+func (m *AggregateResultsMap) Delete(k []byte) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
