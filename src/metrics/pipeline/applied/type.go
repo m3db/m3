@@ -100,7 +100,7 @@ func (u OpUnion) Equal(other OpUnion) bool {
 		return u.Rollup.Equal(other.Rollup)
 	}
 
-	return true
+	return u.Transformation.Type == other.Transformation.Type
 }
 
 // Clone clones an operation union.
@@ -196,12 +196,19 @@ func (p Pipeline) Equal(other Pipeline) bool {
 		if p.operations[i].Type != other.operations[i].Type {
 			return false
 		}
-
-		if p.operations[i].Type == pipeline.RollupOpType &&
-			!p.operations[i].Rollup.Equal(other.operations[i].Rollup) {
-			return false
+		//nolint:exhaustive
+		switch p.operations[i].Type {
+		case pipeline.RollupOpType:
+			if !p.operations[i].Rollup.Equal(other.operations[i].Rollup) {
+				return false
+			}
+		case pipeline.TransformationOpType:
+			if p.operations[i].Transformation.Type != other.operations[i].Transformation.Type {
+				return false
+			}
 		}
 	}
+
 	return true
 }
 
