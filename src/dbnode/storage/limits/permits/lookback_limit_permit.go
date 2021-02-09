@@ -34,7 +34,8 @@ type LookbackLimitPermitManager struct {
 }
 
 type lookbackLimitPermit struct {
-	limit limits.LookbackLimit
+	limit  limits.LookbackLimit
+	source []byte
 }
 
 var _ Manager = (*LookbackLimitPermitManager)(nil)
@@ -55,9 +56,11 @@ func NewLookbackLimitPermitManager(
 }
 
 // NewPermits returns a new set of permits.
-func (p *LookbackLimitPermitManager) NewPermits(_ context.Context) Permits {
+func (p *LookbackLimitPermitManager) NewPermits(ctx context.Context) Permits {
+	s := sourceFromContext(ctx)
 	return &lookbackLimitPermit{
-		limit: p.Limit,
+		limit:  p.Limit,
+		source: s,
 	}
 }
 
@@ -71,14 +74,12 @@ func (p *LookbackLimitPermitManager) Stop() {
 	p.Limit.Stop()
 }
 
-func (p *lookbackLimitPermit) Acquire(ctx context.Context) error {
-	s := sourceFromContext(ctx)
-	return p.limit.Inc(1, s)
+func (p *lookbackLimitPermit) Acquire(_ context.Context) error {
+	return p.limit.Inc(1, p.source)
 }
 
-func (p *lookbackLimitPermit) TryAcquire(ctx context.Context) (bool, error) {
-	s := sourceFromContext(ctx)
-	err := p.limit.Inc(1, s)
+func (p *lookbackLimitPermit) TryAcquire(_ context.Context) (bool, error) {
+	err := p.limit.Inc(1, p.source)
 	return err != nil, err
 }
 
