@@ -136,7 +136,7 @@ func (i *termsIterFromSegments) Next() bool {
 		termsKeyIter := iter.(*termsKeyIter)
 		_, list := termsKeyIter.iter.Current()
 
-		if termsKeyIter.segment.offset == 0 && len(termsKeyIter.segment.skipAsc) == 0 {
+		if termsKeyIter.segment.offset == 0 && termsKeyIter.segment.skips == 0 {
 			// No offset, which means is first segment we are combining from
 			// so can just direct union.
 			if index.MigrationReadOnlyPostings() {
@@ -155,32 +155,18 @@ func (i *termsIterFromSegments) Next() bool {
 
 		// We have to taken into account the offset and duplicates
 		var (
-			iter           = list.Iterator()
-			skip           = termsKeyIter.segment.skipAsc
-			negativeOffset postings.ID
+			iter            = list.Iterator()
+			negativeOffsets = termsKeyIter.segment.negativeOffsets
 		)
 		for iter.Next() {
 			curr := iter.Current()
-			factor := 2
-			// First do exponential skipping.
-			for len(skip) >= factor && curr > skip[factor-1] {
-				skip = skip[factor:]
-				negativeOffset += postings.ID(factor)
-				factor *= 2
-			}
-			// Then linear.
-			for len(skip) > 0 && curr > skip[0] {
-				skip = skip[1:]
-				negativeOffset++
-			}
+			negativeOffset := negativeOffsets[curr]
 			// Then skip the individual if matches.
-			if len(skip) > 0 && curr == skip[0] {
-				skip = skip[1:]
-				negativeOffset++
-				// Also skip this value, as itself is a duplicate
+			if negativeOffset == -1 {
+				// Skip this value, as itself is a duplicate.
 				continue
 			}
-			value := curr + termsKeyIter.segment.offset - negativeOffset
+			value := curr + termsKeyIter.segment.offset - postings.ID(negativeOffset)
 			if err := i.currPostingsList.Insert(value); err != nil {
 				iter.Close()
 				i.err = err

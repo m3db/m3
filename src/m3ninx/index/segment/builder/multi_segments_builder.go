@@ -46,12 +46,15 @@ type builderFromSegments struct {
 type segmentMetadata struct {
 	segment segment.Segment
 	offset  postings.ID
-	// skipAsc is a lookup of document IDs are duplicates or
-	// to filter out in this segment, that is documents that are already
-	// contained by other segments or should not be included
-	// in the output segment and hence should not be
-	// returned when looking up documents.
-	skipAsc []postings.ID
+	// negativeOffsets is a lookup of document IDs are duplicates or should be skipped,
+	// that is documents that are already contained by other segments or should
+	// not be included in the output segment and hence should not be returned
+	// when looking up documents. If this is the case offset is -1.
+	// If a document ID is not a duplicate or skipped then the offset is
+	// the shift that should be applied when translating this postings ID
+	// to the result postings ID.
+	negativeOffsets []int64
+	skips           int64
 }
 
 // NewBuilderFromSegments returns a new builder from segments.
@@ -79,7 +82,10 @@ func (b *builderFromSegments) Reset() {
 	b.segmentsOffset = 0
 	var emptySegment segmentMetadata
 	for i := range b.segments {
+		// Save the offsets array.
+		negativeOffsets := b.segments[i].negativeOffsets
 		b.segments[i] = emptySegment
+		b.segments[i].negativeOffsets = negativeOffsets[:0]
 	}
 	b.segments = b.segments[:0]
 
@@ -121,20 +127,32 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			return err
 		}
 
+		var negativeOffsets []int64
+		if n := len(b.segments); cap(b.segments) > n {
+			// Take the offsets from the element we're about to reuse.
+			negativeOffsets = b.segments[:n+1][n].negativeOffsets[:0]
+		}
+		if int64(cap(negativeOffsets)) < segment.Size() {
+			negativeOffsets = make([]int64, 0, int(1.5*float64(segment.Size())))
+		}
+
 		var (
-			added int
-			skip  []postings.ID
+			added      int
+			currOffset int64
 		)
 		for iter.Next() {
 			d := iter.Current()
+			negativeOffsets = append(negativeOffsets, currOffset)
 			if b.idSet.Contains(d.ID) {
 				// Skip duplicates.
-				skip = append(skip, iter.PostingsID())
+				negativeOffsets[len(negativeOffsets)-1] = -1
+				currOffset++
 				continue
 			}
 			if b.filter != nil && !b.filter.Contains(d) {
 				// Actively filtering and ID is not contained.
-				skip = append(skip, iter.PostingsID())
+				negativeOffsets[len(negativeOffsets)-1] = -1
+				currOffset++
 				if b.filterCount != nil {
 					b.filterCount.Inc(1)
 				}
@@ -153,15 +171,11 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			return err
 		}
 
-		// Sort duplicates in ascending order
-		sort.Slice(skip, func(i, j int) bool {
-			return skip[i] < skip[j]
-		})
-
 		b.segments = append(b.segments, segmentMetadata{
-			segment: segment,
-			offset:  b.segmentsOffset,
-			skipAsc: skip,
+			segment:         segment,
+			offset:          b.segmentsOffset,
+			negativeOffsets: negativeOffsets,
+			skips:           currOffset,
 		})
 		b.segmentsOffset += postings.ID(added)
 	}

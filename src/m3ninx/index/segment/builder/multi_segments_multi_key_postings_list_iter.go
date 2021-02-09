@@ -147,7 +147,7 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			return false
 		}
 
-		if fieldsKeyIter.segment.offset == 0 && len(fieldsKeyIter.segment.skipAsc) == 0 {
+		if fieldsKeyIter.segment.offset == 0 && fieldsKeyIter.segment.skips == 0 {
 			// No offset, which means is first segment we are combining from
 			// so can just direct union.
 			// Make sure skipAsc is empty otherwise we need to do filtering.
@@ -167,23 +167,18 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 
 		// We have to taken into account the offset and duplicates
 		var (
-			iter           = pl.Iterator()
-			skip           = fieldsKeyIter.segment.skipAsc
-			negativeOffset postings.ID
+			iter            = pl.Iterator()
+			negativeOffsets = fieldsKeyIter.segment.negativeOffsets
 		)
 		for iter.Next() {
 			curr := iter.Current()
-			for len(skip) > 0 && curr > skip[0] {
-				skip = skip[1:]
-				negativeOffset++
-			}
-			if len(skip) > 0 && curr == skip[0] {
-				skip = skip[1:]
-				negativeOffset++
-				// Also skip this value, as itself is a duplicate
+			negativeOffset := negativeOffsets[curr]
+			// Then skip the individual if matches.
+			if negativeOffset == -1 {
+				// Skip this value, as itself is a duplicate.
 				continue
 			}
-			value := curr + fieldsKeyIter.segment.offset - negativeOffset
+			value := curr + fieldsKeyIter.segment.offset - postings.ID(negativeOffset)
 			if err := i.currFieldPostingsList.Insert(value); err != nil {
 				iter.Close()
 				i.err = err
