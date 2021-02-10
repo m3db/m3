@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package metadata
 
 import (
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"runtime"
+	"testing"
 
-	"go.uber.org/zap/zapcore"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
-type bootstrapStep interface {
-	prepare(totalRanges result.ShardTimeRanges) (bootstrapStepPreparedResult, error)
-	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	mergeResults(totalUnfulfilled result.ShardTimeRanges)
+func isDefault(m StagedMetadatas) bool {
+	return m.IsDefault()
 }
 
-type bootstrapStepPreparedResult struct {
-	currAvailable result.ShardTimeRanges
-}
-
-type bootstrapStepStatus struct {
-	fulfilled result.ShardTimeRanges
-	logFields []zapcore.Field
+func BenchmarkMetadata_IsDefault(b *testing.B) {
+	m := StagedMetadatas{
+		StagedMetadata{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: Metadata{
+				Pipelines: []PipelineMetadata{
+					{
+						AggregationID:   aggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{},
+					},
+				},
+			},
+		},
+	}
+	for i := 0; i < b.N; i++ {
+		if !isDefault(m) {
+			b.Fail()
+		}
+	}
+	runtime.KeepAlive(m)
 }

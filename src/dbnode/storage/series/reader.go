@@ -147,7 +147,7 @@ type BlockReaderIter interface {
 	ToSlices(ctx context.Context) ([][]xio.BlockReader, error)
 }
 
-type blockReaderIter struct {
+type blockReaderIterOpts struct {
 	start     time.Time
 	end       time.Time
 	blockSize time.Duration
@@ -155,6 +155,10 @@ type blockReaderIter struct {
 	nsCtx     namespace.Context
 	cached    []xio.BlockReader
 	buffer    [][]xio.BlockReader
+}
+
+type blockReaderIter struct {
+	blockReaderIterOpts
 
 	blockAt time.Time
 	curr    []xio.BlockReader
@@ -281,13 +285,15 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 	}
 
 	return &blockReaderIter{
-		start:     start,
-		end:       end,
-		blockSize: blockSize,
-		reader:    r,
-		nsCtx:     nsCtx,
-		buffer:    buffer,
-		cached:    cached,
+		blockReaderIterOpts: blockReaderIterOpts{
+			start:     start,
+			end:       end,
+			blockSize: blockSize,
+			reader:    r,
+			nsCtx:     nsCtx,
+			buffer:    buffer,
+			cached:    cached,
+		},
 	}, nil
 }
 

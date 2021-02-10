@@ -1548,6 +1548,7 @@ func TestServiceFetchBlocksMetadataEndpointV2RawDatabaseNotSet(t *testing.T) {
 	require.Equal(t, tterrors.NewInternalError(errDatabaseIsNotInitializedYet), err)
 }
 
+//nolint:dupl
 func TestServiceFetchTagged(t *testing.T) {
 	testCases := []struct {
 		name            string

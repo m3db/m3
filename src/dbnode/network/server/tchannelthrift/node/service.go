@@ -123,6 +123,15 @@ type serviceMetrics struct {
 	writeTaggedBatchRawRPCs tally.Counter
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
+
+	// the total time to call FetchTagged, both querying the index and reading data results (if requested).
+	queryTimingFetchTagged index.QueryMetrics
+	// the total time to read data blocks.
+	queryTimingDataRead index.QueryMetrics
+	// the total time to call Aggregate.
+	queryTimingAggregate index.QueryMetrics
+	// the total time to call AggregateRaw.
+	queryTimingAggregateRaw index.QueryMetrics
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
@@ -143,6 +152,11 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
+
+		queryTimingFetchTagged:  index.NewQueryMetrics("fetch_tagged", scope),
+		queryTimingAggregate:    index.NewQueryMetrics("aggregate", scope),
+		queryTimingAggregateRaw: index.NewQueryMetrics("aggregate_raw", scope),
+		queryTimingDataRead:     index.NewQueryMetrics("data_read", scope),
 	}
 }
 
@@ -255,6 +269,7 @@ type Service interface {
 	rpc.TChanNode
 
 	// FetchTaggedIter returns an iterator for the results of FetchTagged.
+	// It is the responsibility of the caller to close the returned iterator.
 	FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest) (FetchTaggedResultsIter, error)
 
 	// Only safe to be called one time once the service has started.
@@ -722,35 +737,19 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	callStart := s.nowFn()
-
-	ctx := addSourceToContext(tctx, req.Source)
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchTagged)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("query", string(req.Query)),
-			opentracinglog.String("namespace", string(req.NameSpace)),
-			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
-		)
-	}
-
-	result, err := s.fetchTagged(ctx, req)
-	if sampled && err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-	sp.Finish()
-
-	s.metrics.fetchTagged.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
-	return result, err
-}
-
-func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	ctx := tchannelthrift.Context(tctx)
 	iter, err := s.FetchTaggedIter(ctx, req)
 	if err != nil {
 		return nil, err
 	}
+	result, err := s.buildFetchTaggedResult(ctx, iter)
+	iter.Close(err)
 
+	return result, err
+}
+
+func (s *service) buildFetchTaggedResult(ctx context.Context, iter FetchTaggedResultsIter) (*rpc.FetchTaggedResult_,
+	error) {
 	response := &rpc.FetchTaggedResult_{
 		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, iter.NumIDs()),
 		Exhaustive: iter.Exhaustive(),
@@ -781,6 +780,35 @@ func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) 
 }
 
 func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest) (FetchTaggedResultsIter, error) {
+	callStart := s.nowFn()
+	ctx = addSourceToM3Context(ctx, req.Source)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchTagged)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", string(req.Query)),
+			opentracinglog.String("namespace", string(req.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
+
+	instrumentClose := func(err error) {
+		if sampled && err != nil {
+			sp.LogFields(opentracinglog.Error(err))
+		}
+		sp.Finish()
+
+		s.metrics.fetchTagged.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
+	}
+	iter, err := s.fetchTaggedIter(ctx, req, instrumentClose)
+	if err != nil {
+		instrumentClose(err)
+	}
+	return iter, err
+}
+
+func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest, instrumentClose func(error)) (
+	FetchTaggedResultsIter, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -789,6 +817,7 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		s.readRPCCompleted()
 	}))
 
+	startTime := s.nowFn()
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
 		return nil, tterrors.NewBadRequestError(err)
@@ -803,15 +832,21 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 	ctx.RegisterFinalizer(tagEncoder)
 
 	return newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
-		queryResult:    queryResult,
-		queryOpts:      opts,
-		fetchData:      fetchData,
-		db:             db,
-		docReader:      docs.NewEncodedDocumentReader(),
-		nsID:           ns,
-		tagEncoder:     tagEncoder,
-		iOpts:          s.opts.InstrumentOptions(),
-		blockReadLimit: s.queryLimits.DiskSeriesReadLimit(),
+		queryResult:     queryResult,
+		queryOpts:       opts,
+		fetchData:       fetchData,
+		db:              db,
+		docReader:       docs.NewEncodedDocumentReader(),
+		nsID:            ns,
+		tagEncoder:      tagEncoder,
+		iOpts:           s.opts.InstrumentOptions(),
+		instrumentClose: instrumentClose,
+		totalDocsCount:  queryResult.Results.TotalDocsCount(),
+		nowFn:           s.nowFn,
+		fetchStart:      startTime,
+		dataReadMetrics: s.metrics.queryTimingDataRead,
+		totalMetrics:    s.metrics.queryTimingFetchTagged,
+		blocksReadLimit: s.queryLimits.DiskSeriesReadLimit(),
 	}), nil
 }
 
@@ -838,64 +873,54 @@ type FetchTaggedResultsIter interface {
 
 	// Current returns the current IDResult fetched with Next. The result is only valid if Err is nil.
 	Current() IDResult
+
+	// Close closes the iterator. The provided error is non-nil if the client of the Iterator encountered an error
+	// while iterating.
+	Close(err error)
 }
 
 type fetchTaggedResultsIter struct {
-	queryResults    *index.ResultsMap
-	idResults       []IDResult
-	startInclusive  time.Time
-	endExclusive    time.Time
-	db              storage.Database
-	idx             int
-	blockReadIdx    int
-	exhaustive      bool
-	fetchData       bool
-	cur             IDResult
-	err             error
-	nsID            ident.ID
-	docReader       *docs.EncodedDocumentReader
-	tagEncoder      serialize.TagEncoder
-	iOpts           instrument.Options
-	blocksReadLimit limits.LookbackLimit
+	fetchTaggedResultsIterOpts
+	idResults     []idResult
+	dataReadStart time.Time
+	idx           int
+	blockReadIdx  int
+	cur           IDResult
+	err           error
 }
 
 type fetchTaggedResultsIterOpts struct {
-	queryResult    index.QueryResult
-	queryOpts      index.QueryOptions
-	fetchData      bool
-	db             storage.Database
-	docReader      *docs.EncodedDocumentReader
-	nsID           ident.ID
-	tagEncoder     serialize.TagEncoder
-	iOpts          instrument.Options
-	blockReadLimit limits.LookbackLimit
+	queryResult     index.QueryResult
+	queryOpts       index.QueryOptions
+	fetchData       bool
+	db              storage.Database
+	docReader       *docs.EncodedDocumentReader
+	nsID            ident.ID
+	tagEncoder      serialize.TagEncoder
+	iOpts           instrument.Options
+	instrumentClose func(error)
+	nowFn           clock.NowFn
+	fetchStart      time.Time
+	totalDocsCount  int
+	dataReadMetrics index.QueryMetrics
+	totalMetrics    index.QueryMetrics
+	blocksReadLimit limits.LookbackLimit
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
-	iter := &fetchTaggedResultsIter{
-		queryResults:    opts.queryResult.Results.Map(),
-		idResults:       make([]IDResult, 0, opts.queryResult.Results.Map().Len()),
-		exhaustive:      opts.queryResult.Exhaustive,
-		db:              opts.db,
-		fetchData:       opts.fetchData,
-		startInclusive:  opts.queryOpts.StartInclusive,
-		endExclusive:    opts.queryOpts.EndExclusive,
-		nsID:            opts.nsID,
-		docReader:       opts.docReader,
-		tagEncoder:      opts.tagEncoder,
-		iOpts:           opts.iOpts,
-		blocksReadLimit: opts.blockReadLimit,
+	return &fetchTaggedResultsIter{
+		fetchTaggedResultsIterOpts: opts,
+		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
+		dataReadStart:              opts.nowFn(),
 	}
-
-	return iter
 }
 
 func (i *fetchTaggedResultsIter) NumIDs() int {
-	return i.queryResults.Len()
+	return i.queryResult.Results.Map().Len()
 }
 
 func (i *fetchTaggedResultsIter) Exhaustive() bool {
-	return i.exhaustive
+	return i.queryResult.Exhaustive
 }
 
 func (i *fetchTaggedResultsIter) Namespace() ident.ID {
@@ -905,20 +930,20 @@ func (i *fetchTaggedResultsIter) Namespace() ident.ID {
 func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	// initialize the iterator state on the first fetch.
 	if i.idx == 0 {
-		for _, entry := range i.queryResults.Iter() { // nolint: gocritic
-			result := IDResult{
-				queryResult:     entry,
-				docReader:       i.docReader,
-				tagEncoder:      i.tagEncoder,
-				iOpts:           i.iOpts,
-				blocksReadLimit: i.blocksReadLimit,
+		for _, entry := range i.queryResult.Results.Map().Iter() { // nolint: gocritic
+			result := idResult{
+				queryResult: entry,
+				docReader:   i.docReader,
+				tagEncoder:  i.tagEncoder,
+				iOpts:       i.iOpts,
 			}
 			if i.fetchData {
 				// NB(r): Use a bytes ID here so that this ID doesn't need to be
 				// copied by the blockRetriever in the streamRequest method when
 				// it checks if the ID is finalizeable or not with IsNoFinalize.
 				id := ident.BytesID(result.queryResult.Key())
-				result.blockReadersIter, i.err = i.db.ReadEncoded(ctx, i.nsID, id, i.startInclusive, i.endExclusive)
+				result.blockReadersIter, i.err = i.db.ReadEncoded(ctx, i.nsID, id, i.queryOpts.StartInclusive,
+					i.queryOpts.EndExclusive)
 				if i.err != nil {
 					return false
 				}
@@ -927,14 +952,14 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 		}
 	}
 
-	if i.idx == i.queryResults.Len() {
+	if i.idx == i.queryResult.Results.Map().Len() {
 		return false
 	}
 
 	if i.fetchData {
 		// ensure the blockReaders exist for the current series ID. additionally try to prefetch additional blockReaders
 		// for future seriesID to pipeline the disk reads.
-		for i.blockReadIdx < i.queryResults.Len() {
+		for i.blockReadIdx < i.queryResult.Results.Map().Len() {
 			var blockReaders [][]xio.BlockReader
 			blockIter := i.idResults[i.blockReadIdx].blockReadersIter
 
@@ -955,7 +980,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 		}
 	}
 
-	i.cur = i.idResults[i.idx]
+	i.cur = &i.idResults[i.idx]
 	i.idx++
 	return true
 }
@@ -968,25 +993,47 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 	return i.cur
 }
 
+func (i *fetchTaggedResultsIter) Close(err error) {
+	i.instrumentClose(err)
+	queryRange := i.queryOpts.EndExclusive.Sub(i.queryOpts.StartInclusive)
+	now := i.nowFn()
+	dataReadTime := now.Sub(i.dataReadStart)
+	i.dataReadMetrics.ByRange.Record(queryRange, dataReadTime)
+	i.dataReadMetrics.ByDocs.Record(i.totalDocsCount, dataReadTime)
+
+	totalFetchTime := now.Sub(i.fetchStart)
+	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
+	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
+}
+
 // IDResult is the FetchTagged result for a series ID.
-type IDResult struct {
+type IDResult interface {
+	// ID returns the series ID.
+	ID() []byte
+
+	// WriteTags writes the encoded tags to provided slice. Callers must use the returned reference in case the slice needs
+	// to grow, just like append().
+	WriteTags(dst []byte) ([]byte, error)
+
+	// WriteSegments writes the Segments to the provided slice. Callers must use the returned reference in case the slice
+	// needs to grow, just like append().
+	WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error)
+}
+
+type idResult struct {
 	queryResult      index.ResultsMapEntry
 	docReader        *docs.EncodedDocumentReader
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
-	blocksReadLimit  limits.LookbackLimit
 	iOpts            instrument.Options
 }
 
-// ID returns the series ID.
-func (i *IDResult) ID() []byte {
+func (i *idResult) ID() []byte {
 	return i.queryResult.Key()
 }
 
-// WriteTags writes the encoded tags to provided slice. Callers must use the returned reference in case the slice needs
-// to grow, just like append().
-func (i *IDResult) WriteTags(dst []byte) ([]byte, error) {
+func (i *idResult) WriteTags(dst []byte) ([]byte, error) {
 	metadata, err := docs.MetadataFromDocument(i.queryResult.Value(), i.docReader)
 	if err != nil {
 		return nil, err
@@ -1001,9 +1048,7 @@ func (i *IDResult) WriteTags(dst []byte) ([]byte, error) {
 	return dst, nil
 }
 
-// WriteSegments writes the Segments to the provided slice. Callers must use the returned reference in case the slice
-// needs to grow, just like append().
-func (i *IDResult) WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error) {
+func (i *idResult) WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error) {
 	dst = dst[:0]
 	for _, blockReaders := range i.blockReaders {
 		segments, err := readEncodedResultSegment(blockReaders)
@@ -1043,7 +1088,9 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		Exhaustive: queryResult.Exhaustive,
 	}
 	results := queryResult.Results
+	size := 0
 	for _, entry := range results.Map().Iter() {
+		size++
 		responseElem := &rpc.AggregateQueryResultTagNameElement{
 			TagName: entry.Key().String(),
 		}
@@ -1051,6 +1098,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		tagValuesMap := tagValues.Map()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
 		for _, entry := range tagValuesMap.Iter() {
+			size++
 			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryResultTagValueElement{
 				TagValue: entry.Key().String(),
 			})
@@ -1058,6 +1106,13 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		response.Results = append(response.Results, responseElem)
 	}
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
+
+	duration := s.nowFn().Sub(callStart)
+	queryTiming := s.metrics.queryTimingAggregate
+	rng := time.Duration(req.RangeEnd - req.RangeStart)
+	queryTiming.ByRange.Record(rng, duration)
+	queryTiming.ByDocs.Record(size, duration)
+
 	return response, nil
 }
 
@@ -1087,7 +1142,9 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		Exhaustive: queryResult.Exhaustive,
 	}
 	results := queryResult.Results
+	size := 0
 	for _, entry := range results.Map().Iter() {
+		size++
 		responseElem := &rpc.AggregateQueryRawResultTagNameElement{
 			TagName: entry.Key().Bytes(),
 		}
@@ -1096,6 +1153,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			tagValuesMap := tagValues.Map()
 			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
 			for _, entry := range tagValuesMap.Iter() {
+				size++
 				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
 					TagValue: entry.Key().Bytes(),
 				})
@@ -1103,6 +1161,13 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		}
 		response.Results = append(response.Results, responseElem)
 	}
+
+	duration := s.nowFn().Sub(callStart)
+	queryTiming := s.metrics.queryTimingAggregateRaw
+	rng := time.Duration(req.RangeEnd - req.RangeStart)
+	queryTiming.ByRange.Record(rng, duration)
+	queryTiming.ByDocs.Record(size, duration)
+
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
 }
@@ -2792,7 +2857,10 @@ func finalizeAnnotationFn(b []byte) {
 }
 
 func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
-	ctx := tchannelthrift.Context(tctx)
+	return addSourceToM3Context(tchannelthrift.Context(tctx), source)
+}
+
+func addSourceToM3Context(ctx context.Context, source []byte) context.Context {
 	if len(source) > 0 {
 		if base, ok := ctx.GoContext(); ok {
 			ctx.SetGoContext(goctx.WithValue(base, limits.SourceContextKey, source))

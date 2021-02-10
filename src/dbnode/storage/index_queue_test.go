@@ -330,7 +330,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()
@@ -366,7 +366,7 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()
@@ -404,7 +404,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()
@@ -451,7 +451,7 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()

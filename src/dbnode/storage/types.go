@@ -674,9 +674,6 @@ type databaseShard interface {
 		sourceNs Namespace,
 		targetNs Namespace,
 		shardID uint32,
-		blockReaders []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
-		sourceBlockVolumes []shardBlockVolume,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)
@@ -1017,6 +1014,7 @@ type OnColdFlush interface {
 // OnColdFlushNamespace performs work on a per namespace level.
 type OnColdFlushNamespace interface {
 	persist.OnFlushSeries
+	Abort() error
 	Done() error
 }
 
@@ -1429,11 +1427,9 @@ type TileAggregator interface {
 		ctx context.Context,
 		sourceNs, targetNs Namespace,
 		shardID uint32,
-		readers []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
-	) (int64, error)
+	) (processedTileCount int64, nextVolume int, err error)
 }
 
 // NewTileAggregatorFn creates a new TileAggregator.

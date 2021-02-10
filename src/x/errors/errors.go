@@ -264,6 +264,19 @@ func (e MultiError) Errors() []error {
 	return result
 }
 
+// Contains returns true if any of the errors match the provided error using the Is check.
+func (e MultiError) Contains(err error) bool {
+	if errors.Is(e.err, err) {
+		return true
+	}
+	for _, e := range e.errors {
+		if errors.Is(e, err) {
+			return true
+		}
+	}
+	return false
+}
+
 // Add adds an error returns a new MultiError object.
 func (e MultiError) Add(err error) MultiError {
 	if err == nil {
