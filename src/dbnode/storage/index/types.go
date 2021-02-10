@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -426,7 +425,6 @@ type Block interface {
 	// avoid going to documents, relying purely on the indexed FSTs.
 	Aggregate(
 		ctx context.Context,
-		cancellable *xresource.CancellableLifetime,
 		opts QueryOptions,
 		results AggregateResults,
 		logFields []opentracinglog.Field,

@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -380,11 +379,30 @@ func TestBlockQueryAfterClose(t *testing.T) {
 }
 
 func TestBlockQueryWithCancelledQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	b, err := NewBlock(start, testMD, BlockOptions{},
+	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockQueryDocIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
 
 	require.Equal(t, start, b.StartTime())
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
@@ -393,6 +411,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 	stdCtx, cancel := stdlibctx.WithCancel(stdlibctx.Background())
 	cancel()
 	ctx := context.NewWithGoContext(stdCtx)
+	defer ctx.BlockingClose()
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
@@ -1815,8 +1834,7 @@ func TestBlockAggregateAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Aggregate(context.NewContext(), xresource.NewCancellableLifetime(),
-		QueryOptions{}, nil, emptyLogFields)
+	_, err = b.Aggregate(context.NewContext(), QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1859,12 +1877,11 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 		iter.EXPECT().Close().Return(nil),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 
 	_, err = b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 3},
 		results,
 		emptyLogFields)
@@ -1936,7 +1953,6 @@ func TestBlockAggregate(t *testing.T) {
 
 	exhaustive, err := b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: seriesLimit},
 		results,
 		emptyLogFields)
@@ -2015,7 +2031,6 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	)
 	exhaustive, err := b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 1},
 		results,
 		emptyLogFields)
@@ -2107,7 +2122,6 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 
 	exhaustive, err := b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 10},
 		results,
 		emptyLogFields)
@@ -2125,7 +2139,6 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	}, testOpts)
 	exhaustive, err = b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 10},
 		results,
 		emptyLogFields)
@@ -2142,7 +2155,6 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	}, testOpts)
 	exhaustive, err = b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 10},
 		results,
 		emptyLogFields)
@@ -2406,7 +2418,6 @@ func TestBlockAggregateBatching(t *testing.T) {
 			// NB: wrap existing aggregate results fn to more easily inspect batch size.
 			addAggregateResultsFn := b.addAggregateResultsFn
 			b.addAggregateResultsFn = func(
-				cancellable *xresource.CancellableLifetime,
 				results AggregateResults,
 				batch []AggregateResultsEntry,
 				source []byte,
@@ -2421,7 +2432,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 				require.True(t, count <= tt.batchSize,
 					fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
 
-				return addAggregateResultsFn(cancellable, results, batch, source)
+				return addAggregateResultsFn(results, batch, source)
 			}
 
 			b.mutableSegments.foregroundSegments = tt.segments
@@ -2429,12 +2440,11 @@ func TestBlockAggregateBatching(t *testing.T) {
 				Type: AggregateTagNamesAndValues,
 			}, testOpts)
 
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
 			exhaustive, err := b.Aggregate(
 				ctx,
-				xresource.NewCancellableLifetime(),
 				QueryOptions{},
 				results,
 				emptyLogFields)

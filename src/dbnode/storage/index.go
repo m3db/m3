@@ -31,6 +31,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -63,7 +65,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/bitset"
-	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -207,7 +208,6 @@ type newNamespaceIndexOpts struct {
 // execBlockQueryFn executes a query against the given block whilst tracking state.
 type execBlockQueryFn func(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1583,7 +1583,7 @@ func (i *nsIndex) queryWithSpan(
 
 		wg.Add(1)
 		scheduleResult := i.queryWorkersPool.GoWithCtx(ctx.MustGoContext(), func() {
-			execBlockFn(ctx, nil, block, query, opts, &state, results, logFields)
+			execBlockFn(ctx, block, query, opts, &state, results, logFields)
 			wg.Done()
 		})
 		totalWaitTime += scheduleResult.WaitTime
@@ -1633,7 +1633,6 @@ func (i *nsIndex) queryWithSpan(
 
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
-	_ *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1680,7 +1679,6 @@ func (i *nsIndex) execBlockQueryFn(
 
 func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
-	_ *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1733,9 +1731,8 @@ func (i *nsIndex) execBlockWideQueryFn(
 
 func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	block index.Block,
-	query index.Query,
+	_ index.Query,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
@@ -1759,7 +1756,7 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		return
 	}
 
-	blockExhaustive, err := block.Aggregate(ctx, cancellable, opts, aggResults, logFields)
+	blockExhaustive, err := block.Aggregate(ctx, opts, aggResults, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in

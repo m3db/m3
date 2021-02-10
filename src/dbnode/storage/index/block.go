@@ -124,7 +124,6 @@ func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group block
 }
 
 type addAggregateResultsFn func(
-	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
@@ -431,7 +430,8 @@ func (b *block) queryWithSpan(
 	ctx context.Context,
 	query Query,
 	opts QueryOptions,
-	results DocumentResults) (bool, error) {
+	results DocumentResults,
+	) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
 
@@ -486,31 +486,29 @@ func (b *block) queryWithSpan(
 		docsPool.Put(batch)
 	}()
 
-	select {
-	case <-ctx.MustGoContext().Done():
-		// indexNs will log something useful.
-		return false, ErrCancelledQuery
-	default:
-	}
+
 
 	for iter.Next() {
 		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
+		// the caller (nsIndex) has canceled this before the query has timed out.
+		// only check once per batch to limit the overhead. worst case nsIndex will need to wait for an additional batch
+		// to be processed after the query timeout. we check when the batch is empty to cover 2 cases, the initial doc
+		// when includes the search time, and subsequent batch resets.
+		if len(batch) == 0 {
+			select {
+			case <-ctx.MustGoContext().Done():
+				// indexNs will log something useful.
+				return false, ErrCancelledQuery
+			default:
+			}
+		}
+
 		batch = append(batch, iter.Current())
 		if len(batch) < batchSize {
 			continue
-		}
-
-		// the caller (nsIndex) has canceled this before the query has timed out. only check once per batch to limit
-		// the overhead. worst case nsIndex will need to wait for an additional batch to be processed after the query
-		// timeout.
-		select {
-		case <-ctx.MustGoContext().Done():
-			// indexNs will log something useful.
-			return false, ErrCancelledQuery
-		default:
 		}
 
 		batch, size, docsCount, err = b.addQueryResults(results, batch, source)
@@ -583,7 +581,6 @@ func (b *block) addQueryResults(
 // pre-aggregated results via the FST underlying the index.
 func (b *block) Aggregate(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	logFields []opentracinglog.Field,
@@ -592,7 +589,7 @@ func (b *block) Aggregate(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := b.aggregateWithSpan(ctx, cancellable, opts, results, sp)
+	exhaustive, err := b.aggregateWithSpan(ctx, opts, results, sp)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -602,7 +599,6 @@ func (b *block) Aggregate(
 
 func (b *block) aggregateWithSpan(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	sp opentracing.Span,
@@ -713,6 +709,18 @@ func (b *block) aggregateWithSpan(
 				break
 			}
 
+			// the caller (nsIndex) has canceled this before the query has timed out.
+			// only check once per batch to limit the overhead. worst case nsIndex will need to wait for an additional
+			// batch to be processed after the query timeout. we check when the batch is empty to cover 2 cases, the
+			// initial result when includes the search time, and subsequent batch resets.
+			if len(batch) == 0 {
+				select {
+				case <-ctx.MustGoContext().Done():
+					return false, ErrCancelledQuery
+				default:
+				}
+			}
+
 			field, term := iter.Current()
 
 			// TODO: remove this legacy doc tracking implementation when alternative
@@ -758,7 +766,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, resultCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
+			batch, size, resultCount, err = b.addAggregateResultsFn(results, batch, source)
 			if err != nil {
 				return false, err
 			}
@@ -779,7 +787,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		batch, size, resultCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
+		batch, size, resultCount, err = b.addAggregateResultsFn(results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -869,23 +877,12 @@ func (b *block) pooledID(id []byte) ident.ID {
 // addAggregateResults adds the fields on the batch
 // to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
-	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
-	// checkout the lifetime of the query before adding results.
-	queryValid := cancellable.TryCheckout()
-	if !queryValid {
-		// query not valid any longer, do not add results and return early.
-		return batch, 0, 0, ErrCancelledQuery
-	}
-
 	// try to add the docs to the resource.
 	size, resultCount := results.AddFields(batch)
-
-	// immediately release the checkout on the lifetime of query.
-	cancellable.ReleaseCheckout()
 
 	// reset batch.
 	var emptyField AggregateResultsEntry

@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -1099,18 +1098,18 @@ func (mr *MockBlockMockRecorder) Query(ctx, query, opts, results, logFields inte
 }
 
 // Aggregate mocks base method
-func (m *MockBlock) Aggregate(ctx context.Context, cancellable *resource.CancellableLifetime, opts QueryOptions, results AggregateResults, logFields []log.Field) (bool, error) {
+func (m *MockBlock) Aggregate(ctx context.Context, opts QueryOptions, results AggregateResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Aggregate", ctx, cancellable, opts, results, logFields)
+	ret := m.ctrl.Call(m, "Aggregate", ctx, opts, results, logFields)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Aggregate indicates an expected call of Aggregate
-func (mr *MockBlockMockRecorder) Aggregate(ctx, cancellable, opts, results, logFields interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) Aggregate(ctx, opts, results, logFields interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregate", reflect.TypeOf((*MockBlock)(nil).Aggregate), ctx, cancellable, opts, results, logFields)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregate", reflect.TypeOf((*MockBlock)(nil).Aggregate), ctx, opts, results, logFields)
 }
 
 // AddResults mocks base method
