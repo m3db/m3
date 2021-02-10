@@ -64,7 +64,7 @@ The bootstrappers satisfy the `bootstrap.Source` interface. `AvailableData()` an
 ### Peer
 
 - `AvailableData()`, `AvailableIndex()` - inspects the cluster topology and returns the whole requested time range for shards which have enough available replicas to satisfy consistency requirements
-- `Read()` - fetches shard data from peers and either persists it or checks-out into memory. Then it builds index segments and either flushes them to disk or keeps in memory
+- `Read()` - fetches shard data from peers and either persists it or checks-out into memory. When fetching, block checksums are compared between peers: if they match, data is retrieved from one of the peers, otherwise data from multiple peers is merged. Then it builds index segments and either flushes them to disk or keeps in memory
 
 ### Uninitialized
 
