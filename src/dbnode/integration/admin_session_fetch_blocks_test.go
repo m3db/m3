@@ -222,7 +222,7 @@ func testSetupToSeriesMaps(
 
 		for blocksIter.Next() {
 			_, id, blk := blocksIter.Current()
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			reader, err := blk.Stream(ctx)
 			require.NoError(t, err)
 			readerIter := iterPool.Get()

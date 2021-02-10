@@ -135,7 +135,7 @@ func TestShardBootstrapState(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -167,7 +167,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -239,7 +239,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -301,7 +301,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -337,7 +337,7 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
 	s.setBlockRetriever(mockRetriever)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -389,7 +389,7 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 
 	seriesMap := sr.AllSeries()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -414,7 +414,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -494,7 +494,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -591,7 +591,7 @@ func TestShardColdFlush(t *testing.T) {
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -679,7 +679,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -939,7 +939,7 @@ func TestShardTick(t *testing.T) {
 
 	sleepPerSeries := time.Microsecond
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1109,7 +1109,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	sleepPerSeries := time.Microsecond
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1181,7 +1181,7 @@ func TestShardTickRace(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -1214,7 +1214,7 @@ func TestShardTickRace(t *testing.T) {
 func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	opts := DefaultTestOptions()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1242,7 +1242,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 		SetCommitLogOptions(opts.CommitLogOptions().
 			SetFilesystemOptions(fsOpts))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1598,7 +1598,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -1672,7 +1672,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -1851,7 +1851,7 @@ func TestShardAggregateTiles(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (

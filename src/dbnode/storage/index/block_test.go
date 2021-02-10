@@ -374,7 +374,7 @@ func TestBlockQueryAfterClose(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -436,7 +436,7 @@ func TestBlockQueryExecutorError(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -460,7 +460,7 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -501,7 +501,7 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -529,7 +529,7 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 	)
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(context.NewContext(), defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1435,7 +1435,7 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
@@ -1603,7 +1603,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
@@ -1683,7 +1683,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
@@ -1834,7 +1834,7 @@ func TestBlockAggregateAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Aggregate(context.NewContext(), QueryOptions{}, nil, emptyLogFields)
+	_, err = b.Aggregate(context.NewBackground(), QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1930,7 +1930,7 @@ func TestBlockAggregate(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 
 	// create initial span from a mock tracer and get ctx
@@ -2013,7 +2013,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 
 	// create initial span from a mock tracer and get ctx
@@ -2115,7 +2115,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))

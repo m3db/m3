@@ -71,7 +71,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
 	mockSeries.EXPECT().Metadata().Return(doc.Metadata{})
 	mockSeries.EXPECT().Write(
-		context.NewContext(),
+		context.NewBackground(),
 		blockStart.ToTime(),
 		1.0,
 		xtime.Second,
@@ -99,7 +99,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	}).Return(nil)
 
 	ok, _, err := e.Write(
-		context.NewContext(),
+		context.NewBackground(),
 		blockStart.ToTime(),
 		1.0,
 		xtime.Second,

@@ -167,7 +167,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	res, err := src.Read(ctx, tester.Namespaces, tester.Cache)
@@ -432,7 +432,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		encoder.Encode(dp, value.u, value.a)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := encoder.Stream(ctx)

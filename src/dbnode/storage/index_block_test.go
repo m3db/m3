@@ -629,7 +629,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// only queries as much as is needed (wrt to time)
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			q := defaultQuery
 			qOpts := index.QueryOptions{
 				StartInclusive: t0,
@@ -809,7 +809,7 @@ func TestLimits(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// only queries as much as is needed (wrt to time)
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			q := defaultQuery
 			qOpts := index.QueryOptions{
 				StartInclusive:    t0,
@@ -1039,7 +1039,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// only queries as much as is needed (wrt to time)
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 
 			// create initial span from a mock tracer and get ctx
 			mtr := mocktracer.New()

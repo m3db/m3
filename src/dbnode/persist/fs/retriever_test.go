@@ -369,7 +369,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				idString := shardIDStrings[shard][idIdx]
 
 				for k := 0; k < len(blockStarts); k++ {
-					ctx := context.NewContext()
+					ctx := context.NewBackground()
 
 					var (
 						stream xio.BlockReader
@@ -503,7 +503,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Now that all the block lease updates have completed, all reads from this point should return tags with the
 	// highest volume number.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	for _, shard := range shards {
 		for _, blockStart := range blockStarts {
 			for _, idString := range shardIDStrings[shard] {
@@ -580,7 +580,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)
@@ -653,7 +653,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	_, err = retriever.Stream(ctx, shard,
@@ -758,7 +758,7 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	onRetrieveCalled := false
@@ -857,7 +857,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	defer cleanup()
 
 	// Make sure we return the correct error.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)
