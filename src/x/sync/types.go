@@ -90,8 +90,8 @@ type WorkerPool interface {
 	// GoWithTimeoutInstrument instruments GoWithTimeout with timing information.
 	GoWithTimeoutInstrument(work Work, timeout time.Duration) ScheduleResult
 
-	// GoWithCtx waits until a worker is available or the provided ctx is canceled.
-	GoWithCtx(ctx context.Context, work Work) ScheduleResult
+	// GoWithContext waits until a worker is available or the provided ctx is canceled.
+	GoWithContext(ctx context.Context, work Work) ScheduleResult
 }
 
 // ScheduleResult is the result of scheduling a goroutine in the worker pool.

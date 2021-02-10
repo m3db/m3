@@ -106,7 +106,7 @@ func (p *workerPool) GoWithTimeoutInstrument(work Work, timeout time.Duration) S
 	}
 }
 
-func (p *workerPool) GoWithCtx(ctx context.Context, work Work) ScheduleResult {
+func (p *workerPool) GoWithContext(ctx context.Context, work Work) ScheduleResult {
 	// Don't give out a token if the ctx has already been canceled.
 	select {
 	case <-ctx.Done():

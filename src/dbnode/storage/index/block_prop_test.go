@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -138,7 +137,6 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				if !exhaustive {
 					return false, errors.New("querying cached block was not exhaustive")
 				}
-
 
 				uncachedMap := uncachedResults.Map()
 				cachedMap := cachedResults.Map()
@@ -355,12 +353,11 @@ func TestAggregateDocLimits(t *testing.T) {
 				Type: AggregateTagNamesAndValues,
 			}, testOpts)
 
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
 			exhaustive, err := b.Aggregate(
 				ctx,
-				xresource.NewCancellableLifetime(),
 				QueryOptions{},
 				results,
 				emptyLogFields)

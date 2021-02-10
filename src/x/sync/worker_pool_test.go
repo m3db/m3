@@ -129,11 +129,11 @@ func TestGoWithCtx(t *testing.T) {
 	wp := NewWorkerPool(1)
 	wp.Init()
 
-	result := wp.GoWithCtx(ctx, func() {
+	result := wp.GoWithContext(ctx, func() {
 		time.Sleep(time.Minute)
 	})
 	require.True(t, result.Available)
 
-	result = wp.GoWithCtx(ctx, func() {})
+	result = wp.GoWithContext(ctx, func() {})
 	require.False(t, result.Available)
 }

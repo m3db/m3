@@ -31,8 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -65,6 +63,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/bitset"
+	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -1582,7 +1581,7 @@ func (i *nsIndex) queryWithSpan(
 		}
 
 		wg.Add(1)
-		scheduleResult := i.queryWorkersPool.GoWithCtx(ctx.MustGoContext(), func() {
+		scheduleResult := i.queryWorkersPool.GoWithContext(ctx.MustGoContext(), func() {
 			execBlockFn(ctx, block, query, opts, &state, results, logFields)
 			wg.Done()
 		})

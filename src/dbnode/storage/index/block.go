@@ -431,7 +431,7 @@ func (b *block) queryWithSpan(
 	query Query,
 	opts QueryOptions,
 	results DocumentResults,
-	) (bool, error) {
+) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
 
@@ -485,8 +485,6 @@ func (b *block) queryWithSpan(
 		iterCloser.Close()
 		docsPool.Put(batch)
 	}()
-
-
 
 	for iter.Next() {
 		if opts.LimitsExceeded(size, docsCount) {
