@@ -289,7 +289,7 @@ func nodeHasTaggedWrite(t *testing.T, s TestSetup) bool {
 		return false
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 	nsCtx := namespace.NewContextFor(testNamespaces[0], s.SchemaRegistry())
 

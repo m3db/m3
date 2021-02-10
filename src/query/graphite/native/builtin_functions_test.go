@@ -595,11 +595,13 @@ func TestOffset(t *testing.T) {
 		outputs []float64
 	}{
 		{
-			[]float64{0, 1.0, 2.0, math.NaN(), 3.0}, 2.5,
+			[]float64{0, 1.0, 2.0, math.NaN(), 3.0},
+			2.5,
 			[]float64{2.5, 3.5, 4.5, math.NaN(), 5.5},
 		},
 		{
-			[]float64{0, 1.0, 2.0, math.NaN(), 3.0}, -0.5,
+			[]float64{0, 1.0, 2.0, math.NaN(), 3.0},
+			-0.5,
 			[]float64{-0.5, 0.5, 1.5, math.NaN(), 2.5},
 		},
 	}
@@ -624,7 +626,6 @@ func TestOffset(t *testing.T) {
 			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
 	}
-
 }
 
 func TestPerSecond(t *testing.T) {
@@ -643,8 +644,11 @@ func TestPerSecond(t *testing.T) {
 		{10000, []float64{1, 2, 3, 4, 5}, []float64{math.NaN(), 0.1, 0.1, 0.1, 0.1}},
 
 		// decreasing value - rate of change not applicable
-		{1000, []float64{5, 4, 3, 2, 1},
-			[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}},
+		{
+			1000,
+			[]float64{5, 4, 3, 2, 1},
+			[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
 
 		// skip over missing values
 		{1000, []float64{1, 2, math.NaN(), 4, 5}, []float64{math.NaN(), 1, math.NaN(), 1, 1}},
@@ -1460,6 +1464,7 @@ func TestHighestMax(t *testing.T) {
 	testRanking(t, ctx, tests, highestMax)
 }
 
+//nolint:govet
 func TestFallbackSeries(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -1879,14 +1884,20 @@ func TestAsPercentWithSeriesTotal(t *testing.T) {
 		output     []float64
 	}{
 		{
-			100, []float64{10.0, 20.0, 30.0, 40.0, 50.0},
-			100, []float64{1000.0, 1000.0, 1000.0, 1000.0, 1000.0},
-			100, []float64{1.0, 2.0, 3.0, 4.0, 5.0},
+			100,
+			[]float64{10.0, 20.0, 30.0, 40.0, 50.0},
+			100,
+			[]float64{1000.0, 1000.0, 1000.0, 1000.0, 1000.0},
+			100,
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0},
 		},
 		{
-			100, []float64{12.0, 14.0, 16.0, math.NaN(), 20.0},
-			150, []float64{50.0, 50.0, 25.0, 50.0, 50.0},
-			300, []float64{28.0, 53.0},
+			100,
+			[]float64{12.0, 14.0, 16.0, math.NaN(), 20.0},
+			150,
+			[]float64{50.0, 50.0, 25.0, 50.0, 50.0},
+			300,
+			[]float64{28.0, 53.0},
 		},
 	}
 
@@ -1928,14 +1939,18 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 		output     []float64
 	}{
 		{
-			100, []float64{12.0, 14.0, 16.0, nan, 20.0},
+			100,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0},
 			20.0,
-			100, []float64{60, 70, 80, nan, 100},
+			100,
+			[]float64{60, 70, 80, nan, 100},
 		},
 		{
-			100, []float64{12.0, 14.0, 16.0, nan, 20.0},
+			100,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0},
 			0,
-			100, []float64{nan, nan, nan, nan, nan},
+			100,
+			[]float64{nan, nan, nan, nan, nan},
 		},
 	}
 
@@ -2081,7 +2096,6 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 			}
 		}
 	}
-
 }
 
 func testLogarithm(t *testing.T, base int, indices []int) {
@@ -3413,7 +3427,7 @@ func TestTimeShift(t *testing.T) {
 }
 
 func TestDelay(t *testing.T) {
-	var values = [3][]float64{
+	values := [3][]float64{
 		{54.0, 48.0, 92.0, 54.0, 14.0, 1.2},
 		{4.0, 5.0, math.NaN(), 6.4, 7.2, math.NaN()},
 		{math.NaN(), 8.0, 9.0, 10.6, 11.2, 12.2},

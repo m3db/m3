@@ -38,10 +38,6 @@ const (
 	// DefaultBootstrapConsistencyLevel is the default bootstrap consistency level
 	DefaultBootstrapConsistencyLevel = topology.ReadConsistencyLevelMajority
 
-	// DefaultIndexDefaultQueryTimeout is the hard timeout value to use if none is
-	// specified for a specific query, zero specifies no timeout.
-	DefaultIndexDefaultQueryTimeout = time.Minute
-
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
@@ -75,7 +71,6 @@ type options struct {
 	clientBootstrapConsistencyLevel      topology.ReadConsistencyLevel
 	clientReadConsistencyLevel           topology.ReadConsistencyLevel
 	clientWriteConsistencyLevel          topology.ConsistencyLevel
-	indexDefaultQueryTimeout             time.Duration
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -92,7 +87,6 @@ func NewOptions() Options {
 		clientBootstrapConsistencyLevel:      DefaultBootstrapConsistencyLevel,
 		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
 		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
-		indexDefaultQueryTimeout:             DefaultIndexDefaultQueryTimeout,
 	}
 }
 
@@ -239,14 +233,4 @@ func (o *options) SetClientWriteConsistencyLevel(value topology.ConsistencyLevel
 
 func (o *options) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.clientWriteConsistencyLevel
-}
-
-func (o *options) SetIndexDefaultQueryTimeout(value time.Duration) Options {
-	opts := *o
-	opts.indexDefaultQueryTimeout = value
-	return &opts
-}
-
-func (o *options) IndexDefaultQueryTimeout() time.Duration {
-	return o.indexDefaultQueryTimeout
 }

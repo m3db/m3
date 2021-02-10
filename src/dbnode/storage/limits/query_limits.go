@@ -39,9 +39,8 @@ const (
 )
 
 type queryLimits struct {
-	docsLimit           *lookbackLimit
-	bytesReadLimit      *lookbackLimit
-	seriesDiskReadLimit *lookbackLimit
+	docsLimit      *lookbackLimit
+	bytesReadLimit *lookbackLimit
 }
 
 type lookbackLimit struct {
@@ -87,25 +86,31 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 	}
 
 	var (
-		iOpts                   = options.InstrumentOptions()
-		docsLimitOpts           = options.DocsLimitOpts()
-		bytesReadLimitOpts      = options.BytesReadLimitOpts()
-		diskSeriesReadLimitOpts = options.DiskSeriesReadLimitOpts()
-		sourceLoggerBuilder     = options.SourceLoggerBuilder()
+		iOpts               = options.InstrumentOptions()
+		docsLimitOpts       = options.DocsLimitOpts()
+		bytesReadLimitOpts  = options.BytesReadLimitOpts()
+		sourceLoggerBuilder = options.SourceLoggerBuilder()
 
 		docsLimit = newLookbackLimit(
 			iOpts, docsLimitOpts, "docs-matched", sourceLoggerBuilder)
 		bytesReadLimit = newLookbackLimit(
 			iOpts, bytesReadLimitOpts, "disk-bytes-read", sourceLoggerBuilder)
-		seriesDiskReadLimit = newLookbackLimit(
-			iOpts, diskSeriesReadLimitOpts, "disk-series-read", sourceLoggerBuilder)
 	)
 
 	return &queryLimits{
-		docsLimit:           docsLimit,
-		bytesReadLimit:      bytesReadLimit,
-		seriesDiskReadLimit: seriesDiskReadLimit,
+		docsLimit:      docsLimit,
+		bytesReadLimit: bytesReadLimit,
 	}, nil
+}
+
+// NewLookbackLimit returns a new lookback limit.
+func NewLookbackLimit(
+	instrumentOpts instrument.Options,
+	opts LookbackLimitOptions,
+	name string,
+	sourceLoggerBuilder SourceLoggerBuilder,
+) LookbackLimit {
+	return newLookbackLimit(instrumentOpts, opts, name, sourceLoggerBuilder)
 }
 
 func newLookbackLimit(
@@ -157,31 +162,18 @@ func (q *queryLimits) BytesReadLimit() LookbackLimit {
 	return q.bytesReadLimit
 }
 
-func (q *queryLimits) DiskSeriesReadLimit() LookbackLimit {
-	return q.seriesDiskReadLimit
-}
-
 func (q *queryLimits) Start() {
-	// Lock on explicit start to avoid any collision with asynchronous updating
-	// which will call stop/start if the lookback has changed.
-	q.docsLimit.startWithLock()
-	q.seriesDiskReadLimit.startWithLock()
-	q.bytesReadLimit.startWithLock()
+	q.docsLimit.Start()
+	q.bytesReadLimit.Start()
 }
 
 func (q *queryLimits) Stop() {
-	// Lock on explicit stop to avoid any collision with asynchronous updating
-	// which will call stop/start if the lookback has changed.
-	q.docsLimit.stopWithLock()
-	q.seriesDiskReadLimit.stopWithLock()
-	q.bytesReadLimit.stopWithLock()
+	q.docsLimit.Stop()
+	q.bytesReadLimit.Stop()
 }
 
 func (q *queryLimits) AnyExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
-		return err
-	}
-	if err := q.seriesDiskReadLimit.exceeded(); err != nil {
 		return err
 	}
 	return q.bytesReadLimit.exceeded()
@@ -271,13 +263,17 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 	return nil
 }
 
-func (q *lookbackLimit) startWithLock() {
+func (q *lookbackLimit) Start() {
+	// Lock on explicit start to avoid any collision with asynchronous updating
+	// which will call stop/start if the lookback has changed.
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	q.start()
 }
 
-func (q *lookbackLimit) stopWithLock() {
+func (q *lookbackLimit) Stop() {
+	// Lock on explicit stop to avoid any collision with asynchronous updating
+	// which will call stop/start if the lookback has changed.
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	q.stop()

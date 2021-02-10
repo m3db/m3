@@ -72,7 +72,7 @@ func TestMigratorRun(t *testing.T) {
 	migrator, err := NewMigrator(opts)
 	require.NoError(t, err)
 
-	err = migrator.Run(context.NewContext())
+	err = migrator.Run(context.NewBackground())
 	require.NoError(t, err)
 
 	// Ensure every info file has a volume index of one.

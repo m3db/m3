@@ -217,10 +217,9 @@ type StagedPlacementWatcher interface {
 	// Watch starts watching the updates.
 	Watch() error
 
-	// ActiveStagedPlacement returns the currently active staged placement, the
-	// callback function when the caller is done using the active staged placement,
+	// ActiveStagedPlacement returns the currently active staged placement
 	// and any errors encountered.
-	ActiveStagedPlacement() (ActiveStagedPlacement, DoneFn, error)
+	ActiveStagedPlacement() (ActiveStagedPlacement, error)
 
 	// Unwatch stops watching the updates.
 	Unwatch() error
@@ -269,7 +268,7 @@ type StagedPlacementWatcherOptions interface {
 type ActiveStagedPlacement interface {
 	// ActivePlacement returns the currently active placement for a given time, the callback
 	// function when the caller is done using the placement, and any errors encountered.
-	ActivePlacement() (Placement, DoneFn, error)
+	ActivePlacement() (Placement, error)
 
 	// Version returns the version of the underlying staged placement.
 	Version() int
