@@ -180,7 +180,7 @@ func NewPipeline(ops []OpUnion) Pipeline {
 func (p Pipeline) Len() int { return len(p.operations) }
 
 // IsEmpty determines whether a pipeline is empty.
-func (p Pipeline) IsEmpty() bool { return p.Len() == 0 }
+func (p Pipeline) IsEmpty() bool { return len(p.operations) == 0 }
 
 // At returns the operation at a given step.
 func (p Pipeline) At(i int) OpUnion { return p.operations[i] }

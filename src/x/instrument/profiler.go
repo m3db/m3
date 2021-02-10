@@ -18,39 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package metadata
+package instrument
 
-import (
-	"runtime"
-	"testing"
+// NoOpProfiler is default disabled profiler.
+type NoOpProfiler struct{}
 
-	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/policy"
-)
-
-func isDefault(m StagedMetadatas) bool {
-	return m.IsDefault()
+// NewNoOpProfiler creates a new no-op profiler.
+func NewNoOpProfiler() *NoOpProfiler {
+	return &NoOpProfiler{}
 }
 
-func BenchmarkMetadata_IsDefault(b *testing.B) {
-	m := StagedMetadatas{
-		StagedMetadata{
-			CutoverNanos: 0,
-			Tombstoned:   false,
-			Metadata: Metadata{
-				Pipelines: []PipelineMetadata{
-					{
-						AggregationID:   aggregation.DefaultID,
-						StoragePolicies: []policy.StoragePolicy{},
-					},
-				},
-			},
-		},
-	}
-	for i := 0; i < b.N; i++ {
-		if !isDefault(m) {
-			b.Fail()
-		}
-	}
-	runtime.KeepAlive(m)
+// StartCPUProfile starts named cpu profile.
+func (f NoOpProfiler) StartCPUProfile(name string) error {
+	return nil
+}
+
+// StopCPUProfile stops started cpu profile.
+func (f NoOpProfiler) StopCPUProfile() error {
+	return nil
+}
+
+// WriteHeapProfile writes named heap profile.
+func (f NoOpProfiler) WriteHeapProfile(name string) error {
+	return nil
 }

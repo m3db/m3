@@ -18,39 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package metadata
+package instrument
 
 import (
-	"runtime"
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/stretchr/testify/require"
 )
 
-func isDefault(m StagedMetadatas) bool {
-	return m.IsDefault()
-}
-
-func BenchmarkMetadata_IsDefault(b *testing.B) {
-	m := StagedMetadatas{
-		StagedMetadata{
-			CutoverNanos: 0,
-			Tombstoned:   false,
-			Metadata: Metadata{
-				Pipelines: []PipelineMetadata{
-					{
-						AggregationID:   aggregation.DefaultID,
-						StoragePolicies: []policy.StoragePolicy{},
-					},
-				},
-			},
-		},
-	}
-	for i := 0; i < b.N; i++ {
-		if !isDefault(m) {
-			b.Fail()
-		}
-	}
-	runtime.KeepAlive(m)
+func TestNoOpProfile(t *testing.T) {
+	sut := NewNoOpProfiler()
+	err := sut.StartCPUProfile("foo")
+	require.NoError(t, err)
+	err = sut.StopCPUProfile()
+	require.NoError(t, err)
+	err = sut.WriteHeapProfile("bar")
+	require.NoError(t, err)
 }

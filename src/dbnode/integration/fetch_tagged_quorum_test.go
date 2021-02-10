@@ -312,7 +312,7 @@ func writeTagged(
 	t *testing.T,
 	nodes ...TestSetup,
 ) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 	for _, n := range nodes {
 		require.NoError(t, n.DB().WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),

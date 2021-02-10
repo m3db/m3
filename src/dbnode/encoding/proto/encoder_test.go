@@ -91,7 +91,7 @@ func TestClosedEncoderIsNotUsable(t *testing.T) {
 }
 
 func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	start := time.Now().Truncate(time.Second)

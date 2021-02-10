@@ -100,10 +100,10 @@ func (m PipelineMetadata) Equal(other PipelineMetadata) bool {
 
 // IsDefault returns whether this is the default standard pipeline metadata.
 func (m PipelineMetadata) IsDefault() bool {
-	return m.AggregationID.IsDefault() &&
-		m.StoragePolicies.IsDefault() &&
+	return m.AggregationID == aggregation.DefaultID &&
+		len(m.StoragePolicies) == 0 &&
 		m.Pipeline.IsEmpty() &&
-		m.DropPolicy.IsDefault()
+		m.DropPolicy == policy.DefaultDropPolicy
 }
 
 // IsMappingRule returns whether this is a rollup rule pipeline metadata.
@@ -435,7 +435,13 @@ func (sms StagedMetadatas) Equal(other StagedMetadatas) bool {
 
 // IsDefault determines whether the list of staged metadata is a default list.
 func (sms StagedMetadatas) IsDefault() bool {
-	return len(sms) == 1 && sms[0].IsDefault()
+	// very ugly but need to help out the go compiler here, as function calls have a high inlining cost
+	return len(sms) == 1 && len(sms[0].Pipelines) == 1 &&
+		sms[0].CutoverNanos == 0 && !sms[0].Tombstoned &&
+		sms[0].Pipelines[0].AggregationID == aggregation.DefaultID &&
+		len(sms[0].Pipelines[0].StoragePolicies) == 0 &&
+		sms[0].Pipelines[0].Pipeline.IsEmpty() &&
+		sms[0].Pipelines[0].DropPolicy == policy.DefaultDropPolicy
 }
 
 // IsDropPolicyApplied returns whether the list of staged metadata is the
