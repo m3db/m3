@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -375,31 +374,50 @@ func TestBlockQueryAfterClose(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
 func TestBlockQueryWithCancelledQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	b, err := NewBlock(start, testMD, BlockOptions{},
+	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockQueryDocIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
 
 	require.Equal(t, start, b.StartTime())
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 
 	// Precancel query.
-	cancellable := xresource.NewCancellableLifetime()
-	cancellable.Cancel()
+	stdCtx, cancel := stdlibctx.WithCancel(stdlibctx.Background())
+	cancel()
+	ctx := context.NewWithGoContext(stdCtx)
+	defer ctx.BlockingClose()
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), cancellable,
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(ctx, defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
-	require.Equal(t, errCancelledQuery, err)
+	require.Equal(t, ErrCancelledQuery, err)
 }
 
 func TestBlockQueryExecutorError(t *testing.T) {
@@ -418,8 +436,7 @@ func TestBlockQueryExecutorError(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -443,8 +460,7 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -485,8 +501,7 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -514,8 +529,7 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 	)
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(context.NewBackground(), defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -548,9 +562,9 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		exec.EXPECT().Close(),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	_, err = b.Query(ctx, xresource.NewCancellableLifetime(),
+	_, err = b.Query(ctx,
 		defaultQuery, QueryOptions{},
 		NewQueryResults(nil, QueryResultsOptions{}, testOpts), emptyLogFields)
 	require.Error(t, err)
@@ -593,10 +607,9 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -642,10 +655,9 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 	)
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	_, err = b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	_, err = b.Query(ctx, defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 
 	// NB(r): Make sure to call finalizers blockingly (to finish
@@ -685,10 +697,9 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil, QueryResultsOptions{SizeLimit: 1}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -740,10 +751,9 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -793,10 +803,9 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 	docsLimit := 1
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -846,10 +855,9 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 	results := NewQueryResults(nil,
 		QueryResultsOptions{}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -904,10 +912,9 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -963,10 +970,9 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -1429,15 +1435,14 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1514,8 +1519,8 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
+	exhaustive, err := b.Query(context.NewBackground(), Query{q}, QueryOptions{SeriesLimit: limit}, results,
+		emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 	require.Equal(t, 1, results.Size())
@@ -1598,15 +1603,14 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1679,15 +1683,14 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(ctx, xresource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results, emptyLogFields)
+	exhaustive, err := b.Query(ctx, Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1831,8 +1834,7 @@ func TestBlockAggregateAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Aggregate(context.NewContext(), xresource.NewCancellableLifetime(),
-		QueryOptions{}, nil, emptyLogFields)
+	_, err = b.Aggregate(context.NewBackground(), QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1875,12 +1877,11 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 		iter.EXPECT().Close().Return(nil),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 
 	_, err = b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 3},
 		results,
 		emptyLogFields)
@@ -1929,7 +1930,7 @@ func TestBlockAggregate(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 
 	// create initial span from a mock tracer and get ctx
@@ -1952,7 +1953,6 @@ func TestBlockAggregate(t *testing.T) {
 
 	exhaustive, err := b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: seriesLimit},
 		results,
 		emptyLogFields)
@@ -2013,7 +2013,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 
 	// create initial span from a mock tracer and get ctx
@@ -2031,7 +2031,6 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	)
 	exhaustive, err := b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 1},
 		results,
 		emptyLogFields)
@@ -2116,14 +2115,13 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	exhaustive, err := b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 10},
 		results,
 		emptyLogFields)
@@ -2141,7 +2139,6 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	}, testOpts)
 	exhaustive, err = b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 10},
 		results,
 		emptyLogFields)
@@ -2158,7 +2155,6 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	}, testOpts)
 	exhaustive, err = b.Aggregate(
 		ctx,
-		xresource.NewCancellableLifetime(),
 		QueryOptions{SeriesLimit: 10},
 		results,
 		emptyLogFields)
@@ -2422,7 +2418,6 @@ func TestBlockAggregateBatching(t *testing.T) {
 			// NB: wrap existing aggregate results fn to more easily inspect batch size.
 			addAggregateResultsFn := b.addAggregateResultsFn
 			b.addAggregateResultsFn = func(
-				cancellable *xresource.CancellableLifetime,
 				results AggregateResults,
 				batch []AggregateResultsEntry,
 				source []byte,
@@ -2437,7 +2432,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 				require.True(t, count <= tt.batchSize,
 					fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
 
-				return addAggregateResultsFn(cancellable, results, batch, source)
+				return addAggregateResultsFn(results, batch, source)
 			}
 
 			b.mutableSegments.foregroundSegments = tt.segments
@@ -2445,12 +2440,11 @@ func TestBlockAggregateBatching(t *testing.T) {
 				Type: AggregateTagNamesAndValues,
 			}, testOpts)
 
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
 			exhaustive, err := b.Aggregate(
 				ctx,
-				xresource.NewCancellableLifetime(),
 				QueryOptions{},
 				results,
 				emptyLogFields)

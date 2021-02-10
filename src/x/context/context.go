@@ -61,6 +61,18 @@ func NewContext() Context {
 	return newContext()
 }
 
+// NewWithGoContext creates a new context with the provided go ctx.
+func NewWithGoContext(goCtx stdctx.Context) Context {
+	ctx := newContext()
+	ctx.SetGoContext(goCtx)
+	return ctx
+}
+
+// NewBackground creates a new context with a Background go ctx.
+func NewBackground() Context {
+	return NewWithGoContext(stdctx.Background())
+}
+
 // NewPooledContext returns a new context that is returned to a pool when closed.
 func newPooledContext(pool contextPool) Context {
 	return &ctx{pool: pool}
@@ -77,6 +89,14 @@ func (c *ctx) GoContext() (stdctx.Context, bool) {
 	}
 
 	return c.goCtx, true
+}
+
+func (c *ctx) MustGoContext() stdctx.Context {
+	goCtx, found := c.GoContext()
+	if !found {
+		panic("no go ctx set")
+	}
+	return goCtx
 }
 
 func (c *ctx) SetGoContext(v stdctx.Context) {
