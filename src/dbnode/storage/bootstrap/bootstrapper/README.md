@@ -53,26 +53,22 @@ The bootstrappers satisfy the `bootstrap.Source` interface. `AvailableData()` an
 
 ### Filesystem
 
-- `AvailableData()` - for each shard, reads info files (or cached data of info files) and converts block start times to available ranges
-- `AvailableIndex()` - exactly the same as `AvailableData()`
+- `AvailableData()`, `AvailableIndex()` - for each shard, reads info files (or cached data of info files) and converts block start times to available ranges
 - `Read()` - reads data ranges from info files without reading the data, then builds index segments and either flushes them to disk or keeps in memory
 
 ### Commit log
 
-- `AvailableData()` - checks which shards have ever reached availability (i.e. is in `Available` or `Leaving` state) and returns the whole requested time range for those shards
-- `AvailableIndex()` - exactly the same as `AvailableData()`
+- `AvailableData()`, `AvailableIndex()` - checks which shards have ever reached availability (i.e. is in `Available` or `Leaving` state) and returns the whole requested time range for those shards
 - `Read()` - for each shard reads the most recent snapshot file, and then reads commit log and checks-out all the series belonging to the namespaces that are being bootstrapped
 
 ### Peer
 
-- `AvailableData()` - inspects the cluster topology and returns the whole requested time range for shards which have enough available replicas to satisfy consistency requirements
-- `AvailableIndex()` - exactly the same as `AvailableData()`
+- `AvailableData()`, `AvailableIndex()` - inspects the cluster topology and returns the whole requested time range for shards which have enough available replicas to satisfy consistency requirements
 - `Read()` - fetches shard data from peers and either persists it or checks-out into memory. Then it builds index segments and either flushes them to disk or keeps in memory
 
 ### Uninitialized
 
-- `AvailableData()` - for each shard, inspects its status across peers. If the number of `Initializing` replicas is higher than `Leaving`, the shard is deemed _new_ and available to be bootstrapped by this bootstrapper
-- `AvailableIndex()` - exactly the same as `AvailableData()`
+- `AvailableData()`, `AvailableIndex()` - for each shard, inspects its status across peers. If the number of `Initializing` replicas is higher than `Leaving`, the shard is deemed _new_ and available to be bootstrapped by this bootstrapper
 - `Read()` - for each shard that is new (as described above), respond that it was fulfilled
 
 ## Cache policies
