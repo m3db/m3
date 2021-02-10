@@ -414,10 +414,8 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 			r index.QueryResults,
 			logFields []opentracinglog.Field,
 		) (bool, error) {
-			select {
-			case <-ctx.MustGoContext().Done():
-				return false, index.ErrCancelledQuery
-			}
+			<-ctx.MustGoContext().Done()
+			return false, index.ErrCancelledQuery
 		})
 	mockBlock.EXPECT().Close().Return(nil)
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
