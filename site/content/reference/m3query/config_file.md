@@ -8,4 +8,4 @@ chapter: true
 M3 Coordinator and M3 Query share the same configuration options.
 {{% /notice %}}
 
-{{< codeinclude file="docs/includes/m3coordinator/annotated_config.yaml" language="yaml" >}}
+{{< codeinclude file="docs/includes/m3query/annotated_config.yaml" language="yaml" >}}
