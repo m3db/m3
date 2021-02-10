@@ -167,12 +167,12 @@ type service struct {
 
 	logger *zap.Logger
 
-	opts                     tchannelthrift.Options
-	nowFn                    clock.NowFn
-	pools                    pools
-	metrics                  serviceMetrics
-	queryLimits              limits.QueryLimits
-	seriesReadPermitsManager permits.Manager
+	opts              tchannelthrift.Options
+	nowFn             clock.NowFn
+	pools             pools
+	metrics           serviceMetrics
+	queryLimits       limits.QueryLimits
+	seriesReadPermits permits.Manager
 }
 
 type serviceState struct {
@@ -352,8 +352,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
-		queryLimits:              opts.QueryLimits(),
-		seriesReadPermitsManager: opts.PermitsOptions().SeriesReadPermitsManager(),
+		queryLimits:       opts.QueryLimits(),
+		seriesReadPermits: opts.PermitsOptions().SeriesReadPermitsManager(),
 	}
 }
 
@@ -845,7 +845,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
-		blockPermits:    s.seriesReadPermitsManager.NewPermits(ctx),
+		blockPermits:    s.seriesReadPermits.NewPermits(ctx),
 		totalDocsCount:  queryResult.Results.TotalDocsCount(),
 		nowFn:           s.nowFn,
 		fetchStart:      startTime,
@@ -988,7 +988,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 					return false
 				}
 				if !acquired {
-					// if limit stopped prefetching and resume later from the current point in the iterator.
+					// if limit met then stop prefetching and resume later from the current point in the iterator.
 					break readBlocks
 				}
 			}
