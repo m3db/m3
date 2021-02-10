@@ -156,6 +156,43 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		numDocs:  metadata.NumDocs,
 	}
 
+	// Preload all the term FSTs so that there's no locking
+	// required (which was causing lock contention with queries requiring
+	// access to the terms FST for a field that hasn't been accessed before
+	// and loading on demand).
+	iter := newFSTTermsIter()
+	iter.reset(fstTermsIterOpts{
+		seg:         s,
+		fst:         fieldsFST,
+		finalizeFST: false,
+	})
+
+	iterCloser := x.NewSafeCloser(iter)
+	defer func() { _ = iterCloser.Close() }()
+
+	for iter.Next() {
+		field := iter.Current()
+		termsFSTOffset := iter.CurrentOffset()
+		termsFSTBytes, err := s.retrieveBytesWithRLock(s.data.FSTTermsData.Bytes, termsFSTOffset)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"error while decoding terms fst: field=%s, err=%v", field, err)
+		}
+
+		termsFST, err := vellum.Load(termsFSTBytes)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"error while loading terms fst: field=%s, err=%v", field, err)
+		}
+
+		// Save FST to FST map.
+		vellumFST := newVellumFST(termsFST)
+		s.termFSTs.fstMap.Set(field, vellumFST)
+	}
+	if err := iterCloser.Close(); err != nil {
+		return nil, err
+	}
+
 	// NB(r): The segment uses the context finalization to finalize
 	// resources. Finalize is called after Close is called and all
 	// the segment readers have also been closed.
@@ -186,7 +223,6 @@ type fsSegment struct {
 }
 
 type vellumFSTs struct {
-	sync.RWMutex
 	fstMap     *fstMap
 	readerPool *fstReaderPool
 }
@@ -270,17 +306,14 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 		return false, errReaderClosed
 	}
 
-	termsFST, exists, err := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
-	if err != nil {
-		return false, err
-	}
-
+	termsFST, exists := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
 	if !exists {
-		return false, fmt.Errorf("internal error while retrieving id FST: %v", err)
+		return false, fmt.Errorf(
+			"internal error while retrieving id FST: %s",
+			doc.IDReservedFieldName)
 	}
 
-	_, exists, err = termsFST.Get(docID)
-
+	_, exists, err := termsFST.Get(docID)
 	return exists, err
 }
 
@@ -332,12 +365,10 @@ func (r *fsSegment) Finalize() {
 
 	r.finalized = true
 
-	r.termFSTs.Lock()
 	for _, elem := range r.termFSTs.fstMap.Iter() {
 		vellumFST := elem.Value()
 		vellumFST.fst.Close()
 	}
-	r.termFSTs.Unlock()
 
 	r.fieldsFST.Close()
 
@@ -455,11 +486,7 @@ func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderFinalized
 	}
 
-	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
-	if err != nil {
-		return nil, err
-	}
-
+	termsFST, exists := i.r.retrieveTermsFSTWithRLock(field)
 	if !exists {
 		return sgmt.EmptyTermsIterator, nil
 	}
@@ -599,11 +626,7 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderFinalized
 	}
 
-	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
-	if err != nil {
-		return nil, err
-	}
-
+	termsFST, exists := r.retrieveTermsFSTWithRLock(field)
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
 		if index.MigrationReadOnlyPostings() {
@@ -692,11 +715,7 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderNilRegexp
 	}
 
-	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
-	if err != nil {
-		return nil, err
-	}
-
+	termsFST, exists := r.retrieveTermsFSTWithRLock(field)
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
 		if index.MigrationReadOnlyPostings() {
@@ -734,7 +753,10 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		iterErr = searcher.iter.Next()
 	}
 
-	var pl postings.List
+	var (
+		pl  postings.List
+		err error
+	)
 	if index.MigrationReadOnlyPostings() {
 		// Perform a lazy fast union.
 		pl, err = roaring.UnionReadOnly(searcher.pls)
@@ -835,47 +857,8 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 	return pilosa.Unmarshal(postingsBytes)
 }
 
-func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, error) {
-	r.termFSTs.RLock()
-	fst, ok := r.termFSTs.fstMap.Get(field)
-	r.termFSTs.RUnlock()
-	if ok {
-		return fst, true, nil
-	}
-
-	r.termFSTs.Lock()
-	defer r.termFSTs.Unlock()
-
-	fst, ok = r.termFSTs.fstMap.Get(field)
-	if ok {
-		return fst, true, nil
-	}
-
-	termsFSTOffset, exists, err := r.fieldsFST.Get(field)
-	if err != nil {
-		return vellumFST{}, false, err
-	}
-
-	if !exists {
-		return vellumFST{}, false, nil
-	}
-
-	termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
-	if err != nil {
-		return vellumFST{}, false, fmt.Errorf("error while decoding terms fst: %v", err)
-	}
-
-	termsFST, err := vellum.Load(termsFSTBytes)
-	if err != nil {
-		return vellumFST{}, false, fmt.Errorf("error while loading terms fst: %v", err)
-	}
-
-	// Save FST to FST map.
-	vellumFST := newVellumFST(termsFST)
-	r.termFSTs.fstMap.Set(field, vellumFST)
-
-	// Return result.
-	return vellumFST, true, nil
+func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool) {
+	return r.termFSTs.fstMap.Get(field)
 }
 
 // retrieveTermsBytesWithRLock assumes the base []byte slice is a collection of
