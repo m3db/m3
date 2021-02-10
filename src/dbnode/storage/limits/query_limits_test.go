@@ -100,13 +100,6 @@ func TestQueryLimits(t *testing.T) {
 	// No error yet.
 	err = queryLimits.AnyExceeded()
 	require.NoError(t, err)
-
-	// Limit from bytes.
-	require.Error(t, queryLimits.DiskSeriesReadLimit().Inc(2, nil))
-	err = queryLimits.AnyExceeded()
-	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
-	require.True(t, IsQueryLimitExceededError(err))
 }
 
 func TestLookbackLimit(t *testing.T) {
