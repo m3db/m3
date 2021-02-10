@@ -49,7 +49,7 @@ while true:
     - *NOTE*: the commitlog bootstrapper is special cased in that it runs for the *entire* bootstrappable range per shard whereas other bootstrappers fill in the unfulfilled gaps as bootstrapping progresses.
 - `uninitialized`: The uninitialized bootstrapper, used to bootstrap a node when the whole cluster is new and there are no peers to fetch the data from.
 
-The bootstrappers satisfy the `bootstrap.Source` interface. `AvailableData()` and `AvailableIndex()` methods take shard time ranges that need to be bootstrapped and returns which ranges (possibly a subset) can be fulfilled by this bootstrapper. `Read()` method does the bootstrapping of the available data and index ranges.
+The bootstrappers satisfy the `bootstrap.Source` interface. `AvailableData()` and `AvailableIndex()` methods take shard time ranges that need to be bootstrapped and return which ranges (possibly a subset) can be fulfilled by this bootstrapper. `Read()` method does the bootstrapping of the available data and index ranges.
 
 ### Filesystem
 
