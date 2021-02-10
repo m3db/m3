@@ -53,6 +53,11 @@ message MappingRule {
 message RollupTarget {
   string name = 1;
   repeated string tags = 2;
+  enum RollupTargetType {
+    GROUP_BY = 1;
+    EXCLUDE_BY = 2;
+  }
+  RollupTargetType rollup_target_type = 4
   repeated policypb.Policy policies = 3;
 }
 
