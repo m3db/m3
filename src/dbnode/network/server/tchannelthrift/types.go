@@ -22,6 +22,7 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/clock"
@@ -107,4 +108,10 @@ type Options interface {
 
 	// SetQueryLimits sets the QueryLimits.
 	SetQueryLimits(value limits.QueryLimits) Options
+
+	// PermitsOptions returns the permits options.
+	PermitsOptions() permits.Options
+
+	// SetPermitsOptions sets the permits options.
+	SetPermitsOptions(value permits.Options) Options
 }
