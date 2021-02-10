@@ -42,8 +42,8 @@ var _ Manager = (*LookbackLimitPermitManager)(nil)
 
 var _ Permits = (*lookbackLimitPermit)(nil)
 
-// NewLookbackLimitPermitManager builds a new lookback limit permits manager.
-func NewLookbackLimitPermitManager(
+// NewLookbackLimitPermitsManager builds a new lookback limit permits manager.
+func NewLookbackLimitPermitsManager(
 	instrumentOpts instrument.Options,
 	opts limits.LookbackLimitOptions,
 	name string,

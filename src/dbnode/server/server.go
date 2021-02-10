@@ -480,15 +480,15 @@ func Run(runOpts RunOptions) {
 	queryLimits.Start()
 	defer queryLimits.Stop()
 
-	seriesReadPermitsManager := permits.NewLookbackLimitPermitManager(iOpts,
+	seriesReadPermits := permits.NewLookbackLimitPermitsManager(iOpts,
 		diskSeriesReadLimit,
 		"disk-series-read",
 		limitOpts.SourceLoggerBuilder())
-	seriesReadPermitsManager.Start()
-	defer seriesReadPermitsManager.Stop()
+	seriesReadPermits.Start()
+	defer seriesReadPermits.Stop()
 
 	permitsOpts := permits.NewOptions().
-		SetSeriesReadPermitsManager(seriesReadPermitsManager)
+		SetSeriesReadPermitsManager(seriesReadPermits)
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -1013,7 +1013,7 @@ func Run(runOpts RunOptions) {
 			// For backwards compatibility as M3 moves toward permits instead of time-based limits,
 			// the series-read path uses permits which are implemented with limits, and so we support
 			// dynamic updates to this limit-based permit still be passing downstream the limit itself.
-			seriesReadPermitsManager.Limit,
+			seriesReadPermits.Limit,
 			limitOpts)
 	}()
 

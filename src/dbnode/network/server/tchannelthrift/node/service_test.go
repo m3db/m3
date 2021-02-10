@@ -1586,7 +1586,7 @@ func TestServiceFetchTagged(t *testing.T) {
 
 			queryLimits, err := limits.NewQueryLimits(limitsOpts)
 			permitOpts := permits.NewOptions().
-				SetSeriesReadPermitsManager(permits.NewLookbackLimitPermitManager(
+				SetSeriesReadPermitsManager(permits.NewLookbackLimitPermitsManager(
 					testTChannelThriftOptions.InstrumentOptions(),
 					limitsOpts.DiskSeriesReadLimitOpts(),
 					"disk-series-read",
