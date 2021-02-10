@@ -133,7 +133,6 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		m.state = Bootstrapping
 	}
 	m.Unlock()
-
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
 	m.mediator.DisableFileOpsAndWait()

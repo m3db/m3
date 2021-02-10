@@ -613,7 +613,7 @@ func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
 		encoder.Encode(dp, xtime.Second, nil)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	r, ok := encoder.Stream(ctx)

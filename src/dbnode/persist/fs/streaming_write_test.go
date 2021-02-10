@@ -241,7 +241,7 @@ func streamingWriteWithVolume(
 	blockStart time.Time,
 	entries []testStreamingEntry,
 ) error {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
 	encoder := m3tsz.NewEncoder(blockStart, nil, true, encoding.NewOptions())
 	defer encoder.Close()

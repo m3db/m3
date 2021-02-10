@@ -21,6 +21,7 @@
 package sync
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -120,4 +121,19 @@ func TestGoWithTimeout(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint32(testWorkerPoolSize+1), count)
+}
+
+func TestGoWithCtx(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	wp := NewWorkerPool(1)
+	wp.Init()
+
+	result := wp.GoWithContext(ctx, func() {
+		time.Sleep(time.Minute)
+	})
+	require.True(t, result.Available)
+
+	result = wp.GoWithContext(ctx, func() {})
+	require.False(t, result.Available)
 }

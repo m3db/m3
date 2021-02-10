@@ -34,8 +34,6 @@ var (
 	errNoApplicablePlacement       = errors.New("no applicable placement found")
 	errActiveStagedPlacementClosed = errors.New("active staged placement is closed")
 	errPlacementInvalidType        = errors.New("corrupt placement")
-
-	_noPlacements Placements
 )
 
 type activeStagedPlacement struct {
@@ -81,7 +79,6 @@ func (p *activeStagedPlacement) Close() error {
 			p.onPlacementsRemovedFn(pl)
 		}
 	}
-	p.placements.Store(_noPlacements)
 
 	return nil
 }
@@ -91,11 +88,12 @@ func (p *activeStagedPlacement) Version() int {
 }
 
 func (p *activeStagedPlacement) ActivePlacement() (Placement, error) {
-	if p.closed.Load() {
-		return nil, errActiveStagedPlacementClosed
-	}
-
-	// placements themselves are subject to mutability races, but even in historical design, there was no actual
+	// NB: we explicitly don't check if placement is closed, as closing is done by placement watcher and it might
+	// be referenced by a client.
+	// the only effect of closing is execution of callback to let subscribers know that placement has been
+	// removed/closed - it does not invalidate the placement itself.
+	//
+	// also, placements themselves are subject to mutability races, but even in historical design, there was no actual
 	// need to enforce it, as long as we ensure callback ordering, and that is still the case.
 	placements, ok := p.placements.Load().(Placements)
 	if !ok {
