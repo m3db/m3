@@ -76,11 +76,8 @@ type Context interface {
 	// will not be returned to a pool.
 	BlockingCloseReset()
 
-	// GoContext returns the Go std context.
-	GoContext() (stdctx.Context, bool)
-
-	// MustGoContext returns the std go context, or panics if not set.
-	MustGoContext() stdctx.Context
+	// GoContext returns the std go context.
+	GoContext() stdctx.Context
 
 	// SetGoContext sets the Go std context.
 	SetGoContext(stdctx.Context)

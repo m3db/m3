@@ -240,7 +240,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	mockSeries.EXPECT().
 		LoadBlock(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(bl block.DatabaseBlock, _ series.WriteType) error {
-			reader, err := bl.Stream(context.NewContext())
+			reader, err := bl.Stream(context.NewBackground())
 			if err != nil {
 				streamErr = err
 				return err
@@ -572,7 +572,7 @@ func (nt *NamespacesTester) ResultForNamespace(id ident.ID) NamespaceResult {
 // TestBootstrapWith bootstraps the current Namespaces with the
 // provided bootstrapper.
 func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	res, err := b.Bootstrap(ctx, nt.Namespaces, nt.Cache)
 	assert.NoError(nt.t, err)
@@ -582,7 +582,7 @@ func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 // TestReadWith reads the current Namespaces with the
 // provided bootstrap source.
 func (nt *NamespacesTester) TestReadWith(s Source) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	res, err := s.Read(ctx, nt.Namespaces, nt.Cache)
 	require.NoError(nt.t, err)

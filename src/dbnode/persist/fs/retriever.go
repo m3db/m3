@@ -661,11 +661,9 @@ func (r *blockRetriever) Stream(
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
 
-	goCtx, found := ctx.GoContext()
-	if found {
-		if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
-			req.source = source
-		}
+	goCtx := ctx.GoContext()
+	if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
+		req.source = source
 	}
 
 	err = r.streamRequest(ctx, req, shard, id, startTime)
