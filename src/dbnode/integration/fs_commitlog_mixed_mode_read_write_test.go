@@ -110,7 +110,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 		total = 200
 		ids   = &idGen{longTestID}
 		db    = setup.DB()
-		ctx   = context.NewContext()
+		ctx   = context.NewBackground()
 	)
 	defer ctx.Close()
 	log.Info("writing datapoints")

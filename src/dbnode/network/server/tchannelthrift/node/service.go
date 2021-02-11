@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -166,11 +167,12 @@ type service struct {
 
 	logger *zap.Logger
 
-	opts        tchannelthrift.Options
-	nowFn       clock.NowFn
-	pools       pools
-	metrics     serviceMetrics
-	queryLimits limits.QueryLimits
+	opts              tchannelthrift.Options
+	nowFn             clock.NowFn
+	pools             pools
+	metrics           serviceMetrics
+	queryLimits       limits.QueryLimits
+	seriesReadPermits permits.Manager
 }
 
 type serviceState struct {
@@ -350,7 +352,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
-		queryLimits: opts.QueryLimits(),
+		queryLimits:       opts.QueryLimits(),
+		seriesReadPermits: opts.PermitsOptions().SeriesReadPermitsManager(),
 	}
 }
 
@@ -748,8 +751,9 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	return result, err
 }
 
-func (s *service) buildFetchTaggedResult(ctx context.Context, iter FetchTaggedResultsIter) (*rpc.FetchTaggedResult_,
-	error) {
+func (s *service) buildFetchTaggedResult(ctx context.Context,
+	iter FetchTaggedResultsIter,
+) (*rpc.FetchTaggedResult_, error) {
 	response := &rpc.FetchTaggedResult_{
 		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, iter.NumIDs()),
 		Exhaustive: iter.Exhaustive(),
@@ -841,12 +845,12 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
+		blockPermits:    s.seriesReadPermits.NewPermits(ctx),
 		totalDocsCount:  queryResult.Results.TotalDocsCount(),
 		nowFn:           s.nowFn,
 		fetchStart:      startTime,
 		dataReadMetrics: s.metrics.queryTimingDataRead,
 		totalMetrics:    s.metrics.queryTimingFetchTagged,
-		blocksReadLimit: s.queryLimits.DiskSeriesReadLimit(),
 	}), nil
 }
 
@@ -881,12 +885,14 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	fetchTaggedResultsIterOpts
-	idResults     []idResult
-	dataReadStart time.Time
-	idx           int
-	blockReadIdx  int
-	cur           IDResult
-	err           error
+	idResults       []idResult
+	idx             int
+	blockReadIdx    int
+	cur             IDResult
+	err             error
+	batchesAcquired int
+	blocksAvailable int
+	dataReadStart   time.Time
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -899,6 +905,8 @@ type fetchTaggedResultsIterOpts struct {
 	tagEncoder      serialize.TagEncoder
 	iOpts           instrument.Options
 	instrumentClose func(error)
+	blockPermits    permits.Permits
+	blocksPerBatch  int
 	nowFn           clock.NowFn
 	fetchStart      time.Time
 	totalDocsCount  int
@@ -942,7 +950,10 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 				// copied by the blockRetriever in the streamRequest method when
 				// it checks if the ID is finalizeable or not with IsNoFinalize.
 				id := ident.BytesID(result.queryResult.Key())
-				result.blockReadersIter, i.err = i.db.ReadEncoded(ctx, i.nsID, id, i.queryOpts.StartInclusive,
+				result.blockReadersIter, i.err = i.db.ReadEncoded(ctx,
+					i.nsID,
+					id,
+					i.queryOpts.StartInclusive,
 					i.queryOpts.EndExclusive)
 				if i.err != nil {
 					return false
@@ -950,6 +961,10 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 			}
 			i.idResults = append(i.idResults, result)
 		}
+	} else {
+		// release the permits and memory from the previous block readers.
+		i.releaseAll(i.idx - 1)
+		i.idResults[i.idx-1].blockReaders = nil
 	}
 
 	if i.idx == i.queryResult.Results.Map().Len() {
@@ -959,23 +974,28 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	if i.fetchData {
 		// ensure the blockReaders exist for the current series ID. additionally try to prefetch additional blockReaders
 		// for future seriesID to pipeline the disk reads.
+	readBlocks:
 		for i.blockReadIdx < i.queryResult.Results.Map().Len() {
-			var blockReaders [][]xio.BlockReader
-			blockIter := i.idResults[i.blockReadIdx].blockReadersIter
+			currResult := &i.idResults[i.blockReadIdx]
+			blockIter := currResult.blockReadersIter
 
 			for blockIter.Next(ctx) {
 				curr := blockIter.Current()
-				blockReaders = append(blockReaders, curr)
-				if err := i.blocksReadLimit.Inc(len(blockReaders), nil); err != nil {
+				currResult.blockReaders = append(currResult.blockReaders, curr)
+				acquired, err := i.acquire(ctx, i.blockReadIdx)
+				if err != nil {
 					i.err = err
 					return false
+				}
+				if !acquired {
+					// if limit met then stop prefetching and resume later from the current point in the iterator.
+					break readBlocks
 				}
 			}
 			if blockIter.Err() != nil {
 				i.err = blockIter.Err()
 				return false
 			}
-			i.idResults[i.blockReadIdx].blockReaders = blockReaders
 			i.blockReadIdx++
 		}
 	}
@@ -983,6 +1003,42 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	i.cur = &i.idResults[i.idx]
 	i.idx++
 	return true
+}
+
+// acquire a block permit for a series ID. returns true if a permit is available.
+func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, error) {
+	if i.blocksAvailable > 0 {
+		i.blocksAvailable--
+	} else {
+		if i.idx == idx {
+			// block acquiring if we need the block readers to fulfill the current fetch.
+			if err := i.blockPermits.Acquire(ctx); err != nil {
+				return false, err
+			}
+		} else {
+			// don't block if we are prefetching for a future seriesID.
+			acquired, err := i.blockPermits.TryAcquire(ctx)
+			if err != nil {
+				return false, err
+			}
+			if !acquired {
+				return false, nil
+			}
+		}
+		i.batchesAcquired++
+		i.blocksAvailable = i.blocksPerBatch - 1
+	}
+	i.idResults[idx].blocksAcquired++
+	return true, nil
+}
+
+// release all the block permits acquired by a series ID that has been processed.
+func (i *fetchTaggedResultsIter) releaseAll(idx int) {
+	// Note: the actual batch permits are not released until the query completely finishes and the iterator
+	// closes.
+	for n := 0; n < i.idResults[idx].blocksAcquired; n++ {
+		i.blocksAvailable++
+	}
 }
 
 func (i *fetchTaggedResultsIter) Err() error {
@@ -995,6 +1051,7 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
+
 	queryRange := i.queryOpts.EndExclusive.Sub(i.queryOpts.StartInclusive)
 	now := i.nowFn()
 	dataReadTime := now.Sub(i.dataReadStart)
@@ -1004,6 +1061,10 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 	totalFetchTime := now.Sub(i.fetchStart)
 	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
 	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
+
+	for n := 0; n < i.batchesAcquired; n++ {
+		i.blockPermits.Release()
+	}
 }
 
 // IDResult is the FetchTagged result for a series ID.
@@ -1026,6 +1087,7 @@ type idResult struct {
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
+	blocksAcquired   int
 	iOpts            instrument.Options
 }
 

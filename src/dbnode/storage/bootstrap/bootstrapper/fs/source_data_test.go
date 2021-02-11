@@ -556,7 +556,7 @@ func validateReadResults(
 		require.Equal(t, 1, len(seriesReaders))
 		readerAtTime := seriesReaders[0]
 		assert.Equal(t, times[i], readerAtTime.Start)
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		var b [100]byte
 		n, err := readerAtTime.Reader.Read(b[:])
 		ctx.Close()

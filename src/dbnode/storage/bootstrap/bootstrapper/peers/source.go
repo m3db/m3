@@ -175,6 +175,8 @@ func (s *peersSource) Read(
 		if !md.Options().IndexOptions().Enabled() {
 			s.log.Info("skipping bootstrap for namespace based on options",
 				zap.Stringer("namespace", md.ID()))
+
+			// Not bootstrapping for index.
 			continue
 		}
 

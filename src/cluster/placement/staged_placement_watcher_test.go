@@ -21,11 +21,13 @@
 package placement
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,44 +38,40 @@ const (
 
 func TestStagedPlacementWatcherWatchAlreadyWatching(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherWatching
+	watcher.watching.Store(true)
 	require.Equal(t, errPlacementWatcherIsWatching, watcher.Watch())
 }
 
 func TestStagedPlacementWatcherWatchSuccess(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherNotWatching
 	require.NoError(t, watcher.Watch())
 }
 
 func TestStagedPlacementWatcherActiveStagedPlacementNotWatching(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherNotWatching
 
-	_, _, err := watcher.ActiveStagedPlacement()
+	_, err := watcher.ActiveStagedPlacement()
 	require.Equal(t, errPlacementWatcherIsNotWatching, err)
 }
 
 func TestStagedPlacementWatcherActiveStagedPlacementSuccess(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherWatching
-	_, doneFn, err := watcher.ActiveStagedPlacement()
+	require.NoError(t, watcher.Watch())
+	_, err := watcher.ActiveStagedPlacement()
 	require.NoError(t, err)
-	doneFn()
 }
 
 func TestStagedPlacementWatcherUnwatchNotWatching(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherNotWatching
 	require.Equal(t, errPlacementWatcherIsNotWatching, watcher.Unwatch())
 }
 
 func TestStagedPlacementWatcherUnwatchSuccess(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherWatching
+	watcher.watching.Store(true)
 	require.NoError(t, watcher.Unwatch())
-	require.Equal(t, placementWatcherNotWatching, watcher.state)
-	require.Nil(t, watcher.placement)
+	require.False(t, watcher.watching.Load())
+	require.Nil(t, watcher.placement.Load())
 }
 
 func TestStagedPlacementWatcherToStagedPlacementNotWatching(t *testing.T) {
@@ -84,7 +82,7 @@ func TestStagedPlacementWatcherToStagedPlacementNotWatching(t *testing.T) {
 
 func TestStagedPlacementWatcherToPlacementNilValue(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherWatching
+	watcher.watching.Store(true)
 	_, err := watcher.toStagedPlacement(nil)
 	require.Equal(t, errNilValue, err)
 }
@@ -97,7 +95,7 @@ func TestStagedPlacementWatcherToStagedPlacementUnmarshalError(t *testing.T) {
 
 func TestStagedPlacementWatcherToStagedPlacementSuccess(t *testing.T) {
 	watcher, store := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherWatching
+	watcher.watching.Store(true)
 	val, err := store.Get(testStagedPlacementKey)
 	require.NoError(t, err)
 	p, err := watcher.toStagedPlacement(val)
@@ -129,16 +127,63 @@ func TestStagedPlacementWatcherProcessSuccess(t *testing.T) {
 	pss, err := NewStagedPlacementFromProto(1, testStagedPlacementProto, opts)
 	require.NoError(t, err)
 	watcher, _ := testStagedPlacementWatcher(t)
-	watcher.state = placementWatcherWatching
+	watcher.watching.Store(true)
 	watcher.nowFn = func() time.Time { return time.Unix(0, 99999) }
-	watcher.placement = &mockPlacement{
+	watcher.placement.Store(plValue{p: &mockPlacement{
 		closeFn: func() error { numCloses++; return nil },
-	}
+	}})
 
 	require.NoError(t, watcher.process(pss))
 	require.NotNil(t, watcher.placement)
 	require.Equal(t, [][]Instance{testActivePlacements[1].Instances()}, allInstances)
 	require.Equal(t, 1, numCloses)
+}
+
+func BenchmarkStagedPlacementWatcherActiveStagedPlacement(b *testing.B) {
+	store := mem.NewStore()
+	_, err := store.SetIfNotExists(testStagedPlacementKey, testStagedPlacementProto)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	watcherOpts := testStagedPlacementWatcherOptions().SetStagedPlacementStore(store)
+	watcher := NewStagedPlacementWatcher(watcherOpts)
+
+	w, ok := watcher.(*stagedPlacementWatcher)
+	if !ok {
+		b.Fatal("type assertion failed")
+	}
+	w.watching.Store(true)
+	w.placement.Store(plValue{p: newActiveStagedPlacement(
+		testActivePlacements,
+		0,
+		NewActiveStagedPlacementOptions().SetClockOptions(
+			clock.NewOptions().SetNowFn(func() time.Time {
+				return time.Unix(0, testActivePlacements[0].CutoverNanos())
+			}),
+		),
+	)})
+
+	var asp Placement
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			pl, err := watcher.ActiveStagedPlacement()
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			curpl, err := pl.ActivePlacement()
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			asp = curpl
+		}
+	})
+
+	runtime.KeepAlive(asp)
 }
 
 func testStagedPlacementWatcher(t *testing.T) (*stagedPlacementWatcher, kv.Store) {
@@ -164,8 +209,8 @@ type mockPlacement struct {
 	closeFn closeFn
 }
 
-func (mp *mockPlacement) ActivePlacement() (Placement, DoneFn, error) {
-	return nil, func() {}, nil
+func (mp *mockPlacement) ActivePlacement() (Placement, error) {
+	return nil, nil
 }
 
 func (mp *mockPlacement) Close() error { return mp.closeFn() }

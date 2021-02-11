@@ -185,7 +185,7 @@ func TestNamespaceTickError(t *testing.T) {
 }
 
 func TestNamespaceWriteShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -202,7 +202,7 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 }
 
 func TestNamespaceReadOnlyRejectWrites(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -226,7 +226,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	id := ident.StringID("foo")
@@ -261,7 +261,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 }
 
 func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -278,7 +278,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	id := ident.StringID("foo")
@@ -304,7 +304,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 }
 
 func TestNamespaceFetchWideEntryShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -321,7 +321,7 @@ func TestNamespaceFetchWideEntryShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	id := ident.StringID("foo")
@@ -346,7 +346,7 @@ func TestNamespaceFetchWideEntryShardOwned(t *testing.T) {
 }
 
 func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -364,7 +364,7 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -391,7 +391,7 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 
 	ns.bootstrapState = Bootstrapping
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	err := ns.Bootstrap(ctx, bootstrap.NamespaceResult{})
@@ -403,7 +403,7 @@ func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	require.NoError(t, ns.Bootstrap(ctx, bootstrap.NamespaceResult{}))
@@ -434,7 +434,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		Shards:     shardIDs,
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	require.Equal(t, "foo", ns.Bootstrap(ctx, nsResult).Error())
@@ -487,7 +487,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		Shards:     shardIDs,
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	require.Error(t, ns.Bootstrap(ctx, nsResult))
@@ -630,7 +630,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -660,7 +660,7 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -689,7 +689,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, close := newTestNamespace(t)
@@ -745,7 +745,7 @@ func testSnapshotWithShardSnapshotErrs(
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
@@ -1232,7 +1232,7 @@ func TestNamespaceCloseWillCloseShard(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// mock namespace + 1 shard
@@ -1262,7 +1262,7 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// new namespace
@@ -1293,7 +1293,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 		ns.reverseIndex = idx
 		defer closer()
 
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		now := time.Now()
 
 		shard := NewMockdatabaseShard(ctrl)
@@ -1338,7 +1338,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
@@ -1372,7 +1372,7 @@ func TestNamespaceIndexWideQuery(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
@@ -1411,7 +1411,7 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	query := index.Query{
 		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
 	}
@@ -1437,7 +1437,7 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	nsCtx := ns.nsContextWithRLock()
 	ns.RUnlock()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	for _, s := range ns.shards {
@@ -1456,7 +1456,7 @@ func TestNamespaceIndexDisabledQuery(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	query := index.Query{
 		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
 	}
@@ -1524,7 +1524,7 @@ func TestNamespaceFlushState(t *testing.T) {
 }
 
 func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (
@@ -1554,7 +1554,7 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (

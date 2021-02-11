@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -114,25 +113,13 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					idx.NewQueryFromSearchQuery(q),
 				}
 
-				cancellable := xresource.NewCancellableLifetime()
-				cancelled := false
-				doneQuery := func() {
-					if !cancelled {
-						cancelled = true
-						cancellable.Cancel()
-					}
-				}
-
-				// In case we return early
-				defer doneQuery()
-
 				queryOpts := QueryOptions{
 					StartInclusive: blockStart,
 					EndExclusive:   blockStart.Add(blockSize),
 				}
 
 				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(context.NewContext(), cancellable, indexQuery,
+				exhaustive, err := uncachedBlock.Query(context.NewBackground(), indexQuery,
 					queryOpts, uncachedResults, emptyLogFields)
 				if err != nil {
 					return false, fmt.Errorf("error querying uncached block: %v", err)
@@ -142,7 +129,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				}
 
 				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(context.NewContext(), cancellable, indexQuery,
+				exhaustive, err = cachedBlock.Query(context.NewBackground(), indexQuery,
 					queryOpts, cachedResults, emptyLogFields)
 				if err != nil {
 					return false, fmt.Errorf("error querying cached block: %v", err)
@@ -150,10 +137,6 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				if !exhaustive {
 					return false, errors.New("querying cached block was not exhaustive")
 				}
-
-				// The lifetime of the query is complete, cancel the lifetime so we
-				// can safely access the results of each
-				doneQuery()
 
 				uncachedMap := uncachedResults.Map()
 				cachedMap := cachedResults.Map()
@@ -370,12 +353,11 @@ func TestAggregateDocLimits(t *testing.T) {
 				Type: AggregateTagNamesAndValues,
 			}, testOpts)
 
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
 			exhaustive, err := b.Aggregate(
 				ctx,
-				xresource.NewCancellableLifetime(),
 				QueryOptions{},
 				results,
 				emptyLogFields)

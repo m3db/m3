@@ -495,13 +495,13 @@ func (e *Entry) shouldUpdateStagedMetadatasWithLock(sm metadata.StagedMetadata) 
 	// set but also have duplicates, there is no need to update metadatas as long as
 	// the cached set has all aggregation keys in the incoming metadata and vice versa.
 	bs := bitset.New(uint(len(e.aggregations)))
-	for _, pipeline := range sm.Pipelines {
-		storagePolicies := e.storagePolicies(pipeline.StoragePolicies)
-		for _, storagePolicy := range storagePolicies {
+	for i := range sm.Pipelines {
+		storagePolicies := e.storagePolicies(sm.Pipelines[i].StoragePolicies)
+		for j := range storagePolicies {
 			key := aggregationKey{
-				aggregationID:      pipeline.AggregationID,
-				storagePolicy:      storagePolicy,
-				pipeline:           pipeline.Pipeline,
+				aggregationID:      sm.Pipelines[i].AggregationID,
+				storagePolicy:      storagePolicies[j],
+				pipeline:           sm.Pipelines[i].Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
 			idx := e.aggregations.index(key)
@@ -583,9 +583,9 @@ func (e *Entry) addNewAggregationKeyWithLock(
 }
 
 func (e *Entry) removeOldAggregations(newAggregations aggregationValues) {
-	for _, val := range e.aggregations {
-		if !newAggregations.contains(val.key) {
-			val.elem.Value.(metricElem).MarkAsTombstoned()
+	for i := range e.aggregations {
+		if !newAggregations.contains(e.aggregations[i].key) {
+			e.aggregations[i].elem.Value.(metricElem).MarkAsTombstoned()
 		}
 	}
 }
@@ -602,17 +602,17 @@ func (e *Entry) updateStagedMetadatasWithLock(
 	)
 
 	// Update the metadatas.
-	for _, pipeline := range sm.Pipelines {
-		storagePolicies := e.storagePolicies(pipeline.StoragePolicies)
-		for _, storagePolicy := range storagePolicies {
+	for i := range sm.Pipelines {
+		storagePolicies := e.storagePolicies(sm.Pipelines[i].StoragePolicies)
+		for j := range storagePolicies {
 			key := aggregationKey{
-				aggregationID:      pipeline.AggregationID,
-				storagePolicy:      storagePolicy,
-				pipeline:           pipeline.Pipeline,
+				aggregationID:      sm.Pipelines[i].AggregationID,
+				storagePolicy:      storagePolicies[j],
+				pipeline:           sm.Pipelines[i].Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
 			listID := standardMetricListID{
-				resolution: storagePolicy.Resolution().Window,
+				resolution: storagePolicies[j].Resolution().Window,
 			}.toMetricListID()
 			var err error
 			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations)
@@ -635,8 +635,8 @@ func (e *Entry) updateStagedMetadatasWithLock(
 
 func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	multiErr := xerrors.NewMultiError()
-	for _, val := range e.aggregations {
-		if err := val.elem.Value.(metricElem).AddUnion(timestamp, mu); err != nil {
+	for i := range e.aggregations {
+		if err := e.aggregations[i].elem.Value.(metricElem).AddUnion(timestamp, mu); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -872,8 +872,8 @@ func (e *Entry) addTimedWithStagedMetadatasAndLock(
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
 	multiErr := xerrors.NewMultiError()
-	for _, val := range e.aggregations {
-		if err := val.elem.Value.(metricElem).AddValue(timestamp, metric.Value); err != nil {
+	for i := range e.aggregations {
+		if err := e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
