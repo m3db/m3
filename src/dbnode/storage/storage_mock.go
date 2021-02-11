@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -5222,6 +5223,34 @@ func (m *MockOptions) TileAggregator() TileAggregator {
 func (mr *MockOptionsMockRecorder) TileAggregator() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TileAggregator", reflect.TypeOf((*MockOptions)(nil).TileAggregator))
+}
+
+// PermitsOptions mocks base method
+func (m *MockOptions) PermitsOptions() permits.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PermitsOptions")
+	ret0, _ := ret[0].(permits.Options)
+	return ret0
+}
+
+// PermitsOptions indicates an expected call of PermitsOptions
+func (mr *MockOptionsMockRecorder) PermitsOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PermitsOptions", reflect.TypeOf((*MockOptions)(nil).PermitsOptions))
+}
+
+// SetPermitsOptions mocks base method
+func (m *MockOptions) SetPermitsOptions(value permits.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetPermitsOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetPermitsOptions indicates an expected call of SetPermitsOptions
+func (mr *MockOptionsMockRecorder) SetPermitsOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPermitsOptions", reflect.TypeOf((*MockOptions)(nil).SetPermitsOptions), value)
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface
