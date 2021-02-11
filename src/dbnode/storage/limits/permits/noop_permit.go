@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,56 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package limits
+package permits
 
-type noOpQueryLimits struct {
+import "github.com/m3db/m3/src/x/context"
+
+type noOpPermits struct {
 }
 
-type noOpLookbackLimit struct {
+var _ Manager = (*noOpPermits)(nil)
+
+var _ Permits = (*noOpPermits)(nil)
+
+// NewNoOpPermitsManager builds a new no-op permits manager.
+func NewNoOpPermitsManager() Manager {
+	return &noOpPermits{}
 }
 
-var (
-	_ QueryLimits   = (*noOpQueryLimits)(nil)
-	_ LookbackLimit = (*noOpLookbackLimit)(nil)
-)
-
-// NoOpQueryLimits returns inactive query limits.
-func NoOpQueryLimits() QueryLimits {
-	return &noOpQueryLimits{}
+// NewNoOpPermits builds a new no-op permits.
+func NewNoOpPermits() Permits {
+	return &noOpPermits{}
 }
 
-func (q *noOpQueryLimits) DocsLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
+func (p noOpPermits) NewPermits(_ context.Context) Permits {
+	return p
 }
 
-func (q *noOpQueryLimits) BytesReadLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
-}
-
-func (q *noOpQueryLimits) AnyExceeded() error {
+func (p noOpPermits) Acquire(_ context.Context) error {
 	return nil
 }
 
-func (q *noOpQueryLimits) Stop() {
+func (p noOpPermits) TryAcquire(_ context.Context) (bool, error) {
+	return true, nil
 }
 
-func (q *noOpQueryLimits) Start() {
-}
-
-func (q *noOpLookbackLimit) Options() LookbackLimitOptions {
-	return LookbackLimitOptions{}
-}
-
-func (q *noOpLookbackLimit) Update(LookbackLimitOptions) error {
-	return nil
-}
-
-func (q *noOpLookbackLimit) Inc(int, []byte) error {
-	return nil
-}
-
-func (q *noOpLookbackLimit) Start() {
-}
-
-func (q *noOpLookbackLimit) Stop() {
+func (p noOpPermits) Release() {
 }

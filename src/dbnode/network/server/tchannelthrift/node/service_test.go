@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -1574,16 +1575,27 @@ func TestServiceFetchTagged(t *testing.T) {
 			mockDB := storage.NewMockDatabase(ctrl)
 			mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 			mockDB.EXPECT().IsOverloaded().Return(false)
-			queryLimits, err := limits.NewQueryLimits(limits.NewOptions().
+			limitsOpts := limits.NewOptions().
 				SetInstrumentOptions(testTChannelThriftOptions.InstrumentOptions()).
 				SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
-				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()).
 				SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
 					Limit:    tc.blocksReadLimit,
 					Lookback: time.Second * 1,
-				}))
+				}).
+				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions())
+
+			queryLimits, err := limits.NewQueryLimits(limitsOpts)
+			permitOpts := permits.NewOptions().
+				SetSeriesReadPermitsManager(permits.NewLookbackLimitPermitsManager(
+					testTChannelThriftOptions.InstrumentOptions(),
+					limitsOpts.DiskSeriesReadLimitOpts(),
+					"disk-series-read",
+					limitsOpts.SourceLoggerBuilder()))
+
 			require.NoError(t, err)
-			testTChannelThriftOptions = testTChannelThriftOptions.SetQueryLimits(queryLimits)
+			testTChannelThriftOptions = testTChannelThriftOptions.
+				SetQueryLimits(queryLimits).
+				SetPermitsOptions(permitOpts)
 
 			service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
