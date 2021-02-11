@@ -362,7 +362,23 @@ func TestSourceLogger(t *testing.T) {
 
 	assert.Equal(t, []testLoggerRecord{
 		{name: "docs-matched", val: 100, source: []byte("docs")},
+		{name: "docs-matched-all", val: 100, source: []byte("docs")},
 		{name: "disk-bytes-read", val: 200, source: []byte("bytes")},
+		{name: "disk-bytes-read-all", val: 200, source: []byte("bytes")},
+	}, builder.records)
+
+	require.NoError(t, queryLimits.AggregateDocsLimit().Inc(1000, []byte("docs")))
+	require.NoError(t, queryLimits.AggregateBytesReadLimit().Inc(2000, []byte("bytes")))
+
+	assert.Equal(t, []testLoggerRecord{
+		{name: "docs-matched", val: 100, source: []byte("docs")},
+		{name: "docs-matched-all", val: 100, source: []byte("docs")},
+		{name: "disk-bytes-read", val: 200, source: []byte("bytes")},
+		{name: "disk-bytes-read-all", val: 200, source: []byte("bytes")},
+		{name: "docs-matched-aggregate", val: 1000, source: []byte("docs")},
+		{name: "docs-matched-all", val: 1000, source: []byte("docs")},
+		{name: "disk-bytes-read-aggregate", val: 2000, source: []byte("bytes")},
+		{name: "disk-bytes-read-all", val: 2000, source: []byte("bytes")},
 	}, builder.records)
 }
 

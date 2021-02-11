@@ -150,6 +150,7 @@ type block struct {
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	docsLimit                       limits.LookbackLimit
+	aggDocsLimit                    limits.LookbackLimit
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -268,6 +269,7 @@ func NewBlock(
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		aggDocsLimit:                    opts.QueryLimits().AggregateDocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -894,6 +896,11 @@ func (b *block) addAggregateResults(
 ) ([]AggregateResultsEntry, int, int, error) {
 	// try to add the docs to the resource.
 	size, docsCount := results.AddFields(batch)
+
+	if err := b.aggDocsLimit.Inc(len(batch), source); err != nil {
+		// NB: this case should warn and continue.
+		b.logger.Warn("aggregate limit", zap.Error(err))
+	}
 
 	// reset batch.
 	var emptyField AggregateResultsEntry
