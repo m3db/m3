@@ -21,9 +21,11 @@
 package index
 
 import (
+	"bytes"
 	"errors"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 var (
@@ -33,54 +35,64 @@ var (
 func newFilterFieldsIterator(
 	reader segment.Reader,
 	fields AggregateFieldFilter,
-) (segment.FieldsIterator, error) {
+) (segment.FieldsPostingsListIterator, error) {
 	if len(fields) == 0 {
 		return nil, errNoFiltersSpecified
 	}
+	fieldsIter, err := reader.FieldsPostingsList()
+	if err != nil {
+		return nil, err
+	}
 	return &filterFieldsIterator{
 		reader:     reader,
+		fieldsIter: fieldsIter,
 		fields:     fields,
 		currentIdx: -1,
 	}, nil
 }
 
 type filterFieldsIterator struct {
-	reader segment.Reader
-	fields AggregateFieldFilter
+	reader     segment.Reader
+	fieldsIter segment.FieldsPostingsListIterator
+	fields     AggregateFieldFilter
 
 	err        error
 	currentIdx int
 }
 
-var _ segment.FieldsIterator = &filterFieldsIterator{}
+var _ segment.FieldsPostingsListIterator = &filterFieldsIterator{}
 
 func (f *filterFieldsIterator) Next() bool {
 	if f.err != nil {
 		return false
 	}
 
-	f.currentIdx++ // required because we start at -1
-	for f.currentIdx < len(f.fields) {
-		field := f.fields[f.currentIdx]
+	for f.fieldsIter.Next() {
+		field, _ := f.fieldsIter.Current()
 
-		ok, err := f.reader.ContainsField(field)
-		if err != nil {
-			f.err = err
-			return false
+		found := false
+		for _, f := range f.fields {
+			if bytes.Equal(field, f) {
+				found = true
+				break
+			}
 		}
-
-		// i.e. we found a field from the filter list contained in the segment.
-		if ok {
+		if found {
 			return true
 		}
-
-		// the current field is unsuitable, so we skip to the next possiblity.
-		f.currentIdx++
 	}
 
 	return false
 }
 
-func (f *filterFieldsIterator) Current() []byte { return f.fields[f.currentIdx] }
-func (f *filterFieldsIterator) Err() error      { return f.err }
-func (f *filterFieldsIterator) Close() error    { return nil }
+func (f *filterFieldsIterator) Current() ([]byte, postings.List) {
+	return f.fieldsIter.Current()
+}
+
+func (f *filterFieldsIterator) Err() error {
+	return f.err
+}
+
+func (f *filterFieldsIterator) Close() error {
+	return f.fieldsIter.Close()
+}

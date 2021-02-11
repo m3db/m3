@@ -222,7 +222,7 @@ func TestTCPClientWriteUntimedMetricActiveStagedPlacementError(t *testing.T) {
 	errActiveStagedPlacementError := errors.New("error active staged placement")
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().
-		Return(nil, nil, errActiveStagedPlacementError).
+		Return(nil, errActiveStagedPlacementError).
 		MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.placementWatcher = watcher
@@ -241,15 +241,40 @@ func TestTCPClientWriteUntimedMetricActiveStagedPlacementError(t *testing.T) {
 	}
 }
 
+func TestTCPClientWriteUntimedMetricActiveStagedPlacementNil(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().
+		Return(nil, nil).
+		MinTimes(1)
+	c := mustNewTestTCPClient(t, testOptions())
+	c.placementWatcher = watcher
+
+	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
+		var err error
+		switch input.Type {
+		case metric.CounterType:
+			err = c.WriteUntimedCounter(input.Counter(), testStagedMetadatas)
+		case metric.TimerType:
+			err = c.WriteUntimedBatchTimer(input.BatchTimer(), testStagedMetadatas)
+		case metric.GaugeType:
+			err = c.WriteUntimedGauge(input.Gauge(), testStagedMetadatas)
+		}
+		require.Equal(t, errNilPlacement, err)
+	}
+}
+
 func TestTCPClientWriteUntimedMetricActivePlacementError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	errActivePlacementError := errors.New("error active placement")
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(nil, nil, errActivePlacementError).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(nil, errActivePlacementError).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.placementWatcher = watcher
 
@@ -291,9 +316,9 @@ func TestTCPClientWriteUntimedMetricSuccess(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -356,9 +381,9 @@ func TestTCPClientWriteUntimedMetricPartialError(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -383,9 +408,9 @@ func TestTCPClientWriteUntimedMetricBeforeShardCutover(t *testing.T) {
 
 	var instancesRes []placement.Instance
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.shardCutoverWarmupDuration = time.Second
 	c.nowFn = func() time.Time { return time.Unix(0, testCutoverNanos-1).Add(-time.Second) }
@@ -403,9 +428,9 @@ func TestTCPClientWriteUntimedMetricAfterShardCutoff(t *testing.T) {
 
 	var instancesRes []placement.Instance
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.shardCutoffLingerDuration = time.Second
 	c.nowFn = func() time.Time { return time.Unix(0, testCutoffNanos+1).Add(time.Second) }
@@ -441,9 +466,9 @@ func TestTCPClientWriteTimedMetricSuccess(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -492,9 +517,9 @@ func TestTCPClientWriteTimedMetricPartialError(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -539,9 +564,9 @@ func TestTCPClientWriteForwardedMetricSuccess(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -590,9 +615,9 @@ func TestTCPClientWriteForwardedMetricPartialError(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -637,9 +662,9 @@ func TestTCPClientWritePassthroughMetricSuccess(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -688,9 +713,9 @@ func TestTCPClientWritePassthroughMetricPartialError(t *testing.T) {
 		}).
 		MinTimes(1)
 	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
-	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).MinTimes(1)
 	c := mustNewTestTCPClient(t, testOptions())
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -795,20 +820,22 @@ func TestTCPClientActivePlacement(t *testing.T) {
 		mockPl          = placement.NewMockPlacement(ctrl)
 		stagedPlacement = placement.NewMockActiveStagedPlacement(ctrl)
 		watcher         = placement.NewMockStagedPlacementWatcher(ctrl)
-		doneCalls       int
 	)
 
 	c.placementWatcher = watcher
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() { doneCalls++ }, nil)
-	stagedPlacement.EXPECT().Version().Return(42)
-	stagedPlacement.EXPECT().ActivePlacement().Return(mockPl, func() { doneCalls++ }, nil)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, nil).Times(2)
+	stagedPlacement.EXPECT().Version().Return(42).Times(2)
+	stagedPlacement.EXPECT().ActivePlacement().Return(mockPl, nil)
 	mockPl.EXPECT().Clone().Return(emptyPl)
 
 	pl, v, err := c.ActivePlacement()
 	assert.NoError(t, err)
 	assert.Equal(t, 42, v)
-	assert.Equal(t, 2, doneCalls)
 	assert.Equal(t, emptyPl, pl)
+
+	v, err = c.ActivePlacementVersion()
+	assert.NoError(t, err)
+	assert.Equal(t, 42, v)
 }
 
 func TestTCPClientInitAndClose(t *testing.T) {

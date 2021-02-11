@@ -102,7 +102,7 @@ func verifyWriteToBuffer(
 	expectWritten bool,
 	expectErr bool,
 ) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wasWritten, _, err := buffer.Write(ctx, id, v.Timestamp, v.Value, v.Unit,
@@ -127,7 +127,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wasWritten, _, err := buffer.Write(ctx, testID, curr.Add(rops.BufferFuture()), 1,
@@ -152,7 +152,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	// Writes are inclusive on buffer past start border. Must be before that inclusive border to
 	// be a cold write. To test this we write a second further into the past.
@@ -186,7 +186,7 @@ func TestBufferWriteColdTooFutureRetention(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	futureRetention := time.Second +
@@ -213,7 +213,7 @@ func TestBufferWriteColdTooPastRetention(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	pastRetention := time.Second +
@@ -235,7 +235,7 @@ func TestBufferWriteError(t *testing.T) {
 		opts   = newBufferTestOptions()
 		rops   = opts.RetentionOptions()
 		curr   = time.Now().Truncate(rops.BlockSize())
-		ctx    = context.NewContext()
+		ctx    = context.NewBackground()
 		buffer = newDatabaseBuffer().(*dbBuffer)
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
@@ -284,7 +284,7 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 		verifyWriteToBufferSuccess(t, testID, buffer, v, nsCtx.Schema)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
@@ -317,7 +317,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 		verifyWriteToBufferSuccess(t, testID, buffer, v, nil)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	firstBucketStart := start.Truncate(time.Second)
@@ -373,7 +373,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	// Restore data to in order for comparison.
 	sort.Sort(ValuesByTime(data))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, namespace.Context{})
@@ -513,7 +513,7 @@ func TestBufferBucketMerge(t *testing.T) {
 func testBufferBucketMerge(t *testing.T, opts Options, setAnn setAnnotation) {
 	b, expected := newTestBufferBucketWithData(t, opts, setAnn)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{}
@@ -621,7 +621,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	}
 
 	// First assert that streams() call is correct.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
 	result := b.streams(ctx)
 	require.NotNil(t, result)
@@ -690,7 +690,7 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	}
 
 	// First assert that Streams() call is correct.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	result := b.streams(ctx)
@@ -727,7 +727,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 
 	forceValue := 1.0
 	for i, v := range data {
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		writeOpts := WriteOptions{
 			TruncateType: TypeBlock,
 			TransformOptions: WriteTransformOptions{
@@ -744,7 +744,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 		ctx.Close()
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, namespace.Context{})
@@ -918,7 +918,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	opts := newBufferTestOptions()
@@ -1121,7 +1121,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	})
 
 	// Perform one valid write to setup the state of the buffer.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wasWritten, _, err := buffer.Write(ctx, testID,
@@ -1159,13 +1159,13 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	})
 
 	if testSnapshot {
-		ctx = context.NewContext()
+		ctx = context.NewBackground()
 		defer ctx.Close()
 
 		_, err = buffer.Snapshot(ctx, start, metadata, assertPersistDataFn, namespace.Context{})
 		assert.NoError(t, err)
 	} else {
-		ctx = context.NewContext()
+		ctx = context.NewBackground()
 		defer ctx.Close()
 		_, err = buffer.WarmFlush(
 			ctx, start, metadata, assertPersistDataFn, namespace.Context{})
@@ -1192,7 +1192,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 		return curr
 	}))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buffer.Reset(databaseBufferResetOptions{
@@ -1355,7 +1355,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 		warmEncoders []encoding.Encoder
 		coldEncoders []encoding.Encoder
 	)
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buckets, ok := buffer.bucketVersionsAt(start)
@@ -1727,7 +1727,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	}
 
 	buffer, expected := newTestBufferWithCustomData(t, bds, opts, nil)
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	nsCtx := namespace.Context{Schema: testSchemaDesc}
 	result, err := buffer.FetchBlocksForColdFlush(ctx, blockStart1, 4, nsCtx)
@@ -1783,7 +1783,7 @@ func TestBufferLoadWarmWrite(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	encoded, err := buffer.ReadEncoded(context.NewBackground(), curr, curr.Add(blockSize), nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(encoded))
 
@@ -1794,7 +1794,7 @@ func TestBufferLoadWarmWrite(t *testing.T) {
 	buffer.Load(block, WarmWrite)
 
 	// Ensure the bootstrapped block is loaded and readable.
-	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	encoded, err = buffer.ReadEncoded(context.NewBackground(), curr, curr.Add(blockSize), nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(encoded))
 
@@ -1816,7 +1816,7 @@ func TestBufferLoadColdWrite(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	encoded, err := buffer.ReadEncoded(context.NewBackground(), curr, curr.Add(blockSize), nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(encoded))
 
@@ -1827,7 +1827,7 @@ func TestBufferLoadColdWrite(t *testing.T) {
 	buffer.Load(block, ColdWrite)
 
 	// Ensure the bootstrapped block is loaded and readable.
-	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	encoded, err = buffer.ReadEncoded(context.NewBackground(), curr, curr.Add(blockSize), nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(encoded))
 
@@ -1944,7 +1944,7 @@ func TestUpsertProto(t *testing.T) {
 					write.expectWritten, write.expectErr)
 			}
 
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.Close()
 
 			results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
@@ -2176,7 +2176,7 @@ func TestEncoderLimit(t *testing.T) {
 			runtimeOptsMgr.Update(newRuntimeOpts)
 			buffer := newDatabaseBuffer().(*dbBuffer)
 			buffer.Reset(databaseBufferResetOptions{Options: opts})
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.Close()
 
 			for i, write := range test.writes {

@@ -166,7 +166,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 				for _, timeToCheck := range timesToRestart {
 					startServerWithNewInspection(t, opts, setup)
-					ctx := context.NewContext()
+					ctx := context.NewBackground()
 					defer ctx.Close()
 
 					log.Info("writing datapoints")

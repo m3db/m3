@@ -700,7 +700,10 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		require.Equal(t, input.expected, input.metadatas.IsDefault())
+		input := input
+		t.Run(fmt.Sprintf("%v", input.metadatas), func(t *testing.T) {
+			require.Equal(t, input.expected, input.metadatas.IsDefault())
+		})
 	}
 }
 
@@ -1087,8 +1090,8 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 		`{"version":12,` +
 			`"stagedMetadatas":` +
 			`[{"metadata":{"pipelines":[` +
-			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"],"tags":null,"graphitePrefix":null},` +
-			`{"aggregation":null,"storagePolicies":["10s:1h"],"tags":null,"graphitePrefix":null}]},` +
+			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"]},` +
+			`{"aggregation":null,"storagePolicies":["10s:1h"]}]},` +
 			`"cutoverNanos":4567,` +
 			`"tombstoned":true}]}`
 	require.Equal(t, expected, string(res))

@@ -43,7 +43,7 @@ type idPoolTestSuite struct {
 }
 
 func (s idPoolTestSuite) TestPoolGetClone() {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
 	a := s.pool.GetStringID(ctx, "abc")
 	b := s.pool.Clone(a)
@@ -77,7 +77,7 @@ func (s idPoolTestSuite) TestPoolGetBinaryID() {
 	v := checked.NewBytes([]byte("abc"), nil)
 	nr := v.NumRef()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	bid := s.pool.GetBinaryID(ctx, v)
 
 	s.Require().Equal(1+nr, v.NumRef())
@@ -104,7 +104,7 @@ func (s idPoolTestSuite) TestPoolGetBinaryTag() {
 	tagValue := checked.NewBytes([]byte("def"), nil)
 	nr := tagName.NumRef()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	tag := s.pool.GetBinaryTag(ctx, tagName, tagValue)
 	s.Require().Equal(1+nr, tagName.NumRef())
 	s.Require().Equal(1+nr, tagValue.NumRef())
@@ -139,7 +139,7 @@ func (s idPoolTestSuite) TestPoolBinaryTag() {
 }
 
 func (s idPoolTestSuite) TestPoolGetStringID() {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	sid := s.pool.GetStringID(ctx, "abc")
 	s.Require().Equal("abc", sid.String())
 
@@ -172,7 +172,7 @@ func (s idPoolTestSuite) TestPoolGetTagsIterator() {
 	tags.Append(s.pool.StringTag("foo", "000"))
 	tags.Append(s.pool.StringTag("bar", "111"))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	iter := s.pool.GetTagsIterator(ctx)
 	iter.Reset(tags)
 

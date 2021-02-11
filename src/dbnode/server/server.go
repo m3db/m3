@@ -39,6 +39,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -66,6 +67,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -450,6 +452,7 @@ func Run(runOpts RunOptions) {
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
+	diskSeriesReadLimit := limits.DefaultLookbackLimitOptions()
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
 		docsLimit.Limit = limitConfig.Value
 		docsLimit.Lookback = limitConfig.Lookback
@@ -458,9 +461,14 @@ func Run(runOpts RunOptions) {
 		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskRead; limitConfig != nil {
+		diskSeriesReadLimit.Limit = limitConfig.Value
+		diskSeriesReadLimit.Lookback = limitConfig.Lookback
+	}
 	limitOpts := limits.NewOptions().
 		SetDocsLimitOpts(docsLimit).
 		SetBytesReadLimitOpts(bytesReadLimit).
+		SetDiskSeriesReadLimitOpts(diskSeriesReadLimit).
 		SetInstrumentOptions(iOpts)
 	if builder := opts.SourceLoggerBuilder(); builder != nil {
 		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
@@ -471,6 +479,16 @@ func Run(runOpts RunOptions) {
 	}
 	queryLimits.Start()
 	defer queryLimits.Stop()
+
+	seriesReadPermits := permits.NewLookbackLimitPermitsManager(iOpts,
+		diskSeriesReadLimit,
+		"disk-series-read",
+		limitOpts.SourceLoggerBuilder())
+	seriesReadPermits.Start()
+	defer seriesReadPermits.Stop()
+
+	permitsOpts := permits.NewOptions().
+		SetSeriesReadPermitsManager(seriesReadPermits)
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -703,7 +721,9 @@ func Run(runOpts RunOptions) {
 		SetTagDecoderPool(tagDecoderPool).
 		SetCheckedBytesWrapperPool(opts.CheckedBytesWrapperPool()).
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
-		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
+		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
+		SetQueryLimits(queryLimits).
+		SetPermitsOptions(permitsOpts)
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.
@@ -987,6 +1007,14 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.Limits.WriteNewSeriesPerSecond)
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
+		kvWatchQueryLimit(syncCfg.KVStore, logger,
+			queryLimits.DocsLimit(),
+			queryLimits.BytesReadLimit(),
+			// For backwards compatibility as M3 moves toward permits instead of time-based limits,
+			// the series-read path uses permits which are implemented with limits, and so we support
+			// dynamic updates to this limit-based permit still be passing downstream the limit itself.
+			seriesReadPermits.Limit,
+			limitOpts)
 	}()
 
 	// Wait for process interrupt.
@@ -1157,6 +1185,106 @@ func kvWatchEncodersPerBlockLimit(
 			}
 		}
 	}()
+}
+
+func kvWatchQueryLimit(
+	store kv.Store,
+	logger *zap.Logger,
+	docsLimit limits.LookbackLimit,
+	bytesReadLimit limits.LookbackLimit,
+	diskSeriesReadLimit limits.LookbackLimit,
+	defaultOpts limits.Options,
+) {
+	value, err := store.Get(kvconfig.QueryLimits)
+	if err == nil {
+		dynamicLimits := &kvpb.QueryLimits{}
+		err = value.Unmarshal(dynamicLimits)
+		if err == nil {
+			updateQueryLimits(logger, docsLimit, bytesReadLimit, diskSeriesReadLimit, dynamicLimits, defaultOpts)
+		}
+	} else if !errors.Is(err, kv.ErrNotFound) {
+		logger.Warn("error resolving query limit", zap.Error(err))
+	}
+
+	watch, err := store.Watch(kvconfig.QueryLimits)
+	if err != nil {
+		logger.Error("could not watch query limit", zap.Error(err))
+		return
+	}
+
+	go func() {
+		dynamicLimits := &kvpb.QueryLimits{}
+		for range watch.C() {
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(dynamicLimits); err != nil {
+					logger.Warn("unable to parse new query limits", zap.Error(err))
+					continue
+				}
+				updateQueryLimits(logger,
+					docsLimit, bytesReadLimit, diskSeriesReadLimit,
+					dynamicLimits, defaultOpts)
+			}
+		}
+	}()
+}
+
+func updateQueryLimits(logger *zap.Logger,
+	docsLimit limits.LookbackLimit,
+	bytesReadLimit limits.LookbackLimit,
+	diskSeriesReadLimit limits.LookbackLimit,
+	dynamicOpts *kvpb.QueryLimits,
+	configOpts limits.Options,
+) {
+	var (
+		// Default to the config-based limits if unset in dynamic limits.
+		// Otherwise, use the dynamic limit.
+		docsLimitOpts           = configOpts.DocsLimitOpts()
+		bytesReadLimitOpts      = configOpts.BytesReadLimitOpts()
+		diskSeriesReadLimitOpts = configOpts.DiskSeriesReadLimitOpts()
+	)
+	if dynamicOpts != nil {
+		if dynamicOpts.MaxRecentlyQueriedSeriesBlocks != nil {
+			docsLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesBlocks)
+		}
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead != nil {
+			bytesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead)
+		}
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
+			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskRead)
+		}
+	}
+
+	if err := updateQueryLimit(docsLimit, docsLimitOpts); err != nil {
+		logger.Error("error updating docs limit", zap.Error(err))
+	}
+
+	if err := updateQueryLimit(bytesReadLimit, bytesReadLimitOpts); err != nil {
+		logger.Error("error updating bytes read limit", zap.Error(err))
+	}
+
+	if err := updateQueryLimit(diskSeriesReadLimit, diskSeriesReadLimitOpts); err != nil {
+		logger.Error("error updating series read limit", zap.Error(err))
+	}
+}
+
+func updateQueryLimit(
+	limit limits.LookbackLimit,
+	newOpts limits.LookbackLimitOptions,
+) error {
+	old := limit.Options()
+	if old.Equals(newOpts) {
+		return nil
+	}
+
+	return limit.Update(newOpts)
+}
+
+func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimitOptions {
+	return limits.LookbackLimitOptions{
+		Limit:         dynamicLimit.Limit,
+		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
+		ForceExceeded: dynamicLimit.ForceExceeded,
+	}
 }
 
 func kvWatchClientConsistencyLevels(

@@ -29,8 +29,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -328,7 +330,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()
@@ -347,7 +349,12 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	results := res.Results
 	assert.Equal(t, "testns1", results.Namespace().String())
 
-	tags, ok := results.Map().Get(ident.StringID("foo"))
+	reader := docs.NewEncodedDocumentReader()
+	d, ok := results.Map().Get(ident.BytesID("foo"))
+	md, err := docs.MetadataFromDocument(d, reader)
+	require.NoError(t, err)
+	tags := idxconvert.ToSeriesTags(md, idxconvert.Opts{NoClone: true})
+
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
@@ -359,7 +366,7 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()
@@ -397,7 +404,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()
@@ -444,7 +451,7 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	now := time.Now()

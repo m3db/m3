@@ -21,6 +21,8 @@
 package storage
 
 import (
+	stdctx "context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -46,6 +48,7 @@ import (
 
 	protobuftypes "github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -344,7 +347,7 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	mockBlock.EXPECT().Close().Return(nil)
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	start := now.Add(-3 * test.indexBlockSize)
@@ -378,22 +381,58 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNamespaceIndexSetExtendedRetentionPeriod(t *testing.T) {
+func TestNamespaceIndexQueryTimeout(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	idx := newTestIndex(t, ctrl).index.(*nsIndex)
-	originalRetention := idx.retentionPeriod
+	test := newTestIndex(t, ctrl)
 
-	assert.Equal(t, originalRetention, idx.effectiveRetentionPeriodWithLock())
+	now := time.Now().Truncate(test.indexBlockSize)
+	query := index.Query{Query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
+	idx := test.index.(*nsIndex)
 
-	longerRetention := originalRetention + time.Minute
-	idx.SetExtendedRetentionPeriod(longerRetention)
-	assert.Equal(t, longerRetention, idx.effectiveRetentionPeriodWithLock())
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
 
-	shorterRetention := longerRetention - time.Second
-	idx.SetExtendedRetentionPeriod(shorterRetention)
-	assert.Equal(t, longerRetention, idx.effectiveRetentionPeriodWithLock())
+	stdCtx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Second)
+	defer cancel()
+	ctx := context.NewWithGoContext(stdCtx)
+	defer ctx.Close()
+
+	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	blockTime := now.Add(-1 * test.indexBlockSize)
+	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
+	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
+	mockBlock.EXPECT().
+		Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			q index.Query,
+			opts index.QueryOptions,
+			r index.QueryResults,
+			logFields []opentracinglog.Field,
+		) (bool, error) {
+			<-ctx.GoContext().Done()
+			return false, index.ErrCancelledQuery
+		})
+	mockBlock.EXPECT().Close().Return(nil)
+	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.updateBlockStartsWithLock()
+
+	start := blockTime
+	end := blockTime.Add(test.indexBlockSize)
+
+	// Query non-overlapping range
+	_, err := idx.Query(ctx, query, index.QueryOptions{
+		StartInclusive: start,
+		EndExclusive:   end,
+	})
+	require.Error(t, err)
+	var multiErr xerrors.MultiError
+	require.True(t, errors.As(err, &multiErr))
+	require.True(t, multiErr.Contains(index.ErrCancelledQuery))
 }
 
 func verifyFlushForShards(
@@ -482,11 +521,11 @@ func verifyFlushForShards(
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
 			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
 			resultsInShard := []block.FetchBlocksMetadataResult{
-				block.FetchBlocksMetadataResult{
+				{
 					ID:   resultsID1,
 					Tags: resultsTags1,
 				},
-				block.FetchBlocksMetadataResult{
+				{
 					ID:   resultsID2,
 					Tags: resultsTags2,
 				},

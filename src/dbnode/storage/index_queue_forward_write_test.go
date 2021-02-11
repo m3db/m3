@@ -29,11 +29,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -130,7 +132,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
@@ -143,6 +145,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	// write was correctly indexed to both.
 	nextBlockTime := now.Add(blockSize)
 	queryTimes := []time.Time{now, nextBlockTime}
+	reader := docs.NewEncodedDocumentReader()
 	for _, ts := range queryTimes {
 		res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
 			StartInclusive: ts.Add(-1 * time.Minute),
@@ -154,7 +157,11 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 		results := res.Results
 		require.Equal(t, "testns1", results.Namespace().String())
 
-		tags, ok := results.Map().Get(ident.StringID("foo"))
+		d, ok := results.Map().Get(ident.BytesID("foo"))
+		md, err := docs.MetadataFromDocument(d, reader)
+		require.NoError(t, err)
+		tags := idxconvert.ToSeriesTags(md, idxconvert.Opts{NoClone: true})
+
 		require.True(t, ok)
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("name", "value")).Matches(
@@ -167,7 +174,7 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
@@ -211,7 +218,7 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
@@ -559,7 +566,7 @@ func testShardForwardWriteTaggedSyncRefCount(
 		SetWriteNewSeriesAsync(false))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	writeToShardAndVerify(ctx, t, shard, idx, now, next, "foo", true)
@@ -615,7 +622,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 		SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	writeToShard(ctx, t, shard, idx, now, "foo", true)

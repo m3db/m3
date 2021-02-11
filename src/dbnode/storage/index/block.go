@@ -57,13 +57,14 @@ var (
 	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
 	// ErrUnableReportStatsBlockClosed is returned from Stats when the block is closed.
 	ErrUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
+	// ErrCancelledQuery is returned when the block processing is canceled before finishing.
+	ErrCancelledQuery = errors.New("query was canceled")
 
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
 	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
-	errCancelledQuery               = errors.New("query was cancelled")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -122,6 +123,12 @@ func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group block
 	return nil
 }
 
+type addAggregateResultsFn func(
+	results AggregateResults,
+	batch []AggregateResultsEntry,
+	source []byte,
+) ([]AggregateResultsEntry, int, int, error)
+
 // nolint: maligned
 type block struct {
 	sync.RWMutex
@@ -133,6 +140,7 @@ type block struct {
 	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
 	newExecutorWithRLockFn          newExecutorFn
+	addAggregateResultsFn           addAggregateResultsFn
 	blockStart                      time.Time
 	blockEnd                        time.Time
 	blockSize                       time.Duration
@@ -141,7 +149,6 @@ type block struct {
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
 
 	metrics blockMetrics
@@ -251,11 +258,11 @@ func NewBlock(
 		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
+	b.addAggregateResultsFn = b.addAggregateResults
 
 	return b, nil
 }
@@ -400,32 +407,30 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 // to the results datastructure).
 func (b *block) Query(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results BaseResults,
+	results DocumentResults,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
+	start := time.Now()
+	exhaustive, err := b.queryWithSpan(ctx, query, opts, results)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
+	results.AddBlockProcessingDuration(time.Since(start))
 
 	return exhaustive, err
 }
 
 func (b *block) queryWithSpan(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results BaseResults,
-	sp opentracing.Span,
-	logFields []opentracinglog.Field,
+	results DocumentResults,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -457,18 +462,10 @@ func (b *block) queryWithSpan(
 	// Register the executor to close when context closes
 	// so can avoid copying the results into the map and just take
 	// references to it.
-	// NB(r): Needs to still be a valid query otherwise
-	// the context could be invalid because the caller early returned
-	// which means it can't be used for finalization any longer.
-	valid := cancellable.TryCheckout()
-	if !valid {
-		return false, errCancelledQuery
-	}
 	execCloseRegistered = true // Make sure to not locally close it.
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		b.closeAsync(exec)
 	}))
-	cancellable.ReleaseCheckout()
 
 	var (
 		source     = opts.Source
@@ -494,12 +491,25 @@ func (b *block) queryWithSpan(
 			break
 		}
 
+		// the caller (nsIndex) has canceled this before the query has timed out.
+		// only check once per batch to limit the overhead. worst case nsIndex will need to wait for an additional batch
+		// to be processed after the query timeout. we check when the batch is empty to cover 2 cases, the initial doc
+		// when includes the search time, and subsequent batch resets.
+		if len(batch) == 0 {
+			select {
+			case <-ctx.GoContext().Done():
+				// indexNs will log something useful.
+				return false, ErrCancelledQuery
+			default:
+			}
+		}
+
 		batch = append(batch, iter.Current())
 		if len(batch) < batchSize {
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -507,7 +517,7 @@ func (b *block) queryWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -520,22 +530,27 @@ func (b *block) queryWithSpan(
 		return false, err
 	}
 
+	results.AddBlockSearchDuration(iter.SearchDuration())
+
 	return opts.exhaustive(size, docsCount), nil
 }
 
 func (b *block) closeAsync(closer io.Closer) {
 	if err := closer.Close(); err != nil {
 		// Note: This only happens if closing the readers isn't clean.
-		b.logger.Error("could not close query index block resource", zap.Error(err))
+		instrument.EmitAndLogInvariantViolation(
+			b.iopts,
+			func(l *zap.Logger) {
+				l.Error("could not close query index block resource", zap.Error(err))
+			})
 	}
 }
 
 func (b *block) addQueryResults(
-	cancellable *xresource.CancellableLifetime,
-	results BaseResults,
-	batch []doc.Metadata,
+	results DocumentResults,
+	batch []doc.Document,
 	source []byte,
-) ([]doc.Metadata, int, int, error) {
+) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
 		if err := b.docsLimit.Inc(len(batch), source); err != nil {
@@ -543,21 +558,11 @@ func (b *block) addQueryResults(
 		}
 	}
 
-	// checkout the lifetime of the query before adding results.
-	queryValid := cancellable.TryCheckout()
-	if !queryValid {
-		// query not valid any longer, do not add results and return early.
-		return batch, 0, 0, errCancelledQuery
-	}
-
-	// try to add the docs to the xresource.
+	// try to add the docs to the resource.
 	size, docsCount, err := results.AddDocuments(batch)
 
-	// immediately release the checkout on the lifetime of query.
-	cancellable.ReleaseCheckout()
-
 	// reset batch.
-	var emptyDoc doc.Metadata
+	var emptyDoc doc.Document
 	for i := range batch {
 		batch[i] = emptyDoc
 	}
@@ -574,7 +579,6 @@ func (b *block) addQueryResults(
 // pre-aggregated results via the FST underlying the index.
 func (b *block) Aggregate(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	logFields []opentracinglog.Field,
@@ -583,7 +587,7 @@ func (b *block) Aggregate(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := b.aggregateWithSpan(ctx, cancellable, opts, results, sp)
+	exhaustive, err := b.aggregateWithSpan(ctx, opts, results, sp)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -593,7 +597,6 @@ func (b *block) Aggregate(
 
 func (b *block) aggregateWithSpan(
 	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	sp opentracing.Span,
@@ -617,7 +620,7 @@ func (b *block) aggregateWithSpan(
 			}
 			return aggOpts.FieldFilter.Allow(field)
 		},
-		fieldIterFn: func(r segment.Reader) (segment.FieldsIterator, error) {
+		fieldIterFn: func(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 			// NB(prateek): we default to using the regular (FST) fields iterator
 			// unless we have a predefined list of fields we know we need to restrict
 			// our search to, in which case we iterate that list and check if known values
@@ -629,7 +632,7 @@ func (b *block) aggregateWithSpan(
 			// to this function is expected to have (FieldsFilter) pretty small. If that changes
 			// in the future, we can revisit this.
 			if len(aggOpts.FieldFilter) == 0 {
-				return r.Fields()
+				return r.FieldsPostingsList()
 			}
 			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
 		},
@@ -641,15 +644,21 @@ func (b *block) aggregateWithSpan(
 	}
 
 	var (
-		source     = opts.Source
-		size       = results.Size()
-		docsCount  = results.TotalDocsCount()
-		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
-		batchSize  = cap(batch)
-		iterClosed = false // tracking whether we need to free the iterator at the end.
+		source        = opts.Source
+		size          = results.Size()
+		resultCount   = results.TotalDocsCount()
+		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
+		maxBatch      = cap(batch)
+		iterClosed    = false // tracking whether we need to free the iterator at the end.
+		fieldAppended bool
+		termAppended  bool
+		lastField     []byte
+		batchedFields int
+		currFields    int
+		currTerms     int
 	)
-	if batchSize == 0 {
-		batchSize = defaultAggregateResultsEntryBatchSize
+	if maxBatch == 0 {
+		maxBatch = defaultAggregateResultsEntryBatchSize
 	}
 
 	// cleanup at the end
@@ -675,8 +684,16 @@ func (b *block) aggregateWithSpan(
 		}))
 	}
 
+	if opts.SeriesLimit > 0 && opts.SeriesLimit < maxBatch {
+		maxBatch = opts.SeriesLimit
+	}
+
+	if opts.DocsLimit > 0 && opts.DocsLimit < maxBatch {
+		maxBatch = opts.DocsLimit
+	}
+
 	for _, reader := range readers {
-		if opts.LimitsExceeded(size, docsCount) {
+		if opts.LimitsExceeded(size, resultCount) {
 			break
 		}
 
@@ -685,22 +702,75 @@ func (b *block) aggregateWithSpan(
 			return false, err
 		}
 		iterClosed = false // only once the iterator has been successfully Reset().
-
 		for iter.Next() {
-			if opts.LimitsExceeded(size, docsCount) {
+			if opts.LimitsExceeded(size, resultCount) {
 				break
 			}
 
+			// the caller (nsIndex) has canceled this before the query has timed out.
+			// only check once per batch to limit the overhead. worst case nsIndex will need to wait for an additional
+			// batch to be processed after the query timeout. we check when the batch is empty to cover 2 cases, the
+			// initial result when includes the search time, and subsequent batch resets.
+			if len(batch) == 0 {
+				select {
+				case <-ctx.GoContext().Done():
+					return false, ErrCancelledQuery
+				default:
+				}
+			}
+
 			field, term := iter.Current()
-			batch = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
-			if len(batch) < batchSize {
+
+			// TODO: remove this legacy doc tracking implementation when alternative
+			// limits are in place.
+			if results.EnforceLimits() {
+				if lastField == nil {
+					lastField = append(lastField, field...)
+					batchedFields++
+					if err := b.docsLimit.Inc(1, source); err != nil {
+						return false, err
+					}
+				} else if !bytes.Equal(lastField, field) {
+					lastField = lastField[:0]
+					lastField = append(lastField, field...)
+					batchedFields++
+					if err := b.docsLimit.Inc(1, source); err != nil {
+						return false, err
+					}
+				}
+
+				// NB: this logic increments the doc count to account for where the
+				// legacy limits would have been updated. It increments by two to
+				// reflect the term appearing as both the last element of the previous
+				// batch, as well as the first element in the next batch.
+				if batchedFields > maxBatch {
+					if err := b.docsLimit.Inc(2, source); err != nil {
+						return false, err
+					}
+
+					batchedFields = 1
+				}
+			}
+
+			batch, fieldAppended, termAppended = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
+			if fieldAppended {
+				currFields++
+			}
+			if termAppended {
+				currTerms++
+			}
+			// continue appending to the batch until we hit our max batch size.
+			if currFields+currTerms < maxBatch {
 				continue
 			}
 
-			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
+			batch, size, resultCount, err = b.addAggregateResultsFn(results, batch, source)
 			if err != nil {
 				return false, err
 			}
+
+			currFields = 0
+			currTerms = 0
 		}
 
 		if err := iter.Err(); err != nil {
@@ -714,21 +784,25 @@ func (b *block) aggregateWithSpan(
 	}
 
 	// Add last batch to results if remaining.
-	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
+	for len(batch) > 0 {
+		batch, size, resultCount, err = b.addAggregateResultsFn(results, batch, source)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	return opts.exhaustive(size, docsCount), nil
+	return opts.exhaustive(size, resultCount), nil
 }
 
+// appendFieldAndTermToBatch adds the provided field / term onto the batch,
+// optionally reusing the last element of the batch if it pertains to the same field.
+// First boolean result indicates that a unique field was added to the batch
+// and the second boolean indicates if a unique term was added.
 func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
 	includeTerms bool,
-) []AggregateResultsEntry {
+) ([]AggregateResultsEntry, bool, bool) {
 	// NB(prateek): we make a copy of the (field, term) entries returned
 	// by the iterator during traversal, because the []byte are only valid per entry during
 	// the traversal (i.e. calling Next() invalidates the []byte). We choose to do this
@@ -737,10 +811,11 @@ func (b *block) appendFieldAndTermToBatch(
 	// idents is transferred to the results map, which either hangs on to them (if they are new),
 	// or finalizes them if they are duplicates.
 	var (
-		entry            AggregateResultsEntry
-		lastField        []byte
-		lastFieldIsValid bool
-		reuseLastEntry   bool
+		entry                       AggregateResultsEntry
+		lastField                   []byte
+		lastFieldIsValid            bool
+		reuseLastEntry              bool
+		newFieldAdded, newTermAdded bool
 	)
 	// we are iterating multiple segments so we may receive duplicates (same field/term), but
 	// as we are iterating one segment at a time, and because the underlying index structures
@@ -763,6 +838,7 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
+		newFieldAdded = true
 		// allocate id because this is the first time we've seen it
 		// NB(r): Iterating fields FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -771,6 +847,7 @@ func (b *block) appendFieldAndTermToBatch(
 	}
 
 	if includeTerms {
+		newTermAdded = true
 		// terms are always new (as far we know without checking the map for duplicates), so we allocate
 		// NB(r): Iterating terms FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -783,7 +860,8 @@ func (b *block) appendFieldAndTermToBatch(
 	} else {
 		batch = append(batch, entry)
 	}
-	return batch
+
+	return batch, newFieldAdded, newTermAdded
 }
 
 func (b *block) pooledID(id []byte) ident.ID {
@@ -794,31 +872,15 @@ func (b *block) pooledID(id []byte) ident.ID {
 	return b.opts.IdentifierPool().BinaryID(data)
 }
 
+// addAggregateResults adds the fields on the batch
+// to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
-	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
-	// update recently queried docs to monitor memory.
-	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch), source); err != nil {
-			return batch, 0, 0, err
-		}
-	}
-
-	// checkout the lifetime of the query before adding results.
-	queryValid := cancellable.TryCheckout()
-	if !queryValid {
-		// query not valid any longer, do not add results and return early.
-		return batch, 0, 0, errCancelledQuery
-	}
-
-	// try to add the docs to the xresource.
-	size, docsCount := results.AddFields(batch)
-
-	// immediately release the checkout on the lifetime of query.
-	cancellable.ReleaseCheckout()
+	// try to add the docs to the resource.
+	size, resultCount := results.AddFields(batch)
 
 	// reset batch.
 	var emptyField AggregateResultsEntry
@@ -828,7 +890,7 @@ func (b *block) addAggregateResults(
 	batch = batch[:0]
 
 	// return results.
-	return batch, size, docsCount, nil
+	return batch, size, resultCount, nil
 }
 
 func (b *block) AddResults(

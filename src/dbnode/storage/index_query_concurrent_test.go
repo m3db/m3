@@ -23,21 +23,24 @@
 package storage
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	testutil "github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
-	xresource "github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
-	"go.uber.org/zap"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -122,11 +125,6 @@ func testNamespaceIndexHighConcurrentQueries(
 	// Make the query pool really high to improve concurrency likelihood
 	nsIdx.queryWorkersPool = xsync.NewWorkerPool(1000)
 	nsIdx.queryWorkersPool.Init()
-	if opts.withTimeouts {
-		nsIdx.state.runtimeOpts.defaultQueryTimeout = timeoutValue
-	} else {
-		nsIdx.state.runtimeOpts.defaultQueryTimeout = 0
-	}
 
 	currNow := min
 	nowLock := &sync.Mutex{}
@@ -207,12 +205,11 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	// If force timeout or block errors are enabled, replace one of the blocks
 	// with a mock block that times out or returns an error respectively.
-	var timeoutWg, timedOutQueriesWg sync.WaitGroup
+	var timedOutQueriesWg sync.WaitGroup
 	if opts.forceTimeouts || opts.blockErrors {
 		// Need to restore now as timeouts are measured by looking at time.Now
 		restoreNow()
 
-		timeoutWg.Add(1)
 		nsIdx.state.Lock()
 		for start, block := range nsIdx.state.blocksByTime {
 			block := block // Capture for lambda
@@ -229,10 +226,9 @@ func testNamespaceIndexHighConcurrentQueries(
 
 			if opts.blockErrors {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						_ context.Context,
-						_ *xresource.CancellableLifetime,
 						_ index.Query,
 						_ index.QueryOptions,
 						_ index.QueryResults,
@@ -243,17 +239,16 @@ func testNamespaceIndexHighConcurrentQueries(
 					AnyTimes()
 			} else {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						ctx context.Context,
-						c *xresource.CancellableLifetime,
 						q index.Query,
 						opts index.QueryOptions,
 						r index.QueryResults,
 						logFields []opentracinglog.Field,
 					) (bool, error) {
-						timeoutWg.Wait()
-						return block.Query(ctx, c, q, opts, r, logFields)
+						time.Sleep(timeoutValue + time.Second)
+						return block.Query(ctx, q, opts, r, logFields)
 					}).
 					AnyTimes()
 			}
@@ -304,7 +299,12 @@ func testNamespaceIndexHighConcurrentQueries(
 			for k := 0; k < len(blockStarts); k++ {
 				rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 
-				ctx := context.NewContext()
+				goCtx := stdctx.Background()
+				if timeoutValue > 0 {
+					goCtx, _ = stdctx.WithTimeout(stdctx.Background(), timeoutValue)
+				}
+
+				ctx := context.NewWithGoContext(goCtx)
 				ctxs = append(ctxs, ctx)
 
 				if opts.forceTimeouts {
@@ -321,8 +321,8 @@ func testNamespaceIndexHighConcurrentQueries(
 							StartInclusive: rangeStart,
 							EndExclusive:   rangeEnd,
 						})
-						require.Error(t, err)
 						timedOutQueriesWg.Done()
+						require.Error(t, err)
 					}()
 					continue
 				}
@@ -344,23 +344,24 @@ func testNamespaceIndexHighConcurrentQueries(
 
 				// Read the results concurrently too
 				hits := make(map[string]struct{}, results.Results.Size())
+				id := ident.NewReusableBytesID()
 				for _, entry := range results.Results.Map().Iter() {
-					id := entry.Key().String()
-
-					doc, err := convert.FromSeriesIDAndTagIter(entry.Key(), entry.Value())
+					id.Reset(entry.Key())
+					tags := testutil.DocumentToTagIter(t, entry.Value())
+					doc, err := convert.FromSeriesIDAndTagIter(id, tags)
 					require.NoError(t, err)
 					if err != nil {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
-					expectedDoc, ok := expectedResults[id]
+					expectedDoc, ok := expectedResults[id.String()]
 					require.True(t, ok)
 					if !ok {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
 					require.Equal(t, expectedDoc, doc)
-					hits[id] = struct{}{}
+					hits[id.String()] = struct{}{}
 				}
 				expectedHits := idsPerBlock * (k + 1)
 				require.Equal(t, expectedHits, len(hits))
@@ -390,7 +391,6 @@ func testNamespaceIndexHighConcurrentQueries(
 		go func() {
 			// Start allowing timedout queries to complete.
 			logger.Info("allow block queries to begin returning")
-			timeoutWg.Done()
 
 			// Race closing all contexts at once.
 			for _, ctx := range timeoutContexts {

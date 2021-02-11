@@ -50,16 +50,28 @@ type QueryLimits interface {
 
 // LookbackLimit provides an interface for a specific query limit.
 type LookbackLimit interface {
+	// Options returns the current limit options.
+	Options() LookbackLimitOptions
 	// Inc increments the recent value for the limit.
 	Inc(new int, source []byte) error
+	// Update changes the lookback limit settings.
+	Update(opts LookbackLimitOptions) error
+
+	// Start begins background resetting of the lookback limit.
+	Start()
+	// Stop end background resetting of the lookback limit.
+	Stop()
 }
 
 // LookbackLimitOptions holds options for a lookback limit to be enforced.
 type LookbackLimitOptions struct {
 	// Limit past which errors will be returned.
+	// Zero disables the limit.
 	Limit int64
 	// Lookback is the period over which the limit is enforced.
 	Lookback time.Duration
+	// ForceExceeded, if true, makes all calls to the limit behave as though the limit is exceeded.
+	ForceExceeded bool
 }
 
 // SourceLoggerBuilder builds a SourceLogger given instrument options.
@@ -96,6 +108,12 @@ type Options interface {
 
 	// BytesReadLimitOpts returns the byte read limit options.
 	BytesReadLimitOpts() LookbackLimitOptions
+
+	// SetDiskSeriesReadLimitOpts sets the disk series read limit options.
+	SetDiskSeriesReadLimitOpts(value LookbackLimitOptions) Options
+
+	// DiskSeriesReadLimitOpts returns the disk series read limit options.
+	DiskSeriesReadLimitOpts() LookbackLimitOptions
 
 	// SetSourceLoggerBuilder sets the source logger.
 	SetSourceLoggerBuilder(value SourceLoggerBuilder) Options

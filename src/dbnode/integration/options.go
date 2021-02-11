@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -293,6 +294,18 @@ type TestOptions interface {
 
 	// ReportInterval returns the time between reporting metrics within the system.
 	ReportInterval() time.Duration
+
+	// SetStorageOptsFn sets the StorageOpts modifier.
+	SetStorageOptsFn(StorageOption) TestOptions
+
+	// StorageOptsFn returns the StorageOpts modifier.
+	StorageOptsFn() StorageOption
+
+	// SetCustomAdminOptions sets custom options to apply to the admin client connection.
+	SetCustomAdminOptions(value []client.CustomAdminOption) TestOptions
+
+	// CustomAdminOptions gets custom options to apply to the admin client connection.
+	CustomAdminOptions() []client.CustomAdminOption
 }
 
 type options struct {
@@ -327,6 +340,8 @@ type options struct {
 	assertEqual                        assertTestDataEqual
 	nowFn                              func() time.Time
 	reportInterval                     time.Duration
+	storageOptsFn                      StorageOption
+	customAdminOpts                    []client.CustomAdminOption
 }
 
 // NewTestOptions returns a new set of integration test options.
@@ -675,4 +690,24 @@ func (o *options) SetReportInterval(value time.Duration) TestOptions {
 
 func (o *options) ReportInterval() time.Duration {
 	return o.reportInterval
+}
+
+func (o *options) SetStorageOptsFn(storageOptsFn StorageOption) TestOptions {
+	opts := *o
+	opts.storageOptsFn = storageOptsFn
+	return &opts
+}
+
+func (o *options) StorageOptsFn() StorageOption {
+	return o.storageOptsFn
+}
+
+func (o *options) SetCustomAdminOptions(value []client.CustomAdminOption) TestOptions {
+	opts := *o
+	opts.customAdminOpts = value
+	return &opts
+}
+
+func (o *options) CustomAdminOptions() []client.CustomAdminOption {
+	return o.customAdminOpts
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+// Package test is a package for shared test helpers.
+package test
 
 import (
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"testing"
 
-	"go.uber.org/zap/zapcore"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-type bootstrapStep interface {
-	prepare(totalRanges result.ShardTimeRanges) (bootstrapStepPreparedResult, error)
-	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	mergeResults(totalUnfulfilled result.ShardTimeRanges)
-}
+// DocumentToTagIter is a help for converting a doc.Document into an
+// ident.TagIterator.
+func DocumentToTagIter(t *testing.T, doc doc.Document) ident.TagIterator {
+	reader := docs.NewEncodedDocumentReader()
+	m, err := docs.MetadataFromDocument(doc, reader)
+	require.NoError(t, err)
 
-type bootstrapStepPreparedResult struct {
-	currAvailable result.ShardTimeRanges
-}
-
-type bootstrapStepStatus struct {
-	fulfilled result.ShardTimeRanges
-	logFields []zapcore.Field
+	return convert.ToSeriesTags(m, convert.Opts{NoClone: true})
 }

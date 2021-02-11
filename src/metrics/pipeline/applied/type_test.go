@@ -21,6 +21,7 @@
 package applied
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -360,8 +361,27 @@ func TestPipelineEqual(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		require.Equal(t, input.expected, input.p1.Equal(input.p2))
-		require.Equal(t, input.expected, input.p2.Equal(input.p1))
+		input := input
+		t.Run(fmt.Sprintf("%v %v", input.p1.String(), input.p2.String()), func(t *testing.T) {
+			require.Equal(t, input.expected, input.p1.Equal(input.p2))
+			require.Equal(t, input.expected, input.p2.Equal(input.p1))
+			// assert implementation is equal to OpUnion
+			if input.expected {
+				for i, op := range input.p1.operations {
+					require.True(t, op.Equal(input.p2.operations[i]))
+				}
+				for i, op := range input.p2.operations {
+					require.True(t, op.Equal(input.p1.operations[i]))
+				}
+			} else if len(input.p1.operations) == len(input.p2.operations) {
+				for i, op := range input.p1.operations {
+					require.False(t, op.Equal(input.p2.operations[i]))
+				}
+				for i, op := range input.p2.operations {
+					require.False(t, op.Equal(input.p1.operations[i]))
+				}
+			}
+		})
 	}
 }
 

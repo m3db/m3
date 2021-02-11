@@ -32,8 +32,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -44,13 +47,13 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -123,7 +126,7 @@ type streamResult struct {
 	shard      uint32
 	id         string
 	blockStart time.Time
-	stream     xio.SegmentReader
+	stream     xio.BlockReader
 }
 
 // TestBlockRetrieverHighConcurrentSeeks tests the retriever with high
@@ -366,7 +369,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				idString := shardIDStrings[shard][idIdx]
 
 				for k := 0; k < len(blockStarts); k++ {
-					ctx := context.NewContext()
+					ctx := context.NewBackground()
 
 					var (
 						stream xio.BlockReader
@@ -391,6 +394,14 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 
 				for _, r := range results {
+					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
+
+					// If the stream is empty, assert that the expected result is also nil
+					if r.stream.IsEmpty() {
+						require.Nil(t, compare.Head)
+						continue
+					}
+
 					seg, err := r.stream.Segment()
 					if err != nil {
 						fmt.Printf("\nstream seg err: %v\n", err)
@@ -400,7 +411,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					}
 
 					require.NoError(t, err)
-					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
 					require.True(
 						t,
 						seg.Equal(&compare),
@@ -493,7 +503,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Now that all the block lease updates have completed, all reads from this point should return tags with the
 	// highest volume number.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	for _, shard := range shards {
 		for _, blockStart := range blockStarts {
 			for _, idString := range shardIDStrings[shard] {
@@ -534,6 +544,8 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 // on the retriever in the case where the requested ID does not exist. In that
 // case, Stream() should return an empty segment.
 func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
+	scope := tally.NewTestScope("test", nil)
+
 	// Make sure reader/writer are looking at the same test directory
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
@@ -551,7 +563,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	// Setup the reader
 	opts := testBlockRetrieverOptions{
 		retrieverOpts: defaultTestBlockRetrieverOptions,
-		fsOpts:        fsOpts,
+		fsOpts:        fsOpts.SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)),
 		shards:        []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, testNs1Metadata(t), opts)
@@ -568,17 +580,18 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	closer()
 
-	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)
 	assert.NoError(t, err)
 
-	segment, err := segmentReader.Segment()
-	assert.NoError(t, err)
-	assert.Equal(t, nil, segment.Head)
-	assert.Equal(t, nil, segment.Tail)
+	assert.True(t, segmentReader.IsEmpty())
+
+	// Check that the bloom filter miss metric was incremented
+	snapshot := scope.Snapshot()
+	seriesRead := snapshot.Counters()["test.retriever.series-bloom-filter-misses+"]
+	require.Equal(t, int64(1), seriesRead.Value())
 }
 
 // TestBlockRetrieverOnlyCreatesTagItersIfTagsExists verifies that the block retriever
@@ -640,7 +653,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	_, err = retriever.Stream(ctx, shard,
@@ -745,7 +758,7 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	onRetrieveCalled := false
@@ -844,7 +857,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	defer cleanup()
 
 	// Make sure we return the correct error.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)

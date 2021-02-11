@@ -32,9 +32,10 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
@@ -74,18 +75,23 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 			Return(fmt.Errorf("an error")).
 			Do(func(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) {
 				// After returning an error, make sure we don't re-enqueue.
+				require.Equal(t, Bootstrapping, bsm.state)
 				bsm.bootstrapFn = func() error {
+					require.Equal(t, Bootstrapping, bsm.state)
 					return nil
 				}
 			}),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	result, err := bsm.Bootstrap()
-	require.NoError(t, err)
+	require.Equal(t, BootstrapNotStarted, bsm.state)
 
+	result, err := bsm.Bootstrap()
+
+	require.NoError(t, err)
+	require.Equal(t, Bootstrapped, bsm.state)
 	require.Equal(t, 1, len(result.ErrorsBootstrap))
 	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
 }

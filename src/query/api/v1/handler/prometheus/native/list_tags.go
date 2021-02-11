@@ -22,17 +22,18 @@ package native
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -53,8 +54,9 @@ var (
 type ListTagsHandler struct {
 	storage             storage.Storage
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	nowFn               clock.NowFn
+	parseOpts           promql.ParseOptions
 	instrumentOpts      instrument.Options
+	tagOpts             models.TagOptions
 }
 
 // NewListTagsHandler returns a new instance of handler.
@@ -62,8 +64,9 @@ func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 	return &ListTagsHandler{
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		nowFn:               opts.NowFn(),
+		parseOpts:           promql.NewParseOptions().SetNowFn(opts.NowFn()),
 		instrumentOpts:      opts.InstrumentOpts(),
+		tagOpts:             opts.TagOptions(),
 	}
 }
 
@@ -72,13 +75,34 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
+	start, end, err := prometheus.ParseStartAndEnd(r, h.parseOpts)
+	if err != nil {
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	tagMatchers := models.Matchers{{Type: models.MatchAll}}
+	reqTagMatchers, ok, err := prometheus.ParseMatch(r, h.parseOpts, h.tagOpts)
+	if err != nil {
+		err = xerrors.NewInvalidParamsError(err)
+		xhttp.WriteError(w, err)
+		return
+	}
+	if ok {
+		if n := len(reqTagMatchers); n != 1 {
+			err = xerrors.NewInvalidParamsError(fmt.Errorf(
+				"only single tag matcher allowed: actual=%d", n))
+			xhttp.WriteError(w, err)
+			return
+		}
+		tagMatchers = reqTagMatchers[0].Matchers
+	}
+
 	query := &storage.CompleteTagsQuery{
 		CompleteNameOnly: true,
-		TagMatchers:      models.Matchers{{Type: models.MatchAll}},
-
-		// NB: necessarily spans entire possible query range.
-		Start: time.Time{},
-		End:   h.nowFn(),
+		TagMatchers:      tagMatchers,
+		Start:            start,
+		End:              end,
 	}
 
 	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)

@@ -26,7 +26,6 @@ import (
 	"math"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
@@ -46,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -118,11 +118,12 @@ type aggregator struct {
 	shards              []*aggregatorShard
 	currStagedPlacement placement.ActiveStagedPlacement
 	currPlacement       placement.Placement
+	currNumShards       atomic.Int32
 	state               aggregatorState
 	doneCh              chan struct{}
 	wg                  sync.WaitGroup
 	sleepFn             sleepFn
-	shardsPendingClose  int32
+	shardsPendingClose  atomic.Int32
 	metrics             aggregatorMetrics
 	logger              *zap.Logger
 }
@@ -182,7 +183,7 @@ func (agg *aggregator) AddUntimed(
 	metric unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	callStart := agg.nowFn()
+	sw := agg.metrics.addUntimed.SuccessLatencyStopwatch()
 	if err := agg.checkMetricType(metric); err != nil {
 		agg.metrics.addUntimed.ReportError(err)
 		return err
@@ -196,7 +197,8 @@ func (agg *aggregator) AddUntimed(
 		agg.metrics.addUntimed.ReportError(err)
 		return err
 	}
-	agg.metrics.addUntimed.ReportSuccess(agg.nowFn().Sub(callStart))
+	agg.metrics.addUntimed.ReportSuccess()
+	sw.Stop()
 	return nil
 }
 
@@ -204,7 +206,7 @@ func (agg *aggregator) AddTimed(
 	metric aggregated.Metric,
 	metadata metadata.TimedMetadata,
 ) error {
-	callStart := agg.nowFn()
+	sw := agg.metrics.addTimed.SuccessLatencyStopwatch()
 	agg.metrics.timed.Inc(1)
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
@@ -215,7 +217,8 @@ func (agg *aggregator) AddTimed(
 		agg.metrics.addTimed.ReportError(err)
 		return err
 	}
-	agg.metrics.addTimed.ReportSuccess(agg.nowFn().Sub(callStart))
+	agg.metrics.addTimed.ReportSuccess()
+	sw.Stop()
 	return nil
 }
 
@@ -223,7 +226,7 @@ func (agg *aggregator) AddTimedWithStagedMetadatas(
 	metric aggregated.Metric,
 	metas metadata.StagedMetadatas,
 ) error {
-	callStart := agg.nowFn()
+	sw := agg.metrics.addTimed.SuccessLatencyStopwatch()
 	agg.metrics.timed.Inc(1)
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
@@ -234,7 +237,8 @@ func (agg *aggregator) AddTimedWithStagedMetadatas(
 		agg.metrics.addTimed.ReportError(err)
 		return err
 	}
-	agg.metrics.addTimed.ReportSuccess(agg.nowFn().Sub(callStart))
+	agg.metrics.addTimed.ReportSuccess()
+	sw.Stop()
 	return nil
 }
 
@@ -242,7 +246,7 @@ func (agg *aggregator) AddForwarded(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
-	callStart := agg.nowFn()
+	sw := agg.metrics.addForwarded.SuccessLatencyStopwatch()
 	agg.metrics.forwarded.Inc(1)
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
@@ -254,7 +258,8 @@ func (agg *aggregator) AddForwarded(
 		return err
 	}
 	callEnd := agg.nowFn()
-	agg.metrics.addForwarded.ReportSuccess(callEnd.Sub(callStart))
+	agg.metrics.addForwarded.ReportSuccess()
+	sw.Stop()
 	forwardingDelay := time.Duration(callEnd.UnixNano() - metric.TimeNanos)
 	agg.metrics.addForwarded.ReportForwardingLatency(
 		metadata.StoragePolicy.Resolution().Window,
@@ -268,7 +273,7 @@ func (agg *aggregator) AddPassthrough(
 	metric aggregated.Metric,
 	storagePolicy policy.StoragePolicy,
 ) error {
-	callStart := agg.nowFn()
+	sw := agg.metrics.addPassthrough.SuccessLatencyStopwatch()
 	agg.metrics.passthrough.Inc(1)
 
 	if agg.electionManager.ElectionState() == FollowerState {
@@ -287,7 +292,6 @@ func (agg *aggregator) AddPassthrough(
 			ChunkedID: id.ChunkedID{
 				Data: []byte(metric.ID),
 			},
-			Type:      metric.Type,
 			TimeNanos: metric.TimeNanos,
 			Value:     metric.Value,
 		},
@@ -298,7 +302,8 @@ func (agg *aggregator) AddPassthrough(
 		agg.metrics.addPassthrough.ReportError(err)
 		return err
 	}
-	agg.metrics.addPassthrough.ReportSuccess(agg.nowFn().Sub(callStart))
+	agg.metrics.addPassthrough.ReportSuccess()
+	sw.Stop()
 	return nil
 }
 
@@ -353,8 +358,17 @@ func (agg *aggregator) passWriter() (writer.Writer, error) {
 }
 
 func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
+	var (
+		numShards = agg.currNumShards.Load()
+		shardID   uint32
+	)
+
+	if numShards > 0 {
+		shardID = agg.shardFn(id, uint32(numShards))
+	}
+
 	agg.RLock()
-	shard, err := agg.shardForWithLock(id, noUpdateShards)
+	shard, err := agg.shardForWithLock(id, shardID, noUpdateShards)
 	if err == nil || err != errActivePlacementChanged {
 		agg.RUnlock()
 		return shard, err
@@ -362,20 +376,26 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 	agg.RUnlock()
 
 	agg.Lock()
-	shard, err = agg.shardForWithLock(id, updateShards)
+	shard, err = agg.shardForWithLock(id, shardID, updateShards)
 	agg.Unlock()
 
 	return shard, err
 }
 
-func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShardsType) (*aggregatorShard, error) {
+func (agg *aggregator) shardForWithLock(
+	id id.RawID,
+	shardID uint32,
+	updateShardsType updateShardsType,
+) (*aggregatorShard, error) {
 	if agg.state != aggregatorOpen {
 		return nil, errAggregatorNotOpenOrClosed
 	}
+
 	stagedPlacement, placement, err := agg.placementManager.Placement()
 	if err != nil {
 		return nil, err
 	}
+
 	if agg.shouldProcessPlacementWithLock(stagedPlacement, placement) {
 		if updateShardsType == noUpdateShards {
 			return nil, errActivePlacementChanged
@@ -383,11 +403,16 @@ func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShar
 		if err := agg.processPlacementWithLock(stagedPlacement, placement); err != nil {
 			return nil, err
 		}
+		// check if number of shards in placement changed, and recalculate shardID if needed
+		if int32(placement.NumShards()) != agg.currNumShards.Load() {
+			shardID = agg.shardFn(id, uint32(placement.NumShards()))
+		}
 	}
-	shardID := agg.shardFn([]byte(id), uint32(placement.NumShards()))
+
 	if int(shardID) >= len(agg.shards) || agg.shards[shardID] == nil {
 		return nil, errShardNotOwned
 	}
+
 	return agg.shards[shardID], nil
 }
 
@@ -583,6 +608,7 @@ func (agg *aggregator) updateShardsWithLock(
 	agg.shards = incoming
 	agg.currStagedPlacement = newStagedPlacement
 	agg.currPlacement = newPlacement
+	agg.currNumShards.Store(int32(newPlacement.NumShards()))
 	agg.closeShardsAsync(closing)
 }
 
@@ -648,14 +674,14 @@ func (agg *aggregator) ownedShards() (owned, toClose []*aggregatorShard) {
 // Because each shard write happens while holding the shard read lock, the shard
 // may only close itself after all its pending writes are finished.
 func (agg *aggregator) closeShardsAsync(shards []*aggregatorShard) {
-	pendingClose := atomic.AddInt32(&agg.shardsPendingClose, int32(len(shards)))
+	pendingClose := agg.shardsPendingClose.Add(int32(len(shards)))
 	agg.metrics.shards.pendingClose.Update(float64(pendingClose))
 
 	for _, shard := range shards {
 		shard := shard
 		go func() {
 			shard.Close()
-			pendingClose := atomic.AddInt32(&agg.shardsPendingClose, -1)
+			pendingClose := agg.shardsPendingClose.Add(-1)
 			agg.metrics.shards.pendingClose.Update(float64(pendingClose))
 			agg.metrics.shards.close.Inc(1)
 		}()
@@ -681,7 +707,7 @@ func (agg *aggregator) tickInternal() {
 
 	numShards := len(ownedShards)
 	agg.metrics.shards.owned.Update(float64(numShards))
-	agg.metrics.shards.pendingClose.Update(float64(atomic.LoadInt32(&agg.shardsPendingClose)))
+	agg.metrics.shards.pendingClose.Update(float64(agg.shardsPendingClose.Load()))
 	if numShards == 0 {
 		agg.sleepFn(agg.checkInterval)
 		return
@@ -737,9 +763,12 @@ func newAggregatorAddMetricMetrics(
 	}
 }
 
-func (m *aggregatorAddMetricMetrics) ReportSuccess(d time.Duration) {
+func (m *aggregatorAddMetricMetrics) SuccessLatencyStopwatch() tally.Stopwatch {
+	return m.successLatency.Start()
+}
+
+func (m *aggregatorAddMetricMetrics) ReportSuccess() {
 	m.success.Inc(1)
-	m.successLatency.Record(d)
 }
 
 func (m *aggregatorAddMetricMetrics) ReportError(err error) {

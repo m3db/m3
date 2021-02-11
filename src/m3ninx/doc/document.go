@@ -221,9 +221,10 @@ type Encoded struct {
 // Document contains either metadata or an encoded metadata
 // but never both.
 type Document struct {
-	metadata Metadata
 	encoded  Encoded
+	metadata Metadata
 
+	hasEncoded  bool
 	hasMetadata bool
 }
 
@@ -234,7 +235,7 @@ func NewDocumentFromMetadata(m Metadata) Document {
 
 // NewDocumentFromEncoded creates a Document from an Encoded.
 func NewDocumentFromEncoded(e Encoded) Document {
-	return Document{encoded: e}
+	return Document{encoded: e, hasEncoded: true}
 }
 
 // Metadata returns the metadata it contains, if it has one. Otherwise returns an empty metadata
@@ -250,7 +251,7 @@ func (d *Document) Metadata() (Metadata, bool) {
 // Encoded returns the encoded metadata it contains, if it has one. Otherwise returns an
 // empty encoded metadata and false.
 func (d *Document) Encoded() (Encoded, bool) {
-	if !d.hasMetadata {
+	if d.hasEncoded {
 		return d.encoded, true
 	}
 

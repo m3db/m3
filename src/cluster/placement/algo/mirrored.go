@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -94,7 +95,7 @@ func (a mirroredAlgorithm) RemoveInstances(
 	nowNanos := a.opts.NowFn()().UnixNano()
 	// If the instances being removed are all the initializing instances in the placement.
 	// We just need to return these shards back to their sources.
-	if allInitializing(p, instanceIDs, nowNanos) {
+	if globalChecker.allInitializing(p, instanceIDs, nowNanos) {
 		return a.returnInitializingShards(p, instanceIDs)
 	}
 
@@ -144,7 +145,7 @@ func (a mirroredAlgorithm) AddInstances(
 	nowNanos := a.opts.NowFn()().UnixNano()
 	// If the instances being added are all the leaving instances in the placement.
 	// We just need to get their shards back.
-	if allLeaving(p, addingInstances, nowNanos) {
+	if globalChecker.allLeaving(p, addingInstances, nowNanos) {
 		return a.reclaimLeavingShards(p, addingInstances)
 	}
 
@@ -190,28 +191,40 @@ func (a mirroredAlgorithm) ReplaceInstances(
 		return nil, err
 	}
 
+	p = p.Clone()
 	if len(addingInstances) != len(leavingInstanceIDs) {
 		return nil, fmt.Errorf("could not replace %d instances with %d instances for mirrored replace", len(leavingInstanceIDs), len(addingInstances))
 	}
 
 	nowNanos := a.opts.NowFn()().UnixNano()
-	if allLeaving(p, addingInstances, nowNanos) && allInitializing(p, leavingInstanceIDs, nowNanos) {
+
+	// Revert of pending replace.
+	if localChecker.allLeaving(p, addingInstances, nowNanos) &&
+		localChecker.allInitializing(p, leavingInstanceIDs, nowNanos) {
 		if p, err = a.reclaimLeavingShards(p, addingInstances); err != nil {
 			return nil, err
 		}
 
-		// NB(cw) I don't think we will ever get here, but just being defensive.
 		return a.returnInitializingShards(p, leavingInstanceIDs)
 	}
 
-	if p, _, err = a.MarkAllShardsAvailable(p); err != nil {
-		return nil, err
+	// Mark shards available only for the specified leaving instances and their peers.
+	// This allows multiple replaces that do not overlap by shard ownership.
+	for _, leavingInstanceID := range leavingInstanceIDs {
+		if p, err = a.markInstanceAndItsPeersAvailable(p, leavingInstanceID); err != nil {
+			return nil, err
+		}
 	}
 
-	// At this point, all leaving instances in the placement are cleaned up.
+	if !localChecker.allAvailable(p, leavingInstanceIDs, nowNanos) {
+		return nil, fmt.Errorf("replaced instances must have all their shards available")
+	}
+
+	// At this point, all specified leaving instances and their peers in the placement are cleaned up.
 	if addingInstances, err = validAddingInstances(p, addingInstances); err != nil {
 		return nil, err
 	}
+
 	for i := range leavingInstanceIDs {
 		// We want full replacement for each instance.
 		if p, err = a.shardedAlgo.ReplaceInstances(
@@ -222,6 +235,49 @@ func (a mirroredAlgorithm) ReplaceInstances(
 			return nil, err
 		}
 	}
+	return p, nil
+}
+
+func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
+	p placement.Placement,
+	instanceID string,
+) (placement.Placement, error) {
+	p = p.Clone()
+	instance, exist := p.Instance(instanceID)
+	if !exist {
+		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
+	}
+
+	// Find all peers of specified instance - those owning same shardset.
+	// That includes instances that are replaced by this instance or replace this instance.
+	var ownerIDs []string
+	for _, i := range p.Instances() {
+		if i.ShardSetID() == instance.ShardSetID() {
+			ownerIDs = append(ownerIDs, i.ID())
+		}
+	}
+
+	for _, id := range ownerIDs {
+		instance, exists := p.Instance(id)
+		if !exists {
+			// Instance with leaving shards could already be removed from placement
+			// after initializing shards are marked available (if past cutover time) by below code block.
+			continue
+		}
+
+		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Initializing {
+				var err error
+				// MarkShardsAvailable will properly handle respective leaving shards
+				// of the respective peer leaving instance.
+				p, err = a.shardedAlgo.MarkShardsAvailable(p, id, s.ID())
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not mark shards available of instance %s", id)
+				}
+			}
+		}
+	}
+
 	return p, nil
 }
 
@@ -245,61 +301,6 @@ func (a mirroredAlgorithm) MarkAllShardsAvailable(
 	}
 
 	return a.shardedAlgo.MarkAllShardsAvailable(p)
-}
-
-// allInitializing returns true when
-// 1: the given list of instances matches all the initializing instances in the placement.
-// 2: the shards are not cutover yet.
-func allInitializing(p placement.Placement, instances []string, nowNanos int64) bool {
-	ids := make(map[string]struct{}, len(instances))
-	for _, i := range instances {
-		ids[i] = struct{}{}
-	}
-
-	return allInstancesInState(ids, p, func(s shard.Shard) bool {
-		return s.State() == shard.Initializing && s.CutoverNanos() > nowNanos
-	})
-}
-
-// allLeaving returns true when
-// 1: the given list of instances matches all the leaving instances in the placement.
-// 2: the shards are not cutoff yet.
-func allLeaving(p placement.Placement, instances []placement.Instance, nowNanos int64) bool {
-	ids := make(map[string]struct{}, len(instances))
-	for _, i := range instances {
-		ids[i.ID()] = struct{}{}
-	}
-
-	return allInstancesInState(ids, p, func(s shard.Shard) bool {
-		return s.State() == shard.Leaving && s.CutoffNanos() > nowNanos
-	})
-}
-
-func instanceCheck(instance placement.Instance, shardCheckFn func(s shard.Shard) bool) bool {
-	for _, s := range instance.Shards().All() {
-		if !shardCheckFn(s) {
-			return false
-		}
-	}
-	return true
-}
-
-func allInstancesInState(
-	instanceIDs map[string]struct{},
-	p placement.Placement,
-	forEachShardFn func(s shard.Shard) bool,
-) bool {
-	for _, instance := range p.Instances() {
-		if !instanceCheck(instance, forEachShardFn) {
-			continue
-		}
-		if _, ok := instanceIDs[instance.ID()]; !ok {
-			return false
-		}
-		delete(instanceIDs, instance.ID())
-	}
-
-	return len(instanceIDs) == 0
 }
 
 // returnInitializingShards tries to return initializing shards on the given instances

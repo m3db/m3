@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -39,7 +40,11 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-var _ AdminClient = (*TCPClient)(nil)
+var (
+	_ AdminClient = (*TCPClient)(nil)
+
+	errNilPlacement = errors.New("placement is nil")
+)
 
 // TCPClient sends metrics to M3 Aggregator via over custom TCP protocol.
 type TCPClient struct {
@@ -224,19 +229,34 @@ func (c *TCPClient) WriteForwarded(
 
 // ActivePlacement returns a copy of the currently active placement and its version.
 func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
-	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
+	stagedPlacement, err := c.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
 		return nil, 0, err
 	}
-	defer onStagedPlacementDoneFn()
+	if stagedPlacement == nil {
+		return nil, 0, errNilPlacement
+	}
 
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	placement, err := stagedPlacement.ActivePlacement()
 	if err != nil {
 		return nil, 0, err
 	}
-	defer onPlacementDoneFn()
 
 	return placement.Clone(), stagedPlacement.Version(), nil
+}
+
+// ActivePlacementVersion returns a copy of the currently active placement version. It is a far less expensive call
+// than ActivePlacement, as it does not clone the placement.
+func (c *TCPClient) ActivePlacementVersion() (int, error) {
+	stagedPlacement, err := c.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		return 0, err
+	}
+	if stagedPlacement == nil {
+		return 0, errNilPlacement
+	}
+
+	return stagedPlacement.Version(), nil
 }
 
 // Flush flushes any remaining data buffered by the client.
@@ -258,13 +278,15 @@ func (c *TCPClient) write(
 	timeNanos int64,
 	payload payloadUnion,
 ) error {
-	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
+	stagedPlacement, err := c.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
 		return err
 	}
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if stagedPlacement == nil {
+		return errNilPlacement
+	}
+	placement, err := stagedPlacement.ActivePlacement()
 	if err != nil {
-		onStagedPlacementDoneFn()
 		return err
 	}
 	var (
@@ -300,8 +322,6 @@ func (c *TCPClient) write(
 		c.metrics.dropped.Inc(1)
 	}
 
-	onPlacementDoneFn()
-	onStagedPlacementDoneFn()
 	return multiErr.FinalError()
 }
 

@@ -22,9 +22,12 @@ package index
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -35,6 +38,8 @@ import (
 var ErrWideQueryResultsExhausted = errors.New("no more values to add to wide query results")
 
 type shardFilterFn func(ident.ID) (uint32, bool)
+
+var _ DocumentResults = (*wideResults)(nil)
 
 type wideResults struct {
 	sync.RWMutex
@@ -57,7 +62,8 @@ type wideResults struct {
 	// document is discovered whose shard exceeds the last shard this results
 	// is responsible for, using the fact that incoming documents are sorted by
 	// shard then by ID.
-	pastLastShard bool
+	pastLastShard  bool
+	resultDuration ResultDurations
 }
 
 // NewWideQueryResults returns a new wide query results object.
@@ -70,7 +76,7 @@ func NewWideQueryResults(
 	shardFilter shardFilterFn,
 	collector chan *ident.IDBatch,
 	opts WideQueryOptions,
-) BaseResults {
+) DocumentResults {
 	batchSize := opts.BatchSize
 	results := &wideResults{
 		nsID:        namespaceID,
@@ -88,13 +94,31 @@ func NewWideQueryResults(
 	return results
 }
 
+func (r *wideResults) TotalDuration() ResultDurations {
+	r.RLock()
+	defer r.RUnlock()
+	return r.resultDuration
+}
+
+func (r *wideResults) AddBlockProcessingDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddProcessing(duration)
+}
+
+func (r *wideResults) AddBlockSearchDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
+	r.resultDuration = r.resultDuration.AddSearch(duration)
+}
+
 func (r *wideResults) EnforceLimits() bool {
 	// NB: wide results should not enforce limits, as they may span an entire
 	// block in a memory constrained batch-wise fashion.
 	return false
 }
 
-func (r *wideResults) AddDocuments(batch []doc.Metadata) (int, int, error) {
+func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	var size, totalDocsCount int
 	r.RLock()
 	size, totalDocsCount = r.size, r.totalDocsCount
@@ -124,7 +148,7 @@ func (r *wideResults) AddDocuments(batch []doc.Metadata) (int, int, error) {
 	return size, totalDocsCount, err
 }
 
-func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Metadata) error {
+func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Document) error {
 	for i := range batch {
 		if err := r.addDocumentWithLock(batch[i]); err != nil {
 			return err
@@ -134,12 +158,16 @@ func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Metadata) error {
 	return nil
 }
 
-func (r *wideResults) addDocumentWithLock(d doc.Metadata) error {
-	if len(d.ID) == 0 {
+func (r *wideResults) addDocumentWithLock(w doc.Document) error {
+	docID, err := docs.ReadIDFromDocument(w)
+	if err != nil {
+		return fmt.Errorf("unable to decode document ID: %w", err)
+	}
+	if len(docID) == 0 {
 		return errUnableToAddResultMissingID
 	}
 
-	var tsID ident.ID = ident.BytesID(d.ID)
+	var tsID ident.ID = ident.BytesID(docID)
 
 	documentShard, documentShardOwned := r.shardFilter(tsID)
 	if !documentShardOwned {

@@ -79,7 +79,8 @@ func sortByName(_ *common.Context, series singlePathSpec) (ts.SeriesList, error)
 		sorted[i] = series.Values[i]
 	}
 
-	sort.Sort(ts.SeriesByName(sorted))
+	// Use sort.Stable for deterministic output.
+	sort.Stable(ts.SeriesByName(sorted))
 
 	r := ts.SeriesList(series)
 	r.Values = sorted
@@ -105,13 +106,17 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 // the response time metric will be plotted only when the maximum value of the
 // corresponding request/s metric is > 10
 // Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
-func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
+//nolint:govet,gocritic
+func useSeriesAbove(
+	ctx *common.Context,
+	seriesList singlePathSpec,
+	maxAllowedValue float64,
+	search, replace string,
+) (ts.SeriesList, error) {
 	var (
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-		multiErr xerrors.MultiError
-		newNames []string
-
+		mu             sync.Mutex
+		multiErr       xerrors.MultiError
+		newNames       []string
 		output         = make([]*ts.Series, 0, len(seriesList.Values))
 		maxConcurrency = runtime.NumCPU() / 2
 	)
@@ -124,36 +129,39 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedVa
 	}
 
 	for _, newNameChunk := range chunkArrayHelper(newNames, maxConcurrency) {
-		if multiErr.LastError() != nil {
-			return ts.NewSeriesList(), multiErr.LastError()
-		}
-
+		var wg sync.WaitGroup
 		for _, newTarget := range newNameChunk {
+			newTarget := newTarget
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
 
+				mu.Lock()
+				defer mu.Unlock()
+
 				if err != nil {
-					mu.Lock()
 					multiErr = multiErr.Add(err)
-					mu.Unlock()
 					return
 				}
 
-				mu.Lock()
 				for _, resultSeries := range resultSeriesList.Values {
 					resultSeries.Specification = newTarget
 					output = append(output, resultSeries)
 				}
-				mu.Unlock()
 			}()
 		}
 		wg.Wait()
+
+		if err := multiErr.LastError(); err != nil {
+			return ts.NewSeriesList(), err
+		}
 	}
 
-	r := ts.NewSeriesList()
+	// Retain metadata but mark as unsorted since this was done in parallel.
+	r := ts.SeriesList(seriesList)
 	r.Values = output
+	r.SortApplied = false
 	return r, nil
 }
 
@@ -263,8 +271,16 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 	}
 	upperBound := int(math.Min(float64(len(series.Values)), float64(n)))
 
+	if !series.SortApplied {
+		// If sort not applied then sort to get deterministic results.
+		// Use sort.Stable for deterministic output.
+		sort.Stable(ts.SeriesByName(series.Values))
+	}
+
 	r := ts.SeriesList(series)
 	r.Values = series.Values[0:upperBound]
+	// Note: If wasn't sorted we applied a sort by name for determinism.
+	r.SortApplied = true
 	return r, nil
 }
 
@@ -283,7 +299,8 @@ func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.Series
 		}
 	}
 
-	r := ts.NewSeriesList()
+	// Retain sort applied function.
+	r := ts.SeriesList(seriesList)
 	r.Values = filtered
 	return r, nil
 }
@@ -298,7 +315,6 @@ func timeShift(
 	_ bool,
 	_ bool,
 ) (*unaryContextShifter, error) {
-
 	// TODO: implement resetEnd
 	if !(strings.HasPrefix(timeShiftS, "+") || strings.HasPrefix(timeShiftS, "-")) {
 		timeShiftS = "-" + timeShiftS
@@ -468,7 +484,6 @@ func offset(ctx *common.Context, input singlePathSpec, factor float64) (ts.Serie
 // transform converts values in a timeseries according to the valueTransformer.
 func transform(ctx *common.Context, input singlePathSpec,
 	fname func(inputName string) string, fn common.TransformFunc) (ts.SeriesList, error) {
-
 	t := common.NewStatelessTransformer(fn)
 	return common.Transform(ctx, ts.SeriesList(input), t, func(in *ts.Series) string {
 		return fname(in.Name())
@@ -639,16 +654,11 @@ func removeEmptySeries(ctx *common.Context, input singlePathSpec) (ts.SeriesList
 }
 
 func takeByFunction(input singlePathSpec, n int, sr ts.SeriesReducer, sort ts.Direction) (ts.SeriesList, error) {
-	series, err := ts.SortSeries(input.Values, sr, sort)
+	result, err := ts.SortSeries(ts.SeriesList(input), sr, sort)
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}
-	r := ts.SeriesList{
-		Values:      series,
-		SortApplied: true,
-		Metadata:    input.Metadata,
-	}
-	return common.Head(r, n)
+	return common.Head(result, n)
 }
 
 func getReducer(f string) (ts.SeriesReducer, error) {
@@ -807,7 +817,6 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 	}
 
 	widowSize, err := parseWindowSize(windowSizeValue, input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1125,8 +1134,8 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 // expression.
 func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.SeriesList, error) {
 	rePattern, err := regexp.Compile(pattern)
-	//NB(rooz): we decided to just fail if regex compilation fails to
-	//differentiate it from an all-excluding regex
+	// NB(rooz): we decided to just fail if regex compilation fails to
+	// differentiate it from an all-excluding regex
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}
@@ -1140,6 +1149,28 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 
 	r := ts.SeriesList(input)
 	r.Values = output
+	return r, nil
+}
+
+// pow takes one metric or a wildcard seriesList followed by a constant,
+// and raises the datapoint by the power of the constant provided at each point
+// nolint: gocritic
+func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesList, error) {
+	results := make([]*ts.Series, 0, len(input.Values))
+
+	for _, series := range input.Values {
+		numSteps := series.Len()
+		millisPerStep := series.MillisPerStep()
+		vals := ts.NewValues(ctx, millisPerStep, numSteps)
+		for i := 0; i < numSteps; i++ {
+			vals.SetValueAt(i, math.Pow(series.ValueAt(i), factor))
+		}
+		newName := fmt.Sprintf("pow(%s, %f)", series.Name(), factor)
+		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
+	}
+
+	r := ts.SeriesList(input)
+	r.Values = results
 	return r, nil
 }
 
@@ -1241,7 +1272,6 @@ func group(_ *common.Context, input multiplePathSpecs) (ts.SeriesList, error) {
 
 func derivativeTemplate(ctx *common.Context, input singlePathSpec, nameTemplate string,
 	fn func(float64, float64) float64) (ts.SeriesList, error) {
-
 	output := make([]*ts.Series, len(input.Values))
 	for i, in := range input.Values {
 		derivativeValues := ts.NewValues(ctx, in.MillisPerStep(), in.Len())
@@ -2094,7 +2124,7 @@ func newMovingBinaryTransform(
 
 			results := make([]*ts.Series, 0, original.Len())
 			maxWindowPoints := 0
-			for i, _ := range bootstrapList.Values {
+			for i := range bootstrapList.Values {
 				series := original.Values[i]
 				windowPoints := windowPointsLength(series, interval)
 				if windowPoints <= 0 {
@@ -2471,6 +2501,7 @@ func init() {
 	MustRegisterFunction(perSecond).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
 	})
+	MustRegisterFunction(pow)
 	MustRegisterFunction(powSeries)
 	MustRegisterFunction(rangeOfSeries)
 	MustRegisterFunction(randomWalkFunction).WithDefaultParams(map[uint8]interface{}{

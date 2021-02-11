@@ -93,7 +93,7 @@ func TestSeriesEmpty(t *testing.T) {
 
 // Writes to series, verifying no error and that further writes should happen.
 func verifyWriteToSeries(t *testing.T, series *dbSeries, v DecodedTestValue) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value,
 		v.Unit, v.Annotation, WriteOptions{})
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 		verifyWriteToSeries(t, series, v)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
@@ -190,7 +190,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 
 	for i, v := range data {
 		curr = v.Timestamp
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
@@ -201,7 +201,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		ctx.Close()
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
@@ -255,18 +255,22 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 		verifyWriteToSeries(t, series, v)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	nsCtx := namespace.Context{}
 
 	// Test fine grained range
-	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	iter, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	assert.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 
 	// Test wide range
-	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	iter, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	assert.NoError(t, err)
+	results, err = iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
@@ -388,10 +392,12 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 			}
 
 			t.Run("Data can be read", func(t *testing.T) {
-				ctx := context.NewContext()
+				ctx := context.NewBackground()
 				defer ctx.Close()
 
-				results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				iter, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				require.NoError(t, err)
+				results, err := iter.ToSlices(ctx)
 				require.NoError(t, err)
 
 				var expectedData []DecodedTestValue
@@ -456,14 +462,14 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	nsCtx := namespace.Context{}
 
-	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
+	iter, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
-	assert.Nil(t, results)
+	assert.Nil(t, iter)
 }
 
 func TestSeriesFlushNoBlock(t *testing.T) {
@@ -523,7 +529,7 @@ func TestSeriesFlush(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	series.buffer.Write(ctx, testID, curr, 1234, xtime.Second, nil, WriteOptions{})
 	ctx.BlockingClose()
 
@@ -532,7 +538,7 @@ func TestSeriesFlush(t *testing.T) {
 		persistFn := func(_ persist.Metadata, _ ts.Segment, _ uint32) error {
 			return input
 		}
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		outcome, err := series.WarmFlush(ctx, curr, persistFn, namespace.Context{})
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
@@ -1136,7 +1142,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		SetRetentionOptions(retentionOpts)
 
 	var (
-		ctx        = context.NewContext()
+		ctx        = context.NewBackground()
 		id         = ident.StringID("foo")
 		nsID       = ident.StringID("bar")
 		tags       = ident.NewTags(ident.StringTag("name", "value"))
@@ -1185,7 +1191,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	iter, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	require.NoError(t, err)
+	encoded, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
@@ -1253,7 +1261,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wasWritten, _, err := series.Write(ctx, curr.Add(-3*time.Minute),
@@ -1269,8 +1277,10 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
+	iter, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
 		curr.Add(time.Minute), namespace.Context{})
+	require.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 	values, err := decodedReaderValues(results, opts, namespace.Context{})
 	require.NoError(t, err)

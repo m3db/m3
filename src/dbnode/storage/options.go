@@ -182,7 +182,8 @@ type options struct {
 	tileAggregator                  TileAggregator
 }
 
-// NewOptions creates a new set of storage options with defaults
+// NewOptions creates a new set of storage options with defaults.
+// NB: expensive, in tests use DefaultTestOptions instead.
 func NewOptions() Options {
 	return newOptions(defaultPoolOptions)
 }
@@ -940,10 +941,8 @@ func (a *noopTileAggregator) AggregateTiles(
 	ctx context.Context,
 	sourceNs, targetNs Namespace,
 	shardID uint32,
-	blockReaders []fs.DataFileSetReader,
-	writer fs.StreamingWriter,
 	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
-) (int64, error) {
-	return 0, nil
+) (int64, int, error) {
+	return 0, 0, nil
 }

@@ -35,6 +35,7 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -920,24 +921,13 @@ func (d *db) ReadEncoded(
 	namespace ident.ID,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.BlockReader, error) {
+) (series.BlockReaderIter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return nil, err
 	}
 
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadEncoded)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.String("id", id.String()),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
-		)
-	}
-
-	defer sp.Finish()
 	return n.ReadEncoded(ctx, id, start, end)
 }
 

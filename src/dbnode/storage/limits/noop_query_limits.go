@@ -54,6 +54,20 @@ func (q *noOpQueryLimits) Stop() {
 func (q *noOpQueryLimits) Start() {
 }
 
+func (q *noOpLookbackLimit) Options() LookbackLimitOptions {
+	return LookbackLimitOptions{}
+}
+
+func (q *noOpLookbackLimit) Update(LookbackLimitOptions) error {
+	return nil
+}
+
 func (q *noOpLookbackLimit) Inc(int, []byte) error {
 	return nil
+}
+
+func (q *noOpLookbackLimit) Start() {
+}
+
+func (q *noOpLookbackLimit) Stop() {
 }
