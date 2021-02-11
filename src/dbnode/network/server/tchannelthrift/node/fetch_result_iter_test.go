@@ -41,7 +41,7 @@ import (
 
 func TestFetchResultIterTest(t *testing.T) {
 	scope := tally.NewTestScope("", map[string]string{})
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	mocks := gomock.NewController(t)
 	defer mocks.Finish()
 
