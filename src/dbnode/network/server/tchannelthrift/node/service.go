@@ -167,12 +167,12 @@ type service struct {
 
 	logger *zap.Logger
 
-	opts              tchannelthrift.Options
-	nowFn             clock.NowFn
-	pools             pools
-	metrics           serviceMetrics
-	queryLimits       limits.QueryLimits
-	seriesReadPermits permits.Manager
+	opts        tchannelthrift.Options
+	nowFn       clock.NowFn
+	pools       pools
+	metrics     serviceMetrics
+	queryLimits limits.QueryLimits
+	permitsOpts permits.Options
 }
 
 type serviceState struct {
@@ -352,8 +352,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
-		queryLimits:       opts.QueryLimits(),
-		seriesReadPermits: opts.PermitsOptions().SeriesReadPermitsManager(),
+		queryLimits: opts.QueryLimits(),
+		permitsOpts: opts.PermitsOptions(),
 	}
 }
 
@@ -845,7 +845,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
-		blockPermits:    s.seriesReadPermits.NewPermits(ctx),
+		blockPermits:    s.permitsOpts.SeriesReadPermitsManager().NewPermits(ctx),
 		totalDocsCount:  queryResult.Results.TotalDocsCount(),
 		nowFn:           s.nowFn,
 		fetchStart:      startTime,
