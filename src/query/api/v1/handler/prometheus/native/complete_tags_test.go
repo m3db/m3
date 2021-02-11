@@ -22,6 +22,8 @@ package native
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io/ioutil"
 	"net/http/httptest"
 	"testing"
@@ -201,4 +203,41 @@ func TestMultiCompleteTags(t *testing.T) {
 
 	actual := w.Header().Get(headers.LimitHeader)
 	assert.Equal(t, "max_fetch_series_limit_applied,abc_def", actual)
+}
+
+//nolint:dupl
+func TestCompleteTagsKillOnTimeout(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup storage
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context,
+			query *storage.CompleteTagsQuery,
+			options *storage.FetchOptions,
+		) (*consolidators.CompleteTagsResult, error) {
+			<-ctx.Done()
+			// Prove the fact that we've passed along the timeout and that it's exceeded
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, ctx.Err()
+			}
+			return nil, nil
+		},
+	)
+
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: 1 * time.Millisecond})
+	require.NoError(t, err)
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb)
+
+	req := httptest.NewRequest("GET", "/search?query=foo", nil)
+	w := httptest.NewRecorder()
+	h := NewCompleteTagsHandler(opts)
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 500, w.Code, "Status code not 500")
+	assert.Contains(t, w.Body.String(), "context deadline exceeded")
 }
