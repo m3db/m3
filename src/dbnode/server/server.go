@@ -461,8 +461,8 @@ func Run(runOpts RunOptions) {
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	permitsOpts := opts.PermitsOptions().
-		SetSeriesReadPermitsManager(seriesReadPermits)
+	opts = opts.SetPermitsOptions(opts.PermitsOptions().
+		SetSeriesReadPermitsManager(seriesReadPermits))
 
 	// Setup postings list cache.
 	var (
@@ -722,7 +722,7 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
 		SetQueryLimits(queryLimits).
-		SetPermitsOptions(permitsOpts)
+		SetPermitsOptions(opts.PermitsOptions())
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.
