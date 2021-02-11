@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
 )
@@ -35,6 +36,21 @@ type BlockReader struct {
 	SegmentReader
 	Start     time.Time
 	BlockSize time.Duration
+}
+
+// ReadSegment reads the Segment, blocking until the segment is available or the deadline expires.
+func (b BlockReader) ReadSegment(ctx context.Context) (segment ts.Segment, err error) {
+	done := make(chan struct{}, 1)
+	go func() {
+		segment, err = b.Segment()
+		done <- struct{}{}
+	}()
+	select {
+	case <-ctx.GoContext().Done():
+		return ts.Segment{}, ctx.GoContext().Err()
+	case <-done:
+	}
+	return
 }
 
 // EmptyBlockReader represents the default block reader.

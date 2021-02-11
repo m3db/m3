@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -121,7 +122,7 @@ type ToSegmentsResult struct {
 }
 
 // ToSegments converts a list of blocks to segments.
-func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
+func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult, error) {
 	if len(blocks) == 0 {
 		return ToSegmentsResult{}, nil
 	}
@@ -129,7 +130,7 @@ func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
 	s := &rpc.Segments{}
 
 	if len(blocks) == 1 {
-		seg, err := blocks[0].Segment()
+		seg, err := blocks[0].ReadSegment(ctx)
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}
@@ -153,7 +154,7 @@ func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
 	}
 
 	for _, block := range blocks {
-		seg, err := block.Segment()
+		seg, err := block.ReadSegment(ctx)
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}

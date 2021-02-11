@@ -32,6 +32,7 @@
 package fs
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"sort"
@@ -434,18 +435,17 @@ func (r *blockRetriever) fetchBatch(
 	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources,
 		retrieverResources)
 
-	var limitErr error
-	if err := r.queryLimits.AnyExceeded(); err != nil {
-		for _, req := range reqs {
-			req.err = err
-		}
-		return
-	}
-
 	for _, req := range reqs {
-		if limitErr != nil {
-			req.err = limitErr
+		if err := r.queryLimits.AnyExceeded(); err != nil {
+			req.err = err
 			continue
+		}
+
+		select {
+		case <-req.stdCtx.Done():
+			req.err = req.stdCtx.Err()
+			continue
+		default:
 		}
 
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
@@ -456,7 +456,6 @@ func (r *blockRetriever) fetchBatch(
 
 		if err := r.bytesReadLimit.Inc(int(entry.Size), req.source); err != nil {
 			req.err = err
-			limitErr = err
 			continue
 		}
 
@@ -474,6 +473,18 @@ func (r *blockRetriever) fetchBatch(
 
 	// Seek and execute all requests
 	for _, req := range reqs {
+		if err := r.queryLimits.AnyExceeded(); err != nil {
+			req.err = err
+			continue
+		}
+
+		select {
+		case <-req.stdCtx.Done():
+			req.err = req.stdCtx.Err()
+			continue
+		default:
+		}
+
 		// Should always be a data request by this point.
 		if req.streamReqType != streamDataReq {
 			req.err = fmt.Errorf("wrong stream req type: expect=%d, actual=%d",
@@ -658,11 +669,12 @@ func (r *blockRetriever) Stream(
 	}
 
 	req := r.reqPool.Get()
+	// only save the go ctx to ensue we don't accidentally use the m3 ctx after it's been closed by the caller.
+	req.stdCtx = ctx.GoContext()
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
 
-	goCtx := ctx.GoContext()
-	if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
+	if source, ok := req.stdCtx.Value(limits.SourceContextKey).([]byte); ok {
 		req.source = source
 	}
 
@@ -812,6 +824,7 @@ type retrieveRequest struct {
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
 	source     []byte
+	stdCtx     stdctx.Context
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
@@ -999,6 +1012,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.err = nil
 	req.notFound = false
 	req.success = false
+	req.stdCtx = nil
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest
