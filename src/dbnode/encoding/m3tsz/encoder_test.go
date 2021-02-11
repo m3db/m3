@@ -153,7 +153,7 @@ func TestWriteAnnotation(t *testing.T) {
 }
 
 func getBytes(t *testing.T, e encoding.Encoder) []byte {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	r, ok := e.Stream(ctx)
@@ -202,7 +202,7 @@ func TestWriteTimeUnit(t *testing.T) {
 }
 
 func TestEncodeNoAnnotation(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -242,7 +242,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithAnnotation(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -286,7 +286,7 @@ func TestEncodeWithAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithTimeUnit(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -324,7 +324,7 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 }
 
 func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -379,7 +379,7 @@ func TestInitTimeUnit(t *testing.T) {
 }
 
 func TestEncoderResets(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	enc := getTestOptEncoder(testStartTime)
@@ -433,7 +433,7 @@ func TestEncoderLastEncoded(t *testing.T) {
 func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
 	testMultiplePasses(t, multiplePassesTest{
 		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
 			encLen := enc.Len()
@@ -471,7 +471,7 @@ func TestEncoderCloseWaitForStream(t *testing.T) {
 	numStreams := 8
 	for i := 0; i <= numStreams; i++ {
 		numActiveStreams.Inc()
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		_, ok := enc.Stream(ctx)
 		require.True(t, ok)
 		go func(ctx context.Context, idx int) {

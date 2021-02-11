@@ -83,7 +83,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 			}),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	require.Equal(t, BootstrapNotStarted, bsm.state)

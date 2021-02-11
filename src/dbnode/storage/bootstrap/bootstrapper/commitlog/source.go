@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -76,6 +75,8 @@ type commitLogSource struct {
 	// to be read once (during the first pass) and the results can be subsequently cached and returned on future passes.
 	// Since the bootstrapper is single threaded this does not need to be guarded with a mutex.
 	commitLogResult commitLogResult
+
+	instrumentation *instrumentation
 }
 
 type bootstrapNamespace struct {
@@ -128,13 +129,15 @@ func newCommitLogSource(
 		MetricsScope().
 		SubScope("bootstrapper-commitlog")
 
+	log := opts.
+		ResultOptions().
+		InstrumentOptions().
+		Logger().
+		With(zap.String("bootstrapper", "commitlog"))
+
 	return &commitLogSource{
-		opts: opts,
-		log: opts.
-			ResultOptions().
-			InstrumentOptions().
-			Logger().
-			With(zap.String("bootstrapper", "commitlog")),
+		opts:  opts,
+		log:   log,
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 
 		inspection: inspection,
@@ -143,7 +146,8 @@ func newCommitLogSource(
 		snapshotFilesFn: fs.SnapshotFiles,
 		newReaderFn:     fs.NewReader,
 
-		metrics: newCommitLogSourceMetrics(scope),
+		metrics:         newCommitLogSourceMetrics(scope),
+		instrumentation: newInstrumentation(opts, scope, log),
 	}
 }
 
@@ -179,8 +183,8 @@ func (s *commitLogSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.commitLogBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	var (
 		// Emit bootstrapping gauge for duration of ReadData.
@@ -191,10 +195,7 @@ func (s *commitLogSource) Read(
 	)
 	defer doneReadingData()
 
-	startSnapshotsRead := s.nowFn()
-	s.log.Info("read snapshots start")
-	span.LogEvent("read_snapshots_start")
-
+	instrCtx.bootstrapSnapshotsStarted()
 	for _, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
@@ -233,14 +234,12 @@ func (s *commitLogSource) Read(
 			}
 		}
 	}
+	instrCtx.bootstrapSnapshotsCompleted()
 
-	s.log.Info("read snapshots done",
-		zap.Duration("took", s.nowFn().Sub(startSnapshotsRead)))
-	span.LogEvent("read_snapshots_done")
-
+	instrCtx.readCommitLogStarted()
 	if !s.commitLogResult.read {
 		var err error
-		s.commitLogResult, err = s.readCommitLog(namespaces, span)
+		s.commitLogResult, err = s.readCommitLog(namespaces, instrCtx.span)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -274,14 +273,14 @@ func (s *commitLogSource) Read(
 			IndexResult: indexResult,
 		})
 	}
-
+	instrCtx.readCommitLogCompleted()
 	return bootstrapResult, nil
 }
 
 type commitLogResult struct {
 	shouldReturnUnfulfilled bool
 	// ensures we only read the commit log once
-	read                    bool
+	read bool
 }
 
 func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span opentracing.Span) (commitLogResult, error) {

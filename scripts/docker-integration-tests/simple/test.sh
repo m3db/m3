@@ -2,7 +2,7 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
 
 echo "Run m3dbnode docker container"
@@ -143,24 +143,18 @@ curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
 }'
 
 echo "Read data"
-queryResult=$(curl -sSf -X POST 0.0.0.0:9003/query -d '{
-  "namespace": "unagg",
-  "query": {
-    "regexp": {
-      "field": "city",
-      "regexp": ".*"
-    }
-  },
-  "rangeStart": 0,
-  "rangeEnd":'"$(date +"%s")"'
-}' | jq '.results | length')
-
-if [ "$queryResult" -lt 1 ]; then
-  echo "Result not found"
-  exit 1
-else
-  echo "Result found"
-fi
+ATTEMPTS=3 TIMEOUT=1 retry_with_backoff  \
+  '[ "$(curl -sSf -X POST 0.0.0.0:9003/query -d "{
+    \"namespace\": \"unagg\",
+    \"query\": {
+      \"regexp\": {
+        \"field\": \"city\",
+        \"regexp\": \".*\"
+      }
+    },
+    \"rangeStart\": 0,
+    \"rangeEnd\":'\"$(date +\"%s\")\"'
+  }" | jq ".results | length")" == "1" ]'
 
 echo "Deleting placement"
 curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/services/m3db/placement

@@ -59,6 +59,7 @@ type DockerResources interface {
 // ClusterOptions represents a set of options for a cluster setup.
 type ClusterOptions struct {
 	ReplicationFactor int32
+	NumShards         int32
 }
 
 type dockerResources struct {
@@ -211,9 +212,13 @@ func SetupCluster(cluster DockerResources, opts *ClusterOptions) error { // noli
 	}
 
 	replicationFactor := int32(1)
+	numShards := int32(4)
 	if opts != nil {
 		if opts.ReplicationFactor > 0 {
 			replicationFactor = opts.ReplicationFactor
+		}
+		if opts.NumShards > 0 {
+			numShards = opts.NumShards
 		}
 	}
 
@@ -222,7 +227,7 @@ func SetupCluster(cluster DockerResources, opts *ClusterOptions) error { // noli
 			Type:              "cluster",
 			NamespaceName:     AggName,
 			RetentionTime:     retention,
-			NumShards:         4,
+			NumShards:         numShards,
 			ReplicationFactor: replicationFactor,
 			Hosts:             hosts,
 		}

@@ -70,7 +70,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	err := series.LoadBlock(dbBlock, WarmWrite)
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wg := sync.WaitGroup{}

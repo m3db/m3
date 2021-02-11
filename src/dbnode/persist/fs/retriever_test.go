@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -370,7 +369,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				idString := shardIDStrings[shard][idIdx]
 
 				for k := 0; k < len(blockStarts); k++ {
-					ctx := context.NewContext()
+					ctx := context.NewBackground()
 
 					var (
 						stream xio.BlockReader
@@ -504,7 +503,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Now that all the block lease updates have completed, all reads from this point should return tags with the
 	// highest volume number.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	for _, shard := range shards {
 		for _, blockStart := range blockStarts {
 			for _, idString := range shardIDStrings[shard] {
@@ -581,7 +580,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)
@@ -654,7 +653,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	_, err = retriever.Stream(ctx, shard,
@@ -759,7 +758,7 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	onRetrieveCalled := false
@@ -813,36 +812,6 @@ func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
 	testBlockRetrieverHandlesSeekErrors(t, ctrl, mockSeeker)
 }
 
-func TestLimitSeriesReadFromDisk(t *testing.T) {
-	scope := tally.NewTestScope("test", nil)
-	limitOpts := limits.NewOptions().
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
-		SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()).
-		SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
-			Limit:    2,
-			Lookback: time.Second * 1,
-		})
-	queryLimits, err := limits.NewQueryLimits(limitOpts)
-	require.NoError(t, err)
-	opts := NewBlockRetrieverOptions().
-		SetBlockLeaseManager(&block.NoopLeaseManager{}).
-		SetQueryLimits(queryLimits)
-	publicRetriever, err := NewBlockRetriever(opts, NewOptions().
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)))
-	require.NoError(t, err)
-	req := &retrieveRequest{}
-	retriever := publicRetriever.(*blockRetriever)
-	_ = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now())
-	err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now())
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "query aborted due to limit")
-
-	snapshot := scope.Snapshot()
-	seriesLimit := snapshot.Counters()["test.query-limit.exceeded+limit=disk-series-read"]
-	require.Equal(t, int64(1), seriesLimit.Value())
-}
-
 var errSeekErr = errors.New("some-error")
 
 func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, mockSeeker ConcurrentDataFileSetSeeker) {
@@ -888,7 +857,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	defer cleanup()
 
 	// Make sure we return the correct error.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)

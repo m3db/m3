@@ -39,8 +39,6 @@ type QueryLimits interface {
 	DocsLimit() LookbackLimit
 	// BytesReadLimit limits queries by a global concurrent count of bytes read from disk.
 	BytesReadLimit() LookbackLimit
-	// DiskSeriesReadLimit limits queries by a global concurrent count of time series read from disk.
-	DiskSeriesReadLimit() LookbackLimit
 
 	// AnyExceeded returns an error if any of the query limits are exceeded.
 	AnyExceeded() error
@@ -58,6 +56,11 @@ type LookbackLimit interface {
 	Inc(new int, source []byte) error
 	// Update changes the lookback limit settings.
 	Update(opts LookbackLimitOptions) error
+
+	// Start begins background resetting of the lookback limit.
+	Start()
+	// Stop end background resetting of the lookback limit.
+	Stop()
 }
 
 // LookbackLimitOptions holds options for a lookback limit to be enforced.

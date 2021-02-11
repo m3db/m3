@@ -744,7 +744,7 @@ func assertFetchBlocksFromPeersResult(
 
 		expectedBlock := expectedBlocks[peerIdx][blockIdx].blocks[subBlockIdx]
 		expectedData := append(expectedBlock.segments.merged.head, expectedBlock.segments.merged.tail...)
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		defer ctx.Close()
 		stream, err := observedBlock.Stream(ctx)
 		require.NoError(t, err)
@@ -1448,7 +1448,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Value:     42,
 	}, xtime.Second, nil))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := enc.Stream(ctx)
@@ -1599,7 +1599,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Value:     42,
 	}, xtime.Second, nil))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := enc.Stream(ctx)
@@ -1754,7 +1754,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	stream, err := result.Stream(ctx)
@@ -1841,7 +1841,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	stream, err := result.Stream(ctx)
@@ -2435,7 +2435,7 @@ func assertFetchBootstrapBlocksResult(
 	expected []testBlocks,
 	actual result.ShardResult,
 ) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	series := actual.AllSeries()

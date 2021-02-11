@@ -208,7 +208,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
 	defer tester.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	_, err = src.Read(ctx, tester.Namespaces, tester.Cache)
