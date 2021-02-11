@@ -1060,6 +1060,15 @@ func (n *dbNamespace) Bootstrap(
 			continue
 		}
 
+		// Check if there are unfulfilled ranges
+		if ranges, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+			continue
+		} else if n.reverseIndex != nil {
+			if ranges, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+				continue
+			}
+		}
+
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
