@@ -21,8 +21,8 @@
 package tchannelthrift
 
 import (
-	"time"
 	stdctx "context"
+	"time"
 
 	"github.com/m3db/m3/src/x/context"
 
@@ -42,7 +42,7 @@ func RegisterServer(channel *tchannel.Channel, service thrift.TChanServer, conte
 	server.SetContextFn(func(ctx stdctx.Context, method string, headers map[string]string) thrift.Context {
 		xCtx := contextPool.Get()
 		xCtx.SetGoContext(ctx)
-		ctxWithValue := stdctx.WithValue(ctx, contextKey, xCtx)
+		ctxWithValue := stdctx.WithValue(ctx, contextKey, xCtx) //nolint: staticcheck
 		return thrift.WithHeaders(ctxWithValue, headers)
 	})
 }
@@ -51,7 +51,7 @@ func RegisterServer(channel *tchannel.Channel, service thrift.TChanServer, conte
 func NewContext(timeout time.Duration) (thrift.Context, stdctx.CancelFunc) {
 	tctx, cancel := thrift.NewContext(timeout)
 	xCtx := context.NewWithGoContext(tctx)
-	ctxWithValue := stdctx.WithValue(tctx, contextKey, xCtx)
+	ctxWithValue := stdctx.WithValue(tctx, contextKey, xCtx) //nolint: staticcheck
 	return thrift.WithHeaders(ctxWithValue, nil), cancel
 }
 

@@ -327,7 +327,7 @@ func (c *ctx) parentCtx() Context {
 }
 
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	if  c.checkedAndNotSampled {
+	if c.checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
 	}
 	goCtx := c.GoContext()

@@ -275,7 +275,7 @@ func TestSampledTraceSpan(t *testing.T) {
 }
 
 func TestGoContext(t *testing.T) {
-	goCtx, cancel  := stdctx.WithTimeout(stdctx.Background(), time.Minute)
+	goCtx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Minute)
 	defer cancel()
 	xCtx := NewWithGoContext(goCtx)
 
