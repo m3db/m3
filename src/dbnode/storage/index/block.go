@@ -897,7 +897,12 @@ func (b *block) addAggregateResults(
 	// try to add the docs to the resource.
 	size, docsCount := results.AddFields(batch)
 
-	if err := b.aggDocsLimit.Inc(len(batch), source); err != nil {
+	aggDocs := len(batch)
+	for _, entry := range batch {
+		aggDocs += len(entry.Terms)
+	}
+
+	if err := b.aggDocsLimit.Inc(aggDocs, source); err != nil {
 		// NB: this case should warn and continue.
 		b.logger.Warn("aggregate limit", zap.Error(err))
 	}
