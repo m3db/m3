@@ -211,8 +211,6 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
-	largeTilesWrites                    tally.Counter
-	largeTilesWriteErrors               tally.Counter
 	snapshotTotalLatency                tally.Timer
 	snapshotCheckNeedsSnapshotLatency   tally.Timer
 	snapshotPrepareLatency              tally.Timer
@@ -250,11 +248,6 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
-		largeTilesWriteErrors: scope.Tagged(map[string]string{
-			"error_type":    "large-tiles",
-			"suberror_type": "write-error",
-		}).Counter(insertErrorName),
-		largeTilesWrites:                  scope.Counter("large-tiles-writes"),
 		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
 		snapshotCheckNeedsSnapshotLatency: snapshotScope.Timer("check-needs-snapshot-latency"),
 		snapshotPrepareLatency:            snapshotScope.Timer("prepare-latency"),
