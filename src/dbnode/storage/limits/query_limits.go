@@ -255,11 +255,10 @@ func (q *lookbackLimit) Inc(val int, source []byte) error {
 	recent := q.recent.Add(valI64)
 
 	// Update metrics.
-	q.metrics.recentCount.Update(float64(recent))
-	q.metrics.total.Inc(valI64)
-
-	for _, sourceLogger := range q.metrics.sourceLoggers {
-		sourceLogger.LogSourceValue(valI64, source)
+	for _, metrics := range q.metrics {
+		metrics.recentCount.Update(float64(recent))
+		metrics.total.Inc(valI64)
+		metrics.sourceLogger.LogSourceValue(valI64, source)
 	}
 
 	// Enforce limit (if specified).
@@ -276,7 +275,10 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 	q.lock.RUnlock()
 
 	if currentOpts.ForceExceeded {
-		q.metrics.exceeded.Inc(1)
+		for _, metrics := range q.metrics {
+			metrics.exceeded.Inc(1)
+		}
+
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to forced limit: name=%s", q.name)))
 	}
@@ -286,7 +288,10 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 	}
 
 	if recent >= currentOpts.Limit {
-		q.metrics.exceeded.Inc(1)
+		for _, metrics := range q.metrics {
+			metrics.exceeded.Inc(1)
+		}
+
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
 			q.name, q.options.Limit, recent, q.options.Lookback)))
@@ -326,8 +331,10 @@ func (q *lookbackLimit) start() {
 		}
 	}()
 
-	q.metrics.optionsLimit.Update(float64(q.options.Limit))
-	q.metrics.optionsLookback.Update(q.options.Lookback.Seconds())
+	for _, metrics := range q.metrics {
+		metrics.optionsLimit.Update(float64(q.options.Limit))
+		metrics.optionsLookback.Update(q.options.Lookback.Seconds())
+	}
 }
 
 func (q *lookbackLimit) stop() {
@@ -347,10 +354,12 @@ func (q *lookbackLimit) reset() {
 	// Update peak gauge only on resets so it only tracks
 	// the peak values for each lookback period.
 	recent := q.recent.Load()
-	q.metrics.recentMax.Update(float64(recent))
 
-	// Update the standard recent gauge to reflect drop back to zero.
-	q.metrics.recentCount.Update(0)
+	for _, metrics := range q.metrics {
+		metrics.recentMax.Update(float64(recent))
+		// Update the standard recent gauge to reflect drop back to zero.
+		metrics.recentCount.Update(0)
+	}
 
 	q.recent.Store(0)
 }
