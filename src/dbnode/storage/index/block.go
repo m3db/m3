@@ -678,8 +678,8 @@ func (b *block) aggregateWithSpan(
 			iter.Close()
 		}
 
-		b.metrics.queryDocsMatched.RecordValue(float64(docsCount))
-		b.metrics.querySeriesMatched.RecordValue(float64(size))
+		b.metrics.aggregateDocsMatched.RecordValue(float64(docsCount))
+		b.metrics.aggregateSeriesMatched.RecordValue(float64(size))
 	}()
 
 	readers, err := b.segmentReadersWithRLock()
