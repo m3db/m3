@@ -424,31 +424,6 @@ func Run(runOpts RunOptions) {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
 
-	// Setup postings list cache.
-	var (
-		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
-		plCacheSize    = plCacheConfig.SizeOrDefault()
-		plCacheOptions = index.PostingsListCacheOptions{
-			InstrumentOptions: opts.InstrumentOptions().
-				SetMetricsScope(scope.SubScope("postings-list-cache")),
-		}
-	)
-	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
-	if err != nil {
-		logger.Fatal("could not construct postings list cache", zap.Error(err))
-	}
-	defer stopReporting()
-
-	// Setup index regexp compilation cache.
-	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
-		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
-		Scope: iOpts.MetricsScope(),
-	})
-
-	for _, transform := range runOpts.Transforms {
-		opts = transform(opts)
-	}
-
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
@@ -479,7 +454,6 @@ func Run(runOpts RunOptions) {
 	}
 	queryLimits.Start()
 	defer queryLimits.Stop()
-
 	seriesReadPermits := permits.NewLookbackLimitPermitsManager(iOpts,
 		diskSeriesReadLimit,
 		"disk-series-read",
@@ -487,8 +461,33 @@ func Run(runOpts RunOptions) {
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	permitsOpts := permits.NewOptions().
+	permitsOpts := opts.PermitsOptions().
 		SetSeriesReadPermitsManager(seriesReadPermits)
+
+	// Setup postings list cache.
+	var (
+		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
+		plCacheSize    = plCacheConfig.SizeOrDefault()
+		plCacheOptions = index.PostingsListCacheOptions{
+			InstrumentOptions: opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("postings-list-cache")),
+		}
+	)
+	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct postings list cache", zap.Error(err))
+	}
+	defer stopReporting()
+
+	// Setup index regexp compilation cache.
+	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Scope: iOpts.MetricsScope(),
+	})
+
+	for _, transform := range runOpts.Transforms {
+		opts = transform(opts)
+	}
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
