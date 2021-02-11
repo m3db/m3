@@ -90,12 +90,7 @@ func (p *lookbackLimitPermit) Release() {
 }
 
 func sourceFromContext(ctx context.Context) []byte {
-	goctx, ok := ctx.GoContext()
-	if !ok {
-		return nil
-	}
-
-	val := goctx.Value(limits.SourceContextKey)
+	val := ctx.GoContext().Value(limits.SourceContextKey)
 	parsed, ok := val.([]byte)
 	if !ok {
 		return nil

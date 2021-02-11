@@ -1581,7 +1581,7 @@ func (i *nsIndex) queryWithSpan(
 		}
 
 		wg.Add(1)
-		scheduleResult := i.queryWorkersPool.GoWithContext(ctx.MustGoContext(), func() {
+		scheduleResult := i.queryWorkersPool.GoWithContext(ctx.GoContext(), func() {
 			execBlockFn(ctx, block, query, opts, &state, results, logFields)
 			wg.Done()
 		})
@@ -2031,7 +2031,7 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 		return errDbIndexAlreadyClosed
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// Create a new set of file system options to output to new directory.

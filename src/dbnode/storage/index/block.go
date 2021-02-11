@@ -497,7 +497,7 @@ func (b *block) queryWithSpan(
 		// when includes the search time, and subsequent batch resets.
 		if len(batch) == 0 {
 			select {
-			case <-ctx.MustGoContext().Done():
+			case <-ctx.GoContext().Done():
 				// indexNs will log something useful.
 				return false, ErrCancelledQuery
 			default:
@@ -713,7 +713,7 @@ func (b *block) aggregateWithSpan(
 			// initial result when includes the search time, and subsequent batch resets.
 			if len(batch) == 0 {
 				select {
-				case <-ctx.MustGoContext().Done():
+				case <-ctx.GoContext().Done():
 					return false, ErrCancelledQuery
 				default:
 				}
