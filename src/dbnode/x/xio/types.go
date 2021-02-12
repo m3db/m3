@@ -43,7 +43,7 @@ func (b BlockReader) ReadSegment(ctx context.Context) (ts.Segment, error) {
 	done := make(chan struct{}, 1)
 	var (
 		segment ts.Segment
-		err error
+		err     error
 	)
 	go func() {
 		segment, err = b.Segment()
