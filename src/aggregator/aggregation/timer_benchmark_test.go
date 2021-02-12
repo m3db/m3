@@ -64,8 +64,7 @@ func getTimer() Timer {
 
 func timerSamples() [][]float64 {
 	rnd := rand.New(rand.NewSource(0)) //nolint:gosec
-	numBatches := _flushEvery / _insertAndCompressEvery
-	samples := make([][]float64, numBatches)
+	samples := make([][]float64, _sampleBatches)
 	for i := 0; i < len(samples); i++ {
 		samples[i] = make([]float64, _insertAndCompressEvery)
 		for j := 0; j < _insertAndCompressEvery; j++ {
@@ -107,8 +106,12 @@ func BenchmarkTimerValueOf(b *testing.B) {
 func BenchmarkTimerAddBatch(b *testing.B) {
 	var samples = timerSamples()
 
+	b.Run("100k samples in 100 batches", func(b *testing.B) {
+		benchAddBatch(b, samples[:100])
+	})
+
 	b.Run("10k samples in 10 batches", func(b *testing.B) {
-		benchAddBatch(b, samples)
+		benchAddBatch(b, samples[:10])
 	})
 
 	b.Run("5k samples in 5 batches", func(b *testing.B) {
@@ -139,7 +142,6 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 			b.FailNow()
 		}
 	}
-
 	runtime.KeepAlive(q)
 }
 
