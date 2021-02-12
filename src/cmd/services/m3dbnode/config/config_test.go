@@ -732,6 +732,7 @@ func TestConfiguration(t *testing.T) {
     maxRecentlyQueriedSeriesDiskBytesRead: null
     maxRecentlyQueriedSeriesDiskRead: null
     maxRecentlyQueriedSeriesBlocks: null
+    maxRecentlyQueriedMetadata: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0

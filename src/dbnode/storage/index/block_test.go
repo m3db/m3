@@ -2058,6 +2058,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	tallytest.AssertCounterValue(t, int64(seriesLimit), snap,
 		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 }
+
 func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
