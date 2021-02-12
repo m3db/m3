@@ -898,8 +898,8 @@ func (b *block) addAggregateResults(
 	size, docsCount := results.AddFields(batch)
 
 	aggDocs := len(batch)
-	for _, entry := range batch {
-		aggDocs += len(entry.Terms)
+	for i := range batch {
+		aggDocs += len(batch[i].Terms)
 	}
 
 	// NB: currently this is here to capture upper limits for these limits and will

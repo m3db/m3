@@ -39,10 +39,9 @@ const (
 )
 
 type queryLimits struct {
-	docsLimit                *lookbackLimit
-	bytesReadLimit           *lookbackLimit
-	aggregatedDocsLimit      *lookbackLimit
-	aggregatedBytesReadLimit *lookbackLimit
+	docsLimit           *lookbackLimit
+	bytesReadLimit      *lookbackLimit
+	aggregatedDocsLimit *lookbackLimit
 }
 
 type lookbackLimit struct {
