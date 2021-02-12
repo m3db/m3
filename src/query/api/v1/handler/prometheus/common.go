@@ -22,12 +22,15 @@ package prometheus
 
 import (
 	"bytes"
+	"context"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
@@ -184,10 +187,15 @@ func ParseStartAndEnd(
 		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
 	}
 
-	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
-		time.Unix(0, 0))
+	defaultTime := time.Unix(0, 0)
+	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"), defaultTime)
 	if err != nil {
 		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	if parseOpts.RequireStartEndTime() && start.Equal(defaultTime) {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(
+			goerrors.New("invalid start time. start time must be set"))
 	}
 
 	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
@@ -495,4 +503,14 @@ func FilterSeriesByOptions(
 	}
 
 	return series
+}
+
+// ContextWithRequestAndTimeout sets up a context with the request's context
+// and the configured timeout.
+func ContextWithRequestAndTimeout(
+	r *http.Request,
+	opts *storage.FetchOptions,
+) (context.Context, context.CancelFunc) {
+	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
+	return context.WithTimeout(ctx, opts.Timeout)
 }

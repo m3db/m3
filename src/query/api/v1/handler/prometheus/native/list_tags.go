@@ -21,7 +21,6 @@
 package native
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -64,15 +63,15 @@ func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 	return &ListTagsHandler{
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		parseOpts:           promql.NewParseOptions().SetNowFn(opts.NowFn()),
-		instrumentOpts:      opts.InstrumentOpts(),
-		tagOpts:             opts.TagOptions(),
+		parseOpts: promql.NewParseOptions().
+			SetRequireStartEndTime(opts.Config().Query.RequireLabelsEndpointStartEndTime).
+			SetNowFn(opts.NowFn()),
+		instrumentOpts: opts.InstrumentOpts(),
+		tagOpts:        opts.TagOptions(),
 	}
 }
 
 func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	start, end, err := prometheus.ParseStartAndEnd(r, h.parseOpts)
@@ -110,6 +109,10 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.WriteError(w, rErr)
 		return
 	}
+
+	ctx, cancel := prometheus.ContextWithRequestAndTimeout(r, opts)
+	defer cancel()
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
