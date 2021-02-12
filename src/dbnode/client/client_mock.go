@@ -2328,6 +2328,34 @@ func (mr *MockOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockOptions)(nil).HostQueueOpsArrayPoolSize))
 }
 
+// SetHostQueueNewPooledWorkerFn mocks base method
+func (m *MockOptions) SetHostQueueNewPooledWorkerFn(value sync.NewPooledWorkerFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueNewPooledWorkerFn", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueNewPooledWorkerFn indicates an expected call of SetHostQueueNewPooledWorkerFn
+func (mr *MockOptionsMockRecorder) SetHostQueueNewPooledWorkerFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueNewPooledWorkerFn", reflect.TypeOf((*MockOptions)(nil).SetHostQueueNewPooledWorkerFn), value)
+}
+
+// HostQueueNewPooledWorkerFn mocks base method
+func (m *MockOptions) HostQueueNewPooledWorkerFn() sync.NewPooledWorkerFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueNewPooledWorkerFn")
+	ret0, _ := ret[0].(sync.NewPooledWorkerFn)
+	return ret0
+}
+
+// HostQueueNewPooledWorkerFn indicates an expected call of HostQueueNewPooledWorkerFn
+func (mr *MockOptionsMockRecorder) HostQueueNewPooledWorkerFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueNewPooledWorkerFn", reflect.TypeOf((*MockOptions)(nil).HostQueueNewPooledWorkerFn))
+}
+
 // SetHostQueueEmitsHealthStatus mocks base method
 func (m *MockOptions) SetHostQueueEmitsHealthStatus(value bool) Options {
 	m.ctrl.T.Helper()
@@ -3917,6 +3945,34 @@ func (m *MockAdminOptions) HostQueueOpsArrayPoolSize() int {
 func (mr *MockAdminOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueOpsArrayPoolSize))
+}
+
+// SetHostQueueNewPooledWorkerFn mocks base method
+func (m *MockAdminOptions) SetHostQueueNewPooledWorkerFn(value sync.NewPooledWorkerFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueNewPooledWorkerFn", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueNewPooledWorkerFn indicates an expected call of SetHostQueueNewPooledWorkerFn
+func (mr *MockAdminOptionsMockRecorder) SetHostQueueNewPooledWorkerFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueNewPooledWorkerFn", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueNewPooledWorkerFn), value)
+}
+
+// HostQueueNewPooledWorkerFn mocks base method
+func (m *MockAdminOptions) HostQueueNewPooledWorkerFn() sync.NewPooledWorkerFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueNewPooledWorkerFn")
+	ret0, _ := ret[0].(sync.NewPooledWorkerFn)
+	return ret0
+}
+
+// HostQueueNewPooledWorkerFn indicates an expected call of HostQueueNewPooledWorkerFn
+func (mr *MockAdminOptionsMockRecorder) HostQueueNewPooledWorkerFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueNewPooledWorkerFn", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueNewPooledWorkerFn))
 }
 
 // SetHostQueueEmitsHealthStatus mocks base method
