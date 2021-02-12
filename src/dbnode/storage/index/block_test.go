@@ -1844,7 +1844,7 @@ func TestBlockAggregateAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Aggregate(context.NewBackground(), QueryOptions{}, nil, emptyLogFields)
+	_, err = b.Aggregate(context.NewBackground(), QueryOptions{}, &aggregatedResults{}, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1880,6 +1880,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 
 	gomock.InOrder(
 		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
+		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(false),
@@ -1949,6 +1950,7 @@ func TestBlockAggregate(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil)
+	iter.EXPECT().SearchDuration().Return(time.Second)
 	iter.EXPECT().Next().Return(true)
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
 	iter.EXPECT().Next().Return(true)
@@ -2038,6 +2040,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 
 	gomock.InOrder(
 		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
+		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),

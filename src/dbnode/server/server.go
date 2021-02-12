@@ -139,6 +139,9 @@ type RunOptions struct {
 	// ClusterClientCh is a channel to listen on to share the same m3 cluster client that this server uses.
 	ClusterClientCh chan<- clusterclient.Client
 
+	// KVStoreCh is a channel to listen on to share the same m3 kv store client that this server uses.
+	KVStoreCh chan<- kv.Store
+
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
@@ -709,6 +712,9 @@ func Run(runOpts RunOptions) {
 	}
 	if runOpts.ClusterClientCh != nil {
 		runOpts.ClusterClientCh <- syncCfg.ClusterClient
+	}
+	if runOpts.KVStoreCh != nil {
+		runOpts.KVStoreCh <- syncCfg.KVStore
 	}
 
 	opts = opts.SetNamespaceInitializer(syncCfg.NamespaceInitializer)

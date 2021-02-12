@@ -765,7 +765,7 @@ func (s *service) buildFetchTaggedResult(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		segments, err := cur.WriteSegments(nil)
+		segments, err := cur.WriteSegments(ctx, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -1078,7 +1078,8 @@ type IDResult interface {
 
 	// WriteSegments writes the Segments to the provided slice. Callers must use the returned reference in case the slice
 	// needs to grow, just like append().
-	WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error)
+	// This method blocks until segment data is available or the context deadline expires.
+	WriteSegments(ctx context.Context, dst []*rpc.Segments) ([]*rpc.Segments, error)
 }
 
 type idResult struct {
@@ -1110,10 +1111,10 @@ func (i *idResult) WriteTags(dst []byte) ([]byte, error) {
 	return dst, nil
 }
 
-func (i *idResult) WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error) {
+func (i *idResult) WriteSegments(ctx context.Context, dst []*rpc.Segments) ([]*rpc.Segments, error) {
 	dst = dst[:0]
 	for _, blockReaders := range i.blockReaders {
-		segments, err := readEncodedResultSegment(blockReaders)
+		segments, err := readEncodedResultSegment(ctx, blockReaders)
 		if err != nil {
 			return nil, err
 		}
@@ -1482,7 +1483,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 				block.Err = convert.ToRPCError(err)
 			} else {
 				var converted convert.ToSegmentsResult
-				converted, err = convert.ToSegments(fetchedBlock.Blocks)
+				converted, err = convert.ToSegments(ctx, fetchedBlock.Blocks)
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}
@@ -2623,7 +2624,7 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
-		segment, err := readEncodedResultSegment(readers)
+		segment, err := readEncodedResultSegment(ctx, readers)
 		if err != nil {
 			return nil, err
 		}
@@ -2637,9 +2638,10 @@ func (s *service) readEncodedResult(
 }
 
 func readEncodedResultSegment(
+	ctx context.Context,
 	readers []xio.BlockReader,
 ) (*rpc.Segments, *rpc.Error) {
-	converted, err := convert.ToSegments(readers)
+	converted, err := convert.ToSegments(ctx, readers)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}

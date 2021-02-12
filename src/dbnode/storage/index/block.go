@@ -603,10 +603,12 @@ func (b *block) Aggregate(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	start := time.Now()
 	exhaustive, err := b.aggregateWithSpan(ctx, opts, results, sp)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
+	results.AddBlockProcessingDuration(time.Since(start))
 
 	return exhaustive, err
 }
@@ -720,6 +722,7 @@ func (b *block) aggregateWithSpan(
 		if err != nil {
 			return false, err
 		}
+		results.AddBlockSearchDuration(iter.SearchDuration())
 		iterClosed = false // only once the iterator has been successfully Reset().
 		for iter.Next() {
 			if opts.LimitsExceeded(size, docsCount) {

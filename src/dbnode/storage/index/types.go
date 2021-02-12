@@ -916,6 +916,9 @@ type fieldsAndTermsIterator interface {
 
 	// Reset resets the iterator to the start iterating the given segment.
 	Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
+
+	// SearchDuration is how long it took to search the Segment.
+	SearchDuration() time.Duration
 }
 
 // Options control the Indexing knobs.
