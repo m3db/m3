@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -174,7 +175,7 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// WideQuery performs a wide blockwise query that provides batched results
 	// that can exceed query limits.
@@ -282,6 +283,9 @@ type Namespace interface {
 
 	// Shards returns the shard description.
 	Shards() []Shard
+
+	// ReadableShardAt returns a readable (bootstrapped) shard by id.
+	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 
 	// SetIndex sets and enables reverse index for this namespace.
 	SetIndex(reverseIndex NamespaceIndex) error
@@ -392,7 +396,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -475,9 +479,6 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 	) (int64, error)
-
-	// ReadableShardAt returns a shard of this namespace by shardID.
-	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -509,12 +510,9 @@ type Shard interface {
 	// BootstrapState returns the shards' bootstrap state.
 	BootstrapState() BootstrapState
 
-	// ScanData performs a "full table scan" on the given block,
-	// calling processor function on every entry read.
-	ScanData(
-		blockStart time.Time,
-		processor fs.DataEntryProcessor,
-	) error
+	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
+	// on the latest volume of the given block.
+	OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error)
 }
 
 type databaseShard interface {
@@ -559,7 +557,7 @@ type databaseShard interface {
 		id ident.ID,
 		start, end time.Time,
 		nsCtx namespace.Context,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// FetchWideEntry retrieves wide entry for an ID for the
 	// block at time start.
@@ -677,9 +675,6 @@ type databaseShard interface {
 		sourceNs Namespace,
 		targetNs Namespace,
 		shardID uint32,
-		blockReaders []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
-		sourceBlockVolumes []shardBlockVolume,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)
@@ -1020,6 +1015,7 @@ type OnColdFlush interface {
 // OnColdFlushNamespace performs work on a per namespace level.
 type OnColdFlushNamespace interface {
 	persist.OnFlushSeries
+	Abort() error
 	Done() error
 }
 
@@ -1354,6 +1350,12 @@ type Options interface {
 
 	// TileAggregator returns the TileAggregator.
 	TileAggregator() TileAggregator
+
+	// PermitsOptions returns the permits options.
+	PermitsOptions() permits.Options
+
+	// SetPermitsOptions sets the permits options.
+	SetPermitsOptions(value permits.Options) Options
 }
 
 // MemoryTracker tracks memory.
@@ -1432,11 +1434,9 @@ type TileAggregator interface {
 		ctx context.Context,
 		sourceNs, targetNs Namespace,
 		shardID uint32,
-		readers []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
-	) (int64, error)
+	) (processedTileCount int64, nextVolume int, err error)
 }
 
 // NewTileAggregatorFn creates a new TileAggregator.

@@ -27,13 +27,14 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
 )
 
 var (
 	errExecutorClosed = errors.New("executor is closed")
 )
 
-type newIteratorFn func(s search.Searcher, rs index.Readers) (doc.Iterator, error)
+type newIteratorFn func(ctx context.Context, s search.Searcher, rs index.Readers) (doc.QueryDocIterator, error)
 
 type executor struct {
 	sync.RWMutex
@@ -52,7 +53,7 @@ func NewExecutor(rs index.Readers) search.Executor {
 	}
 }
 
-func (e *executor) Execute(q search.Query) (doc.Iterator, error) {
+func (e *executor) Execute(ctx context.Context, q search.Query) (doc.QueryDocIterator, error) {
 	e.RLock()
 	defer e.RUnlock()
 	if e.closed {
@@ -64,7 +65,7 @@ func (e *executor) Execute(q search.Query) (doc.Iterator, error) {
 		return nil, err
 	}
 
-	iter, err := e.newIteratorFn(s, e.readers)
+	iter, err := e.newIteratorFn(ctx, s, e.readers)
 	if err != nil {
 		return nil, err
 	}

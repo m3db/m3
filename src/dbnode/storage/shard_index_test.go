@@ -74,7 +74,7 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(false))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
@@ -117,7 +117,7 @@ func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// write first time
@@ -166,7 +166,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),

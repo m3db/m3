@@ -21,8 +21,10 @@
 package sync
 
 import (
+	gocontext "context"
 	"time"
 
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -64,6 +66,10 @@ type PooledWorkerPool interface {
 	// available, returning true if a worker becomes available, or false
 	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GoWithContext waits until a worker is available or the provided ctx is
+	// canceled.
+	GoWithContext(ctx gocontext.Context, work Work) bool
 }
 
 // NewPooledWorkerOptions is a set of new instrument worker pool options.
@@ -79,11 +85,11 @@ type WorkerPool interface {
 	// Init initializes the pool.
 	Init()
 
-	// Size returns the size of the worker pool.
-	Size() int
-
-	// Go waits until the next wbyorker becomes available and executes it.
+	// Go waits until the next worker becomes available and executes it.
 	Go(work Work)
+
+	// GoInstrument instruments Go with timing information.
+	GoInstrument(work Work) ScheduleResult
 
 	// GoIfAvailable performs the work inside a worker if one is available and
 	// returns true, or false otherwise.
@@ -93,6 +99,21 @@ type WorkerPool interface {
 	// available, returning true if a worker becomes available, or false
 	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GoWithTimeoutInstrument instruments GoWithTimeout with timing information.
+	GoWithTimeoutInstrument(work Work, timeout time.Duration) ScheduleResult
+
+	// GoWithContext waits until a worker is available or the provided ctx is canceled.
+	GoWithContext(ctx context.Context, work Work) ScheduleResult
+}
+
+// ScheduleResult is the result of scheduling a goroutine in the worker pool.
+type ScheduleResult struct {
+	// Available is true if the goroutine was scheduled in the worker pool. False if the request timed out before a
+	// worker became available.
+	Available bool
+	// WaitTime is how long the goroutine had to wait before receiving a worker from the pool or timing out.
+	WaitTime time.Duration
 }
 
 // PooledWorkerPoolOptions is the options for a PooledWorkerPool.

@@ -100,13 +100,6 @@ func TestQueryLimits(t *testing.T) {
 	// No error yet.
 	err = queryLimits.AnyExceeded()
 	require.NoError(t, err)
-
-	// Limit from bytes.
-	require.Error(t, queryLimits.DiskSeriesReadLimit().Inc(2, nil))
-	err = queryLimits.AnyExceeded()
-	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
-	require.True(t, IsQueryLimitExceededError(err))
 }
 
 func TestLookbackLimit(t *testing.T) {
@@ -128,7 +121,7 @@ func TestLookbackLimit(t *testing.T) {
 				ForceExceeded: test.forceExceeded,
 			}
 			name := "test"
-			limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{})
+			limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{}, nil)
 
 			require.Equal(t, int64(0), limit.current())
 
@@ -242,7 +235,7 @@ func TestLookbackReset(t *testing.T) {
 		Lookback: time.Millisecond * 100,
 	}
 	name := "test"
-	limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{})
+	limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{}, nil)
 
 	err := limit.Inc(3, nil)
 	require.NoError(t, err)
@@ -371,6 +364,13 @@ func TestSourceLogger(t *testing.T) {
 		{name: "docs-matched", val: 100, source: []byte("docs")},
 		{name: "disk-bytes-read", val: 200, source: []byte("bytes")},
 	}, builder.records)
+
+	require.NoError(t, queryLimits.AggregateDocsLimit().Inc(1000, []byte("docs")))
+	assert.Equal(t, []testLoggerRecord{
+		{name: "docs-matched", val: 100, source: []byte("docs")},
+		{name: "disk-bytes-read", val: 200, source: []byte("bytes")},
+		{name: "docs-matched", val: 1000, source: []byte("docs")},
+	}, builder.records)
 }
 
 // NB: creates test logger records that share an underlying record set,
@@ -381,7 +381,7 @@ type testBuilder struct {
 
 var _ SourceLoggerBuilder = (*testBuilder)(nil)
 
-func (s *testBuilder) NewSourceLogger(n string, _ instrument.Options) SourceLogger {
+func (s *testBuilder) NewSourceLogger(n string, opts instrument.Options) SourceLogger {
 	return &testSourceLogger{name: n, builder: s}
 }
 

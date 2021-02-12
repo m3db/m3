@@ -22,17 +22,19 @@ package index
 
 import (
 	"errors"
+	"time"
 
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
+
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
-var (
-	errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
-)
+var errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
 
 // fieldsAndTermsIteratorOpts configures the fieldsAndTermsIterator.
 type fieldsAndTermsIteratorOpts struct {
@@ -49,24 +51,25 @@ func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
 	return o.allowFn(f)
 }
 
-func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsIterator, error) {
+func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 	if o.fieldIterFn == nil {
-		return r.Fields()
+		return r.FieldsPostingsList()
 	}
 	return o.fieldIterFn(r)
 }
 
 type allowFn func(field []byte) bool
 
-type newFieldIterFn func(r segment.Reader) (segment.FieldsIterator, error)
+type newFieldIterFn func(r segment.Reader) (segment.FieldsPostingsListIterator, error)
 
 type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
-	err       error
-	fieldIter segment.FieldsIterator
-	termIter  segment.TermsIterator
+	err            error
+	fieldIter      segment.FieldsPostingsListIterator
+	termIter       segment.TermsIterator
+	searchDuration time.Duration
 
 	current struct {
 		field    []byte
@@ -77,27 +80,37 @@ type fieldsAndTermsIter struct {
 	restrictByPostings *pilosaroaring.Bitmap
 }
 
-var (
-	fieldsAndTermsIterZeroed fieldsAndTermsIter
-)
+var fieldsAndTermsIterZeroed fieldsAndTermsIter
 
 var _ fieldsAndTermsIterator = &fieldsAndTermsIter{}
 
 // newFieldsAndTermsIteratorFn is the lambda definition of the ctor for fieldsAndTermsIterator.
 type newFieldsAndTermsIteratorFn func(
-	r segment.Reader, opts fieldsAndTermsIteratorOpts,
+	ctx context.Context, r segment.Reader, opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error)
 
-func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+func newFieldsAndTermsIterator(
+	ctx context.Context,
+	reader segment.Reader,
+	opts fieldsAndTermsIteratorOpts,
+) (fieldsAndTermsIterator, error) {
 	iter := &fieldsAndTermsIter{}
-	err := iter.Reset(reader, opts)
+	err := iter.Reset(ctx, reader, opts)
 	if err != nil {
 		return nil, err
 	}
 	return iter, nil
 }
 
-func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
+func (fti *fieldsAndTermsIter) SearchDuration() time.Duration {
+	return fti.searchDuration
+}
+
+func (fti *fieldsAndTermsIter) Reset(
+	ctx context.Context,
+	reader segment.Reader,
+	opts fieldsAndTermsIteratorOpts,
+) error {
 	*fti = fieldsAndTermsIterZeroed
 	fti.reader = reader
 	fti.opts = opts
@@ -122,10 +135,14 @@ func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsI
 		return err
 	}
 
+	_, sp := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
+	start := time.Now()
 	pl, err := searcher.Search(fti.reader)
+	sp.Finish()
 	if err != nil {
 		return err
 	}
+	fti.searchDuration = time.Since(start)
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	bitmap, ok := roaring.BitmapFromPostingsList(pl)
@@ -145,10 +162,33 @@ func (fti *fieldsAndTermsIter) setNextField() bool {
 	}
 
 	for fieldIter.Next() {
-		field := fieldIter.Current()
+		field, pl := fieldIter.Current()
 		if !fti.opts.allow(field) {
 			continue
 		}
+		if fti.restrictByPostings == nil {
+			// No restrictions.
+			fti.current.field = field
+			return true
+		}
+
+		bitmap, ok := roaring.BitmapFromPostingsList(pl)
+		if !ok {
+			fti.err = errUnpackBitmapFromPostingsList
+			return false
+		}
+
+		// Check field is part of at least some of the documents we're
+		// restricted to providing results for based on intersection
+		// count.
+		// Note: IntersectionCount is significantly faster than intersecting and
+		// counting results and also does not allocate.
+		if n := fti.restrictByPostings.IntersectionCount(bitmap); n < 1 {
+			// No match, not next result.
+			continue
+		}
+
+		// Matches, this is next result.
 		fti.current.field = field
 		return true
 	}
@@ -213,7 +253,7 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 			return false, errUnpackBitmapFromPostingsList
 		}
 
-		// Check term isn part of at least some of the documents we're
+		// Check term is part of at least some of the documents we're
 		// restricted to providing results for based on intersection
 		// count.
 		// Note: IntersectionCount is significantly faster than intersecting and
@@ -254,7 +294,7 @@ func (fti *fieldsAndTermsIter) Err() error {
 	return fti.err
 }
 
-func (fti *fieldsAndTermsIter) Close() error {
+func (fti *fieldsAndTermsIter) Close(ctx context.Context) error {
 	var multiErr xerrors.MultiError
 	if fti.fieldIter != nil {
 		multiErr = multiErr.Add(fti.fieldIter.Close())
@@ -262,6 +302,6 @@ func (fti *fieldsAndTermsIter) Close() error {
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
 	}
-	multiErr = multiErr.Add(fti.Reset(nil, fieldsAndTermsIteratorOpts{}))
+	multiErr = multiErr.Add(fti.Reset(ctx, nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }

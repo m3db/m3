@@ -21,7 +21,6 @@
 package native
 
 import (
-	"context"
 	"net/http"
 	"sync"
 
@@ -66,8 +65,6 @@ func NewCompleteTagsHandler(opts options.HandlerOptions) http.Handler {
 }
 
 func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
@@ -93,6 +90,9 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			nameOnly, models.NewTagOptions())
 	)
 
+	ctx, cancel := prometheus.ContextWithRequestAndTimeout(r, opts)
+	defer cancel()
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	for _, query := range tagCompletionQueries.Queries {
 		wg.Add(1)
 		// Capture variables.

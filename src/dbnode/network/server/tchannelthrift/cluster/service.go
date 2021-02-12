@@ -166,6 +166,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		if err := results.Err(); err != nil {
 			return nil, convert.ToRPCError(err)
 		}
+
 		return result, nil
 	}
 
@@ -279,6 +280,10 @@ func (s *service) Aggregate(ctx thrift.Context, req *rpc.AggregateQueryRequest) 
 	ns, query, opts, err := convert.FromRPCAggregateQueryRequest(req)
 	if err != nil {
 		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	iter, metadata, err := session.Aggregate(ctx, ns, query, opts)

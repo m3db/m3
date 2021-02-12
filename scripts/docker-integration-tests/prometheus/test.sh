@@ -2,10 +2,10 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/test-correctness.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/prometheus/test-correctness.sh
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/docker-compose.yml
+COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/prometheus/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
 PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
@@ -431,6 +431,47 @@ function test_label_query_limits_applied {
     '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "400" ]]'
 }
 
+function test_labels {
+  TAG_NAME_0="name_0" TAG_VALUE_0="value_0_1" \
+    TAG_NAME_1="name_1" TAG_VALUE_1="value_1_1" \
+    TAG_NAME_2="name_2" TAG_VALUE_2="value_2_1" \
+    prometheus_remote_write \
+    label_metric now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
+  TAG_NAME_0="name_0" TAG_VALUE_0="value_0_2" \
+    TAG_NAME_1="name_1" TAG_VALUE_1="value_1_2" \
+    prometheus_remote_write \
+    label_metric_2 now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
+  # Test label search with match
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels" | jq -r "[.data[] | select(index(\"name_0\", \"name_1\", \"name_2\"))] | length") -eq 3 ]]'
+
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric" | jq -r ".data | length") -eq 4 ]]'
+
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric_2" | jq -r ".data | length") -eq 3 ]]'
+
+  # Test label values search with match
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values" | jq -r ".data | length") -eq 2 ]]' # two values without a match
+
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data | length") -eq 1 ]]'
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data[0]") = "value_1_1" ]]'
+
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data | length") -eq 1 ]]'
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data[0]") = "value_1_2" ]]'
+}
+
 echo "Running readiness test"
 test_readiness
 
@@ -448,8 +489,9 @@ test_query_restrict_metrics_type
 test_prometheus_query_native_timeout
 test_query_restrict_tags
 test_prometheus_remote_write_map_tags
-test_series
-test_label_query_limits_applied
+test_series 
+test_label_query_limits_applied 
+test_labels 
 
 echo "Running function correctness tests"
 test_correctness

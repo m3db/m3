@@ -35,7 +35,10 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/context"
 	xtest "github.com/m3db/m3/src/x/test"
 )
 
@@ -50,19 +53,25 @@ func TestFieldsTermsIteratorPropertyTest(t *testing.T) {
 
 	properties.Property("Fields Terms Iteration works", prop.ForAll(
 		func(i fieldsTermsIteratorPropInput) (bool, error) {
+			ctx := context.NewBackground()
 			expected := i.expected()
 			reader, err := i.setup.asSegment(t).Reader()
 			if err != nil {
 				return false, err
 			}
-			iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
-				iterateTerms: i.iterateTerms,
-				allowFn:      i.allowFn,
-			})
+			iter, err := newFieldsAndTermsIterator(
+				ctx,
+				reader,
+				fieldsAndTermsIteratorOpts{
+					iterateTerms: i.iterateTerms,
+					allowFn:      i.allowFn,
+				},
+			)
 			if err != nil {
 				return false, err
 			}
-			observed := toSlice(t, iter)
+			observed, err := toSlice(iter)
+			require.NoError(t, err)
 			requireSlicesEqual(t, expected, observed)
 			return true, nil
 		},
@@ -91,13 +100,17 @@ func TestFieldsTermsIteratorPropertyTestNoPanic(t *testing.T) {
 	// itself panics.
 	properties.Property("Fields Terms Iteration doesn't blow up", prop.ForAll(
 		func(reader segment.Reader, iterate bool) (bool, error) {
-			iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
-				iterateTerms: iterate,
-			})
+			iter, err := newFieldsAndTermsIterator(
+				context.NewBackground(),
+				reader,
+				fieldsAndTermsIteratorOpts{
+					iterateTerms: iterate,
+				},
+			)
 			if err != nil {
 				return false, err
 			}
-			toSlice(t, iter)
+			_, _ = toSlice(iter)
 			return true, nil
 		},
 		genIterableSegment(ctrl),
@@ -149,9 +162,9 @@ func genIterableSegment(ctrl *gomock.Controller) gopter.Gen {
 
 			r := segment.NewMockReader(ctrl)
 
-			fieldIterator := &stubFieldIterator{points: fields}
+			fieldsPostingsListIterator := &stubFieldsPostingsListIterator{points: fields}
 
-			r.EXPECT().Fields().Return(fieldIterator, nil).AnyTimes()
+			r.EXPECT().FieldsPostingsList().Return(fieldsPostingsListIterator, nil).AnyTimes()
 
 			for f, values := range tagValues {
 				sort.Slice(values, func(i, j int) bool {

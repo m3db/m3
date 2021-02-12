@@ -26,17 +26,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
@@ -56,11 +56,14 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true, nil)
 
 	var blockReaders []xio.BlockReader
+	curStart := start
 	for i := 0; i < 2; i++ {
 		reader := xio.NewMockSegmentReader(ctrl)
 		blockReaders = append(blockReaders, xio.BlockReader{
 			SegmentReader: reader,
+			Start:         curStart,
 		})
+		curStart = curStart.Add(ropts.BlockSize())
 	}
 
 	ctx := opts.ContextPool().Get()
@@ -79,13 +82,17 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 		ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
 
 	// Check reads as expected
-	r, err := reader.ReadEncoded(ctx, start, end, namespace.Context{})
+	iter, err := reader.ReadEncoded(ctx, start, end, namespace.Context{})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(r))
-	for i, readers := range r {
-		require.Equal(t, 1, len(readers))
-		assert.Equal(t, blockReaders[i], readers[0])
+
+	count := 0
+	for iter.Next(ctx) {
+		require.Equal(t, 1, len(iter.Current()))
+		assert.Equal(t, blockReaders[count], iter.Current()[0])
+		count++
 	}
+	require.NoError(t, iter.Err())
+	require.Equal(t, 2, count)
 }
 
 func TestReaderUsingRetrieverWideEntrysBlockInvalid(t *testing.T) {
@@ -605,8 +612,10 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 	}
 }
 
+//nolint:scopelint
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
@@ -640,25 +649,7 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 						break
 					}
 				} else {
-					// If the data was not in the disk cache then expect that and setup a query
-					// for disk.
 					diskCache.EXPECT().BlockAt(currTime).Return(nil, false)
-					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
-					if !ok {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false, nil)
-					} else {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true, nil)
-						if diskBlocks.err != nil {
-							retriever.EXPECT().
-								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
-								Return(xio.BlockReader{}, diskBlocks.err)
-							break
-						} else {
-							retriever.EXPECT().
-								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
-								Return(diskBlocks.blockReader, nil)
-						}
-					}
 				}
 
 				// Setup buffer mocks.
@@ -668,6 +659,8 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 						buffer.EXPECT().
 							ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
 							Return(nil, bufferBlocks.Err)
+						// Stop setting up mocks since the function will early return.
+						break
 					} else {
 						buffer.EXPECT().
 							ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
@@ -678,6 +671,25 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 						ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
 						Return(nil, nil)
 				}
+
+				if !wasInDiskCache {
+					// If the data was not in the disk cache then setup a query for disk.
+					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
+					if !ok {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false, nil)
+					} else {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true, nil)
+						if diskBlocks.err != nil {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
+								Return(xio.BlockReader{}, diskBlocks.err)
+						} else {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
+								Return(diskBlocks.blockReader, nil)
+						}
+					}
+				}
 			}
 
 			var (
@@ -687,33 +699,37 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 				// End is not inclusive so add blocksize to the last time.
 				end = tc.times[len(tc.times)-1].Add(blockSize)
 			)
-			r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, diskCache, buffer, namespace.Context{})
+			iter, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, diskCache, buffer, namespace.Context{})
 
-			anyContainErr := false
+			anyInMemErr := false
 			for _, sr := range tc.cachedBlocks {
 				if sr.err != nil {
-					anyContainErr = true
-					break
-				}
-			}
-			for _, sr := range tc.diskBlocks {
-				if sr.err != nil {
-					anyContainErr = true
-					break
-				}
-			}
-			for _, br := range tc.bufferBlocks {
-				if br.Err != nil {
-					anyContainErr = true
+					anyInMemErr = true
 					break
 				}
 			}
 
-			if anyContainErr {
+			for _, br := range tc.bufferBlocks {
+				if br.Err != nil {
+					anyInMemErr = true
+					break
+				}
+			}
+
+			if anyInMemErr {
 				require.Error(t, err)
 				return
 			}
 
+			r, err := iter.ToSlices(ctx)
+
+			for _, sr := range tc.diskBlocks {
+				if sr.err != nil {
+					require.Error(t, err)
+					return
+				}
+			}
+			require.NoError(t, err)
 			require.Equal(t, len(tc.expectedResults), len(r))
 
 			for i, result := range r {

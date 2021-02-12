@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package permits
 
-import (
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+import "github.com/m3db/m3/src/x/context"
 
-	"go.uber.org/zap/zapcore"
-)
-
-type bootstrapStep interface {
-	prepare(totalRanges result.ShardTimeRanges) (bootstrapStepPreparedResult, error)
-	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	mergeResults(totalUnfulfilled result.ShardTimeRanges)
+type noOpPermits struct {
 }
 
-type bootstrapStepPreparedResult struct {
-	currAvailable result.ShardTimeRanges
+var _ Manager = (*noOpPermits)(nil)
+
+var _ Permits = (*noOpPermits)(nil)
+
+// NewNoOpPermitsManager builds a new no-op permits manager.
+func NewNoOpPermitsManager() Manager {
+	return &noOpPermits{}
 }
 
-type bootstrapStepStatus struct {
-	fulfilled result.ShardTimeRanges
-	logFields []zapcore.Field
+// NewNoOpPermits builds a new no-op permits.
+func NewNoOpPermits() Permits {
+	return &noOpPermits{}
+}
+
+func (p noOpPermits) NewPermits(_ context.Context) Permits {
+	return p
+}
+
+func (p noOpPermits) Acquire(_ context.Context) error {
+	return nil
+}
+
+func (p noOpPermits) TryAcquire(_ context.Context) (bool, error) {
+	return true, nil
+}
+
+func (p noOpPermits) Release() {
 }

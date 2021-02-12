@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/golang/mock/gomock"
 )
@@ -59,18 +60,18 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 }
 
 // Execute mocks base method
-func (m *MockExecutor) Execute(q Query) (doc.Iterator, error) {
+func (m *MockExecutor) Execute(ctx context.Context, q Query) (doc.QueryDocIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", q)
-	ret0, _ := ret[0].(doc.Iterator)
+	ret := m.ctrl.Call(m, "Execute", ctx, q)
+	ret0, _ := ret[0].(doc.QueryDocIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute
-func (mr *MockExecutorMockRecorder) Execute(q interface{}) *gomock.Call {
+func (mr *MockExecutorMockRecorder) Execute(ctx, q interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), q)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), ctx, q)
 }
 
 // Close mocks base method

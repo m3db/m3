@@ -39,11 +39,12 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-func TestQueryCancellation(t *testing.T) {
+func TestQueryCancellationClient(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -141,12 +142,21 @@ func TestQueryCancellation(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Test query cancellation.
-	log.Info("querying results")
+	log.Info("testing client query semantics")
 
+	// Test query no deadline.
+	_, _, err = session.FetchTagged(context.Background(), md.ID(), query, queryOpts)
+	// Expect error since we did not set a deadline.
+	require.Error(t, err)
+	log.Info("expected deadline not set error from fetch tagged", zap.Error(err))
+
+	require.True(t, strings.Contains(err.Error(), client.ErrCallWithoutDeadline.Error()),
+		fmt.Sprintf("actual error: %s\n", err.Error()))
+
+	// Test query with cancel.
 	var wg sync.WaitGroup
 	wg.Add(1)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 
 	var (
 		once      sync.Once
@@ -158,7 +168,8 @@ func TestQueryCancellation(t *testing.T) {
 	)
 	hostQueueWorkerPoolsLock.Lock()
 	for _, workers := range hostQueueWorkerPools {
-		workers.hookSet(func() {
+		workers.hookSet(func(ctx context.Context) {
+			assert.NotNil(t, ctx, "host queue worker pool context not set")
 			once.Do(intercept)
 		})
 	}
@@ -167,16 +178,17 @@ func TestQueryCancellation(t *testing.T) {
 	_, _, err = session.FetchTagged(ctx, md.ID(), query, queryOpts)
 	// Expect error since we cancelled the context.
 	require.Error(t, err)
-	log.Info("expected error from fetch tagged", zap.Error(err))
-	require.True(t, strings.Contains(err.Error(), "ErrCodeCancelled") == strings.Contains(err.Error(), "ErrCodeCancelled"),
-		fmt.Sprintf("error: %s\n", err.Error()))
+	log.Info("expected cancelled error from fetch tagged", zap.Error(err))
+
+	require.True(t, strings.Contains(err.Error(), "ErrCodeCancelled"),
+		fmt.Sprintf("actual error: %s\n", err.Error()))
 }
 
 var _ xsync.PooledWorkerPool = (*mockWorkerPool)(nil)
 
 type mockWorkerPool struct {
 	sync.RWMutex
-	hook       func()
+	hook       func(ctx context.Context)
 	workerPool xsync.PooledWorkerPool
 }
 
@@ -190,27 +202,32 @@ func (p *mockWorkerPool) Init() {
 	p.workerPool.Init()
 }
 
-func (p *mockWorkerPool) hookSet(hook func()) {
+func (p *mockWorkerPool) hookSet(hook func(ctx context.Context)) {
 	p.Lock()
 	defer p.Unlock()
 	p.hook = hook
 }
 
-func (p *mockWorkerPool) hookRun() {
+func (p *mockWorkerPool) hookRun(ctx context.Context) {
 	p.RLock()
 	defer p.RUnlock()
 	if p.hook == nil {
 		return
 	}
-	p.hook()
+	p.hook(ctx)
 }
 
 func (p *mockWorkerPool) Go(work xsync.Work) {
-	p.hookRun()
+	p.hookRun(nil)
 	p.workerPool.Go(work)
 }
 
 func (p *mockWorkerPool) GoWithTimeout(work xsync.Work, timeout time.Duration) bool {
-	p.hookRun()
+	p.hookRun(nil)
 	return p.workerPool.GoWithTimeout(work, timeout)
+}
+
+func (p *mockWorkerPool) GoWithContext(ctx context.Context, work xsync.Work) bool {
+	p.hookRun(ctx)
+	return p.workerPool.GoWithContext(ctx, work)
 }

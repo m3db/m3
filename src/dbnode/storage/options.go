@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -181,6 +182,7 @@ type options struct {
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 	tileAggregator                  TileAggregator
+	permitsOptions                  permits.Options
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -258,6 +260,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
+		permitsOptions:                  permits.NewOptions(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -924,6 +927,17 @@ func (o *options) SetTileAggregator(value TileAggregator) Options {
 	return &opts
 }
 
+func (o *options) PermitsOptions() permits.Options {
+	return o.permitsOptions
+}
+
+func (o *options) SetPermitsOptions(value permits.Options) Options {
+	opts := *o
+	opts.permitsOptions = value
+
+	return &opts
+}
+
 func (o *options) TileAggregator() TileAggregator {
 	return o.tileAggregator
 }
@@ -946,10 +960,8 @@ func (a *noopTileAggregator) AggregateTiles(
 	ctx context.Context,
 	sourceNs, targetNs Namespace,
 	shardID uint32,
-	blockReaders []fs.DataFileSetReader,
-	writer fs.StreamingWriter,
 	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
-) (int64, error) {
-	return 0, nil
+) (int64, int, error) {
+	return 0, 0, nil
 }

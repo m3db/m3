@@ -306,6 +306,12 @@ type TestOptions interface {
 
 	// StorageOptsFn returns the StorageOpts modifier.
 	StorageOptsFn() StorageOption
+
+	// SetCustomAdminOptions sets custom options to apply to the admin client connection.
+	SetCustomAdminOptions(value []client.CustomAdminOption) TestOptions
+
+	// CustomAdminOptions gets custom options to apply to the admin client connection.
+	CustomAdminOptions() []client.CustomAdminOption
 }
 
 type options struct {
@@ -342,6 +348,7 @@ type options struct {
 	nowFn                              func() time.Time
 	reportInterval                     time.Duration
 	storageOptsFn                      StorageOption
+	customAdminOpts                    []client.CustomAdminOption
 }
 
 // NewTestOptions returns a new set of integration test options.
@@ -710,4 +717,14 @@ func (o *options) SetStorageOptsFn(storageOptsFn StorageOption) TestOptions {
 
 func (o *options) StorageOptsFn() StorageOption {
 	return o.storageOptsFn
+}
+
+func (o *options) SetCustomAdminOptions(value []client.CustomAdminOption) TestOptions {
+	opts := *o
+	opts.customAdminOpts = value
+	return &opts
+}
+
+func (o *options) CustomAdminOptions() []client.CustomAdminOption {
+	return o.customAdminOpts
 }

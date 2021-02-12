@@ -21,6 +21,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -87,14 +88,22 @@ func (p *pooledWorkerPool) Init() {
 }
 
 func (p *pooledWorkerPool) Go(work Work) {
-	p.goWithTimeout(work, 0)
+	p.work(nil, work, 0)
 }
 
 func (p *pooledWorkerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
-	return p.goWithTimeout(work, timeout)
+	return p.work(nil, work, timeout)
 }
 
-func (p *pooledWorkerPool) goWithTimeout(work Work, timeout time.Duration) bool {
+func (p *pooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
+	return p.work(ctx, work, 0)
+}
+
+func (p *pooledWorkerPool) work(
+	ctx context.Context,
+	work Work,
+	timeout time.Duration,
+) bool {
 	var (
 		// Use time.Now() to avoid excessive synchronization
 		currTime  = p.nowFn().UnixNano()
@@ -108,9 +117,19 @@ func (p *pooledWorkerPool) goWithTimeout(work Work, timeout time.Duration) bool 
 	}
 
 	if !p.growOnDemand {
-		if timeout <= 0 {
+		if ctx == nil && timeout <= 0 {
 			workCh <- work
 			return true
+		}
+
+		if ctx != nil {
+			// Using context for cancellation not timer.
+			select {
+			case workCh <- work:
+				return true
+			case <-ctx.Done():
+				return false
+			}
 		}
 
 		// Attempt to try writing without allocating a ticker.
@@ -120,7 +139,7 @@ func (p *pooledWorkerPool) goWithTimeout(work Work, timeout time.Duration) bool 
 		default:
 		}
 
-		// Now allocate a ticker and attempt a write.
+		// Using timeout so allocate a ticker and attempt a write.
 		ticker := time.NewTicker(timeout)
 		defer ticker.Stop()
 

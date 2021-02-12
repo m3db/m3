@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -156,6 +155,15 @@ type BaseResults interface {
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
 
+	// TotalDuration is the total ResultDurations for the query.
+	TotalDuration() ResultDurations
+
+	// AddBlockProcessingDuration adds the processing duration for a single block to the TotalDuration.
+	AddBlockProcessingDuration(duration time.Duration)
+
+	// AddBlockSearchDuration adds the search duration for a single block to the TotalDuration.
+	AddBlockSearchDuration(duration time.Duration)
+
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
@@ -176,6 +184,30 @@ type DocumentResults interface {
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
+}
+
+// ResultDurations holds various timing information for a query result.
+type ResultDurations struct {
+	// Processing is the total time to a process.
+	Processing time.Duration
+	// Search is the time spent searching the index.
+	Search time.Duration
+}
+
+// AddProcessing adds the provided duration to the Processing duration.
+func (r ResultDurations) AddProcessing(duration time.Duration) ResultDurations {
+	return ResultDurations{
+		Processing: r.Processing + duration,
+		Search:     r.Search,
+	}
+}
+
+// AddSearch adds the provided duration to the Search duration.
+func (r ResultDurations) AddSearch(duration time.Duration) ResultDurations {
+	return ResultDurations{
+		Processing: r.Processing,
+		Search:     r.Search + duration,
+	}
 }
 
 // QueryResults is a collection of results for a query, it is synchronized
@@ -278,6 +310,24 @@ type AggregateResultsOptions struct {
 	// RestrictByQuery is a query to restrict the set of documents that must
 	// be present for an aggregated term to be returned.
 	RestrictByQuery *Query
+
+	// AggregateUsageMetrics are aggregate usage metrics that track field
+	// and term counts for aggregate queries.
+	AggregateUsageMetrics AggregateUsageMetrics
+}
+
+// AggregateUsageMetrics are metrics for aggregate query usage.
+type AggregateUsageMetrics interface {
+	// IncTotal increments the total metric count.
+	IncTotal(val int64)
+	// IncTotalTerms increments the totalTerms metric count.
+	IncTotalTerms(val int64)
+	// IncDedupedTerms increments the dedupedTerms metric count.
+	IncDedupedTerms(val int64)
+	// IncTotalFields increments the totalFields metric count.
+	IncTotalFields(val int64)
+	// IncDedupedFields increments the dedupedFields metric count.
+	IncDedupedFields(val int64)
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
@@ -364,7 +414,6 @@ type Block interface {
 	// Query resolves the given query into known IDs.
 	Query(
 		ctx context.Context,
-		cancellable *xresource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
 		results DocumentResults,
@@ -376,7 +425,6 @@ type Block interface {
 	// avoid going to documents, relying purely on the indexed FSTs.
 	Aggregate(
 		ctx context.Context,
-		cancellable *xresource.CancellableLifetime,
 		opts QueryOptions,
 		results AggregateResults,
 		logFields []opentracinglog.Field,
@@ -864,10 +912,13 @@ type fieldsAndTermsIterator interface {
 	Err() error
 
 	// Close releases any resources held by the iterator.
-	Close() error
+	Close(ctx context.Context) error
 
 	// Reset resets the iterator to the start iterating the given segment.
-	Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
+	Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
+
+	// SearchDuration is how long it took to search the Segment.
+	SearchDuration() time.Duration
 }
 
 // Options control the Indexing knobs.

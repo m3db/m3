@@ -23,6 +23,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -37,6 +38,13 @@ import (
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+)
+
+var (
+	// ErrCallMissingContext returned when call is missing required context.
+	ErrCallMissingContext = errors.New("call missing context")
+	// ErrCallWithoutDeadline returned when call context has no deadline.
+	ErrCallWithoutDeadline = errors.New("call context without deadline")
 )
 
 type queue struct {
@@ -855,8 +863,15 @@ func (q *queue) asyncFetchV2(
 }
 
 func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
+	// All fetch tagged calls are required to provide a context with a deadline.
+	ctx, err := q.mustWrapContext(op.context, "fetchTagged")
+	if err != nil {
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+		return
+	}
+
 	q.Add(1)
-	q.workerPool.Go(func() {
+	q.workerPool.GoWithContext(ctx, func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			op.decRef()
@@ -870,9 +885,6 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			cleanup()
 			return
 		}
-
-		ctx, cancel := q.thriftContextRead(op.context)
-		defer cancel()
 
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
@@ -890,8 +902,15 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 }
 
 func (q *queue) asyncAggregate(op *aggregateOp) {
+	// All aggregate calls are required to provide a context with a deadline.
+	ctx, err := q.mustWrapContext(op.context, "aggregate")
+	if err != nil {
+		op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
+		return
+	}
+
 	q.Add(1)
-	q.workerPool.Go(func() {
+	q.workerPool.GoWithContext(ctx, func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			op.decRef()
@@ -905,9 +924,6 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			cleanup()
 			return
 		}
-
-		ctx, cancel := q.thriftContextRead(op.context)
-		defer cancel()
 
 		result, err := client.AggregateRaw(ctx, &op.request)
 		if err != nil {
@@ -949,26 +965,21 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 	})
 }
 
-var noopCancel = context.CancelFunc(func() {})
-
-func (q *queue) thriftContextRead(
+func (q *queue) mustWrapContext(
 	callingContext context.Context,
-) (thrift.Context, context.CancelFunc) {
-	var (
-		timeout = q.opts.FetchRequestTimeout()
-		cancel  = noopCancel
-	)
-	if callingContext != nil {
-		// Use the original context for the call.
-		_, ok := callingContext.Deadline()
-		if !ok {
-			callingContext, cancel = context.WithTimeout(callingContext, timeout)
-		}
-		return thrift.Wrap(callingContext), cancel
+	method string,
+) (thrift.Context, error) {
+	if callingContext == nil {
+		return nil, fmt.Errorf(
+			"%w in host queue: method=%s", ErrCallMissingContext, method)
 	}
-
-	// Create a new context.
-	return thrift.NewContext(timeout)
+	// Use the original context for the call.
+	_, ok := callingContext.Deadline()
+	if !ok {
+		return nil, fmt.Errorf(
+			"%w in host queue: method=%s", ErrCallWithoutDeadline, method)
+	}
+	return thrift.Wrap(callingContext), nil
 }
 
 func (q *queue) Len() int {
