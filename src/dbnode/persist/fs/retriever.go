@@ -669,7 +669,7 @@ func (r *blockRetriever) Stream(
 	}
 
 	req := r.reqPool.Get()
-	// only save the go ctx to ensue we don't accidentally use the m3 ctx after it's been closed by the caller.
+	// only save the go ctx to ensure we don't accidentally use the m3 ctx after it's been closed by the caller.
 	req.stdCtx = ctx.GoContext()
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
