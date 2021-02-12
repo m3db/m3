@@ -35,6 +35,7 @@ import (
 const (
 	_flushEvery             = 10000
 	_insertAndCompressEvery = 1000
+	_sampleBatches          = 100
 	_eps                    = 0.001
 	_heapCapacity           = 32
 )
@@ -104,12 +105,24 @@ func BenchmarkTimerValueOf(b *testing.B) {
 }
 
 func BenchmarkTimerAddBatch(b *testing.B) {
-	var (
-		samples = timerSamples()
-		q       float64
-	)
+	var samples = timerSamples()
 
-	b.ResetTimer()
+	b.Run("10k samples in 10 batches", func(b *testing.B) {
+		benchAddBatch(b, samples)
+	})
+
+	b.Run("5k samples in 5 batches", func(b *testing.B) {
+		benchAddBatch(b, samples[:5])
+	})
+
+	b.Run("1k samples in 1 batch", func(b *testing.B) {
+		benchAddBatch(b, samples[:1])
+	})
+}
+
+func benchAddBatch(b *testing.B, samples [][]float64) {
+	var q float64
+
 	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
 	for n := 0; n < b.N; n++ {
 		timer := getTimer()
@@ -118,12 +131,15 @@ func BenchmarkTimerAddBatch(b *testing.B) {
 			timer.AddBatch(_now, samples[i])
 		}
 
-		q = timer.Quantile(testQuantiles[0])
+		for i := range testQuantiles {
+			q = timer.Quantile(testQuantiles[i])
+		}
 
 		if math.IsNaN(q) {
 			b.FailNow()
 		}
 	}
+
 	runtime.KeepAlive(q)
 }
 
