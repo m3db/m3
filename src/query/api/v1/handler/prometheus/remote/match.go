@@ -65,7 +65,8 @@ func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
-		parseOpts:           opts.Engine().Options().ParseOptions(),
+		parseOpts: opts.Engine().Options().ParseOptions().
+			SetRequireStartEndTime(opts.Config().Query.RequireSeriesEndpointStartEndTime),
 	}
 }
 
