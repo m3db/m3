@@ -39,8 +39,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-const workerPoolKillProbability = 0.01
-
 type queue struct {
 	sync.WaitGroup
 	sync.RWMutex
@@ -96,14 +94,10 @@ func newHostQueue(
 	}
 	fetchOpBatchSizeBuckets = append(tally.ValueBuckets{0}, fetchOpBatchSizeBuckets...)
 
-	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetGrowOnDemand(true).
-		SetKillWorkerProbability(workerPoolKillProbability).
-		SetInstrumentOptions(iOpts)
-	workerPool, err := xsync.NewPooledWorkerPool(
-		int(workerPoolOpts.NumShards()),
-		workerPoolOpts,
-	)
+	newHostQueuePooledWorker := opts.HostQueueNewPooledWorkerFn()
+	workerPool, err := newHostQueuePooledWorker(xsync.NewPooledWorkerOptions{
+		InstrumentOptions: iOpts,
+	})
 	if err != nil {
 		return nil, err
 	}

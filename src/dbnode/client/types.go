@@ -567,6 +567,12 @@ type Options interface {
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
 	HostQueueOpsArrayPoolSize() int
 
+	// SetHostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
+	SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options
+
+	// HostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
+	HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn
+
 	// SetHostQueueEmitsHealthStatus sets the hostQueueEmitHealthStatus.
 	SetHostQueueEmitsHealthStatus(value bool) Options
 

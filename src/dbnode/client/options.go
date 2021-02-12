@@ -174,6 +174,10 @@ const (
 	// defaultUseV2BatchAPIs is the default setting for whether the v2 version of the batch APIs should
 	// be used.
 	defaultUseV2BatchAPIs = false
+
+	// defaultHostQueueWorkerPoolKillProbability is the default host queue worker pool
+	// kill probability.
+	defaultHostQueueWorkerPoolKillProbability = 0.01
 )
 
 var (
@@ -217,11 +221,6 @@ var (
 	defaultChannelOptions = &tchannel.ChannelOptions{
 		MaxIdleTime:       5 * time.Minute,
 		IdleCheckInterval: 5 * time.Minute,
-		DefaultConnectionOptions: tchannel.ConnectionOptions{
-			// By default cancel requests if the context becomes
-			// cancelled.
-			ContextDoneCancelsRequest: true,
-		},
 	}
 
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
@@ -272,6 +271,7 @@ type options struct {
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
+	hostQueueNewPooledWorkerFn              xsync.NewPooledWorkerFn
 	hostQueueEmitsHealthStatus              bool
 	seriesIteratorPoolSize                  int
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
@@ -362,6 +362,22 @@ func newOptions() *options {
 		SetContextPoolOptions(poolOpts).
 		SetFinalizerPoolOptions(poolOpts))
 
+	hostQueueNewPooledWorkerFn := func(
+		opts xsync.NewPooledWorkerOptions,
+	) (xsync.PooledWorkerPool, error) {
+		if opts.InstrumentOptions != nil {
+			return nil, errors.New("instrument options required for new pooled worker fn")
+		}
+
+		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true).
+			SetKillWorkerProbability(defaultHostQueueWorkerPoolKillProbability).
+			SetInstrumentOptions(opts.InstrumentOptions)
+		return xsync.NewPooledWorkerPool(
+			int(workerPoolOpts.NumShards()),
+			workerPoolOpts)
+	}
+
 	opts := &options{
 		clockOpts:                               clock.NewOptions(),
 		instrumentOpts:                          instrument.NewOptions(),
@@ -402,6 +418,7 @@ func newOptions() *options {
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
+		hostQueueNewPooledWorkerFn:              hostQueueNewPooledWorkerFn,
 		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
@@ -914,6 +931,16 @@ func (o *options) SetHostQueueOpsArrayPoolSize(value int) Options {
 
 func (o *options) HostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
+}
+
+func (o *options) SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options {
+	opts := *o
+	opts.hostQueueNewPooledWorkerFn = value
+	return &opts
+}
+
+func (o *options) HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn {
+	return o.hostQueueNewPooledWorkerFn
 }
 
 func (o *options) SetHostQueueEmitsHealthStatus(value bool) Options {

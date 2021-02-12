@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -39,6 +40,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestQueryCancellation(t *testing.T) {
@@ -69,18 +71,44 @@ func TestQueryCancellation(t *testing.T) {
 			SetColdWritesEnabled(true))
 	require.NoError(t, err)
 
+	var (
+		hostQueueWorkerPools     []*mockWorkerPool
+		hostQueueWorkerPoolsLock sync.Mutex
+	)
+
 	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
-		SetWriteNewSeriesAsync(true)
+		SetWriteNewSeriesAsync(true).
+		SetCustomClientAdminOptions([]client.CustomAdminOption{
+			client.CustomAdminOption(func(opts client.AdminOptions) client.AdminOptions {
+				return opts.SetHostQueueNewPooledWorkerFn(func(
+					opts xsync.NewPooledWorkerOptions,
+				) (xsync.PooledWorkerPool, error) {
+					workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+						SetGrowOnDemand(true).
+						SetKillWorkerProbability(0.01).
+						SetInstrumentOptions(opts.InstrumentOptions)
+
+					workerPool, err := xsync.NewPooledWorkerPool(
+						int(workerPoolOpts.NumShards()),
+						workerPoolOpts)
+					if err != nil {
+						return nil, err
+					}
+
+					mocked := newMockWorkerPool(workerPool)
+					hostQueueWorkerPoolsLock.Lock()
+					hostQueueWorkerPools = append(hostQueueWorkerPools, mocked)
+					hostQueueWorkerPoolsLock.Unlock()
+
+					return mocked, nil
+				}).(client.AdminOptions)
+			}),
+		})
+
 	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
-
-	storageOpts := testSetup.StorageOpts()
-	workers := newMockWorkerPool(storageOpts.QueryIDsWorkerPool().Size())
-	workers.Init()
-	storageOpts = storageOpts.SetQueryIDsWorkerPool(workers)
-	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
@@ -119,41 +147,47 @@ func TestQueryCancellation(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	workers.hookSet(func() {
-		defer wg.Done()
-		log.Info("query IDs worker launched, cancelling context")
-		cancel()
-	})
+
+	var (
+		once      sync.Once
+		intercept = func() {
+			defer wg.Done()
+			log.Info("host queue worker enqueued, cancelling context")
+			cancel()
+		}
+	)
+	hostQueueWorkerPoolsLock.Lock()
+	for _, workers := range hostQueueWorkerPools {
+		workers.hookSet(func() {
+			once.Do(intercept)
+		})
+	}
+	hostQueueWorkerPoolsLock.Unlock()
 
 	_, _, err = session.FetchTagged(ctx, md.ID(), query, queryOpts)
 	// Expect error since we cancelled the context.
 	require.Error(t, err)
+	log.Info("expected error from fetch tagged", zap.Error(err))
 	require.True(t, strings.Contains(err.Error(), "ErrCodeCancelled") == strings.Contains(err.Error(), "ErrCodeCancelled"),
 		fmt.Sprintf("error: %s\n", err.Error()))
-
-	// TODO: Check metrics that the cancellation was observed server side.
 }
 
-var _ xsync.WorkerPool = (*mockWorkerPool)(nil)
+var _ xsync.PooledWorkerPool = (*mockWorkerPool)(nil)
 
 type mockWorkerPool struct {
 	sync.RWMutex
 	hook       func()
-	workerPool xsync.WorkerPool
+	workerPool xsync.PooledWorkerPool
 }
 
-func newMockWorkerPool(size int) *mockWorkerPool {
+func newMockWorkerPool(workerPool xsync.PooledWorkerPool) *mockWorkerPool {
 	return &mockWorkerPool{
-		workerPool: xsync.NewWorkerPool(size),
+		workerPool: workerPool,
 	}
 }
 
 func (p *mockWorkerPool) Init() {
 	p.workerPool.Init()
-}
-
-func (p *mockWorkerPool) Size() int {
-	return p.workerPool.Size()
 }
 
 func (p *mockWorkerPool) hookSet(hook func()) {
@@ -174,11 +208,6 @@ func (p *mockWorkerPool) hookRun() {
 func (p *mockWorkerPool) Go(work xsync.Work) {
 	p.hookRun()
 	p.workerPool.Go(work)
-}
-
-func (p *mockWorkerPool) GoIfAvailable(work xsync.Work) bool {
-	p.hookRun()
-	return p.workerPool.GoIfAvailable(work)
 }
 
 func (p *mockWorkerPool) GoWithTimeout(work xsync.Work, timeout time.Duration) bool {

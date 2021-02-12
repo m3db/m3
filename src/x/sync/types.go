@@ -66,6 +66,14 @@ type PooledWorkerPool interface {
 	GoWithTimeout(work Work, timeout time.Duration) bool
 }
 
+// NewPooledWorkerOptions is a set of new instrument worker pool options.
+type NewPooledWorkerOptions struct {
+	InstrumentOptions instrument.Options
+}
+
+// NewPooledWorkerFn returns a pooled worker pool that Init must be called on.
+type NewPooledWorkerFn func(opts NewPooledWorkerOptions) (PooledWorkerPool, error)
+
 // WorkerPool provides a pool for goroutines.
 type WorkerPool interface {
 	// Init initializes the pool.
