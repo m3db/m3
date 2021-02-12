@@ -24,8 +24,8 @@ import (
 	"errors"
 	"os"
 
-	"github.com/m3db/prometheus_client_golang/prometheus"
 	procfs "github.com/m3db/prometheus_procfs"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type processCollector struct {
