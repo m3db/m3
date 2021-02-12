@@ -194,6 +194,36 @@ func TestParseStartAndEnd(t *testing.T) {
 	}
 }
 
+func TestParseRequireStart(t *testing.T) {
+	opts := promql.NewParseOptions()
+
+	tests := []struct {
+		querystring  string
+		requireStart bool
+		exStart      time.Time
+		exErr        bool
+	}{
+		{querystring: "start=100", requireStart: true, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStart: true, exErr: true},
+		{querystring: "start=100", requireStart: false, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStart: false, exStart: time.Unix(0, 0)},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+				fmt.Sprintf("/?%s", tt.querystring), nil)
+			require.NoError(t, err)
+
+			start, _, err := ParseStartAndEnd(req, opts.SetRequireStartTime(tt.requireStart))
+			if tt.exErr {
+				require.Error(t, err)
+			} else {
+				assert.Equal(t, tt.exStart, start)
+			}
+		})
+	}
+}
+
 // TestParseMatch tests the parsing / construction logic around ParseMatch().
 // matcher_test.go has more comprehensive testing on parsing details.
 func TestParseMatch(t *testing.T) {

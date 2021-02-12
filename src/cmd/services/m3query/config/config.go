@@ -270,6 +270,9 @@ type QueryConfiguration struct {
 	// RestrictTags is an optional configuration that can be set to restrict
 	// all queries with certain tags by.
 	RestrictTags *RestrictTagsConfiguration `yaml:"restrictTags"`
+	// RequireStartTime requires requests to /label(s) and /series endpoints
+	// to specify a start time to prevent unbounded queries.
+	RequireStartTime bool `yaml:"requireStartTime"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.

@@ -82,13 +82,21 @@ type ParseOptions interface {
 	NowFn() xclock.NowFn
 	// SetNowFn sets the now function.
 	SetNowFn(xclock.NowFn) ParseOptions
+
+	// RequireStartTime returns whether requests to /label(s) and /series endpoints
+	// require a start time.
+	RequireStartTime() bool
+	// SetRequireStartTime sets whether requests to /label(s) and /series endpoints
+	// require a start time.
+	SetRequireStartTime(bool) ParseOptions
 }
 
 type parseOptions struct {
-	parseFn     ParseFn
-	selectorFn  MetricSelectorFn
-	fnParseExpr ParseFunctionExpr
-	nowFn       xclock.NowFn
+	parseFn          ParseFn
+	selectorFn       MetricSelectorFn
+	fnParseExpr      ParseFunctionExpr
+	nowFn            xclock.NowFn
+	requireStartTime bool
 }
 
 // NewParseOptions creates a new parse options.
@@ -138,5 +146,15 @@ func (o *parseOptions) NowFn() xclock.NowFn {
 func (o *parseOptions) SetNowFn(f xclock.NowFn) ParseOptions {
 	opts := *o
 	opts.nowFn = f
+	return &opts
+}
+
+func (o *parseOptions) RequireStartTime() bool {
+	return o.requireStartTime
+}
+
+func (o *parseOptions) SetRequireStartTime(requireStartTime bool) ParseOptions {
+	opts := *o
+	opts.requireStartTime = requireStartTime
 	return &opts
 }
