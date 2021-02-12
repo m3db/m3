@@ -45,7 +45,6 @@ const (
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
-	maxTimeout          = 5 * time.Minute
 	tolerance           = 0.0000001
 )
 

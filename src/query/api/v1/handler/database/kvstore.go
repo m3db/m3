@@ -214,8 +214,8 @@ func (h *KeyValueStoreHandler) newKVProtoMessage(key string) (protoiface.Message
 	case kvconfig.ClientReadConsistencyLevel:
 	case kvconfig.ClientWriteConsistencyLevel:
 		return &commonpb.StringProto{}, nil
-		return &kvpb.QueryLimits{}, nil
 	case kvconfig.QueryLimits:
+		return &kvpb.QueryLimits{}, nil
 	}
 	return nil, fmt.Errorf("unsupported kvstore key %s", key)
 }
