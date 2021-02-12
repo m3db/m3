@@ -1970,7 +1970,11 @@ func TestBlockAggregate(t *testing.T) {
 	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 
 	snap := scope.Snapshot()
-	tallytest.AssertCounterValue(t, 3, snap, "query-limit.total-docs-matched", nil)
+
+	tallytest.AssertCounterValue(t, 3, snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+	tallytest.AssertCounterValue(t, 7, snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -2327,11 +2331,12 @@ func TestBlockAggregateBatching(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		batchSize           int
-		segments            []*readableSeg
-		expectedDocsMatched int64
-		expected            map[string][]string
+		name                   string
+		batchSize              int
+		segments               []*readableSeg
+		expectedDocsMatched    int64
+		expectedAggDocsMatched int64
+		expected               map[string][]string
 	}{
 		{
 			name:      "single term multiple fields duplicated across readers",
@@ -2341,7 +2346,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
 				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
 			},
-			expectedDocsMatched: 1,
+			expectedDocsMatched:    1,
+			expectedAggDocsMatched: 9,
 			expected: map[string][]string{
 				"foo": {"bar", "baz"},
 			},
@@ -2354,7 +2360,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 				buildSegment(t, "foo", []string{"bag", "bat"}, memOpts),
 				buildSegment(t, "qux", []string{"bar", "baz"}, memOpts),
 			},
-			expectedDocsMatched: 2,
+			expectedDocsMatched:    2,
+			expectedAggDocsMatched: 9,
 			expected: map[string][]string{
 				"foo": {"bag", "bar", "bat", "baz"},
 				"qux": {"bar", "baz"},
@@ -2375,7 +2382,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 				buildSegment(t, "qaz", []string{"bar", "baz"}, memOpts),
 				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
 			},
-			expectedDocsMatched: 7,
+			expectedDocsMatched:    7,
+			expectedAggDocsMatched: 15,
 			expected: map[string][]string{
 				"foo": {"bar", "baz"},
 				"dog": {"bar", "baz"},
@@ -2384,11 +2392,12 @@ func TestBlockAggregateBatching(t *testing.T) {
 			},
 		},
 		{
-			name:                "batch size case",
-			batchSize:           defaultQueryDocsBatchSize,
-			segments:            batchSizeSegments,
-			expectedDocsMatched: 1,
-			expected:            batchSizeMap,
+			name:                   "batch size case",
+			batchSize:              defaultQueryDocsBatchSize,
+			segments:               batchSizeSegments,
+			expectedDocsMatched:    1,
+			expectedAggDocsMatched: 256*257 + 2,
+			expected:               batchSizeMap,
 		},
 	}
 
@@ -2452,7 +2461,11 @@ func TestBlockAggregateBatching(t *testing.T) {
 			require.True(t, exhaustive)
 
 			snap := scope.Snapshot()
-			tallytest.AssertCounterValue(t, tt.expectedDocsMatched, snap, "query-limit.total-docs-matched", nil)
+			tallytest.AssertCounterValue(t, tt.expectedDocsMatched, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+			tallytest.AssertCounterValue(t, tt.expectedAggDocsMatched, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
+
 			resultsMap := make(map[string][]string, results.Map().Len())
 			for _, res := range results.Map().Iter() {
 				vals := make([]string, 0, res.Value().valuesMap.Len())

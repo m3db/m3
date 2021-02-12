@@ -22,7 +22,6 @@ package remote
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"net/http"
 
@@ -49,8 +48,7 @@ const (
 	NameReplace = "name"
 
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = handler.RoutePrefixV1 +
-		"/label/{" + NameReplace + "}/values"
+	TagValuesURL = handler.RoutePrefixV1 + "/label/{" + NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet
@@ -82,20 +80,23 @@ func NewTagValuesHandler(opts options.HandlerOptions) http.Handler {
 }
 
 func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+
+	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.WriteError(w, rErr)
+		return
+	}
+
+	ctx, cancel := prometheus.ContextWithRequestAndTimeout(r, opts)
+	defer cancel()
+
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	query, err := h.parseTagValuesToQuery(r)
 	if err != nil {
 		logger.Error("unable to parse tag values to query", zap.Error(err))
 		xhttp.WriteError(w, err)
-		return
-	}
-
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.WriteError(w, rErr)
 		return
 	}
 

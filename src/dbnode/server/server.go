@@ -424,31 +424,6 @@ func Run(runOpts RunOptions) {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
 
-	// Setup postings list cache.
-	var (
-		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
-		plCacheSize    = plCacheConfig.SizeOrDefault()
-		plCacheOptions = index.PostingsListCacheOptions{
-			InstrumentOptions: opts.InstrumentOptions().
-				SetMetricsScope(scope.SubScope("postings-list-cache")),
-		}
-	)
-	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
-	if err != nil {
-		logger.Fatal("could not construct postings list cache", zap.Error(err))
-	}
-	defer stopReporting()
-
-	// Setup index regexp compilation cache.
-	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
-		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
-		Scope: iOpts.MetricsScope(),
-	})
-
-	for _, transform := range runOpts.Transforms {
-		opts = transform(opts)
-	}
-
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
@@ -479,16 +454,43 @@ func Run(runOpts RunOptions) {
 	}
 	queryLimits.Start()
 	defer queryLimits.Stop()
-
 	seriesReadPermits := permits.NewLookbackLimitPermitsManager(iOpts,
 		diskSeriesReadLimit,
 		"disk-series-read",
-		limitOpts.SourceLoggerBuilder())
+		limitOpts.SourceLoggerBuilder(),
+		// TODO: Add appropriate tags here.
+		map[string]string{},
+	)
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	permitsOpts := permits.NewOptions().
-		SetSeriesReadPermitsManager(seriesReadPermits)
+	opts = opts.SetPermitsOptions(opts.PermitsOptions().
+		SetSeriesReadPermitsManager(seriesReadPermits))
+
+	// Setup postings list cache.
+	var (
+		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
+		plCacheSize    = plCacheConfig.SizeOrDefault()
+		plCacheOptions = index.PostingsListCacheOptions{
+			InstrumentOptions: opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("postings-list-cache")),
+		}
+	)
+	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct postings list cache", zap.Error(err))
+	}
+	defer stopReporting()
+
+	// Setup index regexp compilation cache.
+	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Scope: iOpts.MetricsScope(),
+	})
+
+	for _, transform := range runOpts.Transforms {
+		opts = transform(opts)
+	}
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -723,7 +725,7 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
 		SetQueryLimits(queryLimits).
-		SetPermitsOptions(permitsOpts)
+		SetPermitsOptions(opts.PermitsOptions())
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.
