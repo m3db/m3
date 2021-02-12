@@ -39,8 +39,12 @@ type BlockReader struct {
 }
 
 // ReadSegment reads the Segment, blocking until the segment is available or the deadline expires.
-func (b BlockReader) ReadSegment(ctx context.Context) (segment ts.Segment, err error) {
+func (b BlockReader) ReadSegment(ctx context.Context) (ts.Segment, error) {
 	done := make(chan struct{}, 1)
+	var (
+		segment ts.Segment
+		err error
+	)
 	go func() {
 		segment, err = b.Segment()
 		done <- struct{}{}
@@ -49,8 +53,8 @@ func (b BlockReader) ReadSegment(ctx context.Context) (segment ts.Segment, err e
 	case <-ctx.GoContext().Done():
 		return ts.Segment{}, ctx.GoContext().Err()
 	case <-done:
+		return segment, err
 	}
-	return
 }
 
 // EmptyBlockReader represents the default block reader.
