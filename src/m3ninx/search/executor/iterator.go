@@ -32,9 +32,9 @@ type iterator struct {
 	searcher search.Searcher
 	readers  index.Readers
 
-	idx      int
-	currDoc  doc.Document
-	currIter doc.Iterator
+	idx                 int
+	currDoc             doc.Document
+	currIter            doc.Iterator
 	totalSearchDuration time.Duration
 
 	err    error
