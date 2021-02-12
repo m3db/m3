@@ -73,9 +73,11 @@ func NewTagValuesHandler(opts options.HandlerOptions) http.Handler {
 	return &TagValuesHandler{
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		parseOpts:           promql.NewParseOptions().SetNowFn(opts.NowFn()),
-		instrumentOpts:      opts.InstrumentOpts(),
-		tagOpts:             opts.TagOptions(),
+		parseOpts: promql.NewParseOptions().
+			SetRequireStartEndTime(opts.Config().Query.RequireLabelsEndpointStartEndTime).
+			SetNowFn(opts.NowFn()),
+		instrumentOpts: opts.InstrumentOpts(),
+		tagOpts:        opts.TagOptions(),
 	}
 }
 
