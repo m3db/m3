@@ -113,6 +113,12 @@ type Options interface {
 	// BytesReadLimitOpts returns the byte read limit options.
 	BytesReadLimitOpts() LookbackLimitOptions
 
+	// SetAggregateDocsLimitOpts sets the aggregate doc limit options.
+	SetAggregateDocsLimitOpts(LookbackLimitOptions) Options
+
+	// AggregateDocsLimitOpts returns the aggregate doc limit options.
+	AggregateDocsLimitOpts() LookbackLimitOptions
+
 	// SetDiskSeriesReadLimitOpts sets the disk series read limit options.
 	SetDiskSeriesReadLimitOpts(value LookbackLimitOptions) Options
 

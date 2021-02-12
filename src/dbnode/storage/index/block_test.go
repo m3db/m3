@@ -1897,7 +1897,8 @@ func TestBlockAggregate(t *testing.T) {
 	limitOpts := limits.NewOptions().
 		SetInstrumentOptions(iOpts).
 		SetDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute}).
-		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
 	queryLimits, err := limits.NewQueryLimits((limitOpts))
 	require.NoError(t, err)
 	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
@@ -1977,6 +1978,86 @@ func TestBlockAggregate(t *testing.T) {
 		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 }
 
+func TestBlockAggregateWithAggregateLimits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+	limitOpts := limits.NewOptions().
+		SetInstrumentOptions(iOpts).
+		SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute})
+	queryLimits, err := limits.NewQueryLimits((limitOpts))
+	require.NoError(t, err)
+	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
+
+	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
+	seriesLimit := 100
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+	reader := segment.NewMockReader(ctrl)
+	reader.EXPECT().Close().Return(nil)
+	seg1.EXPECT().Reader().Return(reader, nil)
+
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	iter := NewMockfieldsAndTermsIterator(ctrl)
+	b.newFieldsAndTermsIteratorFn = func(
+		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		return iter, nil
+	}
+
+	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit: seriesLimit,
+		Type:      AggregateTagNamesAndValues,
+	}, testOpts)
+
+	ctx := context.NewBackground()
+	defer ctx.BlockingClose()
+
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	iter.EXPECT().Reset(reader, gomock.Any()).Return(nil)
+	for i := 0; i < seriesLimit-1; i++ {
+		iter.EXPECT().Next().Return(true)
+		curr := []byte(fmt.Sprint(i))
+		iter.EXPECT().Current().Return([]byte("f1"), curr)
+	}
+	iter.EXPECT().Next().Return(false)
+	iter.EXPECT().Err().Return(nil)
+	iter.EXPECT().Close().Return(nil)
+
+	exhaustive, err := b.Aggregate(
+		ctx,
+		QueryOptions{SeriesLimit: seriesLimit},
+		results,
+		emptyLogFields)
+	require.NoError(t, err)
+	require.False(t, exhaustive)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+
+	snap := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 1, snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+	tallytest.AssertCounterValue(t, int64(seriesLimit), snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
+}
 func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2408,7 +2489,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 			limitOpts := limits.NewOptions().
 				SetInstrumentOptions(iOpts).
 				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
-				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
 			queryLimits, err := limits.NewQueryLimits((limitOpts))
 			require.NoError(t, err)
 			testOpts = optionsWithAggResultsPool(tt.batchSize).

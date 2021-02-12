@@ -38,12 +38,14 @@ func testQueryLimitOptions(
 	docOpts LookbackLimitOptions,
 	bytesOpts LookbackLimitOptions,
 	seriesOpts LookbackLimitOptions,
+	aggDocsOpts LookbackLimitOptions,
 	iOpts instrument.Options,
 ) Options {
 	return NewOptions().
 		SetDocsLimitOpts(docOpts).
 		SetBytesReadLimitOpts(bytesOpts).
 		SetDiskSeriesReadLimitOpts(seriesOpts).
+		SetAggregateDocsLimitOpts(aggDocsOpts).
 		SetInstrumentOptions(iOpts)
 }
 
@@ -61,7 +63,11 @@ func TestQueryLimits(t *testing.T) {
 		Limit:    l,
 		Lookback: time.Second,
 	}
-	opts := testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, instrument.NewOptions())
+	aggOpts := LookbackLimitOptions{
+		Limit:    l,
+		Lookback: time.Second,
+	}
+	opts := testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, aggOpts, instrument.NewOptions())
 	queryLimits, err := NewQueryLimits(opts)
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
@@ -76,7 +82,7 @@ func TestQueryLimits(t *testing.T) {
 	require.True(t, xerrors.IsInvalidParams(err))
 	require.True(t, IsQueryLimitExceededError(err))
 
-	opts = testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, instrument.NewOptions())
+	opts = testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, aggOpts, instrument.NewOptions())
 	queryLimits, err = NewQueryLimits(opts)
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
@@ -92,7 +98,23 @@ func TestQueryLimits(t *testing.T) {
 	require.True(t, xerrors.IsInvalidParams(err))
 	require.True(t, IsQueryLimitExceededError(err))
 
-	opts = testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, instrument.NewOptions())
+	opts = testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, aggOpts, instrument.NewOptions())
+	queryLimits, err = NewQueryLimits(opts)
+	require.NoError(t, err)
+	require.NotNil(t, queryLimits)
+
+	// No error yet.
+	err = queryLimits.AnyExceeded()
+	require.NoError(t, err)
+
+	// Limit from aggregate.
+	require.Error(t, queryLimits.AggregateDocsLimit().Inc(2, nil))
+	err = queryLimits.AnyExceeded()
+	require.Error(t, err)
+	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, IsQueryLimitExceededError(err))
+
+	opts = testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, aggOpts, instrument.NewOptions())
 	queryLimits, err = NewQueryLimits(opts)
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
@@ -347,7 +369,7 @@ func TestSourceLogger(t *testing.T) {
 		}
 
 		builder = &testBuilder{records: []testLoggerRecord{}}
-		opts    = testQueryLimitOptions(noLimit, noLimit, noLimit, iOpts).
+		opts    = testQueryLimitOptions(noLimit, noLimit, noLimit, noLimit, iOpts).
 			SetSourceLoggerBuilder(builder)
 	)
 

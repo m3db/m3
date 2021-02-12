@@ -90,7 +90,7 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 		iOpts               = options.InstrumentOptions()
 		docsLimitOpts       = options.DocsLimitOpts()
 		bytesReadLimitOpts  = options.BytesReadLimitOpts()
-		aggDocsLimitOpts    = options.DocsLimitOpts()
+		aggDocsLimitOpts    = options.AggregateDocsLimitOpts()
 		sourceLoggerBuilder = options.SourceLoggerBuilder()
 
 		docsMatched = "docs-matched"
@@ -202,7 +202,10 @@ func (q *queryLimits) AnyExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
 		return err
 	}
-	return q.bytesReadLimit.exceeded()
+	if err := q.bytesReadLimit.exceeded(); err != nil {
+		return err
+	}
+	return q.aggregatedDocsLimit.exceeded()
 }
 
 func (q *lookbackLimit) Options() LookbackLimitOptions {

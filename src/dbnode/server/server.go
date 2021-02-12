@@ -425,9 +425,13 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Setup query stats tracking.
-	docsLimit := limits.DefaultLookbackLimitOptions()
-	bytesReadLimit := limits.DefaultLookbackLimitOptions()
-	diskSeriesReadLimit := limits.DefaultLookbackLimitOptions()
+	var (
+		docsLimit           = limits.DefaultLookbackLimitOptions()
+		bytesReadLimit      = limits.DefaultLookbackLimitOptions()
+		diskSeriesReadLimit = limits.DefaultLookbackLimitOptions()
+		aggDocsLimit        = limits.DefaultLookbackLimitOptions()
+	)
+
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
 		docsLimit.Limit = limitConfig.Value
 		docsLimit.Lookback = limitConfig.Lookback
@@ -440,10 +444,15 @@ func Run(runOpts RunOptions) {
 		diskSeriesReadLimit.Limit = limitConfig.Value
 		diskSeriesReadLimit.Lookback = limitConfig.Lookback
 	}
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedMetadata; limitConfig != nil {
+		aggDocsLimit.Limit = limitConfig.Value
+		aggDocsLimit.Lookback = limitConfig.Lookback
+	}
 	limitOpts := limits.NewOptions().
 		SetDocsLimitOpts(docsLimit).
 		SetBytesReadLimitOpts(bytesReadLimit).
 		SetDiskSeriesReadLimitOpts(diskSeriesReadLimit).
+		SetAggregateDocsLimitOpts(aggDocsLimit).
 		SetInstrumentOptions(iOpts)
 	if builder := opts.SourceLoggerBuilder(); builder != nil {
 		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
