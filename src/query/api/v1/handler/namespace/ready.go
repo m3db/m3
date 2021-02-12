@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -43,6 +44,10 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"go.uber.org/zap"
+)
+
+const (
+	defaultReadyContextTimeout = 10 * time.Second
 )
 
 var (
@@ -75,6 +80,12 @@ func (h *ReadyHandler) ServeHTTP(
 	r *http.Request,
 ) {
 	ctx := r.Context()
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultReadyContextTimeout)
+		defer cancel()
+	}
+
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	req, rErr := h.parseRequest(r)
@@ -85,7 +96,7 @@ func (h *ReadyHandler) ServeHTTP(
 	}
 
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
-	ready, err := h.ready(r.Context(), req, opts)
+	ready, err := h.ready(ctx, req, opts)
 	if err != nil {
 		logger.Error("unable to mark namespace as ready", zap.Error(err))
 		xhttp.WriteError(w, err)
