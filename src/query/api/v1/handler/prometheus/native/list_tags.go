@@ -64,7 +64,7 @@ func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
 		parseOpts: promql.NewParseOptions().
-			SetRequireStartTime(opts.Config().Query.RequireStartTime).
+			SetRequireStartEndTime(opts.Config().Query.RequireLabelsEndpointStartEndTime).
 			SetNowFn(opts.NowFn()),
 		instrumentOpts: opts.InstrumentOpts(),
 		tagOpts:        opts.TagOptions(),

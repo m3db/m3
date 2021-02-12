@@ -194,19 +194,19 @@ func TestParseStartAndEnd(t *testing.T) {
 	}
 }
 
-func TestParseRequireStart(t *testing.T) {
+func TestParseRequireStartEnd(t *testing.T) {
 	opts := promql.NewParseOptions()
 
 	tests := []struct {
-		querystring  string
-		requireStart bool
-		exStart      time.Time
-		exErr        bool
+		exStart         time.Time
+		querystring     string
+		requireStartEnd bool
+		exErr           bool
 	}{
-		{querystring: "start=100", requireStart: true, exStart: time.Unix(100, 0)},
-		{querystring: "", requireStart: true, exErr: true},
-		{querystring: "start=100", requireStart: false, exStart: time.Unix(100, 0)},
-		{querystring: "", requireStart: false, exStart: time.Unix(0, 0)},
+		{querystring: "start=100", requireStartEnd: true, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStartEnd: true, exErr: true},
+		{querystring: "start=100", requireStartEnd: false, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStartEnd: false, exStart: time.Unix(0, 0)},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestParseRequireStart(t *testing.T) {
 				fmt.Sprintf("/?%s", tt.querystring), nil)
 			require.NoError(t, err)
 
-			start, _, err := ParseStartAndEnd(req, opts.SetRequireStartTime(tt.requireStart))
+			start, _, err := ParseStartAndEnd(req, opts.SetRequireStartEndTime(tt.requireStartEnd))
 			if tt.exErr {
 				require.Error(t, err)
 			} else {

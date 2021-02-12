@@ -193,7 +193,7 @@ func ParseStartAndEnd(
 		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
 	}
 
-	if parseOpts.RequireStartTime() && start.Equal(defaultTime) {
+	if parseOpts.RequireStartEndTime() && start.Equal(defaultTime) {
 		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(
 			goerrors.New("invalid start time. start time must be set"))
 	}
