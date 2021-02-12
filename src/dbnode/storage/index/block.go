@@ -902,9 +902,12 @@ func (b *block) addAggregateResults(
 		aggDocs += len(batch[i].Terms)
 	}
 
-	// NB: currently this is here to capture upper limits for these limits and will
-	// trip constantly; ignore any errors for now.
-	_ = b.aggDocsLimit.Inc(aggDocs, source)
+	// update recently queried docs to monitor memory.
+	if results.EnforceLimits() {
+		if err := b.aggDocsLimit.Inc(aggDocs, source); err != nil {
+			return batch, 0, 0, err
+		}
+	}
 
 	// reset batch.
 	var emptyField AggregateResultsEntry
