@@ -62,7 +62,7 @@ func TestFieldsTermsIteratorSimple(t *testing.T) {
 
 	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
-	s.requireEquals(t, ctx, iter)
+	s.requireEquals(ctx, t, iter)
 }
 
 func TestFieldsTermsIteratorReuse(t *testing.T) {
@@ -86,7 +86,7 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 
 	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
-	s.requireEquals(t, ctx, iter)
+	s.requireEquals(ctx, t, iter)
 
 	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
@@ -516,7 +516,7 @@ func (s *fieldsTermsIterSetup) asSegment(t *testing.T) segment.Segment {
 	return fst.ToTestSegment(t, memSeg, testFstOptions)
 }
 
-func (s *fieldsTermsIterSetup) requireEquals(t *testing.T, ctx context.Context, iter fieldsAndTermsIterator) {
+func (s *fieldsTermsIterSetup) requireEquals(ctx context.Context, t *testing.T, iter fieldsAndTermsIterator) {
 	pending := s.fields
 	for len(pending) > 0 {
 		require.True(t, iter.Next())

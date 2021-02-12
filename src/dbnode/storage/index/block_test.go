@@ -1464,8 +1464,10 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
+	require.Len(t, spans, 4)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[1].OperationName)
+	require.Equal(t, tracepoint.BlockQuery, spans[2].OperationName)
 }
 
 func TestBlockE2EInsertQueryLimit(t *testing.T) {
@@ -1632,8 +1634,12 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
+	require.Len(t, spans, 6)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[1].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[2].OperationName)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[3].OperationName)
+	require.Equal(t, tracepoint.BlockQuery, spans[4].OperationName)
 }
 
 func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
@@ -1712,8 +1718,12 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
+	require.Len(t, spans, 6)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[1].OperationName)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[2].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[3].OperationName)
+	require.Equal(t, tracepoint.BlockQuery, spans[4].OperationName)
 }
 
 func TestBlockWriteBackgroundCompact(t *testing.T) {
@@ -1966,8 +1976,9 @@ func TestBlockAggregate(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Len(t, spans, 3)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
 
 	snap := scope.Snapshot()
 
@@ -2047,8 +2058,9 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Len(t, spans, 3)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
 }
 
 func TestBlockE2EInsertAggregate(t *testing.T) {
@@ -2168,10 +2180,12 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 4)
-	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Len(t, spans, 6)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[0].OperationName)
 	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
-	require.Equal(t, tracepoint.BlockAggregate, spans[2].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[2].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[3].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[4].OperationName)
 }
 
 func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string, observed AggregateResults) {

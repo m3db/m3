@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/tracepoint"
-
 	"github.com/m3db/m3/src/x/context"
 )
 
@@ -119,11 +118,11 @@ func (p *workerPool) GoWithContext(ctx context.Context, work Work) ScheduleResul
 	}
 
 	start := time.Now()
-	sp, _ := ctx.StartTraceSpan(tracepoint.WorkerPoolWait)
+	_, sp := ctx.StartTraceSpan(tracepoint.WorkerPoolWait)
 
 	select {
 	case token := <-p.workCh:
-		sp.Close()
+		sp.Finish()
 		wait := time.Since(start)
 		go func() {
 			work()
@@ -131,7 +130,7 @@ func (p *workerPool) GoWithContext(ctx context.Context, work Work) ScheduleResul
 		}()
 		return ScheduleResult{Available: true, WaitTime: wait}
 	case <-stdctx.Done():
-		sp.Close()
+		sp.Finish()
 		return ScheduleResult{Available: false, WaitTime: time.Since(start)}
 	}
 }

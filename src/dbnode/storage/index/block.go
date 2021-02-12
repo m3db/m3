@@ -572,7 +572,7 @@ func (b *block) addQueryResults(
 		}
 	}
 
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQueryAddDocuments)
+	_, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQueryAddDocuments)
 	defer sp.Finish()
 	// try to add the docs to the resource.
 	size, docsCount, err := results.AddDocuments(batch)
@@ -681,7 +681,7 @@ func (b *block) aggregateWithSpan(
 	defer func() {
 		b.opts.AggregateResultsEntryArrayPool().Put(batch)
 		if !iterClosed {
-			iter.Close(ctx)
+			iter.Close(ctx) //nolint:errcheck
 		}
 
 		b.metrics.aggregateDocsMatched.RecordValue(float64(docsCount))
@@ -899,7 +899,7 @@ func (b *block) addAggregateResults(
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQueryAddDocuments)
+	_, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQueryAddDocuments)
 	defer sp.Finish()
 	// try to add the docs to the resource.
 	size, docsCount := results.AddFields(batch)
