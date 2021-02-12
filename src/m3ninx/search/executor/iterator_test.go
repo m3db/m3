@@ -21,6 +21,7 @@
 package executor
 
 import (
+	"context"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -84,7 +85,7 @@ func TestIterator(t *testing.T) {
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.
-	iter, err := newIterator(searcher, readers)
+	iter, err := newIterator(context.Background(), searcher, readers)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())

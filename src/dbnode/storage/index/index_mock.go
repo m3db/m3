@@ -1394,31 +1394,31 @@ func (mr *MockfieldsAndTermsIteratorMockRecorder) Err() *gomock.Call {
 }
 
 // Close mocks base method
-func (m *MockfieldsAndTermsIterator) Close() error {
+func (m *MockfieldsAndTermsIterator) Close(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
+	ret := m.ctrl.Call(m, "Close", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Close indicates an expected call of Close
-func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Close(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Close), ctx)
 }
 
 // Reset mocks base method
-func (m *MockfieldsAndTermsIterator) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
+func (m *MockfieldsAndTermsIterator) Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reset", reader, opts)
+	ret := m.ctrl.Call(m, "Reset", ctx, reader, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(reader, opts interface{}) *gomock.Call {
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(ctx, reader, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), reader, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), ctx, reader, opts)
 }
 
 // MockOptions is a mock of Options interface

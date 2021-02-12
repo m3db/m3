@@ -1580,8 +1580,11 @@ func (i *nsIndex) queryWithSpan(
 			break
 		}
 
+		// Calculate time spent waiting for a worker
+		waitSpan, _ := ctx.StartTraceSpan(tracepoint.NSIdxQueryWait)
 		wg.Add(1)
 		scheduleResult := i.queryWorkersPool.GoWithContext(ctx.GoContext(), func() {
+			waitSpan.Close()
 			execBlockFn(ctx, block, query, opts, &state, results, logFields)
 			wg.Done()
 		})
@@ -1590,7 +1593,8 @@ func (i *nsIndex) queryWithSpan(
 			state.Lock()
 			state.multiErr = state.multiErr.Add(index.ErrCancelledQuery)
 			state.Unlock()
-			// Did not launch task, need to ensure don't wait for it.
+			// Did not launch task, need to ensure don't wait for it and to close the span
+			waitSpan.Close()
 			wg.Done()
 			break
 		}

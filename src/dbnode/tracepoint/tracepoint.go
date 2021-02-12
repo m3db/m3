@@ -94,6 +94,9 @@ const (
 	// NSIdxQuery is the operation name for the nsIndex Query path.
 	NSIdxQuery = "storage.nsIndex.Query"
 
+	// NSIdxQueryWait is the operation name for the waiting that occurs in the nsIndex query path.
+	NSIdxQueryWait = "storage.nsIndex.QueryWait"
+
 	// NSIdxWideQuery is the operation name for the nsIndex WideQuery path.
 	NSIdxWideQuery = "storage.nsIndex.WideQuery"
 
@@ -108,6 +111,19 @@ const (
 
 	// NSIdxBlockAggregateQuery is the operation name for the nsIndex block aggregate query path.
 	NSIdxBlockAggregateQuery = "storage.nsIndex.blockAggregateQuery"
+
+	// NSIdxBlockQueryAddDocuments is the operation name for adding documents by batch in the block query path.
+	NSIdxBlockQueryAddDocuments = "storage.nsIndex.blockQueryAddDocuments"
+
+	// NSIdxBlockAggregateQueryAddDocuments is the operation name for adding documents by batch in the agg query path.
+	NSIdxBlockAggregateQueryAddDocuments = "storage.nsIndex.blockAggregateQueryAddDocuments"
+
+	// SearchExecutorIndexSearch is the operation name for searching on individual segment,
+	// in practice executed in the block query path.
+	SearchExecutorIndexSearch = "search.executor.IndexSearch"
+
+	// FieldTermsIteratorIndexSearch is the operation name
+	FieldTermsIteratorIndexSearch = "storage.index.fieldTermsIterator.IndexSearch"
 
 	// BlockQuery is the operation name for the index block query path.
 	BlockQuery = "storage/index.block.Query"

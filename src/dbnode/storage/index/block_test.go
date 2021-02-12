@@ -398,7 +398,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
@@ -524,7 +524,7 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 		return exec, nil
 	}
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
 		exec.EXPECT().Close(),
 	)
 
@@ -553,7 +553,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(false),
@@ -594,7 +594,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(true),
@@ -647,7 +647,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(fmt.Errorf("random-err")),
@@ -685,7 +685,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(true),
@@ -738,7 +738,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(false),
@@ -791,7 +791,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(true),
@@ -842,7 +842,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(false),
@@ -904,7 +904,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
@@ -958,7 +958,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1DupeID())),
 		dIter.EXPECT().Next().Return(true),
@@ -1859,7 +1859,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1869,12 +1869,12 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	}, testOpts)
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("unknown error")),
-		iter.EXPECT().Close().Return(nil),
+		iter.EXPECT().Close(gomock.Any()).Return(nil),
 	)
 
 	ctx := context.NewBackground()
@@ -1921,7 +1921,7 @@ func TestBlockAggregate(t *testing.T) {
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1938,7 +1938,7 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(reader, gomock.Any()).Return(nil)
+	iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil)
 	iter.EXPECT().Next().Return(true)
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
 	iter.EXPECT().Next().Return(true)
@@ -1949,7 +1949,7 @@ func TestBlockAggregate(t *testing.T) {
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t3"))
 	iter.EXPECT().Next().Return(false)
 	iter.EXPECT().Err().Return(nil)
-	iter.EXPECT().Close().Return(nil)
+	iter.EXPECT().Close(gomock.Any()).Return(nil)
 
 	exhaustive, err := b.Aggregate(
 		ctx,
@@ -2008,7 +2008,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -2026,12 +2026,12 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Err().Return(nil),
-		iter.EXPECT().Close().Return(nil),
+		iter.EXPECT().Close(gomock.Any()).Return(nil),
 	)
 	exhaustive, err := b.Aggregate(
 		ctx,
@@ -2427,6 +2427,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 			// NB: wrap existing aggregate results fn to more easily inspect batch size.
 			addAggregateResultsFn := b.addAggregateResultsFn
 			b.addAggregateResultsFn = func(
+				ctx context.Context,
 				results AggregateResults,
 				batch []AggregateResultsEntry,
 				source []byte,
@@ -2441,7 +2442,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 				require.True(t, count <= tt.batchSize,
 					fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
 
-				return addAggregateResultsFn(results, batch, source)
+				return addAggregateResultsFn(ctx, results, batch, source)
 			}
 
 			b.mutableSegments.foregroundSegments = tt.segments

@@ -124,6 +124,7 @@ func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group block
 }
 
 type addAggregateResultsFn func(
+	ctx context.Context,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
@@ -464,7 +465,7 @@ func (b *block) queryWithSpan(
 	}()
 
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := exec.Execute(query.Query.SearchQuery())
+	iter, err := exec.Execute(ctx, query.Query.SearchQuery())
 	if err != nil {
 		return false, err
 	}
@@ -521,7 +522,7 @@ func (b *block) queryWithSpan(
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResults(results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -529,7 +530,7 @@ func (b *block) queryWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResults(results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -559,6 +560,7 @@ func (b *block) closeAsync(closer io.Closer) {
 }
 
 func (b *block) addQueryResults(
+	ctx context.Context,
 	results DocumentResults,
 	batch []doc.Document,
 	source []byte,
@@ -570,6 +572,7 @@ func (b *block) addQueryResults(
 		}
 	}
 
+	sp, _ := ctx.StartTraceSpan(tracepoint.NSIdxBlockQueryAddDocuments)
 	// try to add the docs to the resource.
 	size, docsCount, err := results.AddDocuments(batch)
 
@@ -579,6 +582,7 @@ func (b *block) addQueryResults(
 		batch[i] = emptyDoc
 	}
 	batch = batch[:0]
+	sp.Close()
 
 	// return results.
 	return batch, size, docsCount, err
@@ -650,7 +654,7 @@ func (b *block) aggregateWithSpan(
 		},
 	}
 
-	iter, err := b.newFieldsAndTermsIteratorFn(nil, iterateOpts)
+	iter, err := b.newFieldsAndTermsIteratorFn(ctx, nil, iterateOpts)
 	if err != nil {
 		return false, err
 	}
@@ -677,7 +681,7 @@ func (b *block) aggregateWithSpan(
 	defer func() {
 		b.opts.AggregateResultsEntryArrayPool().Put(batch)
 		if !iterClosed {
-			iter.Close()
+			iter.Close(ctx)
 		}
 
 		b.metrics.aggregateDocsMatched.RecordValue(float64(docsCount))
@@ -712,7 +716,7 @@ func (b *block) aggregateWithSpan(
 			break
 		}
 
-		err = iter.Reset(reader, iterateOpts)
+		err = iter.Reset(ctx, reader, iterateOpts)
 		if err != nil {
 			return false, err
 		}
@@ -779,7 +783,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, docsCount, err = b.addAggregateResultsFn(results, batch, source)
+			batch, size, docsCount, err = b.addAggregateResultsFn(ctx, results, batch, source)
 			if err != nil {
 				return false, err
 			}
@@ -793,14 +797,14 @@ func (b *block) aggregateWithSpan(
 		}
 
 		iterClosed = true
-		if err := iter.Close(); err != nil {
+		if err := iter.Close(ctx); err != nil {
 			return false, err
 		}
 	}
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		batch, size, docsCount, err = b.addAggregateResultsFn(results, batch, source)
+		batch, size, docsCount, err = b.addAggregateResultsFn(ctx, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -890,10 +894,13 @@ func (b *block) pooledID(id []byte) ident.ID {
 // addAggregateResults adds the fields on the batch
 // to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
+	ctx context.Context,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
+	sp, _ := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQueryAddDocuments)
+	defer sp.Close()
 	// try to add the docs to the resource.
 	size, docsCount := results.AddFields(batch)
 

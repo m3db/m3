@@ -23,12 +23,14 @@ package index
 import (
 	"errors"
 
-	pilosaroaring "github.com/m3dbx/pilosa/roaring"
-
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
 var (
@@ -86,19 +88,19 @@ var _ fieldsAndTermsIterator = &fieldsAndTermsIter{}
 
 // newFieldsAndTermsIteratorFn is the lambda definition of the ctor for fieldsAndTermsIterator.
 type newFieldsAndTermsIteratorFn func(
-	r segment.Reader, opts fieldsAndTermsIteratorOpts,
+	ctx context.Context, r segment.Reader, opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error)
 
-func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+func newFieldsAndTermsIterator(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 	iter := &fieldsAndTermsIter{}
-	err := iter.Reset(reader, opts)
+	err := iter.Reset(ctx, reader, opts)
 	if err != nil {
 		return nil, err
 	}
 	return iter, nil
 }
 
-func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
+func (fti *fieldsAndTermsIter) Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
 	*fti = fieldsAndTermsIterZeroed
 	fti.reader = reader
 	fti.opts = opts
@@ -123,7 +125,9 @@ func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsI
 		return err
 	}
 
+	sp, _ := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
 	pl, err := searcher.Search(fti.reader)
+	sp.Close()
 	if err != nil {
 		return err
 	}
@@ -278,7 +282,7 @@ func (fti *fieldsAndTermsIter) Err() error {
 	return fti.err
 }
 
-func (fti *fieldsAndTermsIter) Close() error {
+func (fti *fieldsAndTermsIter) Close(ctx context.Context) error {
 	var multiErr xerrors.MultiError
 	if fti.fieldIter != nil {
 		multiErr = multiErr.Add(fti.fieldIter.Close())
@@ -286,6 +290,6 @@ func (fti *fieldsAndTermsIter) Close() error {
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
 	}
-	multiErr = multiErr.Add(fti.Reset(nil, fieldsAndTermsIteratorOpts{}))
+	multiErr = multiErr.Add(fti.Reset(ctx, nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }

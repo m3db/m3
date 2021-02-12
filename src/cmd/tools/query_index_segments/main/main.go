@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -95,6 +96,7 @@ type runOptions struct {
 
 func run(opts runOptions) {
 	log := opts.log
+	ctx := context.NewBackground()
 
 	parseOpts := promql.NewParseOptions()
 	parse := parseOpts.MetricSelectorFn()
@@ -185,7 +187,7 @@ func run(opts runOptions) {
 
 			executor := executor.NewExecutor(readers)
 
-			iter, err := executor.Execute(indexQuery.Query.SearchQuery())
+			iter, err := executor.Execute(ctx, indexQuery.Query.SearchQuery())
 			if err != nil {
 				log.Fatal("search execute error", zap.Error(err))
 			}
