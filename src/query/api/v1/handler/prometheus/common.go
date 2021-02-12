@@ -22,12 +22,14 @@ package prometheus
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
@@ -45,7 +47,6 @@ const (
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
-	maxTimeout          = 5 * time.Minute
 	tolerance           = 0.0000001
 )
 
@@ -496,4 +497,14 @@ func FilterSeriesByOptions(
 	}
 
 	return series
+}
+
+// ContextWithRequestAndTimeout sets up a context with the request's context
+// and the configured timeout.
+func ContextWithRequestAndTimeout(
+	r *http.Request,
+	opts *storage.FetchOptions,
+) (context.Context, context.CancelFunc) {
+	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
+	return context.WithTimeout(ctx, opts.Timeout)
 }

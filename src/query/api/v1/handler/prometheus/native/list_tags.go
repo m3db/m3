@@ -21,7 +21,6 @@
 package native
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -71,8 +70,6 @@ func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 }
 
 func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	start, end, err := prometheus.ParseStartAndEnd(r, h.parseOpts)
@@ -110,6 +107,10 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.WriteError(w, rErr)
 		return
 	}
+
+	ctx, cancel := prometheus.ContextWithRequestAndTimeout(r, opts)
+	defer cancel()
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
