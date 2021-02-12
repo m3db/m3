@@ -459,12 +459,12 @@ func (r *blockRetriever) fetchBatch(
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && !errors.Is(err, errSeekIDNotFound) {
 			req.err = err
-			limitErr = err
 			continue
 		}
 
 		if err := r.bytesReadLimit.Inc(int(entry.Size), req.source); err != nil {
 			req.err = err
+			limitErr = err
 			continue
 		}
 
@@ -482,18 +482,6 @@ func (r *blockRetriever) fetchBatch(
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		if err := r.queryLimits.AnyExceeded(); err != nil {
-			req.err = err
-			continue
-		}
-
-		select {
-		case <-req.stdCtx.Done():
-			req.err = req.stdCtx.Err()
-			continue
-		default:
-		}
-
 		// Should always be a data request by this point.
 		if req.streamReqType != streamDataReq {
 			req.err = fmt.Errorf("wrong stream req type: expect=%d, actual=%d",
@@ -513,6 +501,13 @@ func (r *blockRetriever) fetchBatch(
 			req.success = true
 			req.onCallerOrRetrieverDone()
 			continue
+		}
+
+		select {
+		case <-req.stdCtx.Done():
+			req.err = req.stdCtx.Err()
+			continue
+		default:
 		}
 
 		data, err := seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
