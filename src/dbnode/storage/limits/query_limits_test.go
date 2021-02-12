@@ -121,7 +121,7 @@ func TestLookbackLimit(t *testing.T) {
 				ForceExceeded: test.forceExceeded,
 			}
 			name := "test"
-			limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{})
+			limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{}, nil)
 
 			require.Equal(t, int64(0), limit.current())
 
@@ -235,7 +235,7 @@ func TestLookbackReset(t *testing.T) {
 		Lookback: time.Millisecond * 100,
 	}
 	name := "test"
-	limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{})
+	limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{}, nil)
 
 	err := limit.Inc(3, nil)
 	require.NoError(t, err)
@@ -314,8 +314,6 @@ func verifyMetrics(t *testing.T,
 ) {
 	snapshot := scope.Snapshot()
 
-	fmt.Println(snapshot.Gauges())
-
 	recent, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-count-%s+", name)]
 	assert.True(t, exists)
 	assert.Equal(t, expectedRecent, recent.Value(), "recent count wrong")
@@ -364,17 +362,14 @@ func TestSourceLogger(t *testing.T) {
 
 	assert.Equal(t, []testLoggerRecord{
 		{name: "docs-matched", val: 100, source: []byte("docs")},
-		{name: "docs-matched-all", val: 100, source: []byte("docs")},
 		{name: "disk-bytes-read", val: 200, source: []byte("bytes")},
 	}, builder.records)
 
 	require.NoError(t, queryLimits.AggregateDocsLimit().Inc(1000, []byte("docs")))
 	assert.Equal(t, []testLoggerRecord{
 		{name: "docs-matched", val: 100, source: []byte("docs")},
-		{name: "docs-matched-all", val: 100, source: []byte("docs")},
 		{name: "disk-bytes-read", val: 200, source: []byte("bytes")},
-		{name: "docs-matched-aggregate", val: 1000, source: []byte("docs")},
-		{name: "docs-matched-all", val: 1000, source: []byte("docs")},
+		{name: "docs-matched", val: 1000, source: []byte("docs")},
 	}, builder.records)
 }
 
@@ -386,7 +381,7 @@ type testBuilder struct {
 
 var _ SourceLoggerBuilder = (*testBuilder)(nil)
 
-func (s *testBuilder) NewSourceLogger(n string, _ instrument.Options) SourceLogger {
+func (s *testBuilder) NewSourceLogger(n string, opts instrument.Options) SourceLogger {
 	return &testSourceLogger{name: n, builder: s}
 }
 

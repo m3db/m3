@@ -48,8 +48,10 @@ func NewLookbackLimitPermitsManager(
 	opts limits.LookbackLimitOptions,
 	name string,
 	sourceLoggerBuilder limits.SourceLoggerBuilder,
+	tags map[string]string,
 ) *LookbackLimitPermitManager {
-	lookbackLimit := limits.NewLookbackLimit(instrumentOpts, opts, name, sourceLoggerBuilder)
+	lookbackLimit := limits.NewLookbackLimit(
+		instrumentOpts, opts, name, sourceLoggerBuilder, tags)
 
 	// We expose this implementation type to allow caller to use Start/Stop
 	// lookback functions which are not part of the Permits interface.

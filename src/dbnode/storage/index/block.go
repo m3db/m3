@@ -902,10 +902,9 @@ func (b *block) addAggregateResults(
 		aggDocs += len(entry.Terms)
 	}
 
-	if err := b.aggDocsLimit.Inc(aggDocs, source); err != nil {
-		// NB: this case should warn and continue.
-		b.logger.Warn("aggregate limit", zap.Error(err))
-	}
+	// NB: currently this is here to capture upper limits for these limits and will
+	// trip constantly; ignore any errors for now.
+	_ = b.aggDocsLimit.Inc(aggDocs, source)
 
 	// reset batch.
 	var emptyField AggregateResultsEntry
