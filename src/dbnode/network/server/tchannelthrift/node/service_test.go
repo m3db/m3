@@ -1590,7 +1590,8 @@ func TestServiceFetchTagged(t *testing.T) {
 					testTChannelThriftOptions.InstrumentOptions(),
 					limitsOpts.DiskSeriesReadLimitOpts(),
 					"disk-series-read",
-					limitsOpts.SourceLoggerBuilder()))
+					limitsOpts.SourceLoggerBuilder(),
+					map[string]string{}))
 
 			require.NoError(t, err)
 			testTChannelThriftOptions = testTChannelThriftOptions.
