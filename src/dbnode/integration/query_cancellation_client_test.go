@@ -44,7 +44,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestQueryCancellationClient(t *testing.T) {
+func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
