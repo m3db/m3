@@ -435,9 +435,17 @@ func (r *blockRetriever) fetchBatch(
 	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources,
 		retrieverResources)
 
-	for _, req := range reqs {
-		if err := r.queryLimits.AnyExceeded(); err != nil {
+	var limitErr error
+	if err := r.queryLimits.AnyExceeded(); err != nil {
+		for _, req := range reqs {
 			req.err = err
+		}
+		return
+	}
+
+	for _, req := range reqs {
+		if limitErr != nil {
+			req.err = limitErr
 			continue
 		}
 
@@ -451,6 +459,7 @@ func (r *blockRetriever) fetchBatch(
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && !errors.Is(err, errSeekIDNotFound) {
 			req.err = err
+			limitErr = err
 			continue
 		}
 

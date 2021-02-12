@@ -122,7 +122,7 @@ type ToSegmentsResult struct {
 }
 
 // ToSegments converts a list of blocks to segments.
-func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult, error) {
+func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult, error) { //nolint: gocyclo
 	if len(blocks) == 0 {
 		return ToSegmentsResult{}, nil
 	}
@@ -130,7 +130,14 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 	s := &rpc.Segments{}
 
 	if len(blocks) == 1 {
-		seg, err := blocks[0].ReadSegment(ctx)
+		// check the deadline before potentially blocking for the results from the disk read. in the worst case we'll
+		// wait for one extra block past the rpc deadline.
+		select {
+		case <-ctx.GoContext().Done():
+			return ToSegmentsResult{}, ctx.GoContext().Err()
+		default:
+		}
+		seg, err := blocks[0].Segment()
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}
@@ -154,7 +161,12 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 	}
 
 	for _, block := range blocks {
-		seg, err := block.ReadSegment(ctx)
+		select {
+		case <-ctx.GoContext().Done():
+			return ToSegmentsResult{}, ctx.GoContext().Err()
+		default:
+		}
+		seg, err := block.Segment()
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}
