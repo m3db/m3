@@ -125,9 +125,9 @@ func (fti *fieldsAndTermsIter) Reset(ctx context.Context, reader segment.Reader,
 		return err
 	}
 
-	sp, _ := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
+	ctx, sp := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
 	pl, err := searcher.Search(fti.reader)
-	sp.Close()
+	sp.Finish()
 	if err != nil {
 		return err
 	}

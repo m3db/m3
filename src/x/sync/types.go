@@ -21,8 +21,9 @@
 package sync
 
 import (
-	"context"
 	"time"
+
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/m3db/m3/src/x/instrument"
 )

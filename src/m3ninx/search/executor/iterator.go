@@ -129,10 +129,10 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 
 	reader := it.readers[it.idx]
 
-	sp, _ := it.ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
+	_, sp := it.ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
 	start := time.Now()
 	pl, err := it.searcher.Search(reader)
-	sp.Close()
+	sp.Finish()
 	if err != nil {
 		return nil, false, err
 	}
