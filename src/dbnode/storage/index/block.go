@@ -677,7 +677,7 @@ func (b *block) aggregateWithSpan(
 	defer func() {
 		b.opts.AggregateResultsEntryArrayPool().Put(batch)
 		if !iterClosed {
-			iter.Close()
+			iter.Close() // nolint: errcheck
 		}
 
 		b.metrics.aggregateDocsMatched.RecordValue(float64(docsCount))

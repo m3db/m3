@@ -31,9 +31,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-var (
-	errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
-)
+var errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
 
 // fieldsAndTermsIteratorOpts configures the fieldsAndTermsIterator.
 type fieldsAndTermsIteratorOpts struct {
@@ -78,9 +76,7 @@ type fieldsAndTermsIter struct {
 	restrictByPostings *pilosaroaring.Bitmap
 }
 
-var (
-	fieldsAndTermsIterZeroed fieldsAndTermsIter
-)
+var fieldsAndTermsIterZeroed fieldsAndTermsIter
 
 var _ fieldsAndTermsIterator = &fieldsAndTermsIter{}
 
