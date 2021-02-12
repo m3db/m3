@@ -676,7 +676,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 11)
+			require.Len(t, spans, 15)
 		})
 	}
 }
@@ -1093,7 +1093,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 11)
+			require.Len(t, spans, 15)
 		})
 	}
 }
