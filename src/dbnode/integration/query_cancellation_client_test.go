@@ -133,7 +133,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 	log.Info("testing client query semantics")
 
 	// Test query no deadline.
-	_, _, err = session.FetchTagged(ContextWithDefaultTimeout(), md.ID(), query, queryOpts)
+	_, _, err = session.FetchTagged(context.Background(), md.ID(), query, queryOpts)
 	// Expect error since we did not set a deadline.
 	require.Error(t, err)
 	log.Info("expected deadline not set error from fetch tagged", zap.Error(err))
@@ -144,7 +144,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 	// Test query with cancel.
 	var wg sync.WaitGroup
 	wg.Add(1)
-	ctx, cancel := context.WithTimeout(ContextWithDefaultTimeout(), time.Minute)
+	ctx, cancel := context.WithCancel(ContextWithDefaultTimeout())
 
 	var (
 		once      sync.Once
