@@ -365,7 +365,7 @@ func newOptions() *options {
 	hostQueueNewPooledWorkerFn := func(
 		opts xsync.NewPooledWorkerOptions,
 	) (xsync.PooledWorkerPool, error) {
-		if opts.InstrumentOptions != nil {
+		if opts.InstrumentOptions == nil {
 			return nil, errors.New("instrument options required for new pooled worker fn")
 		}
 

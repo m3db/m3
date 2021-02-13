@@ -85,19 +85,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 				return opts.SetHostQueueNewPooledWorkerFn(func(
 					opts xsync.NewPooledWorkerOptions,
 				) (xsync.PooledWorkerPool, error) {
-					workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-						SetGrowOnDemand(true).
-						SetKillWorkerProbability(0.01).
-						SetInstrumentOptions(opts.InstrumentOptions)
-
-					workerPool, err := xsync.NewPooledWorkerPool(
-						int(workerPoolOpts.NumShards()),
-						workerPoolOpts)
-					if err != nil {
-						return nil, err
-					}
-
-					mocked := newMockWorkerPool(workerPool)
+					mocked := newMockWorkerPool()
 					hostQueueWorkerPoolsLock.Lock()
 					hostQueueWorkerPools = append(hostQueueWorkerPools, mocked)
 					hostQueueWorkerPoolsLock.Unlock()
@@ -188,19 +176,14 @@ var _ xsync.PooledWorkerPool = (*mockWorkerPool)(nil)
 
 type mockWorkerPool struct {
 	sync.RWMutex
-	hook       func(ctx context.Context)
-	workerPool xsync.PooledWorkerPool
+	hook func(ctx context.Context)
 }
 
-func newMockWorkerPool(workerPool xsync.PooledWorkerPool) *mockWorkerPool {
-	return &mockWorkerPool{
-		workerPool: workerPool,
-	}
+func newMockWorkerPool() *mockWorkerPool {
+	return &mockWorkerPool{}
 }
 
-func (p *mockWorkerPool) Init() {
-	p.workerPool.Init()
-}
+func (p *mockWorkerPool) Init() {}
 
 func (p *mockWorkerPool) hookSet(hook func(ctx context.Context)) {
 	p.Lock()
@@ -219,15 +202,17 @@ func (p *mockWorkerPool) hookRun(ctx context.Context) {
 
 func (p *mockWorkerPool) Go(work xsync.Work) {
 	p.hookRun(nil)
-	p.workerPool.Go(work)
+	go func() { work() }()
 }
 
 func (p *mockWorkerPool) GoWithTimeout(work xsync.Work, timeout time.Duration) bool {
 	p.hookRun(nil)
-	return p.workerPool.GoWithTimeout(work, timeout)
+	go func() { work() }()
+	return true
 }
 
 func (p *mockWorkerPool) GoWithContext(ctx context.Context, work xsync.Work) bool {
 	p.hookRun(ctx)
-	return p.workerPool.GoWithContext(ctx, work)
+	go func() { work() }()
+	return true
 }

@@ -61,7 +61,7 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 	}
 
 	// Prepare aggregates
-	aggregate := testAggregateOp("testNs", callback)
+	aggregate := testAggregateOp(t, "testNs", callback)
 	wg.Add(1)
 	assert.NoError(t, queue.Enqueue(aggregate))
 	assert.Equal(t, 1, queue.Len())
@@ -102,14 +102,14 @@ func TestHostQueueAggregate(t *testing.T) {
 	namespace := "testNs"
 	res := &rpc.AggregateQueryRawResult_{
 		Results: []*rpc.AggregateQueryRawResultTagNameElement{
-			&rpc.AggregateQueryRawResultTagNameElement{
+			{
 				TagName: []byte("tagName"),
 			},
 		},
 		Exhaustive: true,
 	}
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				response: res,
 				host:     h,
@@ -125,7 +125,7 @@ func TestHostQueueAggregateErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				host: h,
 			},
@@ -144,7 +144,7 @@ func TestHostQueueAggregateErrorOnAggregateError(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{host: h},
 			err:    expectedErr,
 		},
@@ -196,7 +196,7 @@ func testHostQueueAggregate(
 	}
 
 	// Prepare aggregate op
-	aggregateOp := testAggregateOp("testNs", callback)
+	aggregateOp := testAggregateOp(t, "testNs", callback)
 	wg.Add(1)
 
 	// Prepare mocks for flush
@@ -247,11 +247,13 @@ func testHostQueueAggregate(
 }
 
 func testAggregateOp(
+	t *testing.T,
 	namespace string,
 	completionFn completionFn,
 ) *aggregateOp {
 	f := newAggregateOp(nil)
 	f.incRef()
+	f.context = testContext(t)
 	f.request = rpc.AggregateQueryRawRequest{
 		NameSpace: []byte(namespace),
 	}

@@ -60,7 +60,7 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 	}
 
 	// Prepare fetches
-	fetch := testFetchTaggedOp("testNs", callback)
+	fetch := testFetchTaggedOp(t, "testNs", callback)
 	wg.Add(1)
 	assert.NoError(t, queue.Enqueue(fetch))
 	assert.Equal(t, 1, queue.Len())
@@ -101,7 +101,7 @@ func TestHostQueueFetchTagged(t *testing.T) {
 	namespace := "testNs"
 	res := &rpc.FetchTaggedResult_{
 		Elements: []*rpc.FetchTaggedIDResult_{
-			&rpc.FetchTaggedIDResult_{
+			{
 				NameSpace: []byte(namespace),
 				ID:        []byte("abc"),
 			},
@@ -109,7 +109,7 @@ func TestHostQueueFetchTagged(t *testing.T) {
 		Exhaustive: true,
 	}
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{
 				response: res,
 				host:     h,
@@ -125,7 +125,7 @@ func TestHostQueueFetchTaggedErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{
 				host: h,
 			},
@@ -144,7 +144,7 @@ func TestHostQueueFetchTaggedErrorOnFetchTaggedError(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{host: h},
 			err:    expectedErr,
 		},
@@ -196,7 +196,7 @@ func testHostQueueFetchTagged(
 	}
 
 	// Prepare fetch batch op
-	fetchTagged := testFetchTaggedOp("testNs", callback)
+	fetchTagged := testFetchTaggedOp(t, "testNs", callback)
 	wg.Add(1)
 
 	// Prepare mocks for flush
@@ -247,11 +247,13 @@ func testHostQueueFetchTagged(
 }
 
 func testFetchTaggedOp(
+	t *testing.T,
 	namespace string,
 	completionFn completionFn,
 ) *fetchTaggedOp {
 	f := newFetchTaggedOp(nil)
 	f.incRef()
+	f.context = testContext(t)
 	f.request = rpc.FetchTaggedRequest{
 		NameSpace: []byte(namespace),
 	}

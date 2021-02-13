@@ -123,6 +123,13 @@ func (p *pooledWorkerPool) work(
 		}
 
 		if ctx != nil {
+			// See if cancelled first.
+			select {
+			case <-ctx.Done():
+				return false
+			default:
+			}
+
 			// Using context for cancellation not timer.
 			select {
 			case workCh <- work:
