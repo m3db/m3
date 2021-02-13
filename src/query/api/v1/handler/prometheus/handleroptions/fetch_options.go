@@ -272,7 +272,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.Timeout, err = ParseRequestTimeout(req, b.opts.Timeout)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not parse timeout: err=%v", err)
+		return nil, nil, fmt.Errorf("could not parse timeout: err=%w", err)
 	}
 
 	// Set timeout on the returned context.

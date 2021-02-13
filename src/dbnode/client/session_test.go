@@ -69,7 +69,8 @@ var (
 		SetSeriesIteratorPoolSize(1)
 )
 
-func testContext(t *testing.T) context.Context {
+func testContext() context.Context {
+	// nolint: govet
 	ctx, _ := context.WithTimeout(context.Background(), time.Minute)
 	return ctx
 }

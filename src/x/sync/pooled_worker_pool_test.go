@@ -60,7 +60,7 @@ func TestPooledWorkerPoolGoWithContext(t *testing.T) {
 	require.NoError(t, err)
 	wp.Init()
 
-	// Cancel and make sure worker will prefer to return from cancelled
+	// Cancel and make sure worker will prefer to return from canceled
 	// work rather than always enqueue.
 	cancel()
 

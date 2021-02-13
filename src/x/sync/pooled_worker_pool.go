@@ -88,19 +88,26 @@ func (p *pooledWorkerPool) Init() {
 }
 
 func (p *pooledWorkerPool) Go(work Work) {
-	p.work(nil, work, 0)
+	p.work(maybeContext{}, work, 0)
 }
 
 func (p *pooledWorkerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
-	return p.work(nil, work, timeout)
+	return p.work(maybeContext{}, work, timeout)
 }
 
 func (p *pooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
-	return p.work(ctx, work, 0)
+	return p.work(maybeContext{ctx: ctx}, work, 0)
+}
+
+// maybeContext works around the linter about optionally
+// passing the context for scenarios where we don't want to use
+// context in the APIs.
+type maybeContext struct {
+	ctx context.Context
 }
 
 func (p *pooledWorkerPool) work(
-	ctx context.Context,
+	ctx maybeContext,
 	work Work,
 	timeout time.Duration,
 ) bool {
@@ -117,15 +124,15 @@ func (p *pooledWorkerPool) work(
 	}
 
 	if !p.growOnDemand {
-		if ctx == nil && timeout <= 0 {
+		if ctx.ctx == nil && timeout <= 0 {
 			workCh <- work
 			return true
 		}
 
-		if ctx != nil {
-			// See if cancelled first.
+		if ctx.ctx != nil {
+			// See if canceled first.
 			select {
-			case <-ctx.Done():
+			case <-ctx.ctx.Done():
 				return false
 			default:
 			}
@@ -134,7 +141,7 @@ func (p *pooledWorkerPool) work(
 			select {
 			case workCh <- work:
 				return true
-			case <-ctx.Done():
+			case <-ctx.ctx.Done():
 				return false
 			}
 		}

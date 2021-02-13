@@ -61,7 +61,7 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 	}
 
 	// Prepare aggregates
-	aggregate := testAggregateOp(t, "testNs", callback)
+	aggregate := testAggregateOp("testNs", callback)
 	wg.Add(1)
 	assert.NoError(t, queue.Enqueue(aggregate))
 	assert.Equal(t, 1, queue.Len())
@@ -196,7 +196,7 @@ func testHostQueueAggregate(
 	}
 
 	// Prepare aggregate op
-	aggregateOp := testAggregateOp(t, "testNs", callback)
+	aggregateOp := testAggregateOp("testNs", callback)
 	wg.Add(1)
 
 	// Prepare mocks for flush
@@ -247,13 +247,12 @@ func testHostQueueAggregate(
 }
 
 func testAggregateOp(
-	t *testing.T,
 	namespace string,
 	completionFn completionFn,
 ) *aggregateOp {
 	f := newAggregateOp(nil)
 	f.incRef()
-	f.context = testContext(t)
+	f.context = testContext()
 	f.request = rpc.AggregateQueryRawRequest{
 		NameSpace: []byte(namespace),
 	}

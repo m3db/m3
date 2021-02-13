@@ -60,7 +60,7 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 	}
 
 	// Prepare fetches
-	fetch := testFetchTaggedOp(t, "testNs", callback)
+	fetch := testFetchTaggedOp("testNs", callback)
 	wg.Add(1)
 	assert.NoError(t, queue.Enqueue(fetch))
 	assert.Equal(t, 1, queue.Len())
@@ -196,7 +196,7 @@ func testHostQueueFetchTagged(
 	}
 
 	// Prepare fetch batch op
-	fetchTagged := testFetchTaggedOp(t, "testNs", callback)
+	fetchTagged := testFetchTaggedOp("testNs", callback)
 	wg.Add(1)
 
 	// Prepare mocks for flush
@@ -247,13 +247,12 @@ func testHostQueueFetchTagged(
 }
 
 func testFetchTaggedOp(
-	t *testing.T,
 	namespace string,
 	completionFn completionFn,
 ) *fetchTaggedOp {
 	f := newFetchTaggedOp(nil)
 	f.incRef()
-	f.context = testContext(t)
+	f.context = testContext()
 	f.request = rpc.FetchTaggedRequest{
 		NameSpace: []byte(namespace),
 	}

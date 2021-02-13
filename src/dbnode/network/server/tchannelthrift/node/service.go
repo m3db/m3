@@ -125,7 +125,7 @@ type serviceMetrics struct {
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
 	rpcTotalRead            tally.Counter
-	rpcStatusCancelledRead  tally.Counter
+	rpcStatusCanceledRead   tally.Counter
 	// the total time to call FetchTagged, both querying the index and reading data results (if requested).
 	queryTimingFetchTagged index.QueryMetrics
 	// the total time to read data blocks.
@@ -157,8 +157,8 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		rpcTotalRead: scope.Tagged(map[string]string{
 			"rpc_type": "read",
 		}).Counter("rpc_total"),
-		rpcStatusCancelledRead: scope.Tagged(map[string]string{
-			"rpc_status": "cancelled",
+		rpcStatusCanceledRead: scope.Tagged(map[string]string{
+			"rpc_status": "canceled",
 			"rpc_type":   "read",
 		}).Counter("rpc_status"),
 		queryTimingFetchTagged:  index.NewQueryMetrics("fetch_tagged", scope),
@@ -2585,7 +2585,7 @@ func (s *service) readRPCCompleted(ctx goctx.Context) {
 	s.metrics.rpcTotalRead.Inc(1)
 	select {
 	case <-ctx.Done():
-		s.metrics.rpcStatusCancelledRead.Inc(1)
+		s.metrics.rpcStatusCanceledRead.Inc(1)
 	default:
 	}
 

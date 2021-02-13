@@ -157,7 +157,7 @@ func ParseRenderRequest(
 		dur, err := graphite.ParseDuration(offset)
 		if err != nil {
 			err = errors.NewInvalidParamsError(err)
-			return nil, p, nil, errors.NewRenamedError(err, fmt.Errorf("invalid 'offset': %s", err))
+			return nil, p, nil, errors.NewRenamedError(err, fmt.Errorf("invalid 'offset': %w", err))
 		}
 
 		p.Until = p.Until.Add(dur)
