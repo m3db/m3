@@ -88,13 +88,14 @@ func NewStream(quantiles []float64, opts Options) Stream {
 	}
 
 	s := &stream{
-		eps:             opts.Eps(),
-		capacity:        opts.Capacity(),
-		flushEvery:      opts.FlushEvery(),
-		streamPool:      opts.StreamPool(),
-		floatsPool:      opts.FloatsPool(),
-		acquireSampleFn: acquireSampleFn,
-		releaseSampleFn: releaseSampleFn,
+		eps:                    opts.Eps(),
+		capacity:               opts.Capacity(),
+		flushEvery:             opts.FlushEvery(),
+		insertAndCompressEvery: opts.InsertAndCompressEvery(),
+		streamPool:             opts.StreamPool(),
+		floatsPool:             opts.FloatsPool(),
+		acquireSampleFn:        acquireSampleFn,
+		releaseSampleFn:        releaseSampleFn,
 	}
 
 	s.ResetSetData(quantiles)
