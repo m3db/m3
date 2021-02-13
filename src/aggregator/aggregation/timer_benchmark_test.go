@@ -67,8 +67,8 @@ func timerSamples() [][]float64 {
 	rnd := rand.New(rand.NewSource(0)) //nolint:gosec
 	samples := make([][]float64, _sampleBatches)
 	for i := 0; i < len(samples); i++ {
-		samples[i] = make([]float64, _insertAndCompressEvery)
-		for j := 0; j < _insertAndCompressEvery; j++ {
+		samples[i] = make([]float64, 1000)
+		for j := 0; j < 1000; j++ {
 			samples[i][j] = rnd.ExpFloat64()
 		}
 	}
@@ -128,7 +128,7 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 	var q float64
 	var z []float64
 
-	const _debug = false
+	const _debug = true
 
 	if _debug {
 		for i := range samples {
@@ -154,7 +154,7 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 			b.FailNow()
 		}
 
-		if _debug && n == 1 {
+		if _debug && n == 0 {
 			q = timer.Quantile(testQuantiles[len(testQuantiles)-1])
 			n := int(float64(len(z)) * testQuantiles[len(testQuantiles)-1])
 			//fmt.Println(q, z[n], n, len(z))
