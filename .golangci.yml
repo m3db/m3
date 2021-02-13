@@ -70,9 +70,6 @@ linters-settings:
     # put imports beginning with prefix after 3rd-party packages;
     # it's a comma-separated list of prefixes
     local-prefixes: github.com/m3db/m3
-  gocyclo:
-    # minimal code complexity to report, 30 by default (but we recommend 10-20)
-    min-complexity: 10
   maligned:
     # print struct with more effective memory layout or not, false by default
     suggest-new: true
@@ -179,7 +176,6 @@ linters:
     - gci
     - goconst
     - gocritic
-    - gocyclo
     - goimports
     - golint
     - gosimple
@@ -198,8 +194,6 @@ linters:
     - varcheck
   enable-all: false
   disable:
-    # Disabled dogsled as using _, _, _ is useful in tests.
-    - dogsled
     - gomnd
     - gochecknoinits
     # Globals gonna global
@@ -233,6 +227,10 @@ linters:
     - nlreturn
     # Opinionated and sometimes wrong.
     - paralleltest
+    # Disabled dogsled as using _, _, _ is useful in tests.
+    - dogsled
+    # There are functions with complexity required.
+    - gocyclo
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
