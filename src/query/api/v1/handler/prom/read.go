@@ -97,20 +97,14 @@ func newReadHandler(
 
 func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	fetchOptions, err := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
-	if err != nil {
-		xhttp.WriteError(w, err)
-		return
-	}
-
-	request, err := native.ParseRequest(ctx, r, h.opts.instant, h.hOpts)
+	ctx, request, err := native.ParseRequest(ctx, r, h.opts.instant, h.hOpts)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
 	}
 
 	params := request.Params
+	fetchOptions := request.FetchOpts
 
 	// NB (@shreyas): We put the FetchOptions in context so it can be
 	// retrieved in the queryable object as there is no other way to pass
@@ -118,12 +112,6 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var resultMetadata block.ResultMetadata
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
 	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataKey, &resultMetadata)
-
-	if params.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, params.Timeout)
-		defer cancel()
-	}
 
 	qry, err := h.opts.newQueryFn(params)
 	if err != nil {

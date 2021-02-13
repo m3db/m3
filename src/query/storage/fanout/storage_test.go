@@ -106,13 +106,13 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
 	pools := newTestIteratorPools(ctrl)
-	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(response[0].result, client.FetchResponseMetadata{Exhaustive: true}, response[0].err)
-	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(response[len(response)-1].result, client.FetchResponseMetadata{Exhaustive: true}, response[len(response)-1].err)
-	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
-	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
 	session1.EXPECT().IteratorPools().
 		Return(pools, nil).AnyTimes()
@@ -137,9 +137,9 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 			gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
-	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, errs[0]).AnyTimes()
-	session1.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
+	session1.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, errs[0]).AnyTimes()
 
 	session2.EXPECT().
@@ -337,7 +337,7 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 			&consolidators.CompleteTagsResult{
 				CompleteNameOnly: true,
 				CompletedTags: []consolidators.CompletedTag{
-					consolidators.CompletedTag{
+					{
 						Name: []byte("ok"),
 					},
 				},
@@ -351,7 +351,7 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 			&consolidators.CompleteTagsResult{
 				CompleteNameOnly: true,
 				CompletedTags: []consolidators.CompletedTag{
-					consolidators.CompletedTag{
+					{
 						Name: []byte("warn"),
 					},
 				},
@@ -436,8 +436,8 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 			storage.PromResult{
 				PromResult: &prompb.QueryResult{
 					Timeseries: []*prompb.TimeSeries{
-						&prompb.TimeSeries{
-							Labels: []prompb.Label{prompb.Label{Name: []byte("ok")}},
+						{
+							Labels: []prompb.Label{{Name: []byte("ok")}},
 						},
 					},
 				},
@@ -452,8 +452,8 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 			storage.PromResult{
 				PromResult: &prompb.QueryResult{
 					Timeseries: []*prompb.TimeSeries{
-						&prompb.TimeSeries{
-							Labels: []prompb.Label{prompb.Label{Name: []byte("warn")}},
+						{
+							Labels: []prompb.Label{{Name: []byte("warn")}},
 						},
 					},
 				},

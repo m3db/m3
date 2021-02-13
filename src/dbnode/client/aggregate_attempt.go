@@ -21,6 +21,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -41,6 +43,7 @@ type aggregateAttempt struct {
 }
 
 type aggregateAttemptArgs struct {
+	ctx   context.Context
 	ns    ident.ID
 	query index.Query
 	opts  index.AggregationOptions
@@ -54,7 +57,7 @@ func (f *aggregateAttempt) reset() {
 
 func (f *aggregateAttempt) performAttempt() error {
 	var err error
-	f.resultIter, f.resultMetadata, err = f.session.aggregateAttempt(
+	f.resultIter, f.resultMetadata, err = f.session.aggregateAttempt(f.args.ctx,
 		f.args.ns, f.args.query, f.args.opts)
 	return err
 }

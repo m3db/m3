@@ -113,9 +113,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
 
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
-	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
+	logger := logging.WithContext(r.Context(), h.opts.InstrumentOpts())
+	ctx, req, fetchOpts, rErr := ParseRequest(r.Context(), r, h.opts)
 	if rErr != nil {
 		h.promReadMetrics.incError(rErr)
 		logger.Error("remote read query parse error",
@@ -384,20 +383,20 @@ func ParseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, error) {
-	req, fetchOpts, err := parseRequest(ctx, r, opts)
+) (context.Context, *prompb.ReadRequest, *storage.FetchOptions, error) {
+	ctx, req, fetchOpts, err := parseRequest(ctx, r, opts)
 	if err != nil {
 		// Always invalid request if parsing fails params.
-		return nil, nil, xerrors.NewInvalidParamsError(err)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	return req, fetchOpts, nil
+	return ctx, req, fetchOpts, nil
 }
 
 func parseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, error) {
+) (context.Context, *prompb.ReadRequest, *storage.FetchOptions, error) {
 	var (
 		req *prompb.ReadRequest
 		err error
@@ -409,15 +408,15 @@ func parseRequest(
 		req, err = parseCompressedRequest(r)
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	ctx, fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
 	if rErr != nil {
-		return nil, nil, rErr
+		return nil, nil, nil, rErr
 	}
 
-	return req, fetchOpts, nil
+	return ctx, req, fetchOpts, nil
 }
 
 // Read performs a remote read on the given engine.

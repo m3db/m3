@@ -101,7 +101,7 @@ func TestHostQueueFetchTagged(t *testing.T) {
 	namespace := "testNs"
 	res := &rpc.FetchTaggedResult_{
 		Elements: []*rpc.FetchTaggedIDResult_{
-			&rpc.FetchTaggedIDResult_{
+			{
 				NameSpace: []byte(namespace),
 				ID:        []byte("abc"),
 			},
@@ -109,7 +109,7 @@ func TestHostQueueFetchTagged(t *testing.T) {
 		Exhaustive: true,
 	}
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{
 				response: res,
 				host:     h,
@@ -125,7 +125,7 @@ func TestHostQueueFetchTaggedErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{
 				host: h,
 			},
@@ -144,7 +144,7 @@ func TestHostQueueFetchTaggedErrorOnFetchTaggedError(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{host: h},
 			err:    expectedErr,
 		},
@@ -252,6 +252,7 @@ func testFetchTaggedOp(
 ) *fetchTaggedOp {
 	f := newFetchTaggedOp(nil)
 	f.incRef()
+	f.context = testContext()
 	f.request = rpc.FetchTaggedRequest{
 		NameSpace: []byte(namespace),
 	}

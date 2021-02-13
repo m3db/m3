@@ -21,10 +21,12 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -61,13 +63,17 @@ var (
 		SetCheckedBytesWrapperPoolSize(1).
 		SetFetchBatchOpPoolSize(1).
 		SetHostQueueOpsArrayPoolSize(1).
-		SetSeriesIteratorPoolSize(1).
-		SetTagDecoderPoolSize(1).
 		SetTagEncoderPoolSize(1).
 		SetWriteOpPoolSize(1).
 		SetWriteTaggedOpPoolSize(1).
 		SetSeriesIteratorPoolSize(1)
 )
+
+func testContext() context.Context {
+	// nolint: govet
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+	return ctx
+}
 
 func newSessionTestOptions() Options {
 	return applySessionTestOptions(_testSessionOpts)

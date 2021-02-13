@@ -125,15 +125,16 @@ func TestGoWithTimeout(t *testing.T) {
 	require.Equal(t, uint32(testWorkerPoolSize+1), count)
 }
 
-func TestGoWithCtx(t *testing.T) {
-	goctx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Second)
+func TestGoWithContext(t *testing.T) {
+	sleep := time.Second
+	goctx, cancel := stdctx.WithTimeout(stdctx.Background(), sleep)
 	defer cancel()
 	ctx := context.NewWithGoContext(goctx)
 	wp := NewWorkerPool(1)
 	wp.Init()
 
 	result := wp.GoWithContext(ctx, func() {
-		time.Sleep(time.Minute)
+		time.Sleep(5 * sleep)
 	})
 	require.True(t, result.Available)
 
