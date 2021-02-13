@@ -23,26 +23,30 @@ package executor
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
 )
 
 type iterator struct {
+	ctx      context.Context
 	searcher search.Searcher
 	readers  index.Readers
 
-	idx      int
-	currDoc  doc.Document
-	currIter doc.Iterator
+	idx                 int
+	currDoc             doc.Document
+	currIter            doc.Iterator
 	totalSearchDuration time.Duration
 
 	err    error
 	closed bool
 }
 
-func newIterator(s search.Searcher, rs index.Readers) (doc.QueryDocIterator, error) {
+func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) (doc.QueryDocIterator, error) {
 	it := &iterator{
+		ctx:      ctx,
 		searcher: s,
 		readers:  rs,
 		idx:      -1,
@@ -115,7 +119,7 @@ func (it *iterator) Close() error {
 }
 
 // nextIter gets the next document iterator by getting the next postings list from
-// the it's searcher and then getting the encoded documents for that postings list from
+// its searcher and then getting the encoded documents for that postings list from
 // the corresponding reader associated with that postings list.
 func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 	it.idx++
@@ -124,11 +128,15 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 	}
 
 	reader := it.readers[it.idx]
+
+	_, sp := it.ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
 	start := time.Now()
 	pl, err := it.searcher.Search(reader)
+	sp.Finish()
 	if err != nil {
 		return nil, false, err
 	}
+
 	it.totalSearchDuration += time.Since(start)
 
 	iter, err := reader.Docs(pl)

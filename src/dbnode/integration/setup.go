@@ -1035,9 +1035,9 @@ func newClients(
 		verificationAdminOpts = verificationAdminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
 	}
 
-	for _, optFn := range opts.CustomAdminOptions() {
-		adminOpts = optFn(adminOpts)
-		verificationAdminOpts = optFn(verificationAdminOpts)
+	for _, opt := range opts.CustomClientAdminOptions() {
+		adminOpts = opt(adminOpts)
+		verificationAdminOpts = opt(verificationAdminOpts)
 	}
 
 	// Set up m3db client

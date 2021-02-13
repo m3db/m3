@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -1555,6 +1556,7 @@ func TestServiceFetchTagged(t *testing.T) {
 		name            string
 		blocksReadLimit int64
 		fetchErrMsg     string
+		blockReadCancel bool
 	}{
 		{
 			name: "happy path",
@@ -1563,6 +1565,11 @@ func TestServiceFetchTagged(t *testing.T) {
 			name:            "block read limit",
 			blocksReadLimit: 1,
 			fetchErrMsg:     "query aborted due to limit",
+		},
+		{
+			name:            "data read canceled",
+			fetchErrMsg:     "context canceled",
+			blockReadCancel: true,
 		},
 	}
 
@@ -1590,7 +1597,8 @@ func TestServiceFetchTagged(t *testing.T) {
 					testTChannelThriftOptions.InstrumentOptions(),
 					limitsOpts.DiskSeriesReadLimitOpts(),
 					"disk-series-read",
-					limitsOpts.SourceLoggerBuilder()))
+					limitsOpts.SourceLoggerBuilder(),
+					map[string]string{}))
 
 			require.NoError(t, err)
 			testTChannelThriftOptions = testTChannelThriftOptions.
@@ -1605,7 +1613,10 @@ func TestServiceFetchTagged(t *testing.T) {
 
 			mtr := mocktracer.New()
 			sp := mtr.StartSpan("root")
-			ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
+			stdCtx := opentracing.ContextWithSpan(gocontext.Background(), sp)
+			stdCtx, cancel := gocontext.WithCancel(stdCtx)
+			defer cancel()
+			ctx.SetGoContext(stdCtx)
 
 			start := time.Now().Add(-2 * time.Hour)
 			end := start.Add(2 * time.Hour)
@@ -1643,13 +1654,22 @@ func TestServiceFetchTagged(t *testing.T) {
 				streams[id] = stream
 				mockDB.EXPECT().
 					ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-					Return(&series.FakeBlockReaderIter{
-						Readers: [][]xio.BlockReader{{
-							xio.BlockReader{
-								SegmentReader: stream,
-							},
-						}},
-					}, nil)
+					DoAndReturn(func(
+						ctx context.Context,
+						namespace ident.ID,
+						id ident.ID,
+						start, end time.Time) (series.BlockReaderIter, error) {
+						if tc.blockReadCancel {
+							cancel()
+						}
+						return &series.FakeBlockReaderIter{
+							Readers: [][]xio.BlockReader{{
+								xio.BlockReader{
+									SegmentReader: stream,
+								},
+							}},
+						}, nil
+					})
 			}
 
 			req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))

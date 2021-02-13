@@ -124,6 +124,7 @@ func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group block
 }
 
 type addAggregateResultsFn func(
+	ctx context.Context,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
@@ -150,6 +151,7 @@ type block struct {
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	docsLimit                       limits.LookbackLimit
+	aggDocsLimit                    limits.LookbackLimit
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -162,15 +164,19 @@ type blockMetrics struct {
 	segmentFreeMmapSuccess          tally.Counter
 	segmentFreeMmapError            tally.Counter
 	segmentFreeMmapSkipNotImmutable tally.Counter
+	querySeriesMatched              tally.Histogram
+	queryDocsMatched                tally.Histogram
+	aggregateSeriesMatched          tally.Histogram
+	aggregateDocsMatched            tally.Histogram
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
 	segmentFreeMmap := "segment-free-mmap"
+	buckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return blockMetrics{
-		rotateActiveSegment:    s.Counter("rotate-active-segment"),
-		rotateActiveSegmentAge: s.Timer("rotate-active-segment-age"),
-		rotateActiveSegmentSize: s.Histogram("rotate-active-segment-size",
-			append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)),
+		rotateActiveSegment:     s.Counter("rotate-active-segment"),
+		rotateActiveSegmentAge:  s.Timer("rotate-active-segment-age"),
+		rotateActiveSegmentSize: s.Histogram("rotate-active-segment-size", buckets),
 		segmentFreeMmapSuccess: s.Tagged(map[string]string{
 			"result":    "success",
 			"skip_type": "none",
@@ -183,6 +189,11 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 			"result":    "skip",
 			"skip_type": "not-immutable",
 		}).Counter(segmentFreeMmap),
+
+		querySeriesMatched:     s.Histogram("query-series-matched", buckets),
+		queryDocsMatched:       s.Histogram("query-docs-matched", buckets),
+		aggregateSeriesMatched: s.Histogram("aggregate-series-matched", buckets),
+		aggregateDocsMatched:   s.Histogram("aggregate-docs-matched", buckets),
 	}
 }
 
@@ -259,6 +270,7 @@ func NewBlock(
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		aggDocsLimit:                    opts.QueryLimits().AggregateDocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -422,7 +434,6 @@ func (b *block) Query(
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	results.AddBlockProcessingDuration(time.Since(start))
-
 	return exhaustive, err
 }
 
@@ -454,7 +465,7 @@ func (b *block) queryWithSpan(
 	}()
 
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := exec.Execute(query.Query.SearchQuery())
+	iter, err := exec.Execute(ctx, query.Query.SearchQuery())
 	if err != nil {
 		return false, err
 	}
@@ -482,6 +493,8 @@ func (b *block) queryWithSpan(
 
 	// Register local data structures that need closing.
 	defer func() {
+		b.metrics.queryDocsMatched.RecordValue(float64(docsCount))
+		b.metrics.querySeriesMatched.RecordValue(float64(size))
 		iterCloser.Close()
 		docsPool.Put(batch)
 	}()
@@ -509,7 +522,7 @@ func (b *block) queryWithSpan(
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResults(results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -517,7 +530,7 @@ func (b *block) queryWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResults(results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -547,6 +560,7 @@ func (b *block) closeAsync(closer io.Closer) {
 }
 
 func (b *block) addQueryResults(
+	ctx context.Context,
 	results DocumentResults,
 	batch []doc.Document,
 	source []byte,
@@ -558,6 +572,8 @@ func (b *block) addQueryResults(
 		}
 	}
 
+	_, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQueryAddDocuments)
+	defer sp.Finish()
 	// try to add the docs to the resource.
 	size, docsCount, err := results.AddDocuments(batch)
 
@@ -587,10 +603,12 @@ func (b *block) Aggregate(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	start := time.Now()
 	exhaustive, err := b.aggregateWithSpan(ctx, opts, results, sp)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
+	results.AddBlockProcessingDuration(time.Since(start))
 
 	return exhaustive, err
 }
@@ -638,7 +656,7 @@ func (b *block) aggregateWithSpan(
 		},
 	}
 
-	iter, err := b.newFieldsAndTermsIteratorFn(nil, iterateOpts)
+	iter, err := b.newFieldsAndTermsIteratorFn(ctx, nil, iterateOpts)
 	if err != nil {
 		return false, err
 	}
@@ -646,7 +664,7 @@ func (b *block) aggregateWithSpan(
 	var (
 		source        = opts.Source
 		size          = results.Size()
-		resultCount   = results.TotalDocsCount()
+		docsCount     = results.TotalDocsCount()
 		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
 		maxBatch      = cap(batch)
 		iterClosed    = false // tracking whether we need to free the iterator at the end.
@@ -665,8 +683,11 @@ func (b *block) aggregateWithSpan(
 	defer func() {
 		b.opts.AggregateResultsEntryArrayPool().Put(batch)
 		if !iterClosed {
-			iter.Close()
+			iter.Close(ctx) //nolint:errcheck
 		}
+
+		b.metrics.aggregateDocsMatched.RecordValue(float64(docsCount))
+		b.metrics.aggregateSeriesMatched.RecordValue(float64(size))
 	}()
 
 	readers, err := b.segmentReadersWithRLock()
@@ -693,17 +714,18 @@ func (b *block) aggregateWithSpan(
 	}
 
 	for _, reader := range readers {
-		if opts.LimitsExceeded(size, resultCount) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
-		err = iter.Reset(reader, iterateOpts)
+		err = iter.Reset(ctx, reader, iterateOpts)
 		if err != nil {
 			return false, err
 		}
+		results.AddBlockSearchDuration(iter.SearchDuration())
 		iterClosed = false // only once the iterator has been successfully Reset().
 		for iter.Next() {
-			if opts.LimitsExceeded(size, resultCount) {
+			if opts.LimitsExceeded(size, docsCount) {
 				break
 			}
 
@@ -764,7 +786,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, resultCount, err = b.addAggregateResultsFn(results, batch, source)
+			batch, size, docsCount, err = b.addAggregateResultsFn(ctx, results, batch, source)
 			if err != nil {
 				return false, err
 			}
@@ -778,20 +800,20 @@ func (b *block) aggregateWithSpan(
 		}
 
 		iterClosed = true
-		if err := iter.Close(); err != nil {
+		if err := iter.Close(ctx); err != nil {
 			return false, err
 		}
 	}
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		batch, size, resultCount, err = b.addAggregateResultsFn(results, batch, source)
+		batch, size, docsCount, err = b.addAggregateResultsFn(ctx, results, batch, source)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	return opts.exhaustive(size, resultCount), nil
+	return opts.exhaustive(size, docsCount), nil
 }
 
 // appendFieldAndTermToBatch adds the provided field / term onto the batch,
@@ -875,12 +897,24 @@ func (b *block) pooledID(id []byte) ident.ID {
 // addAggregateResults adds the fields on the batch
 // to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
+	ctx context.Context,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
+	_, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQueryAddDocuments)
+	defer sp.Finish()
 	// try to add the docs to the resource.
-	size, resultCount := results.AddFields(batch)
+	size, docsCount := results.AddFields(batch)
+
+	aggDocs := len(batch)
+	for i := range batch {
+		aggDocs += len(batch[i].Terms)
+	}
+
+	// NB: currently this is here to capture upper limits for these limits and will
+	// trip constantly; ignore any errors for now.
+	_ = b.aggDocsLimit.Inc(aggDocs, source)
 
 	// reset batch.
 	var emptyField AggregateResultsEntry
@@ -890,7 +924,7 @@ func (b *block) addAggregateResults(
 	batch = batch[:0]
 
 	// return results.
-	return batch, size, resultCount, nil
+	return batch, size, docsCount, nil
 }
 
 func (b *block) AddResults(
