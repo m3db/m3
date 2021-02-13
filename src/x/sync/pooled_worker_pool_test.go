@@ -76,8 +76,9 @@ func TestPooledWorkerPoolGoWithContext(t *testing.T) {
 		}()
 	}
 
-	require.True(t, aborted > 0)
-	t.Logf("aborted: %d", aborted)
+	n := atomic.LoadUint32(&aborted)
+	require.True(t, n > 0)
+	t.Logf("aborted: %d", n)
 }
 
 func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
