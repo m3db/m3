@@ -71,9 +71,11 @@ func (is *IStream) ReadBits(numBits uint8) (uint64, error) {
 		return 0, is.err
 	}
 	if numBits <= is.remaining {
+		// Have enough bits buffered.
 		return is.consumeBuffer(numBits), nil
 	}
 	res := readBitsInWord(is.current, numBits)
+	// Not enough bits buffered, read next word from the stream.
 	bitsNeeded := numBits - is.remaining
 	if err := is.readWordFromStream(); err != nil {
 		return 0, err

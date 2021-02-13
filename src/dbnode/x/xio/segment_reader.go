@@ -51,17 +51,18 @@ func (sr *segmentReader) Read64() (word uint64, n byte, err error) {
 	sr.lazyInit()
 
 	var (
-		nh    = len(sr.lazyHead)
-		nht   = nh + len(sr.lazyTail)
+		headLen     = len(sr.lazyHead)
+		headTailLen = headLen + len(sr.lazyTail)
+
 		res   uint64
 		bytes byte
 	)
 
-	if sr.si >= nht {
+	if sr.si >= headTailLen {
 		return 0, 0, io.EOF
 	}
 
-	if sr.si+8 <= nh {
+	if sr.si+8 <= headLen {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
 		res = binary.BigEndian.Uint64(sr.lazyHead[sr.si:])
@@ -69,28 +70,28 @@ func (sr *segmentReader) Read64() (word uint64, n byte, err error) {
 		return res, 8, nil
 	}
 
-	if sr.si < nh {
-		for ; sr.si < nh; sr.si++ {
+	if sr.si < headLen {
+		for ; sr.si < headLen; sr.si++ {
 			res = (res << 8) | uint64(sr.lazyHead[sr.si])
 			bytes++
 		}
-		for ; sr.si < nht && bytes < 8; sr.si++ {
-			res = (res << 8) | uint64(sr.lazyTail[sr.si-nh])
+		for ; sr.si < headTailLen && bytes < 8; sr.si++ {
+			res = (res << 8) | uint64(sr.lazyTail[sr.si-headLen])
 			bytes++
 		}
 		return res << (64 - 8*bytes), bytes, nil
 	}
 
-	if sr.si+8 <= nht {
+	if sr.si+8 <= headTailLen {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
-		res = binary.BigEndian.Uint64(sr.lazyTail[sr.si-nh:])
+		res = binary.BigEndian.Uint64(sr.lazyTail[sr.si-headLen:])
 		sr.si += 8
 		return res, 8, nil
 	}
 
-	for ; sr.si < nht; sr.si++ {
-		res = (res << 8) | uint64(sr.lazyTail[sr.si-nh])
+	for ; sr.si < headTailLen; sr.si++ {
+		res = (res << 8) | uint64(sr.lazyTail[sr.si-headLen])
 		bytes++
 	}
 	return res << (64 - 8*bytes), bytes, nil
@@ -100,45 +101,46 @@ func (sr *segmentReader) Peek64() (word uint64, n byte, err error) {
 	sr.lazyInit()
 
 	var (
-		nh    = len(sr.lazyHead)
-		nht   = nh + len(sr.lazyTail)
+		headLen     = len(sr.lazyHead)
+		headTailLen = headLen + len(sr.lazyTail)
+
 		i     = sr.si
 		res   uint64
 		bytes byte
 	)
 
-	if i >= nht {
+	if i >= headTailLen {
 		return 0, 0, io.EOF
 	}
 
-	if i+8 <= nh {
+	if i+8 <= headLen {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
 		res = binary.BigEndian.Uint64(sr.lazyHead[i:])
 		return res, 8, nil
 	}
 
-	if i < nh {
-		for ; i < nh; i++ {
+	if i < headLen {
+		for ; i < headLen; i++ {
 			res = (res << 8) | uint64(sr.lazyHead[i])
 			bytes++
 		}
-		for ; i < nht && bytes < 8; i++ {
-			res = (res << 8) | uint64(sr.lazyTail[i-nh])
+		for ; i < headTailLen && bytes < 8; i++ {
+			res = (res << 8) | uint64(sr.lazyTail[i-headLen])
 			bytes++
 		}
 		return res << (64 - 8*bytes), bytes, nil
 	}
 
-	if i+8 <= nht {
+	if i+8 <= headTailLen {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
-		res = binary.BigEndian.Uint64(sr.lazyTail[i-nh:])
+		res = binary.BigEndian.Uint64(sr.lazyTail[i-headLen:])
 		return res, 8, nil
 	}
 
-	for ; i < nht && bytes < 8; i++ {
-		res = (res << 8) | uint64(sr.lazyTail[i-nh])
+	for ; i < headTailLen && bytes < 8; i++ {
+		res = (res << 8) | uint64(sr.lazyTail[i-headLen])
 		bytes++
 	}
 	return res << (64 - 8*bytes), bytes, nil
