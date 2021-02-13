@@ -296,7 +296,9 @@ func makeTestFetchTagged(
 		require.NoError(t, err)
 
 		startTime := nodes[0].NowFn()()
-		series, metadata, err := s.FetchTagged(gocontext.Background(),
+		ctx, cancel := gocontext.WithTimeout(gocontext.Background(), time.Minute)
+		defer cancel()
+		series, metadata, err := s.FetchTagged(ctx,
 			testNamespaces[0],
 			index.Query{Query: q},
 			index.QueryOptions{

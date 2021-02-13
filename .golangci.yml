@@ -151,13 +151,19 @@ linters-settings:
     # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
     enabled-tags:
       - performance
+    disabled-checks:
+      # These both suggest using pointers for large value structs
+      # but cause significant heap allocations in place which causes
+      # fairly heap allocations. Better to pay fast memcpy and rely
+      # on the stack being cheap to allocate than use heap allocations
+      # as a general rule of thumb.
+      - hugeParam
+      - rangeValCopy
     enabled-checks:
       - ruleguard
     settings: # settings passed to gocritic
       captLocal: # must be valid enabled check name
         paramsOnly: true
-      rangeValCopy:
-        sizeThreshold: 32
       ruleguard:
         rules: "src/cmd/tools/linter/gorules/rules.go"
   gci:
@@ -167,7 +173,6 @@ linters-settings:
 linters:
   enable:
     - deadcode
-    - dogsled
     - dupl
     - errcheck
     - exhaustive
@@ -193,6 +198,8 @@ linters:
     - varcheck
   enable-all: false
   disable:
+    # Disabled dogsled as using _, _, _ is useful in tests.
+    - dogsled
     - gomnd
     - gochecknoinits
     # Globals gonna global

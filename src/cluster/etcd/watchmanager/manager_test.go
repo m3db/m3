@@ -38,7 +38,7 @@ import (
 )
 
 func TestWatchChan(t *testing.T) {
-	wh, ecluster, _, _, _, closer := testCluster(t) //nolint:dogsled
+	wh, ecluster, _, _, _, closer := testCluster(t)
 	defer closer()
 
 	ec := ecluster.RandClient()
