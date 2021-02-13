@@ -24,6 +24,7 @@ import (
 	"math"
 	"math/rand"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -34,7 +35,7 @@ import (
 
 const (
 	_flushEvery             = 10000
-	_insertAndCompressEvery = 1000
+	_insertAndCompressEvery = 32
 	_sampleBatches          = 100
 	_eps                    = 0.001
 	_heapCapacity           = 32
@@ -125,7 +126,18 @@ func BenchmarkTimerAddBatch(b *testing.B) {
 
 func benchAddBatch(b *testing.B, samples [][]float64) {
 	var q float64
+	var z []float64
 
+	const _debug = false
+
+	if _debug {
+		for i := range samples {
+			for j := range samples[i] {
+				z = append(z, samples[i][j])
+			}
+		}
+		sort.Float64s(z)
+	}
 	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
 	for n := 0; n < b.N; n++ {
 		timer := getTimer()
@@ -140,6 +152,20 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 
 		if math.IsNaN(q) {
 			b.FailNow()
+		}
+
+		if _debug && n == 1 {
+			q = timer.Quantile(testQuantiles[len(testQuantiles)-1])
+			n := int(float64(len(z)) * testQuantiles[len(testQuantiles)-1])
+			//fmt.Println(q, z[n], n, len(z))
+			//fmt.Println(z[0], z[len(z)-1])
+			delta := math.Abs(q - z[n])
+			if delta > 0.002 {
+				b.Logf("unexpected delta: (q %f) (expected %v)  (delta %f)", q, z[n], delta)
+				b.FailNow()
+				return
+			}
+			//panic("")
 		}
 	}
 	runtime.KeepAlive(q)
