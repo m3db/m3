@@ -23,7 +23,6 @@
 package integration
 
 import (
-	gocontext "context"
 	"testing"
 	"time"
 
@@ -187,7 +186,7 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err := session.FetchTaggedIDs(gocontext.Background(),
+	iter, fetchResponse, err := session.FetchTaggedIDs(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
@@ -201,7 +200,7 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.FetchTaggedIDs(gocontext.Background(),
+	iter, fetchResponse, err = session.FetchTaggedIDs(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()

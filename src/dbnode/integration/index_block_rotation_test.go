@@ -23,7 +23,6 @@
 package integration
 
 import (
-	gocontext "context"
 	"testing"
 	"time"
 
@@ -120,7 +119,7 @@ func TestIndexBlockRotation(t *testing.T) {
 
 	// ensure all data is present
 	log.Info("querying period0 results")
-	period0Results, _, err := session.FetchTagged(gocontext.Background(),
+	period0Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.MatchesSeriesIters(t, period0Results)
@@ -134,7 +133,7 @@ func TestIndexBlockRotation(t *testing.T) {
 
 	// ensure all data is absent
 	log.Info("querying period0 results after expiry")
-	period0Results, _, err = session.FetchTagged(gocontext.Background(),
+	period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	require.Equal(t, 0, period0Results.Len())

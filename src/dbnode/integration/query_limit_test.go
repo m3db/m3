@@ -23,7 +23,6 @@
 package integration
 
 import (
-	gocontext "context"
 	"fmt"
 	"testing"
 	"time"
@@ -72,7 +71,7 @@ func TestQueryLimitExceededError(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, _, err = session.FetchTagged(gocontext.Background(),
+	_, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
 		ns.ID(), query, queryOpts)
 	require.True(t, client.IsResourceExhaustedError(err),
 		"expected resource exhausted error, got: %v", err)

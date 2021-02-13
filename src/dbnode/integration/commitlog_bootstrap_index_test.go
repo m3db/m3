@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -163,7 +162,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err := session.FetchTaggedIDs(context.Background(),
+	iter, fetchResponse, err := session.FetchTaggedIDs(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
@@ -177,7 +176,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.FetchTaggedIDs(context.Background(),
+	iter, fetchResponse, err = session.FetchTaggedIDs(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()

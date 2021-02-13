@@ -23,7 +23,6 @@
 package integration
 
 import (
-	gocontext "context"
 	"testing"
 	"time"
 
@@ -155,7 +154,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err := session.Aggregate(gocontext.Background(),
+	iter, fetchResponse, err := session.Aggregate(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive := fetchResponse.Exhaustive
@@ -179,7 +178,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.Aggregate(gocontext.Background(),
+	iter, fetchResponse, err = session.Aggregate(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive = fetchResponse.Exhaustive
@@ -200,7 +199,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("foo")})
-	iter, fetchResponse, err = session.Aggregate(gocontext.Background(),
+	iter, fetchResponse, err = session.Aggregate(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive = fetchResponse.Exhaustive
@@ -222,7 +221,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("city")})
 	queryOpts.Type = index.AggregateTagNames
-	iter, fetchResponse, err = session.Aggregate(gocontext.Background(),
+	iter, fetchResponse, err = session.Aggregate(ContextWithDefaultTimeout(),
 		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive = fetchResponse.Exhaustive

@@ -23,7 +23,6 @@
 package integration
 
 import (
-	gocontext "context"
 	"testing"
 	"time"
 
@@ -296,9 +295,7 @@ func makeTestFetchTagged(
 		require.NoError(t, err)
 
 		startTime := nodes[0].NowFn()()
-		ctx, cancel := gocontext.WithTimeout(gocontext.Background(), time.Minute)
-		defer cancel()
-		series, metadata, err := s.FetchTagged(ctx,
+		series, metadata, err := s.FetchTagged(ContextWithDefaultTimeout(),
 			testNamespaces[0],
 			index.Query{Query: q},
 			index.QueryOptions{
