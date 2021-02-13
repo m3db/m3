@@ -21,7 +21,6 @@
 package graphite
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"net/http"
@@ -98,8 +97,7 @@ func (h *renderHandler) serveHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
-	reqCtx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	p, fetchOpts, err := ParseRenderRequest(r, h.opts)
+	reqCtx, p, fetchOpts, err := ParseRenderRequest(r.Context(), r, h.opts)
 	if err != nil {
 		return xhttp.NewError(err, http.StatusBadRequest)
 	}

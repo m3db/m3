@@ -21,7 +21,6 @@
 package graphite
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"sync"
@@ -109,7 +108,12 @@ func (h *grahiteFindHandler) ServeHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
+	ctx, opts, err := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	if err != nil {
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
@@ -118,12 +122,6 @@ func (h *grahiteFindHandler) ServeHTTP(
 	// least one more child node. For further information, refer to the comment
 	// for parseFindParamsToQueries
 	terminatedQuery, childQuery, raw, err := parseFindParamsToQueries(r)
-	if err != nil {
-		xhttp.WriteError(w, err)
-		return
-	}
-
-	opts, err := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
