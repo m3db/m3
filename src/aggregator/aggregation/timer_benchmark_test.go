@@ -36,7 +36,7 @@ import (
 
 const (
 	_flushEvery             = 10000
-	_insertAndCompressEvery = 1
+	_insertAndCompressEvery = 1000
 	_sampleBatches          = 100
 	_eps                    = 0.001
 	_heapCapacity           = 32
