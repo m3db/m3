@@ -98,7 +98,7 @@ func NewStream(quantiles []float64, opts Options) Stream {
 		floatsPool:             opts.FloatsPool(),
 		acquireSampleFn:        acquireSampleFn,
 		releaseSampleFn:        releaseSampleFn,
-		smpbuf:                 make([]*Sample, 4096*4),
+		smpbuf:                 make([]*Sample, opts.InsertAndCompressEvery()*2),
 	}
 	smp := make([]Sample, len(s.smpbuf))
 	for i := 0; i < len(s.smpbuf); i++ {
@@ -141,8 +141,8 @@ func (s *stream) Flush() {
 		s.insert()
 		s.compress()
 	}
-	//fmt.Println("inserts ", s.c)
-	//fmt.Println("samples ", s.samples.len)
+	// fmt.Println("inserts ", s.c)
+	// fmt.Println("samples ", s.samples.len)
 }
 
 func (s *stream) Min() float64 {
@@ -256,6 +256,7 @@ func (s *stream) ensureHeapSize(heap minHeap) minHeap {
 
 // insert inserts a sample into the stream.
 func (s *stream) insert() {
+	s.c++
 	if s.samples.Len() == 0 {
 		if s.bufMore.Len() == 0 {
 			return
@@ -365,8 +366,8 @@ func (s *stream) compress() {
 			next.numRanks += s.compressCursor.numRanks
 
 			prev := s.compressCursor.prev
-			s.samples.Remove(s.compressCursor)
 			s.releaseSample(s.compressCursor)
+			s.samples.Remove(s.compressCursor)
 			s.compressCursor = prev
 		} else {
 			s.compressCursor = s.compressCursor.prev
@@ -424,16 +425,18 @@ func (s *stream) addToMinHeap(heap *minHeap, value float64) {
 }
 
 func (s *stream) acquireSample() *Sample {
-	idx := len(s.smpbuf) - 1
-	if idx <= 0 {
+	l := len(s.smpbuf)
+	// fmt.Println("acquire", "idx", l, "samples", s.samples.len)
+	if l <= 0 {
 		return &Sample{}
 	}
-	sample := s.smpbuf[idx]
-	s.smpbuf = s.smpbuf[:idx-1]
+	sample := s.smpbuf[l-1]
+	s.smpbuf = s.smpbuf[:l-1]
 	//fmt.Println(sample, s.smpbuf, idx)
 	return sample
 }
 
 func (s *stream) releaseSample(sample *Sample) {
+	// fmt.Println("release", "idx", len(s.smpbuf), "samples", s.samples.len)
 	s.smpbuf = append(s.smpbuf, sample)
 }
