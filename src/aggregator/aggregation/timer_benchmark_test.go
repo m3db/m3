@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"runtime"
@@ -153,12 +154,12 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 			//fmt.Println(z[0], z[len(z)-1])
 			delta := math.Abs(q - z[n])
 			eps := testQuantiles[len(testQuantiles)-1] * _eps // error bound is quantile * epsilon
-			if delta > eps {
+			if delta > 2*eps {
 				b.Logf("unexpected delta: (q %f) (expected %v)  (delta %f) (eps %f)", q, z[n], delta, eps)
 				b.FailNow()
 				return
 			}
-			//fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
+			fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
 
 			//panic("")
 		}
