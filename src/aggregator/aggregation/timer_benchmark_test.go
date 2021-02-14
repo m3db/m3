@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"runtime"
@@ -35,28 +36,16 @@ import (
 
 const (
 	_flushEvery             = 10000
-	_insertAndCompressEvery = 32
+	_insertAndCompressEvery = 10000
 	_sampleBatches          = 100
 	_eps                    = 0.001
 	_heapCapacity           = 32
 )
 
 var (
-	_floatsPool = pool.NewFloatsPool([]pool.Bucket{
-		{Capacity: 512, Count: 256},
-		{Capacity: 1024, Count: 256},
-		{Capacity: 4096, Count: 256},
-		{Capacity: 8192, Count: 256},
-		{Capacity: 16384, Count: 256},
-	}, pool.NewObjectPoolOptions())
-	_cmOptions = cm.NewOptions().
-			SetFlushEvery(_flushEvery).
-			SetInsertAndCompressEvery(_insertAndCompressEvery).
-			SetEps(_eps).
-			SetCapacity(_heapCapacity).
-			SetFloatsPool(_floatsPool)
 	_aggregationOptions = NewOptions(instrument.NewOptions())
 	_now                = time.Now()
+	_cmOptions          cm.Options
 )
 
 func getTimer() Timer {
@@ -69,7 +58,10 @@ func timerSamples() [][]float64 {
 	for i := 0; i < len(samples); i++ {
 		samples[i] = make([]float64, 1000)
 		for j := 0; j < 1000; j++ {
-			samples[i][j] = rnd.ExpFloat64()
+			samples[i][j] = rnd.Float64() * float64(
+				rnd.Int63n(int64(time.Minute/time.Millisecond)))
+			//fmt.Println(samples[i][j])
+			//fmt.Println(samples[i][j] * _eps)
 		}
 	}
 	return samples
@@ -160,12 +152,15 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 			//fmt.Println(q, z[n], n, len(z))
 			//fmt.Println(z[0], z[len(z)-1])
 			delta := math.Abs(q - z[n])
-			if delta > 0.002 {
-				b.Logf("unexpected delta: (q %f) (expected %v)  (delta %f)", q, z[n], delta)
+			eps := testQuantiles[len(testQuantiles)-1] * _eps // error bound is quantile * epsilon
+			if delta > eps {
+				b.Logf("unexpected delta: (q %f) (expected %v)  (delta %f) (eps %f)", q, z[n], delta, eps)
 				b.FailNow()
 				return
 			}
-			//panic("")
+			fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
+
+			panic("")
 		}
 	}
 	runtime.KeepAlive(q)
@@ -173,5 +168,22 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 
 func init() {
 	_aggregationOptions.ResetSetData(testAggTypes)
-	_floatsPool.Init()
+	floatsPool := pool.NewFloatsPool([]pool.Bucket{
+		{Capacity: 512, Count: 256},
+		{Capacity: 1024, Count: 256},
+		{Capacity: 4096, Count: 256},
+		{Capacity: 8192, Count: 256},
+		{Capacity: 16384, Count: 256},
+	}, pool.NewObjectPoolOptions())
+	floatsPool.Init()
+	streamPool := cm.NewStreamPool(nil)
+	_cmOptions = cm.NewOptions().
+		SetFlushEvery(_flushEvery).
+		SetInsertAndCompressEvery(_insertAndCompressEvery).
+		SetEps(_eps).
+		SetCapacity(_heapCapacity).
+		SetFloatsPool(floatsPool).
+		SetStreamPool(streamPool)
+	_aggregationOptions.ResetSetData(testAggTypes)
+	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, _cmOptions) })
 }

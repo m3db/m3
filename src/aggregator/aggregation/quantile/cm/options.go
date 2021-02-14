@@ -35,17 +35,13 @@ const (
 
 	// By default the timer values are inserted and the underlying
 	// streams are compressed every time the value is added.
-	defaultInsertAndCompressEvery = 1
+	defaultInsertAndCompressEvery = 16
 
 	// By default the stream is not flushed when values are added.
 	defaultFlushEvery = 0
 )
 
 var (
-	defaultBuckets = []pool.Bucket{
-		{Capacity: 16, Count: 4096},
-	}
-
 	errInvalidEps   = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
 	errNoFloatsPool = errors.New("no floats pool set")
 	errNoStreamPool = errors.New("no stream pool set")
@@ -70,7 +66,6 @@ func NewOptions() Options {
 		flushEvery:             defaultFlushEvery,
 	}
 
-	o.initPools()
 	return o
 }
 
@@ -155,12 +150,4 @@ func (o *options) Validate() error {
 		return errNoFloatsPool
 	}
 	return nil
-}
-
-func (o *options) initPools() {
-	o.floatsPool = pool.NewFloatsPool(defaultBuckets, nil)
-	o.floatsPool.Init()
-
-	o.streamPool = NewStreamPool(nil)
-	o.streamPool.Init(func() Stream { return NewStream(nil, o) })
 }

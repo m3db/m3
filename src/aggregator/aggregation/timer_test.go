@@ -50,12 +50,23 @@ var (
 	}
 )
 
+func testStreamOptions() cm.Options {
+	streamPool := cm.NewStreamPool(nil)
+	floatsPool := pool.NewFloatsPool([]pool.Bucket{{Capacity: 32, Count: 100}}, nil)
+	floatsPool.Init()
+	streamOpts := cm.NewOptions().SetStreamPool(streamPool).SetFloatsPool(floatsPool)
+	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, streamOpts) })
+
+	return streamOpts
+}
+
 func TestCreateTimerResetStream(t *testing.T) {
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
 	streamPool := cm.NewStreamPool(poolOpts)
-	streamOpts := cm.NewOptions().SetStreamPool(streamPool)
+	floatsPool := pool.NewFloatsPool([]pool.Bucket{{Capacity: 2048, Count: 100}}, nil)
+	floatsPool.Init()
+	streamOpts := cm.NewOptions().SetStreamPool(streamPool).SetFloatsPool(floatsPool)
 	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, streamOpts) })
-
 	// Add a value to the timer and close the timer, which returns the
 	// underlying stream to the pool.
 	timer := NewTimer(testQuantiles, streamOpts, NewOptions(instrument.NewOptions()))
@@ -75,7 +86,7 @@ func TestTimerAggregations(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.ResetSetData(testAggTypes)
 
-	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+	timer := NewTimer(testQuantiles, testStreamOptions(), opts)
 
 	// Assert the state of an empty timer.
 	require.True(t, timer.HasExpensiveAggregations)
@@ -149,7 +160,7 @@ func TestTimerAggregationsNotExpensive(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.ResetSetData(aggregation.Types{aggregation.Sum})
 
-	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+	timer := NewTimer(testQuantiles, testStreamOptions(), opts)
 
 	// Assert the state of an empty timer.
 	require.False(t, timer.HasExpensiveAggregations)
