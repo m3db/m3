@@ -246,11 +246,11 @@ func (s *stream) ensureHeapSize(heap minHeap) minHeap {
 		s.floatsPool.Put(heap)
 		return newHeap
 	}
-	//if cap(heap) == len(heap) {
-	//	newHeap := make(minHeap, 0, 2*cap(heap))
-	//	newHeap = append(newHeap, heap...)
-	//	return newHeap
-	//}
+	if cap(heap) == len(heap) {
+		newHeap := make(minHeap, 0, 2*cap(heap))
+		newHeap = append(newHeap, heap...)
+		return newHeap
+	}
 	return heap
 }
 

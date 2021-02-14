@@ -36,10 +36,10 @@ import (
 
 const (
 	_flushEvery             = 0
-	_insertAndCompressEvery = 512
+	_insertAndCompressEvery = 1000
 	_sampleBatches          = 100
 	_eps                    = 0.001
-	_heapCapacity           = _insertAndCompressEvery
+	_heapCapacity           = 32
 )
 
 var (
