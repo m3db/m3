@@ -21,7 +21,6 @@
 package cm
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/m3db/m3/src/x/pool"
@@ -122,9 +121,9 @@ func (s *stream) Add(value float64) {
 }
 
 func (s *stream) Flush() {
-	fmt.Println("samples ", s.samples.len, " num ", s.numValues, " insertevery ",
-		s.insertAndCompressEvery, " flushevery ", s.flushEvery,
-		" bfmore ", s.bufMore.Len(), "bfless", s.bufLess.Len())
+	//fmt.Println("samples ", s.samples.len, " num ", s.numValues, " insertevery ",
+	//	s.insertAndCompressEvery, " flushevery ", s.flushEvery,
+	//	" bfmore ", s.bufMore.Len(), "bfless", s.bufLess.Len())
 	for s.bufLess.Len() > 0 || s.bufMore.Len() > 0 {
 		if s.bufMore.Len() == 0 {
 			s.resetInsertCursor()

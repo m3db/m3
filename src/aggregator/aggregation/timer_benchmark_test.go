@@ -21,7 +21,6 @@
 package aggregation
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"runtime"
@@ -36,7 +35,7 @@ import (
 
 const (
 	_flushEvery             = 10000
-	_insertAndCompressEvery = 10000
+	_insertAndCompressEvery = 1
 	_sampleBatches          = 100
 	_eps                    = 0.001
 	_heapCapacity           = 32
@@ -58,8 +57,9 @@ func timerSamples() [][]float64 {
 	for i := 0; i < len(samples); i++ {
 		samples[i] = make([]float64, 1000)
 		for j := 0; j < 1000; j++ {
-			samples[i][j] = rnd.Float64() * float64(
-				rnd.Int63n(int64(time.Minute/time.Millisecond)))
+			samples[i][j] = rnd.Float64()
+			//* float64(
+			//	rnd.Int63n(int64(time.Minute/time.Millisecond)))
 			//fmt.Println(samples[i][j])
 			//fmt.Println(samples[i][j] * _eps)
 		}
@@ -158,9 +158,9 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 				b.FailNow()
 				return
 			}
-			fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
+			//fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
 
-			panic("")
+			//panic("")
 		}
 	}
 	runtime.KeepAlive(q)
