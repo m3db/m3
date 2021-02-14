@@ -62,6 +62,8 @@ type stream struct {
 	insertCursor             *Sample    // insertion cursor
 	compressCursor           *Sample    // compression cursor
 	compressMinRank          int64      // compression min rank
+	c                        int
+	smpbuf                   []*Sample
 }
 
 // NewStream creates a new sample stream.
@@ -96,20 +98,34 @@ func NewStream(quantiles []float64, opts Options) Stream {
 		floatsPool:             opts.FloatsPool(),
 		acquireSampleFn:        acquireSampleFn,
 		releaseSampleFn:        releaseSampleFn,
+		smpbuf:                 make([]*Sample, 4096*4),
+	}
+	smp := make([]Sample, len(s.smpbuf))
+	for i := 0; i < len(s.smpbuf); i++ {
+		s.smpbuf[i] = &smp[i]
 	}
 	s.ResetSetData(quantiles)
 	return s
 }
 
 func (s *stream) Add(value float64) {
-	s.addToBuffer(value)
-
+	if s.numValues > 0 && value < s.insertPointValue() {
+		s.bufLess = s.ensureHeapSize(s.bufLess)
+		s.bufLess.Push(value)
+	} else {
+		s.bufMore = s.ensureHeapSize(s.bufMore)
+		s.bufMore.Push(value)
+	}
 	s.insertAndCompressCounter++
 	if s.insertAndCompressCounter == s.insertAndCompressEvery {
-		for i := 0; i < s.insertAndCompressEvery; i++ {
-			s.insert()
-			s.compress()
-		}
+		//for i := 0; i < s.insertAndCompressEvery; i++ {
+		s.insert()
+		////}
+		//if s.bufLess.Len() != 0 {
+		//	s.resetInsertCursor()
+		//	s.insert()
+		//}
+		s.compress()
 		s.insertAndCompressCounter = 0
 	}
 
@@ -131,6 +147,8 @@ func (s *stream) Flush() {
 		s.insert()
 		s.compress()
 	}
+	//fmt.Println("inserts ", s.c)
+	//fmt.Println("samples ", s.samples.len)
 }
 
 func (s *stream) Min() float64 {
@@ -182,8 +200,17 @@ func (s *stream) ResetSetData(quantiles []float64) {
 	s.insertAndCompressCounter = 0
 	s.flushCounter = 0
 	s.numValues = 0
-	s.bufLess = minHeap(s.floatsPool.Get(s.capacity))
-	s.bufMore = minHeap(s.floatsPool.Get(s.capacity))
+	// Returning resources back to pools.
+	//sharedHeapPool.Put(&s.bufLess)
+	//sharedHeapPool.Put(&s.bufMore)
+	s.bufLess = s.bufLess[:]
+	s.bufMore = s.bufMore[:]
+	sample := s.samples.Front()
+	for sample != nil {
+		next := sample.next
+		s.releaseSample(sample)
+		sample = next
+	}
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
@@ -197,45 +224,56 @@ func (s *stream) Close() {
 	s.closed = true
 
 	// Returning resources back to pools.
-	s.floatsPool.Put(s.bufLess)
-	s.floatsPool.Put(s.bufMore)
+	//sharedHeapPool.Put(&s.bufLess)
+	//sharedHeapPool.Put(&s.bufMore)
 	sample := s.samples.Front()
 	for sample != nil {
 		next := sample.next
-		s.releaseSampleFn(sample)
+		s.releaseSample(sample)
 		sample = next
 	}
 
 	// Clear out slices/lists/pointer to reduce GC overhead.
-	s.bufLess = nil
-	s.bufMore = nil
+	s.bufLess = s.bufLess[:]
+	s.bufMore = s.bufMore[:]
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
 	s.streamPool.Put(s)
 }
 
-// addToBuffer adds a new sample to the buffer.
-func (s *stream) addToBuffer(value float64) {
-	if s.numValues > 0 && value < s.insertPointValue() {
-		s.addToMinHeap(&s.bufLess, value)
-	} else {
-		s.addToMinHeap(&s.bufMore, value)
+func (s *stream) ensureHeapSize(heap minHeap) minHeap {
+	if cap(heap) == len(heap) {
+		//newHeap := sharedHeapPool.Get(heap.Len() * 2)
+		//*newHeap = append((*newHeap), heap...)
+		//sharedHeapPool.Put(&heap)
+		newHeap := s.floatsPool.Get(2 * len(heap))
+		newHeap = append(newHeap, heap...)
+		s.floatsPool.Put(heap)
+		return newHeap
 	}
+	//if cap(heap) == len(heap) {
+	//	newHeap := make(minHeap, 0, 2*cap(heap))
+	//	newHeap = append(newHeap, heap...)
+	//	return newHeap
+	//}
+	return heap
 }
 
 // insert inserts a sample into the stream.
 func (s *stream) insert() {
+	s.c++
 	if s.samples.Len() == 0 {
 		if s.bufMore.Len() == 0 {
 			return
 		}
-		sample := s.acquireSampleFn()
-		sample.setData(s.bufMore.Pop(), 1, 0)
+		sample := s.acquireSample()
+		sample.value = s.bufMore.Pop()
+		sample.numRanks = 1
+		sample.delta = 0
+		sample.prev, sample.next = nil, nil
 		s.samples.PushBack(sample)
 		s.numValues++
-		s.insertCursor = s.samples.Front()
-		return
 	}
 
 	if s.insertCursor == nil {
@@ -243,10 +281,18 @@ func (s *stream) insert() {
 	}
 
 	incrementSize := s.cursorIncrement()
+	var insertPointValue float64
+	if s.insertCursor != nil {
+		insertPointValue = s.insertCursor.value
+	}
 	for i := 0; i < incrementSize && s.insertCursor != nil; i++ {
-		for s.bufMore.Len() > 0 && s.bufMore.Min() <= s.insertPointValue() {
-			sample := s.acquireSampleFn()
-			sample.setData(s.bufMore.Pop(), 1, s.insertCursor.numRanks+s.insertCursor.delta-1)
+		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
+			sample := s.acquireSample()
+			sample.value = s.bufMore.Pop()
+			sample.numRanks = 1
+			sample.delta = s.insertCursor.numRanks + s.insertCursor.delta - 1
+			sample.prev, sample.next = nil, nil
+
 			s.samples.InsertBefore(sample, s.insertCursor)
 			s.numValues++
 
@@ -255,6 +301,11 @@ func (s *stream) insert() {
 			}
 		}
 		s.insertCursor = s.insertCursor.next
+		if s.insertCursor != nil {
+			insertPointValue = s.insertCursor.value
+		} else {
+			insertPointValue = 0
+		}
 	}
 
 	if s.insertCursor != nil {
@@ -262,8 +313,11 @@ func (s *stream) insert() {
 	}
 
 	for s.bufMore.Len() > 0 && s.bufMore.Min() >= s.samples.Back().value {
-		sample := s.acquireSampleFn()
-		sample.setData(s.bufMore.Pop(), 1, 0)
+		sample := s.acquireSample()
+		sample.value = s.bufMore.Pop()
+		sample.numRanks = 1
+		sample.delta = 0
+		sample.prev, sample.next = nil, nil
 		s.samples.PushBack(sample)
 		s.numValues++
 	}
@@ -277,7 +331,7 @@ func (s *stream) compress() {
 	if s.samples.Len() < minSamplesToCompress {
 		return
 	}
-
+	//fmt.Println(s.samples.len)
 	if s.compressCursor == nil {
 		s.compressCursor = s.samples.Back().prev
 		s.compressMinRank = s.numValues - 1 - s.compressCursor.numRanks
@@ -301,7 +355,7 @@ func (s *stream) compress() {
 
 			prev := s.compressCursor.prev
 			s.samples.Remove(s.compressCursor)
-			s.releaseSampleFn(s.compressCursor)
+			s.releaseSample(s.compressCursor)
 			s.compressCursor = prev
 		} else {
 			s.compressCursor = s.compressCursor.prev
@@ -338,7 +392,7 @@ func (s *stream) resetInsertCursor() {
 
 // cursorIncrement computes the number of items to process.
 func (s *stream) cursorIncrement() int {
-	return int(math.Ceil(float64(s.samples.Len()) * s.eps))
+	return int(math.Ceil(float64(s.samples.Len()*1000) * s.eps))
 }
 
 // insertPointValue returns the value under the insertion cursor.
@@ -361,4 +415,19 @@ func (s *stream) addToMinHeap(heap *minHeap, value float64) {
 		*heap = newHeap
 	}
 	heap.Push(value)
+}
+
+func (s *stream) acquireSample() *Sample {
+	idx := len(s.smpbuf) - 1
+	if idx <= 0 {
+		return &Sample{}
+	}
+	sample := s.smpbuf[idx]
+	s.smpbuf = s.smpbuf[:idx-1]
+	//fmt.Println(sample, s.smpbuf, idx)
+	return sample
+}
+
+func (s *stream) releaseSample(sample *Sample) {
+	s.smpbuf = append(s.smpbuf, sample)
 }

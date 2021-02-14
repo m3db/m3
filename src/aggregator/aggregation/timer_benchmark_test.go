@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	_flushEvery             = 10000
+	_flushEvery             = 0
 	_insertAndCompressEvery = 1000
 	_sampleBatches          = 100
 	_eps                    = 0.001
@@ -163,6 +163,7 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 
 			//panic("")
 		}
+		timer.Close()
 	}
 	runtime.KeepAlive(q)
 }
