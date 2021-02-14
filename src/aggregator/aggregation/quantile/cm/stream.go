@@ -128,12 +128,6 @@ func (s *stream) Add(value float64) {
 		s.compress()
 		s.insertAndCompressCounter = 0
 	}
-
-	s.flushCounter++
-	if s.flushCounter == s.flushEvery {
-		s.Flush()
-		s.flushCounter = 0
-	}
 }
 
 func (s *stream) Flush() {
@@ -262,7 +256,6 @@ func (s *stream) ensureHeapSize(heap minHeap) minHeap {
 
 // insert inserts a sample into the stream.
 func (s *stream) insert() {
-	s.c++
 	if s.samples.Len() == 0 {
 		if s.bufMore.Len() == 0 {
 			return
@@ -280,24 +273,32 @@ func (s *stream) insert() {
 		s.insertCursor = s.samples.Front()
 	}
 
-	incrementSize := s.cursorIncrement()
 	var insertPointValue float64
 	if s.insertCursor != nil {
 		insertPointValue = s.insertCursor.value
 	}
-	for i := 0; i < incrementSize && s.insertCursor != nil; i++ {
+	minRank := s.compressMinRank
+	numValues := s.numValues
+	compCur := s.compressCursor
+	var compValue float64
+	if compCur != nil {
+		compValue = compCur.value
+	}
+	for s.insertCursor != nil {
+		curr := *s.insertCursor
 		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
 			sample := s.acquireSample()
-			sample.value = s.bufMore.Pop()
+			val := s.bufMore.Pop()
+			sample.value = val
 			sample.numRanks = 1
-			sample.delta = s.insertCursor.numRanks + s.insertCursor.delta - 1
+			sample.delta = curr.numRanks + curr.delta - 1
 			sample.prev, sample.next = nil, nil
 
 			s.samples.InsertBefore(sample, s.insertCursor)
-			s.numValues++
+			numValues++
 
-			if s.compressCursor != nil && s.compressCursor.value >= sample.value {
-				s.compressMinRank++
+			if compCur != nil && compValue >= val {
+				minRank++
 			}
 		}
 		s.insertCursor = s.insertCursor.next
@@ -307,7 +308,8 @@ func (s *stream) insert() {
 			insertPointValue = 0
 		}
 	}
-
+	s.numValues = numValues
+	s.compressMinRank = minRank
 	if s.insertCursor != nil {
 		return
 	}
@@ -338,13 +340,22 @@ func (s *stream) compress() {
 		s.compressCursor = s.compressCursor.prev
 	}
 
-	incrementSize := s.cursorIncrement()
-	for i := 0; i < incrementSize && s.compressCursor != s.samples.Front(); i++ {
+	for s.compressCursor != s.samples.Front() {
 		next := s.compressCursor.next
 		maxRank := s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta
 		s.compressMinRank -= s.compressCursor.numRanks
-
-		threshold := s.threshold(maxRank)
+		threshold := int64(math.MaxInt64)
+		for _, quantile := range s.quantiles {
+			var quantileMin int64
+			if float64(maxRank) >= quantile*float64(s.numValues) {
+				quantileMin = int64(2 * s.eps * float64(maxRank) / quantile)
+			} else {
+				quantileMin = int64(2 * s.eps * float64(s.numValues-maxRank) / (1 - quantile))
+			}
+			if quantileMin < threshold {
+				threshold = quantileMin
+			}
+		}
 		testVal := s.compressCursor.numRanks + next.numRanks + next.delta
 		if testVal <= threshold {
 			if s.insertCursor == s.compressCursor {
@@ -388,11 +399,6 @@ func (s *stream) threshold(rank int64) int64 {
 func (s *stream) resetInsertCursor() {
 	s.bufLess, s.bufMore = s.bufMore, s.bufLess
 	s.insertCursor = nil
-}
-
-// cursorIncrement computes the number of items to process.
-func (s *stream) cursorIncrement() int {
-	return int(math.Ceil(float64(s.samples.Len()*1000) * s.eps))
 }
 
 // insertPointValue returns the value under the insertion cursor.
