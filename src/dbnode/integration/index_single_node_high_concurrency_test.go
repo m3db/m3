@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -115,6 +116,19 @@ func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalityAggregateQueryDurin
 		concurrencyQueryDuringWrites:     1,
 		concurrencyQueryDuringWritesType: indexAggregateQuery,
 		skipVerify:                       true,
+	})
+}
+
+func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalityAggregateQueryVerify(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
+		concurrencyEnqueueWorker: 8,
+		concurrencyWrites:        5000,
+		enqueuePerWorker:         100000,
+		numTags:                  2,
 	})
 }
 
@@ -386,6 +400,41 @@ func testIndexSingleNodeHighConcurrency(
 			go func() {
 				defer fetchWg.Done()
 
+				// Check common_i term is correct.
+				match := idx.NewTermQuery([]byte("common_i"), []byte(strconv.Itoa(i)))
+				q := index.Query{Query: match}
+
+				now := time.Now()
+				qOpts := index.AggregationOptions{
+					FieldFilter: index.AggregateFieldFilter{
+						[]byte("common_i"),
+					},
+					QueryOptions: index.QueryOptions{
+						StartInclusive: now.Add(-md.Options().RetentionOptions().RetentionPeriod()),
+						EndExclusive:   now,
+						DocsLimit:      1000,
+					},
+				}
+
+				iter, resp, err := session.Aggregate(ContextWithDefaultTimeout(), md.ID(), q, qOpts)
+				if err != nil {
+					err := fmt.Errorf("could not query aggregate common_i terms: i=%d", i)
+					panic(err) // TODO: remove, this only here for fast feedback
+					notIndexedLock.Lock()
+					notIndexedErrs = append(notIndexedErrs, err)
+					notIndexedLock.Unlock()
+				} else {
+					verifyQueryAggregateMetadataResults(t, iter, resp.Exhaustive,
+						verifyQueryAggregateMetadataResultsOptions{
+							exhaustive: true,
+							expected: map[tagName]aggregateTagValues{
+								"common_i": {
+									tagValue(strconv.Itoa(i)): struct{}{},
+								},
+							},
+						})
+				}
+
 				for j := 0; j < opts.enqueuePerWorker; j++ {
 					if opts.skipWrites && j%2 == 0 {
 						continue // not meant to be indexed.
@@ -406,6 +455,63 @@ func testIndexSingleNodeHighConcurrency(
 							notIndexedLock.Lock()
 							notIndexedErrs = append(notIndexedErrs, err)
 							notIndexedLock.Unlock()
+						}
+
+						// Check cumulative common_j term is correct.
+						var values bytes.Buffer
+						values.WriteString("(")
+						for value := 0; value < j; value++ {
+							if i > 0 {
+								values.WriteString("|")
+							}
+							values.WriteString(strconv.Itoa(value))
+						}
+						values.WriteString(")")
+						regexpQuery, err := idx.NewRegexpQuery([]byte("common_j"), values.Bytes())
+						require.NoError(t, err)
+
+						matchers := []idx.Query{
+							idx.NewTermQuery([]byte("common_i"), []byte(strconv.Itoa(i))),
+							regexpQuery,
+						}
+						q := index.Query{Query: idx.NewConjunctionQuery(matchers...)}
+
+						now := time.Now()
+						qOpts := index.AggregationOptions{
+							FieldFilter: index.AggregateFieldFilter{
+								[]byte("common_i"),
+								[]byte("common_j"),
+							},
+							QueryOptions: index.QueryOptions{
+								StartInclusive: now.Add(-md.Options().RetentionOptions().RetentionPeriod()),
+								EndExclusive:   now,
+								DocsLimit:      1000,
+							},
+						}
+
+						iter, resp, err := session.Aggregate(ContextWithDefaultTimeout(), md.ID(), q, qOpts)
+						if err != nil {
+							err := fmt.Errorf("could not query aggregate common_i and common_j terms: i=%d, j=%d", i, j)
+							panic(err) // TODO: remove, this only here for fast feedback
+							notIndexedLock.Lock()
+							notIndexedErrs = append(notIndexedErrs, err)
+							notIndexedLock.Unlock()
+						} else {
+							expectedTagValues := map[tagName]aggregateTagValues{
+								"common_i": {
+									tagValue(strconv.Itoa(i)): struct{}{},
+								},
+								"common_j": {},
+							}
+							for value := 0; value < j; value++ {
+								expectedTagValues["common_j"][tagValue(strconv.Itoa(value))] = struct{}{}
+							}
+
+							verifyQueryAggregateMetadataResults(t, iter, resp.Exhaustive,
+								verifyQueryAggregateMetadataResultsOptions{
+									exhaustive: true,
+									expected:   expectedTagValues,
+								})
 						}
 					})
 				}
