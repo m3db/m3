@@ -1021,6 +1021,7 @@ func Run(runOpts RunOptions) {
 		kvWatchQueryLimit(syncCfg.KVStore, logger,
 			queryLimits.DocsLimit(),
 			queryLimits.BytesReadLimit(),
+			queryLimits.AggregateDocsLimit(),
 			// For backwards compatibility as M3 moves toward permits instead of time-based limits,
 			// the series-read path uses permits which are implemented with limits, and so we support
 			// dynamic updates to this limit-based permit still be passing downstream the limit itself.
@@ -1203,6 +1204,7 @@ func kvWatchQueryLimit(
 	logger *zap.Logger,
 	docsLimit limits.LookbackLimit,
 	bytesReadLimit limits.LookbackLimit,
+	aggregateDocsLimit limits.LookbackLimit,
 	diskSeriesReadLimit limits.LookbackLimit,
 	defaultOpts limits.Options,
 ) {
@@ -1211,7 +1213,9 @@ func kvWatchQueryLimit(
 		dynamicLimits := &kvpb.QueryLimits{}
 		err = value.Unmarshal(dynamicLimits)
 		if err == nil {
-			updateQueryLimits(logger, docsLimit, bytesReadLimit, diskSeriesReadLimit, dynamicLimits, defaultOpts)
+			updateQueryLimits(
+				logger, docsLimit, bytesReadLimit, diskSeriesReadLimit,
+				aggregateDocsLimit, dynamicLimits, defaultOpts)
 		}
 	} else if !errors.Is(err, kv.ErrNotFound) {
 		logger.Warn("error resolving query limit", zap.Error(err))
@@ -1231,18 +1235,20 @@ func kvWatchQueryLimit(
 					logger.Warn("unable to parse new query limits", zap.Error(err))
 					continue
 				}
-				updateQueryLimits(logger,
-					docsLimit, bytesReadLimit, diskSeriesReadLimit,
-					dynamicLimits, defaultOpts)
+				updateQueryLimits(
+					logger, docsLimit, bytesReadLimit, diskSeriesReadLimit,
+					aggregateDocsLimit, dynamicLimits, defaultOpts)
 			}
 		}
 	}()
 }
 
-func updateQueryLimits(logger *zap.Logger,
+func updateQueryLimits(
+	logger *zap.Logger,
 	docsLimit limits.LookbackLimit,
 	bytesReadLimit limits.LookbackLimit,
 	diskSeriesReadLimit limits.LookbackLimit,
+	aggregateDocsLimit limits.LookbackLimit,
 	dynamicOpts *kvpb.QueryLimits,
 	configOpts limits.Options,
 ) {
@@ -1252,6 +1258,7 @@ func updateQueryLimits(logger *zap.Logger,
 		docsLimitOpts           = configOpts.DocsLimitOpts()
 		bytesReadLimitOpts      = configOpts.BytesReadLimitOpts()
 		diskSeriesReadLimitOpts = configOpts.DiskSeriesReadLimitOpts()
+		aggDocsLimitOpts        = configOpts.AggregateDocsLimitOpts()
 	)
 	if dynamicOpts != nil {
 		if dynamicOpts.MaxRecentlyQueriedSeriesBlocks != nil {
@@ -1262,6 +1269,9 @@ func updateQueryLimits(logger *zap.Logger,
 		}
 		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
 			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskRead)
+		}
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
+			aggDocsLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedMetadataRead)
 		}
 	}
 
@@ -1275,6 +1285,10 @@ func updateQueryLimits(logger *zap.Logger,
 
 	if err := updateQueryLimit(diskSeriesReadLimit, diskSeriesReadLimitOpts); err != nil {
 		logger.Error("error updating series read limit", zap.Error(err))
+	}
+
+	if err := updateQueryLimit(aggregateDocsLimit, aggDocsLimitOpts); err != nil {
+		logger.Error("error updating metadata read limit", zap.Error(err))
 	}
 }
 
