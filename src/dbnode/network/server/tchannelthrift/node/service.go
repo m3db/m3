@@ -894,14 +894,16 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	fetchTaggedResultsIterOpts
-	idResults       []idResult
-	idx             int
-	blockReadIdx    int
-	cur             IDResult
-	err             error
-	batchesAcquired int
-	blocksAvailable int
-	dataReadStart   time.Time
+	idResults        []idResult
+	idx              int
+	blockReadIdx     int
+	cur              IDResult
+	err              error
+	batchesAcquired  int
+	blocksAvailable  int
+	dataReadStart    time.Time
+	totalBlocksCount int
+	totalBlocks      tally.Gauge
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -929,10 +931,12 @@ func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResul
 		// for each block as opposed to acquiring in bulk).
 		opts.blocksPerBatch = 1
 	}
+	scope := opts.iOpts.MetricsScope().SubScope("fetch-tagged-iter")
 	return &fetchTaggedResultsIter{
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
 		dataReadStart:              opts.nowFn(),
+		totalBlocks:                scope.Gauge("total-series-blocks"),
 	}
 }
 
@@ -994,6 +998,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 
 			for blockIter.Next(ctx) {
 				curr := blockIter.Current()
+				i.totalBlocksCount++
 				currResult.blockReaders = append(currResult.blockReaders, curr)
 				acquired, err := i.acquire(ctx, i.blockReadIdx)
 				if err != nil {
@@ -1074,6 +1079,8 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 	totalFetchTime := now.Sub(i.fetchStart)
 	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
 	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
+
+	i.totalBlocks.Update(float64(i.totalBlocksCount))
 
 	for n := 0; n < i.batchesAcquired; n++ {
 		i.blockPermits.Release()

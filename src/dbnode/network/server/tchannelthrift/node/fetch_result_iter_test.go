@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestFetchResultIterTest(t *testing.T) {
@@ -63,6 +64,7 @@ func TestFetchResultIterTest(t *testing.T) {
 		dataReadMetrics: index.NewQueryMetrics("", scope),
 		totalMetrics:    index.NewQueryMetrics("", scope),
 		instrumentClose: func(err error) {},
+		iOpts:           instrument.NewTestOptions(t),
 	})
 	total := 0
 	for iter.Next(ctx) {
@@ -101,6 +103,7 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 		dataReadMetrics: index.NewQueryMetrics("", scope),
 		totalMetrics:    index.NewQueryMetrics("", scope),
 		instrumentClose: func(err error) {},
+		iOpts:           instrument.NewTestOptions(t),
 	})
 	total := 0
 	for iter.Next(ctx) {
