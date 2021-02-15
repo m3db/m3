@@ -1978,23 +1978,23 @@ func TestBlockAggregate(t *testing.T) {
 		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 }
 
-func TestBlockAggregateWithAggregateLimits(t *testing.T) {
+func testBlockAggregateWithAggregateLimits(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	seriesLimit := 100
 	scope := tally.NewTestScope("", nil)
 	iOpts := instrument.NewOptions().SetMetricsScope(scope)
 	limitOpts := limits.NewOptions().
 		SetInstrumentOptions(iOpts).
 		SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
-		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute})
+		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{
+			Limit: int64(seriesLimit), Lookback: time.Minute})
 	queryLimits, err := limits.NewQueryLimits((limitOpts))
 	require.NoError(t, err)
 	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
-	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
-	seriesLimit := 100
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
@@ -2044,7 +2044,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 		QueryOptions{SeriesLimit: seriesLimit},
 		results,
 		emptyLogFields)
-	require.NoError(t, err)
+	require.Error(t, err)
 	require.False(t, exhaustive)
 
 	sp.Finish()
@@ -2208,7 +2208,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 
 	exhaustive, err := b.Aggregate(
 		ctx,
-		QueryOptions{SeriesLimit: 10},
+		QueryOptions{SeriesLimit: 1000},
 		results,
 		emptyLogFields)
 	require.NoError(t, err)
@@ -2241,7 +2241,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	}, testOpts)
 	exhaustive, err = b.Aggregate(
 		ctx,
-		QueryOptions{SeriesLimit: 10},
+		QueryOptions{SeriesLimit: 100},
 		results,
 		emptyLogFields)
 	require.NoError(t, err)
