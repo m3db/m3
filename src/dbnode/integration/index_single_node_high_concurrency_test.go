@@ -460,8 +460,8 @@ func testIndexSingleNodeHighConcurrency(
 						// Check cumulative common_j term is correct.
 						var values bytes.Buffer
 						values.WriteString("(")
-						for value := 0; value < j; value++ {
-							if i > 0 {
+						for value := 0; value <= j; value++ {
+							if value > 0 {
 								values.WriteString("|")
 							}
 							values.WriteString(strconv.Itoa(value))
@@ -503,7 +503,7 @@ func testIndexSingleNodeHighConcurrency(
 								},
 								"common_j": {},
 							}
-							for value := 0; value < j; value++ {
+							for value := 0; value <= j; value++ {
 								expectedTagValues["common_j"][tagValue(strconv.Itoa(value))] = struct{}{}
 							}
 
