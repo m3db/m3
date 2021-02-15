@@ -418,7 +418,7 @@ func testIndexSingleNodeHighConcurrency(
 
 				iter, resp, err := session.Aggregate(ContextWithDefaultTimeout(), md.ID(), q, qOpts)
 				if err != nil {
-					err := fmt.Errorf("could not query aggregate common_i terms: i=%d", i)
+					err := fmt.Errorf("could not query aggregate common_i terms: i=%d, err=%w", i, err)
 					panic(err) // TODO: remove, this only here for fast feedback
 					notIndexedLock.Lock()
 					notIndexedErrs = append(notIndexedErrs, err)
@@ -491,7 +491,7 @@ func testIndexSingleNodeHighConcurrency(
 
 						iter, resp, err := session.Aggregate(ContextWithDefaultTimeout(), md.ID(), q, qOpts)
 						if err != nil {
-							err := fmt.Errorf("could not query aggregate common_i and common_j terms: i=%d, j=%d", i, j)
+							err := fmt.Errorf("could not query aggregate common_i and common_j terms: i=%d, j=%d, err=%w", i, j, err)
 							panic(err) // TODO: remove, this only here for fast feedback
 							notIndexedLock.Lock()
 							notIndexedErrs = append(notIndexedErrs, err)
