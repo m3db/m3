@@ -51,16 +51,10 @@ func (sr *segmentReader) Read64() (word uint64, n byte, err error) {
 	sr.lazyInit()
 
 	var (
-		headLen     = len(sr.lazyHead)
-		headTailLen = headLen + len(sr.lazyTail)
-
-		res   uint64
-		bytes byte
+		headLen = len(sr.lazyHead)
+		res     uint64
+		bytes   byte
 	)
-
-	if sr.si >= headTailLen {
-		return 0, 0, io.EOF
-	}
 
 	if sr.si+8 <= headLen {
 		// NB: this compiles to a single 64 bit load followed by
@@ -69,6 +63,8 @@ func (sr *segmentReader) Read64() (word uint64, n byte, err error) {
 		sr.si += 8
 		return res, 8, nil
 	}
+
+	headTailLen := headLen + len(sr.lazyTail)
 
 	if sr.si < headLen {
 		for ; sr.si < headLen; sr.si++ {
@@ -90,6 +86,10 @@ func (sr *segmentReader) Read64() (word uint64, n byte, err error) {
 		return res, 8, nil
 	}
 
+	if sr.si >= headTailLen {
+		return 0, 0, io.EOF
+	}
+
 	for ; sr.si < headTailLen; sr.si++ {
 		res = (res << 8) | uint64(sr.lazyTail[sr.si-headLen])
 		bytes++
@@ -101,17 +101,11 @@ func (sr *segmentReader) Peek64() (word uint64, n byte, err error) {
 	sr.lazyInit()
 
 	var (
-		headLen     = len(sr.lazyHead)
-		headTailLen = headLen + len(sr.lazyTail)
-
-		i     = sr.si
-		res   uint64
-		bytes byte
+		headLen = len(sr.lazyHead)
+		i       = sr.si
+		res     uint64
+		bytes   byte
 	)
-
-	if i >= headTailLen {
-		return 0, 0, io.EOF
-	}
 
 	if i+8 <= headLen {
 		// NB: this compiles to a single 64 bit load followed by
@@ -119,6 +113,8 @@ func (sr *segmentReader) Peek64() (word uint64, n byte, err error) {
 		res = binary.BigEndian.Uint64(sr.lazyHead[i:])
 		return res, 8, nil
 	}
+
+	headTailLen := headLen + len(sr.lazyTail)
 
 	if i < headLen {
 		for ; i < headLen; i++ {
@@ -139,7 +135,11 @@ func (sr *segmentReader) Peek64() (word uint64, n byte, err error) {
 		return res, 8, nil
 	}
 
-	for ; i < headTailLen && bytes < 8; i++ {
+	if i >= headTailLen {
+		return 0, 0, io.EOF
+	}
+
+	for ; i < headTailLen; i++ {
 		res = (res << 8) | uint64(sr.lazyTail[i-headLen])
 		bytes++
 	}
