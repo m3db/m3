@@ -40,32 +40,10 @@ import (
 )
 
 func TestFetchResultIterTest(t *testing.T) {
-	scope := tally.NewTestScope("", map[string]string{})
-	ctx := context.NewBackground()
 	mocks := gomock.NewController(t)
 	defer mocks.Finish()
 
-	nsID := ident.StringID("testNs")
-
-	resMap := index.NewQueryResults(nsID,
-		index.QueryResultsOptions{}, testIndexOptions)
-	start := time.Now()
-	end := start.Add(24 * time.Hour)
-	db := storage.NewMockdatabase(mocks)
-
-	// 10 series IDs
-	for i := 0; i < 10; i++ {
-		id := ident.StringID(fmt.Sprintf("seriesId_%d", i))
-		var blockReaders [][]xio.BlockReader
-		// 10 block readers per series
-		for j := 0; j < 10; j++ {
-			blockReaders = append(blockReaders, []xio.BlockReader{})
-		}
-		db.EXPECT().ReadEncoded(ctx, nsID, id, start, end).Return(&series.FakeBlockReaderIter{
-			Readers: blockReaders,
-		}, nil)
-		resMap.Map().Set(id.Bytes(), doc.Document{})
-	}
+	scope, ctx, nsID, resMap, start, end, db := setup(mocks)
 
 	blockPermits := &fakePermits{available: 5}
 	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
@@ -98,6 +76,73 @@ func TestFetchResultIterTest(t *testing.T) {
 	require.Equal(t, 10, total)
 	require.Equal(t, 5, blockPermits.acquired)
 	require.Equal(t, 5, blockPermits.released)
+}
+
+func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
+	mocks := gomock.NewController(t)
+	defer mocks.Finish()
+
+	scope, ctx, nsID, resMap, start, end, db := setup(mocks)
+
+	blockPermits := &fakePermits{available: 10}
+	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
+		queryResult: index.QueryResult{
+			Results: resMap,
+		},
+		queryOpts: index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+		},
+		fetchData:       true,
+		db:              db,
+		nsID:            nsID,
+		blockPermits:    blockPermits,
+		nowFn:           time.Now,
+		dataReadMetrics: index.NewQueryMetrics("", scope),
+		totalMetrics:    index.NewQueryMetrics("", scope),
+		instrumentClose: func(err error) {},
+	})
+	total := 0
+	for iter.Next(ctx) {
+		total++
+		require.NotNil(t, iter.Current())
+		require.Len(t, iter.Current().(*idResult).blockReaders, 10)
+	}
+	require.NoError(t, iter.Err())
+	iter.Close(nil)
+
+	require.Equal(t, 10, total)
+	require.Equal(t, 10, blockPermits.acquired)
+	require.Equal(t, 10, blockPermits.released)
+}
+
+func setup(mocks *gomock.Controller) (
+	tally.TestScope, context.Context, ident.ID, index.QueryResults, time.Time, time.Time, *storage.Mockdatabase,
+) {
+	scope := tally.NewTestScope("", map[string]string{})
+	ctx := context.NewBackground()
+	nsID := ident.StringID("testNs")
+
+	resMap := index.NewQueryResults(nsID,
+		index.QueryResultsOptions{}, testIndexOptions)
+	start := time.Now()
+	end := start.Add(24 * time.Hour)
+	db := storage.NewMockdatabase(mocks)
+
+	// 10 series IDs
+	for i := 0; i < 10; i++ {
+		id := ident.StringID(fmt.Sprintf("seriesId_%d", i))
+		var blockReaders [][]xio.BlockReader
+		// 10 block readers per series
+		for j := 0; j < 10; j++ {
+			blockReaders = append(blockReaders, []xio.BlockReader{})
+		}
+		db.EXPECT().ReadEncoded(ctx, nsID, id, start, end).Return(&series.FakeBlockReaderIter{
+			Readers: blockReaders,
+		}, nil)
+		resMap.Map().Set(id.Bytes(), doc.Document{})
+	}
+	return scope, ctx, nsID, resMap, start, end, db
 }
 
 type fakePermits struct {
