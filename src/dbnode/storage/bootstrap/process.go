@@ -21,6 +21,7 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -56,6 +57,13 @@ type bootstrapRunType string
 const (
 	bootstrapDataRunType  = bootstrapRunType("bootstrap-data")
 	bootstrapIndexRunType = bootstrapRunType("bootstrap-index")
+)
+
+var (
+	// ErrFileSetSnapshotTypeRangeAdvanced is an error of bootstrap time ranges for snapshot-type
+	// blocks advancing during the bootstrap
+	ErrFileSetSnapshotTypeRangeAdvanced = errors.New("the time ranges of snapshot-type blocks " +
+		"have advanced since they were calculated at the beginning of bootstrap")
 )
 
 // NewProcessProvider creates a new bootstrap process provider.
@@ -236,6 +244,23 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
+		for _, entry := range namespaces.Namespaces.Iter() {
+			ns := entry.Value()
+			// Check if snapshot-type ranges have advanced while bootstrapping previous ranges.
+			// If yes, return an error to force a retry
+			if persistConf := ns.DataRunOptions.RunOptions.PersistConfig(); persistConf.Enabled &&
+				persistConf.FileSetType == persist.FileSetSnapshotType {
+				upToDateDataRanges := b.targetRangesForData(b.nowFn(),
+					ns.Metadata.Options().RetentionOptions())
+				// Only checking data ranges. Since index blocks can only be a multiple of
+				// data block size, the ranges for index could advance only if data ranges
+				// have advanced, too (while opposite is not necessarily true)
+				if !upToDateDataRanges.secondRangeWithPersistFalse.Range.Equal(ns.DataTargetRange.Range) {
+					return NamespaceResults{}, ErrFileSetSnapshotTypeRangeAdvanced
+				}
+			}
+		}
+
 		res, err := b.runPass(ctx, namespaces, cache)
 		if err != nil {
 			return NamespaceResults{}, err
