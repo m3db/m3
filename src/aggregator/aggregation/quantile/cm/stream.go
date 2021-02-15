@@ -91,18 +91,18 @@ func NewStream(quantiles []float64, opts Options) Stream {
 
 	s := &stream{
 		eps:                    opts.Eps(),
-		capacity:               opts.Capacity(),
+		capacity:               opts.InsertAndCompressEvery(),
 		flushEvery:             opts.FlushEvery(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
 		streamPool:             opts.StreamPool(),
 		floatsPool:             opts.FloatsPool(),
 		acquireSampleFn:        acquireSampleFn,
 		releaseSampleFn:        releaseSampleFn,
-		smpbuf:                 make([]*Sample, opts.InsertAndCompressEvery()*2),
+		smpbuf:                 make([]*Sample, 4096),
 	}
-	smp := make([]Sample, len(s.smpbuf))
+	//smp := make([]Sample, len(s.smpbuf))
 	for i := 0; i < len(s.smpbuf); i++ {
-		s.smpbuf[i] = &smp[i]
+		s.smpbuf[i] = &Sample{} //&smp[i]
 	}
 	s.ResetSetData(quantiles)
 	return s
@@ -426,7 +426,7 @@ func (s *stream) addToMinHeap(heap *minHeap, value float64) {
 
 func (s *stream) acquireSample() *Sample {
 	l := len(s.smpbuf)
-	// fmt.Println("acquire", "idx", l, "samples", s.samples.len)
+	//fmt.Println("acquire", "idx", l, "samples", s.samples.len)
 	if l <= 0 {
 		return &Sample{}
 	}
