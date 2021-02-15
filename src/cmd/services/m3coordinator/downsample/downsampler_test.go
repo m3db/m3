@@ -1109,11 +1109,88 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesPerSecondSum(t *testing
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+// TestDownsamplerAggregationWithRulesConfigRollupRulesAggregateTransformNoRollup
+// tests that rollup rules can be used to actually simply transform values
+// without the need for an explicit rollup step.
+func TestDownsamplerAggregationWithRulesConfigRollupRulesAggregateTransformNoRollup(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag:         "http_requests",
+			"app":           "nginx_edge",
+			"status_code":   "500",
+			"endpoint":      "/foo/bar",
+			"not_rolled_up": "not_rolled_up_value",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 42},
+			{value: 64, offset: 1 * time.Second},
+		},
+	}
+	res := 5 * time.Second
+	ret := 30 * 24 * time.Hour
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Aggregate: &AggregateOperationConfiguration{
+								Type: aggregation.Sum,
+							},
+						},
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.Add,
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:         "http_requests",
+						"app":           "nginx_edge",
+						"status_code":   "500",
+						"endpoint":      "/foo/bar",
+						"not_rolled_up": "not_rolled_up_value",
+					},
+					values: []expectedValue{{value: 106}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.T) {
 	t.Parallel()
 
 	gaugeMetrics := []testGaugeMetric{
-		testGaugeMetric{
+		{
 			tags: map[string]string{
 				nameTag:         "http_requests",
 				"app":           "nginx_edge",
@@ -1128,7 +1205,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 				{value: 33, offset: 3 * time.Second}, // +21
 			},
 		},
-		testGaugeMetric{
+		{
 			tags: map[string]string{
 				nameTag:         "http_requests",
 				"app":           "nginx_edge",
@@ -1657,8 +1734,8 @@ CheckAllWritesArrivedLoop:
 				for _, write := range allWrites {
 					logger.Info("accumulated write",
 						zap.ByteString("tags", write.Tags().ID()),
-						zap.Any("datapoints", write.Datapoints),
-						zap.Any("attributes", write.Attributes))
+						zap.Any("datapoints", write.Datapoints()),
+						zap.Any("attributes", write.Attributes()))
 				}
 			default:
 			}
