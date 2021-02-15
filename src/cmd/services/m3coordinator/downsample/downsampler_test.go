@@ -1125,7 +1125,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesAggregateTransformNoRol
 		},
 		timedSamples: []testGaugeMetricTimedSample{
 			{value: 42},
-			{value: 64, offset: 1 * time.Second},
+			{value: 64},
 		},
 	}
 	res := 5 * time.Second
