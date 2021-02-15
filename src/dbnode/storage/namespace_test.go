@@ -570,7 +570,7 @@ func testNamespaceBootstrapUnfulfilledShards(
 ) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (

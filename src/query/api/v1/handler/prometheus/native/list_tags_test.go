@@ -21,6 +21,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -205,4 +207,34 @@ func TestListErrorTags(t *testing.T) {
 
 		require.JSONEq(t, `{"status":"error","error":"err"}`, string(r))
 	}
+}
+
+//nolint:dupl
+func TestListTagsTimeout(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	req := httptest.NewRequest("GET", "/labels", nil)
+	w := httptest.NewRecorder()
+	h := NewListTagsHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 504, w.Code, "Status code not 504")
+	assert.Contains(t, w.Body.String(), "context deadline exceeded")
+}
+
+//nolint:dupl
+func TestListTagsUseRequestContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("GET", "/labels", nil).WithContext(cancelledCtx)
+	w := httptest.NewRecorder()
+	h := NewListTagsHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 499, w.Code, "Status code not 499")
+	assert.Contains(t, w.Body.String(), "context canceled")
 }

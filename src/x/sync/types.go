@@ -21,9 +21,10 @@
 package sync
 
 import (
-	"context"
+	gocontext "context"
 	"time"
 
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -65,7 +66,19 @@ type PooledWorkerPool interface {
 	// available, returning true if a worker becomes available, or false
 	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GoWithContext waits until a worker is available or the provided ctx is
+	// canceled.
+	GoWithContext(ctx gocontext.Context, work Work) bool
 }
+
+// NewPooledWorkerOptions is a set of new instrument worker pool options.
+type NewPooledWorkerOptions struct {
+	InstrumentOptions instrument.Options
+}
+
+// NewPooledWorkerFn returns a pooled worker pool that Init must be called on.
+type NewPooledWorkerFn func(opts NewPooledWorkerOptions) (PooledWorkerPool, error)
 
 // WorkerPool provides a pool for goroutines.
 type WorkerPool interface {

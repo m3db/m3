@@ -56,11 +56,6 @@ type finalizeable struct {
 	closer    xresource.SimpleCloser
 }
 
-// NewContext creates a new context.
-func NewContext() Context {
-	return newContext()
-}
-
 // NewWithGoContext creates a new context with the provided go ctx.
 func NewWithGoContext(goCtx stdctx.Context) Context {
 	ctx := newContext()
@@ -83,20 +78,8 @@ func newContext() *ctx {
 	return &ctx{}
 }
 
-func (c *ctx) GoContext() (stdctx.Context, bool) {
-	if c.goCtx == nil {
-		return nil, false
-	}
-
-	return c.goCtx, true
-}
-
-func (c *ctx) MustGoContext() stdctx.Context {
-	goCtx, found := c.GoContext()
-	if !found {
-		panic("no go ctx set")
-	}
-	return goCtx
+func (c *ctx) GoContext() stdctx.Context {
+	return c.goCtx
 }
 
 func (c *ctx) SetGoContext(v stdctx.Context) {
@@ -299,7 +282,7 @@ func (c *ctx) Reset() {
 	}
 
 	c.Lock()
-	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, nil, false
+	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, stdctx.Background(), false
 	c.Unlock()
 }
 
@@ -344,10 +327,10 @@ func (c *ctx) parentCtx() Context {
 }
 
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	goCtx, exists := c.GoContext()
-	if !exists || c.checkedAndNotSampled {
+	if c.checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
 	}
+	goCtx := c.GoContext()
 
 	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
 	if !sampled {

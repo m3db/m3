@@ -370,7 +370,9 @@ func TestAggregateDocLimits(t *testing.T) {
 			verifyResults(t, results, testSegment.segmentMap)
 			found := false
 			for _, c := range scope.Snapshot().Counters() {
-				if c.Name() == "query-limit.total-docs-matched" {
+				fmt.Println(c)
+				if c.Name() == "query-limit.total-docs-matched" &&
+					c.Tags()["type"] == "fetch" {
 					require.Equal(t, testSegment.exCount, c.Value(), "docs count mismatch")
 					found = true
 					break

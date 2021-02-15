@@ -67,20 +67,18 @@ func TestSessionAggregateUnsupportedQuery(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	leakPool := injectLeakcheckAggregateAttempPool(session)
-	_, _, err = s.FetchTagged(
+	_, _, err = s.FetchTagged(testContext(),
 		ident.StringID("namespace"),
 		index.Query{},
-		index.QueryOptions{},
-	)
+		index.QueryOptions{})
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 	leakPool.Check(t)
 
-	_, _, err = s.FetchTaggedIDs(
+	_, _, err = s.FetchTaggedIDs(testContext(),
 		ident.StringID("namespace"),
 		index.Query{},
-		index.QueryOptions{},
-	)
+		index.QueryOptions{})
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 	leakPool.Check(t)
@@ -97,7 +95,7 @@ func TestSessionAggregateNotOpenError(t *testing.T) {
 	assert.NoError(t, err)
 	t0 := time.Now()
 
-	_, _, err = s.Aggregate(ident.StringID("namespace"),
+	_, _, err = s.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(t0, t0))
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStatusNotOpen, err)
@@ -125,7 +123,7 @@ func TestSessionAggregateGuardAgainstInvalidCall(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.Aggregate(ident.StringID("namespace"),
+	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
@@ -153,7 +151,7 @@ func TestSessionAggregateGuardAgainstNilHost(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.Aggregate(ident.StringID("namespace"),
+	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
@@ -182,7 +180,7 @@ func TestSessionAggregateGuardAgainstInvalidHost(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.Aggregate(ident.StringID("namespace"),
+	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
@@ -223,7 +221,7 @@ func TestSessionAggregateIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckAggregateOpPool(session)
 
-	_, _, err = session.Aggregate(ident.StringID("namespace"),
+	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
@@ -261,21 +259,21 @@ func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 		testHostQueueOpsByHost{
 			testHostName(0): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {},
 					},
 				},
 			},
 			testHostName(1): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {},
 					},
 				},
 			},
 			testHostName(2): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueErr: fmt.Errorf("random-error"),
 					},
 				},
@@ -284,7 +282,7 @@ func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.Aggregate(ident.StringID("namespace"),
+	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
@@ -324,7 +322,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 		testHostQueueOpsByHost{
 			testHostName(0): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -338,7 +336,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 			},
 			testHostName(1): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -352,7 +350,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 			},
 			testHostName(2): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -372,7 +370,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckAggregateOpPool(session)
 
-	iters, metadata, err := session.Aggregate(ident.StringID("namespace"),
+	iters, metadata, err := session.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.NoError(t, err)
 	assert.False(t, metadata.Exhaustive)
@@ -433,7 +431,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 		testHostQueueOpsByHost{
 			testHostName(0): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -442,7 +440,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							}()
 						},
 					},
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -456,7 +454,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 			},
 			testHostName(1): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -465,7 +463,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							}()
 						},
 					},
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -479,7 +477,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 			},
 			testHostName(2): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -488,7 +486,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							}()
 						},
 					},
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
@@ -507,7 +505,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 	// NB: stubbing needs to be done after session.Open
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckAggregateOpPool(session)
-	iters, meta, err := session.Aggregate(ident.StringID("namespace"),
+	iters, meta, err := session.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.NoError(t, err)
 	assert.False(t, meta.Exhaustive)

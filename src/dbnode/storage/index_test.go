@@ -414,7 +414,7 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 			r index.QueryResults,
 			logFields []opentracinglog.Field,
 		) (bool, error) {
-			<-ctx.MustGoContext().Done()
+			<-ctx.GoContext().Done()
 			return false, index.ErrCancelledQuery
 		})
 	mockBlock.EXPECT().Close().Return(nil)

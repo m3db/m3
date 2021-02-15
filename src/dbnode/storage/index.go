@@ -1343,7 +1343,7 @@ func (i *nsIndex) Query(
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
-	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)
+	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields, i.metrics.queryMetrics)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return index.QueryResult{}, err
@@ -1385,7 +1385,7 @@ func (i *nsIndex) WideQuery(
 	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()
 
-	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
+	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields, i.metrics.wideQueryMetrics)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return err
@@ -1441,7 +1441,7 @@ func (i *nsIndex) AggregateQuery(
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(id, aopts)
-	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn, logFields)
+	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn, logFields, i.metrics.aggQueryMetrics)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
@@ -1458,12 +1458,13 @@ func (i *nsIndex) query(
 	opts index.QueryOptions,
 	execBlockFn execBlockQueryFn,
 	logFields []opentracinglog.Field,
+	queryMetrics queryMetrics, //nolint: gocritic
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQueryHelper)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp, logFields)
+	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp, logFields, queryMetrics)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 
@@ -1516,6 +1517,7 @@ func (i *nsIndex) queryWithSpan(
 	execBlockFn execBlockQueryFn,
 	span opentracing.Span,
 	logFields []opentracinglog.Field,
+	queryMetrics queryMetrics, //nolint: gocritic
 ) (bool, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
@@ -1580,9 +1582,12 @@ func (i *nsIndex) queryWithSpan(
 			break
 		}
 
+		// Calculate time spent waiting for a worker
 		wg.Add(1)
-		scheduleResult := i.queryWorkersPool.GoWithContext(ctx.MustGoContext(), func() {
+		scheduleResult := i.queryWorkersPool.GoWithContext(ctx, func() {
+			startProcessing := time.Now()
 			execBlockFn(ctx, block, query, opts, &state, results, logFields)
+			i.metrics.queryMetrics.blockProcessingTime.RecordDuration(time.Since(startProcessing))
 			wg.Done()
 		})
 		totalWaitTime += scheduleResult.WaitTime
@@ -1590,7 +1595,7 @@ func (i *nsIndex) queryWithSpan(
 			state.Lock()
 			state.multiErr = state.multiErr.Add(index.ErrCancelledQuery)
 			state.Unlock()
-			// Did not launch task, need to ensure don't wait for it.
+			// Did not launch task, need to ensure don't wait for it
 			wg.Done()
 			break
 		}
@@ -1618,14 +1623,14 @@ func (i *nsIndex) queryWithSpan(
 	queryRuntime := time.Since(start)
 	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
 
-	i.metrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
-	i.metrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
-	i.metrics.queryWaitTime.ByRange.Record(queryRange, totalWaitTime)
-	i.metrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
-	i.metrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Processing)
-	i.metrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
-	i.metrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
-	i.metrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
+	queryMetrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
+	queryMetrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
+	queryMetrics.queryWaitTime.ByRange.Record(queryRange, totalWaitTime)
+	queryMetrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
+	queryMetrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Processing)
+	queryMetrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
+	queryMetrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
+	queryMetrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
 
 	return exhaustive, err
 }
@@ -2031,7 +2036,7 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 		return errDbIndexAlreadyClosed
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// Create a new set of file system options to output to new directory.
@@ -2181,17 +2186,9 @@ type nsIndexMetrics struct {
 	queryNonExhaustiveSeriesLimitError tally.Counter
 	queryNonExhaustiveDocsLimitError   tally.Counter
 
-	// the total time for a query, including waiting for processing resources.
-	queryTotalTime index.QueryMetrics
-	// the time spent waiting for workers to start processing the query. totalTime - waitTime = processing time. this is
-	// not necessary equal to processingTime below since a query can use multiple workers at once.
-	queryWaitTime index.QueryMetrics
-	// the total time a query was consuming processing resources. this can actually be greater than queryTotalTime
-	// if the query uses multiple CPUs.
-	queryProcessingTime index.QueryMetrics
-	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
-	// search results.
-	querySearchTime index.QueryMetrics
+	queryMetrics     queryMetrics
+	aggQueryMetrics  queryMetrics
+	wideQueryMetrics queryMetrics
 }
 
 func newNamespaceIndexMetrics(
@@ -2287,10 +2284,9 @@ func newNamespaceIndexMetrics(
 			"exhaustive": "false",
 			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
-		queryTotalTime:      index.NewQueryMetrics("query_total", scope),
-		queryWaitTime:       index.NewQueryMetrics("query_wait", scope),
-		queryProcessingTime: index.NewQueryMetrics("query_processing", scope),
-		querySearchTime:     index.NewQueryMetrics("query_search", scope),
+		queryMetrics:     newQueryMetrics(scope, "query"),
+		aggQueryMetrics:  newQueryMetrics(scope, "aggregate"),
+		wideQueryMetrics: newQueryMetrics(scope, "wide"),
 	}
 
 	// Initialize gauges that should default to zero before
@@ -2299,6 +2295,34 @@ func newNamespaceIndexMetrics(
 	m.flushIndexingConcurrency.Update(0)
 
 	return m
+}
+
+func newQueryMetrics(scope tally.Scope, queryType string) queryMetrics {
+	labels := map[string]string{"type": queryType}
+	return queryMetrics{
+		queryTotalTime:      index.NewQueryMetricsWithLabels("query_total", scope, labels),
+		queryWaitTime:       index.NewQueryMetricsWithLabels("query_wait", scope, labels),
+		queryProcessingTime: index.NewQueryMetricsWithLabels("query_processing", scope, labels),
+		querySearchTime:     index.NewQueryMetricsWithLabels("query_search", scope, labels),
+		blockProcessingTime: scope.Tagged(labels).Histogram("block_processing",
+			instrument.SparseHistogramTimerHistogramBuckets()),
+	}
+}
+
+type queryMetrics struct {
+	// the total time for a query, including waiting for processing resources.
+	queryTotalTime index.QueryMetrics
+	// the time spent waiting for workers to start processing the query. totalTime - waitTime = processing time. this is
+	// not necessary equal to processingTime below since a query can use multiple workers at once.
+	queryWaitTime index.QueryMetrics
+	// the total time a query was consuming processing resources. this can actually be greater than queryTotalTime
+	// if the query uses multiple CPUs.
+	queryProcessingTime index.QueryMetrics
+	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
+	// search results.
+	querySearchTime index.QueryMetrics
+	// time to process a single index block when processing a query.
+	blockProcessingTime tally.Histogram
 }
 
 type nsIndexBlocksMetrics struct {

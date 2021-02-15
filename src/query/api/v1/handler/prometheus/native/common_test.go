@@ -69,7 +69,7 @@ func testParseParams(req *http.Request) (models.RequestParams, error) {
 		return models.RequestParams{}, err
 	}
 
-	fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req)
+	_, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req.Context(), req)
 	if err != nil {
 		return models.RequestParams{}, err
 	}
@@ -108,7 +108,7 @@ func TestInstantaneousParamParsing(t *testing.T) {
 			Timeout: 10 * time.Second,
 		})
 	require.NoError(t, err)
-	fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req)
+	_, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req.Context(), req)
 	require.NoError(t, err)
 
 	r, err := parseInstantaneousParams(req, executor.NewEngineOptions(),
