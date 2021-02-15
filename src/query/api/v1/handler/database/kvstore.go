@@ -199,7 +199,7 @@ func (h *KeyValueStoreHandler) update(
 func (h *KeyValueStoreHandler) newKVProtoMessage(key string) (protoiface.MessageV1, error) {
 	if h.kvStoreProtoParser != nil {
 		v, err := h.kvStoreProtoParser(key)
-		if err != nil {
+		if err == nil {
 			return v, nil
 		}
 	}
