@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"time"
 
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 
@@ -31,9 +32,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-var (
-	errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
-)
+var errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
 
 // fieldsAndTermsIteratorOpts configures the fieldsAndTermsIterator.
 type fieldsAndTermsIteratorOpts struct {
@@ -65,9 +64,10 @@ type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
-	err       error
-	fieldIter segment.FieldsPostingsListIterator
-	termIter  segment.TermsIterator
+	err            error
+	fieldIter      segment.FieldsPostingsListIterator
+	termIter       segment.TermsIterator
+	searchDuration time.Duration
 
 	current struct {
 		field    []byte
@@ -78,9 +78,7 @@ type fieldsAndTermsIter struct {
 	restrictByPostings *pilosaroaring.Bitmap
 }
 
-var (
-	fieldsAndTermsIterZeroed fieldsAndTermsIter
-)
+var fieldsAndTermsIterZeroed fieldsAndTermsIter
 
 var _ fieldsAndTermsIterator = &fieldsAndTermsIter{}
 
@@ -96,6 +94,10 @@ func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIterato
 		return nil, err
 	}
 	return iter, nil
+}
+
+func (fti *fieldsAndTermsIter) SearchDuration() time.Duration {
+	return fti.searchDuration
 }
 
 func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
@@ -123,10 +125,12 @@ func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsI
 		return err
 	}
 
+	start := time.Now()
 	pl, err := searcher.Search(fti.reader)
 	if err != nil {
 		return err
 	}
+	fti.searchDuration = time.Since(start)
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	bitmap, ok := roaring.BitmapFromPostingsList(pl)

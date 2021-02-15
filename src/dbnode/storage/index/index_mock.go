@@ -1421,6 +1421,20 @@ func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(reader, opts interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), reader, opts)
 }
 
+// SearchDuration mocks base method
+func (m *MockfieldsAndTermsIterator) SearchDuration() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchDuration")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// SearchDuration indicates an expected call of SearchDuration
+func (mr *MockfieldsAndTermsIteratorMockRecorder) SearchDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).SearchDuration))
+}
+
 // MockOptions is a mock of Options interface
 type MockOptions struct {
 	ctrl     *gomock.Controller

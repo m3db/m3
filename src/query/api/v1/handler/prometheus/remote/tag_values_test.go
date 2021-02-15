@@ -251,32 +251,9 @@ func TestTagValueTimeout(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	// Setup storage
-	store := storage.NewMockStorage(ctrl)
-	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context,
-			query *storage.CompleteTagsQuery,
-			options *storage.FetchOptions,
-		) (*consolidators.CompleteTagsResult, error) {
-			<-ctx.Done()
-			// Prove the fact that we've passed along the timeout and that it's exceeded
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return nil, ctx.Err()
-			}
-			return nil, nil
-		},
-	)
-
-	fb, err := handleroptions.NewFetchOptionsBuilder(
-		handleroptions.FetchOptionsBuilderOptions{Timeout: 1 * time.Millisecond})
-	require.NoError(t, err)
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetFetchOptionsBuilder(fb)
-
 	req := httptest.NewRequest("GET", TagValuesURL, nil)
 	w := httptest.NewRecorder()
-	h := NewTagValuesHandler(opts)
+	h := NewTagValuesHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
 	router := mux.NewRouter()
 	router.HandleFunc(
 		fmt.Sprintf("%s/label/{%s}/values", handler.RoutePrefixV1, NameReplace),
@@ -286,4 +263,72 @@ func TestTagValueTimeout(t *testing.T) {
 
 	assert.Equal(t, 504, w.Code, "Status code not 504")
 	assert.Contains(t, w.Body.String(), "context deadline exceeded")
+}
+
+//nolint:dupl
+func TestTagValueUseRequestContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("GET", TagValuesURL, nil).WithContext(cancelledCtx)
+	w := httptest.NewRecorder()
+	h := NewTagValuesHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
+	router := mux.NewRouter()
+	router.HandleFunc(
+		fmt.Sprintf("%s/label/{%s}/values", handler.RoutePrefixV1, NameReplace),
+		h.ServeHTTP,
+	)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, 499, w.Code, "Status code not 499")
+	assert.Contains(t, w.Body.String(), "context canceled")
+}
+
+func storageSetup(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	timeout time.Duration,
+	fn completeTagsFn,
+) options.HandlerOptions {
+	// Setup storage
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(fn)
+
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: timeout})
+	require.NoError(t, err)
+	return options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb)
+}
+
+type completeTagsFn func(
+	context.Context,
+	*storage.CompleteTagsQuery,
+	*storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error)
+
+func expectCancellation(
+	ctx context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil, ctx.Err()
+	}
+	return nil, nil
+}
+
+func expectTimeout(
+	ctx context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	<-ctx.Done()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, ctx.Err()
+	}
+	return nil, nil
 }
