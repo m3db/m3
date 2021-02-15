@@ -312,6 +312,8 @@ db:
   writeNewSeriesBackoffDuration: 2ms
   tracing:
     backend: jaeger
+  fetchTagged:
+    seriesBlocksPerBatch: 100
 `
 
 func TestConfiguration(t *testing.T) {
@@ -737,6 +739,8 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
     writeNewSeriesPerSecond: 0
+  fetchTagged:
+    seriesBlocksPerBatch: 100
   wide: null
   tchannel: null
   debug:
@@ -755,7 +759,7 @@ coordinator: null
 
 func TestInitialClusterEndpoints(t *testing.T) {
 	seedNodes := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
@@ -767,15 +771,15 @@ func TestInitialClusterEndpoints(t *testing.T) {
 	assert.Equal(t, "http://1.1.1.1:2379", endpoints[0])
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host3",
 			Endpoint: "http://1.1.1.3:2380",
 		},
@@ -794,7 +798,7 @@ func TestInitialClusterEndpoints(t *testing.T) {
 	assert.Equal(t, 0, len(endpoints))
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "",
 		},
@@ -805,7 +809,7 @@ func TestInitialClusterEndpoints(t *testing.T) {
 
 func TestIsSeedNode(t *testing.T) {
 	seedNodes := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
@@ -814,15 +818,15 @@ func TestIsSeedNode(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host3",
 			Endpoint: "http://1.1.1.3:2380",
 		},
@@ -831,11 +835,11 @@ func TestIsSeedNode(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
@@ -846,12 +850,12 @@ func TestIsSeedNode(t *testing.T) {
 
 func TestGetHostAndEndpointFromID(t *testing.T) {
 	test2Seeds := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:       "host1",
 			Endpoint:     "http://1.1.1.1:2380",
 			ClusterState: "existing",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},

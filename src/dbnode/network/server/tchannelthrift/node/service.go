@@ -859,6 +859,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		fetchStart:      startTime,
 		dataReadMetrics: s.metrics.queryTimingDataRead,
 		totalMetrics:    s.metrics.queryTimingFetchTagged,
+		blocksPerBatch:  s.opts.FetchTaggedSeriesBlocksPerBatch(),
 	}), nil
 }
 
@@ -920,10 +921,14 @@ type fetchTaggedResultsIterOpts struct {
 	totalDocsCount  int
 	dataReadMetrics index.QueryMetrics
 	totalMetrics    index.QueryMetrics
-	blocksReadLimit limits.LookbackLimit
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
+	if opts.blocksPerBatch == 0 {
+		// NB(nate): if blocksPerBatch is unset, set blocksPerBatch to 1 (i.e. acquire a permit
+		// for each block as opposed to acquiring in bulk).
+		opts.blocksPerBatch = 1
+	}
 	return &fetchTaggedResultsIter{
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
