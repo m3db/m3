@@ -1585,9 +1585,9 @@ func (i *nsIndex) queryWithSpan(
 		// Calculate time spent waiting for a worker
 		wg.Add(1)
 		scheduleResult := i.queryWorkersPool.GoWithContext(ctx, func() {
-			start := time.Now()
+			startProcessing := time.Now()
 			execBlockFn(ctx, block, query, opts, &state, results, logFields)
-			i.metrics.queryMetrics.blockProcessingTime.RecordDuration(time.Since(start))
+			i.metrics.queryMetrics.blockProcessingTime.RecordDuration(time.Since(startProcessing))
 			wg.Done()
 		})
 		totalWaitTime += scheduleResult.WaitTime
@@ -2320,7 +2320,7 @@ type queryMetrics struct {
 	queryProcessingTime index.QueryMetrics
 	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
 	// search results.
-	querySearchTime     index.QueryMetrics
+	querySearchTime index.QueryMetrics
 	// time to process a single index block when processing a query.
 	blockProcessingTime tally.Histogram
 }
