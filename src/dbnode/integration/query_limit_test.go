@@ -77,7 +77,7 @@ func TestQueryLimitExceededError(t *testing.T) {
 	require.True(t, client.IsResourceExhaustedError(err),
 		"expected resource exhausted error, got: %v", err)
 
-	_, _, err = session.Aggregate(ns.ID(), query, aggOpts)
+	_, _, err = session.Aggregate(ContextWithDefaultTimeout(), ns.ID(), query, aggOpts)
 	require.True(t, client.IsResourceExhaustedError(err),
 		"expected aggregate resource exhausted error, got: %v", err)
 
