@@ -54,15 +54,15 @@ func TestAggregateResultsAccumulatorIdsMerge(t *testing.T) {
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
 				aggregateResult: testSerieses{ts1}.toRPCAggResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: testSerieses{ts1, ts2}.toRPCAggResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: testSerieses{}.toRPCAggResult(th, testStartTime, true),
 				expectedDone:    true,
@@ -142,11 +142,11 @@ func TestAggregateResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *testin
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
 				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, false),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
 				expectedDone:    true,

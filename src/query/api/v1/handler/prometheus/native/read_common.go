@@ -51,6 +51,8 @@ type promReadMetrics struct {
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
+	// Exponential buckets up to ~6.5M.
+	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return promReadMetrics{
 		fetchSuccess: scope.Counter("fetch.success"),
 		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
@@ -58,9 +60,7 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
-		fetchDatapoints: scope.Histogram("fetch.datapoints",
-			// Buckets of 50k datapoints up to 2M.
-			tally.MustMakeLinearValueBuckets(0, 50_000, 40)),
+		fetchDatapoints:   scope.Histogram("fetch.datapoints", datapointBuckets),
 	}
 }
 
