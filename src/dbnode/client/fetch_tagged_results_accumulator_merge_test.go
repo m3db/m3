@@ -65,15 +65,15 @@ func TestFetchTaggedResultsAccumulatorIdsMerge(t *testing.T) {
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: testSerieses{ts1}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: testSerieses{ts1, ts2}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost2",
 				fetchTaggedResult: testSerieses{}.toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -121,11 +121,11 @@ func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -157,11 +157,11 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, false),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -212,11 +212,11 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 		startTime: startTime,
 		endTime:   endTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: sg0.toRPCResult(th, startTime, false),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: sg1.toRPCResult(th, endTime, true),
 				expectedDone:      true,
@@ -263,15 +263,15 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 		startTime: startTime,
 		endTime:   endTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: groups[0].toRPCResult(th, startTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: groups[1].toRPCResult(th, endTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost2",
 				fetchTaggedResult: groups[2].toRPCResult(th, endTime, true),
 				expectedDone:      true,
@@ -598,7 +598,7 @@ func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time
 		return nil
 	}
 	res, err := convert.ToSegments(ctx, []xio.BlockReader{
-		xio.BlockReader{
+		{
 			SegmentReader: reader,
 		},
 	})

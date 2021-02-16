@@ -107,11 +107,11 @@ func TestAggregateResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
 				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
 				expectedDone:    true,
