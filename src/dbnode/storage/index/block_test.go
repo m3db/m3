@@ -2003,15 +2003,17 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 		SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{
-			Limit: int64(seriesLimit), Lookback: time.Minute})
+			Limit:    int64(seriesLimit),
+			Lookback: time.Minute,
+		})
 	queryLimits, err := limits.NewQueryLimits((limitOpts))
 	require.NoError(t, err)
-	testOpts := testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
+	aggTestOpts := testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
-		namespace.NewRuntimeOptionsManager("foo"), testOpts)
+		namespace.NewRuntimeOptionsManager("foo"), aggTestOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -2022,7 +2024,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	reader.EXPECT().Close().Return(nil)
 	seg1.EXPECT().Reader().Return(reader, nil)
 
-	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, aggTestOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
 		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
@@ -2031,7 +2033,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
 		SizeLimit: seriesLimit,
 		Type:      AggregateTagNamesAndValues,
-	}, testOpts)
+	}, aggTestOpts)
 
 	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
