@@ -83,6 +83,10 @@ const (
 	// the number of docs returned by each storage node.
 	LimitMaxDocsHeader = M3HeaderPrefix + "Limit-Max-Docs"
 
+	// LimitMaxReturnedDatapointsHeader is the M3 header that limits
+	// the number of datapoints returned in total to the client.
+	LimitMaxReturnedDatapointsHeader = M3HeaderPrefix + "Limit-Max-Returned-Datapoints"
+
 	// LimitRequireExhaustiveHeader is the M3 limit exhaustive header that will
 	// ensure M3 returns an error if the results set is not exhaustive.
 	LimitRequireExhaustiveHeader = M3HeaderPrefix + "Limit-Require-Exhaustive"
@@ -109,6 +113,9 @@ const (
 
 	// LimitHeader is the header added when returned series are limited.
 	LimitHeader = M3HeaderPrefix + "Results-Limited"
+
+	// ReturnedDatapointsLimitedHeader is the header added when returned datapoints are limited.
+	ReturnedDatapointsLimitedHeader = M3HeaderPrefix + "Returned-Datapoints-Limited"
 
 	// TimeoutHeader is the header added with the effective timeout.
 	TimeoutHeader = M3HeaderPrefix + "Timeout"

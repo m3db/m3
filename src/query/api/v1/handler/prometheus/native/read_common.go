@@ -108,9 +108,10 @@ func parseRequest(
 
 	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries: fetchOpts.SeriesLimit,
-			LimitMaxDocs:       fetchOpts.DocsLimit,
-			Instantaneous:      instantaneous,
+			LimitMaxTimeseries:         fetchOpts.SeriesLimit,
+			LimitMaxDocs:               fetchOpts.DocsLimit,
+			LimitMaxReturnedDatapoints: fetchOpts.ReturnedDatapointsLimit,
+			Instantaneous:              instantaneous,
 		},
 	}
 

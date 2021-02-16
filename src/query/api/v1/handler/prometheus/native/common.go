@@ -253,9 +253,17 @@ func filterNaNSeries(
 
 // RenderResultsOptions is a set of options for rendering the result.
 type RenderResultsOptions struct {
-	KeepNaNs bool
-	Start    time.Time
-	End      time.Time
+	KeepNaNs                bool
+	Start                   time.Time
+	End                     time.Time
+	ReturnedDatapointsLimit int
+}
+
+// RenderResultsResult is the result from rendering results.
+type RenderResultsResult struct {
+	// LimitedMaxReturnedDatapoints indicates if the results rendering
+	// was truncated by the limit on max returned datapoints.
+	LimitedMaxReturnedDatapoints bool
 }
 
 // RenderResultsJSON renders results in JSON for range queries.
@@ -263,10 +271,12 @@ func RenderResultsJSON(
 	w io.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,
-) error {
+) (RenderResultsResult, error) {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
+		series     = result.Series
+		warnings   = result.Meta.WarningStrings()
+		datapoints = 0
+		limited    = false
 	)
 
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
@@ -328,6 +338,16 @@ func RenderResultsJSON(
 				continue
 			}
 
+			// If a limit of the number of datapoints is present, then write
+			// out series' data up until that limit is hit.
+			if opts.ReturnedDatapointsLimit > 0 {
+				datapoints++
+				if datapoints > opts.ReturnedDatapointsLimit {
+					limited = true
+					break
+				}
+			}
+
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
@@ -341,12 +361,18 @@ func RenderResultsJSON(
 			jw.WriteInt(int(fixedStep.Resolution() / time.Millisecond))
 		}
 		jw.EndObject()
+
+		if limited {
+			break
+		}
 	}
 	jw.EndArray()
 	jw.EndObject()
 
 	jw.EndObject()
-	return jw.Close()
+	return RenderResultsResult{
+		LimitedMaxReturnedDatapoints: limited,
+	}, jw.Close()
 }
 
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.

@@ -116,6 +116,8 @@ type FetchOptions struct {
 	SeriesLimit int
 	// DocsLimit is the maximum number of docs to return.
 	DocsLimit int
+	// ReturnedDatapointsLimit is the maximum number of datapoints to return.
+	ReturnedDatapointsLimit int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
 	// BlockType is the block type that the fetch function returns.
