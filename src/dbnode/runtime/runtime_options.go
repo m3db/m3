@@ -72,7 +72,6 @@ type options struct {
 	clientBootstrapConsistencyLevel      topology.ReadConsistencyLevel
 	clientReadConsistencyLevel           topology.ReadConsistencyLevel
 	clientWriteConsistencyLevel          topology.ConsistencyLevel
-	indexDefaultQueryTimeout             time.Duration
 	tickCancellationCheckInterval        time.Duration
 }
 
@@ -90,7 +89,6 @@ func NewOptions() Options {
 		clientBootstrapConsistencyLevel:      DefaultBootstrapConsistencyLevel,
 		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
 		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
-		indexDefaultQueryTimeout:             DefaultIndexDefaultQueryTimeout,
 		tickCancellationCheckInterval:        defaultTickCancellationCheckInterval,
 	}
 }
@@ -240,22 +238,12 @@ func (o *options) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.clientWriteConsistencyLevel
 }
 
-func (o *options) SetIndexDefaultQueryTimeout(value time.Duration) Options {
-	opts := *o
-	opts.indexDefaultQueryTimeout = value
-	return &opts
-}
-
-func (o *options) IndexDefaultQueryTimeout() time.Duration {
-	return o.indexDefaultQueryTimeout
-}
-
 func (o *options) SetTickCancellationCheckInterval(value time.Duration) Options {
 	opts := *o
-	opts.indexDefaultQueryTimeout = value
+	opts.tickCancellationCheckInterval = value
 	return &opts
 }
 
 func (o *options) TickCancellationCheckInterval() time.Duration {
-	return o.indexDefaultQueryTimeout
+	return o.tickCancellationCheckInterval
 }
