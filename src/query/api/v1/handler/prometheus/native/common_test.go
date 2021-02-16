@@ -605,3 +605,112 @@ func TestSanitizeSeries(t *testing.T) {
 	assert.Equal(t, "4", string(series[1].Name()))
 	assert.Equal(t, "5", string(series[2].Name()))
 }
+
+func TestRenderResultsJSONWithLimits(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+	buffer := bytes.NewBuffer(nil)
+	params := models.RequestParams{}
+	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 5, 1, start)
+	valsWithNaN.SetValueAt(1, math.NaN())
+
+	series := []*ts.Series{
+		ts.NewSeries([]byte("foo"),
+			valsWithNaN, test.TagSliceToTags([]models.Tag{
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 5, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
+		ts.NewSeries([]byte("foobar"),
+			ts.NewFixedStepValues(10*time.Second, 5, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("biz"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+	}
+
+	intPrt := func(v int) *int {
+		return &v
+	}
+
+	tests := []struct {
+		name               string
+		limit              *int
+		expectedDatapoints int
+		expectedLimited    bool
+	}{
+		{
+			name:               "Omit limit",
+			expectedDatapoints: 15,
+			expectedLimited:    false,
+		},
+		{
+			name:               "Below limit",
+			limit:              intPrt(16),
+			expectedDatapoints: 15,
+			expectedLimited:    false,
+		},
+		{
+			name:               "At limit",
+			limit:              intPrt(15),
+			expectedDatapoints: 15,
+			expectedLimited:    false,
+		},
+		{
+			name:               "Above limit - skip 1 series high",
+			limit:              intPrt(14),
+			expectedDatapoints: 10,
+			expectedLimited:    true,
+		},
+		{
+			name:               "Above limit - skip 1 series low",
+			limit:              intPrt(11),
+			expectedDatapoints: 10,
+			expectedLimited:    true,
+		},
+		{
+			name:               "Above limit - skip 1 series equal",
+			limit:              intPrt(10),
+			expectedDatapoints: 10,
+			expectedLimited:    true,
+		},
+		{
+			name:               "Above limit - skip 2 series",
+			limit:              intPrt(9),
+			expectedDatapoints: 5,
+			expectedLimited:    true,
+		},
+		{
+			name:               "Above limit - skip 3 series",
+			limit:              intPrt(4),
+			expectedDatapoints: 0,
+			expectedLimited:    true,
+		},
+		{
+			name:               "Zero enforces no limit",
+			limit:              intPrt(0),
+			expectedDatapoints: 15,
+			expectedLimited:    false,
+		},
+	}
+
+	for _, test := range tests {
+		readResult := ReadResult{Series: series}
+		o := RenderResultsOptions{
+			Start:    params.Start,
+			End:      params.End,
+			KeepNaNs: true,
+		}
+		if test.limit != nil {
+			o.ReturnedDatapointsLimit = *test.limit
+		}
+		r, err := RenderResultsJSON(buffer, readResult, o)
+		require.NoError(t, err)
+		require.Equal(t, test.expectedDatapoints, r.Datapoints)
+		require.Equal(t, test.expectedLimited, r.LimitedMaxReturnedDatapoints)
+	}
+}
