@@ -261,6 +261,8 @@ type RenderResultsOptions struct {
 
 // RenderResultsResult is the result from rendering results.
 type RenderResultsResult struct {
+	// Datapoints is the count of datapoints rendered.
+	Datapoints int
 	// LimitedMaxReturnedDatapoints indicates if the results rendering
 	// was truncated by the limit on max returned datapoints.
 	LimitedMaxReturnedDatapoints bool
@@ -309,6 +311,17 @@ func RenderResultsJSON(
 	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
+		vals := s.Values()
+		length := s.Len()
+
+		// If a limit of the number of datapoints is present, then write
+		// out series' data up until that limit is hit.
+		if opts.ReturnedDatapointsLimit > 0 && datapoints+length > opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+		datapoints += length
+
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
@@ -320,8 +333,7 @@ func RenderResultsJSON(
 
 		jw.BeginObjectField("values")
 		jw.BeginArray()
-		vals := s.Values()
-		length := s.Len()
+
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 
@@ -338,16 +350,6 @@ func RenderResultsJSON(
 				continue
 			}
 
-			// If a limit of the number of datapoints is present, then write
-			// out series' data up until that limit is hit.
-			if opts.ReturnedDatapointsLimit > 0 {
-				datapoints++
-				if datapoints > opts.ReturnedDatapointsLimit {
-					limited = true
-					break
-				}
-			}
-
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
@@ -361,16 +363,13 @@ func RenderResultsJSON(
 			jw.WriteInt(int(fixedStep.Resolution() / time.Millisecond))
 		}
 		jw.EndObject()
-
-		if limited {
-			break
-		}
 	}
 	jw.EndArray()
 	jw.EndObject()
 
 	jw.EndObject()
 	return RenderResultsResult{
+		Datapoints:                   datapoints,
 		LimitedMaxReturnedDatapoints: limited,
 	}, jw.Close()
 }

@@ -47,6 +47,7 @@ type promReadMetrics struct {
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
+	fetchDatapoints   tally.Histogram
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -57,6 +58,9 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+		fetchDatapoints: scope.Histogram("fetch.datapoints",
+			// Buckets of 50k datapoints up to 2M.
+			tally.MustMakeLinearValueBuckets(0, 50_000, 40)),
 	}
 }
 
