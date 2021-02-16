@@ -49,7 +49,7 @@ import (
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	tchannel "github.com/uber/tchannel-go"
+	tchannel_go "github.com/uber/tchannel-go"
 )
 
 // MockClient is a mock of Client interface
@@ -1393,7 +1393,7 @@ func (mr *MockOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
 }
 
 // SetChannelOptions mocks base method
-func (m *MockOptions) SetChannelOptions(value *tchannel.ChannelOptions) Options {
+func (m *MockOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetChannelOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -1407,10 +1407,10 @@ func (mr *MockOptionsMockRecorder) SetChannelOptions(value interface{}) *gomock.
 }
 
 // ChannelOptions mocks base method
-func (m *MockOptions) ChannelOptions() *tchannel.ChannelOptions {
+func (m *MockOptions) ChannelOptions() *tchannel_go.ChannelOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ChannelOptions")
-	ret0, _ := ret[0].(*tchannel.ChannelOptions)
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
 	return ret0
 }
 
@@ -3012,7 +3012,7 @@ func (mr *MockAdminOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
 }
 
 // SetChannelOptions mocks base method
-func (m *MockAdminOptions) SetChannelOptions(value *tchannel.ChannelOptions) Options {
+func (m *MockAdminOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetChannelOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -3026,10 +3026,10 @@ func (mr *MockAdminOptionsMockRecorder) SetChannelOptions(value interface{}) *go
 }
 
 // ChannelOptions mocks base method
-func (m *MockAdminOptions) ChannelOptions() *tchannel.ChannelOptions {
+func (m *MockAdminOptions) ChannelOptions() *tchannel_go.ChannelOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ChannelOptions")
-	ret0, _ := ret[0].(*tchannel.ChannelOptions)
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
 	return ret0
 }
 

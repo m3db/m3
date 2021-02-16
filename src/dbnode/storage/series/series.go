@@ -591,7 +591,7 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 	defer s.Unlock()
-
+	fmt.Println("series evicted")
 	// Should never happen
 	if !id.Equal(s.id) {
 		return
@@ -687,6 +687,7 @@ func (s *dbSeries) Close() {
 	defer s.Unlock()
 
 	// See Reset() for why these aren't finalized.
+	fmt.Println("series ID nil")
 	s.id = nil
 	s.metadata = doc.Metadata{}
 	s.uniqueIndex = 0

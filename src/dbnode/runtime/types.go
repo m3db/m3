@@ -174,6 +174,22 @@ type Options interface {
 	// ClientWriteConsistencyLevel returns the client write consistency level
 	// used when fetching data from peers for coordinated writes
 	ClientWriteConsistencyLevel() topology.ConsistencyLevel
+
+	// SetIndexDefaultQueryTimeout is the hard timeout value to use if none is
+	// specified for a specific query, zero specifies to use no timeout at all.
+	SetIndexDefaultQueryTimeout(value time.Duration) Options
+
+	// IndexDefaultQueryTimeout is the hard timeout value to use if none is
+	// specified for a specific query, zero specifies to use no timeout at all.
+	IndexDefaultQueryTimeout() time.Duration
+
+	// SetTickCancellationCheckInterval sets the interval to check whether the tick
+	// has been canceled. This duration also affects the minimum tick duration.
+	SetTickCancellationCheckInterval(value time.Duration) Options
+
+	// TickCancellationCheckInterval is the interval to check whether the tick
+	// has been canceled. This duration also affects the minimum tick duration.
+	TickCancellationCheckInterval() time.Duration
 }
 
 // OptionsManager updates and supplies runtime options.

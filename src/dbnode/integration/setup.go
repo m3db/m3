@@ -294,6 +294,7 @@ func NewTestSetup(
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
 	runtimeOpts := runtimeOptsMgr.Get().
 		SetTickMinimumInterval(opts.TickMinimumInterval()).
+		SetTickCancellationCheckInterval(opts.TickCancellationCheckInterval()).
 		SetMaxWiredBlocks(opts.MaxWiredBlocks()).
 		SetWriteNewSeriesAsync(opts.WriteNewSeriesAsync())
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
@@ -420,7 +421,8 @@ func NewTestSetup(
 			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 				func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {
 					retrieverOpts := fs.NewBlockRetrieverOptions().
-						SetBlockLeaseManager(blockLeaseManager)
+						SetBlockLeaseManager(blockLeaseManager).
+						SetCacheBlocksOnRetrieve(true)
 					retriever, err := fs.NewBlockRetriever(retrieverOpts, fsOpts)
 					if err != nil {
 						return nil, err

@@ -44,6 +44,7 @@ const (
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = 10 * time.Second
+	defaultTickCancellationCheckInterval        = time.Second
 	defaultMaxWiredBlocks                       = uint(1 << 16) // 65,536
 )
 
@@ -71,6 +72,8 @@ type options struct {
 	clientBootstrapConsistencyLevel      topology.ReadConsistencyLevel
 	clientReadConsistencyLevel           topology.ReadConsistencyLevel
 	clientWriteConsistencyLevel          topology.ConsistencyLevel
+	indexDefaultQueryTimeout             time.Duration
+	tickCancellationCheckInterval        time.Duration
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -87,6 +90,8 @@ func NewOptions() Options {
 		clientBootstrapConsistencyLevel:      DefaultBootstrapConsistencyLevel,
 		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
 		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
+		indexDefaultQueryTimeout:             DefaultIndexDefaultQueryTimeout,
+		tickCancellationCheckInterval:        defaultTickCancellationCheckInterval,
 	}
 }
 
@@ -233,4 +238,24 @@ func (o *options) SetClientWriteConsistencyLevel(value topology.ConsistencyLevel
 
 func (o *options) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.clientWriteConsistencyLevel
+}
+
+func (o *options) SetIndexDefaultQueryTimeout(value time.Duration) Options {
+	opts := *o
+	opts.indexDefaultQueryTimeout = value
+	return &opts
+}
+
+func (o *options) IndexDefaultQueryTimeout() time.Duration {
+	return o.indexDefaultQueryTimeout
+}
+
+func (o *options) SetTickCancellationCheckInterval(value time.Duration) Options {
+	opts := *o
+	opts.indexDefaultQueryTimeout = value
+	return &opts
+}
+
+func (o *options) TickCancellationCheckInterval() time.Duration {
+	return o.indexDefaultQueryTimeout
 }
