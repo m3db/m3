@@ -180,31 +180,9 @@ func TestParseBlockType(t *testing.T) {
 }
 
 func TestRenderResultsJSON(t *testing.T) {
-	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
-	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 2, 1, start)
-	valsWithNaN.SetValueAt(1, math.NaN())
-
-	series := []*ts.Series{
-		ts.NewSeries([]byte("foo"),
-			valsWithNaN, test.TagSliceToTags([]models.Tag{
-				{Name: []byte("bar"), Value: []byte("baz")},
-				{Name: []byte("qux"), Value: []byte("qaz")},
-			})),
-		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, 2, 2, start),
-			test.TagSliceToTags([]models.Tag{
-				{Name: []byte("baz"), Value: []byte("bar")},
-				{Name: []byte("qaz"), Value: []byte("qux")},
-			})),
-		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start),
-			test.TagSliceToTags([]models.Tag{
-				{Name: []byte("biz"), Value: []byte("baz")},
-				{Name: []byte("qux"), Value: []byte("qaz")},
-			})),
-	}
+	series := testSeries(2)
 
 	readResult := ReadResult{Series: series}
 	RenderResultsJSON(buffer, readResult, RenderResultsOptions{
@@ -607,31 +585,9 @@ func TestSanitizeSeries(t *testing.T) {
 }
 
 func TestRenderResultsJSONWithLimits(t *testing.T) {
-	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
-	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 5, 1, start)
-	valsWithNaN.SetValueAt(1, math.NaN())
-
-	series := []*ts.Series{
-		ts.NewSeries([]byte("foo"),
-			valsWithNaN, test.TagSliceToTags([]models.Tag{
-				{Name: []byte("bar"), Value: []byte("baz")},
-				{Name: []byte("qux"), Value: []byte("qaz")},
-			})),
-		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, 5, 2, start),
-			test.TagSliceToTags([]models.Tag{
-				{Name: []byte("baz"), Value: []byte("bar")},
-				{Name: []byte("qaz"), Value: []byte("qux")},
-			})),
-		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(10*time.Second, 5, math.NaN(), start),
-			test.TagSliceToTags([]models.Tag{
-				{Name: []byte("biz"), Value: []byte("baz")},
-				{Name: []byte("qux"), Value: []byte("qaz")},
-			})),
-	}
+	series := testSeries(5)
 
 	intPrt := func(v int) *int {
 		return &v
@@ -712,5 +668,30 @@ func TestRenderResultsJSONWithLimits(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, test.expectedDatapoints, r.Datapoints)
 		require.Equal(t, test.expectedLimited, r.LimitedMaxReturnedDatapoints)
+	}
+}
+
+func testSeries(datapointsPerSeries int) []*ts.Series {
+	start := time.Unix(1535948880, 0)
+	valsWithNaN := ts.NewFixedStepValues(10*time.Second, datapointsPerSeries, 1, start)
+	valsWithNaN.SetValueAt(1, math.NaN())
+	return []*ts.Series{
+		ts.NewSeries([]byte("foo"),
+			valsWithNaN, test.TagSliceToTags([]models.Tag{
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, datapointsPerSeries, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
+		ts.NewSeries([]byte("foobar"),
+			ts.NewFixedStepValues(10*time.Second, datapointsPerSeries, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("biz"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
 	}
 }

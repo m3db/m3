@@ -254,6 +254,10 @@ function test_query_limits_applied {
   # Test that require exhaustive error is 4xx
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "400" ]]'
+
+  echo "Test query returned-datapoints limit"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-Datapoints: 1" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success\\{namespace=\"agg\"\\ | jq -r ".data.result[0] | length") -eq 3 ]]'
 }
 
 function prometheus_query_native {
