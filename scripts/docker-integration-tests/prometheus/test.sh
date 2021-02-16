@@ -478,9 +478,6 @@ function test_labels {
 echo "Running readiness test"
 test_readiness
 
-echo "Running aggregate limit tests"
-test_global_aggregate_limits
-
 echo "Running prometheus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
@@ -501,5 +498,8 @@ test_labels
 
 echo "Running function correctness tests"
 test_correctness
+
+echo "Running aggregate limit tests"
+test_global_aggregate_limits
 
 TEST_SUCCESS=true
