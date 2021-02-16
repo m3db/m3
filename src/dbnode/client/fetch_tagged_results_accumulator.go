@@ -406,12 +406,12 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 			values := aggregateValueResultsSortedByValue(tagResponse.TagValues)
 			sort.Sort(values)
 
-			// Otherwise add in order and deduplicate.
 			if tempValues == nil {
 				tempValues = make([]ident.ID, 0, len(tagResult.tagValues))
 			}
 			tempValues = tempValues[:0]
 
+			// perform a merge sort with the final results.
 			i, j := 0, 0
 			for i < len(tagResult.tagValues) || j < len(values) {
 				var nextValue ident.ID
