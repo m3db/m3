@@ -62,6 +62,7 @@ func TestFetchResultIterTest(t *testing.T) {
 		nowFn:           time.Now,
 		dataReadMetrics: index.NewQueryMetrics("", scope),
 		totalMetrics:    index.NewQueryMetrics("", scope),
+		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
 		instrumentClose: func(err error) {},
 	})
 	total := 0
@@ -76,6 +77,7 @@ func TestFetchResultIterTest(t *testing.T) {
 	require.Equal(t, 10, total)
 	require.Equal(t, 5, blockPermits.acquired)
 	require.Equal(t, 5, blockPermits.released)
+	requireSeriesBlockMetric(t, scope)
 }
 
 func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
@@ -100,6 +102,7 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 		nowFn:           time.Now,
 		dataReadMetrics: index.NewQueryMetrics("", scope),
 		totalMetrics:    index.NewQueryMetrics("", scope),
+		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
 		instrumentClose: func(err error) {},
 	})
 	total := 0
@@ -114,6 +117,18 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 	require.Equal(t, 10, total)
 	require.Equal(t, 10, blockPermits.acquired)
 	require.Equal(t, 10, blockPermits.released)
+	requireSeriesBlockMetric(t, scope)
+}
+
+func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
+	values, ok := scope.Snapshot().Histograms()["series-blocks+"]
+	require.True(t, ok)
+
+	sum := 0
+	for _, count := range values.Values() {
+		sum += int(count)
+	}
+	require.Equal(t, 1, sum)
 }
 
 func setup(mocks *gomock.Controller) (
