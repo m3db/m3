@@ -39,13 +39,13 @@ type QueryLimits interface {
 	DocsLimit() LookbackLimit
 	// BytesReadLimit limits queries by a global concurrent count of bytes read from disk.
 	BytesReadLimit() LookbackLimit
+	// AnyFetchExceeded returns an error if any of the query limits are exceeded.
+	AnyFetchExceeded() error
 
 	// AggregateDocsLimit limits aggregate queries by a global
 	// concurrent count of index docs matched.
 	AggregateDocsLimit() LookbackLimit
 
-	// AnyExceeded returns an error if any of the query limits are exceeded.
-	AnyExceeded() error
 	// Start begins background resetting of the query limits.
 	Start()
 	// Stop end background resetting of the query limits.

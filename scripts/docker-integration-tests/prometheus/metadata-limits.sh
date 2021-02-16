@@ -37,19 +37,20 @@ function write_metrics {
 }
 
 function test_correct_label_values {
-  COUNT=$(curl "http://0.0.0.0:7201/api/v1/label/${METRIC_NAME}/values" | jq .data[] | wc -l)
+  RESULT=$(curl "http://0.0.0.0:7201/api/v1/label/${METRIC_NAME}/values" )
+  COUNT=$(echo $RESULT | jq .data[] | wc -l)
   test $COUNT = 60
 }
 
 function test_failing_label_values {
-  ERR=$(curl "http://0.0.0.0:7201/api/v1/label/${METRIC_NAME}/values" | jq .status)
-  test $ERR = '"error"'
+  RESULT=$(curl "http://0.0.0.0:7201/api/v1/label/${METRIC_NAME}/values" )
+  STATUS=$(echo $RESULT | jq .status)
+  test $STATUS = '"error"'
 }
 
 function test_query_succeeds {
-  ZZ=$(curl "http://0.0.0.0:7201/api/v1/query?query=sum($METRIC_NAME)&start=$NOW")
-  STATUS=$(echo $ZZ | jq .status)
-  # 1770 = sum(1..60) 
+  RESULT=$(curl "http://0.0.0.0:7201/api/v1/query?query=sum($METRIC_NAME)&start=$NOW")
+  STATUS=$(echo $RESULT | jq .status)
   test $STATUS = '"success"'
 }
 
@@ -72,20 +73,15 @@ function test_global_aggregate_limits {
 
   # Make sure any existing limit has expired before continuing.
   ATTEMPTS=5 retry_with_backoff test_correct_label_values
-  ATTEMPTS=2 retry_with_backoff test_correct_label_values
-  ATTEMPTS=2 TIMEOUT=1 retry_with_backoff test_failing_label_values
-  # Make sure the limit expires within 10 seconds and the query succeeds again.
+  ATTEMPTS=5 retry_with_backoff test_correct_label_values
+  ATTEMPTS=5 TIMEOUT=1 retry_with_backoff test_failing_label_values
+  # Make sure that a query is unaffected by the the metadata limits.
   ATTEMPTS=2 retry_with_backoff test_query_succeeds
+  # Make sure the limit expires within 10 seconds and the query succeeds again.
   ATTEMPTS=10 retry_with_backoff test_correct_label_values
-  sleep 10
-  ATTEMPTS=1 retry_with_backoff test_correct_label_values
-  ATTEMPTS=1 retry_with_backoff test_correct_label_values
-
   curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
     "key": "m3db.query.limits",
     "value":{},
     "commit":true
   }'
 }
-
-test_global_aggregate_limits

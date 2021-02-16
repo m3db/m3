@@ -207,14 +207,12 @@ func (q *queryLimits) Stop() {
 	q.aggregatedDocsLimit.Stop()
 }
 
-func (q *queryLimits) AnyExceeded() error {
+func (q *queryLimits) AnyFetchExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
 		return err
 	}
-	if err := q.bytesReadLimit.exceeded(); err != nil {
-		return err
-	}
-	return q.aggregatedDocsLimit.exceeded()
+
+	return q.bytesReadLimit.exceeded()
 }
 
 func (q *lookbackLimit) Options() LookbackLimitOptions {

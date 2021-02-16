@@ -73,11 +73,11 @@ func TestQueryLimits(t *testing.T) {
 	require.NotNil(t, queryLimits)
 
 	// No error yet.
-	require.NoError(t, queryLimits.AnyExceeded())
+	require.NoError(t, queryLimits.AnyFetchExceeded())
 
 	// Limit from docs.
 	require.Error(t, queryLimits.DocsLimit().Inc(2, nil))
-	err = queryLimits.AnyExceeded()
+	err = queryLimits.AnyFetchExceeded()
 	require.Error(t, err)
 	require.True(t, xerrors.IsInvalidParams(err))
 	require.True(t, IsQueryLimitExceededError(err))
@@ -88,12 +88,12 @@ func TestQueryLimits(t *testing.T) {
 	require.NotNil(t, queryLimits)
 
 	// No error yet.
-	err = queryLimits.AnyExceeded()
+	err = queryLimits.AnyFetchExceeded()
 	require.NoError(t, err)
 
 	// Limit from bytes.
 	require.Error(t, queryLimits.BytesReadLimit().Inc(2, nil))
-	err = queryLimits.AnyExceeded()
+	err = queryLimits.AnyFetchExceeded()
 	require.Error(t, err)
 	require.True(t, xerrors.IsInvalidParams(err))
 	require.True(t, IsQueryLimitExceededError(err))
@@ -104,15 +104,14 @@ func TestQueryLimits(t *testing.T) {
 	require.NotNil(t, queryLimits)
 
 	// No error yet.
-	err = queryLimits.AnyExceeded()
+	err = queryLimits.AnyFetchExceeded()
 	require.NoError(t, err)
 
-	// Limit from aggregate.
+	// Limit from aggregate does not trip any fetched exceeded.
 	require.Error(t, queryLimits.AggregateDocsLimit().Inc(2, nil))
-	err = queryLimits.AnyExceeded()
-	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
-	require.True(t, IsQueryLimitExceededError(err))
+	err = queryLimits.AnyFetchExceeded()
+	require.NoError(t, err)
+	require.NotNil(t, queryLimits)
 
 	opts = testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, aggOpts, instrument.NewOptions())
 	queryLimits, err = NewQueryLimits(opts)
@@ -120,7 +119,7 @@ func TestQueryLimits(t *testing.T) {
 	require.NotNil(t, queryLimits)
 
 	// No error yet.
-	err = queryLimits.AnyExceeded()
+	err = queryLimits.AnyFetchExceeded()
 	require.NoError(t, err)
 }
 
