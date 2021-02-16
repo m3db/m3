@@ -7,7 +7,7 @@ source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/query_fanout/docker-compose.yml
 HEADER_FILE=headers.out
 
-function write_metrics {
+function write_agg_metrics {
   NUM=$1
   echo "Writing $NUM metrics to [0.0.0.0:9003]"
   set +x
@@ -56,9 +56,9 @@ function test_query_succeeds {
 
 function test_global_aggregate_limits {  
   export NOW=$(date +"%s")
-  export METRIC_NAME="agg_$NOW"
+  export METRIC_NAME="aggregate_limits_$NOW"
   
-  write_metrics 60
+  write_agg_metrics 60
   curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
     "key": "m3db.query.limits",
     "value":{
