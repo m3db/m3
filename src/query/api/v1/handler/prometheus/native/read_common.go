@@ -86,13 +86,13 @@ func ParseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, error) {
-	parsed, err := parseRequest(ctx, r, instantaneous, opts)
+) (context.Context, ParsedOptions, error) {
+	ctx, parsed, err := parseRequest(ctx, r, instantaneous, opts)
 	if err != nil {
 		// All parsing of requests should result in an invalid params error.
-		return ParsedOptions{}, xerrors.NewInvalidParamsError(err)
+		return nil, ParsedOptions{}, xerrors.NewInvalidParamsError(err)
 	}
-	return parsed, nil
+	return ctx, parsed, nil
 }
 
 func parseRequest(
@@ -100,10 +100,10 @@ func parseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, error) {
-	fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(r)
+) (context.Context, ParsedOptions, error) {
+	ctx, fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
 	if err != nil {
-		return ParsedOptions{}, err
+		return nil, ParsedOptions{}, err
 	}
 
 	queryOpts := &executor.QueryOptions{
@@ -134,10 +134,10 @@ func parseRequest(
 		params, err = parseParams(r, engine.Options(), fetchOpts)
 	}
 	if err != nil {
-		return ParsedOptions{}, err
+		return nil, ParsedOptions{}, err
 	}
 
-	return ParsedOptions{
+	return ctx, ParsedOptions{
 		QueryOpts: queryOpts,
 		FetchOpts: fetchOpts,
 		Params:    params,

@@ -189,9 +189,12 @@ url = "https://github.com/m3db/m3"
 weight = 11
 
 [[menu.shortcuts]]
-pre = "<h3>More</h3>"
+name = "<i class='fa fa-code'></i> <label>API spec</label>"
+url = "/openapi"
+weight = 9
+
+[[menu.shortcuts]]
 name = "<i class='fa fa-github'></i> <label>Github repo</label>"
-identifier = "ds"
 url = "https://github.com/m3db/m3"
 weight = 10
 

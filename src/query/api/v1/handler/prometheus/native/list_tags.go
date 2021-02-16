@@ -74,6 +74,12 @@ func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	if rErr != nil {
+		xhttp.WriteError(w, rErr)
+		return
+	}
+
 	start, end, err := prometheus.ParseStartAndEnd(r, h.parseOpts)
 	if err != nil {
 		xhttp.WriteError(w, err)
@@ -104,14 +110,6 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		End:              end,
 	}
 
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.WriteError(w, rErr)
-		return
-	}
-
-	ctx, cancel := prometheus.ContextWithRequestAndTimeout(r, opts)
-	defer cancel()
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	result, err := h.storage.CompleteTags(ctx, query, opts)

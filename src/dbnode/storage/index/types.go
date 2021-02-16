@@ -912,10 +912,10 @@ type fieldsAndTermsIterator interface {
 	Err() error
 
 	// Close releases any resources held by the iterator.
-	Close() error
+	Close(ctx context.Context) error
 
 	// Reset resets the iterator to the start iterating the given segment.
-	Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
+	Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
 
 	// SearchDuration is how long it took to search the Segment.
 	SearchDuration() time.Duration

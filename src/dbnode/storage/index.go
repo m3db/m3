@@ -1582,9 +1582,12 @@ func (i *nsIndex) queryWithSpan(
 			break
 		}
 
+		// Calculate time spent waiting for a worker
 		wg.Add(1)
-		scheduleResult := i.queryWorkersPool.GoWithContext(ctx.GoContext(), func() {
+		scheduleResult := i.queryWorkersPool.GoWithContext(ctx, func() {
+			startProcessing := time.Now()
 			execBlockFn(ctx, block, query, opts, &state, results, logFields)
+			i.metrics.queryMetrics.blockProcessingTime.RecordDuration(time.Since(startProcessing))
 			wg.Done()
 		})
 		totalWaitTime += scheduleResult.WaitTime
@@ -1592,7 +1595,7 @@ func (i *nsIndex) queryWithSpan(
 			state.Lock()
 			state.multiErr = state.multiErr.Add(index.ErrCancelledQuery)
 			state.Unlock()
-			// Did not launch task, need to ensure don't wait for it.
+			// Did not launch task, need to ensure don't wait for it
 			wg.Done()
 			break
 		}
@@ -2301,6 +2304,8 @@ func newQueryMetrics(scope tally.Scope, queryType string) queryMetrics {
 		queryWaitTime:       index.NewQueryMetricsWithLabels("query_wait", scope, labels),
 		queryProcessingTime: index.NewQueryMetricsWithLabels("query_processing", scope, labels),
 		querySearchTime:     index.NewQueryMetricsWithLabels("query_search", scope, labels),
+		blockProcessingTime: scope.Tagged(labels).Histogram("block_processing",
+			instrument.SparseHistogramTimerHistogramBuckets()),
 	}
 }
 
@@ -2316,6 +2321,8 @@ type queryMetrics struct {
 	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
 	// search results.
 	querySearchTime index.QueryMetrics
+	// time to process a single index block when processing a query.
+	blockProcessingTime tally.Histogram
 }
 
 type nsIndexBlocksMetrics struct {

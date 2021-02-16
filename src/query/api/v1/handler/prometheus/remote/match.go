@@ -74,14 +74,12 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
 	if rErr != nil {
 		xhttp.WriteError(w, rErr)
 		return
 	}
 
-	ctx, cancel := prometheus.ContextWithRequestAndTimeout(r, opts)
-	defer cancel()
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	queries, err := prometheus.ParseSeriesMatchQuery(r, h.parseOpts, h.tagOptions)

@@ -59,8 +59,11 @@ func TestNamespaceReadyHandler(t *testing.T) {
 	testClusters := testClusters{
 		nonReadyNamespaces: []m3.ClusterNamespace{&testClusterNs},
 	}
-	mockSession.EXPECT().FetchTaggedIDs(testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
-		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1}).Return(nil, client.FetchResponseMetadata{}, nil)
+
+	mockSession.EXPECT().
+		FetchTaggedIDs(gomock.Any(), testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
+			index.QueryOptions{SeriesLimit: 1, DocsLimit: 1}).
+		Return(nil, client.FetchResponseMetadata{}, nil)
 
 	readyHandler := NewReadyHandler(mockClient, &testClusters, instrument.NewOptions())
 
