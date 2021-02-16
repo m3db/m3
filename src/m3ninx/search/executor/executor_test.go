@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -60,11 +61,11 @@ func TestExecutor(t *testing.T) {
 	e := NewExecutor(rs).(*executor)
 
 	// Override newIteratorFn to return test iterator.
-	e.newIteratorFn = func(_ search.Searcher, _ index.Readers) (doc.QueryDocIterator, error) {
+	e.newIteratorFn = func(_ context.Context, _ search.Searcher, _ index.Readers) (doc.QueryDocIterator, error) {
 		return newTestIterator(), nil
 	}
 
-	it, err := e.Execute(q)
+	it, err := e.Execute(context.NewBackground(), q)
 	require.NoError(t, err)
 
 	err = it.Close()

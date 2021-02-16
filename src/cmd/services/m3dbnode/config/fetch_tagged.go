@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,13 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package handler contains root level handlers.
-package handler
+// Package config contains static configuration for the dbnode service.
+package config
 
-const (
-	// RoutePrefixV1 is the v1 prefix for all coordinator routes.
-	RoutePrefixV1 = "/api/v1"
-
-	// RoutePrefixExperimental is the experimental prefix for all coordinator routes.
-	RoutePrefixExperimental = "/api/experimental"
-)
+// FetchTaggedConfiguration contains configuration related to the FetchTagged API endpoint.
+type FetchTaggedConfiguration struct {
+	// SeriesBlocksPerBatch specifies how many series blocks are allowed to be retrieved
+	// per permit acquired. Defaults to 1 (i.e. a permit is acquired per series block).
+	SeriesBlocksPerBatch int `yaml:"seriesBlocksPerBatch" validate:"min=0"`
+}

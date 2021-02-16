@@ -142,7 +142,7 @@ func setupServer(t *testing.T) *httptest.Server {
 
 	lstore, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
-		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: false},
 			fmt.Errorf("not initialized")).MaxTimes(1)
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
@@ -189,7 +189,7 @@ func TestPromReadParsing(t *testing.T) {
 		SetFetchOptionsBuilder(fetchOptsBuilder)
 
 	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
-	r, fetchOpts, err := ParseRequest(context.TODO(), req, opts)
+	_, r, fetchOpts, err := ParseRequest(context.Background(), req, opts)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, len(r.Queries), 1)
 	fmt.Println(fetchOpts)
@@ -197,7 +197,7 @@ func TestPromReadParsing(t *testing.T) {
 
 func TestPromReadParsingBad(t *testing.T) {
 	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
-	_, _, err := ParseRequest(context.TODO(), req, options.EmptyHandlerOptions())
+	_, _, _, err := ParseRequest(context.Background(), req, options.EmptyHandlerOptions())
 	require.NotNil(t, err, "unable to parse request")
 }
 
@@ -270,7 +270,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	defer ctrl.Finish()
 
 	storage, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().
 		Return(nil, nil)

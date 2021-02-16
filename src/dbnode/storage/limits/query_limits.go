@@ -170,7 +170,6 @@ func newLookbackLimitMetrics(
 		scope = scope.Tagged(tags)
 	}
 
-	iopts := instrumentOpts.SetMetricsScope(scope)
 	return lookbackLimitMetrics{
 		optionsLimit:    scope.Gauge(fmt.Sprintf("current-limit%s", name)),
 		optionsLookback: scope.Gauge(fmt.Sprintf("current-lookback-%s", name)),
@@ -179,7 +178,9 @@ func newLookbackLimitMetrics(
 		total:           scope.Counter(fmt.Sprintf("total-%s", name)),
 		exceeded:        scope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
 
-		sourceLogger: sourceLoggerBuilder.NewSourceLogger(name, iopts),
+		// nb: no need to provide query-limits subscope to source logger,
+		// as it's not directly related to limits.
+		sourceLogger: sourceLoggerBuilder.NewSourceLogger(name, instrumentOpts),
 	}
 }
 

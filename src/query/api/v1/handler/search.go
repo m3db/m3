@@ -65,17 +65,18 @@ func NewSearchHandler(opts options.HandlerOptions) http.Handler {
 }
 
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := logging.WithContext(r.Context(), h.instrumentOpts)
+	ctx := r.Context()
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	query, parseBodyErr := h.parseBody(r)
-	fetchOpts, parseURLParamsErr := h.parseURLParams(r)
+	ctx, fetchOpts, parseURLParamsErr := h.parseURLParams(ctx, r)
 	if err := xerrors.FirstError(parseBodyErr, parseURLParamsErr); err != nil {
 		logger.Error("unable to parse request", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
 
-	results, err := h.search(r.Context(), query, fetchOpts)
+	results, err := h.search(ctx, query, fetchOpts)
 	if err != nil {
 		logger.Error("search query error",
 			zap.Error(err),
@@ -103,10 +104,13 @@ func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, error) 
 	return &fetchQuery, nil
 }
 
-func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, error) {
-	fetchOpts, parseErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+func (h *SearchHandler) parseURLParams(
+	ctx context.Context,
+	r *http.Request,
+) (context.Context, *storage.FetchOptions, error) {
+	ctx, fetchOpts, parseErr := h.fetchOptionsBuilder.NewFetchOptions(ctx, r)
 	if parseErr != nil {
-		return nil, xerrors.NewInvalidParamsError(parseErr)
+		return nil, nil, xerrors.NewInvalidParamsError(parseErr)
 	}
 
 	// Parse for series and docs limits as query params.
@@ -116,13 +120,13 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		var err error
 		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
 		if err != nil {
-			return nil, xerrors.NewInvalidParamsError(err)
+			return nil, nil, xerrors.NewInvalidParamsError(err)
 		}
 	} else if str := r.URL.Query().Get("seriesLimit"); str != "" {
 		var err error
 		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
 		if err != nil {
-			return nil, xerrors.NewInvalidParamsError(err)
+			return nil, nil, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
@@ -130,7 +134,7 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		var err error
 		fetchOpts.DocsLimit, err = strconv.Atoi(str)
 		if err != nil {
-			return nil, xerrors.NewInvalidParamsError(err)
+			return nil, nil, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
@@ -138,11 +142,11 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		var err error
 		fetchOpts.RequireExhaustive, err = strconv.ParseBool(str)
 		if err != nil {
-			return nil, xerrors.NewInvalidParamsError(err)
+			return nil, nil, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
-	return fetchOpts, nil
+	return ctx, fetchOpts, nil
 }
 
 func (h *SearchHandler) search(

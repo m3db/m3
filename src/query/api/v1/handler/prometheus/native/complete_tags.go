@@ -67,13 +67,13 @@ func NewCompleteTagsHandler(opts options.HandlerOptions) http.Handler {
 func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
-	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
 	if rErr != nil {
 		xhttp.WriteError(w, rErr)
 		return
 	}
 
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
 	if rErr != nil {
 		xhttp.WriteError(w, rErr)
 		return
@@ -90,8 +90,6 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			nameOnly, models.NewTagOptions())
 	)
 
-	ctx, cancel := prometheus.ContextWithRequestAndTimeout(r, opts)
-	defer cancel()
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	for _, query := range tagCompletionQueries.Queries {
 		wg.Add(1)

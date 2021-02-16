@@ -321,7 +321,7 @@ func (s *m3storage) fetchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iters, metadata, err := session.FetchTagged(namespaceID, m3query, queryOptions)
+			iters, metadata, err := session.FetchTagged(ctx, namespaceID, m3query, queryOptions)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
@@ -466,7 +466,7 @@ func (s *m3storage) CompleteTags(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			aggTagIter, metadata, err := session.Aggregate(namespaceID, m3query, aggOpts)
+			aggTagIter, metadata, err := session.Aggregate(ctx, namespaceID, m3query, aggOpts)
 			if err != nil {
 				multiErr.add(err)
 				return
@@ -586,7 +586,7 @@ func (s *m3storage) SearchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iter, metadata, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
+			iter, metadata, err := session.FetchTaggedIDs(ctx, namespaceID, m3query, m3opts)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
