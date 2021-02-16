@@ -187,5 +187,5 @@ func init() {
 		SetFloatsPool(floatsPool).
 		SetStreamPool(streamPool)
 	_aggregationOptions.ResetSetData(testAggTypes)
-	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, _cmOptions) })
+	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, _cmOptions) })
 }

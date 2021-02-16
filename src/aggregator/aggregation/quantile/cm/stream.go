@@ -31,17 +31,12 @@ const (
 )
 
 var (
-	nan = math.NaN()
+	nan         = math.NaN()
+	defaultOpts = NewOptions()
 )
 
-// acquireSampleFn acquires a new sample.
-type acquireSampleFn func() *Sample
-
-// releaseSampleFn releases a sample.
-type releaseSampleFn func(*Sample)
-
-// stream represents a data stream.
-type stream struct {
+// Stream represents a data stream.
+type Stream struct {
 	eps                    float64         // desired epsilon for errors
 	quantiles              []float64       // sorted target quantiles
 	capacity               int             // stream capacity
@@ -49,10 +44,7 @@ type stream struct {
 	flushEvery             int             // stream flushing frequency
 	streamPool             StreamPool      // pool of streams
 	floatsPool             pool.FloatsPool // pool of float64 slices
-	acquireSampleFn        acquireSampleFn // function to acquire samples
-	releaseSampleFn        releaseSampleFn // function to release samples
 
-	closed                   bool       // whether the stream is closed
 	insertAndCompressCounter int        // insertion and compression counter
 	flushCounter             int        // flush frequency counter
 	numValues                int64      // number of values inserted into the sorted stream
@@ -64,43 +56,25 @@ type stream struct {
 	compressMinRank          int64      // compression min rank
 	c                        int
 	smpbuf                   []*Sample
+	closed                   bool // whether the stream is closed
+	flushed                  bool
 }
 
 // NewStream creates a new sample stream.
-func NewStream(quantiles []float64, opts Options) Stream {
+func NewStream(quantiles []float64, opts Options) *Stream {
 	if opts == nil {
-		opts = NewOptions()
-	}
-	var (
-		acquireSampleFn acquireSampleFn
-		releaseSampleFn releaseSampleFn
-	)
-	if samplePool := opts.SamplePool(); samplePool != nil {
-		acquireSampleFn = func() *Sample {
-			sample := samplePool.Get()
-			sample.reset()
-			return sample
-		}
-		releaseSampleFn = func(sample *Sample) {
-			samplePool.Put(sample)
-		}
-	} else {
-		acquireSampleFn = newSample
-		releaseSampleFn = func(*Sample) {}
+		opts = defaultOpts
 	}
 
-	s := &stream{
+	s := &Stream{
 		eps:                    opts.Eps(),
 		capacity:               opts.InsertAndCompressEvery(),
 		flushEvery:             opts.FlushEvery(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
 		streamPool:             opts.StreamPool(),
 		floatsPool:             opts.FloatsPool(),
-		acquireSampleFn:        acquireSampleFn,
-		releaseSampleFn:        releaseSampleFn,
 		smpbuf:                 make([]*Sample, 4096),
 	}
-	//smp := make([]Sample, len(s.smpbuf))
 	for i := 0; i < len(s.smpbuf); i++ {
 		s.smpbuf[i] = &Sample{} //&smp[i]
 	}
@@ -108,29 +82,39 @@ func NewStream(quantiles []float64, opts Options) Stream {
 	return s
 }
 
-func (s *stream) Add(value float64) {
-	if s.numValues > 0 && value < s.insertPointValue() {
-		s.bufLess = s.ensureHeapSize(s.bufLess)
-		s.bufLess.Push(value)
-	} else {
-		s.bufMore = s.ensureHeapSize(s.bufMore)
-		s.bufMore.Push(value)
-	}
-	s.insertAndCompressCounter++
-	if s.insertAndCompressCounter == s.insertAndCompressEvery {
-		//for i := 0; i < s.insertAndCompressEvery; i++ {
-		s.insert()
-		////}
-		//if s.bufLess.Len() != 0 {
-		//	s.resetInsertCursor()
-		//	s.insert()
-		//}
-		s.compress()
-		s.insertAndCompressCounter = 0
+func (s *Stream) AddBatch(values []float64) {
+	s.flushed = false
+	for _, value := range values {
+		if s.numValues > 0 && value < s.insertPointValue() {
+			s.bufLess = s.ensureHeapSize(s.bufLess)
+			s.bufLess.Push(value)
+		} else {
+			s.bufMore = s.ensureHeapSize(s.bufMore)
+			s.bufMore.Push(value)
+		}
+		s.insertAndCompressCounter++
+		if s.insertAndCompressCounter == s.insertAndCompressEvery {
+			//for i := 0; i < s.insertAndCompressEvery; i++ {
+			s.insert()
+			////}
+			//if s.bufLess.Len() != 0 {
+			//	s.resetInsertCursor()
+			//	s.insert()
+			//}
+			s.compress()
+			s.insertAndCompressCounter = 0
+		}
 	}
 }
 
-func (s *stream) Flush() {
+func (s *Stream) Add(value float64) {
+	s.AddBatch([]float64{value})
+}
+
+func (s *Stream) Flush() {
+	if s.flushed {
+		return
+	}
 	//fmt.Println("samples ", s.samples.len, " num ", s.numValues, " insertevery ",
 	//	s.insertAndCompressEvery, " flushevery ", s.flushEvery,
 	//	" bfmore ", s.bufMore.Len(), "bfless", s.bufLess.Len())
@@ -141,19 +125,20 @@ func (s *stream) Flush() {
 		s.insert()
 		s.compress()
 	}
+	s.flushed = true
 	// fmt.Println("inserts ", s.c)
 	// fmt.Println("samples ", s.samples.len)
 }
 
-func (s *stream) Min() float64 {
+func (s *Stream) Min() float64 {
 	return s.Quantile(0.0)
 }
 
-func (s *stream) Max() float64 {
+func (s *Stream) Max() float64 {
 	return s.Quantile(1.0)
 }
 
-func (s *stream) Quantile(q float64) float64 {
+func (s *Stream) Quantile(q float64) float64 {
 	if q < 0.0 || q > 1.0 {
 		return nan
 	}
@@ -188,7 +173,7 @@ func (s *stream) Quantile(q float64) float64 {
 	return prev.value
 }
 
-func (s *stream) ResetSetData(quantiles []float64) {
+func (s *Stream) ResetSetData(quantiles []float64) {
 	s.quantiles = quantiles
 	s.closed = false
 	s.insertAndCompressCounter = 0
@@ -211,7 +196,7 @@ func (s *stream) ResetSetData(quantiles []float64) {
 	s.compressMinRank = 0
 }
 
-func (s *stream) Close() {
+func (s *Stream) Close() {
 	if s.closed {
 		return
 	}
@@ -236,7 +221,7 @@ func (s *stream) Close() {
 	s.streamPool.Put(s)
 }
 
-func (s *stream) ensureHeapSize(heap minHeap) minHeap {
+func (s *Stream) ensureHeapSize(heap minHeap) minHeap {
 	if cap(heap) == len(heap) {
 		//newHeap := sharedHeapPool.Get(heap.Len() * 2)
 		//*newHeap = append((*newHeap), heap...)
@@ -255,7 +240,7 @@ func (s *stream) ensureHeapSize(heap minHeap) minHeap {
 }
 
 // insert inserts a sample into the stream.
-func (s *stream) insert() {
+func (s *Stream) insert() {
 	s.c++
 	if s.samples.Len() == 0 {
 		if s.bufMore.Len() == 0 {
@@ -329,7 +314,7 @@ func (s *stream) insert() {
 }
 
 // compress compresses the samples in the stream.
-func (s *stream) compress() {
+func (s *Stream) compress() {
 	// Bail early if there is nothing to compress.
 	if s.samples.Len() < minSamplesToCompress {
 		return
@@ -380,7 +365,7 @@ func (s *stream) compress() {
 }
 
 // threshold computes the minimum threshold value.
-func (s *stream) threshold(rank int64) int64 {
+func (s *Stream) threshold(rank int64) int64 {
 	minVal := int64(math.MaxInt64)
 	for _, quantile := range s.quantiles {
 		var quantileMin int64
@@ -397,13 +382,13 @@ func (s *stream) threshold(rank int64) int64 {
 }
 
 // resetInsertCursor resets the insert cursor.
-func (s *stream) resetInsertCursor() {
+func (s *Stream) resetInsertCursor() {
 	s.bufLess, s.bufMore = s.bufMore, s.bufLess
 	s.insertCursor = nil
 }
 
 // insertPointValue returns the value under the insertion cursor.
-func (s *stream) insertPointValue() float64 {
+func (s *Stream) insertPointValue() float64 {
 	if s.insertCursor == nil {
 		return 0.0
 	}
@@ -411,7 +396,7 @@ func (s *stream) insertPointValue() float64 {
 }
 
 // addToMinHeap adds a value to a min heap.
-func (s *stream) addToMinHeap(heap *minHeap, value float64) {
+func (s *Stream) addToMinHeap(heap *minHeap, value float64) {
 	curr := *heap
 	// If we are at capacity, get a bigger heap from the pool
 	// and return the current heap to the pool.
@@ -424,7 +409,7 @@ func (s *stream) addToMinHeap(heap *minHeap, value float64) {
 	heap.Push(value)
 }
 
-func (s *stream) acquireSample() *Sample {
+func (s *Stream) acquireSample() *Sample {
 	l := len(s.smpbuf)
 	//fmt.Println("acquire", "idx", l, "samples", s.samples.len)
 	if l <= 0 {
@@ -436,7 +421,7 @@ func (s *stream) acquireSample() *Sample {
 	return sample
 }
 
-func (s *stream) releaseSample(sample *Sample) {
+func (s *Stream) releaseSample(sample *Sample) {
 	// fmt.Println("release", "idx", len(s.smpbuf), "samples", s.samples.len)
 	s.smpbuf = append(s.smpbuf, sample)
 }

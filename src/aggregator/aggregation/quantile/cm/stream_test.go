@@ -187,7 +187,7 @@ func TestStreamWithSkewedDistributionPeriodicInsertCompressPeriodicFlush(t *test
 
 func TestStreamClose(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts).(*stream)
+	s := NewStream(testQuantiles, opts)
 	require.False(t, s.closed)
 
 	// Close the stream.
@@ -207,7 +207,7 @@ func TestStreamAddToMinHeap(t *testing.T) {
 		}, nil)
 	floatsPool.Init()
 	opts := testStreamOptions().SetFloatsPool(floatsPool)
-	s := NewStream(testQuantiles, opts).(*stream)
+	s := NewStream(testQuantiles, opts)
 
 	heap := minHeap(floatsPool.Get(1))
 	require.Equal(t, 1, cap(heap))

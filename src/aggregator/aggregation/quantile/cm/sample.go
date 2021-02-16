@@ -22,6 +22,15 @@ package cm
 
 var emptySample Sample
 
+// Sample represents a sampled value.
+type Sample struct {
+	value    float64 // sampled value
+	numRanks int64   // number of ranks represented
+	delta    int64   // delta between min rank and max rank
+	prev     *Sample // previous sample
+	next     *Sample // next sample
+}
+
 // newSample creates a new sample.
 func newSample() *Sample {
 	return &Sample{}

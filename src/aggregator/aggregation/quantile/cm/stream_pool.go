@@ -37,10 +37,10 @@ func (p *streamPool) Init(alloc StreamAlloc) {
 	})
 }
 
-func (p *streamPool) Get() Stream {
-	return p.pool.Get().(*stream)
+func (p *streamPool) Get() *Stream {
+	return p.pool.Get().(*Stream)
 }
 
-func (p *streamPool) Put(value Stream) {
+func (p *streamPool) Put(value *Stream) {
 	p.pool.Put(value)
 }
