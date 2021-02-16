@@ -46,6 +46,7 @@ type queryLimits struct {
 
 type lookbackLimit struct {
 	name      string
+	started   bool
 	options   LookbackLimitOptions
 	metrics   lookbackLimitMetrics
 	logger    *zap.Logger
@@ -53,6 +54,7 @@ type lookbackLimit struct {
 	stopCh    chan struct{}
 	stoppedCh chan struct{}
 	lock      sync.RWMutex
+	iOpts     instrument.Options
 }
 
 type lookbackLimitMetrics struct {
@@ -106,6 +108,10 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 			sourceLoggerBuilder, map[string]string{"type": "aggregate"})
 	)
 
+	// NB: All metrics for aggregate methods should show up with the same metric
+	// name as those for fetch methods, but different tags. Update the name of the
+	// aggregatedDocsLimit here for more informative error messages.
+	aggregatedDocsLimit.name = "metadata-matched"
 	return &queryLimits{
 		docsLimit:           docsLimit,
 		bytesReadLimit:      bytesReadLimit,
@@ -146,6 +152,7 @@ func newLookbackLimit(
 		recent:    atomic.NewInt64(0),
 		stopCh:    make(chan struct{}),
 		stoppedCh: make(chan struct{}),
+		iOpts:     instrumentOpts,
 	}
 }
 
@@ -191,11 +198,13 @@ func (q *queryLimits) AggregateDocsLimit() LookbackLimit {
 func (q *queryLimits) Start() {
 	q.docsLimit.Start()
 	q.bytesReadLimit.Start()
+	q.aggregatedDocsLimit.Start()
 }
 
 func (q *queryLimits) Stop() {
 	q.docsLimit.Stop()
 	q.bytesReadLimit.Stop()
+	q.aggregatedDocsLimit.Stop()
 }
 
 func (q *queryLimits) AnyExceeded() error {
@@ -290,6 +299,7 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
 			q.name, q.options.Limit, recent, q.options.Lookback)))
 	}
+
 	return nil
 }
 
@@ -310,6 +320,7 @@ func (q *lookbackLimit) Stop() {
 }
 
 func (q *lookbackLimit) start() {
+	q.started = true
 	ticker := time.NewTicker(q.options.Lookback)
 	go func() {
 		q.logger.Info("query limit interval started", zap.String("name", q.name))
@@ -330,6 +341,16 @@ func (q *lookbackLimit) start() {
 }
 
 func (q *lookbackLimit) stop() {
+	if !q.started {
+		// NB: this lookback limit has not yet been started.
+		instrument.EmitAndLogInvariantViolation(q.iOpts, func(l *zap.Logger) {
+			l.With(
+				zap.Any("limit_name", q.name),
+			).Error("cannot stop non-started lookback limit")
+		})
+		return
+	}
+
 	close(q.stopCh)
 	<-q.stoppedCh
 	q.stopCh = make(chan struct{})
