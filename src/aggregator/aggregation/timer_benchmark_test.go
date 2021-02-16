@@ -21,7 +21,6 @@
 package aggregation
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"runtime"
@@ -159,7 +158,7 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 				b.FailNow()
 				return
 			}
-			fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
+			//fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
 
 			//panic("")
 		}

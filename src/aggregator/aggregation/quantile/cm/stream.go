@@ -39,6 +39,7 @@ var (
 type Stream struct {
 	eps                    float64         // desired epsilon for errors
 	quantiles              []float64       // sorted target quantiles
+	computedQuantiles      []float64       // sorted target quantiles
 	capacity               int             // stream capacity
 	insertAndCompressEvery int             // stream insertion and compression frequency
 	flushEvery             int             // stream flushing frequency
@@ -68,6 +69,7 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 
 	s := &Stream{
 		eps:                    opts.Eps(),
+		computedQuantiles:      make([]float64, len(quantiles)),
 		capacity:               opts.InsertAndCompressEvery(),
 		flushEvery:             opts.FlushEvery(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
@@ -125,6 +127,7 @@ func (s *Stream) Flush() {
 		s.insert()
 		s.compress()
 	}
+	s.calcQuantiles()
 	s.flushed = true
 	// fmt.Println("inserts ", s.c)
 	// fmt.Println("samples ", s.samples.len)
@@ -152,29 +155,55 @@ func (s *Stream) Quantile(q float64) float64 {
 		return s.samples.Back().value
 	}
 
+	for i, qt := range s.quantiles {
+		if qt >= q {
+			return s.computedQuantiles[i]
+		}
+	}
+	return math.NaN()
+}
+
+func (s *Stream) calcQuantiles() {
+	if len(s.quantiles) == 0 {
+		return
+	}
+
 	var (
 		minRank   int64
 		maxRank   int64
+		idx       int
+		q         = s.quantiles[0]
+		qMax      = len(s.quantiles) - 1
 		prev      = s.samples.Front()
 		curr      = s.samples.Front()
-		rank      = int64(math.Ceil(q * float64(s.numValues)))
+		numVals   = float64(s.numValues)
+		rank      = int64(math.Ceil(q * numVals))
 		threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
 	)
 
 	for curr != nil {
 		maxRank = minRank + curr.numRanks + curr.delta
 		if maxRank > rank+threshold || minRank > rank {
-			break
+			s.computedQuantiles[idx] = prev.value
+			if idx == qMax {
+				return
+			}
+			idx++
+			q = s.quantiles[idx]
+			rank = int64(math.Ceil(q * numVals))
+			threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
 		}
 		minRank += curr.numRanks
 		prev = curr
 		curr = curr.next
 	}
-	return prev.value
 }
 
 func (s *Stream) ResetSetData(quantiles []float64) {
 	s.quantiles = quantiles
+	if len(quantiles) != len(s.computedQuantiles) {
+		s.computedQuantiles = make([]float64, len(quantiles))
+	}
 	s.closed = false
 	s.insertAndCompressCounter = 0
 	s.flushCounter = 0

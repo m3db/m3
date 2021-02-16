@@ -43,7 +43,7 @@ func (h *minHeap) Push(value float64) {
 	for {
 		parent := (i - 1) / 2
 		if parent == i || heap[parent] <= heap[i] {
-			break
+			return
 		}
 		heap[parent], heap[i] = heap[i], heap[parent]
 		i = parent
