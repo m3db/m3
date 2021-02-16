@@ -2006,7 +2006,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 			Limit: int64(seriesLimit), Lookback: time.Minute})
 	queryLimits, err := limits.NewQueryLimits((limitOpts))
 	require.NoError(t, err)
-	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
+	testOpts := testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
@@ -2025,10 +2025,9 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
-
 	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
 		SizeLimit: seriesLimit,
 		Type:      AggregateTagNamesAndValues,
@@ -2042,13 +2041,12 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(reader, gomock.Any()).Return(nil)
+	iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil)
 	for i := 0; i < seriesLimit-1; i++ {
 		iter.EXPECT().Next().Return(true)
 		curr := []byte(fmt.Sprint(i))
 		iter.EXPECT().Current().Return([]byte("f1"), curr)
 	}
-	iter.EXPECT().Next().Return(false)
 	iter.EXPECT().SearchDuration().Return(time.Second)
 
 	exhaustive, err := b.Aggregate(
