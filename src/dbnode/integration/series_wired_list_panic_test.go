@@ -48,7 +48,7 @@ func TestWiredListPanic(t *testing.T) {
 	}
 
 	// Small increment to make race condition more likely.
-	tickInterval := 5 * time.Millisecond
+	tickInterval := 2 * time.Millisecond
 
 	nsOpts := namespace.NewOptions().
 		SetRepairEnabled(false).
@@ -94,7 +94,7 @@ func TestWiredListPanic(t *testing.T) {
 	go func() {
 		for i := 0; true; i++ {
 			write(t, testSetup, blockSize, start, filePathPrefix, i)
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 		}
 	}()
 
@@ -106,12 +106,12 @@ func TestWiredListPanic(t *testing.T) {
 				return
 			default:
 				read(t, testSetup, blockSize)
-				time.Sleep(200 * time.Millisecond)
+				time.Sleep(2 * time.Millisecond)
 			}
 		}
 	}()
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Minute)
 	// Stop reads before tearing down testSetup.
 	doneCh <- struct{}{}
 }
