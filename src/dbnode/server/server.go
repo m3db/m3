@@ -1027,12 +1027,13 @@ func Run(runOpts RunOptions) {
 		kvWatchQueryLimit(syncCfg.KVStore, logger,
 			queryLimits.DocsLimit(),
 			queryLimits.BytesReadLimit(),
-			queryLimits.AggregateDocsLimit(),
 			// For backwards compatibility as M3 moves toward permits instead of time-based limits,
 			// the series-read path uses permits which are implemented with limits, and so we support
 			// dynamic updates to this limit-based permit still be passing downstream the limit itself.
 			seriesReadPermits.Limit,
-			limitOpts)
+			queryLimits.AggregateDocsLimit(),
+			limitOpts,
+		)
 	}()
 
 	// Wait for process interrupt.
@@ -1210,8 +1211,8 @@ func kvWatchQueryLimit(
 	logger *zap.Logger,
 	docsLimit limits.LookbackLimit,
 	bytesReadLimit limits.LookbackLimit,
-	aggregateDocsLimit limits.LookbackLimit,
 	diskSeriesReadLimit limits.LookbackLimit,
+	aggregateDocsLimit limits.LookbackLimit,
 	defaultOpts limits.Options,
 ) {
 	value, err := store.Get(kvconfig.QueryLimits)
@@ -1276,7 +1277,7 @@ func updateQueryLimits(
 		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
 			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskRead)
 		}
-		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
+		if dynamicOpts.MaxRecentlyQueriedMetadataRead != nil {
 			aggDocsLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedMetadataRead)
 		}
 	}
