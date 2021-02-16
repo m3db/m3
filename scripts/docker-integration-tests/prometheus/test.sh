@@ -7,7 +7,6 @@ TESTDIR="$M3_PATH"/scripts/docker-integration-tests/
 source "$TESTDIR"/common.sh
 source "$TESTDIR"/prometheus/test-correctness.sh
 source "$TESTDIR"/prometheus/metadata-limits.sh
-source test_global_aggregate_limits
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE="$TESTDIR"/prometheus/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3

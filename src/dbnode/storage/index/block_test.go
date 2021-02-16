@@ -1980,7 +1980,7 @@ func TestBlockAggregate(t *testing.T) {
 		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 }
 
-func testBlockAggregateWithAggregateLimits(t *testing.T) {
+func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -2038,8 +2038,7 @@ func testBlockAggregateWithAggregateLimits(t *testing.T) {
 		iter.EXPECT().Current().Return([]byte("f1"), curr)
 	}
 	iter.EXPECT().Next().Return(false)
-	iter.EXPECT().Err().Return(nil)
-	iter.EXPECT().Close().Return(nil)
+	iter.EXPECT().SearchDuration().Return(time.Second)
 
 	exhaustive, err := b.Aggregate(
 		ctx,
