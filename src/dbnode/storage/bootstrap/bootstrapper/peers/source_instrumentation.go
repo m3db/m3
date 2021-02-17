@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type instrumentationContext struct {
@@ -41,6 +42,7 @@ type instrumentationContext struct {
 	span                   opentracing.Span
 	bootstrapDataDuration  tally.Timer
 	bootstrapIndexDuration tally.Timer
+	profiler               instrument.Profiler
 }
 
 func newInstrumentationContext(
@@ -48,24 +50,53 @@ func newInstrumentationContext(
 	log *zap.Logger,
 	span opentracing.Span,
 	scope tally.Scope,
+	profiler instrument.Profiler,
 ) *instrumentationContext {
 	return &instrumentationContext{
 		nowFn:                  nowFn,
 		log:                    log,
 		span:                   span,
+		profiler:               profiler,
 		bootstrapDataDuration:  scope.Timer("data-duration"),
 		bootstrapIndexDuration: scope.Timer("index-duration"),
 	}
 }
 
+const (
+	dataProfile  = "peers-data"
+	indexProfile = "peers-index"
+)
+
 func (i *instrumentationContext) finish() {
 	i.span.Finish()
+}
+
+func (i *instrumentationContext) startCPUProfile(name string) {
+	err := i.profiler.StartCPUProfile(name)
+	if err != nil {
+		i.log.Error("unable to start cpu profile", zap.Error(err))
+	}
+}
+
+func (i *instrumentationContext) stopCPUProfile() {
+	if err := i.profiler.StopCPUProfile(); err != nil {
+		i.log.Error("unable to stop cpu profile", zap.Error(err))
+	}
+}
+
+func (i *instrumentationContext) writeHeapProfile(name string) {
+	err := i.profiler.WriteHeapProfile(name)
+	if err != nil {
+		i.log.Error("unable to write heap profile", zap.Error(err))
+	}
 }
 
 func (i *instrumentationContext) bootstrapDataStarted() {
 	i.log.Info("bootstrapping time series data start")
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
 	i.start = i.nowFn()
+	i.startCPUProfile(dataProfile)
+	i.writeHeapProfile(dataProfile)
 }
 
 func (i *instrumentationContext) bootstrapDataCompleted() {
@@ -73,12 +104,16 @@ func (i *instrumentationContext) bootstrapDataCompleted() {
 	i.bootstrapDataDuration.Record(duration)
 	i.log.Info("bootstrapping time series data success", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
+	i.stopCPUProfile()
+	i.writeHeapProfile(dataProfile)
 }
 
 func (i *instrumentationContext) bootstrapIndexStarted() {
 	i.log.Info("bootstrapping index metadata start")
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
 	i.start = i.nowFn()
+	i.startCPUProfile(indexProfile)
+	i.writeHeapProfile(indexProfile)
 }
 
 func (i *instrumentationContext) bootstrapIndexCompleted() {
@@ -86,6 +121,8 @@ func (i *instrumentationContext) bootstrapIndexCompleted() {
 	i.bootstrapIndexDuration.Record(duration)
 	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
+	i.stopCPUProfile()
+	i.writeHeapProfile(indexProfile)
 }
 
 type instrumentationReadShardsContext struct {
@@ -116,6 +153,7 @@ func (i *instrumentationReadShardsContext) bootstrapShardsCompleted() {
 
 type instrumentation struct {
 	opts                               Options
+	profiler                           instrument.Profiler
 	scope                              tally.Scope
 	log                                *zap.Logger
 	nowFn                              clock.NowFn
@@ -131,6 +169,7 @@ func newInstrumentation(opts Options) *instrumentation {
 
 	return &instrumentation{
 		opts:                               opts,
+		profiler:                           instrumentOptions.Profiler(),
 		scope:                              scope,
 		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
@@ -147,6 +186,7 @@ func (i *instrumentation) peersBootstrapperSourceReadStarted(
 		i.log,
 		span,
 		i.scope,
+		i.profiler,
 	)
 }
 

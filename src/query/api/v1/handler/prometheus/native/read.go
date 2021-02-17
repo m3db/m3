@@ -21,7 +21,6 @@
 package native
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -111,11 +110,10 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
 
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	iOpts := h.opts.InstrumentOpts()
-	logger := logging.WithContext(ctx, iOpts)
+	logger := logging.WithContext(r.Context(), iOpts)
 
-	parsedOptions, rErr := ParseRequest(ctx, r, h.instant, h.opts)
+	ctx, parsedOptions, rErr := ParseRequest(r.Context(), r, h.instant, h.opts)
 	if rErr != nil {
 		h.promReadMetrics.incError(rErr)
 		logger.Error("could not parse request", zap.Error(rErr))

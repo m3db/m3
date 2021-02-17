@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -84,7 +85,7 @@ func TestIterator(t *testing.T) {
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.
-	iter, err := newIterator(searcher, readers)
+	iter, err := newIterator(context.NewBackground(), searcher, readers)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())

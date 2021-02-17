@@ -299,69 +299,72 @@ func TestNewActiveStagedPlacement(t *testing.T) {
 	)
 	ap := newActiveStagedPlacement(testActivePlacements, 0, opts)
 	require.Equal(t, len(testActivePlacements), len(allInstances))
-	require.Equal(t, len(testActivePlacements), len(ap.placements))
+	placements := ap.placements.Load().(Placements) //nolint:errcheck
+	require.Equal(t, len(testActivePlacements), len(placements))
 	for i := 0; i < len(testActivePlacements); i++ {
 		require.Equal(t, allInstances[i], testActivePlacements[i].Instances())
-		validateSnapshot(t, testActivePlacements[i], ap.placements[i])
+		validateSnapshot(t, testActivePlacements[i], placements[i])
 	}
 }
 
 func TestActiveStagedPlacementActivePlacementClosed(t *testing.T) {
+	pl := append(Placements{}, testActivePlacements...)
 	p := &activeStagedPlacement{
-		placements: append([]Placement{}, testActivePlacements...),
-		nowFn:      time.Now,
-		closed:     true,
+		nowFn: time.Now,
 	}
-	_, _, err := p.ActivePlacement()
+	p.placements.Store(pl)
+	p.closed.Store(true)
+
+	err := p.Close()
 	require.Equal(t, errActiveStagedPlacementClosed, err)
 }
 
 func TestActiveStagedPlacementNoApplicablePlacementFound(t *testing.T) {
+	pl := append(Placements{}, testActivePlacements...)
 	p := &activeStagedPlacement{
-		placements: append([]Placement{}, testActivePlacements...),
-		nowFn:      func() time.Time { return time.Unix(0, 0) },
+		nowFn: func() time.Time { return time.Unix(0, 0) },
 	}
-	_, _, err := p.ActivePlacement()
+	p.placements.Store(pl)
+	_, err := p.ActivePlacement()
 	require.Equal(t, errNoApplicablePlacement, err)
 }
 
 func TestActiveStagedPlacementActivePlacementFoundWithExpiry(t *testing.T) {
 	var removedInstances [][]Instance
+	pl := append(Placements{}, testActivePlacements...)
 	p := &activeStagedPlacement{
-		placements: append([]Placement{}, testActivePlacements...),
-		nowFn:      func() time.Time { return time.Unix(0, 99999) },
+		nowFn: func() time.Time { return time.Unix(0, 99999) },
 		onPlacementsRemovedFn: func(placements []Placement) {
 			for _, placement := range placements {
 				removedInstances = append(removedInstances, placement.Instances())
 			}
 		},
 	}
-	p.doneFn = p.onPlacementDone
-	placement, doneFn, err := p.ActivePlacement()
+	p.placements.Store(pl)
+	placement, err := p.ActivePlacement()
 	require.NoError(t, err)
 	require.Equal(t, testActivePlacements[1], placement)
-	doneFn()
 
+	var placements Placements
 	for {
-		p.RLock()
-		numPlacements := len(p.placements)
-		p.RUnlock()
+		placements = p.placements.Load().(Placements) //nolint:errcheck
+		numPlacements := len(placements)
+
 		if numPlacements == 1 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	validateSnapshot(t, testActivePlacements[1], p.placements[0])
+	validateSnapshot(t, testActivePlacements[1], placements[0])
 	require.Equal(t, 1, len(removedInstances))
 	require.Equal(t, testActivePlacements[0].Instances(), removedInstances[0])
 }
 
 func TestActiveStagedPlacementCloseAlreadyClosed(t *testing.T) {
 	p := &activeStagedPlacement{
-		placements: append([]Placement{}, testActivePlacements...),
-		nowFn:      time.Now,
-		closed:     true,
+		nowFn: time.Now,
 	}
+	p.closed.Store(true)
 	require.Equal(t, errActiveStagedPlacementClosed, p.Close())
 }
 
@@ -393,16 +396,17 @@ func TestActiveStagedPlacementCloseSuccess(t *testing.T) {
 
 func TestActiveStagedPlacementExpireAlreadyClosed(t *testing.T) {
 	var removedInstances [][]Instance
+	pl := append(Placements{}, testActivePlacements...)
 	p := &activeStagedPlacement{
-		placements: append([]Placement{}, testActivePlacements...),
-		nowFn:      func() time.Time { return time.Unix(0, 99999) },
-		closed:     true,
+		nowFn: func() time.Time { return time.Unix(0, 99999) },
 		onPlacementsRemovedFn: func(placements []Placement) {
 			for _, placement := range placements {
 				removedInstances = append(removedInstances, placement.Instances())
 			}
 		},
 	}
+	p.placements.Store(pl)
+	p.closed.Store(true)
 	p.expiring.Store(1)
 	p.expire()
 	require.Equal(t, int32(0), p.expiring.Load())
@@ -425,7 +429,7 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 		ranCleanup atomic.Bool
 	)
 
-	p := newActiveStagedPlacement(append([]Placement{}, testActivePlacements...), 42, nil)
+	p := newActiveStagedPlacement(append(Placements{}, testActivePlacements...), 42, nil)
 	p.nowFn = func() time.Time {
 		return time.Unix(0, testActivePlacements[len(testActivePlacements)-1].CutoverNanos()+1)
 	}
@@ -445,10 +449,9 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 		}
 	}()
 
-	pl, doneFn, err := p.ActivePlacement()
+	pl, err := p.ActivePlacement()
 	require.NoError(t, err)
 	require.NotNil(t, pl)
-	require.NotNil(t, doneFn)
 
 	// active placement is not the first in the list - expiration of past
 	// placements must be triggered
@@ -461,8 +464,6 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 		t.Fatalf("test timed out, deadlock?")
 	}
 
-	// release placement lock to unblock expiration process
-	doneFn()
 	select {
 	case <-doneCh:
 	case <-time.After(time.Second):
@@ -485,15 +486,16 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 
 func TestActiveStagedPlacementExpireAlreadyExpired(t *testing.T) {
 	var removedInstances [][]Instance
+	pl := append(Placements{}, testActivePlacements...)
 	p := &activeStagedPlacement{
-		placements: append([]Placement{}, testActivePlacements...),
-		nowFn:      func() time.Time { return time.Unix(0, 0) },
+		nowFn: func() time.Time { return time.Unix(0, 0) },
 		onPlacementsRemovedFn: func(placements []Placement) {
 			for _, placement := range placements {
 				removedInstances = append(removedInstances, placement.Instances())
 			}
 		},
 	}
+	p.placements.Store(pl)
 	p.expiring.Store(1)
 	p.expire()
 	require.Equal(t, int32(0), p.expiring.Load())
@@ -502,21 +504,24 @@ func TestActiveStagedPlacementExpireAlreadyExpired(t *testing.T) {
 
 func TestActiveStagedPlacementExpireSuccess(t *testing.T) {
 	var removedInstances [][]Instance
+	pl := append(Placements{}, testActivePlacements...)
 	p := &activeStagedPlacement{
-		placements: append([]Placement{}, testActivePlacements...),
-		nowFn:      func() time.Time { return time.Unix(0, 99999) },
+		nowFn: func() time.Time { return time.Unix(0, 99999) },
 		onPlacementsRemovedFn: func(placements []Placement) {
 			for _, placement := range placements {
 				removedInstances = append(removedInstances, placement.Instances())
 			}
 		},
 	}
+	p.placements.Store(pl)
 	p.expiring.Store(1)
 	p.expire()
 	require.Equal(t, int32(0), p.expiring.Load())
 	require.Equal(t, [][]Instance{testActivePlacements[0].Instances()}, removedInstances)
-	require.Equal(t, 1, len(p.placements))
-	validateSnapshot(t, testActivePlacements[1], p.placements[0])
+
+	placements := p.placements.Load().(Placements) //nolint:errcheck
+	require.Equal(t, 1, len(placements))
+	validateSnapshot(t, testActivePlacements[1], placements[0])
 }
 
 func TestStagedPlacementNilProto(t *testing.T) {
@@ -565,7 +570,8 @@ func TestStagedPlacementActiveStagedPlacement(t *testing.T) {
 		{t: 99999, placements: pss.placements[1:]},
 	} {
 		ap := pss.ActiveStagedPlacement(input.t)
-		require.Equal(t, input.placements, ap.(*activeStagedPlacement).placements)
+		placements := ap.(*activeStagedPlacement).placements.Load().(Placements) //nolint:errcheck
+		require.Equal(t, input.placements, placements)
 	}
 }
 

@@ -79,7 +79,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	writes, ok := writesInterface.([]generatedWrite)
 	require.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	for _, w := range writes {
 		require.NoError(t, cl.Write(ctx, w.series, w.datapoint, w.unit, w.annotation))
 	}
@@ -305,7 +305,7 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 			},
 			RunFunc: func(q commands.SystemUnderTest) commands.Result {
 				s := q.(*clState)
-				ctx := context.NewContext()
+				ctx := context.NewBackground()
 				defer ctx.Close()
 
 				for _, w := range writes {

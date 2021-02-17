@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -674,9 +675,6 @@ type databaseShard interface {
 		sourceNs Namespace,
 		targetNs Namespace,
 		shardID uint32,
-		blockReaders []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
-		sourceBlockVolumes []shardBlockVolume,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)
@@ -1352,6 +1350,12 @@ type Options interface {
 
 	// TileAggregator returns the TileAggregator.
 	TileAggregator() TileAggregator
+
+	// PermitsOptions returns the permits options.
+	PermitsOptions() permits.Options
+
+	// SetPermitsOptions sets the permits options.
+	SetPermitsOptions(value permits.Options) Options
 }
 
 // MemoryTracker tracks memory.
@@ -1430,11 +1434,9 @@ type TileAggregator interface {
 		ctx context.Context,
 		sourceNs, targetNs Namespace,
 		shardID uint32,
-		readers []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
-	) (int64, error)
+	) (processedTileCount int64, nextVolume int, err error)
 }
 
 // NewTileAggregatorFn creates a new TileAggregator.

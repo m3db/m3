@@ -22,7 +22,6 @@ package remote
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -47,14 +46,12 @@ func initializeVars() {
 			b.Reset(nil)
 		}))
 
-	iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	iterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 }
 
 var (
 	opts       checked.BytesOptions
-	iterAlloc  func(r io.Reader, d namespace.SchemaDescr) encoding.ReaderIterator
+	iterAlloc  func(r xio.Reader64, d namespace.SchemaDescr) encoding.ReaderIterator
 	initialize sync.Once
 )
 

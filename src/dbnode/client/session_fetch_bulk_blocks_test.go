@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"sort"
 	"sync"
@@ -58,17 +57,19 @@ import (
 )
 
 var (
-	blockSize       = 2 * time.Hour
-	nsID            = ident.StringID("testNs1")
-	nsRetentionOpts = retention.NewOptions().
-			SetBlockSize(blockSize).
-			SetRetentionPeriod(48 * blockSize)
+	blockSize = 2 * time.Hour
+	nsID      = ident.StringID("testNs1")
+
+	nsRetentionOpts = retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
+
 	testTagDecodingPool = serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testTagEncodingPool = serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testIDPool     = newSessionTestOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")
 	fooTags        checked.Bytes
@@ -101,9 +102,7 @@ func testsNsMetadata(t *testing.T) namespace.Metadata {
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
-	p.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	p.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 	return p
 }
 
@@ -744,7 +743,7 @@ func assertFetchBlocksFromPeersResult(
 
 		expectedBlock := expectedBlocks[peerIdx][blockIdx].blocks[subBlockIdx]
 		expectedData := append(expectedBlock.segments.merged.head, expectedBlock.segments.merged.tail...)
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		defer ctx.Close()
 		stream, err := observedBlock.Stream(ctx)
 		require.NoError(t, err)
@@ -1448,17 +1447,16 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Value:     42,
 	}, xtime.Second, nil))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
-	rawBlockData := make([]byte, segment.Len())
-	n, err := reader.Read(rawBlockData)
-	require.NoError(t, err)
-	require.Equal(t, len(rawBlockData), n)
+	rawBlockData, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, len(rawBlockData), segment.Len())
 	rawBlockLen := int64(len(rawBlockData))
 
 	var (
@@ -1510,8 +1508,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Return(&rpc.FetchBlocksRawResult_{
 			Elements: []*rpc.Blocks{
 				// First foo block intact
-				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+				{ID: []byte("foo"), Blocks: []*rpc.Block{
+					{Start: start.UnixNano(), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: rawBlockData[:len(rawBlockData)-1],
 							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
@@ -1519,16 +1517,16 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 					}},
 				}},
 				// First bar block intact, second with error
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
+					{Start: start.UnixNano(), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: rawBlockData[:len(rawBlockData)-1],
 							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Err: &rpc.Error{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
+					{Start: start.Add(blockSize).UnixNano(), Err: &rpc.Error{
 						Type:    rpc.ErrorType_INTERNAL_ERROR,
 						Message: "an error",
 					}},
@@ -1599,17 +1597,16 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Value:     42,
 	}, xtime.Second, nil))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
-	rawBlockData := make([]byte, segment.Len())
-	n, err := reader.Read(rawBlockData)
-	require.NoError(t, err)
-	require.Equal(t, len(rawBlockData), n)
+	rawBlockData, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, len(rawBlockData), segment.Len())
 	rawBlockLen := int64(len(rawBlockData))
 
 	var (
@@ -1666,26 +1663,26 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Return(&rpc.FetchBlocksRawResult_{
 			Elements: []*rpc.Blocks{
 				// valid foo block
-				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Checksum: &validChecksum, Segments: &rpc.Segments{
+				{ID: []byte("foo"), Blocks: []*rpc.Block{
+					{Start: start.UnixNano(), Checksum: &validChecksum, Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
 					// invalid bar block
-					&rpc.Block{Start: start.UnixNano(), Checksum: &invalidChecksum, Segments: &rpc.Segments{
+					{Start: start.UnixNano(), Checksum: &invalidChecksum, Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
 					// valid bar block, no checksum
-					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Segments: &rpc.Segments{
+					{Start: start.Add(blockSize).UnixNano(), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
@@ -1754,7 +1751,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	stream, err := result.Stream(ctx)
@@ -1769,8 +1766,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert block has data
-	data, err := ioutil.ReadAll(xio.NewSegmentReader(seg))
-	require.NoError(t, err)
+	data, err := xio.ToBytes(xio.NewSegmentReader(seg))
+	require.Equal(t, io.EOF, err)
 	assert.Equal(t, []byte{1, 2, 3}, data)
 }
 
@@ -1841,7 +1838,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	stream, err := result.Stream(ctx)
@@ -2435,7 +2432,7 @@ func assertFetchBootstrapBlocksResult(
 	expected []testBlocks,
 	actual result.ShardResult,
 ) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	series := actual.AllSeries()

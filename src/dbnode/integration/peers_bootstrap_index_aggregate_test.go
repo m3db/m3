@@ -154,8 +154,8 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err := session.Aggregate(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err := session.Aggregate(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive := fetchResponse.Exhaustive
 	require.True(t, exhaustive)
@@ -165,11 +165,11 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		verifyQueryAggregateMetadataResultsOptions{
 			exhaustive: true,
 			expected: map[tagName]aggregateTagValues{
-				"city": aggregateTagValues{
+				"city": {
 					"new_jersey": struct{}{},
 					"new_york":   struct{}{},
 				},
-				"foo": aggregateTagValues{
+				"foo": {
 					"foo": struct{}{},
 				},
 			},
@@ -178,8 +178,8 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.Aggregate(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive = fetchResponse.Exhaustive
 	defer iter.Finalize()
@@ -188,7 +188,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		verifyQueryAggregateMetadataResultsOptions{
 			exhaustive: true,
 			expected: map[tagName]aggregateTagValues{
-				"city": aggregateTagValues{
+				"city": {
 					"new_jersey": struct{}{},
 					"seattle":    struct{}{},
 				},
@@ -199,8 +199,8 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("foo")})
-	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.Aggregate(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive = fetchResponse.Exhaustive
 	require.True(t, exhaustive)
@@ -210,7 +210,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		verifyQueryAggregateMetadataResultsOptions{
 			exhaustive: true,
 			expected: map[tagName]aggregateTagValues{
-				"foo": aggregateTagValues{
+				"foo": {
 					"foo": struct{}{},
 				},
 			},
@@ -221,8 +221,8 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("city")})
 	queryOpts.Type = index.AggregateTagNames
-	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.Aggregate(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	exhaustive = fetchResponse.Exhaustive
 	require.True(t, exhaustive)

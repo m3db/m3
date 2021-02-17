@@ -199,6 +199,12 @@ type TestOptions interface {
 	// is used when creating a cluster database
 	ClusterDatabaseTopologyInitializer() topology.Initializer
 
+	// SetCustomClientAdminOptions sets any custom admin options to set.
+	SetCustomClientAdminOptions(value []client.CustomAdminOption) TestOptions
+
+	// CustomClientAdminOptions returns any custom admin options to set.
+	CustomClientAdminOptions() []client.CustomAdminOption
+
 	// SetUseTChannelClientForReading sets whether we use the tchannel client for reading.
 	SetUseTChannelClientForReading(value bool) TestOptions
 
@@ -332,6 +338,7 @@ type options struct {
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
 	maxWiredBlocks                     uint
+	customClientAdminOptions           []client.CustomAdminOption
 	useTChannelClientForReading        bool
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
@@ -548,6 +555,16 @@ func (o *options) SetClusterDatabaseTopologyInitializer(value topology.Initializ
 
 func (o *options) ClusterDatabaseTopologyInitializer() topology.Initializer {
 	return o.clusterDatabaseTopologyInitializer
+}
+
+func (o *options) SetCustomClientAdminOptions(value []client.CustomAdminOption) TestOptions {
+	opts := *o
+	opts.customClientAdminOptions = value
+	return &opts
+}
+
+func (o *options) CustomClientAdminOptions() []client.CustomAdminOption {
+	return o.customClientAdminOptions
 }
 
 func (o *options) SetUseTChannelClientForReading(value bool) TestOptions {
