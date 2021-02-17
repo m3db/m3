@@ -22,7 +22,6 @@ package series
 
 import (
 	"errors"
-	"io"
 	"sort"
 	"testing"
 	"time"
@@ -43,9 +42,10 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func newSeriesTestOptions() Options {
@@ -57,9 +57,7 @@ func newSeriesTestOptions() Options {
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	bufferBucketPool := NewBufferBucketPool(nil)
 	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)

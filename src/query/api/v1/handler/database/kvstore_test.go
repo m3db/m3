@@ -69,6 +69,17 @@ func TestUpdateQueryLimits(t *testing.T) {
 			commit: true,
 		},
 		{
+			name: `only metadata - commit`,
+			limits: &kvpb.QueryLimits{
+				MaxRecentlyQueriedMetadataRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+			},
+			commit: true,
+		},
+		{
 			name: `only block - no commit`,
 			limits: &kvpb.QueryLimits{
 				MaxRecentlyQueriedSeriesBlocks: &kvpb.QueryLimit{
@@ -93,6 +104,11 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 				MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedMetadataRead: &kvpb.QueryLimit{
 					Limit:           1,
 					LookbackSeconds: 15,
 					ForceExceeded:   true,

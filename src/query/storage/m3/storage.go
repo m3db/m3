@@ -413,7 +413,6 @@ func (s *m3storage) CompleteTags(
 	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
 	var (
 		nameOnly        = query.CompleteNameOnly
-		namespaces      = s.clusters.ClusterNamespaces()
 		tagOpts         = s.opts.TagOptions()
 		accumulatedTags = consolidators.NewCompleteTagsResultBuilder(nameOnly, tagOpts)
 		multiErr        syncMultiErrs
@@ -438,8 +437,20 @@ func (s *m3storage) CompleteTags(
 		)
 	}
 
-	if len(namespaces) == 0 {
-		return nil, errNoNamespacesConfigured
+	// NB(r): Since we don't use a single index we fan out to each
+	// cluster that can completely fulfill this range and then prefer the
+	// highest resolution (most fine grained) results.
+	// This needs to be optimized, however this is a start.
+	_, namespaces, err := resolveClusterNamespacesForQuery(
+		s.nowFn(),
+		query.Start,
+		query.End,
+		s.clusters,
+		options.FanoutOptions,
+		options.RestrictQueryOptions,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	var mu sync.Mutex
@@ -545,7 +556,7 @@ func (s *m3storage) SearchCompressed(
 
 	select {
 	case <-ctx.Done():
-		return tagResult, nil, ctx.Err()
+		return tagResult, noop, ctx.Err()
 	default:
 	}
 
@@ -555,11 +566,26 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	var (
-		namespaces = s.clusters.ClusterNamespaces()
-		m3opts     = storage.FetchOptionsToM3Options(options, query)
-		result     = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
-		wg         sync.WaitGroup
+		m3opts = storage.FetchOptionsToM3Options(options, query)
+		result = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
+		wg     sync.WaitGroup
 	)
+
+	// NB(r): Since we don't use a single index we fan out to each
+	// cluster that can completely fulfill this range and then prefer the
+	// highest resolution (most fine grained) results.
+	// This needs to be optimized, however this is a start.
+	_, namespaces, err := resolveClusterNamespacesForQuery(
+		s.nowFn(),
+		query.Start,
+		query.End,
+		s.clusters,
+		options.FanoutOptions,
+		options.RestrictQueryOptions,
+	)
+	if err != nil {
+		return tagResult, noop, err
+	}
 
 	debugLog := s.logger.Check(zapcore.DebugLevel,
 		"searching")
@@ -570,10 +596,6 @@ func (s *m3storage) SearchCompressed(
 			zap.Time("end", query.End),
 			zap.Bool("remote", options.Remote),
 		)
-	}
-
-	if len(namespaces) == 0 {
-		return tagResult, noop, errNoNamespacesConfigured
 	}
 
 	wg.Add(len(namespaces))

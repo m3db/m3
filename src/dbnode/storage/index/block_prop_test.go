@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/tallytest"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -213,6 +214,7 @@ func genField() gopter.Gen {
 type propTestSegment struct {
 	metadata   doc.Metadata
 	exCount    int64
+	exCountAgg int64
 	segmentMap segmentMap
 }
 
@@ -233,8 +235,10 @@ func genTestSegment() gopter.Gen {
 			}
 		}
 
+		aggLength := len(segMap)
 		fields := make([]testFields, 0, len(input))
 		for name, valSet := range segMap {
+			aggLength += len(valSet)
 			vals := make([]string, 0, len(valSet))
 			for val := range valSet {
 				vals = append(vals, val)
@@ -261,6 +265,7 @@ func genTestSegment() gopter.Gen {
 		return propTestSegment{
 			metadata:   doc.Metadata{Fields: docFields},
 			exCount:    int64(len(segMap)),
+			exCountAgg: int64(aggLength),
 			segmentMap: segMap,
 		}
 	})
@@ -327,7 +332,8 @@ func TestAggregateDocLimits(t *testing.T) {
 			limitOpts := limits.NewOptions().
 				SetInstrumentOptions(iOpts).
 				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
-				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
 			queryLimits, err := limits.NewQueryLimits((limitOpts))
 			require.NoError(t, err)
 			testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
@@ -368,18 +374,11 @@ func TestAggregateDocLimits(t *testing.T) {
 
 			require.True(t, exhaustive, errors.New("not exhaustive"))
 			verifyResults(t, results, testSegment.segmentMap)
-			found := false
-			for _, c := range scope.Snapshot().Counters() {
-				fmt.Println(c)
-				if c.Name() == "query-limit.total-docs-matched" &&
-					c.Tags()["type"] == "fetch" {
-					require.Equal(t, testSegment.exCount, c.Value(), "docs count mismatch")
-					found = true
-					break
-				}
-			}
-
-			require.True(t, found, "counter not found in metrics")
+			snap := scope.Snapshot()
+			tallytest.AssertCounterValue(t, testSegment.exCount, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+			tallytest.AssertCounterValue(t, testSegment.exCountAgg, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 			return true, nil
 		},
 		genTestSegment(),

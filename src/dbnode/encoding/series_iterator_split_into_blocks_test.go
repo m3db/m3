@@ -22,7 +22,6 @@
 package encoding_test
 
 import (
-	"io"
 	"testing"
 	"time"
 
@@ -34,9 +33,10 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type Series struct {
@@ -69,7 +69,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		i++
 	}
 
-	iterAlloc := func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
+	iterAlloc := func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := m3tsz.NewDecoder(true, encoding.NewOptions())
 		return iter.Decode(r)
 	}
