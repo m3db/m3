@@ -152,7 +152,7 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 	accum.numHostsPending--
 	if resultErr != nil {
 		accum.errors = append(accum.errors, xerrors.NewRenamedError(resultErr,
-			fmt.Errorf("error fetching tagged from host %s: %v", host.ID(), resultErr)))
+			fmt.Errorf("error fetching tagged2 from host %s: %v", host.ID(), resultErr)))
 	}
 
 	// FOLLOWUP(prateek): once we transmit the shards successfully satisfied by a response, the

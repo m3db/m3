@@ -868,6 +868,7 @@ github.com/prometheus/procfs v0.0.8 h1:+fpWZdT24pJBiqJdAwYBjPSk+5YmQzYNPYzQsdzLk
 github.com/prometheus/procfs v0.0.8/go.mod h1:7Qr8sr6344vo1JqZ6HhLceV9o3AJ1Ff+GxbHq6oeK9A=
 github.com/prometheus/prometheus v1.8.2-0.20200420081721-18254838fbe2 h1:JtWnHSHMC1h8mb6K5GsFzmhY/WMILsxQ4slsJu+lyg8=
 github.com/prometheus/prometheus v1.8.2-0.20200420081721-18254838fbe2/go.mod h1:ZnfuiMn3LNsry2q7ECmRe4WcscxmJSd2dIFpOi4w3lM=
+github.com/prometheus/prometheus v2.5.0+incompatible h1:7QPitgO2kOFG8ecuRn9O/4L9+10He72rVRJvMXrE9Hg=
 github.com/prometheus/tsdb v0.7.1/go.mod h1:qhTCs0VvXwvX/y3TZrWD7rabWM+ijKTux40TwIPHuXU=
 github.com/quasilyte/go-consistent v0.0.0-20190521200055-c6f3937de18c/go.mod h1:5STLWrekHfjyYwxBRVRXNOSewLJ3PWfDJd1VyTS21fI=
 github.com/quasilyte/go-ruleguard v0.2.0 h1:UOVMyH2EKkxIfzrULvA9n/tO+HtEhqD9mrLSWMr5FwU=

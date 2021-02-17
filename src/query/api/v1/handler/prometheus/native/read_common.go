@@ -22,6 +22,7 @@ package native
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"net/http"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
@@ -47,11 +49,12 @@ type promReadMetrics struct {
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
+	fetchSeries       tally.Histogram
 	fetchDatapoints   tally.Histogram
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
-	// Exponential buckets up to ~6.5M.
+	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 16)...)
 	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return promReadMetrics{
 		fetchSuccess: scope.Counter("fetch.success"),
@@ -60,6 +63,7 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+		fetchSeries:       scope.Histogram("fetch.series", seriesBuckets),
 		fetchDatapoints:   scope.Histogram("fetch.datapoints", datapointBuckets),
 	}
 }
@@ -114,6 +118,7 @@ func parseRequest(
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries:         fetchOpts.SeriesLimit,
 			LimitMaxDocs:               fetchOpts.DocsLimit,
+			LimitMaxReturnedSeries:     fetchOpts.ReturnedSeriesLimit,
 			LimitMaxReturnedDatapoints: fetchOpts.ReturnedDatapointsLimit,
 			Instantaneous:              instantaneous,
 		},
@@ -261,4 +266,28 @@ func read(
 		Meta:      resultMeta,
 		BlockType: blockType,
 	}, nil
+}
+
+// ReturnedDataLimited are parsed options for the query.
+type ReturnedDataLimited struct {
+	Limited    bool
+	Series     int
+	Datapoints int
+
+	// Total series in the total number of series which maybe be >= Series.
+	// Truncation happens at the series-level to avoid presenting partial series
+	// and so this value is useful for indicating how many series would have
+	// been rendered without limiting either series or datapoints.
+	TotalSeries int
+}
+
+// WriteReturnedDataLimitedHeader writes a header to indicate the returned data
+// was limited based on returned series or datapoint limits.
+func WriteReturnedDataLimitedHeader(w http.ResponseWriter, r ReturnedDataLimited) error {
+	s, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
+	return nil
 }

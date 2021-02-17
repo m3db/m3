@@ -259,7 +259,7 @@ function test_query_limits_applied {
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Returned-Datapoints: 0" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
 
-  echo "Test query returned-datapoints limit - above limit"
+  echo "Test query returned-datapoints limit - below limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Returned-Datapoints: 4" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
 
@@ -267,7 +267,7 @@ function test_query_limits_applied {
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Returned-Datapoints: 3" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
 
-  echo "Test query returned-datapoints limit - below limit"
+  echo "Test query returned-datapoints limit - above limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Returned-Datapoints: 2" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 2 ]]'
 }
@@ -492,14 +492,6 @@ echo "Running readiness test"
 test_readiness
 
 echo "Running prometheus tests"
-test_prometheus_remote_read
-test_prometheus_remote_write_multi_namespaces
-test_prometheus_remote_write_empty_label_name_returns_400_status_code
-test_prometheus_remote_write_empty_label_value_returns_400_status_code
-test_prometheus_remote_write_duplicate_label_returns_400_status_code
-test_prometheus_remote_write_too_old_returns_400_status_code
-test_prometheus_remote_write_restrict_metrics_type
-test_query_lookback_applied
 test_query_limits_applied
 test_query_restrict_metrics_type
 test_prometheus_query_native_timeout

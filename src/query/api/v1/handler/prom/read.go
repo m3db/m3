@@ -37,6 +37,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/promql/parser"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -123,6 +124,8 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer qry.Close()
 
+	h.logger.Info("READ2", zap.Any("opts", fetchOptions))
+
 	res := qry.Exec(ctx)
 	if res.Err != nil {
 		h.logger.Error("error executing query",
@@ -144,9 +147,94 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Bool("instant", h.opts.instant))
 	}
 
+	limited := limitReturnedData(res, fetchOpts)
+
+	if limited.Limited {
+		native.WriteReturnedDataLimitedHeader(w, limited)
+	}
+
 	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 	Respond(w, &QueryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
 	}, res.Warnings)
+}
+
+func limitReturnedData(res *promql.Result, fetchOpts *storage.FetchOptions) native.ReturnedDataLimited {
+	limited := false
+	if fetchOptions.ReturnedSeriesLimit == 0 && fetchOptions.ReturnedDatapointsLimit == 0 {
+		return native.ReturnedDataLimited{
+			Limited: false,
+		}
+	}
+
+	var (
+		series      int
+		datapoints  int
+		seriesTotal int
+	)
+	switch res.Value.Type() {
+	case parser.ValueTypeVector:
+		v, err := res.Vector()
+		if err != nil {
+			h.logger.Error("error parsing vector for returned data limits",
+				zap.Error(err), zap.String("query", query),
+				zap.Bool("instant", h.opts.instant))
+			break
+		}
+
+		// Determine maxSeries based on either series or datapoints limit. Vector has one datapoint per
+		// series and so the datapoint limit behaves the same way as the series one.
+		var maxSeries int
+		if fetchOptions.ReturnedSeriesLimit > 0 && fetchOptions.ReturnedDatapointsLimit == 0 {
+			maxSeries = fetchOptions.ReturnedSeriesLimit
+		} else if fetchOptions.ReturnedSeriesLimit == 0 && fetchOptions.ReturnedDatapointsLimit > 0 {
+			maxSeries = fetchOptions.ReturnedDatapointsLimit
+		} else {
+			// Take the min of the two limits if both present.
+			maxSeries = fetchOptions.ReturnedSeriesLimit
+			if fetchOptions.ReturnedSeriesLimit > fetchOptions.ReturnedDatapointsLimit {
+				maxSeries = fetchOptions.ReturnedDatapointsLimit
+			}
+		}
+
+		seriesTotal = len(v)
+		limitedSeries := v[:maxSeries]
+		res.Value = limitedSeries
+		series = len(limitedSeries)
+		datapoints = len(limitedSeries)
+		limited = limitedSeries < seriesTotal
+	case parser.ValueTypeMatrix:
+		m, err := res.Matrix()
+		if err != nil {
+			h.logger.Error("error parsing vector for returned data limits",
+				zap.Error(err), zap.String("query", query),
+				zap.Bool("instant", h.opts.instant))
+			break
+		}
+
+		for _, d := range m {
+			datapointCount := len(d.Points)
+			if fetchOptions.ReturnedSeriesLimit > 0 && series > fetchOptions.ReturnedSeriesLimit {
+				limited = true
+				break
+			}
+			if fetchOptions.ReturnedDatapointsLimit > 0 && datapoints+datapointCount > fetchOptions.ReturnedDatapointsLimit {
+				limited = true
+				break
+			}
+			series++
+			datapoints += datapointCount
+		}
+		seriesTotal = len(m)
+
+		res.Value = m[series]
+	}
+
+	return native.ReturnedDataLimited{
+		Limited: limited,
+		Series:      series,
+		Datapoints:  datapoints,
+		TotalSeries: totalSeries,
+	}
 }

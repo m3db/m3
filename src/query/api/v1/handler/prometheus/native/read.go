@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
@@ -166,13 +165,20 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Start:                   parsedOptions.Params.Start,
 		End:                     parsedOptions.Params.End,
 		KeepNaNs:                h.opts.Config().ResultOptions.KeepNaNs,
+		ReturnedSeriesLimit:     parsedOptions.FetchOpts.ReturnedSeriesLimit,
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
 	})
 
 	h.promReadMetrics.fetchDatapoints.RecordValue(float64(renderResult.Datapoints))
+	h.promReadMetrics.fetchSeries.RecordValue(float64(renderResult.Series))
 
-	if renderResult.LimitedMaxReturnedDatapoints {
-		w.Header().Add(headers.ReturnedDatapointsLimitedHeader, string(renderResult.Datapoints))
+	if renderResult.LimitedMaxReturnedData {
+		WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
+			Limited:     true,
+			Series:      renderResult.Series,
+			TotalSeries: renderResult.TotalSeries,
+			Datapoints:  renderResult.Datapoints,
+		})
 	}
 
 	if err != nil {

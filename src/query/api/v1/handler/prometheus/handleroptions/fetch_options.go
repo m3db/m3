@@ -83,6 +83,7 @@ func (o FetchOptionsBuilderOptions) Validate() error {
 type FetchOptionsBuilderLimitsOptions struct {
 	SeriesLimit             int
 	DocsLimit               int
+	ReturnedSeriesLimit     int
 	ReturnedDatapointsLimit int
 	RequireExhaustive       bool
 }
@@ -190,6 +191,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.DocsLimit = docsLimit
+
+	returnedSeriesLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesHeader,
+		"returnedSeriesLimit", b.opts.Limits.ReturnedSeriesLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.ReturnedSeriesLimit = returnedSeriesLimit
 
 	returnedDatapointsLimit, err := ParseLimit(req, headers.LimitMaxReturnedDatapointsHeader,
 		"returnedDatapointsLimit", b.opts.Limits.ReturnedDatapointsLimit)

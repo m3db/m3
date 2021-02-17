@@ -256,6 +256,7 @@ type RenderResultsOptions struct {
 	KeepNaNs                bool
 	Start                   time.Time
 	End                     time.Time
+	ReturnedSeriesLimit     int
 	ReturnedDatapointsLimit int
 }
 
@@ -263,9 +264,15 @@ type RenderResultsOptions struct {
 type RenderResultsResult struct {
 	// Datapoints is the count of datapoints rendered.
 	Datapoints int
-	// LimitedMaxReturnedDatapoints indicates if the results rendering
-	// was truncated by the limit on max returned datapoints.
-	LimitedMaxReturnedDatapoints bool
+	// Series is the count of series rendered.
+	Series int
+	// TotalDatapoints is the count of datapoints in total.
+	TotalDatapoints int
+	// TotalSeries is the count of series in total.
+	TotalSeries int
+	// LimitedMaxReturnedData indicates if the results rendering
+	// was truncated by a limit on returned series or datapoints.
+	LimitedMaxReturnedData bool
 }
 
 // RenderResultsJSON renders results in JSON for range queries.
@@ -275,10 +282,12 @@ func RenderResultsJSON(
 	opts RenderResultsOptions,
 ) (RenderResultsResult, error) {
 	var (
-		series     = result.Series
-		warnings   = result.Meta.WarningStrings()
-		datapoints = 0
-		limited    = false
+		series             = result.Series
+		warnings           = result.Meta.WarningStrings()
+		seriesTotal        = 0
+		seriesRendered     = 0
+		datapointsRendered = 0
+		limited            = false
 	)
 
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
@@ -316,11 +325,17 @@ func RenderResultsJSON(
 
 		// If a limit of the number of datapoints is present, then write
 		// out series' data up until that limit is hit.
-		if opts.ReturnedDatapointsLimit > 0 && datapoints+length > opts.ReturnedDatapointsLimit {
+		seriesTotal++
+		if opts.ReturnedSeriesLimit > 0 && seriesTotal > opts.ReturnedSeriesLimit {
 			limited = true
 			break
 		}
-		datapoints += length
+		if opts.ReturnedDatapointsLimit > 0 && datapointsRendered+length > opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+		seriesRendered++
+		datapointsRendered += length
 
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
@@ -369,8 +384,10 @@ func RenderResultsJSON(
 
 	jw.EndObject()
 	return RenderResultsResult{
-		Datapoints:                   datapoints,
-		LimitedMaxReturnedDatapoints: limited,
+		Series:                 seriesRendered,
+		TotalSeries:            seriesTotal,
+		Datapoints:             datapointsRendered,
+		LimitedMaxReturnedData: limited,
 	}, jw.Close()
 }
 
