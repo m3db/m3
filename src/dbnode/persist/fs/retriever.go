@@ -436,7 +436,7 @@ func (r *blockRetriever) fetchBatch(
 		retrieverResources)
 
 	var limitErr error
-	if err := r.queryLimits.AnyExceeded(); err != nil {
+	if err := r.queryLimits.AnyFetchExceeded(); err != nil {
 		for _, req := range reqs {
 			req.err = err
 		}

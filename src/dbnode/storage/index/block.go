@@ -150,7 +150,7 @@ type block struct {
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	docsLimit                       limits.LookbackLimit
+	fetchDocsLimit                  limits.LookbackLimit
 	aggDocsLimit                    limits.LookbackLimit
 
 	metrics blockMetrics
@@ -269,7 +269,7 @@ func NewBlock(
 		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		fetchDocsLimit:                  opts.QueryLimits().FetchDocsLimit(),
 		aggDocsLimit:                    opts.QueryLimits().AggregateDocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
@@ -567,7 +567,7 @@ func (b *block) addQueryResults(
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch), source); err != nil {
+		if err := b.fetchDocsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}
@@ -683,7 +683,7 @@ func (b *block) aggregateWithSpan(
 	defer func() {
 		b.opts.AggregateResultsEntryArrayPool().Put(batch)
 		if !iterClosed {
-			iter.Close(ctx) //nolint:errcheck
+			_ = iter.Close(ctx)
 		}
 
 		b.metrics.aggregateDocsMatched.RecordValue(float64(docsCount))
@@ -749,14 +749,14 @@ func (b *block) aggregateWithSpan(
 				if lastField == nil {
 					lastField = append(lastField, field...)
 					batchedFields++
-					if err := b.docsLimit.Inc(1, source); err != nil {
+					if err := b.fetchDocsLimit.Inc(1, source); err != nil {
 						return false, err
 					}
 				} else if !bytes.Equal(lastField, field) {
 					lastField = lastField[:0]
 					lastField = append(lastField, field...)
 					batchedFields++
-					if err := b.docsLimit.Inc(1, source); err != nil {
+					if err := b.fetchDocsLimit.Inc(1, source); err != nil {
 						return false, err
 					}
 				}
@@ -766,7 +766,7 @@ func (b *block) aggregateWithSpan(
 				// reflect the term appearing as both the last element of the previous
 				// batch, as well as the first element in the next batch.
 				if batchedFields > maxBatch {
-					if err := b.docsLimit.Inc(2, source); err != nil {
+					if err := b.fetchDocsLimit.Inc(2, source); err != nil {
 						return false, err
 					}
 
@@ -912,9 +912,12 @@ func (b *block) addAggregateResults(
 		aggDocs += len(batch[i].Terms)
 	}
 
-	// NB: currently this is here to capture upper limits for these limits and will
-	// trip constantly; ignore any errors for now.
-	_ = b.aggDocsLimit.Inc(aggDocs, source)
+	// update recently queried docs to monitor memory.
+	if results.EnforceLimits() {
+		if err := b.aggDocsLimit.Inc(aggDocs, source); err != nil {
+			return batch, 0, 0, err
+		}
+	}
 
 	// reset batch.
 	var emptyField AggregateResultsEntry
