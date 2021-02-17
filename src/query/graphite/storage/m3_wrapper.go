@@ -479,6 +479,7 @@ func (s *m3WrappedStore) CompleteTags(
 ) (*consolidators.CompleteTagsResult, error) {
 	// NB(r): Make sure to apply consistent fanout options to both
 	// queries and aggregate queries for Graphite.
+	opts = opts.Clone() // Clone to avoid mutating input and cause data races.
 	opts.FanoutOptions = s.fanoutOptions()
 	return s.m3.CompleteTags(ctx, query, opts)
 }
