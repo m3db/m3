@@ -42,9 +42,9 @@ import (
 // doc iterators. for each posting in the list, the encoded document is retrieved.
 type iterator struct {
 	// immutable state
-	searcher            search.Searcher
-	readers             index.Readers
-	ctx                 context.Context
+	searcher search.Searcher
+	readers  index.Readers
+	ctx      context.Context
 
 	// immutable state after the first call to Next()
 	iters               []doc.Iterator
@@ -58,7 +58,7 @@ type iterator struct {
 
 func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) doc.QueryDocIterator {
 	return &iterator{
-		ctx: ctx,
+		ctx:      ctx,
 		searcher: s,
 		readers:  rs,
 	}
