@@ -248,12 +248,21 @@ func (b bootstrapProcess) Run(
 			// If yes, return an error to force a retry
 			if persistConf := ns.DataRunOptions.RunOptions.PersistConfig(); persistConf.Enabled &&
 				persistConf.FileSetType == persist.FileSetSnapshotType {
-				upToDateDataRanges := b.targetRangesForData(b.nowFn(),
-					ns.Metadata.Options().RetentionOptions())
+				var (
+					now                = b.nowFn()
+					nsOptions          = ns.Metadata.Options()
+					upToDateDataRanges = b.targetRangesForData(now, nsOptions.RetentionOptions())
+				)
 				// Only checking data ranges. Since index blocks can only be a multiple of
 				// data block size, the ranges for index could advance only if data ranges
 				// have advanced, too (while opposite is not necessarily true)
 				if !upToDateDataRanges.secondRangeWithPersistFalse.Range.Equal(ns.DataTargetRange.Range) {
+					upToDateIndexRanges := b.targetRangesForIndex(now, nsOptions.RetentionOptions(),
+						nsOptions.IndexOptions())
+					fields := b.logFields(ns.Metadata, ns.Shards,
+						upToDateDataRanges.secondRangeWithPersistFalse.Range,
+						upToDateIndexRanges.secondRangeWithPersistFalse.Range)
+					b.log.Error("time ranges of snapshot-type blocks advanced", fields...)
 					return NamespaceResults{}, ErrFileSetSnapshotTypeRangeAdvanced
 				}
 			}

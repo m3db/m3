@@ -26,7 +26,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -35,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
@@ -82,7 +82,7 @@ func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
 		resultOpts:           result.NewOptions(),
 		fsOpts:               fs.NewOptions(),
 		nowFn:                func() time.Time { return now },
-		log:                  zap.NewNop(),
+		log:                  instrument.NewOptions().Logger(),
 		bootstrapper:         bootstrapper,
 		initialTopologyState: &topology.StateSnapshot{},
 	}
