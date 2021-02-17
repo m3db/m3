@@ -36,8 +36,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type Series struct {
