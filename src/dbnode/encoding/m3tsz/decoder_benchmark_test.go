@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,24 +21,51 @@
 package m3tsz
 
 import (
+	"encoding/base64"
+	"math/rand"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
-type decoder struct {
-	opts         encoding.Options
-	intOptimized bool
-}
+// BenchmarkM3TSZDecode-12    	   16867	     69272 ns/op
+func BenchmarkM3TSZDecode(b *testing.B) {
+	var (
+		encodingOpts = encoding.NewOptions()
+		reader       = xio.NewBytesReader64(nil)
+		seriesRun    = prepareSampleSeriesRun(b)
+	)
 
-// NewDecoder creates a decoder.
-func NewDecoder(intOptimized bool, opts encoding.Options) encoding.Decoder {
-	if opts == nil {
-		opts = encoding.NewOptions()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		reader.Reset(seriesRun[i])
+		iter := NewReaderIterator(reader, DefaultIntOptimizationEnabled, encodingOpts)
+		for iter.Next() {
+			_, _, _ = iter.Current()
+		}
+		require.NoError(b, iter.Err())
 	}
-	return &decoder{opts: opts, intOptimized: intOptimized}
 }
 
-// Decode decodes the encoded data captured by the reader.
-func (dec *decoder) Decode(reader xio.Reader64) encoding.ReaderIterator {
-	return NewReaderIterator(reader, dec.intOptimized, dec.opts)
+func prepareSampleSeriesRun(b *testing.B) [][]byte {
+	var (
+		rnd          = rand.New(rand.NewSource(42)) // nolint: gosec
+		sampleSeries = make([][]byte, 0, len(sampleSeriesBase64))
+		seriesRun    = make([][]byte, 0, b.N)
+	)
+
+	for _, b64 := range sampleSeriesBase64 {
+		data, err := base64.StdEncoding.DecodeString(b64)
+		require.NoError(b, err)
+		sampleSeries = append(sampleSeries, data)
+	}
+
+	for i := 0; i < b.N; i++ {
+		seriesRun = append(seriesRun, sampleSeries[rnd.Intn(len(sampleSeries))])
+	}
+
+	return seriesRun
 }

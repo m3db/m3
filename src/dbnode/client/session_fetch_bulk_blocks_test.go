@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"sort"
 	"sync"
@@ -58,17 +57,19 @@ import (
 )
 
 var (
-	blockSize       = 2 * time.Hour
-	nsID            = ident.StringID("testNs1")
-	nsRetentionOpts = retention.NewOptions().
-			SetBlockSize(blockSize).
-			SetRetentionPeriod(48 * blockSize)
+	blockSize = 2 * time.Hour
+	nsID      = ident.StringID("testNs1")
+
+	nsRetentionOpts = retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
+
 	testTagDecodingPool = serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testTagEncodingPool = serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testIDPool     = newSessionTestOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")
 	fooTags        checked.Bytes
@@ -101,9 +102,7 @@ func testsNsMetadata(t *testing.T) namespace.Metadata {
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
-	p.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	p.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 	return p
 }
 
@@ -1455,10 +1454,9 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
-	rawBlockData := make([]byte, segment.Len())
-	n, err := reader.Read(rawBlockData)
-	require.NoError(t, err)
-	require.Equal(t, len(rawBlockData), n)
+	rawBlockData, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, len(rawBlockData), segment.Len())
 	rawBlockLen := int64(len(rawBlockData))
 
 	var (
@@ -1606,10 +1604,9 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
-	rawBlockData := make([]byte, segment.Len())
-	n, err := reader.Read(rawBlockData)
-	require.NoError(t, err)
-	require.Equal(t, len(rawBlockData), n)
+	rawBlockData, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, len(rawBlockData), segment.Len())
 	rawBlockLen := int64(len(rawBlockData))
 
 	var (
@@ -1769,8 +1766,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert block has data
-	data, err := ioutil.ReadAll(xio.NewSegmentReader(seg))
-	require.NoError(t, err)
+	data, err := xio.ToBytes(xio.NewSegmentReader(seg))
+	require.Equal(t, io.EOF, err)
 	assert.Equal(t, []byte{1, 2, 3}, data)
 }
 

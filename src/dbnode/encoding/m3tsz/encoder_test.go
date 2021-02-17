@@ -21,12 +21,14 @@
 package m3tsz
 
 import (
+	"io"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -160,10 +162,11 @@ func getBytes(t *testing.T, e encoding.Encoder) []byte {
 	if !ok {
 		return nil
 	}
-	var b [1000]byte
-	n, err := r.Read(b[:])
-	require.NoError(t, err)
-	return b[:n]
+
+	bytes, err := xio.ToBytes(r)
+	assert.Equal(t, io.EOF, err)
+
+	return bytes
 }
 
 func TestWriteTimeUnit(t *testing.T) {

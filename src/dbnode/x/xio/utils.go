@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package encoding
+package xio
 
-import "math/bits"
+import "encoding/binary"
 
-// Bit is just a byte.
-type Bit byte
+// ToBytes reads and returns the contents of Reader64 as a slice of bytes.
+// Should normally return io.EOF as an error.
+func ToBytes(reader Reader64) ([]byte, error) {
+	var (
+		res []byte
+		buf [8]byte
+	)
 
-// NumSig returns the number of significant bits in a uint64.
-func NumSig(v uint64) uint8 {
-	return uint8(64 - bits.LeadingZeros64(v))
-}
-
-// LeadingAndTrailingZeros calculates the number of leading and trailing 0s
-// for a uint64.
-func LeadingAndTrailingZeros(v uint64) (int, int) {
-	if v == 0 {
-		return 64, 0
+	word, bytes, err := reader.Read64()
+	for ; err == nil; word, bytes, err = reader.Read64() {
+		binary.BigEndian.PutUint64(buf[:], word)
+		res = append(res, buf[:bytes]...)
 	}
 
-	numLeading := bits.LeadingZeros64(v)
-	numTrailing := bits.TrailingZeros64(v)
-	return numLeading, numTrailing
-}
-
-// SignExtend sign extends the highest bit of v which has numBits (<=64).
-func SignExtend(v uint64, numBits uint8) int64 {
-	shift := 64 - numBits
-	return (int64(v) << shift) >> shift
+	return res, err
 }

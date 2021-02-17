@@ -21,12 +21,10 @@
 package parser
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/models"
@@ -43,9 +41,7 @@ type IngestSeries struct {
 	Tags       Tags
 }
 
-var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-	return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-}
+var iterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 
 func buildBlockReader(
 	block Data,

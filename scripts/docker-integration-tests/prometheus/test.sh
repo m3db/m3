@@ -2,10 +2,13 @@
 
 set -xe
 
-source "$M3_PATH"/scripts/docker-integration-tests/common.sh
-source "$M3_PATH"/scripts/docker-integration-tests/prometheus/test-correctness.sh
+M3_PATH=${M3_PATH:-$GOPATH/src/github.com/m3db/m3}
+TESTDIR="$M3_PATH"/scripts/docker-integration-tests/
+source "$TESTDIR"/common.sh
+source "$TESTDIR"/prometheus/test-correctness.sh
+source "$TESTDIR"/prometheus/metadata-limits.sh
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/prometheus/docker-compose.yml
+COMPOSE_FILE="$TESTDIR"/prometheus/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
 PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
@@ -535,5 +538,8 @@ test_labels
 
 echo "Running function correctness tests"
 test_correctness
+
+echo "Running aggregate limit tests"
+test_global_aggregate_limits
 
 TEST_SUCCESS=true

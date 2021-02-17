@@ -436,7 +436,7 @@ func (r *blockRetriever) fetchBatch(
 		retrieverResources)
 
 	var limitErr error
-	if err := r.queryLimits.AnyExceeded(); err != nil {
+	if err := r.queryLimits.AnyFetchExceeded(); err != nil {
 		for _, req := range reqs {
 			req.err = err
 		}
@@ -969,12 +969,20 @@ func (req *retrieveRequest) BlockSize() time.Duration {
 	return req.blockSize
 }
 
-func (req *retrieveRequest) Read(b []byte) (int, error) {
+func (req *retrieveRequest) Read64() (word uint64, n byte, err error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return 0, req.err
+		return 0, 0, req.err
 	}
-	return req.reader.Read(b)
+	return req.reader.Read64()
+}
+
+func (req *retrieveRequest) Peek64() (word uint64, n byte, err error) {
+	req.resultWg.Wait()
+	if req.err != nil {
+		return 0, 0, req.err
+	}
+	return req.reader.Peek64()
 }
 
 func (req *retrieveRequest) Segment() (ts.Segment, error) {

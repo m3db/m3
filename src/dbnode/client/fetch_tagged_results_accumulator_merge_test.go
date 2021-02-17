@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -388,6 +389,7 @@ func (ts testSerieses) assertMatchesEncodingIters(t *testing.T, iters encoding.S
 func (ts testSerieses) assertMatchesAggregatedTagsIter(t *testing.T, iters AggregatedTagsIterator) {
 	aggMap := ts.toRPCAggResultMap()
 	require.Equal(t, len(aggMap), iters.Remaining())
+	tagStrs := make([]string, 0)
 	for iters.Next() {
 		name, values := iters.Current()
 		valuesMap, ok := aggMap[name.String()]
@@ -395,12 +397,14 @@ func (ts testSerieses) assertMatchesAggregatedTagsIter(t *testing.T, iters Aggre
 		require.Equal(t, len(valuesMap), values.Remaining())
 		for values.Next() {
 			v := values.Current()
+			tagStrs = append(tagStrs, v.String())
 			_, ok := valuesMap[v.String()]
 			require.True(t, ok)
 		}
 		require.NoError(t, values.Err())
 	}
 	require.NoError(t, iters.Err())
+	require.True(t, sort.StringsAreSorted(tagStrs))
 }
 
 func (ts testSerieses) assertMatchesLimitedAggregatedTagsIter(t *testing.T, limit int, iters AggregatedTagsIterator) {
@@ -494,6 +498,14 @@ func newTestSeries(i int) testSeries {
 		ns:   ident.StringID("testNs"),
 		id:   ident.StringID(fmt.Sprintf("id%03d", i)),
 		tags: newTestTags(i),
+	}
+}
+
+func newTestSeriesWithInstance(inst string) testSeries {
+	return testSeries{
+		ns:   ident.StringID("testNs"),
+		id:   ident.StringID(inst),
+		tags: ident.NewTags(ident.StringTag("instance", inst)),
 	}
 }
 
