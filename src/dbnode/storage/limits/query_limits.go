@@ -46,6 +46,7 @@ type queryLimits struct {
 
 type lookbackLimit struct {
 	name      string
+	started   bool
 	options   LookbackLimitOptions
 	metrics   lookbackLimitMetrics
 	logger    *zap.Logger
@@ -53,6 +54,7 @@ type lookbackLimit struct {
 	stopCh    chan struct{}
 	stoppedCh chan struct{}
 	lock      sync.RWMutex
+	iOpts     instrument.Options
 }
 
 type lookbackLimitMetrics struct {
@@ -90,19 +92,21 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 		iOpts               = options.InstrumentOptions()
 		docsLimitOpts       = options.DocsLimitOpts()
 		bytesReadLimitOpts  = options.BytesReadLimitOpts()
-		aggDocsLimitOpts    = options.DocsLimitOpts()
+		aggDocsLimitOpts    = options.AggregateDocsLimitOpts()
 		sourceLoggerBuilder = options.SourceLoggerBuilder()
 
-		docsMatched = "docs-matched"
-		docsLimit   = newLookbackLimit(
-			iOpts, docsLimitOpts, docsMatched,
+		docsMatched      = "docs-matched"
+		bytesRead        = "disk-bytes-read"
+		aggregateMatched = "aggregate-matched"
+		docsLimit        = newLookbackLimit(
+			iOpts, docsLimitOpts, docsMatched, docsMatched,
 			sourceLoggerBuilder, map[string]string{"type": "fetch"})
 		bytesReadLimit = newLookbackLimit(
-			iOpts, bytesReadLimitOpts, "disk-bytes-read",
+			iOpts, bytesReadLimitOpts, bytesRead, bytesRead,
 			sourceLoggerBuilder, nil)
 
 		aggregatedDocsLimit = newLookbackLimit(
-			iOpts, aggDocsLimitOpts, docsMatched,
+			iOpts, aggDocsLimitOpts, docsMatched, aggregateMatched,
 			sourceLoggerBuilder, map[string]string{"type": "aggregate"})
 	)
 
@@ -121,19 +125,20 @@ func NewLookbackLimit(
 	sourceLoggerBuilder SourceLoggerBuilder,
 	tags map[string]string,
 ) LookbackLimit {
-	return newLookbackLimit(instrumentOpts, opts, name, sourceLoggerBuilder, tags)
+	return newLookbackLimit(instrumentOpts, opts, name, name, sourceLoggerBuilder, tags)
 }
 
 func newLookbackLimit(
 	instrumentOpts instrument.Options,
 	opts LookbackLimitOptions,
+	metricName string,
 	name string,
 	sourceLoggerBuilder SourceLoggerBuilder,
 	tags map[string]string,
 ) *lookbackLimit {
 	metrics := newLookbackLimitMetrics(
 		instrumentOpts,
-		name,
+		metricName,
 		sourceLoggerBuilder,
 		tags,
 	)
@@ -146,6 +151,7 @@ func newLookbackLimit(
 		recent:    atomic.NewInt64(0),
 		stopCh:    make(chan struct{}),
 		stoppedCh: make(chan struct{}),
+		iOpts:     instrumentOpts,
 	}
 }
 
@@ -177,7 +183,7 @@ func newLookbackLimitMetrics(
 	}
 }
 
-func (q *queryLimits) DocsLimit() LookbackLimit {
+func (q *queryLimits) FetchDocsLimit() LookbackLimit {
 	return q.docsLimit
 }
 
@@ -192,17 +198,20 @@ func (q *queryLimits) AggregateDocsLimit() LookbackLimit {
 func (q *queryLimits) Start() {
 	q.docsLimit.Start()
 	q.bytesReadLimit.Start()
+	q.aggregatedDocsLimit.Start()
 }
 
 func (q *queryLimits) Stop() {
 	q.docsLimit.Stop()
 	q.bytesReadLimit.Stop()
+	q.aggregatedDocsLimit.Stop()
 }
 
-func (q *queryLimits) AnyExceeded() error {
+func (q *queryLimits) AnyFetchExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
 		return err
 	}
+
 	return q.bytesReadLimit.exceeded()
 }
 
@@ -288,6 +297,7 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
 			q.name, q.options.Limit, recent, q.options.Lookback)))
 	}
+
 	return nil
 }
 
@@ -308,6 +318,7 @@ func (q *lookbackLimit) Stop() {
 }
 
 func (q *lookbackLimit) start() {
+	q.started = true
 	ticker := time.NewTicker(q.options.Lookback)
 	go func() {
 		q.logger.Info("query limit interval started", zap.String("name", q.name))
@@ -328,6 +339,16 @@ func (q *lookbackLimit) start() {
 }
 
 func (q *lookbackLimit) stop() {
+	if !q.started {
+		// NB: this lookback limit has not yet been started.
+		instrument.EmitAndLogInvariantViolation(q.iOpts, func(l *zap.Logger) {
+			l.With(
+				zap.Any("limit_name", q.name),
+			).Error("cannot stop non-started lookback limit")
+		})
+		return
+	}
+
 	close(q.stopCh)
 	<-q.stoppedCh
 	q.stopCh = make(chan struct{})
