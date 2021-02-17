@@ -55,7 +55,6 @@ type Stream struct {
 	insertCursor             *Sample    // insertion cursor
 	compressCursor           *Sample    // compression cursor
 	compressMinRank          int64      // compression min rank
-	c                        int
 	smpbuf                   []*Sample
 	closed                   bool // whether the stream is closed
 	flushed                  bool
@@ -70,18 +69,21 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 	s := &Stream{
 		eps:                    opts.Eps(),
 		computedQuantiles:      make([]float64, len(quantiles)),
-		capacity:               opts.InsertAndCompressEvery(),
+		capacity:               64,
 		flushEvery:             opts.FlushEvery(),
-		insertAndCompressEvery: opts.InsertAndCompressEvery(),
+		insertAndCompressEvery: 256, //opts.InsertAndCompressEvery(),
 		streamPool:             opts.StreamPool(),
 		floatsPool:             opts.FloatsPool(),
-		smpbuf:                 make([]*Sample, 4096),
-	}
-	for i := 0; i < len(s.smpbuf); i++ {
-		s.smpbuf[i] = &Sample{} //&smp[i]
 	}
 	s.ResetSetData(quantiles)
 	return s
+}
+
+func (s *Stream) initSampleBuf() {
+	s.smpbuf = make([]*Sample, s.insertAndCompressEvery)
+	for i := 0; i < len(s.smpbuf); i++ {
+		s.smpbuf[i] = &Sample{}
+	}
 }
 
 func (s *Stream) AddBatch(values []float64) {
@@ -209,10 +211,6 @@ func (s *Stream) ResetSetData(quantiles []float64) {
 	s.flushCounter = 0
 	s.numValues = 0
 	// Returning resources back to pools.
-	//sharedHeapPool.Put(&s.bufLess)
-	//sharedHeapPool.Put(&s.bufMore)
-	s.bufLess = s.bufLess[:]
-	s.bufMore = s.bufMore[:]
 	sample := s.samples.Front()
 	for sample != nil {
 		next := sample.next
@@ -232,8 +230,6 @@ func (s *Stream) Close() {
 	s.closed = true
 
 	// Returning resources back to pools.
-	//sharedHeapPool.Put(&s.bufLess)
-	//sharedHeapPool.Put(&s.bufMore)
 	sample := s.samples.Front()
 	for sample != nil {
 		next := sample.next
@@ -242,27 +238,24 @@ func (s *Stream) Close() {
 	}
 
 	// Clear out slices/lists/pointer to reduce GC overhead.
-	s.bufLess = s.bufLess[:]
-	s.bufMore = s.bufMore[:]
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
+	s.bufMore = nil
+	s.bufLess = nil
+	s.floatsPool.Put(s.bufLess)
+	s.floatsPool.Put(s.bufMore)
 	s.streamPool.Put(s)
 }
 
 func (s *Stream) ensureHeapSize(heap minHeap) minHeap {
 	if cap(heap) == len(heap) {
 		//newHeap := sharedHeapPool.Get(heap.Len() * 2)
-		//*newHeap = append((*newHeap), heap...)
+		//nh := append(*newHeap, heap...)
 		//sharedHeapPool.Put(&heap)
 		newHeap := s.floatsPool.Get(2 * len(heap))
 		newHeap = append(newHeap, heap...)
 		s.floatsPool.Put(heap)
-		return newHeap
-	}
-	if cap(heap) == len(heap) {
-		newHeap := make(minHeap, 0, 2*cap(heap))
-		newHeap = append(newHeap, heap...)
 		return newHeap
 	}
 	return heap
@@ -270,7 +263,10 @@ func (s *Stream) ensureHeapSize(heap minHeap) minHeap {
 
 // insert inserts a sample into the stream.
 func (s *Stream) insert() {
-	s.c++
+	if s.smpbuf == nil {
+		s.initSampleBuf()
+	}
+
 	if s.samples.Len() == 0 {
 		if s.bufMore.Len() == 0 {
 			return

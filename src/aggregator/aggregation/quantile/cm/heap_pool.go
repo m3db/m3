@@ -90,11 +90,13 @@ func (p heapPool) Put(value *minHeap) {
 	}
 
 	size := cap(*value)
+	if size == 0 {
+		return
+	}
 	for i := range p.sizes {
 		if p.sizes[i] < size {
 			continue
 		}
-
 		p.pools[i].Put(value)
 		return
 	}
