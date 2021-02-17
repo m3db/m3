@@ -85,8 +85,7 @@ func TestIterator(t *testing.T) {
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.
-	iter, err := newIterator(context.NewBackground(), searcher, readers)
-	require.NoError(t, err)
+	iter := newIterator(context.NewBackground(), searcher, readers)
 
 	require.True(t, iter.Next())
 	require.Equal(t, docs[0], iter.Current())
@@ -97,5 +96,60 @@ func TestIterator(t *testing.T) {
 
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+}
+
+func TestCloseEarly(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	// Set up Searcher.
+	firstPL := roaring.NewPostingsList()
+	require.NoError(t, firstPL.Insert(42))
+	require.NoError(t, firstPL.Insert(47))
+	secondPL := roaring.NewPostingsList()
+	require.NoError(t, secondPL.Insert(67))
+
+	// Set up Readers.
+	docs := []doc.Document{
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes1")}),
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes2")}),
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes3")}),
+	}
+
+	firstDocIter := doc.NewMockIterator(mockCtrl)
+	secondDocIter := doc.NewMockIterator(mockCtrl)
+	gomock.InOrder(
+		firstDocIter.EXPECT().Next().Return(true),
+		firstDocIter.EXPECT().Current().Return(docs[0]),
+		firstDocIter.EXPECT().Close().Return(nil),
+		secondDocIter.EXPECT().Close().Return(nil),
+	)
+
+	firstReader := index.NewMockReader(mockCtrl)
+	secondReader := index.NewMockReader(mockCtrl)
+	gomock.InOrder(
+		firstReader.EXPECT().Docs(firstPL).Return(firstDocIter, nil),
+		secondReader.EXPECT().Docs(secondPL).Return(secondDocIter, nil),
+	)
+
+	searcher := search.NewMockSearcher(mockCtrl)
+	gomock.InOrder(
+		searcher.EXPECT().Search(firstReader).Return(firstPL, nil),
+		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
+	)
+
+	readers := index.Readers{firstReader, secondReader}
+
+	// Construct iterator and run tests.
+	iter := newIterator(context.NewBackground(), searcher, readers)
+
+	require.True(t, iter.Next())
+	require.Equal(t, docs[0], iter.Current())
+	require.NoError(t, iter.Close())
+}
+
+func TestCloseBeforeNext(t *testing.T) {
+	iter := newIterator(context.NewBackground(), nil, nil)
 	require.NoError(t, iter.Close())
 }
