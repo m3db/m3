@@ -76,7 +76,7 @@ func TestQueryLimits(t *testing.T) {
 	require.NoError(t, queryLimits.AnyFetchExceeded())
 
 	// Limit from docs.
-	require.Error(t, queryLimits.DocsLimit().Inc(2, nil))
+	require.Error(t, queryLimits.FetchDocsLimit().Inc(2, nil))
 	err = queryLimits.AnyFetchExceeded()
 	require.Error(t, err)
 	require.True(t, xerrors.IsInvalidParams(err))
@@ -142,7 +142,7 @@ func TestLookbackLimit(t *testing.T) {
 				ForceExceeded: test.forceExceeded,
 			}
 			name := "test"
-			limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{}, nil)
+			limit := newLookbackLimit(iOpts, opts, name, name, &sourceLoggerBuilder{}, nil)
 
 			require.Equal(t, int64(0), limit.current())
 
@@ -256,7 +256,7 @@ func TestLookbackReset(t *testing.T) {
 		Lookback: time.Millisecond * 100,
 	}
 	name := "test"
-	limit := newLookbackLimit(iOpts, opts, name, &sourceLoggerBuilder{}, nil)
+	limit := newLookbackLimit(iOpts, opts, name, name, &sourceLoggerBuilder{}, nil)
 
 	err := limit.Inc(3, nil)
 	require.NoError(t, err)
@@ -378,7 +378,7 @@ func TestSourceLogger(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
 
-	require.NoError(t, queryLimits.DocsLimit().Inc(100, []byte("docs")))
+	require.NoError(t, queryLimits.FetchDocsLimit().Inc(100, []byte("docs")))
 	require.NoError(t, queryLimits.BytesReadLimit().Inc(200, []byte("bytes")))
 
 	assert.Equal(t, []testLoggerRecord{

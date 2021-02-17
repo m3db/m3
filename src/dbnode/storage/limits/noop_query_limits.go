@@ -36,7 +36,7 @@ func NoOpQueryLimits() QueryLimits {
 	return &noOpQueryLimits{}
 }
 
-func (q *noOpQueryLimits) DocsLimit() LookbackLimit {
+func (q *noOpQueryLimits) FetchDocsLimit() LookbackLimit {
 	return &noOpLookbackLimit{}
 }
 

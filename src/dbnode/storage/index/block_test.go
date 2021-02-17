@@ -24,6 +24,7 @@ import (
 	stdlibctx "context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -2058,6 +2059,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 		results,
 		emptyLogFields)
 	require.Error(t, err)
+	assert.True(t, strings.Contains(err.Error(), "query aborted due to limit"))
 	require.False(t, exhaustive)
 
 	sp.Finish()

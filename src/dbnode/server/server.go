@@ -1025,7 +1025,7 @@ func Run(runOpts RunOptions) {
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 		kvWatchQueryLimit(syncCfg.KVStore, logger,
-			queryLimits.DocsLimit(),
+			queryLimits.FetchDocsLimit(),
 			queryLimits.BytesReadLimit(),
 			// For backwards compatibility as M3 moves toward permits instead of time-based limits,
 			// the series-read path uses permits which are implemented with limits, and so we support

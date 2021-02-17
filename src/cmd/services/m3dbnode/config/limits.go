@@ -40,7 +40,7 @@ type LimitsConfiguration struct {
 	// max is surpassed encounter an error.
 	MaxRecentlyQueriedSeriesBlocks *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
 
-	// MaxRecentlyQueriedMetadata sets the upper limit on metatadata counts
+	// MaxRecentlyQueriedMetadata sets the upper limit on metadata counts
 	// within a given lookback period. Metadata queries which are issued while
 	// this max is surpassed encounter an error.
 	MaxRecentlyQueriedMetadata *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedMetadata"`

@@ -35,11 +35,12 @@ const SourceContextKey Key = "source"
 
 // QueryLimits provides an interface for managing query limits.
 type QueryLimits interface {
-	// DocsLimit limits queries by a global concurrent count of index docs matched.
-	DocsLimit() LookbackLimit
+	// FetchDocsLimit limits queries by a global concurrent count of index docs matched.
+	FetchDocsLimit() LookbackLimit
 	// BytesReadLimit limits queries by a global concurrent count of bytes read from disk.
 	BytesReadLimit() LookbackLimit
-	// AnyFetchExceeded returns an error if any of the query limits are exceeded.
+	// AnyFetchExceeded returns an error if any of the query limits are exceeded on
+	// a fetch query.
 	AnyFetchExceeded() error
 
 	// AggregateDocsLimit limits aggregate queries by a global

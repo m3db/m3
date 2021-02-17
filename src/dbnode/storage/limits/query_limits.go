@@ -95,23 +95,21 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 		aggDocsLimitOpts    = options.AggregateDocsLimitOpts()
 		sourceLoggerBuilder = options.SourceLoggerBuilder()
 
-		docsMatched = "docs-matched"
-		docsLimit   = newLookbackLimit(
-			iOpts, docsLimitOpts, docsMatched,
+		docsMatched      = "docs-matched"
+		bytesRead        = "disk-bytes-read"
+		aggregateMatched = "aggregate-matched"
+		docsLimit        = newLookbackLimit(
+			iOpts, docsLimitOpts, docsMatched, docsMatched,
 			sourceLoggerBuilder, map[string]string{"type": "fetch"})
 		bytesReadLimit = newLookbackLimit(
-			iOpts, bytesReadLimitOpts, "disk-bytes-read",
+			iOpts, bytesReadLimitOpts, bytesRead, bytesRead,
 			sourceLoggerBuilder, nil)
 
 		aggregatedDocsLimit = newLookbackLimit(
-			iOpts, aggDocsLimitOpts, docsMatched,
+			iOpts, aggDocsLimitOpts, docsMatched, aggregateMatched,
 			sourceLoggerBuilder, map[string]string{"type": "aggregate"})
 	)
 
-	// NB: All metrics for aggregate methods should show up with the same metric
-	// name as those for fetch methods, but different tags. Update the name of the
-	// aggregatedDocsLimit here for more informative error messages.
-	aggregatedDocsLimit.name = "metadata-matched"
 	return &queryLimits{
 		docsLimit:           docsLimit,
 		bytesReadLimit:      bytesReadLimit,
@@ -127,19 +125,20 @@ func NewLookbackLimit(
 	sourceLoggerBuilder SourceLoggerBuilder,
 	tags map[string]string,
 ) LookbackLimit {
-	return newLookbackLimit(instrumentOpts, opts, name, sourceLoggerBuilder, tags)
+	return newLookbackLimit(instrumentOpts, opts, name, name, sourceLoggerBuilder, tags)
 }
 
 func newLookbackLimit(
 	instrumentOpts instrument.Options,
 	opts LookbackLimitOptions,
+	metricName string,
 	name string,
 	sourceLoggerBuilder SourceLoggerBuilder,
 	tags map[string]string,
 ) *lookbackLimit {
 	metrics := newLookbackLimitMetrics(
 		instrumentOpts,
-		name,
+		metricName,
 		sourceLoggerBuilder,
 		tags,
 	)
@@ -184,7 +183,7 @@ func newLookbackLimitMetrics(
 	}
 }
 
-func (q *queryLimits) DocsLimit() LookbackLimit {
+func (q *queryLimits) FetchDocsLimit() LookbackLimit {
 	return q.docsLimit
 }
 
