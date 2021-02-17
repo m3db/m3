@@ -189,26 +189,24 @@ func (h *readHandler) limitReturnedData(query string,
 
 		// Determine maxSeries based on either series or datapoints limit. Vector has one datapoint per
 		// series and so the datapoint limit behaves the same way as the series one.
-		var maxSeries int
 		if fetchOpts.ReturnedSeriesLimit > 0 && fetchOpts.ReturnedDatapointsLimit == 0 {
-			maxSeries = fetchOpts.ReturnedSeriesLimit
+			series = fetchOpts.ReturnedSeriesLimit
 		} else if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit > 0 {
-			maxSeries = fetchOpts.ReturnedDatapointsLimit
+			series = fetchOpts.ReturnedDatapointsLimit
 		} else {
 			// Take the min of the two limits if both present.
-			maxSeries = fetchOpts.ReturnedSeriesLimit
+			series = fetchOpts.ReturnedSeriesLimit
 			if fetchOpts.ReturnedSeriesLimit > fetchOpts.ReturnedDatapointsLimit {
-				maxSeries = fetchOpts.ReturnedDatapointsLimit
+				series = fetchOpts.ReturnedDatapointsLimit
 			}
 		}
 
+		seriesTotal = len(v)
 		limited = series < seriesTotal
 
-		seriesTotal = len(v)
 		if limited {
-			limitedSeries := v[:maxSeries]
+			limitedSeries := v[:series]
 			res.Value = limitedSeries
-			series = len(limitedSeries)
 			datapoints = len(limitedSeries)
 		} else {
 			series = seriesTotal
