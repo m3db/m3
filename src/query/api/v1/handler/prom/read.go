@@ -196,14 +196,11 @@ func (h *readHandler) limitReturnedData(query string,
 		switch {
 		case seriesLimit > 0 && datapointsLimit == 0:
 			series = seriesLimit
-			break
 		case seriesLimit == 0 && datapointsLimit > 0:
 			series = datapointsLimit
-			break
 		case seriesLimit == 0 && datapointsLimit == 0:
 			// Set max to the actual size if no limits.
 			series = len(v)
-			break
 		default:
 			// Take the min of the two limits if both present.
 			series = seriesLimit
@@ -223,7 +220,6 @@ func (h *readHandler) limitReturnedData(query string,
 			series = seriesTotal
 			datapoints = seriesTotal
 		}
-		break
 	case parser.ValueTypeMatrix:
 		m, err := res.Matrix()
 		if err != nil {
@@ -251,7 +247,6 @@ func (h *readHandler) limitReturnedData(query string,
 		if series < seriesTotal {
 			res.Value = m[:series]
 		}
-		break
 	}
 
 	return native.ReturnedDataLimited{
