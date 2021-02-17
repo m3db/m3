@@ -287,7 +287,7 @@ type ReturnedDataLimited struct {
 	Series     int
 	Datapoints int
 
-	// Total series in the total number of series which maybe be >= Series.
+	// Total series is the total number of series which maybe be >= Series.
 	// Truncation happens at the series-level to avoid presenting partial series
 	// and so this value is useful for indicating how many series would have
 	// been rendered without limiting either series or datapoints.

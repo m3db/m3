@@ -413,7 +413,11 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	}
 
 	buffer := bytes.NewBuffer(nil)
-	renderResultsInstantaneousJSON(buffer, readResult, true)
+	r := renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: true})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 3, r.Datapoints)
+	require.Equal(t, 3, r.Series)
+	require.Equal(t, 3, r.TotalSeries)
 	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -425,7 +429,11 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
 
 	buffer = bytes.NewBuffer(nil)
-	renderResultsInstantaneousJSON(buffer, readResult, false)
+	r = renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: false})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 2, r.Datapoints)
+	require.Equal(t, 2, r.Series)
+	require.Equal(t, 3, r.TotalSeries) // This is > rendered series due to keepNaN: false.
 	expectedWithoutNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -479,7 +487,11 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	}
 
 	buffer := bytes.NewBuffer(nil)
-	renderResultsInstantaneousJSON(buffer, readResult, true)
+	r := renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: true})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 2, r.Datapoints)
+	require.Equal(t, 2, r.Series)
+	require.Equal(t, 2, r.TotalSeries)
 	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -491,7 +503,11 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
 
 	buffer = bytes.NewBuffer(nil)
-	renderResultsInstantaneousJSON(buffer, readResult, false)
+	r = renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: false})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 0, r.Datapoints)
+	require.Equal(t, 0, r.Series)
+	require.Equal(t, 2, r.TotalSeries) // This is > rendered series due to keepNaN: false.
 	expectedWithoutNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -520,7 +536,11 @@ func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
 	}
 
 	buffer := bytes.NewBuffer(nil)
-	renderResultsInstantaneousJSON(buffer, readResult, false)
+	r := renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: false})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 1, r.Datapoints)
+	require.Equal(t, 1, r.Series)
+	require.Equal(t, 1, r.TotalSeries)
 	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{

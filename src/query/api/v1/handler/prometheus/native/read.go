@@ -156,18 +156,22 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		keepNaNs = result.Meta.KeepNaNs
 	}
 
-	if h.instant {
-		renderResultsInstantaneousJSON(w, result, keepNaNs)
-		return
-	}
-
-	renderResult, err := RenderResultsJSON(w, result, RenderResultsOptions{
+	renderOpts := RenderResultsOptions{
 		Start:                   parsedOptions.Params.Start,
 		End:                     parsedOptions.Params.End,
-		KeepNaNs:                h.opts.Config().ResultOptions.KeepNaNs,
+		KeepNaNs:                keepNaNs,
 		ReturnedSeriesLimit:     parsedOptions.FetchOpts.ReturnedSeriesLimit,
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
-	})
+	}
+
+	var (
+		renderResult RenderResultsResult
+	)
+	if h.instant {
+		renderResult = renderResultsInstantaneousJSON(w, result, renderOpts)
+	} else {
+		renderResult, err = RenderResultsJSON(w, result, renderOpts)
+	}
 
 	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
 	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))

@@ -282,7 +282,6 @@ func RenderResultsJSON(
 	var (
 		series             = result.Series
 		warnings           = result.Meta.WarningStrings()
-		seriesTotal        = 0
 		seriesRendered     = 0
 		datapointsRendered = 0
 		limited            = false
@@ -323,8 +322,7 @@ func RenderResultsJSON(
 
 		// If a limit of the number of datapoints is present, then write
 		// out series' data up until that limit is hit.
-		seriesTotal++
-		if opts.ReturnedSeriesLimit > 0 && seriesTotal > opts.ReturnedSeriesLimit {
+		if opts.ReturnedSeriesLimit > 0 && seriesRendered+1 > opts.ReturnedSeriesLimit {
 			limited = true
 			break
 		}
@@ -383,8 +381,8 @@ func RenderResultsJSON(
 	jw.EndObject()
 	return RenderResultsResult{
 		Series:                 seriesRendered,
-		TotalSeries:            seriesTotal,
 		Datapoints:             datapointsRendered,
+		TotalSeries:            len(series),
 		LimitedMaxReturnedData: limited,
 	}, jw.Close()
 }
@@ -393,12 +391,15 @@ func RenderResultsJSON(
 func renderResultsInstantaneousJSON(
 	w io.Writer,
 	result ReadResult,
-	keepNaNs bool,
-) {
+	opts RenderResultsOptions,
+) RenderResultsResult {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
-		isScalar = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		series        = result.Series
+		warnings      = result.Meta.WarningStrings()
+		isScalar      = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		keepNaNs      = opts.KeepNaNs
+		returnedCount = 0
+		limited       = false
 	)
 
 	resultType := "vector"
@@ -435,9 +436,19 @@ func renderResultsInstantaneousJSON(
 		length := s.Len()
 		dp := vals.DatapointAt(length - 1)
 
+		if opts.ReturnedSeriesLimit > 0 && returnedCount >= opts.ReturnedSeriesLimit {
+			limited = true
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && returnedCount >= opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+
 		if isScalar {
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
+			returnedCount++
 			continue
 		}
 
@@ -445,6 +456,8 @@ func renderResultsInstantaneousJSON(
 		if !keepNaNs && math.IsNaN(dp.Value) {
 			continue
 		}
+
+		returnedCount++
 
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
@@ -468,4 +481,13 @@ func renderResultsInstantaneousJSON(
 
 	jw.EndObject()
 	jw.Close()
+
+	return RenderResultsResult{
+		LimitedMaxReturnedData: limited,
+		// Series and datapoints are the same count for instant
+		// queries since a series has one datapoint.
+		Datapoints:  returnedCount,
+		Series:      returnedCount,
+		TotalSeries: len(series),
+	}
 }
