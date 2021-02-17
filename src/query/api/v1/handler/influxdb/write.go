@@ -22,8 +22,10 @@ package influxdb
 
 import (
 	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -283,11 +285,32 @@ func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {
 }
 
 func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	bytes, err := ioutil.ReadAll(r.Body)
+	var bytes []byte
+	var err error
+	var reader io.ReadCloser
+
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		reader, err = gzip.NewReader(r.Body)
+		if err != nil {
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+			return
+		}
+	} else {
+		reader = r.Body
+	}
+
+	bytes, err = ioutil.ReadAll(reader)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
 	}
+
+	err = reader.Close()
+	if err != nil {
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	points, err := imodels.ParsePoints(bytes)
 	if err != nil {
 		xhttp.WriteError(w, err)

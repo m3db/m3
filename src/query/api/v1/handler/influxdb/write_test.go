@@ -21,11 +21,20 @@
 package influxdb
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	imodels "github.com/influxdata/influxdb/models"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -125,5 +134,87 @@ func TestDetermineTimeUnit(t *testing.T) {
 	assert.Equal(t, determineTimeUnit(zerot.Add(2*time.Millisecond)), xtime.Millisecond)
 	assert.Equal(t, determineTimeUnit(zerot.Add(3*time.Microsecond)), xtime.Microsecond)
 	assert.Equal(t, determineTimeUnit(zerot.Add(4*time.Nanosecond)), xtime.Nanosecond)
+}
 
+func makeOptions(ds ingest.DownsamplerAndWriter) options.HandlerOptions {
+	return options.EmptyHandlerOptions().
+		SetDownsamplerAndWriter(ds)
+}
+
+func makeInfluxDBLineProtocolMessage(t *testing.T, isGzipped bool) io.Reader {
+	t.Helper()
+	line := "weather,location=us-midwest,season=summer temperature=82 1465839830100400200"
+	var msg bytes.Buffer
+	if isGzipped {
+		gz := gzip.NewWriter(&msg)
+		_, err := gz.Write([]byte(line))
+		require.NoError(t, err)
+		err = gz.Close()
+		require.NoError(t, err)
+	} else {
+		msg.WriteString(line)
+	}
+	return bytes.NewReader(msg.Bytes())
+}
+
+func TestInfluxDBWrite(t *testing.T) {
+	tests := []struct {
+		name           string
+		expectedStatus int
+		requestHeaders map[string]string
+		isGzipped      bool
+	}{
+		{
+			name:           "Gzip Encoded Message",
+			expectedStatus: http.StatusNoContent,
+			isGzipped:      true,
+			requestHeaders: map[string]string{
+				"Content-Encoding": "gzip",
+			},
+		},
+		{
+			name:           "Wrong Content Encoding",
+			expectedStatus: http.StatusBadRequest,
+			isGzipped:      false,
+			requestHeaders: map[string]string{
+				"Content-Encoding": "gzip",
+			},
+		},
+		{
+			name:           "Plaintext Message",
+			expectedStatus: http.StatusNoContent,
+			isGzipped:      false,
+			requestHeaders: map[string]string{},
+		},
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	for _, testCase := range tests {
+		testCase := testCase
+		t.Run(testCase.name, func(tt *testing.T) {
+			mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+			// For error reponses we don't expect WriteBatch to be called
+			if testCase.expectedStatus != http.StatusBadRequest {
+				mockDownsamplerAndWriter.
+					EXPECT().
+					WriteBatch(gomock.Any(), gomock.Any(), gomock.Any())
+			}
+
+			opts := makeOptions(mockDownsamplerAndWriter)
+			handler := NewInfluxWriterHandler(opts)
+
+			msg := makeInfluxDBLineProtocolMessage(t, testCase.isGzipped)
+			req := httptest.NewRequest(InfluxWriteHTTPMethod, InfluxWriteURL, msg)
+			for header, value := range testCase.requestHeaders {
+				req.Header.Set(header, value)
+			}
+			writer := httptest.NewRecorder()
+			handler.ServeHTTP(writer, req)
+			resp := writer.Result()
+			require.Equal(t, testCase.expectedStatus, resp.StatusCode)
+			resp.Body.Close()
+		})
+	}
 }
