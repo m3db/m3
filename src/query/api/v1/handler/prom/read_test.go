@@ -314,6 +314,24 @@ func TestLimitedReturnedData(t *testing.T) {
 			name:            "Omit limits",
 			expectedLimited: false,
 		},
+		{
+			name:            "Series below max",
+			maxSeries:       4,
+			expectedLimited: false,
+		},
+		{
+			name:            "Series at max",
+			maxSeries:       3,
+			expectedLimited: false,
+		},
+		{
+			name:                "Series above max",
+			maxSeries:           2,
+			expectedLimited:     true,
+			expectedSeries:      2,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  2,
+		},
 	}
 
 	for _, test := range tests {
