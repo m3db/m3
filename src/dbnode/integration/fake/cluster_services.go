@@ -244,17 +244,31 @@ func NewM3ClusterPlacementService() M3ClusterPlacementService {
 }
 
 type m3ClusterPlacementService struct {
+	sync.RWMutex
 	placement.Service
 
 	markedAvailable map[string][]uint32
 }
 
 func (s *m3ClusterPlacementService) InstanceShardsMarkedAvailable() map[string][]uint32 {
-	return s.markedAvailable
+	s.RLock()
+	defer s.RUnlock()
+	// make a copy of the map since it might change.
+	m := make(map[string][]uint32, len(s.markedAvailable))
+	for k,v := range s.markedAvailable {
+		s := make([]uint32, len(v))
+		for i := range v {
+			s[i] = v[i]
+		}
+		m[k] = s
+	}
+	return m
 }
 func (s *m3ClusterPlacementService) MarkShardsAvailable(
 	instanceID string, shardIDs ...uint32,
 ) (placement.Placement, error) {
+	s.Lock()
+	defer s.Unlock()
 	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardIDs...)
 	return nil, nil
 }

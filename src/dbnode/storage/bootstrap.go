@@ -194,9 +194,6 @@ func (m *bootstrapManager) Report() {
 }
 
 func (m *bootstrapManager) bootstrap() error {
-	ctx := context.NewBackground()
-	defer ctx.Close()
-
 	// NB(r): construct new instance of the bootstrap process to avoid
 	// state being kept around by bootstrappers.
 	process, err := m.processProvider.Provide()
@@ -233,6 +230,8 @@ func (m *bootstrapManager) bootstrap() error {
 		i, namespace := i, namespace
 		prepareWg.Add(1)
 		go func() {
+			ctx := context.NewBackground()
+			defer ctx.Close()
 			shards, err := namespace.PrepareBootstrap(ctx)
 
 			prepareLock.Lock()
@@ -299,6 +298,8 @@ func (m *bootstrapManager) bootstrap() error {
 
 	instrCtx.bootstrapStarted(len(uniqueShards))
 	// Run the bootstrap.
+	ctx := context.NewBackground()
+	defer ctx.Close()
 	bootstrapResult, err := process.Run(ctx, instrCtx.start, targets)
 	if err != nil {
 		instrCtx.bootstrapFailed(err)
