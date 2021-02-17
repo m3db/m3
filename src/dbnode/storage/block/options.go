@@ -21,17 +21,15 @@
 package block
 
 import (
-	"io"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 const (
@@ -93,14 +91,13 @@ func NewOptions() Options {
 	o.encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	o.readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
-	o.multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		it := o.readerIteratorPool.Get()
-		it.Reset(r, descr)
-		return it
-	})
+	o.readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
+	o.multiReaderIteratorPool.Init(
+		func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
+			it := o.readerIteratorPool.Get()
+			it.Reset(r, descr)
+			return it
+		})
 	o.segmentReaderPool.Init()
 	o.bytesPool.Init()
 	return o
