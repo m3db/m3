@@ -33,12 +33,15 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/storage"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const promQuery = `http_requests_total{job="prometheus",group="canary"}`
@@ -283,6 +286,47 @@ func TestPromReadInstantHandlerParseMaxTime(t *testing.T) {
 	require.True(t, abs(expected.Sub(actual)) <= fudge,
 		fmt.Sprintf("expected=%v, actual=%v, fudge=%v, delta=%v",
 			expected, actual, fudge, expected.Sub(actual)))
+}
+
+func TestLimitedReturnedData(t *testing.T) {
+	handler := &readHandler{
+		logger: zap.NewNop(),
+	}
+
+	r := &promql.Result{
+		Value: promql.Vector{
+			{Point: promql.Point{T: 1, V: 1.0}},
+			{Point: promql.Point{T: 2, V: 2.0}},
+			{Point: promql.Point{T: 3, V: 3.0}},
+		},
+	}
+
+	tests := []struct {
+		name                string
+		maxSeries           int
+		maxDatapoints       int
+		expectedSeries      int
+		expectedTotalSeries int
+		expectedDatapoints  int
+		expectedLimited     bool
+	}{
+		{
+			name:            "Omit limits",
+			expectedLimited: false,
+		},
+	}
+
+	for _, test := range tests {
+		limited := handler.limitReturnedData("", r, &storage.FetchOptions{
+			ReturnedSeriesLimit:     test.maxSeries,
+			ReturnedDatapointsLimit: test.maxDatapoints,
+		})
+		require.Equal(t, test.expectedLimited, limited.Limited)
+		require.Equal(t, test.expectedSeries, limited.Series)
+		require.Equal(t, test.expectedTotalSeries, limited.TotalSeries)
+		require.Equal(t, test.expectedDatapoints, limited.Datapoints)
+	}
+
 }
 
 func abs(v time.Duration) time.Duration {

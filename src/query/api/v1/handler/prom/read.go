@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -147,7 +148,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Bool("instant", h.opts.instant))
 	}
 
-	limited := limitReturnedData(res, fetchOpts)
+	limited := h.limitReturnedData(query, res, fetchOptions)
 
 	if limited.Limited {
 		native.WriteReturnedDataLimitedHeader(w, limited)
@@ -160,9 +161,12 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}, res.Warnings)
 }
 
-func limitReturnedData(res *promql.Result, fetchOpts *storage.FetchOptions) native.ReturnedDataLimited {
+func (h *readHandler) limitReturnedData(query string,
+	res *promql.Result,
+	fetchOpts *storage.FetchOptions,
+) native.ReturnedDataLimited {
 	limited := false
-	if fetchOptions.ReturnedSeriesLimit == 0 && fetchOptions.ReturnedDatapointsLimit == 0 {
+	if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit == 0 {
 		return native.ReturnedDataLimited{
 			Limited: false,
 		}
@@ -186,24 +190,31 @@ func limitReturnedData(res *promql.Result, fetchOpts *storage.FetchOptions) nati
 		// Determine maxSeries based on either series or datapoints limit. Vector has one datapoint per
 		// series and so the datapoint limit behaves the same way as the series one.
 		var maxSeries int
-		if fetchOptions.ReturnedSeriesLimit > 0 && fetchOptions.ReturnedDatapointsLimit == 0 {
-			maxSeries = fetchOptions.ReturnedSeriesLimit
-		} else if fetchOptions.ReturnedSeriesLimit == 0 && fetchOptions.ReturnedDatapointsLimit > 0 {
-			maxSeries = fetchOptions.ReturnedDatapointsLimit
+		if fetchOpts.ReturnedSeriesLimit > 0 && fetchOpts.ReturnedDatapointsLimit == 0 {
+			maxSeries = fetchOpts.ReturnedSeriesLimit
+		} else if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit > 0 {
+			maxSeries = fetchOpts.ReturnedDatapointsLimit
 		} else {
 			// Take the min of the two limits if both present.
-			maxSeries = fetchOptions.ReturnedSeriesLimit
-			if fetchOptions.ReturnedSeriesLimit > fetchOptions.ReturnedDatapointsLimit {
-				maxSeries = fetchOptions.ReturnedDatapointsLimit
+			maxSeries = fetchOpts.ReturnedSeriesLimit
+			if fetchOpts.ReturnedSeriesLimit > fetchOpts.ReturnedDatapointsLimit {
+				maxSeries = fetchOpts.ReturnedDatapointsLimit
 			}
 		}
 
+		limited = series < seriesTotal
+
 		seriesTotal = len(v)
-		limitedSeries := v[:maxSeries]
-		res.Value = limitedSeries
-		series = len(limitedSeries)
-		datapoints = len(limitedSeries)
-		limited = limitedSeries < seriesTotal
+		if limited {
+			limitedSeries := v[:maxSeries]
+			res.Value = limitedSeries
+			series = len(limitedSeries)
+			datapoints = len(limitedSeries)
+		} else {
+			series = seriesTotal
+			datapoints = seriesTotal
+		}
+		break
 	case parser.ValueTypeMatrix:
 		m, err := res.Matrix()
 		if err != nil {
@@ -215,11 +226,11 @@ func limitReturnedData(res *promql.Result, fetchOpts *storage.FetchOptions) nati
 
 		for _, d := range m {
 			datapointCount := len(d.Points)
-			if fetchOptions.ReturnedSeriesLimit > 0 && series > fetchOptions.ReturnedSeriesLimit {
+			if fetchOpts.ReturnedSeriesLimit > 0 && series > fetchOpts.ReturnedSeriesLimit {
 				limited = true
 				break
 			}
-			if fetchOptions.ReturnedDatapointsLimit > 0 && datapoints+datapointCount > fetchOptions.ReturnedDatapointsLimit {
+			if fetchOpts.ReturnedDatapointsLimit > 0 && datapoints+datapointCount > fetchOpts.ReturnedDatapointsLimit {
 				limited = true
 				break
 			}
@@ -228,13 +239,16 @@ func limitReturnedData(res *promql.Result, fetchOpts *storage.FetchOptions) nati
 		}
 		seriesTotal = len(m)
 
-		res.Value = m[series]
+		if series < seriesTotal {
+			res.Value = m[:series]
+		}
+		break
 	}
 
 	return native.ReturnedDataLimited{
-		Limited: limited,
+		Limited:     limited,
 		Series:      series,
 		Datapoints:  datapoints,
-		TotalSeries: totalSeries,
+		TotalSeries: seriesTotal,
 	}
 }
