@@ -33,7 +33,7 @@ import (
 
 // iterator is a wrapper around many doc.Iterators (one per segment) that provides a stream of docs for a index block.
 //
-// all segments are eagerly searched on the first call to Next(). eagerly searching all the segments for a block allows
+// all segments are eagerly searched when constructing the iter. eagerly searching all the segments for a block allows
 // the iterator to yield without holding locks when processing the results set. yielding allows the goroutine to
 // yield the index worker to another goroutine waiting and then can resume the iterator when it acquires a worker again.
 // this prevents large queries with many result docs from starving small queries.
@@ -53,7 +53,7 @@ type iterator struct {
 
 func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) (doc.QueryDocIterator, error) {
 	start := time.Now()
-	docIters, err := newDocIters(ctx, s, rs)
+	docIters, err := searchReaders(ctx, s, rs)
 	if err != nil {
 		return nil, err
 	}
@@ -115,11 +115,10 @@ func (it *iterator) Close() error {
 	return multiErr.FinalError()
 }
 
-func newDocIters(ctx context.Context, searcher search.Searcher, readers index.Readers) ([]doc.Iterator, error) {
+func searchReaders(ctx context.Context, searcher search.Searcher, readers index.Readers) ([]doc.Iterator, error) {
 	iters := make([]doc.Iterator, len(readers))
 	for i, reader := range readers {
 		_, sp := ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
-		//start := time.Now()
 		pl, err := searcher.Search(reader)
 		sp.Finish()
 		if err != nil {
