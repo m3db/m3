@@ -76,10 +76,11 @@ var (
 )
 
 type readHandler struct {
-	hOpts  options.HandlerOptions
-	scope  tally.Scope
-	logger *zap.Logger
-	opts   opts
+	hOpts               options.HandlerOptions
+	scope               tally.Scope
+	logger              *zap.Logger
+	opts                opts
+	returnedDataMetrics native.PromReadReturnedDataMetrics
 }
 
 func newReadHandler(
@@ -90,10 +91,11 @@ func newReadHandler(
 		map[string]string{"handler": "prometheus-read"},
 	)
 	return &readHandler{
-		hOpts:  hOpts,
-		opts:   options,
-		scope:  scope,
-		logger: hOpts.InstrumentOpts().Logger(),
+		hOpts:               hOpts,
+		opts:                options,
+		scope:               scope,
+		logger:              hOpts.InstrumentOpts().Logger(),
+		returnedDataMetrics: native.NewPromReadReturnedDataMetrics(scope),
 	}, nil
 }
 
@@ -152,6 +154,9 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		native.WriteReturnedDataLimitedHeader(w, limited)
 	}
 
+	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(limited.Datapoints))
+	h.returnedDataMetrics.FetchSeries.RecordValue(float64(limited.Series))
+
 	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 	Respond(w, &QueryData{
 		Result:     res.Value,
@@ -163,14 +168,8 @@ func (h *readHandler) limitReturnedData(query string,
 	res *promql.Result,
 	fetchOpts *storage.FetchOptions,
 ) native.ReturnedDataLimited {
-	limited := false
-	if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit == 0 {
-		return native.ReturnedDataLimited{
-			Limited: false,
-		}
-	}
-
 	var (
+		limited     = false
 		series      int
 		datapoints  int
 		seriesTotal int
@@ -191,6 +190,9 @@ func (h *readHandler) limitReturnedData(query string,
 			series = fetchOpts.ReturnedSeriesLimit
 		} else if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit > 0 {
 			series = fetchOpts.ReturnedDatapointsLimit
+		} else if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit == 0 {
+			// Set max to the actual size if no limits.
+			series = len(v)
 		} else {
 			// Take the min of the two limits if both present.
 			series = fetchOpts.ReturnedSeriesLimit

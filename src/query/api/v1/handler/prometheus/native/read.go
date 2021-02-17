@@ -169,8 +169,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
 	})
 
-	h.promReadMetrics.fetchDatapoints.RecordValue(float64(renderResult.Datapoints))
-	h.promReadMetrics.fetchSeries.RecordValue(float64(renderResult.Series))
+	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
+	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
 
 	if renderResult.LimitedMaxReturnedData {
 		WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{

@@ -49,22 +49,35 @@ type promReadMetrics struct {
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
-	fetchSeries       tally.Histogram
-	fetchDatapoints   tally.Histogram
+
+	returnedDataMetrics PromReadReturnedDataMetrics
+}
+
+// PromReadReturnedDataMetrics are metrics on the data returned from prom reads.
+type PromReadReturnedDataMetrics struct {
+	FetchSeries     tally.Histogram
+	FetchDatapoints tally.Histogram
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
-	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 16)...)
-	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return promReadMetrics{
 		fetchSuccess: scope.Counter("fetch.success"),
 		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
 			Counter("fetch.errors"),
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
-		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
-		fetchSeries:       scope.Histogram("fetch.series", seriesBuckets),
-		fetchDatapoints:   scope.Histogram("fetch.datapoints", datapointBuckets),
+		fetchTimerSuccess:   scope.Timer("fetch.success.latency"),
+		returnedDataMetrics: NewPromReadReturnedDataMetrics(scope),
+	}
+}
+
+// NewPromReadReturnedDataMetrics returns metrics for returned data.
+func NewPromReadReturnedDataMetrics(scope tally.Scope) PromReadReturnedDataMetrics {
+	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 16)...)
+	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
+	return PromReadReturnedDataMetrics{
+		FetchSeries:     scope.Histogram("fetch.series", seriesBuckets),
+		FetchDatapoints: scope.Histogram("fetch.datapoints", datapointBuckets),
 	}
 }
 
