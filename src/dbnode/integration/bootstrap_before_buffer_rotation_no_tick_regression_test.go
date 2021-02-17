@@ -192,10 +192,8 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		// tick.
 		time.Sleep(existingOptions.TickMinimumInterval() * 10)
 
-		// Twice because the test bootstrapper will need to run two times, once to fulfill
-		// all historical blocks and once to fulfill the active block.
-		signalCh <- struct{}{}
-		signalCh <- struct{}{}
+		// Close signalCh to unblock bootstrapper and run the bootstrap till the end
+		close(signalCh)
 	}()
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 
