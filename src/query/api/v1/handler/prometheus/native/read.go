@@ -164,9 +164,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
 	}
 
-	var (
-		renderResult RenderResultsResult
-	)
+	var renderResult RenderResultsResult
 	if h.instant {
 		renderResult = renderResultsInstantaneousJSON(w, result, renderOpts)
 	} else {
