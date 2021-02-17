@@ -177,12 +177,20 @@ func (r *dbMergedBlockReader) BlockSize() time.Duration {
 	return r.blockSize
 }
 
-func (r *dbMergedBlockReader) Read(b []byte) (int, error) {
+func (r *dbMergedBlockReader) Read64() (word uint64, n byte, err error) {
 	reader, err := r.mergedReader()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return reader.Read(b)
+	return reader.Read64()
+}
+
+func (r *dbMergedBlockReader) Peek64() (word uint64, n byte, err error) {
+	reader, err := r.mergedReader()
+	if err != nil {
+		return 0, 0, err
+	}
+	return reader.Peek64()
 }
 
 func (r *dbMergedBlockReader) Segment() (ts.Segment, error) {

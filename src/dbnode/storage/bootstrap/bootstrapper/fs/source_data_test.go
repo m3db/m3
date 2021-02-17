@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -44,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -557,11 +559,10 @@ func validateReadResults(
 		readerAtTime := seriesReaders[0]
 		assert.Equal(t, times[i], readerAtTime.Start)
 		ctx := context.NewBackground()
-		var b [100]byte
-		n, err := readerAtTime.Reader.Read(b[:])
+		bytes, err := xio.ToBytes(readerAtTime.Reader)
 		ctx.Close()
-		require.NoError(t, err)
-		require.Equal(t, data[i], b[:n])
+		require.Equal(t, io.EOF, err)
+		require.Equal(t, data[i], bytes)
 	}
 
 	tester.EnsureNoWrites()

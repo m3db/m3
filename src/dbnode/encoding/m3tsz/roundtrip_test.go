@@ -147,7 +147,6 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 	require.True(t, ok)
 
 	it := decoder.Decode(stream)
-	require.True(t, ok)
 	defer it.Close()
 
 	i := 0
