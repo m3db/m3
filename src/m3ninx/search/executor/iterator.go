@@ -33,7 +33,7 @@ import (
 
 // iterator is a wrapper around many doc.Iterators (one per segment) that provides a stream of docs for a index block.
 //
-// all segments are eagerly searched when constructing the iter. eagerly searching all the segments for a block allows
+// all segments are eagerly searched on the first call to Next(). eagerly searching all the segments for a block allows
 // the iterator to yield without holding locks when processing the results set. yielding allows the goroutine to
 // yield the index worker to another goroutine waiting and then can resume the iterator when it acquires a worker again.
 // this prevents large queries with many result docs from starving small queries.
@@ -42,6 +42,11 @@ import (
 // doc iterators. for each posting in the list, the encoded document is retrieved.
 type iterator struct {
 	// immutable state
+	searcher            search.Searcher
+	readers             index.Readers
+	ctx                 context.Context
+
+	// immutable state after the first call to Next()
 	iters               []doc.Iterator
 	totalSearchDuration time.Duration
 
@@ -51,16 +56,12 @@ type iterator struct {
 	err     error
 }
 
-func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) (doc.QueryDocIterator, error) {
-	start := time.Now()
-	docIters, err := searchReaders(ctx, s, rs)
-	if err != nil {
-		return nil, err
-	}
+func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) doc.QueryDocIterator {
 	return &iterator{
-		iters:               docIters,
-		totalSearchDuration: time.Since(start),
-	}, nil
+		ctx: ctx,
+		searcher: s,
+		readers:  rs,
+	}
 }
 
 func (it *iterator) SearchDuration() time.Duration {
@@ -68,7 +69,18 @@ func (it *iterator) SearchDuration() time.Duration {
 }
 
 func (it *iterator) Next() bool {
-	if it.err != nil || it.idx == len(it.iters) {
+	if it.err != nil {
+		return false
+	}
+	if it.iters == nil {
+		start := time.Now()
+		if err := it.initIters(); err != nil {
+			it.err = err
+			return false
+		}
+		it.totalSearchDuration = time.Since(start)
+	}
+	if it.idx == len(it.iters) {
 		return false
 	}
 	currIter := it.iters[it.idx]
@@ -107,28 +119,31 @@ func (it *iterator) Err() error {
 }
 
 func (it *iterator) Close() error {
+	if it.iters == nil {
+		return nil
+	}
 	var multiErr errors.MultiError
 	// close any iterators that weren't closed in Next.
 	for i := it.idx; i < len(it.iters); i++ {
-		multiErr = multiErr.Add(it.iters[it.idx].Close())
+		multiErr = multiErr.Add(it.iters[i].Close())
 	}
 	return multiErr.FinalError()
 }
 
-func searchReaders(ctx context.Context, searcher search.Searcher, readers index.Readers) ([]doc.Iterator, error) {
-	iters := make([]doc.Iterator, len(readers))
-	for i, reader := range readers {
-		_, sp := ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
-		pl, err := searcher.Search(reader)
+func (it *iterator) initIters() error {
+	it.iters = make([]doc.Iterator, len(it.readers))
+	for i, reader := range it.readers {
+		_, sp := it.ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
+		pl, err := it.searcher.Search(reader)
 		sp.Finish()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		iter, err := reader.Docs(pl)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		iters[i] = iter
+		it.iters[i] = iter
 	}
-	return iters, nil
+	return nil
 }
