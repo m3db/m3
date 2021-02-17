@@ -25,7 +25,6 @@ package prom
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -125,8 +124,6 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer qry.Close()
-
-	h.logger.Info("READ2", zap.Any("opts", fetchOptions))
 
 	res := qry.Exec(ctx)
 	if res.Err != nil {
@@ -238,7 +235,6 @@ func (h *readHandler) limitReturnedData(query string,
 		}
 		seriesTotal = len(m)
 
-		fmt.Println(series, seriesTotal)
 		if series < seriesTotal {
 			res.Value = m[:series]
 		}

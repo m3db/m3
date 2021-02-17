@@ -303,6 +303,7 @@ func Run(runOpts RunOptions) {
 		queryCtxOpts             = models.QueryContextOptions{
 			LimitMaxTimeseries:         fetchOptsBuilderLimitsOpts.SeriesLimit,
 			LimitMaxDocs:               fetchOptsBuilderLimitsOpts.DocsLimit,
+			LimitMaxReturnedSeries:     fetchOptsBuilderLimitsOpts.ReturnedSeriesLimit,
 			LimitMaxReturnedDatapoints: fetchOptsBuilderLimitsOpts.ReturnedDatapointsLimit,
 			RequireExhaustive:          fetchOptsBuilderLimitsOpts.RequireExhaustive,
 		}

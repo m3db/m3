@@ -266,8 +266,6 @@ type RenderResultsResult struct {
 	Datapoints int
 	// Series is the count of series rendered.
 	Series int
-	// TotalDatapoints is the count of datapoints in total.
-	TotalDatapoints int
 	// TotalSeries is the count of series in total.
 	TotalSeries int
 	// LimitedMaxReturnedData indicates if the results rendering
