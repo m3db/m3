@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -441,9 +442,9 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	seg, err := reader.Segment()
 	require.NoError(t, err)
 
-	bytes := make([]byte, seg.Len())
-	_, err = reader.Read(bytes)
-	require.NoError(t, err)
+	bytes, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, seg.Len(), len(bytes))
 
 	mockReader.EXPECT().Read().Return(
 		foo.ID,
