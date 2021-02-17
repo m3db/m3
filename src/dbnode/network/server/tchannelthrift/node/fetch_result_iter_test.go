@@ -40,11 +40,102 @@ import (
 )
 
 func TestFetchResultIterTest(t *testing.T) {
-	scope := tally.NewTestScope("", map[string]string{})
-	ctx := context.NewBackground()
 	mocks := gomock.NewController(t)
 	defer mocks.Finish()
 
+	scope, ctx, nsID, resMap, start, end, db := setup(mocks)
+
+	blockPermits := &fakePermits{available: 5}
+	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
+		queryResult: index.QueryResult{
+			Results: resMap,
+		},
+		queryOpts: index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+		},
+		fetchData:       true,
+		db:              db,
+		nsID:            nsID,
+		blockPermits:    blockPermits,
+		blocksPerBatch:  5,
+		nowFn:           time.Now,
+		dataReadMetrics: index.NewQueryMetrics("", scope),
+		totalMetrics:    index.NewQueryMetrics("", scope),
+		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
+		instrumentClose: func(err error) {},
+	})
+	total := 0
+	for iter.Next(ctx) {
+		total++
+		require.NotNil(t, iter.Current())
+		require.Len(t, iter.Current().(*idResult).blockReaders, 10)
+	}
+	require.NoError(t, iter.Err())
+	iter.Close(nil)
+
+	require.Equal(t, 10, total)
+	require.Equal(t, 5, blockPermits.acquired)
+	require.Equal(t, 5, blockPermits.released)
+	requireSeriesBlockMetric(t, scope)
+}
+
+func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
+	mocks := gomock.NewController(t)
+	defer mocks.Finish()
+
+	scope, ctx, nsID, resMap, start, end, db := setup(mocks)
+
+	blockPermits := &fakePermits{available: 10}
+	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
+		queryResult: index.QueryResult{
+			Results: resMap,
+		},
+		queryOpts: index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+		},
+		fetchData:       true,
+		db:              db,
+		nsID:            nsID,
+		blockPermits:    blockPermits,
+		nowFn:           time.Now,
+		dataReadMetrics: index.NewQueryMetrics("", scope),
+		totalMetrics:    index.NewQueryMetrics("", scope),
+		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
+		instrumentClose: func(err error) {},
+	})
+	total := 0
+	for iter.Next(ctx) {
+		total++
+		require.NotNil(t, iter.Current())
+		require.Len(t, iter.Current().(*idResult).blockReaders, 10)
+	}
+	require.NoError(t, iter.Err())
+	iter.Close(nil)
+
+	require.Equal(t, 10, total)
+	require.Equal(t, 10, blockPermits.acquired)
+	require.Equal(t, 10, blockPermits.released)
+	requireSeriesBlockMetric(t, scope)
+}
+
+func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
+	values, ok := scope.Snapshot().Histograms()["series-blocks+"]
+	require.True(t, ok)
+
+	sum := 0
+	for _, count := range values.Values() {
+		sum += int(count)
+	}
+	require.Equal(t, 1, sum)
+}
+
+func setup(mocks *gomock.Controller) (
+	tally.TestScope, context.Context, ident.ID, index.QueryResults, time.Time, time.Time, *storage.Mockdatabase,
+) {
+	scope := tally.NewTestScope("", map[string]string{})
+	ctx := context.NewBackground()
 	nsID := ident.StringID("testNs")
 
 	resMap := index.NewQueryResults(nsID,
@@ -66,38 +157,7 @@ func TestFetchResultIterTest(t *testing.T) {
 		}, nil)
 		resMap.Map().Set(id.Bytes(), doc.Document{})
 	}
-
-	blockPermits := &fakePermits{available: 5}
-	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
-		queryResult: index.QueryResult{
-			Results: resMap,
-		},
-		queryOpts: index.QueryOptions{
-			StartInclusive: start,
-			EndExclusive:   end,
-		},
-		fetchData:       true,
-		db:              db,
-		nsID:            nsID,
-		blockPermits:    blockPermits,
-		blocksPerBatch:  5,
-		nowFn:           time.Now,
-		dataReadMetrics: index.NewQueryMetrics("", scope),
-		totalMetrics:    index.NewQueryMetrics("", scope),
-		instrumentClose: func(err error) {},
-	})
-	total := 0
-	for iter.Next(ctx) {
-		total++
-		require.NotNil(t, iter.Current())
-		require.Len(t, iter.Current().(*idResult).blockReaders, 10)
-	}
-	require.NoError(t, iter.Err())
-	iter.Close(nil)
-
-	require.Equal(t, 10, total)
-	require.Equal(t, 5, blockPermits.acquired)
-	require.Equal(t, 5, blockPermits.released)
+	return scope, ctx, nsID, resMap, start, end, db
 }
 
 type fakePermits struct {

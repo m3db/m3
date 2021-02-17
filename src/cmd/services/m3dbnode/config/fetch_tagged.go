@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,31 +17,13 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-syntax = "proto3";
 
-package kvpb;
+// Package config contains static configuration for the dbnode service.
+package config
 
-message KeyValueUpdate {
-	string key   = 1;
-	string value = 2;
-	bool commit  = 3;
-}
-
-message KeyValueUpdateResult {
-	string key = 1;
-	string old = 2;
-	string new = 3;
-}
-
-message QueryLimits {
-	QueryLimit maxRecentlyQueriedSeriesBlocks        = 1;
-	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
-	QueryLimit maxRecentlyQueriedSeriesDiskRead      = 3;
-	QueryLimit maxRecentlyQueriedMetadataRead        = 4;
-}
-
-message QueryLimit {
-	int64 limit           = 1;
-	int64 lookbackSeconds = 2;
-	bool forceExceeded    = 3;
+// FetchTaggedConfiguration contains configuration related to the FetchTagged API endpoint.
+type FetchTaggedConfiguration struct {
+	// SeriesBlocksPerBatch specifies how many series blocks are allowed to be retrieved
+	// per permit acquired. Defaults to 1 (i.e. a permit is acquired per series block).
+	SeriesBlocksPerBatch int `yaml:"seriesBlocksPerBatch" validate:"min=0"`
 }
