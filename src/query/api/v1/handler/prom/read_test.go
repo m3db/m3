@@ -288,7 +288,7 @@ func TestPromReadInstantHandlerParseMaxTime(t *testing.T) {
 			expected, actual, fudge, expected.Sub(actual)))
 }
 
-func TestLimitedReturnedData(t *testing.T) {
+func TestLimitedReturnedDataVector(t *testing.T) {
 	handler := &readHandler{
 		logger: zap.NewNop(),
 	}
@@ -401,7 +401,161 @@ func TestLimitedReturnedData(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestLimitedReturnedDataMatrix(t *testing.T) {
+	handler := &readHandler{
+		logger: zap.NewNop(),
+	}
+
+	r := &promql.Result{
+		Value: promql.Matrix{
+			{Points: []promql.Point{
+				{T: 1, V: 1.0},
+			}},
+			{Points: []promql.Point{
+				{T: 1, V: 1.0},
+				{T: 2, V: 2.0},
+			}},
+			{Points: []promql.Point{
+				{T: 1, V: 1.0},
+				{T: 2, V: 2.0},
+				{T: 3, V: 3.0},
+			}},
+		},
+	}
+
+	tests := []struct {
+		name                string
+		maxSeries           int
+		maxDatapoints       int
+		expectedSeries      int
+		expectedTotalSeries int
+		expectedDatapoints  int
+		expectedLimited     bool
+	}{
+		{
+			name:            "Omit limits",
+			expectedLimited: false,
+		},
+		{
+			name:            "Series below max",
+			maxSeries:       4,
+			expectedLimited: false,
+		},
+		{
+			name:            "Series at max",
+			maxSeries:       3,
+			expectedLimited: false,
+		},
+		{
+			name:                "Series above max",
+			maxSeries:           2,
+			expectedLimited:     true,
+			expectedSeries:      2,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  3,
+		},
+		{
+			name:            "Datapoints below max",
+			maxDatapoints:   7,
+			expectedLimited: false,
+		},
+		{
+			name:            "Datapoints at max",
+			maxDatapoints:   6,
+			expectedLimited: false,
+		},
+		{
+			name:                "Datapoints above max - 2 series left - A",
+			maxDatapoints:       5,
+			expectedLimited:     true,
+			expectedSeries:      2,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  3,
+		},
+		{
+			name:                "Datapoints above max - 2 series left - B",
+			maxDatapoints:       3,
+			expectedLimited:     true,
+			expectedSeries:      2,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  3,
+		},
+		{
+			name:                "Datapoints above max - 1 series left - A",
+			maxDatapoints:       2,
+			expectedLimited:     true,
+			expectedSeries:      1,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  1,
+		},
+		{
+			name:                "Datapoints above max - 1 series left - B",
+			maxDatapoints:       1,
+			expectedLimited:     true,
+			expectedSeries:      1,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  1,
+		},
+		{
+			name:                "Series and datapoints limit (former lower)",
+			maxSeries:           1,
+			maxDatapoints:       6,
+			expectedLimited:     true,
+			expectedSeries:      1,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  1,
+		},
+		{
+			name:                "Series and datapoints limit (former higher)",
+			maxSeries:           6,
+			maxDatapoints:       1,
+			expectedLimited:     true,
+			expectedSeries:      1,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  1,
+		},
+		{
+			name:                "Series and datapoints limit (only one under limit)",
+			maxSeries:           1,
+			maxDatapoints:       10,
+			expectedLimited:     true,
+			expectedSeries:      1,
+			expectedTotalSeries: 3,
+			expectedDatapoints:  1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := *r
+			limited := handler.limitReturnedData("", &result, &storage.FetchOptions{
+				ReturnedSeriesLimit:     test.maxSeries,
+				ReturnedDatapointsLimit: test.maxDatapoints,
+			})
+			require.Equal(t, test.expectedLimited, limited.Limited)
+
+			m := result.Value.(promql.Matrix)
+			seriesCount := len(m)
+			datapointCount := 0
+			for _, d := range m {
+				datapointCount += len(d.Points)
+			}
+
+			if limited.Limited {
+				require.Equal(t, test.expectedSeries, seriesCount, "series count")
+				require.Equal(t, test.expectedDatapoints, datapointCount, "datapoint count")
+				require.Equal(t, test.expectedSeries, limited.Series, "series")
+				require.Equal(t, test.expectedTotalSeries, limited.TotalSeries, "total series")
+				require.Equal(t, test.expectedDatapoints, limited.Datapoints, "datapoints")
+			} else {
+				// Full results
+				require.Equal(t, 3, seriesCount, "expect full series")
+				require.Equal(t, 6, datapointCount, "expect full datapoints")
+			}
+		})
+	}
 }
 
 func abs(v time.Duration) time.Duration {

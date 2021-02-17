@@ -25,6 +25,7 @@ package prom
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -224,7 +225,7 @@ func (h *readHandler) limitReturnedData(query string,
 
 		for _, d := range m {
 			datapointCount := len(d.Points)
-			if fetchOpts.ReturnedSeriesLimit > 0 && series > fetchOpts.ReturnedSeriesLimit {
+			if fetchOpts.ReturnedSeriesLimit > 0 && series+1 > fetchOpts.ReturnedSeriesLimit {
 				limited = true
 				break
 			}
@@ -237,6 +238,7 @@ func (h *readHandler) limitReturnedData(query string,
 		}
 		seriesTotal = len(m)
 
+		fmt.Println(series, seriesTotal)
 		if series < seriesTotal {
 			res.Value = m[:series]
 		}
