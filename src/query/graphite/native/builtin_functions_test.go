@@ -21,6 +21,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -33,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	querystorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xgomock "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -2558,9 +2561,18 @@ func TestSubstr(t *testing.T) {
 type mockStorage struct{}
 
 func (*mockStorage) FetchByQuery(
-	ctx xctx.Context, query string, opts storage.FetchOptions,
+	ctx xctx.Context,
+	query string,
+	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
+}
+func (*mockStorage) CompleteTags(
+	ctx context.Context,
+	query *querystorage.CompleteTagsQuery,
+	opts *querystorage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func TestHoltWintersForecast(t *testing.T) {
