@@ -27,7 +27,7 @@ import (
 	"net"
 	"time"
 
-	prom "github.com/m3db/prometheus_client_golang/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/m3"
 	"github.com/uber-go/tally/multi"

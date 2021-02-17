@@ -28,10 +28,9 @@ import (
 	"os"
 	"strings"
 
-	prom "github.com/m3db/prometheus_client_golang/prometheus"
-	"github.com/m3db/prometheus_client_golang/prometheus/promhttp"
-	dto "github.com/m3db/prometheus_client_model/go"
-	extprom "github.com/prometheus/client_golang/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/uber-go/tally/prometheus"
 )
 
@@ -98,7 +97,7 @@ type PrometheusConfigurationOptions struct {
 // to also expose as part of the handler.
 type PrometheusExternalRegistry struct {
 	// Registry is the external prometheus registry to list.
-	Registry *extprom.Registry
+	Registry *prom.Registry
 	// SubScope will add a prefix to all metric names exported by
 	// this registry.
 	SubScope string
@@ -219,7 +218,7 @@ type multiGatherer struct {
 	ext     []PrometheusExternalRegistry
 }
 
-func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
+func (g *multiGatherer) Gather() ([]*io_prometheus_client.MetricFamily, error) {
 	results, err := g.primary.Gather()
 	if err != nil {
 		return nil, err
@@ -236,10 +235,10 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 		}
 
 		for _, elem := range gathered {
-			entry := &dto.MetricFamily{
+			entry := &io_prometheus_client.MetricFamily{
 				Name:   elem.Name,
 				Help:   elem.Help,
-				Metric: make([]*dto.Metric, 0, len(elem.Metric)),
+				Metric: make([]*io_prometheus_client.Metric, 0, len(elem.Metric)),
 			}
 
 			if secondary.SubScope != "" && entry.Name != nil {
@@ -248,37 +247,37 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 			}
 
 			if v := elem.Type; v != nil {
-				metricType := dto.MetricType(*v)
+				metricType := *v
 				entry.Type = &metricType
 			}
 
 			for _, metricElem := range elem.Metric {
-				metricEntry := &dto.Metric{
-					Label:       make([]*dto.LabelPair, 0, len(metricElem.Label)),
+				metricEntry := &io_prometheus_client.Metric{
+					Label:       make([]*io_prometheus_client.LabelPair, 0, len(metricElem.Label)),
 					TimestampMs: metricElem.TimestampMs,
 				}
 
 				if v := metricElem.Gauge; v != nil {
-					metricEntry.Gauge = &dto.Gauge{
+					metricEntry.Gauge = &io_prometheus_client.Gauge{
 						Value: v.Value,
 					}
 				}
 
 				if v := metricElem.Counter; v != nil {
-					metricEntry.Counter = &dto.Counter{
+					metricEntry.Counter = &io_prometheus_client.Counter{
 						Value: v.Value,
 					}
 				}
 
 				if v := metricElem.Summary; v != nil {
-					metricEntry.Summary = &dto.Summary{
+					metricEntry.Summary = &io_prometheus_client.Summary{
 						SampleCount: v.SampleCount,
 						SampleSum:   v.SampleSum,
-						Quantile:    make([]*dto.Quantile, 0, len(v.Quantile)),
+						Quantile:    make([]*io_prometheus_client.Quantile, 0, len(v.Quantile)),
 					}
 
 					for _, quantileElem := range v.Quantile {
-						quantileEntry := &dto.Quantile{
+						quantileEntry := &io_prometheus_client.Quantile{
 							Quantile: quantileElem.Quantile,
 							Value:    quantileElem.Value,
 						}
@@ -288,20 +287,20 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 				}
 
 				if v := metricElem.Untyped; v != nil {
-					metricEntry.Untyped = &dto.Untyped{
+					metricEntry.Untyped = &io_prometheus_client.Untyped{
 						Value: v.Value,
 					}
 				}
 
 				if v := metricElem.Histogram; v != nil {
-					metricEntry.Histogram = &dto.Histogram{
+					metricEntry.Histogram = &io_prometheus_client.Histogram{
 						SampleCount: v.SampleCount,
 						SampleSum:   v.SampleSum,
-						Bucket:      make([]*dto.Bucket, 0, len(v.Bucket)),
+						Bucket:      make([]*io_prometheus_client.Bucket, 0, len(v.Bucket)),
 					}
 
 					for _, bucketElem := range v.Bucket {
-						bucketEntry := &dto.Bucket{
+						bucketEntry := &io_prometheus_client.Bucket{
 							CumulativeCount: bucketElem.CumulativeCount,
 							UpperBound:      bucketElem.UpperBound,
 						}
@@ -311,7 +310,7 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 				}
 
 				for _, labelElem := range metricElem.Label {
-					labelEntry := &dto.LabelPair{
+					labelEntry := &io_prometheus_client.LabelPair{
 						Name:  labelElem.Name,
 						Value: labelElem.Value,
 					}
