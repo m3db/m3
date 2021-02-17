@@ -230,13 +230,14 @@ func (s *Stream) Close() {
 	s.closed = true
 
 	// Returning resources back to pools.
-	sample := s.samples.Front()
-	for sample != nil {
-		next := sample.next
-		s.releaseSample(sample)
-		sample = next
-	}
-
+	//sample := s.samples.Front()
+	//for sample != nil {
+	//	next := sample.next
+	//	s.releaseSample(sample)
+	//	sample = next
+	//}
+	s.samples = emptySampleList
+	s.smpbuf = nil
 	// Clear out slices/lists/pointer to reduce GC overhead.
 	s.samples.Reset()
 	s.insertCursor = nil
