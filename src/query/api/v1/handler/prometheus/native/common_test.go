@@ -667,7 +667,7 @@ func TestRenderResultsJSONWithLimits(t *testing.T) {
 		r, err := RenderResultsJSON(buffer, readResult, o)
 		require.NoError(t, err)
 		require.Equal(t, test.expectedDatapoints, r.Datapoints)
-		require.Equal(t, test.expectedLimited, r.LimitedMaxReturnedDatapoints)
+		require.Equal(t, test.expectedLimited, r.LimitedMaxReturnedData)
 	}
 }
 
