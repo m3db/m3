@@ -567,7 +567,7 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
 	streamPool := cm.NewStreamPool(streamPoolOpts)
 	opts = opts.SetStreamPool(streamPool)
-	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, opts) })
+	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, opts) })
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
