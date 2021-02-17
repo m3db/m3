@@ -1510,8 +1510,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Return(&rpc.FetchBlocksRawResult_{
 			Elements: []*rpc.Blocks{
 				// First foo block intact
-				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+				{ID: []byte("foo"), Blocks: []*rpc.Block{
+					{Start: start.UnixNano(), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: rawBlockData[:len(rawBlockData)-1],
 							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
@@ -1519,16 +1519,16 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 					}},
 				}},
 				// First bar block intact, second with error
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
+					{Start: start.UnixNano(), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: rawBlockData[:len(rawBlockData)-1],
 							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Err: &rpc.Error{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
+					{Start: start.Add(blockSize).UnixNano(), Err: &rpc.Error{
 						Type:    rpc.ErrorType_INTERNAL_ERROR,
 						Message: "an error",
 					}},
@@ -1666,26 +1666,26 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Return(&rpc.FetchBlocksRawResult_{
 			Elements: []*rpc.Blocks{
 				// valid foo block
-				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Checksum: &validChecksum, Segments: &rpc.Segments{
+				{ID: []byte("foo"), Blocks: []*rpc.Block{
+					{Start: start.UnixNano(), Checksum: &validChecksum, Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
 					// invalid bar block
-					&rpc.Block{Start: start.UnixNano(), Checksum: &invalidChecksum, Segments: &rpc.Segments{
+					{Start: start.UnixNano(), Checksum: &invalidChecksum, Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
 					// valid bar block, no checksum
-					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Segments: &rpc.Segments{
+					{Start: start.Add(blockSize).UnixNano(), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,

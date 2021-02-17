@@ -23,6 +23,8 @@ package pools
 import (
 	"io"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -33,8 +35,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/uber-go/tally"
 )
 
 const (
@@ -42,10 +42,8 @@ const (
 	defaultReplicas                    = 3
 	defaultSeriesIteratorPoolSize      = 2 << 12 // ~8k
 	defaultCheckedBytesWrapperPoolSize = 2 << 12 // ~8k
-	defaultBucketCapacity              = 256
 	defaultPoolableConcurrentQueries   = 64
 	defaultPoolableSeriesPerQuery      = 4096
-	defaultSeriesReplicaReaderPoolSize = defaultPoolableConcurrentQueries * defaultPoolableSeriesPerQuery * defaultReplicas
 )
 
 var (

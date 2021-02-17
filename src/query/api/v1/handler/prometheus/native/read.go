@@ -173,12 +173,14 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
 
 	if renderResult.LimitedMaxReturnedData {
-		WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
+		if err := WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
 			Limited:     true,
 			Series:      renderResult.Series,
 			TotalSeries: renderResult.TotalSeries,
 			Datapoints:  renderResult.Datapoints,
-		})
+		}); err != nil {
+			logger.Error("error writing returned data limited header", zap.Error(err))
+		}
 	}
 
 	if err != nil {

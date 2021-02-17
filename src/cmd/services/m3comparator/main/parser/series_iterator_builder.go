@@ -34,9 +34,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-const sep rune = '!'
-const tagSep rune = '.'
-
 // Data is a set of datapoints.
 type Data []ts.Datapoint
 

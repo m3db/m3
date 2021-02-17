@@ -113,7 +113,8 @@ func TestReadAfterPeekBits(t *testing.T) {
 func TestResetIStream(t *testing.T) {
 	o := NewIStream(bytes.NewReader(nil), 16)
 	is := o.(*istream)
-	is.ReadBits(1)
+	_, err := is.ReadBits(1)
+	require.Error(t, err)
 	is.Reset(bytes.NewReader(nil))
 	require.Equal(t, byte(0), is.current)
 	require.Equal(t, 0, int(is.remaining))

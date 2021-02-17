@@ -90,7 +90,7 @@ func (is *istream) ReadByte() (byte, error) {
 	if err := is.readByteFromStream(); err != nil {
 		return 0, err
 	}
-	res = (res << uint(8-remaining)) | is.consumeBuffer(8-remaining)
+	res = (res << (8 - remaining)) | is.consumeBuffer(8-remaining)
 	return res, nil
 }
 
@@ -113,7 +113,7 @@ func (is *istream) ReadBits(numBits uint) (uint64, error) {
 		}
 	}
 
-	numBits = numBits % 8
+	numBits %= 8
 	for numBits > 0 {
 		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
 		// has been performed to optimize this loop as its heavily used in the hot path.

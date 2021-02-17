@@ -43,11 +43,6 @@ const (
 	asyncWriteWorkerPoolDefaultSize = 128
 )
 
-var (
-	errConfigurationMustSupplyConfig = errors.New(
-		"must supply config when no topology initializer parameter supplied")
-)
-
 // Configuration is a configuration that can be used to construct a client.
 type Configuration struct {
 	// The environment (static or dynamic) configuration.

@@ -98,7 +98,7 @@ func TestSegmentReaderNoPool(t *testing.T) {
 }
 
 func TestSegmentReaderWithPool(t *testing.T) {
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: 1024,
 		Count:    10,
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {

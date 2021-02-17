@@ -151,7 +151,11 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	limited := h.limitReturnedData(query, res, fetchOptions)
 
 	if limited.Limited {
-		native.WriteReturnedDataLimitedHeader(w, limited)
+		if err := native.WriteReturnedDataLimitedHeader(w, limited); err != nil {
+			h.logger.Error("error writing returned data limited header",
+				zap.Error(err), zap.String("query", query),
+				zap.Bool("instant", h.opts.instant))
+		}
 	}
 
 	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(limited.Datapoints))
@@ -169,6 +173,9 @@ func (h *readHandler) limitReturnedData(query string,
 	fetchOpts *storage.FetchOptions,
 ) native.ReturnedDataLimited {
 	var (
+		seriesLimit     = fetchOpts.ReturnedSeriesLimit
+		datapointsLimit = fetchOpts.ReturnedDatapointsLimit
+
 		limited     = false
 		series      int
 		datapoints  int
@@ -186,18 +193,22 @@ func (h *readHandler) limitReturnedData(query string,
 
 		// Determine maxSeries based on either series or datapoints limit. Vector has one datapoint per
 		// series and so the datapoint limit behaves the same way as the series one.
-		if fetchOpts.ReturnedSeriesLimit > 0 && fetchOpts.ReturnedDatapointsLimit == 0 {
-			series = fetchOpts.ReturnedSeriesLimit
-		} else if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit > 0 {
-			series = fetchOpts.ReturnedDatapointsLimit
-		} else if fetchOpts.ReturnedSeriesLimit == 0 && fetchOpts.ReturnedDatapointsLimit == 0 {
+		switch {
+		case seriesLimit > 0 && datapointsLimit == 0:
+			series = seriesLimit
+			break
+		case seriesLimit == 0 && datapointsLimit > 0:
+			series = datapointsLimit
+			break
+		case seriesLimit == 0 && datapointsLimit == 0:
 			// Set max to the actual size if no limits.
 			series = len(v)
-		} else {
+			break
+		default:
 			// Take the min of the two limits if both present.
-			series = fetchOpts.ReturnedSeriesLimit
-			if fetchOpts.ReturnedSeriesLimit > fetchOpts.ReturnedDatapointsLimit {
-				series = fetchOpts.ReturnedDatapointsLimit
+			series = seriesLimit
+			if seriesLimit > datapointsLimit {
+				series = datapointsLimit
 			}
 		}
 

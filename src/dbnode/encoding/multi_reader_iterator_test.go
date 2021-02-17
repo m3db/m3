@@ -316,7 +316,7 @@ func assertTestMultiReaderIterator(
 
 	var testIterators []*testIterator
 	var iteratorAlloc func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator
-	iteratorAlloc = func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator {
+	iteratorAlloc = func(reader io.Reader, _ namespace.SchemaDescr) ReaderIterator {
 		for i := range entriesByReader {
 			if reader != entriesByReader[i].reader {
 				continue

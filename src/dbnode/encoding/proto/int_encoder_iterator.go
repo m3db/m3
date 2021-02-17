@@ -27,10 +27,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 )
 
-const (
-	opcodeZeroSig = 0x0
-)
-
 type intEncoderAndIterator struct {
 	prevIntBits       uint64
 	intSigBitsTracker m3tsz.IntSigBitsTracker

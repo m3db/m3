@@ -861,15 +861,6 @@ func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {
 	return dict[0]
 }
 
-func (it *iterator) readBits(numBits uint) (uint64, error) {
-	res, err := it.stream.ReadBits(numBits)
-	if err != nil {
-		return 0, err
-	}
-
-	return res, nil
-}
-
 func (it *iterator) resetUnmarshalProtoBuffer(n int) {
 	if it.unmarshalProtoBuf != nil && it.unmarshalProtoBuf.Cap() >= n {
 		// If the existing one is big enough, just resize it.
