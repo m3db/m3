@@ -173,6 +173,7 @@ func init() {
 	floatsPool := pool.NewFloatsPool([]pool.Bucket{
 		{Capacity: 512, Count: 256},
 		{Capacity: 1024, Count: 256},
+		{Capacity: 2048, Count: 256},
 		{Capacity: 4096, Count: 256},
 		{Capacity: 8192, Count: 256},
 		{Capacity: 16384, Count: 256},
