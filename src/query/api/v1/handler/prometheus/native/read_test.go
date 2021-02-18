@@ -126,6 +126,10 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 		err.Error())
 }
 
+func TestWriteReturnedDataLimitedHeader(t *testing.T) {
+
+}
+
 func testPromReadHandlerRead(
 	t *testing.T,
 	resultMeta block.ResultMetadata,
