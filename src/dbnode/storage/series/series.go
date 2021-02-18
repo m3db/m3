@@ -68,6 +68,7 @@ type dbSeries struct {
 	id          ident.ID
 	metadata    doc.Metadata
 	uniqueIndex uint64
+	closed      bool
 
 	bootstrap dbSeriesBootstrap
 
@@ -591,7 +592,11 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 	defer s.Unlock()
-	fmt.Println("series evicted")
+
+	if s.closed {
+		return
+	}
+
 	// Should never happen
 	if !id.Equal(s.id) {
 		return
@@ -687,7 +692,6 @@ func (s *dbSeries) Close() {
 	defer s.Unlock()
 
 	// See Reset() for why these aren't finalized.
-	fmt.Println("series ID nil")
 	s.id = nil
 	s.metadata = doc.Metadata{}
 	s.uniqueIndex = 0
@@ -707,6 +711,8 @@ func (s *dbSeries) Close() {
 	// back into the pool and be re-used.
 	s.buffer.Reset(databaseBufferResetOptions{Options: s.opts})
 	s.cachedBlocks.Reset()
+
+	s.closed = true
 
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -744,5 +750,6 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	s.blockRetriever = opts.BlockRetriever
 	s.onRetrieveBlock = opts.OnRetrieveBlock
 	s.blockOnEvictedFromWiredList = opts.OnEvictedFromWiredList
+	s.closed = false
 	s.Unlock()
 }

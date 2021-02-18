@@ -43,12 +43,15 @@ var (
 )
 
 func TestWiredListPanic(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run.
-	}
+	// This test is used to repro https://github.com/m3db/m3/issues/2573.
+	// Unfortunately, this bug is due to a race condition and this test does not
+	// consistently reproduce it reliably in short period of time. As such, the
+	// test is configured to run for a very long duration to see if the repro
+	// occurs. Comment out the below SkipNow() to actually run this.
+	t.SkipNow()
 
 	// Small increment to make race condition more likely.
-	tickInterval := 2 * time.Millisecond
+	tickInterval := 5 * time.Millisecond
 
 	nsOpts := namespace.NewOptions().
 		SetRepairEnabled(false).
@@ -106,12 +109,12 @@ func TestWiredListPanic(t *testing.T) {
 				return
 			default:
 				read(t, testSetup, blockSize)
-				time.Sleep(2 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 			}
 		}
 	}()
 
-	time.Sleep(5 * time.Minute)
+	time.Sleep(time.Hour)
 	// Stop reads before tearing down testSetup.
 	doneCh <- struct{}{}
 }
