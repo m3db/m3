@@ -87,17 +87,17 @@ func TestIterator(t *testing.T) {
 	// Construct iterator and run tests.
 	iter := newIterator(context.NewBackground(), searcher, readers)
 
-	require.True(t, iter.HasNext())
+	require.False(t, iter.Done())
 	require.True(t, iter.Next())
 	require.Equal(t, docs[0], iter.Current())
-	require.True(t, iter.HasNext())
+	require.False(t, iter.Done())
 	require.True(t, iter.Next())
 	require.Equal(t, docs[1], iter.Current())
-	require.True(t, iter.HasNext())
+	require.False(t, iter.Done())
 	require.True(t, iter.Next())
 	require.Equal(t, docs[2], iter.Current())
 
-	require.False(t, iter.HasNext())
+	require.True(t, iter.Done())
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -157,5 +157,57 @@ func TestCloseEarly(t *testing.T) {
 
 func TestCloseBeforeNext(t *testing.T) {
 	iter := newIterator(context.NewBackground(), nil, nil)
+	require.NoError(t, iter.Close())
+}
+
+func TestNoReaders(t *testing.T) {
+	iter := newIterator(context.NewBackground(), nil, index.Readers{})
+	require.False(t, iter.Done())
+	require.False(t, iter.Next())
+	require.True(t, iter.Done())
+	require.NoError(t, iter.Close())
+}
+
+func TestEmptyReaders(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	// Set up Searcher.
+	firstPL := roaring.NewPostingsList()
+	secondPL := roaring.NewPostingsList()
+
+	// Set up Readers.
+	firstDocIter := doc.NewMockIterator(mockCtrl)
+	secondDocIter := doc.NewMockIterator(mockCtrl)
+	gomock.InOrder(
+		firstDocIter.EXPECT().Next().Return(false),
+		firstDocIter.EXPECT().Err().Return(nil),
+		firstDocIter.EXPECT().Close().Return(nil),
+
+		secondDocIter.EXPECT().Next().Return(false),
+		secondDocIter.EXPECT().Err().Return(nil),
+		secondDocIter.EXPECT().Close().Return(nil),
+	)
+
+	firstReader := index.NewMockReader(mockCtrl)
+	secondReader := index.NewMockReader(mockCtrl)
+	gomock.InOrder(
+		firstReader.EXPECT().Docs(firstPL).Return(firstDocIter, nil),
+		secondReader.EXPECT().Docs(secondPL).Return(secondDocIter, nil),
+	)
+
+	searcher := search.NewMockSearcher(mockCtrl)
+	gomock.InOrder(
+		searcher.EXPECT().Search(firstReader).Return(firstPL, nil),
+		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
+	)
+
+	readers := index.Readers{firstReader, secondReader}
+
+	// Construct iterator and run tests.
+	iter := newIterator(context.NewBackground(), searcher, readers)
+	require.False(t, iter.Done())
+	require.False(t, iter.Next())
+	require.True(t, iter.Done())
 	require.NoError(t, iter.Close())
 }

@@ -70,15 +70,12 @@ func (it *iterator) SearchDuration() time.Duration {
 	return it.totalSearchDuration
 }
 
-func (it *iterator) HasNext() bool {
-	if it.err != nil || it.done {
-		return false
-	}
-	return true
+func (it *iterator) Done() bool {
+	return it.done
 }
 
 func (it *iterator) Next() bool {
-	if !it.HasNext() {
+	if it.err != nil || it.done {
 		return false
 	}
 	if it.iters == nil {
@@ -105,6 +102,9 @@ func (it *iterator) Next() bool {
 }
 
 func (it *iterator) next() bool {
+	if it.idx == len(it.iters) {
+		return false
+	}
 	currIter := it.iters[it.idx]
 	for !currIter.Next() {
 		// Check if the current iterator encountered an error.

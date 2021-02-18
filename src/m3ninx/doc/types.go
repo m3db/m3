@@ -67,10 +67,11 @@ type Iterator interface {
 type QueryDocIterator interface {
 	Iterator
 
-	// HasNext returns true if Next() will return true on the next call.
-	// This allows peeking if there is another result before processing the result. This is used by the index query path
-	// to check if there are more docs to process before waiting for an index worker.
-	HasNext() bool
+	// Done returns true if iterator is done and Next will return false on the next call. On the first call this will
+	// always return false and Next may still return false for an empty iterator.
+	// This is used by the index query path to check if there are more docs to process before waiting for an index
+	// worker.
+	Done() bool
 
 	// SearchDuration is how long it took to search for documents while iterating.
 	SearchDuration() time.Duration
