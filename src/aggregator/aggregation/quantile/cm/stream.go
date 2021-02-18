@@ -69,8 +69,8 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 	s := &Stream{
 		eps:                    opts.Eps(),
 		computedQuantiles:      make([]float64, len(quantiles)),
-		capacity:               64,
-		insertAndCompressEvery: 1024, //opts.InsertAndCompressEvery(),
+		capacity:               opts.Capacity(),
+		insertAndCompressEvery: opts.InsertAndCompressEvery(),
 		sampleBuf:              []*Sample{},
 		sampleBufs:             make([]*[]Sample, 0, 4),
 		floatsPool:             opts.FloatsPool(),
@@ -180,7 +180,7 @@ func (s *Stream) calcQuantiles() {
 		curr      = s.samples.Front()
 		numVals   = float64(s.numValues)
 		rank      = int64(math.Ceil(q * numVals))
-		threshold = int64(math.Ceil(s.threshold(float64(rank), numVals) / 2.0))
+		threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
 	)
 
 	for curr != nil {
@@ -193,7 +193,7 @@ func (s *Stream) calcQuantiles() {
 			idx++
 			q = s.quantiles[idx]
 			rank = int64(math.Ceil(q * numVals))
-			threshold = int64(math.Ceil(s.threshold(float64(rank), numVals) / 2.0))
+			threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
 		}
 		minRank += curr.numRanks
 		prev = curr
@@ -253,7 +253,7 @@ func (s *Stream) Close() {
 		}
 		sharedSamplePool.Put(s.sampleBufs[i])
 		//panic("z")
-		//s.sampleBufs[i] = nil
+		s.sampleBufs[i] = nil
 	}
 	//if len(s.sampleBufs) > 0 {
 	//	spew.Dump(s.sampleBufs)
@@ -381,14 +381,13 @@ func (s *Stream) compress() {
 		s.compressCursor = s.compressCursor.prev
 	}
 
-	numVals := float64(s.numValues)
 	for s.compressCursor != s.samples.Front() {
 		next := s.compressCursor.next
-		maxRank := float64(s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta)
+		maxRank := s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta
 		s.compressMinRank -= s.compressCursor.numRanks
-		threshold := s.threshold(maxRank, numVals)
+		threshold := s.threshold(maxRank)
 
-		testVal := float64(s.compressCursor.numRanks + next.numRanks + next.delta)
+		testVal := s.compressCursor.numRanks + next.numRanks + next.delta
 		if testVal <= threshold {
 			if s.insertCursor == s.compressCursor {
 				s.insertCursor = next
@@ -411,28 +410,22 @@ func (s *Stream) compress() {
 }
 
 // threshold computes the minimum threshold value.
-func (s *Stream) threshold(rank float64, numValues float64) float64 {
-	var (
-		minVal      = math.MaxFloat64
-		idx         int
-		quantileMin float64
-		quantile    float64
-	)
-For: // TODO: remove me once on go 1.16+
-	if idx == len(s.quantiles) {
-		return minVal
+// threshold computes the minimum threshold value.
+func (s *Stream) threshold(rank int64) int64 {
+	minVal := int64(math.MaxInt64)
+	for _, quantile := range s.quantiles {
+		var quantileMin int64
+		if float64(rank) >= quantile*float64(s.numValues) {
+			quantileMin = int64(2 * s.eps * float64(rank) / quantile)
+		} else {
+			quantileMin = int64(2 * s.eps * float64(s.numValues-rank) / (1 - quantile))
+		}
+		if quantileMin < minVal {
+			minVal = quantileMin
+		}
 	}
-	quantile = s.quantiles[idx]
-	if rank >= quantile*numValues {
-		quantileMin = 2 * s.eps * rank / quantile
-	} else {
-		quantileMin = 2 * s.eps * (numValues - rank) / (1 - quantile)
-	}
-	if quantileMin < minVal {
-		minVal = quantileMin
-	}
-	idx++
-	goto For
+
+	return minVal
 }
 
 // resetInsertCursor resets the insert cursor.
