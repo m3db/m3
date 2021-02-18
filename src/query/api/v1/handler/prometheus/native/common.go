@@ -22,7 +22,6 @@ package native
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -275,10 +274,10 @@ type RenderResultsResult struct {
 
 // RenderResultsJSON renders results in JSON for range queries.
 func RenderResultsJSON(
-	w io.Writer,
+	jw json.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,
-) (RenderResultsResult, error) {
+) RenderResultsResult {
 	var (
 		series             = result.Series
 		warnings           = result.Meta.WarningStrings()
@@ -292,7 +291,6 @@ func RenderResultsJSON(
 		series = filterNaNSeries(series, opts.Start, opts.End)
 	}
 
-	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -384,12 +382,12 @@ func RenderResultsJSON(
 		Datapoints:             datapointsRendered,
 		TotalSeries:            len(series),
 		LimitedMaxReturnedData: limited,
-	}, jw.Close()
+	}
 }
 
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
-	w io.Writer,
+	jw json.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,
 ) RenderResultsResult {
@@ -407,7 +405,6 @@ func renderResultsInstantaneousJSON(
 		resultType = "scalar"
 	}
 
-	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -480,7 +477,6 @@ func renderResultsInstantaneousJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	jw.Close()
 
 	return RenderResultsResult{
 		LimitedMaxReturnedData: limited,
