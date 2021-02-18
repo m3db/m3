@@ -162,10 +162,15 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.returnedDataMetrics.FetchSeries.RecordValue(float64(limited.Series))
 
 	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
-	Respond(w, &QueryData{
+	err = Respond(w, &QueryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
 	}, res.Warnings)
+	if err != nil {
+		h.logger.Error("error writing prom response",
+			zap.Error(res.Err), zap.String("query", params.Query),
+			zap.Bool("instant", h.opts.instant))
+	}
 }
 
 func (h *readHandler) limitReturnedData(query string,
