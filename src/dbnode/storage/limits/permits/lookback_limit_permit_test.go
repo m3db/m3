@@ -23,15 +23,15 @@ package permits
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestLookbackLimitPermitIncBy(t *testing.T) {
-	lookbackLimit := NewTestLookbackLimit()
+	lookbackLimit := newTestLookbackLimit()
 	manager := newManager(t, lookbackLimit, 2)
 
 	ctx := context.NewBackground()
@@ -48,6 +48,7 @@ func TestLookbackLimitPermitIncBy(t *testing.T) {
 }
 
 func newManager(t *testing.T, limit limits.LookbackLimit, incBy int) *LookbackLimitPermitManager {
+	t.Helper()
 	mgr := NewLookbackLimitPermitsManager(
 		instrument.NewTestOptions(t),
 		limits.DefaultLookbackLimitOptions(),
@@ -61,7 +62,7 @@ func newManager(t *testing.T, limit limits.LookbackLimit, incBy int) *LookbackLi
 	return mgr
 }
 
-func NewTestLookbackLimit() *testLookbackLimit {
+func newTestLookbackLimit() *testLookbackLimit {
 	return &testLookbackLimit{}
 }
 
@@ -73,8 +74,8 @@ func (t *testLookbackLimit) Options() limits.LookbackLimitOptions {
 	panic("implement me")
 }
 
-func (t *testLookbackLimit) Inc(new int, _ []byte) error {
-	t.count += new
+func (t *testLookbackLimit) Inc(inc int, _ []byte) error {
+	t.count += inc
 	return nil
 }
 
