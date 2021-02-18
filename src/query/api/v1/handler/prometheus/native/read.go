@@ -183,7 +183,6 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if renderResult.LimitedMaxReturnedData {
 		if err := WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
-			Limited:     true,
 			Series:      renderResult.Series,
 			TotalSeries: renderResult.TotalSeries,
 			Datapoints:  renderResult.Datapoints,

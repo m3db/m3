@@ -148,18 +148,18 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Bool("instant", h.opts.instant))
 	}
 
-	limited := h.limitReturnedData(query, res, fetchOptions)
+	limited, data := h.limitReturnedData(query, res, fetchOptions)
 
-	if limited.Limited {
-		if err := native.WriteReturnedDataLimitedHeader(w, limited); err != nil {
+	if limited {
+		if err := native.WriteReturnedDataLimitedHeader(w, data); err != nil {
 			h.logger.Error("error writing returned data limited header",
 				zap.Error(err), zap.String("query", query),
 				zap.Bool("instant", h.opts.instant))
 		}
 	}
 
-	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(limited.Datapoints))
-	h.returnedDataMetrics.FetchSeries.RecordValue(float64(limited.Series))
+	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(data.Datapoints))
+	h.returnedDataMetrics.FetchSeries.RecordValue(float64(data.Series))
 
 	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 	err = Respond(w, &QueryData{
@@ -176,7 +176,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *readHandler) limitReturnedData(query string,
 	res *promql.Result,
 	fetchOpts *storage.FetchOptions,
-) native.ReturnedDataLimited {
+) (bool, native.ReturnedDataLimited) {
 	var (
 		seriesLimit     = fetchOpts.ReturnedSeriesLimit
 		datapointsLimit = fetchOpts.ReturnedDatapointsLimit
@@ -254,8 +254,7 @@ func (h *readHandler) limitReturnedData(query string,
 		}
 	}
 
-	return native.ReturnedDataLimited{
-		Limited:     limited,
+	return limited, native.ReturnedDataLimited{
 		Series:      series,
 		Datapoints:  datapoints,
 		TotalSeries: seriesTotal,
