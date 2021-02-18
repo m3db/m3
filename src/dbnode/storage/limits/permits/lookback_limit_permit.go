@@ -46,15 +46,13 @@ var _ Permits = (*lookbackLimitPermit)(nil)
 
 // NewLookbackLimitPermitsManager builds a new lookback limit permits manager.
 func NewLookbackLimitPermitsManager(
-	instrumentOpts instrument.Options,
-	opts limits.LookbackLimitOptions,
 	name string,
+	opts limits.LookbackLimitOptions,
+	instrumentOpts instrument.Options,
 	sourceLoggerBuilder limits.SourceLoggerBuilder,
-	tags map[string]string,
 	incBy int,
 ) *LookbackLimitPermitManager {
-	lookbackLimit := limits.NewLookbackLimit(
-		instrumentOpts, opts, name, sourceLoggerBuilder, tags)
+	lookbackLimit := limits.NewLookbackLimit(name, opts, instrumentOpts, sourceLoggerBuilder)
 
 	// We expose this implementation type to allow caller to use Start/Stop
 	// lookback functions which are not part of the Permits interface.

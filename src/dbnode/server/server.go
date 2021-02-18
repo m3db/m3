@@ -466,12 +466,11 @@ func Run(runOpts RunOptions) {
 	}
 	queryLimits.Start()
 	defer queryLimits.Stop()
-	seriesReadPermits := permits.NewLookbackLimitPermitsManager(iOpts,
-		diskSeriesReadLimit,
+	seriesReadPermits := permits.NewLookbackLimitPermitsManager(
 		"disk-series-read",
+		diskSeriesReadLimit,
+		iOpts,
 		limitOpts.SourceLoggerBuilder(),
-		// TODO: Add appropriate tags here.
-		map[string]string{},
 		runOpts.Config.FetchTagged.SeriesBlocksPerBatchOrDefault(),
 	)
 	seriesReadPermits.Start()
