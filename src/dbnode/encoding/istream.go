@@ -97,8 +97,7 @@ func (is *IStream) PeekBits(numBits uint8) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	rem := 8 * bytes
-	if rem < bitsNeeded {
+	if rem := 8 * bytes; rem < bitsNeeded {
 		return 0, io.EOF
 	}
 	return res | readBitsInWord(next, bitsNeeded), nil

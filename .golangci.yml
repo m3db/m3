@@ -303,4 +303,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: origin/master
+  new-from-rev: 30e1c10d456af9d3778288cfb7c247ecd06a4339

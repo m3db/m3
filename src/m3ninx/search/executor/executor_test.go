@@ -37,6 +37,7 @@ type testIterator struct{}
 
 func newTestIterator() testIterator { return testIterator{} }
 
+func (it testIterator) Done() bool                    { return true }
 func (it testIterator) Next() bool                    { return false }
 func (it testIterator) Current() doc.Document         { return doc.Document{} }
 func (it testIterator) SearchDuration() time.Duration { return time.Millisecond }

@@ -41,6 +41,7 @@ func TestBytesReader64(t *testing.T) {
 }
 
 func testBytesReader64(t *testing.T, r *BytesReader64, data []byte) {
+	t.Helper()
 	r.Reset(data)
 
 	var (

@@ -53,6 +53,8 @@ type iterator struct {
 	// mutable state
 	idx     int
 	currDoc doc.Document
+	nextDoc doc.Document
+	done    bool
 	err     error
 }
 
@@ -68,8 +70,12 @@ func (it *iterator) SearchDuration() time.Duration {
 	return it.totalSearchDuration
 }
 
+func (it *iterator) Done() bool {
+	return it.err != nil || it.done
+}
+
 func (it *iterator) Next() bool {
-	if it.err != nil {
+	if it.Done() {
 		return false
 	}
 	if it.iters == nil {
@@ -79,12 +85,27 @@ func (it *iterator) Next() bool {
 			return false
 		}
 		it.totalSearchDuration = time.Since(start)
+		if !it.next() {
+			it.done = true
+			return false
+		}
+		it.nextDoc = it.current()
 	}
+
+	it.currDoc = it.nextDoc
+	if it.next() {
+		it.nextDoc = it.current()
+	} else {
+		it.done = true
+	}
+	return true
+}
+
+func (it *iterator) next() bool {
 	if it.idx == len(it.iters) {
 		return false
 	}
 	currIter := it.iters[it.idx]
-
 	for !currIter.Next() {
 		// Check if the current iterator encountered an error.
 		if err := currIter.Err(); err != nil {
@@ -105,9 +126,11 @@ func (it *iterator) Next() bool {
 		}
 		currIter = it.iters[it.idx]
 	}
-
-	it.currDoc = currIter.Current()
 	return true
+}
+
+func (it *iterator) current() doc.Document {
+	return it.iters[it.idx].Current()
 }
 
 func (it *iterator) Current() doc.Document {
