@@ -89,7 +89,7 @@ func (s *Stream) AddBatch(values []float64) {
 
 	s.ensureHeapSize(&s.bufLess, len(values))
 	s.ensureHeapSize(&s.bufMore, len(values))
-	//fmt.Println("az", s.bufMore)
+
 	insertPointValue := s.insertPointValue()
 	for _, value := range values {
 		if s.numValues > 0 && value < insertPointValue {
@@ -99,13 +99,7 @@ func (s *Stream) AddBatch(values []float64) {
 		}
 		s.insertAndCompressCounter++
 		if s.insertAndCompressCounter == s.insertAndCompressEvery {
-			//for i := 0; i < s.insertAndCompressEvery; i++ {
 			s.insert()
-			////}
-			//if s.bufLess.Len() != 0 {
-			//	s.resetInsertCursor()
-			//	s.insert()
-			//}
 			s.compress()
 			s.insertAndCompressCounter = 0
 		}
@@ -121,7 +115,7 @@ func (s *Stream) Flush() {
 		return
 	}
 	//fmt.Println("samples ", s.samples.len, " num ", s.numValues, " insertevery ",
-	//	s.insertAndCompressEvery, " flushevery ", s.flushEvery,
+	//	s.insertAndCompressEvery,
 	//	" bfmore ", s.bufMore.Len(), "bfless", s.bufLess.Len())
 	for s.bufLess.Len() > 0 || s.bufMore.Len() > 0 {
 		if s.bufMore.Len() == 0 {
