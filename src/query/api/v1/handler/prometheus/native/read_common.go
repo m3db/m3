@@ -283,7 +283,6 @@ func read(
 
 // ReturnedDataLimited are parsed options for the query.
 type ReturnedDataLimited struct {
-	Limited    bool
 	Series     int
 	Datapoints int
 

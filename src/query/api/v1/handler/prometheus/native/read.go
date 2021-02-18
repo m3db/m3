@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -164,11 +165,17 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
 	}
 
-	var renderResult RenderResultsResult
+	// First invoke the results rendering with a noop writer in order to
+	// check the returned-data limits. This must be done before the actual rendering
+	// so that we can add the returned-data-limited header which must precede body writing.
+	var (
+		renderResult RenderResultsResult
+		noopWriter   = json.NewNoopWriter()
+	)
 	if h.instant {
-		renderResult = renderResultsInstantaneousJSON(w, result, renderOpts)
+		renderResult = renderResultsInstantaneousJSON(noopWriter, result, renderOpts)
 	} else {
-		renderResult, err = RenderResultsJSON(w, result, renderOpts)
+		renderResult = RenderResultsJSON(noopWriter, result, renderOpts)
 	}
 
 	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
@@ -176,7 +183,6 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if renderResult.LimitedMaxReturnedData {
 		if err := WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
-			Limited:     true,
 			Series:      renderResult.Series,
 			TotalSeries: renderResult.TotalSeries,
 			Datapoints:  renderResult.Datapoints,
@@ -185,7 +191,15 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err != nil {
+	// Write the actual results after having checked for limits and wrote headers if needed.
+	responseWriter := json.NewWriter(w)
+	if h.instant {
+		_ = renderResultsInstantaneousJSON(responseWriter, result, renderOpts)
+	} else {
+		_ = RenderResultsJSON(responseWriter, result, renderOpts)
+	}
+
+	if responseWriter.Close() != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		logger.Error("failed to render results", zap.Error(err))
 	} else {
