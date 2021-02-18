@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -97,6 +98,8 @@ func TestTimerAggregations(t *testing.T) {
 	require.Equal(t, 0.0, timer.Max())
 	require.Equal(t, 0.0, timer.Mean())
 	require.Equal(t, 0.0, timer.Stdev())
+	fmt.Println(timer.Quantile(0.99))
+	fmt.Println(timer.Quantile(0.95))
 	require.Equal(t, 0.0, timer.Quantile(0.5))
 	require.Equal(t, 0.0, timer.Quantile(0.95))
 	require.Equal(t, 0.0, timer.Quantile(0.99))

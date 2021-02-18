@@ -36,13 +36,13 @@ const (
 var sharedHeapPool heapPool
 
 type heapPool struct {
-	pools []sync.Pool
+	pools []*sync.Pool
 	sizes []int
 }
 
 func newHeapPool() heapPool {
 	p := heapPool{
-		pools: make([]sync.Pool, _heapSizeBuckets),
+		pools: make([]*sync.Pool, _heapSizeBuckets),
 		sizes: make([]int, _heapSizeBuckets),
 	}
 	sz := _initialHeapBucketSize
@@ -51,7 +51,7 @@ func newHeapPool() heapPool {
 		size := sz
 
 		p.sizes[i] = size
-		p.pools[i] = sync.Pool{
+		p.pools[i] = &sync.Pool{
 			New: func() interface{} {
 				buf := make(minHeap, 0, size)
 				return &buf

@@ -54,7 +54,6 @@ type Stream struct {
 	insertCursor             *Sample    // insertion cursor
 	compressCursor           *Sample    // compression cursor
 	compressMinRank          int64      // compression min rank
-	heapBufs                 [][]float64
 	sampleBuf                []*Sample
 	sampleBufs               []*[]Sample
 	closed                   bool // whether the stream is closed
@@ -240,6 +239,11 @@ func (s *Stream) Close() {
 		s.floatsPool.Put(s.bufLess)
 	}
 
+	//s.sampleBuf = s.sampleBuf[:cap(s.sampleBuf)]
+	//for i := range s.sampleBuf {
+	//	s.sampleBuf[i].next, s.sampleBuf[i].prev = nil, nil
+	//}
+
 	s.sampleBuf = s.sampleBuf[:0]
 	for i := range s.sampleBufs {
 		buf := *s.sampleBufs[i]
@@ -248,9 +252,13 @@ func (s *Stream) Close() {
 			smp.next, smp.prev = nil, nil
 		}
 		sharedSamplePool.Put(s.sampleBufs[i])
-		s.sampleBufs[i] = nil
+		//panic("z")
+		//s.sampleBufs[i] = nil
 	}
-	s.sampleBufs = s.sampleBufs[:0]
+	//if len(s.sampleBufs) > 0 {
+	//	spew.Dump(s.sampleBufs)
+	//}
+	s.sampleBufs = nil
 
 	// Clear out slices/lists/pointer to reduce GC overhead.
 	s.samples.Reset()
@@ -272,7 +280,6 @@ func (s *Stream) ensureHeapSize(heap *minHeap, new int) {
 			targetCap = s.capacity
 		}
 		newHeap := s.floatsPool.Get(targetCap)
-		s.heapBufs = append(s.heapBufs, newHeap)
 		newHeap = append(newHeap, curr...)
 		s.floatsPool.Put(curr)
 		*heap = newHeap
@@ -300,8 +307,8 @@ func (s *Stream) insert() {
 		s.numValues++
 	}
 
-	s.bufLess.ShiftUp()
-	s.bufMore.ShiftUp()
+	//s.bufLess.ShiftUp()
+	//s.bufMore.ShiftUp()
 
 	var (
 		insertPointValue = s.insertCursor.value
@@ -314,7 +321,8 @@ func (s *Stream) insert() {
 	if compCur != nil {
 		compValue = compCur.value
 	}
-
+	//fmt.Println(s.bufMore.Min())
+	//panic("")
 	for s.insertCursor != nil {
 		curr := *s.insertCursor
 		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
