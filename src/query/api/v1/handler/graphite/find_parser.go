@@ -151,7 +151,7 @@ func findResultsJSON(
 }
 
 func writeFindNodeResultJSON(
-	jw *json.Writer,
+	jw json.Writer,
 	prefix string,
 	value string,
 	descriptor nodeDescriptor,
@@ -167,7 +167,7 @@ func writeFindNodeResultJSON(
 }
 
 func writeFindResultJSON(
-	jw *json.Writer,
+	jw json.Writer,
 	id string,
 	value string,
 	hasChildren bool,
