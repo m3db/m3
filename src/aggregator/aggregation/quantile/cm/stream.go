@@ -213,8 +213,8 @@ func (s *Stream) ResetSetData(quantiles []float64) {
 	s.insertCursor = nil
 	s.compressCursor = nil
 	s.compressMinRank = 0
-	s.bufMore = s.floatsPool.Get(s.capacity)
-	s.bufLess = s.floatsPool.Get(s.capacity)
+	//s.bufMore = s.floatsPool.Get(s.capacity)
+	//s.bufLess = s.floatsPool.Get(s.capacity)
 }
 
 func (s *Stream) Close() {
@@ -223,9 +223,13 @@ func (s *Stream) Close() {
 	}
 	s.closed = true
 
-	s.floatsPool.Put(s.bufMore)
-	s.floatsPool.Put(s.bufLess)
+	if s.bufMore != nil {
+		s.floatsPool.Put(s.bufMore)
+	}
 
+	if s.bufLess != nil {
+		s.floatsPool.Put(s.bufLess)
+	}
 	s.sampleBuf = s.sampleBuf[:0]
 	for i := range s.sampleBufs {
 		buf := *s.sampleBufs[i]
@@ -254,6 +258,9 @@ func (s *Stream) ensureHeapSize(heap *minHeap, new int) {
 	)
 
 	if targetCap >= cap(curr) {
+		if targetCap < s.capacity {
+			targetCap = s.capacity
+		}
 		newHeap := s.floatsPool.Get(2 * targetCap)
 		newHeap = append(newHeap, curr...)
 		s.floatsPool.Put(curr)
@@ -263,12 +270,13 @@ func (s *Stream) ensureHeapSize(heap *minHeap, new int) {
 
 // insert inserts a sample into the stream.
 func (s *Stream) insert() {
+	var sample *Sample
+
 	if s.samples.Len() == 0 {
 		if s.bufMore.Len() == 0 {
 			return
 		}
 
-		var sample *Sample
 		if sample = s.tryAcquireSample(); sample == nil {
 			sample = s.acquireSample()
 		}
@@ -277,31 +285,28 @@ func (s *Stream) insert() {
 		sample.numRanks = 1
 		sample.delta = 0
 		s.samples.PushBack(sample)
+		s.insertCursor = s.samples.Front()
 		s.numValues++
 	}
 
 	s.bufLess.ShiftUp()
 	s.bufMore.ShiftUp()
 
-	if s.insertCursor == nil {
-		s.insertCursor = s.samples.Front()
-	}
-
-	var insertPointValue float64
-	if s.insertCursor != nil {
+	var (
 		insertPointValue = s.insertCursor.value
-	}
-	minRank := s.compressMinRank
-	numValues := s.numValues
-	compCur := s.compressCursor
-	var compValue float64
+		minRank          = s.compressMinRank
+		numValues        = s.numValues
+		compCur          = s.compressCursor
+		compValue        float64
+	)
+
 	if compCur != nil {
 		compValue = compCur.value
 	}
+
 	for s.insertCursor != nil {
 		curr := *s.insertCursor
 		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
-			var sample *Sample
 			if sample = s.tryAcquireSample(); sample == nil {
 				sample = s.acquireSample()
 			}
@@ -331,7 +336,6 @@ func (s *Stream) insert() {
 	}
 
 	for s.bufMore.Len() > 0 && s.bufMore.Min() >= s.samples.Back().value {
-		var sample *Sample
 		if sample = s.tryAcquireSample(); sample == nil {
 			sample = s.acquireSample()
 		}
@@ -415,7 +419,7 @@ For: // TODO: remove me once on go 1.16+
 // resetInsertCursor resets the insert cursor.
 func (s *Stream) resetInsertCursor() {
 	s.bufLess, s.bufMore = s.bufMore, s.bufLess
-	s.insertCursor = nil
+	s.insertCursor = s.samples.Front()
 }
 
 // insertPointValue returns the value under the insertion cursor.
@@ -446,7 +450,6 @@ func (s *Stream) tryAcquireSample() *Sample {
 
 	sample := sbuf[l-1]
 	s.sampleBuf = sbuf[:l-1]
-	//(*sample) = emptySample
 	sample.next, sample.prev = nil, nil
 
 	return sample
@@ -469,7 +472,6 @@ func (s *Stream) acquireSample() *Sample {
 	l := len(s.sampleBuf)
 	sample := s.sampleBuf[l-1]
 	s.sampleBuf = s.sampleBuf[:l-1]
-	//(*sample) = emptySample
 	sample.next, sample.prev = nil, nil
 
 	return sample
@@ -479,8 +481,7 @@ func (s *Stream) releaseSample(sample *Sample) {
 	if sample == nil {
 		return
 	}
-	//(*sample) = emptySample
-	sample.next, sample.prev = nil, nil
 
+	sample.next, sample.prev = nil, nil
 	s.sampleBuf = append(s.sampleBuf, sample)
 }

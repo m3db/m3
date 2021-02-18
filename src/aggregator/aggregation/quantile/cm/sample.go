@@ -20,8 +20,6 @@
 
 package cm
 
-var emptySample Sample
-
 // Sample represents a sampled value.
 type Sample struct {
 	value    float64 // sampled value
@@ -29,22 +27,4 @@ type Sample struct {
 	delta    int64   // delta between min rank and max rank
 	prev     *Sample // previous sample
 	next     *Sample // next sample
-}
-
-// newSample creates a new sample.
-func newSample() *Sample {
-	return &Sample{}
-}
-
-// reset resets a sample.
-func (s *Sample) reset() {
-	*s = emptySample
-}
-
-// setData sets sample data.
-// nolint: unparam
-func (s *Sample) setData(value float64, numRanks int64, delta int64) {
-	s.value = value
-	s.numRanks = numRanks
-	s.delta = delta
 }
