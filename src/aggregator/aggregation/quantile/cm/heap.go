@@ -32,20 +32,21 @@ func (h minHeap) Len() int { return len(h) }
 // Min returns the minimum value from the heap.
 func (h minHeap) Min() float64 { return h[0] }
 
-// Push pushes a value onto the heap.
+// Push pushes a value onto the heap. ShiftUp must be called to maintain invariant - it is much
+// faster than making sure the items are in order after each push.
 func (h *minHeap) Push(value float64) {
-	// append
 	*h = append(*h, value)
+}
 
-	// then, shift up if necessary. manually inlined.
-	heap := *h
-	i := len(heap) - 1
+// ShiftUp restructures the element list after additions to maintain heap structure.
+func (h minHeap) ShiftUp() {
+	i := len(h) - 1
 	for {
 		parent := (i - 1) / 2
-		if parent == i || heap[parent] <= heap[i] {
+		if parent == i || h[parent] <= h[i] {
 			return
 		}
-		heap[parent], heap[i] = heap[i], heap[parent]
+		h[parent], h[i] = h[i], h[parent]
 		i = parent
 	}
 }

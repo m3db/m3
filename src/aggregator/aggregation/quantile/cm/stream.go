@@ -70,6 +70,7 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 		computedQuantiles:      make([]float64, len(quantiles)),
 		capacity:               64,
 		insertAndCompressEvery: 1024, //opts.InsertAndCompressEvery(),
+		sampleBuf:              make([]*Sample, 0, 64),
 		sampleBufs:             make([]*[]Sample, 0, 16),
 		floatsPool:             opts.FloatsPool(),
 
@@ -178,7 +179,7 @@ func (s *Stream) calcQuantiles() {
 		curr      = s.samples.Front()
 		numVals   = float64(s.numValues)
 		rank      = int64(math.Ceil(q * numVals))
-		threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
+		threshold = int64(math.Ceil(s.threshold(float64(rank), numVals) / 2.0))
 	)
 
 	for curr != nil {
@@ -191,7 +192,7 @@ func (s *Stream) calcQuantiles() {
 			idx++
 			q = s.quantiles[idx]
 			rank = int64(math.Ceil(q * numVals))
-			threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
+			threshold = int64(math.Ceil(s.threshold(float64(rank), numVals) / 2.0))
 		}
 		minRank += curr.numRanks
 		prev = curr
@@ -212,6 +213,8 @@ func (s *Stream) ResetSetData(quantiles []float64) {
 	s.insertCursor = nil
 	s.compressCursor = nil
 	s.compressMinRank = 0
+	s.bufMore = s.floatsPool.Get(s.capacity)
+	s.bufLess = s.floatsPool.Get(s.capacity)
 }
 
 func (s *Stream) Close() {
@@ -225,6 +228,11 @@ func (s *Stream) Close() {
 
 	s.sampleBuf = s.sampleBuf[:0]
 	for i := range s.sampleBufs {
+		buf := *s.sampleBufs[i]
+		for j := range buf {
+			smp := &buf[j]
+			smp.next, smp.prev = nil, nil
+		}
 		sharedSamplePool.Put(s.sampleBufs[i])
 		s.sampleBufs[i] = nil
 	}
@@ -260,15 +268,20 @@ func (s *Stream) insert() {
 			return
 		}
 
-		sample := s.acquireSample()
+		var sample *Sample
+		if sample = s.tryAcquireSample(); sample == nil {
+			sample = s.acquireSample()
+		}
 
 		sample.value = s.bufMore.Pop()
 		sample.numRanks = 1
 		sample.delta = 0
-		sample.prev, sample.next = nil, nil
 		s.samples.PushBack(sample)
 		s.numValues++
 	}
+
+	s.bufLess.ShiftUp()
+	s.bufMore.ShiftUp()
 
 	if s.insertCursor == nil {
 		s.insertCursor = s.samples.Front()
@@ -288,12 +301,14 @@ func (s *Stream) insert() {
 	for s.insertCursor != nil {
 		curr := *s.insertCursor
 		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
-			sample := s.acquireSample()
+			var sample *Sample
+			if sample = s.tryAcquireSample(); sample == nil {
+				sample = s.acquireSample()
+			}
 			val := s.bufMore.Pop()
 			sample.value = val
 			sample.numRanks = 1
 			sample.delta = curr.numRanks + curr.delta - 1
-			sample.prev, sample.next = nil, nil
 
 			s.samples.InsertBefore(sample, s.insertCursor)
 			numValues++
@@ -316,11 +331,13 @@ func (s *Stream) insert() {
 	}
 
 	for s.bufMore.Len() > 0 && s.bufMore.Min() >= s.samples.Back().value {
-		sample := s.acquireSample()
+		var sample *Sample
+		if sample = s.tryAcquireSample(); sample == nil {
+			sample = s.acquireSample()
+		}
 		sample.value = s.bufMore.Pop()
 		sample.numRanks = 1
 		sample.delta = 0
-		sample.prev, sample.next = nil, nil
 		s.samples.PushBack(sample)
 		s.numValues++
 	}
@@ -341,24 +358,14 @@ func (s *Stream) compress() {
 		s.compressCursor = s.compressCursor.prev
 	}
 
+	numVals := float64(s.numValues)
 	for s.compressCursor != s.samples.Front() {
 		next := s.compressCursor.next
-		maxRank := s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta
+		maxRank := float64(s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta)
 		s.compressMinRank -= s.compressCursor.numRanks
-		threshold := int64(math.MaxInt64)
-		for _, quantile := range s.quantiles {
-			var quantileMin int64
-			if float64(maxRank) >= quantile*float64(s.numValues) {
-				quantileMin = int64(2 * s.eps * float64(maxRank) / quantile)
-			} else {
-				quantileMin = int64(2 * s.eps * float64(s.numValues-maxRank) / (1 - quantile))
-			}
-			if quantileMin < threshold {
-				threshold = quantileMin
-			}
-		}
+		threshold := s.threshold(maxRank, numVals)
 
-		testVal := s.compressCursor.numRanks + next.numRanks + next.delta
+		testVal := float64(s.compressCursor.numRanks + next.numRanks + next.delta)
 		if testVal <= threshold {
 			if s.insertCursor == s.compressCursor {
 				s.insertCursor = next
@@ -381,21 +388,28 @@ func (s *Stream) compress() {
 }
 
 // threshold computes the minimum threshold value.
-func (s *Stream) threshold(rank int64) int64 {
-	minVal := int64(math.MaxInt64)
-	for _, quantile := range s.quantiles {
-		var quantileMin int64
-		if float64(rank) >= quantile*float64(s.numValues) {
-			quantileMin = int64(2 * s.eps * float64(rank) / quantile)
-		} else {
-			quantileMin = int64(2 * s.eps * float64(s.numValues-rank) / (1 - quantile))
-		}
-		if quantileMin < minVal {
-			minVal = quantileMin
-		}
+func (s *Stream) threshold(rank float64, numValues float64) float64 {
+	var (
+		minVal      = math.MaxFloat64
+		idx         int
+		quantileMin float64
+		quantile    float64
+	)
+For: // TODO: remove me once on go 1.16+
+	if idx == len(s.quantiles) {
+		return minVal
 	}
-
-	return minVal
+	quantile = s.quantiles[idx]
+	if rank >= quantile*numValues {
+		quantileMin = 2 * s.eps * rank / quantile
+	} else {
+		quantileMin = 2 * s.eps * (numValues - rank) / (1 - quantile)
+	}
+	if quantileMin < minVal {
+		minVal = quantileMin
+	}
+	idx++
+	goto For
 }
 
 // resetInsertCursor resets the insert cursor.
@@ -419,25 +433,45 @@ func (s *Stream) addToMinHeap(heap *minHeap, value float64) {
 	heap.Push(value)
 }
 
-func (s *Stream) acquireSample() *Sample {
-	l := len(s.sampleBuf)
-	if l <= 0 {
-		ss, ok := sharedSamplePool.Get().(*[]Sample)
-		if !ok {
-			return &Sample{}
-		}
+// tryAcquireSample is inline-friendly fastpath to get a sample from preallocated buffer
+func (s *Stream) tryAcquireSample() *Sample {
+	var (
+		sbuf = s.sampleBuf
+		l    = len(sbuf)
+	)
 
-		sbuf := *ss
-		for i := range sbuf {
-			s.sampleBuf = append(s.sampleBuf, &sbuf[i])
-		}
-
-		s.sampleBufs = append(s.sampleBufs, ss) // keep track of all bulk-allocated samples
-		l = len(s.sampleBuf)
+	if l == 0 {
+		return nil
 	}
 
+	sample := sbuf[l-1]
+	s.sampleBuf = sbuf[:l-1]
+	//(*sample) = emptySample
+	sample.next, sample.prev = nil, nil
+
+	return sample
+}
+
+func (s *Stream) acquireSample() *Sample {
+	ss, ok := sharedSamplePool.Get().(*[]Sample)
+	if !ok {
+		return &Sample{}
+	}
+
+	sbuf := *ss
+	for i := range sbuf {
+		s.sampleBuf = append(s.sampleBuf, &sbuf[i])
+	}
+
+	// keep track of all bulk-allocated samples
+	// so we can release memory used by samples to the pool
+	s.sampleBufs = append(s.sampleBufs, ss)
+	l := len(s.sampleBuf)
 	sample := s.sampleBuf[l-1]
 	s.sampleBuf = s.sampleBuf[:l-1]
+	//(*sample) = emptySample
+	sample.next, sample.prev = nil, nil
+
 	return sample
 }
 
@@ -445,6 +479,8 @@ func (s *Stream) releaseSample(sample *Sample) {
 	if sample == nil {
 		return
 	}
+	//(*sample) = emptySample
+	sample.next, sample.prev = nil, nil
 
 	s.sampleBuf = append(s.sampleBuf, sample)
 }
