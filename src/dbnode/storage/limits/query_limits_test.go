@@ -358,10 +358,6 @@ func verifyMetrics(t *testing.T,
 		fmt.Sprintf("query-limit.total-%s", name),
 		map[string]string{"type": "test"})
 
-	for _, c := range snapshot.Counters() {
-		fmt.Println(c.Name(), c.Tags())
-	}
-
 	tallytest.AssertCounterValue(
 		t, expectedExceeded, snapshot,
 		"query-limit.exceeded",
