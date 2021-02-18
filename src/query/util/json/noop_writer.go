@@ -20,8 +20,7 @@
 
 package json
 
-type noopWriter struct {
-}
+type noopWriter struct{}
 
 // NewNoopWriter creates a JSON writer that does nothing.
 func NewNoopWriter() Writer {

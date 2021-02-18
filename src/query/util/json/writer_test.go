@@ -162,6 +162,7 @@ func TestWriteErrors(t *testing.T) {
 }
 
 func testWriteError(t *testing.T, expected string, f func(w Writer)) {
+	t.Helper()
 	var buf bytes.Buffer
 	w := NewWriter(&buf)
 	f(w)
@@ -172,6 +173,7 @@ func testWriteError(t *testing.T, expected string, f func(w Writer)) {
 }
 
 func testWrite(t *testing.T, expected string, f func(w Writer)) {
+	t.Helper()
 	var buf bytes.Buffer
 	w := NewWriter(&buf)
 	f(w)
