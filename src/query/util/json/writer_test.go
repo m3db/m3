@@ -44,6 +44,7 @@ func TestWriteValues(t *testing.T) {
 	})
 	maxTestUTF8Value := 1032
 	for i := 0; i <= maxTestUTF8Value; i++ {
+		i := i
 		switch {
 		case i == int('"') || i == int('\\'):
 			testWrite(t, fmt.Sprintf("\"\\%c\"", rune(i)), func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
@@ -54,7 +55,9 @@ func TestWriteValues(t *testing.T) {
 		case i == int('\t'):
 			testWrite(t, "\"\\t\"", func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
 		case i <= 31:
-			testWrite(t, fmt.Sprintf("\"\\u%s\"", fmt.Sprintf("%U", i)[2:]), func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
+			testWrite(t,
+				fmt.Sprintf("\"\\u%s\"", fmt.Sprintf("%U", i)[2:]),
+				func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
 		default:
 			testWrite(t, fmt.Sprintf("\"%c\"", rune(i)), func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
 		}
@@ -62,22 +65,24 @@ func TestWriteValues(t *testing.T) {
 }
 
 func TestWriteObject(t *testing.T) {
-	testWrite(t, "{\"foo\":null,\"bar\":3.145000,\"zed\":\"Hello World\",\"nan\":null,\"infinity\":null,\"bad\\u0006\":null}", func(w Writer) {
-		w.BeginObject()
-		w.BeginObjectField("foo")
-		w.WriteNull()
-		w.BeginObjectField("bar")
-		w.WriteFloat64(3.145)
-		w.BeginObjectField("zed")
-		w.WriteString("Hello World")
-		w.BeginObjectField("nan")
-		w.WriteFloat64(math.NaN())
-		w.BeginObjectField("infinity")
-		w.WriteFloat64(math.Inf(-1))
-		w.BeginObjectField("bad\x06")
-		w.WriteNull()
-		w.EndObject()
-	})
+	testWrite(t,
+		"{\"foo\":null,\"bar\":3.145000,\"zed\":\"Hello World\",\"nan\":null,\"infinity\":null,\"bad\\u0006\":null}",
+		func(w Writer) {
+			w.BeginObject()
+			w.BeginObjectField("foo")
+			w.WriteNull()
+			w.BeginObjectField("bar")
+			w.WriteFloat64(3.145)
+			w.BeginObjectField("zed")
+			w.WriteString("Hello World")
+			w.BeginObjectField("nan")
+			w.WriteFloat64(math.NaN())
+			w.BeginObjectField("infinity")
+			w.WriteFloat64(math.Inf(-1))
+			w.BeginObjectField("bad\x06")
+			w.WriteNull()
+			w.EndObject()
+		})
 }
 
 func TestWriteArray(t *testing.T) {
