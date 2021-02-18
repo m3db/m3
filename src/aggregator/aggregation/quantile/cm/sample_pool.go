@@ -20,7 +20,20 @@
 
 package cm
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"sync"
+
+	"github.com/m3db/m3/src/x/pool"
+)
+
+const _initSampleListSize = 512
+
+var sharedSamplePool = &sync.Pool{
+	New: func() interface{} {
+		s := make([]Sample, _initSampleListSize)
+		return &s
+	},
+}
 
 type samplePool struct {
 	pool pool.ObjectPool
