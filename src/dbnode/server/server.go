@@ -472,6 +472,7 @@ func Run(runOpts RunOptions) {
 		limitOpts.SourceLoggerBuilder(),
 		// TODO: Add appropriate tags here.
 		map[string]string{},
+		runOpts.Config.FetchTagged.SeriesBlocksPerBatchOrDefault(),
 	)
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
