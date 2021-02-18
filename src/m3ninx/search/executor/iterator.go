@@ -71,11 +71,11 @@ func (it *iterator) SearchDuration() time.Duration {
 }
 
 func (it *iterator) Done() bool {
-	return it.done
+	return it.err != nil || it.done
 }
 
 func (it *iterator) Next() bool {
-	if it.err != nil || it.done {
+	if it.Done() {
 		return false
 	}
 	if it.iters == nil {

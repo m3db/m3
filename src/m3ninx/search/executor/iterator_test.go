@@ -21,6 +21,7 @@
 package executor
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -152,6 +153,60 @@ func TestCloseEarly(t *testing.T) {
 
 	require.True(t, iter.Next())
 	require.Equal(t, docs[0], iter.Current())
+	require.NoError(t, iter.Close())
+}
+
+func TestErrIterating(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	// Set up Searcher.
+	firstPL := roaring.NewPostingsList()
+	secondPL := roaring.NewPostingsList()
+
+	// Set up Readers.
+	docs := []doc.Document{
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes1")}),
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes2")}),
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes3")}),
+	}
+
+	firstDocIter := doc.NewMockIterator(mockCtrl)
+	secondDocIter := doc.NewMockIterator(mockCtrl)
+	gomock.InOrder(
+		firstDocIter.EXPECT().Next().Return(true),
+		firstDocIter.EXPECT().Current().Return(docs[0]),
+		firstDocIter.EXPECT().Next().Return(false),
+		firstDocIter.EXPECT().Err().Return(fmt.Errorf("failed")),
+		firstDocIter.EXPECT().Close().Return(nil),
+		secondDocIter.EXPECT().Close().Return(nil),
+	)
+
+	firstReader := index.NewMockReader(mockCtrl)
+	secondReader := index.NewMockReader(mockCtrl)
+	gomock.InOrder(
+		firstReader.EXPECT().Docs(firstPL).Return(firstDocIter, nil),
+		secondReader.EXPECT().Docs(secondPL).Return(secondDocIter, nil),
+	)
+
+	searcher := search.NewMockSearcher(mockCtrl)
+	gomock.InOrder(
+		searcher.EXPECT().Search(firstReader).Return(firstPL, nil),
+		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
+	)
+
+	readers := index.Readers{firstReader, secondReader}
+
+	// Construct iterator and run tests.
+	iter := newIterator(context.NewBackground(), searcher, readers)
+
+	require.False(t, iter.Done())
+	require.True(t, iter.Next())
+	require.Equal(t, docs[0], iter.Current())
+	require.True(t, iter.Done())
+	require.False(t, iter.Next())
+	require.Error(t, iter.Err())
+	require.True(t, iter.Done())
 	require.NoError(t, iter.Close())
 }
 

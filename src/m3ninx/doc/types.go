@@ -68,7 +68,8 @@ type QueryDocIterator interface {
 	Iterator
 
 	// Done returns true if iterator is done and Next will return false on the next call. On the first call this will
-	// always return false and Next may still return false for an empty iterator.
+	// always return false and Next may still return false for an empty iterator. Callers still need to check for an
+	// Err after Done returns true.
 	// This is used by the index query path to check if there are more docs to process before waiting for an index
 	// worker.
 	Done() bool
