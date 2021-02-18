@@ -102,7 +102,5 @@ func (l *sampleList) Remove(sample *Sample) {
 	} else {
 		next.prev = prev
 	}
-	sample.prev = nil // avoid memory leaks
-	sample.next = nil // avoid memory leaks
 	l.len--
 }
