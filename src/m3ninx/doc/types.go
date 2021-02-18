@@ -45,6 +45,7 @@ type MetadataIterator interface {
 // Iterator provides an iterator over a collection of documents. It is NOT
 // safe for multiple goroutines to invoke methods on an Iterator simultaneously.
 type Iterator interface {
+
 	// Next returns a bool indicating if the iterator has any more documents
 	// to return.
 	Next() bool
@@ -65,6 +66,11 @@ type Iterator interface {
 // QueryDocIterator is an Iterator for all documents returned for a query. See Iterator for more details.
 type QueryDocIterator interface {
 	Iterator
+
+	// HasNext returns true if Next() will return true on the next call.
+	// This allows peeking if there is another result before processing the result. This is used by the index query path
+	// to check if there are more docs to process before waiting for an index worker.
+	HasNext() bool
 
 	// SearchDuration is how long it took to search for documents while iterating.
 	SearchDuration() time.Duration

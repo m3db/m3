@@ -87,13 +87,17 @@ func TestIterator(t *testing.T) {
 	// Construct iterator and run tests.
 	iter := newIterator(context.NewBackground(), searcher, readers)
 
+	require.True(t, iter.HasNext())
 	require.True(t, iter.Next())
 	require.Equal(t, docs[0], iter.Current())
+	require.True(t, iter.HasNext())
 	require.True(t, iter.Next())
 	require.Equal(t, docs[1], iter.Current())
+	require.True(t, iter.HasNext())
 	require.True(t, iter.Next())
 	require.Equal(t, docs[2], iter.Current())
 
+	require.False(t, iter.HasNext())
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -122,6 +126,8 @@ func TestCloseEarly(t *testing.T) {
 	gomock.InOrder(
 		firstDocIter.EXPECT().Next().Return(true),
 		firstDocIter.EXPECT().Current().Return(docs[0]),
+		firstDocIter.EXPECT().Next().Return(true),
+		firstDocIter.EXPECT().Current().Return(docs[1]),
 		firstDocIter.EXPECT().Close().Return(nil),
 		secondDocIter.EXPECT().Close().Return(nil),
 	)
