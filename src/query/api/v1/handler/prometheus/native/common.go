@@ -253,9 +253,24 @@ func filterNaNSeries(
 
 // RenderResultsOptions is a set of options for rendering the result.
 type RenderResultsOptions struct {
-	KeepNaNs bool
-	Start    time.Time
-	End      time.Time
+	KeepNaNs                bool
+	Start                   time.Time
+	End                     time.Time
+	ReturnedSeriesLimit     int
+	ReturnedDatapointsLimit int
+}
+
+// RenderResultsResult is the result from rendering results.
+type RenderResultsResult struct {
+	// Datapoints is the count of datapoints rendered.
+	Datapoints int
+	// Series is the count of series rendered.
+	Series int
+	// TotalSeries is the count of series in total.
+	TotalSeries int
+	// LimitedMaxReturnedData indicates if the results rendering
+	// was truncated by a limit on returned series or datapoints.
+	LimitedMaxReturnedData bool
 }
 
 // RenderResultsJSON renders results in JSON for range queries.
@@ -263,10 +278,13 @@ func RenderResultsJSON(
 	w io.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,
-) error {
+) (RenderResultsResult, error) {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
+		series             = result.Series
+		warnings           = result.Meta.WarningStrings()
+		seriesRendered     = 0
+		datapointsRendered = 0
+		limited            = false
 	)
 
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
@@ -299,6 +317,22 @@ func RenderResultsJSON(
 	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
+		vals := s.Values()
+		length := s.Len()
+
+		// If a limit of the number of datapoints is present, then write
+		// out series' data up until that limit is hit.
+		if opts.ReturnedSeriesLimit > 0 && seriesRendered+1 > opts.ReturnedSeriesLimit {
+			limited = true
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && datapointsRendered+length > opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+		seriesRendered++
+		datapointsRendered += length
+
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
@@ -310,8 +344,7 @@ func RenderResultsJSON(
 
 		jw.BeginObjectField("values")
 		jw.BeginArray()
-		vals := s.Values()
-		length := s.Len()
+
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 
@@ -346,19 +379,27 @@ func RenderResultsJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	return jw.Close()
+	return RenderResultsResult{
+		Series:                 seriesRendered,
+		Datapoints:             datapointsRendered,
+		TotalSeries:            len(series),
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
 	w io.Writer,
 	result ReadResult,
-	keepNaNs bool,
-) {
+	opts RenderResultsOptions,
+) RenderResultsResult {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
-		isScalar = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		series        = result.Series
+		warnings      = result.Meta.WarningStrings()
+		isScalar      = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		keepNaNs      = opts.KeepNaNs
+		returnedCount = 0
+		limited       = false
 	)
 
 	resultType := "vector"
@@ -395,9 +436,19 @@ func renderResultsInstantaneousJSON(
 		length := s.Len()
 		dp := vals.DatapointAt(length - 1)
 
+		if opts.ReturnedSeriesLimit > 0 && returnedCount >= opts.ReturnedSeriesLimit {
+			limited = true
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && returnedCount >= opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+
 		if isScalar {
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
+			returnedCount++
 			continue
 		}
 
@@ -405,6 +456,8 @@ func renderResultsInstantaneousJSON(
 		if !keepNaNs && math.IsNaN(dp.Value) {
 			continue
 		}
+
+		returnedCount++
 
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
@@ -428,4 +481,13 @@ func renderResultsInstantaneousJSON(
 
 	jw.EndObject()
 	jw.Close()
+
+	return RenderResultsResult{
+		LimitedMaxReturnedData: limited,
+		// Series and datapoints are the same count for instant
+		// queries since a series has one datapoint.
+		Datapoints:  returnedCount,
+		Series:      returnedCount,
+		TotalSeries: len(series),
+	}
 }
