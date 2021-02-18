@@ -50,11 +50,10 @@ func TestLookbackLimitPermitIncBy(t *testing.T) {
 func newManager(t *testing.T, limit limits.LookbackLimit, incBy int) *LookbackLimitPermitManager {
 	t.Helper()
 	mgr := NewLookbackLimitPermitsManager(
-		instrument.NewTestOptions(t),
-		limits.DefaultLookbackLimitOptions(),
 		"test-limit",
+		limits.DefaultLookbackLimitOptions(),
+		instrument.NewTestOptions(t),
 		limits.NewOptions().SourceLoggerBuilder(),
-		map[string]string{},
 		incBy,
 	)
 	mgr.Limit = limit
