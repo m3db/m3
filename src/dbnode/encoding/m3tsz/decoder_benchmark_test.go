@@ -51,6 +51,7 @@ func BenchmarkM3TSZDecode(b *testing.B) {
 }
 
 func prepareSampleSeriesRun(b *testing.B) [][]byte {
+	b.Helper()
 	var (
 		rnd          = rand.New(rand.NewSource(42)) // nolint: gosec
 		sampleSeries = make([][]byte, 0, len(sampleSeriesBase64))
