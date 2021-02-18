@@ -268,6 +268,20 @@ func (mr *MockQueryDocIteratorMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockQueryDocIterator)(nil).Close))
 }
 
+// Done mocks base method
+func (m *MockQueryDocIterator) Done() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Done")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Done indicates an expected call of Done
+func (mr *MockQueryDocIteratorMockRecorder) Done() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockQueryDocIterator)(nil).Done))
+}
+
 // SearchDuration mocks base method
 func (m *MockQueryDocIterator) SearchDuration() time.Duration {
 	m.ctrl.T.Helper()
