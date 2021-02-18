@@ -161,25 +161,25 @@ func newLookbackLimitMetrics(
 	sourceLoggerBuilder SourceLoggerBuilder,
 	tags map[string]string,
 ) lookbackLimitMetrics {
-	scope := instrumentOpts.
-		MetricsScope().
-		SubScope("query-limit")
-
+	loggerScope := instrumentOpts.MetricsScope()
 	if tags != nil {
-		scope = scope.Tagged(tags)
+		loggerScope = loggerScope.Tagged(tags)
 	}
 
-	return lookbackLimitMetrics{
-		optionsLimit:    scope.Gauge(fmt.Sprintf("current-limit%s", name)),
-		optionsLookback: scope.Gauge(fmt.Sprintf("current-lookback-%s", name)),
-		recentCount:     scope.Gauge(fmt.Sprintf("recent-count-%s", name)),
-		recentMax:       scope.Gauge(fmt.Sprintf("recent-max-%s", name)),
-		total:           scope.Counter(fmt.Sprintf("total-%s", name)),
-		exceeded:        scope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
+	var (
+		loggerOpts  = instrumentOpts.SetMetricsScope(loggerScope)
+		metricScope = loggerScope.SubScope("query-limit")
+	)
 
-		// nb: no need to provide query-limits subscope to source logger,
-		// as it's not directly related to limits.
-		sourceLogger: sourceLoggerBuilder.NewSourceLogger(name, instrumentOpts),
+	return lookbackLimitMetrics{
+		optionsLimit:    metricScope.Gauge(fmt.Sprintf("current-limit-%s", name)),
+		optionsLookback: metricScope.Gauge(fmt.Sprintf("current-lookback-%s", name)),
+		recentCount:     metricScope.Gauge(fmt.Sprintf("recent-count-%s", name)),
+		recentMax:       metricScope.Gauge(fmt.Sprintf("recent-max-%s", name)),
+		total:           metricScope.Counter(fmt.Sprintf("total-%s", name)),
+		exceeded:        metricScope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
+
+		sourceLogger: sourceLoggerBuilder.NewSourceLogger(name, loggerOpts),
 	}
 }
 
