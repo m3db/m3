@@ -471,6 +471,7 @@ func Run(runOpts RunOptions) {
 		diskSeriesReadLimit,
 		iOpts,
 		limitOpts.SourceLoggerBuilder(),
+		runOpts.Config.FetchTagged.SeriesBlocksPerBatchOrDefault(),
 	)
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()

@@ -28,6 +28,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/tallytest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,7 +143,11 @@ func TestLookbackLimit(t *testing.T) {
 				ForceExceeded: test.forceExceeded,
 			}
 			name := "test"
-			limit := newLookbackLimit(iOpts, opts, name, name, &sourceLoggerBuilder{}, nil)
+			limit := newLookbackLimit(limitNames{
+				limitName:  name,
+				metricName: name,
+				metricType: name,
+			}, opts, iOpts, &sourceLoggerBuilder{})
 
 			require.Equal(t, int64(0), limit.current())
 
@@ -256,7 +261,11 @@ func TestLookbackReset(t *testing.T) {
 		Lookback: time.Millisecond * 100,
 	}
 	name := "test"
-	limit := newLookbackLimit(iOpts, opts, name, name, &sourceLoggerBuilder{}, nil)
+	limit := newLookbackLimit(limitNames{
+		limitName:  name,
+		metricName: name,
+		metricType: name,
+	}, opts, iOpts, &sourceLoggerBuilder{})
 
 	err := limit.Inc(3, nil)
 	require.NoError(t, err)
@@ -334,22 +343,29 @@ func verifyMetrics(t *testing.T,
 	expectedExceeded int64,
 ) {
 	snapshot := scope.Snapshot()
+	tallytest.AssertGaugeValue(
+		t, expectedRecent, snapshot,
+		fmt.Sprintf("query-limit.recent-count-%s", name),
+		map[string]string{"type": "test"})
 
-	recent, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-count-%s+", name)]
-	assert.True(t, exists)
-	assert.Equal(t, expectedRecent, recent.Value(), "recent count wrong")
+	tallytest.AssertGaugeValue(
+		t, expectedRecentPeak, snapshot,
+		fmt.Sprintf("query-limit.recent-max-%s", name),
+		map[string]string{"type": "test"})
 
-	recentPeak, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-max-%s+", name)]
-	assert.True(t, exists)
-	assert.Equal(t, expectedRecentPeak, recentPeak.Value(), "recent max wrong")
+	tallytest.AssertCounterValue(
+		t, expectedTotal, snapshot,
+		fmt.Sprintf("query-limit.total-%s", name),
+		map[string]string{"type": "test"})
 
-	total, exists := snapshot.Counters()[fmt.Sprintf("query-limit.total-%s+", name)]
-	assert.True(t, exists)
-	assert.Equal(t, expectedTotal, total.Value(), "total wrong")
+	for _, c := range snapshot.Counters() {
+		fmt.Println(c.Name(), c.Tags())
+	}
 
-	exceeded, exists := snapshot.Counters()[fmt.Sprintf("query-limit.exceeded+limit=%s", name)]
-	assert.True(t, exists)
-	assert.Equal(t, expectedExceeded, exceeded.Value(), "exceeded wrong")
+	tallytest.AssertCounterValue(
+		t, expectedExceeded, snapshot,
+		"query-limit.exceeded",
+		map[string]string{"type": "test", "limit": "test"})
 }
 
 type testLoggerRecord struct {
