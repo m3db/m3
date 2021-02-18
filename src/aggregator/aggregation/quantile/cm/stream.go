@@ -90,8 +90,9 @@ func (s *Stream) AddBatch(values []float64) {
 	s.ensureHeapSize(&s.bufLess, len(values))
 	s.ensureHeapSize(&s.bufMore, len(values))
 	//fmt.Println("az", s.bufMore)
+	insertPointValue := s.insertPointValue()
 	for _, value := range values {
-		if s.numValues > 0 && value < s.insertPointValue() {
+		if s.numValues > 0 && value < insertPointValue {
 			s.bufLess.Push(value)
 		} else {
 			s.bufMore.Push(value)
@@ -307,9 +308,6 @@ func (s *Stream) insert() {
 		s.numValues++
 	}
 
-	//s.bufLess.ShiftUp()
-	//s.bufMore.ShiftUp()
-
 	var (
 		insertPointValue = s.insertCursor.value
 		minRank          = s.compressMinRank
@@ -321,10 +319,10 @@ func (s *Stream) insert() {
 	if compCur != nil {
 		compValue = compCur.value
 	}
-	//fmt.Println(s.bufMore.Min())
-	//panic("")
+
 	for s.insertCursor != nil {
 		curr := *s.insertCursor
+
 		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
 			if sample = s.tryAcquireSample(); sample == nil {
 				sample = s.acquireSample()
@@ -341,12 +339,9 @@ func (s *Stream) insert() {
 				minRank++
 			}
 		}
+
 		s.insertCursor = s.insertCursor.next
-		if s.insertCursor != nil {
-			insertPointValue = s.insertCursor.value
-		} else {
-			insertPointValue = 0
-		}
+		insertPointValue = s.insertPointValue()
 	}
 	s.numValues = numValues
 	s.compressMinRank = minRank
@@ -409,7 +404,6 @@ func (s *Stream) compress() {
 	}
 }
 
-// threshold computes the minimum threshold value.
 // threshold computes the minimum threshold value.
 func (s *Stream) threshold(rank int64) int64 {
 	minVal := int64(math.MaxInt64)
