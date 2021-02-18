@@ -529,7 +529,7 @@ type streamConfiguration struct {
 	// Pool of streams.
 	StreamPool pool.ObjectPoolConfiguration `yaml:"streamPool"`
 
-	// Pool of metric samples.
+	// SamplePool is deprecated
 	SamplePool *pool.ObjectPoolConfiguration `yaml:"samplePool"`
 
 	// Pool of float slices.
@@ -547,14 +547,6 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	}
 	if c.FlushEvery != 0 {
 		opts = opts.SetFlushEvery(c.FlushEvery)
-	}
-
-	if c.SamplePool != nil {
-		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("sample-pool"))
-		samplePoolOpts := c.SamplePool.NewObjectPoolOptions(iOpts)
-		samplePool := cm.NewSamplePool(samplePoolOpts)
-		opts = opts.SetSamplePool(samplePool)
-		samplePool.Init()
 	}
 
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))

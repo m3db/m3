@@ -22,18 +22,6 @@ package cm
 
 import "github.com/m3db/m3/src/x/pool"
 
-// SamplePool is a pool of samples.
-type SamplePool interface {
-	// Init initializes the pool.
-	Init()
-
-	// Get gets a sample from the pool.
-	Get() *Sample
-
-	// Put returns a sample to the pool.
-	Put(sample *Sample)
-}
-
 // StreamAlloc allocates a stream.
 type StreamAlloc func() *Stream
 
@@ -88,12 +76,6 @@ type Options interface {
 
 	// StreamPool returns the stream pool.
 	StreamPool() StreamPool
-
-	// SetSamplePool sets the sample pool.
-	SetSamplePool(value SamplePool) Options
-
-	// SamplePool returns the sample pool.
-	SamplePool() SamplePool
 
 	// SetFloatsPool sets the floats pool.
 	SetFloatsPool(value pool.FloatsPool) Options

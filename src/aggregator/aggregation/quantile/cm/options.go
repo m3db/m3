@@ -53,7 +53,6 @@ type options struct {
 	insertAndCompressEvery int
 	flushEvery             int
 	streamPool             StreamPool
-	samplePool             SamplePool
 	floatsPool             pool.FloatsPool
 }
 
@@ -117,16 +116,6 @@ func (o *options) SetStreamPool(value StreamPool) Options {
 
 func (o *options) StreamPool() StreamPool {
 	return o.streamPool
-}
-
-func (o *options) SetSamplePool(value SamplePool) Options {
-	opts := *o
-	opts.samplePool = value
-	return &opts
-}
-
-func (o *options) SamplePool() SamplePool {
-	return o.samplePool
 }
 
 func (o *options) SetFloatsPool(value pool.FloatsPool) Options {

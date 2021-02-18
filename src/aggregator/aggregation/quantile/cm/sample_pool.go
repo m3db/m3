@@ -22,40 +22,13 @@ package cm
 
 import (
 	"sync"
-
-	"github.com/m3db/m3/src/x/pool"
 )
 
-const _initSampleListSize = 512
+const _initSampleListSize = 1024
 
 var sharedSamplePool = &sync.Pool{
 	New: func() interface{} {
 		s := make([]Sample, _initSampleListSize)
 		return &s
 	},
-}
-
-type samplePool struct {
-	pool pool.ObjectPool
-}
-
-// NewSamplePool creates a new pool for samples.
-func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
-	return &samplePool{pool: pool.NewObjectPool(opts)}
-}
-
-func (p *samplePool) Init() {
-	p.pool.Init(func() interface{} {
-		return newSample()
-	})
-}
-
-func (p *samplePool) Get() *Sample {
-	return p.pool.Get().(*Sample)
-}
-
-func (p *samplePool) Put(sample *Sample) {
-	// Reset sample to reduce GC sweep overhead.
-	sample.reset()
-	p.pool.Put(sample)
 }
