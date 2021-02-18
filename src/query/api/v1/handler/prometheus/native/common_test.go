@@ -180,9 +180,31 @@ func TestParseBlockType(t *testing.T) {
 }
 
 func TestRenderResultsJSON(t *testing.T) {
+	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
-	series := testSeries(2)
+	valsWithNaN := ts.NewFixedStepValues(10*time.Second, 2, 1, start)
+	valsWithNaN.SetValueAt(1, math.NaN())
+
+	series := []*ts.Series{
+		ts.NewSeries([]byte("foo"),
+			valsWithNaN, test.TagSliceToTags([]models.Tag{
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
+		ts.NewSeries([]byte("foobar"),
+			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("biz"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+	}
 
 	readResult := ReadResult{Series: series}
 	RenderResultsJSON(buffer, readResult, RenderResultsOptions{
@@ -413,11 +435,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	}
 
 	buffer := bytes.NewBuffer(nil)
-	r := renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: true})
-	require.Equal(t, false, r.LimitedMaxReturnedData)
-	require.Equal(t, 3, r.Datapoints)
-	require.Equal(t, 3, r.Series)
-	require.Equal(t, 3, r.TotalSeries)
+	renderResultsInstantaneousJSON(buffer, readResult, true)
 	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -429,11 +447,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
 
 	buffer = bytes.NewBuffer(nil)
-	r = renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: false})
-	require.Equal(t, false, r.LimitedMaxReturnedData)
-	require.Equal(t, 2, r.Datapoints)
-	require.Equal(t, 2, r.Series)
-	require.Equal(t, 3, r.TotalSeries) // This is > rendered series due to keepNaN: false.
+	renderResultsInstantaneousJSON(buffer, readResult, false)
 	expectedWithoutNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -487,11 +501,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	}
 
 	buffer := bytes.NewBuffer(nil)
-	r := renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: true})
-	require.Equal(t, false, r.LimitedMaxReturnedData)
-	require.Equal(t, 2, r.Datapoints)
-	require.Equal(t, 2, r.Series)
-	require.Equal(t, 2, r.TotalSeries)
+	renderResultsInstantaneousJSON(buffer, readResult, true)
 	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -503,11 +513,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
 
 	buffer = bytes.NewBuffer(nil)
-	r = renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: false})
-	require.Equal(t, false, r.LimitedMaxReturnedData)
-	require.Equal(t, 0, r.Datapoints)
-	require.Equal(t, 0, r.Series)
-	require.Equal(t, 2, r.TotalSeries) // This is > rendered series due to keepNaN: false.
+	renderResultsInstantaneousJSON(buffer, readResult, false)
 	expectedWithoutNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -536,11 +542,7 @@ func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
 	}
 
 	buffer := bytes.NewBuffer(nil)
-	r := renderResultsInstantaneousJSON(buffer, readResult, RenderResultsOptions{KeepNaNs: false})
-	require.Equal(t, false, r.LimitedMaxReturnedData)
-	require.Equal(t, 1, r.Datapoints)
-	require.Equal(t, 1, r.Series)
-	require.Equal(t, 1, r.TotalSeries)
+	renderResultsInstantaneousJSON(buffer, readResult, false)
 	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -602,116 +604,4 @@ func TestSanitizeSeries(t *testing.T) {
 	assert.Equal(t, "2", string(series[0].Name()))
 	assert.Equal(t, "4", string(series[1].Name()))
 	assert.Equal(t, "5", string(series[2].Name()))
-}
-
-func TestRenderResultsJSONWithLimits(t *testing.T) {
-	buffer := bytes.NewBuffer(nil)
-	params := models.RequestParams{}
-	series := testSeries(5)
-
-	intPrt := func(v int) *int {
-		return &v
-	}
-
-	tests := []struct {
-		name               string
-		limit              *int
-		expectedDatapoints int
-		expectedLimited    bool
-	}{
-		{
-			name:               "Omit limit",
-			expectedDatapoints: 15,
-			expectedLimited:    false,
-		},
-		{
-			name:               "Below limit",
-			limit:              intPrt(16),
-			expectedDatapoints: 15,
-			expectedLimited:    false,
-		},
-		{
-			name:               "At limit",
-			limit:              intPrt(15),
-			expectedDatapoints: 15,
-			expectedLimited:    false,
-		},
-		{
-			name:               "Above limit - skip 1 series high",
-			limit:              intPrt(14),
-			expectedDatapoints: 10,
-			expectedLimited:    true,
-		},
-		{
-			name:               "Above limit - skip 1 series low",
-			limit:              intPrt(11),
-			expectedDatapoints: 10,
-			expectedLimited:    true,
-		},
-		{
-			name:               "Above limit - skip 1 series equal",
-			limit:              intPrt(10),
-			expectedDatapoints: 10,
-			expectedLimited:    true,
-		},
-		{
-			name:               "Above limit - skip 2 series",
-			limit:              intPrt(9),
-			expectedDatapoints: 5,
-			expectedLimited:    true,
-		},
-		{
-			name:               "Above limit - skip 3 series",
-			limit:              intPrt(4),
-			expectedDatapoints: 0,
-			expectedLimited:    true,
-		},
-		{
-			name:               "Zero enforces no limit",
-			limit:              intPrt(0),
-			expectedDatapoints: 15,
-			expectedLimited:    false,
-		},
-	}
-
-	for _, test := range tests {
-		readResult := ReadResult{Series: series}
-		o := RenderResultsOptions{
-			Start:    params.Start,
-			End:      params.End,
-			KeepNaNs: true,
-		}
-		if test.limit != nil {
-			o.ReturnedDatapointsLimit = *test.limit
-		}
-		r, err := RenderResultsJSON(buffer, readResult, o)
-		require.NoError(t, err)
-		require.Equal(t, test.expectedDatapoints, r.Datapoints)
-		require.Equal(t, test.expectedLimited, r.LimitedMaxReturnedData)
-	}
-}
-
-func testSeries(datapointsPerSeries int) []*ts.Series {
-	start := time.Unix(1535948880, 0)
-	valsWithNaN := ts.NewFixedStepValues(10*time.Second, datapointsPerSeries, 1, start)
-	valsWithNaN.SetValueAt(1, math.NaN())
-	return []*ts.Series{
-		ts.NewSeries([]byte("foo"),
-			valsWithNaN, test.TagSliceToTags([]models.Tag{
-				{Name: []byte("bar"), Value: []byte("baz")},
-				{Name: []byte("qux"), Value: []byte("qaz")},
-			})),
-		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, datapointsPerSeries, 2, start),
-			test.TagSliceToTags([]models.Tag{
-				{Name: []byte("baz"), Value: []byte("bar")},
-				{Name: []byte("qaz"), Value: []byte("qux")},
-			})),
-		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(10*time.Second, datapointsPerSeries, math.NaN(), start),
-			test.TagSliceToTags([]models.Tag{
-				{Name: []byte("biz"), Value: []byte("baz")},
-				{Name: []byte("qux"), Value: []byte("qaz")},
-			})),
-	}
 }

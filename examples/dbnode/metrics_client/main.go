@@ -21,7 +21,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"io/ioutil"
 	"log"
@@ -115,7 +114,7 @@ func runTaggedExample(session client.Session) {
 		log.Fatalf("error in creating query: %v", err)
 	}
 
-	resultsIter, _, err := session.FetchTagged(context.Background(), namespaceID, index.Query{Query: reQuery},
+	resultsIter, _, err := session.FetchTagged(namespaceID, index.Query{Query: reQuery},
 		index.QueryOptions{StartInclusive: start, EndExclusive: end})
 	if err != nil {
 		log.Fatalf("error fetching data for tagged series: %v", err)

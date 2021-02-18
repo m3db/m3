@@ -156,34 +156,16 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		keepNaNs = result.Meta.KeepNaNs
 	}
 
-	renderOpts := RenderResultsOptions{
-		Start:                   parsedOptions.Params.Start,
-		End:                     parsedOptions.Params.End,
-		KeepNaNs:                keepNaNs,
-		ReturnedSeriesLimit:     parsedOptions.FetchOpts.ReturnedSeriesLimit,
-		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
-	}
-
-	var renderResult RenderResultsResult
 	if h.instant {
-		renderResult = renderResultsInstantaneousJSON(w, result, renderOpts)
-	} else {
-		renderResult, err = RenderResultsJSON(w, result, renderOpts)
+		renderResultsInstantaneousJSON(w, result, keepNaNs)
+		return
 	}
 
-	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
-	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
-
-	if renderResult.LimitedMaxReturnedData {
-		if err := WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
-			Limited:     true,
-			Series:      renderResult.Series,
-			TotalSeries: renderResult.TotalSeries,
-			Datapoints:  renderResult.Datapoints,
-		}); err != nil {
-			logger.Error("error writing returned data limited header", zap.Error(err))
-		}
-	}
+	err = RenderResultsJSON(w, result, RenderResultsOptions{
+		Start:    parsedOptions.Params.Start,
+		End:      parsedOptions.Params.End,
+		KeepNaNs: h.opts.Config().ResultOptions.KeepNaNs,
+	})
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

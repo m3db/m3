@@ -434,9 +434,8 @@ func Read(
 		meta         = block.NewResultMetadata()
 		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
-				LimitMaxTimeseries:         fetchOpts.SeriesLimit,
-				LimitMaxDocs:               fetchOpts.DocsLimit,
-				LimitMaxReturnedDatapoints: fetchOpts.ReturnedDatapointsLimit,
+				LimitMaxTimeseries: fetchOpts.SeriesLimit,
+				LimitMaxDocs:       fetchOpts.DocsLimit,
 			}}
 
 		engine = opts.Engine()

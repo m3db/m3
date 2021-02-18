@@ -301,11 +301,9 @@ func Run(runOpts RunOptions) {
 		clusterClient            clusterclient.Client
 		downsampler              downsample.Downsampler
 		queryCtxOpts             = models.QueryContextOptions{
-			LimitMaxTimeseries:         fetchOptsBuilderLimitsOpts.SeriesLimit,
-			LimitMaxDocs:               fetchOptsBuilderLimitsOpts.DocsLimit,
-			LimitMaxReturnedSeries:     fetchOptsBuilderLimitsOpts.ReturnedSeriesLimit,
-			LimitMaxReturnedDatapoints: fetchOptsBuilderLimitsOpts.ReturnedDatapointsLimit,
-			RequireExhaustive:          fetchOptsBuilderLimitsOpts.RequireExhaustive,
+			LimitMaxTimeseries: fetchOptsBuilderLimitsOpts.SeriesLimit,
+			LimitMaxDocs:       fetchOptsBuilderLimitsOpts.DocsLimit,
+			RequireExhaustive:  fetchOptsBuilderLimitsOpts.RequireExhaustive,
 		}
 
 		matchOptions = queryconsolidators.MatchOptions{
