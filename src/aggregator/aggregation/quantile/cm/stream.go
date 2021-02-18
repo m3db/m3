@@ -280,7 +280,7 @@ func (s *Stream) ensureHeapSize(heap *minHeap, new int) {
 			targetCap = s.capacity
 		}
 		newHeap := s.floatsPool.Get(targetCap)
-		newHeap = append(newHeap, curr...)
+		newHeap = append(newHeap[:0], curr...)
 		s.floatsPool.Put(curr)
 		*heap = newHeap
 	}
