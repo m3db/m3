@@ -31,11 +31,13 @@ import (
 // lookback limits to more precise permits implementations.
 type LookbackLimitPermitManager struct {
 	Limit limits.LookbackLimit
+	incBy int
 }
 
 type lookbackLimitPermit struct {
 	limit  limits.LookbackLimit
 	source []byte
+	incBy  int
 }
 
 var _ Manager = (*LookbackLimitPermitManager)(nil)
@@ -49,6 +51,7 @@ func NewLookbackLimitPermitsManager(
 	name string,
 	sourceLoggerBuilder limits.SourceLoggerBuilder,
 	tags map[string]string,
+	incBy int,
 ) *LookbackLimitPermitManager {
 	lookbackLimit := limits.NewLookbackLimit(
 		instrumentOpts, opts, name, sourceLoggerBuilder, tags)
@@ -57,6 +60,7 @@ func NewLookbackLimitPermitsManager(
 	// lookback functions which are not part of the Permits interface.
 	return &LookbackLimitPermitManager{
 		Limit: lookbackLimit,
+		incBy: incBy,
 	}
 }
 
@@ -66,6 +70,7 @@ func (p *LookbackLimitPermitManager) NewPermits(ctx context.Context) Permits {
 	return &lookbackLimitPermit{
 		limit:  p.Limit,
 		source: s,
+		incBy:  p.incBy,
 	}
 }
 
@@ -80,11 +85,11 @@ func (p *LookbackLimitPermitManager) Stop() {
 }
 
 func (p *lookbackLimitPermit) Acquire(_ context.Context) error {
-	return p.limit.Inc(1, p.source)
+	return p.limit.Inc(p.incBy, p.source)
 }
 
 func (p *lookbackLimitPermit) TryAcquire(_ context.Context) (bool, error) {
-	err := p.limit.Inc(1, p.source)
+	err := p.limit.Inc(p.incBy, p.source)
 	return err != nil, err
 }
 
