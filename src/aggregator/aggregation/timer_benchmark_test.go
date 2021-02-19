@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
@@ -171,22 +170,13 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 
 func init() {
 	_aggregationOptions.ResetSetData(testAggTypes)
-	floatsPool := pool.NewFloatsPool([]pool.Bucket{
-		{Capacity: 512, Count: 256},
-		{Capacity: 1024, Count: 256},
-		{Capacity: 2048, Count: 256},
-		{Capacity: 4096, Count: 256},
-		{Capacity: 8192, Count: 256},
-		{Capacity: 16384, Count: 256},
-	}, pool.NewObjectPoolOptions())
-	floatsPool.Init()
 	streamPool := cm.NewStreamPool(nil)
 	_cmOptions = cm.NewOptions().
 		SetFlushEvery(_flushEvery).
 		SetInsertAndCompressEvery(_insertAndCompressEvery).
 		SetEps(_eps).
 		SetCapacity(_heapCapacity).
-		SetFloatsPool(floatsPool).
+		SetFloatsPool(nil).
 		SetStreamPool(streamPool)
 	_aggregationOptions.ResetSetData(testAggTypes)
 	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, _cmOptions) })

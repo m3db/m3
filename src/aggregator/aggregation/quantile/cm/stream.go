@@ -69,8 +69,8 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 		computedQuantiles:      make([]float64, len(quantiles)),
 		capacity:               opts.Capacity(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
-		floatsPool:             opts.FloatsPool(),
-
+		//floatsPool:             opts.FloatsPool(),
+		sampleBuf:  make([]*Sample, 0, opts.Capacity()),
 		streamPool: opts.StreamPool(),
 	}
 
@@ -198,21 +198,6 @@ func (s *Stream) ResetSetData(quantiles []float64) {
 		s.computedQuantiles = make([]float64, len(quantiles))
 	}
 	s.closed = false
-	s.insertAndCompressCounter = 0
-	s.numValues = 0
-
-	s.insertCursor = nil
-	s.compressCursor = nil
-	s.compressMinRank = 0
-
-	if s.bufMore != nil {
-		s.bufMore = s.bufMore[:0]
-	}
-
-	if s.bufLess != nil {
-		s.bufLess = s.bufLess[:0]
-	}
-
 }
 
 func (s *Stream) Close() {
@@ -221,8 +206,11 @@ func (s *Stream) Close() {
 	}
 	s.closed = true
 
-	sharedHeapPool.Put(&s.bufLess)
-	sharedHeapPool.Put(&s.bufMore)
+	//bl := s.bufLess
+	sharedHeapPool.Put(s.bufLess)
+	//bm := s.bufMore // NB: FIX THIS, move to heap method
+	sharedHeapPool.Put(s.bufMore)
+
 	s.bufMore = nil
 	s.bufLess = nil
 
@@ -244,6 +232,9 @@ func (s *Stream) Close() {
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
+	s.insertAndCompressCounter = 0
+	s.numValues = 0
+	s.compressMinRank = 0
 	s.streamPool.Put(s)
 }
 
@@ -420,6 +411,7 @@ func (s *Stream) acquireSample() *Sample {
 	for i := 0; i < s.capacity; i++ {
 		sample, ok := sharedSamplePool.Get().(*Sample)
 		if !ok {
+			panic("ZZZZ")
 			return &Sample{}
 		}
 		s.sampleBuf = append(s.sampleBuf, sample)
@@ -429,13 +421,6 @@ func (s *Stream) acquireSample() *Sample {
 }
 
 func (s *Stream) releaseSample(sample *Sample) {
-	if sample == nil {
-		return
-	}
-
 	sample.prev, sample.next = nil, nil
-	//sharedSamplePool.Put(sample)
-	s.sampleBuf = append(s.sampleBuf, sample)
-	//fmt.Println(len(s.sampleBuf))
-	//fmt.Println(s.sampleBuf[len(s.sampleBuf)-1])
+	sharedSamplePool.Put(sample)
 }

@@ -60,7 +60,6 @@ func newHeapPool() heapPool {
 
 		sz *= _heapSizeBucketGrowthFactor
 	}
-
 	return p
 }
 
@@ -84,21 +83,22 @@ makeNew:
 	return &newVal
 }
 
-func (p heapPool) Put(value *minHeap) {
+func (p heapPool) Put(value minHeap) {
 	if value == nil {
 		return
 	}
-
-	size := cap(*value)
+	size := cap(value)
 	if size == 0 {
 		return
 	}
+
 	for i := range p.sizes {
 		if p.sizes[i] < size {
 			continue
 		}
-		(*value) = (*value)[:0]
-		p.pools[i].Put(value)
+
+		value = value[:0]
+		p.pools[i].Put(&value)
 		return
 	}
 }
