@@ -417,5 +417,9 @@ func (s *Stream) acquireSample() *Sample {
 
 func (s *Stream) releaseSample(sample *Sample) {
 	sample.prev, sample.next = nil, nil
-	sharedSamplePool.Put(sample)
+	if cap(s.sampleBuf) == len(s.sampleBuf) {
+		sharedSamplePool.Put(sample)
+		return
+	}
+	s.sampleBuf = append(s.sampleBuf, sample)
 }
