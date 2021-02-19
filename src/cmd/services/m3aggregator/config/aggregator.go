@@ -529,10 +529,10 @@ type streamConfiguration struct {
 	// Pool of streams.
 	StreamPool pool.ObjectPoolConfiguration `yaml:"streamPool"`
 
-	// SamplePool is deprecated
+	// SamplePool is deprecated.
 	SamplePool *pool.ObjectPoolConfiguration `yaml:"samplePool"`
 
-	// Pool of float slices.
+	// FloatsPool is deprecated.
 	FloatsPool pool.BucketizedPoolConfiguration `yaml:"floatsPool"`
 }
 
@@ -545,11 +545,7 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	if c.InsertAndCompressEvery != 0 {
 		opts = opts.SetInsertAndCompressEvery(c.InsertAndCompressEvery)
 	}
-	if c.FlushEvery != 0 {
-		opts = opts.SetFlushEvery(c.FlushEvery)
-	}
 
-	opts = opts.SetFloatsPool(nil)
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream-pool"))
 	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
 	streamPool := cm.NewStreamPool(streamPoolOpts)

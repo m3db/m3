@@ -54,7 +54,7 @@ func testStreamOptions() cm.Options {
 	streamPool := cm.NewStreamPool(nil)
 	floatsPool := pool.NewFloatsPool([]pool.Bucket{{Capacity: 32, Count: 100}}, nil)
 	floatsPool.Init()
-	streamOpts := cm.NewOptions().SetStreamPool(streamPool).SetFloatsPool(floatsPool)
+	streamOpts := cm.NewOptions().SetStreamPool(streamPool)
 	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, streamOpts) })
 
 	return streamOpts
@@ -65,7 +65,7 @@ func TestCreateTimerResetStream(t *testing.T) {
 	streamPool := cm.NewStreamPool(poolOpts)
 	floatsPool := pool.NewFloatsPool([]pool.Bucket{{Capacity: 2048, Count: 100}}, nil)
 	floatsPool.Init()
-	streamOpts := cm.NewOptions().SetStreamPool(streamPool).SetFloatsPool(floatsPool)
+	streamOpts := cm.NewOptions().SetStreamPool(streamPool)
 	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, streamOpts) })
 	// Add a value to the timer and close the timer, which returns the
 	// underlying stream to the pool.

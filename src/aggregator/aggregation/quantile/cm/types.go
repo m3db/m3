@@ -20,8 +20,6 @@
 
 package cm
 
-import "github.com/m3db/m3/src/x/pool"
-
 // StreamAlloc allocates a stream.
 type StreamAlloc func() *Stream
 
@@ -61,27 +59,11 @@ type Options interface {
 	// high frequency timers.
 	InsertAndCompressEvery() int
 
-	// SetFlushEvery sets how frequently the underlying stream is flushed
-	// to reduce processing time when computing aggregated statistics from
-	// the stream.
-	SetFlushEvery(value int) Options
-
-	// FlushEvery returns how frequently the underlying stream is flushed
-	// to reduce processing time when computing aggregated statistics from
-	// the stream.
-	FlushEvery() int
-
 	// SetStreamPool sets the stream pool.
 	SetStreamPool(value StreamPool) Options
 
 	// StreamPool returns the stream pool.
 	StreamPool() StreamPool
-
-	// SetFloatsPool sets the floats pool.
-	SetFloatsPool(value pool.FloatsPool) Options
-
-	// FloatsPool returns the floats pool.
-	FloatsPool() pool.FloatsPool
 
 	// Validate validates the options.
 	Validate() error

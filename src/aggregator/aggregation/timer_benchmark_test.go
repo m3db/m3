@@ -33,7 +33,6 @@ import (
 )
 
 const (
-	_flushEvery             = 0
 	_insertAndCompressEvery = 1024
 	_sampleBatches          = 100
 	_eps                    = 0.001
@@ -172,11 +171,9 @@ func init() {
 	_aggregationOptions.ResetSetData(testAggTypes)
 	streamPool := cm.NewStreamPool(nil)
 	_cmOptions = cm.NewOptions().
-		SetFlushEvery(_flushEvery).
 		SetInsertAndCompressEvery(_insertAndCompressEvery).
 		SetEps(_eps).
 		SetCapacity(_heapCapacity).
-		SetFloatsPool(nil).
 		SetStreamPool(streamPool)
 	_aggregationOptions.ResetSetData(testAggTypes)
 	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, _cmOptions) })

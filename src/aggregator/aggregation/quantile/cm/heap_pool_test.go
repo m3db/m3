@@ -32,14 +32,14 @@ func TestHeapPool(t *testing.T) {
 	require.NotNil(t, h)
 	assert.Equal(t, _initialHeapBucketSize, cap(*h))
 	assert.Equal(t, 0, len(*h))
-	sharedHeapPool.Put(h)
+	h.Reset()
 
 	h2 := sharedHeapPool.Get(_initialHeapBucketSize + 1) // should fall into different bucket
 	require.NotNil(t, h2)
 	require.True(t, h != h2)
 	assert.Equal(t, _initialHeapBucketSize*_heapSizeBucketGrowthFactor, cap(*h2))
 	assert.Equal(t, 0, len(*h2))
-	sharedHeapPool.Put(h2)
+	h2.Reset()
 
 	h3 := sharedHeapPool.Get(65) // should get the next largest one
 	require.NotNil(t, h3)

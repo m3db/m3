@@ -21,39 +21,27 @@
 package cm
 
 import (
-	"errors"
 	"fmt"
-
-	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
 	minEps          = 0.0
 	maxEps          = 0.5
 	defaultEps      = 1e-3
-	defaultCapacity = 16
+	defaultCapacity = 32
 
-	// By default the timer values are inserted and the underlying
-	// streams are compressed every time the value is added.
-	defaultInsertAndCompressEvery = 16
-
-	// By default the stream is not flushed when values are added.
-	defaultFlushEvery = 0
+	defaultInsertAndCompressEvery = 1024
 )
 
 var (
-	errInvalidEps   = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
-	errNoFloatsPool = errors.New("no floats pool set")
-	errNoStreamPool = errors.New("no stream pool set")
+	errInvalidEps = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
 )
 
 type options struct {
 	eps                    float64
 	capacity               int
 	insertAndCompressEvery int
-	flushEvery             int
 	streamPool             StreamPool
-	floatsPool             pool.FloatsPool
 }
 
 // NewOptions creates a new options.
@@ -62,7 +50,6 @@ func NewOptions() Options {
 		eps:                    defaultEps,
 		capacity:               defaultCapacity,
 		insertAndCompressEvery: defaultInsertAndCompressEvery,
-		flushEvery:             defaultFlushEvery,
 	}
 
 	return o
@@ -98,16 +85,6 @@ func (o *options) InsertAndCompressEvery() int {
 	return o.insertAndCompressEvery
 }
 
-func (o *options) SetFlushEvery(value int) Options {
-	opts := *o
-	opts.flushEvery = value
-	return &opts
-}
-
-func (o *options) FlushEvery() int {
-	return o.flushEvery
-}
-
 func (o *options) SetStreamPool(value StreamPool) Options {
 	opts := *o
 	opts.streamPool = value
@@ -118,25 +95,10 @@ func (o *options) StreamPool() StreamPool {
 	return o.streamPool
 }
 
-func (o *options) SetFloatsPool(value pool.FloatsPool) Options {
-	opts := *o
-	opts.floatsPool = value
-	return &opts
-}
-
-func (o *options) FloatsPool() pool.FloatsPool {
-	return o.floatsPool
-}
-
 func (o *options) Validate() error {
 	if o.eps <= minEps || o.eps >= maxEps {
 		return errInvalidEps
 	}
-	if o.streamPool == nil {
-		return errNoStreamPool
-	}
-	if o.floatsPool == nil {
-		return errNoFloatsPool
-	}
+
 	return nil
 }

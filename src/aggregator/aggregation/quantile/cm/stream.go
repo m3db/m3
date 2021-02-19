@@ -63,6 +63,7 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 
 	s := &Stream{
 		eps:                    opts.Eps(),
+		quantiles:              quantiles,
 		computedQuantiles:      make([]float64, len(quantiles)),
 		capacity:               opts.Capacity(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
@@ -70,9 +71,6 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 		streamPool:             opts.StreamPool(),
 	}
 
-	if len(s.quantiles) > 0 { // do not pre-allocate
-		s.ResetSetData(quantiles)
-	}
 	return s
 }
 
@@ -202,13 +200,8 @@ func (s *Stream) Close() {
 	}
 	s.closed = true
 
-	//bl := s.bufLess
-	sharedHeapPool.Put(s.bufLess)
-	//bm := s.bufMore // NB: FIX THIS, move to heap method
-	sharedHeapPool.Put(s.bufMore)
-
-	s.bufMore = nil
-	s.bufLess = nil
+	s.bufMore.Reset()
+	s.bufLess.Reset()
 
 	curr := s.samples.Front()
 	for curr != nil {
@@ -231,7 +224,10 @@ func (s *Stream) Close() {
 	s.insertAndCompressCounter = 0
 	s.numValues = 0
 	s.compressMinRank = 0
-	s.streamPool.Put(s)
+
+	if s.streamPool != nil {
+		s.streamPool.Put(s)
+	}
 }
 
 // insert inserts a sample into the stream.
