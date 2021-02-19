@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,11 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 		SetUseTChannelClientForReading(true)
 
 	setupOpts := []BootstrappableTestSetupOptions{
-		{DisablePeersBootstrapper: false},
+		{
+			DisablePeersBootstrapper: false,
+			// This will bootstrap w/ unfulfilled ranges.
+			FinalBootstrapper: bootstrapper.NoOpAllBootstrapperName,
+		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
