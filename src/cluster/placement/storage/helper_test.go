@@ -23,10 +23,10 @@ package storage
 import (
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -181,7 +181,6 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, errNoPlacementInTheSnapshots, err)
 	})
-
 }
 
 func newTestProtoInstance(id string, shardSetID uint32, shards []*placementpb.Shard) *placementpb.Instance {

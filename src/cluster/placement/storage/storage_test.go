@@ -112,17 +112,17 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 		SetReplicaFactor(0).
 		SetCutoverNanos(100)
 
-	pGet1, err := ps.SetIfNotExist(p)
+	p1, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet1.Version())
+	assert.Equal(t, 1, p1.Version())
 
 	_, err = ps.SetIfNotExist(p)
 	require.Error(t, err)
 
-	pGet1, err = ps.Placement()
+	p1, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, pGet1.Version())
-	require.Equal(t, p.SetVersion(1), pGet1)
+	require.Equal(t, 1, p1.Version())
+	require.Equal(t, p.SetVersion(1), p1)
 
 	_, err = ps.PlacementForVersion(0)
 	require.Error(t, err)
@@ -132,13 +132,16 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 
 	h, err := ps.PlacementForVersion(1)
 	require.NoError(t, err)
-	require.Equal(t, pGet1, h)
+	require.Equal(t, p1, h)
 
-	pGet2, err := ps.CheckAndSet(p, pGet1.Version())
+	p2 := p1.Clone().
+		SetCutoverNanos(p1.CutoverNanos() + 100).
+		SetReplicaFactor(p1.ReplicaFactor() + 2)
+	pGet2, err := ps.CheckAndSet(p2, p1.Version())
 	require.NoError(t, err)
 	require.Equal(t, 2, pGet2.Version())
 	require.Equal(t, int64(0), pGet2.CutoverNanos())
-	require.Equal(t, p.SetVersion(2), pGet2)
+	require.Equal(t, p2.SetVersion(2), pGet2)
 
 	newProto, v, err := ps.Proto()
 	require.NoError(t, err)
