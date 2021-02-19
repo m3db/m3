@@ -45,17 +45,15 @@ type Stream struct {
 	streamPool             StreamPool // pool of streams
 	floatsPool             pool.FloatsPool
 
-	insertAndCompressCounter int     // insertion and compression counter
-	numValues                int64   // number of values inserted into the sorted stream
-	bufLess                  minHeap // sample buffer whose value is less than that at the insertion cursor
-	bufMore                  minHeap // sample buffer whose value is more than that at the insertion cursor
-	bufLessOld, buffMoreOld  minHeap
+	insertAndCompressCounter int        // insertion and compression counter
+	numValues                int64      // number of values inserted into the sorted stream
+	bufLess                  minHeap    // sample buffer whose value is less than that at the insertion cursor
+	bufMore                  minHeap    // sample buffer whose value is more than that at the insertion cursor
 	samples                  sampleList // sample list
 	insertCursor             *Sample    // insertion cursor
 	compressCursor           *Sample    // compression cursor
 	compressMinRank          int64      // compression min rank
 	sampleBuf                []*Sample
-	sampleBufs               []*[]Sample
 	closed                   bool // whether the stream is closed
 	flushed                  bool
 }
@@ -71,8 +69,6 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 		computedQuantiles:      make([]float64, len(quantiles)),
 		capacity:               opts.Capacity(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
-		sampleBuf:              []*Sample{},
-		sampleBufs:             make([]*[]Sample, 0, 4),
 		floatsPool:             opts.FloatsPool(),
 
 		streamPool: opts.StreamPool(),
@@ -87,8 +83,8 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 func (s *Stream) AddBatch(values []float64) {
 	s.flushed = false
 
-	s.ensureHeapSize(&s.bufLess, len(values))
-	s.ensureHeapSize(&s.bufMore, len(values))
+	//s.ensureHeapSize(&s.bufLess, len(values))
+	//s.ensureHeapSize(&s.bufMore, len(values))
 
 	insertPointValue := s.insertPointValue()
 	for _, value := range values {
@@ -204,7 +200,6 @@ func (s *Stream) ResetSetData(quantiles []float64) {
 	s.closed = false
 	s.insertAndCompressCounter = 0
 	s.numValues = 0
-	s.samples.Reset()
 
 	s.insertCursor = nil
 	s.compressCursor = nil
@@ -226,59 +221,30 @@ func (s *Stream) Close() {
 	}
 	s.closed = true
 
-	if s.bufMore != nil {
-		s.floatsPool.Put(s.bufMore)
-	}
-
-	if s.bufLess != nil {
-		s.floatsPool.Put(s.bufLess)
-	}
-
-	//s.sampleBuf = s.sampleBuf[:cap(s.sampleBuf)]
-	//for i := range s.sampleBuf {
-	//	s.sampleBuf[i].next, s.sampleBuf[i].prev = nil, nil
-	//}
-
-	s.sampleBuf = s.sampleBuf[:0]
-	for i := range s.sampleBufs {
-		buf := *s.sampleBufs[i]
-		for j := range buf {
-			smp := &buf[j]
-			smp.next, smp.prev = nil, nil
-		}
-		sharedSamplePool.Put(s.sampleBufs[i])
-		//panic("z")
-		s.sampleBufs[i] = nil
-	}
-	//if len(s.sampleBufs) > 0 {
-	//	spew.Dump(s.sampleBufs)
-	//}
-	s.sampleBufs = nil
-
-	// Clear out slices/lists/pointer to reduce GC overhead.
-	s.samples.Reset()
+	sharedHeapPool.Put(&s.bufLess)
+	sharedHeapPool.Put(&s.bufMore)
 	s.bufMore = nil
 	s.bufLess = nil
+
+	curr := s.samples.Front()
+	for curr != nil {
+		next := curr.next
+		curr.next, curr.prev = nil, nil
+		sharedSamplePool.Put(curr)
+		curr = next
+	}
+
+	for i := range s.sampleBuf {
+		s.sampleBuf[i].next, s.sampleBuf[i].prev = nil, nil
+		sharedSamplePool.Put(s.sampleBuf[i])
+	}
+
+	s.sampleBuf = nil
+	// Clear out slices/lists/pointer to reduce GC overhead.
+	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
 	s.streamPool.Put(s)
-}
-
-func (s *Stream) ensureHeapSize(heap *minHeap, new int) {
-	var (
-		curr      = *heap
-		targetCap = new + len(curr)
-	)
-
-	if targetCap >= cap(curr) {
-		if targetCap < s.capacity {
-			targetCap = s.capacity
-		}
-		newHeap := s.floatsPool.Get(targetCap)
-		newHeap = append(newHeap[:0], curr...)
-		s.floatsPool.Put(curr)
-		*heap = newHeap
-	}
 }
 
 // insert inserts a sample into the stream.
@@ -433,48 +399,33 @@ func (s *Stream) insertPointValue() float64 {
 
 // addToMinHeap adds a value to a min heap.
 func (s *Stream) addToMinHeap(heap *minHeap, value float64) {
-	s.ensureHeapSize(heap, 1)
+	//s.ensureHeapSize(heap, 1)
 	heap.Push(value)
 }
 
 // tryAcquireSample is inline-friendly fastpath to get a sample from preallocated buffer
 func (s *Stream) tryAcquireSample() *Sample {
-	var (
-		sbuf = s.sampleBuf
-		l    = len(sbuf)
-	)
+	l := len(s.sampleBuf)
 
 	if l == 0 {
 		return nil
 	}
 
-	sample := sbuf[l-1]
-	s.sampleBuf = sbuf[:l-1]
-	sample.next, sample.prev = nil, nil
-
+	sample := s.sampleBuf[l-1]
+	s.sampleBuf = s.sampleBuf[:l-1]
 	return sample
 }
 
 func (s *Stream) acquireSample() *Sample {
-	ss, ok := sharedSamplePool.Get().(*[]Sample)
-	if !ok {
-		return &Sample{}
+	for i := 0; i < s.capacity; i++ {
+		sample, ok := sharedSamplePool.Get().(*Sample)
+		if !ok {
+			return &Sample{}
+		}
+		s.sampleBuf = append(s.sampleBuf, sample)
 	}
 
-	sbuf := *ss
-	for i := range sbuf {
-		s.sampleBuf = append(s.sampleBuf, &sbuf[i])
-	}
-
-	// keep track of all bulk-allocated samples
-	// so we can release memory used by samples to the pool
-	s.sampleBufs = append(s.sampleBufs, ss)
-	l := len(s.sampleBuf)
-	sample := s.sampleBuf[l-1]
-	s.sampleBuf = s.sampleBuf[:l-1]
-	sample.next, sample.prev = nil, nil
-
-	return sample
+	return s.tryAcquireSample()
 }
 
 func (s *Stream) releaseSample(sample *Sample) {
@@ -482,6 +433,9 @@ func (s *Stream) releaseSample(sample *Sample) {
 		return
 	}
 
-	sample.next, sample.prev = nil, nil
+	sample.prev, sample.next = nil, nil
+	//sharedSamplePool.Put(sample)
 	s.sampleBuf = append(s.sampleBuf, sample)
+	//fmt.Println(len(s.sampleBuf))
+	//fmt.Println(s.sampleBuf[len(s.sampleBuf)-1])
 }

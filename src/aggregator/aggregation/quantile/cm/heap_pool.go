@@ -97,6 +97,7 @@ func (p heapPool) Put(value *minHeap) {
 		if p.sizes[i] < size {
 			continue
 		}
+		(*value) = (*value)[:0]
 		p.pools[i].Put(value)
 		return
 	}

@@ -24,11 +24,8 @@ import (
 	"sync"
 )
 
-const _initSampleListSize = 1024
-
 var sharedSamplePool = &sync.Pool{
 	New: func() interface{} {
-		s := make([]Sample, _initSampleListSize)
-		return &s
+		return &Sample{}
 	},
 }

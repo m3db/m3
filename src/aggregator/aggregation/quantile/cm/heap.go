@@ -34,6 +34,10 @@ func (h minHeap) Min() float64 { return h[0] }
 
 // Push pushes a value onto the heap.
 func (h *minHeap) Push(value float64) {
+	if len(*h) == cap(*h) {
+		h.ensureSize()
+	}
+
 	// append
 	*h = append(*h, value)
 
@@ -48,6 +52,15 @@ func (h *minHeap) Push(value float64) {
 		heap[parent], heap[i] = heap[i], heap[parent]
 		i = parent
 	}
+}
+
+func (h *minHeap) ensureSize() {
+	curr := *h
+	targetCap := cap(curr) * 2
+
+	newHeap := sharedHeapPool.Get(targetCap)
+	(*h) = append(*newHeap, curr...)
+	sharedHeapPool.Put(&curr)
 }
 
 // Pop pops the minimum value from the heap.

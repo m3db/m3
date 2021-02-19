@@ -130,11 +130,11 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 		}
 		sort.Float64s(z)
 	}
+
 	b.ResetTimer()
 	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
 	for n := 0; n < b.N; n++ {
 		timer := getTimer()
-		timer.Close()
 
 		for i := 0; i < len(samples); i++ {
 			timer.AddBatch(_now, samples[i])

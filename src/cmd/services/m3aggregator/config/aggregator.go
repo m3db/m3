@@ -549,13 +549,8 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 		opts = opts.SetFlushEvery(c.FlushEvery)
 	}
 
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
-	floatsPoolOpts := c.FloatsPool.NewObjectPoolOptions(iOpts)
-	floatsPool := pool.NewFloatsPool(c.FloatsPool.NewBuckets(), floatsPoolOpts)
-	opts = opts.SetFloatsPool(floatsPool)
-	floatsPool.Init()
-
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("stream-pool"))
+	opts = opts.SetFloatsPool(nil)
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream-pool"))
 	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
 	streamPool := cm.NewStreamPool(streamPoolOpts)
 	opts = opts.SetStreamPool(streamPool)
