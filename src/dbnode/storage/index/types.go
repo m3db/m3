@@ -911,6 +911,33 @@ func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return *e.result
 }
 
+// AggregateIterator iterates through the (field,term)s for a block.
+type AggregateIterator interface {
+	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
+	// Callers need to check Err after this returns false to check if an error occurred while iterating.
+	Next(ctx context.Context) bool
+
+	// Done returns true if the iterator is exhausted. This non-standard iterating method allows any index query to
+	// check if there is more work to be done before waiting for a worker from the pool.
+	// If this method returns true, Next is guaranteed to return false. However, on the first iteration this will always
+	// return false and Next may return false for an empty iterator.
+	Done() bool
+
+	// Err returns an non-nil error if an error occurred calling Next.
+	Err() error
+
+	// Current returns the current (field, term).
+	Current() (field, term []byte)
+
+	// Close the iterator and underlying resources.
+	Close() error
+
+	// SearchDuration is how long it took to search the segments in the block.
+	SearchDuration() time.Duration
+
+	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+}
+
 // fieldsAndTermsIterator iterates over all known fields and terms for a segment.
 type fieldsAndTermsIterator interface {
 	// Next returns a bool indicating if there are any more elements.
@@ -924,7 +951,7 @@ type fieldsAndTermsIterator interface {
 	Err() error
 
 	// Close releases any resources held by the iterator.
-	Close(ctx context.Context) error
+	Close() error
 
 	// Reset resets the iterator to the start iterating the given segment.
 	Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error

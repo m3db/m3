@@ -62,7 +62,7 @@ func TestFieldsTermsIteratorSimple(t *testing.T) {
 
 	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
-	s.requireEquals(ctx, t, iter)
+	s.requireEquals(t, iter)
 }
 
 func TestFieldsTermsIteratorReuse(t *testing.T) {
@@ -86,7 +86,7 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 
 	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
-	s.requireEquals(ctx, t, iter)
+	s.requireEquals(t, iter)
 
 	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
@@ -516,7 +516,7 @@ func (s *fieldsTermsIterSetup) asSegment(t *testing.T) segment.Segment {
 	return fst.ToTestSegment(t, memSeg, testFstOptions)
 }
 
-func (s *fieldsTermsIterSetup) requireEquals(ctx context.Context, t *testing.T, iter fieldsAndTermsIterator) {
+func (s *fieldsTermsIterSetup) requireEquals(t *testing.T, iter fieldsAndTermsIterator) { //nolint:thelper
 	pending := s.fields
 	for len(pending) > 0 {
 		require.True(t, iter.Next())
@@ -531,7 +531,7 @@ func (s *fieldsTermsIterSetup) requireEquals(ctx context.Context, t *testing.T, 
 	}
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
-	require.NoError(t, iter.Close(ctx))
+	require.NoError(t, iter.Close())
 }
 
 func toSlice(iter fieldsAndTermsIterator) ([]pair, error) {

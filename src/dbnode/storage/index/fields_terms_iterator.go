@@ -294,7 +294,7 @@ func (fti *fieldsAndTermsIter) Err() error {
 	return fti.err
 }
 
-func (fti *fieldsAndTermsIter) Close(ctx context.Context) error {
+func (fti *fieldsAndTermsIter) Close() error {
 	var multiErr xerrors.MultiError
 	if fti.fieldIter != nil {
 		multiErr = multiErr.Add(fti.fieldIter.Close())
@@ -302,6 +302,5 @@ func (fti *fieldsAndTermsIter) Close(ctx context.Context) error {
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
 	}
-	multiErr = multiErr.Add(fti.Reset(ctx, nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }
