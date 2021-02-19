@@ -161,7 +161,7 @@ func (s *Stream) calcQuantiles() {
 		prev      = s.samples.Front()
 		curr      = s.samples.Front()
 		rank      = int64(math.Ceil(q * float64(s.numValues)))
-		threshold = int64(math.Ceil(float64(thresholdFn(s.quantiles, s.numValues, rank, s.eps)) / 2.0))
+		threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
 	)
 
 	for curr != nil {
@@ -174,7 +174,7 @@ func (s *Stream) calcQuantiles() {
 			idx++
 			q = s.quantiles[idx]
 			rank = int64(math.Ceil(q * float64(s.numValues)))
-			threshold = int64(math.Ceil(float64(thresholdFn(s.quantiles, s.numValues, rank, s.eps)) / 2.0))
+			threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
 		}
 		minRank += curr.numRanks
 		prev = curr
@@ -315,17 +315,11 @@ func (s *Stream) compress() {
 		s.compressCursor = s.compressCursor.prev
 	}
 
-	var (
-		quantiles = s.quantiles
-		numValues = s.numValues
-		eps       = s.eps
-	)
-
 	for s.compressCursor != s.samples.Front() {
 		next := s.compressCursor.next
 		maxRank := s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta
 		s.compressMinRank -= s.compressCursor.numRanks
-		threshold := thresholdFn(quantiles, numValues, maxRank, eps)
+		threshold := s.threshold(maxRank)
 
 		testVal := s.compressCursor.numRanks + next.numRanks + next.delta
 		if testVal <= threshold {
@@ -350,14 +344,14 @@ func (s *Stream) compress() {
 }
 
 // threshold computes the minimum threshold value.
-func thresholdFn(quantiles []float64, numValues int64, rank int64, eps float64) int64 {
+func (s *Stream) threshold(rank int64) int64 {
 	minVal := int64(math.MaxInt64)
-	for _, quantile := range quantiles {
+	for _, quantile := range s.quantiles {
 		var quantileMin int64
-		if float64(rank) >= quantile*float64(numValues) {
-			quantileMin = int64(2 * eps * float64(rank) / quantile)
+		if float64(rank) >= quantile*float64(s.numValues) {
+			quantileMin = int64(2 * s.eps * float64(rank) / quantile)
 		} else {
-			quantileMin = int64(2 * eps * float64(numValues-rank) / (1 - quantile))
+			quantileMin = int64(2 * s.eps * float64(s.numValues-rank) / (1 - quantile))
 		}
 		if quantileMin < minVal {
 			minVal = quantileMin
