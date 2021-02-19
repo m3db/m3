@@ -177,8 +177,8 @@ func newLookbackLimitMetrics(
 	})
 
 	var (
+		loggerOpts  = instrumentOpts.SetMetricsScope(loggerScope)
 		metricScope = loggerScope.SubScope("query-limit")
-		loggerOpts  = instrumentOpts.SetMetricsScope(metricScope)
 	)
 
 	return lookbackLimitMetrics{
