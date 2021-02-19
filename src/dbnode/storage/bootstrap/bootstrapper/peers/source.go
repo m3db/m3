@@ -180,14 +180,40 @@ func (s *peersSource) Read(
 			continue
 		}
 
-		r, err := s.readIndex(md,
-			namespace.IndexRunOptions.ShardTimeRanges,
-			instrCtx.span,
-			cache,
-			namespace.IndexRunOptions.RunOptions,
+		var (
+			opts           = namespace.IndexRunOptions.RunOptions
+			indexBlockSize = md.Options().IndexOptions().BlockSize()
+			idxOpts        = md.Options().IndexOptions()
+			r              result.IndexBootstrapResult
+			err            error
 		)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
+		if s.shouldPersist(opts) {
+			// Only attempt to bootstrap index if we've persisted tsdb data.
+			r, err = s.readIndex(md,
+				namespace.IndexRunOptions.ShardTimeRanges,
+				instrCtx.span,
+				cache,
+				opts,
+			)
+			if err != nil {
+				return bootstrap.NamespaceResults{}, err
+			}
+		} else {
+			// Mark index ranges as fulfilled if we did not persist any tsdb data (e.g. snapshot data).
+			r = result.NewIndexBootstrapResult()
+			min, max := namespace.IndexRunOptions.ShardTimeRanges.MinMax()
+			for start := min.Truncate(indexBlockSize); start.Before(max); start = start.Add(indexBlockSize) {
+				shardTimeRanges := result.NewShardTimeRangesFromRange(start, start.Add(indexBlockSize), namespace.Shards...)
+				if err := r.IndexResults().MarkFulfilled(
+					start,
+					shardTimeRanges,
+					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
+					idxpersist.DefaultIndexVolumeType,
+					idxOpts,
+				); err != nil {
+					return bootstrap.NamespaceResults{}, err
+				}
+			}
 		}
 
 		result, ok := results.Results.Get(md.ID())
@@ -220,19 +246,7 @@ func (s *peersSource) readData(
 		return result.NewDataBootstrapResult(), nil
 	}
 
-	var (
-		shouldPersist = false
-		// TODO(bodu): We should migrate to series.CacheLRU only.
-		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		persistConfig     = opts.PersistConfig()
-	)
-
-	if persistConfig.Enabled &&
-		seriesCachePolicy != series.CacheAll &&
-		persistConfig.FileSetType == persist.FileSetFlushType {
-		shouldPersist = true
-	}
-
+	shouldPersist := s.shouldPersist(opts)
 	result := result.NewDataBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
@@ -698,27 +712,6 @@ func (s *peersSource) readIndex(
 	s.log.Info("peers bootstrapper bootstrapping index for ranges",
 		zap.Int("shards", count))
 
-	// Mark snapshot ranges as fulfilled.
-	shards := make([]uint32, 0, len(shardTimeRanges.Iter()))
-	for shard := range shardTimeRanges.Iter() {
-		shards = append(shards, shard)
-	}
-	min, max := shardTimeRanges.MinMax()
-	if opts.PersistConfig().FileSetType == persist.FileSetSnapshotType {
-		for start := min.Truncate(indexBlockSize); start.Before(max); start = start.Add(indexBlockSize) {
-			str := result.NewShardTimeRangesFromRange(start, start.Add(indexBlockSize), shards...)
-			resultLock.Lock()
-			err := r.IndexResults().MarkFulfilled(start, str,
-				// NB(bodu): By default, we always load bootstrapped data into the default index volume.
-				idxpersist.DefaultIndexVolumeType, idxOpts)
-			if err != nil {
-				return r, err
-			}
-			resultLock.Unlock()
-		}
-		return r, nil
-	}
-
 	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
 		NsMD:            ns,
 		RunOpts:         opts,
@@ -1180,4 +1173,12 @@ func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
 	}
 
 	return nil
+}
+
+func (s *peersSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
+	persistConfig := runOpts.PersistConfig()
+	return persistConfig.Enabled &&
+		persistConfig.FileSetType == persist.FileSetFlushType &&
+		// TODO(bodu): We should migrate to series.CacheLRU only.
+		s.opts.ResultOptions().SeriesCachePolicy() != series.CacheAll
 }
