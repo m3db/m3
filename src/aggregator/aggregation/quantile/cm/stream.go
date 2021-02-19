@@ -77,9 +77,6 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 func (s *Stream) AddBatch(values []float64) {
 	s.flushed = false
 
-	//s.ensureHeapSize(&s.bufLess, len(values))
-	//s.ensureHeapSize(&s.bufMore, len(values))
-
 	insertPointValue := s.insertPointValue()
 	for _, value := range values {
 		if s.numValues > 0 && value < insertPointValue {
@@ -163,9 +160,8 @@ func (s *Stream) calcQuantiles() {
 		qMax      = len(s.quantiles) - 1
 		prev      = s.samples.Front()
 		curr      = s.samples.Front()
-		numVals   = float64(s.numValues)
-		rank      = int64(math.Ceil(q * numVals))
-		threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
+		rank      = int64(math.Ceil(q * float64(s.numValues)))
+		threshold = int64(math.Ceil(float64(thresholdFn(s.quantiles, s.numValues, rank, s.eps)) / 2.0))
 	)
 
 	for curr != nil {
@@ -177,8 +173,8 @@ func (s *Stream) calcQuantiles() {
 			}
 			idx++
 			q = s.quantiles[idx]
-			rank = int64(math.Ceil(q * numVals))
-			threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
+			rank = int64(math.Ceil(q * float64(s.numValues)))
+			threshold = int64(math.Ceil(float64(thresholdFn(s.quantiles, s.numValues, rank, s.eps)) / 2.0))
 		}
 		minRank += curr.numRanks
 		prev = curr
@@ -319,11 +315,17 @@ func (s *Stream) compress() {
 		s.compressCursor = s.compressCursor.prev
 	}
 
+	var (
+		quantiles = s.quantiles
+		numValues = s.numValues
+		eps       = s.eps
+	)
+
 	for s.compressCursor != s.samples.Front() {
 		next := s.compressCursor.next
 		maxRank := s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta
 		s.compressMinRank -= s.compressCursor.numRanks
-		threshold := s.threshold(maxRank)
+		threshold := thresholdFn(quantiles, numValues, maxRank, eps)
 
 		testVal := s.compressCursor.numRanks + next.numRanks + next.delta
 		if testVal <= threshold {
@@ -348,14 +350,14 @@ func (s *Stream) compress() {
 }
 
 // threshold computes the minimum threshold value.
-func (s *Stream) threshold(rank int64) int64 {
+func thresholdFn(quantiles []float64, numValues int64, rank int64, eps float64) int64 {
 	minVal := int64(math.MaxInt64)
-	for _, quantile := range s.quantiles {
+	for _, quantile := range quantiles {
 		var quantileMin int64
-		if float64(rank) >= quantile*float64(s.numValues) {
-			quantileMin = int64(2 * s.eps * float64(rank) / quantile)
+		if float64(rank) >= quantile*float64(numValues) {
+			quantileMin = int64(2 * eps * float64(rank) / quantile)
 		} else {
-			quantileMin = int64(2 * s.eps * float64(s.numValues-rank) / (1 - quantile))
+			quantileMin = int64(2 * eps * float64(numValues-rank) / (1 - quantile))
 		}
 		if quantileMin < minVal {
 			minVal = quantileMin
