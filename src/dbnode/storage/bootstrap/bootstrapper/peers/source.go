@@ -698,6 +698,27 @@ func (s *peersSource) readIndex(
 	s.log.Info("peers bootstrapper bootstrapping index for ranges",
 		zap.Int("shards", count))
 
+	// Mark snapshot ranges as fulfilled.
+	shards := make([]uint32, 0, len(shardTimeRanges.Iter()))
+	for shard := range shardTimeRanges.Iter() {
+		shards = append(shards, shard)
+	}
+	min, max := shardTimeRanges.MinMax()
+	if opts.PersistConfig().FileSetType == persist.FileSetSnapshotType {
+		for start := min.Truncate(indexBlockSize); start.Before(max); start = start.Add(indexBlockSize) {
+			str := result.NewShardTimeRangesFromRange(start, start.Add(indexBlockSize), shards...)
+			resultLock.Lock()
+			err := r.IndexResults().MarkFulfilled(start, str,
+				// NB(bodu): By default, we always load bootstrapped data into the default index volume.
+				idxpersist.DefaultIndexVolumeType, idxOpts)
+			if err != nil {
+				return r, err
+			}
+			resultLock.Unlock()
+		}
+		return r, nil
+	}
+
 	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
 		NsMD:            ns,
 		RunOpts:         opts,
