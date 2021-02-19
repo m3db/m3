@@ -1097,6 +1097,35 @@ func (mr *MockBlockMockRecorder) Query(ctx, query, opts, results, logFields inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), ctx, query, opts, results, logFields)
 }
 
+// QueryWithIter mocks base method
+func (m *MockBlock) QueryWithIter(ctx context.Context, opts QueryOptions, docIter doc.Iterator, results DocumentResults, limit int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryWithIter", ctx, opts, docIter, results, limit)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// QueryWithIter indicates an expected call of QueryWithIter
+func (mr *MockBlockMockRecorder) QueryWithIter(ctx, opts, docIter, results, limit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryWithIter", reflect.TypeOf((*MockBlock)(nil).QueryWithIter), ctx, opts, docIter, results, limit)
+}
+
+// QueryIter mocks base method
+func (m *MockBlock) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryIter", ctx, query)
+	ret0, _ := ret[0].(doc.QueryDocIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryIter indicates an expected call of QueryIter
+func (mr *MockBlockMockRecorder) QueryIter(ctx, query interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIter", reflect.TypeOf((*MockBlock)(nil).QueryIter), ctx, query)
+}
+
 // Aggregate mocks base method
 func (m *MockBlock) Aggregate(ctx context.Context, opts QueryOptions, results AggregateResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
