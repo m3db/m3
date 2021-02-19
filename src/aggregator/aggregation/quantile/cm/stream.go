@@ -37,8 +37,8 @@ var (
 type Stream struct {
 	eps                    float64    // desired epsilon for errors
 	quantiles              []float64  // sorted target quantiles
-	computedQuantiles      []float64  // sorted target quantiles
-	capacity               int        // stream capacity
+	computedQuantiles      []float64  // sorted computed target quantiles
+	capacity               int        // initial stream sample buffer capacity
 	insertAndCompressEvery int        // stream insertion and compression frequency
 	streamPool             StreamPool // pool of streams
 
@@ -50,9 +50,9 @@ type Stream struct {
 	insertCursor             *Sample    // insertion cursor
 	compressCursor           *Sample    // compression cursor
 	compressMinRank          int64      // compression min rank
-	sampleBuf                []*Sample
-	closed                   bool // whether the stream is closed
-	flushed                  bool
+	sampleBuf                []*Sample  // sample buffer
+	closed                   bool       // whether the stream is closed
+	flushed                  bool       // whether the stream is flushed
 }
 
 // NewStream creates a new sample stream.
@@ -101,9 +101,7 @@ func (s *Stream) Flush() {
 	if s.flushed {
 		return
 	}
-	//fmt.Println("samples ", s.samples.len, " num ", s.numValues, " insertevery ",
-	//	s.insertAndCompressEvery,
-	//	" bfmore ", s.bufMore.Len(), "bfless", s.bufLess.Len())
+
 	for s.bufLess.Len() > 0 || s.bufMore.Len() > 0 {
 		if s.bufMore.Len() == 0 {
 			s.resetInsertCursor()
@@ -113,8 +111,6 @@ func (s *Stream) Flush() {
 	}
 	s.calcQuantiles()
 	s.flushed = true
-	// fmt.Println("inserts ", s.c)
-	// fmt.Println("samples ", s.samples.len)
 }
 
 func (s *Stream) Min() float64 {
@@ -129,9 +125,11 @@ func (s *Stream) Quantile(q float64) float64 {
 	if q < 0.0 || q > 1.0 {
 		return nan
 	}
+
 	if s.samples.Empty() {
 		return 0.0
 	}
+
 	if q == 0.0 {
 		return s.samples.Front().value
 	}
@@ -203,18 +201,17 @@ func (s *Stream) Close() {
 	for curr != nil {
 		next := curr.next
 		curr.next, curr.prev = nil, nil
-		sharedSamplePool.Put(curr)
+		samplePool.Put(curr)
 		curr = next
 	}
 
 	for i := range s.sampleBuf {
 		s.sampleBuf[i].next, s.sampleBuf[i].prev = nil, nil
-		sharedSamplePool.Put(s.sampleBuf[i])
+		samplePool.Put(s.sampleBuf[i])
 	}
 
-	s.sampleBuf = s.sampleBuf[:0]
-	// Clear out slices/lists/pointer to reduce GC overhead.
 	s.samples.Reset()
+	s.sampleBuf = s.sampleBuf[:0]
 	s.insertCursor = nil
 	s.compressCursor = nil
 	s.insertAndCompressCounter = 0
@@ -308,7 +305,7 @@ func (s *Stream) compress() {
 	if s.samples.Len() < minSamplesToCompress {
 		return
 	}
-	//fmt.Println(s.samples.len)
+
 	if s.compressCursor == nil {
 		s.compressCursor = s.samples.Back().prev
 		s.compressMinRank = s.numValues - 1 - s.compressCursor.numRanks
@@ -376,12 +373,6 @@ func (s *Stream) insertPointValue() float64 {
 	return s.insertCursor.value
 }
 
-// addToMinHeap adds a value to a min heap.
-func (s *Stream) addToMinHeap(heap *minHeap, value float64) {
-	//s.ensureHeapSize(heap, 1)
-	heap.Push(value)
-}
-
 // tryAcquireSample is inline-friendly fastpath to get a sample from preallocated buffer
 func (s *Stream) tryAcquireSample() *Sample {
 	l := len(s.sampleBuf)
@@ -397,7 +388,7 @@ func (s *Stream) tryAcquireSample() *Sample {
 
 func (s *Stream) acquireSample() *Sample {
 	for i := 0; i < s.capacity; i++ {
-		sample, ok := sharedSamplePool.Get().(*Sample)
+		sample, ok := samplePool.Get().(*Sample)
 		if !ok {
 			return &Sample{}
 		}
@@ -409,9 +400,5 @@ func (s *Stream) acquireSample() *Sample {
 
 func (s *Stream) releaseSample(sample *Sample) {
 	sample.prev, sample.next = nil, nil
-	//if cap(s.sampleBuf) == len(s.sampleBuf) {
-	//	sharedSamplePool.Put(sample)
-	//	return
-	//}
 	s.sampleBuf = append(s.sampleBuf, sample)
 }

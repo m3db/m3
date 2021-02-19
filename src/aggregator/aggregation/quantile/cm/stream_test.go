@@ -25,8 +25,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -148,33 +146,6 @@ func TestStreamClose(t *testing.T) {
 	// Close the stream again, should be a no-op.
 	s.Close()
 	require.True(t, s.closed)
-}
-
-func TestStreamAddToMinHeap(t *testing.T) {
-	t.Skip("out of date test")
-	floatsPool := pool.NewFloatsPool(
-		[]pool.Bucket{
-			{Capacity: 1, Count: 1},
-			{Capacity: 2, Count: 1},
-		}, nil)
-	floatsPool.Init()
-	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
-
-	heap := minHeap(floatsPool.Get(1))
-	require.Equal(t, 1, cap(heap))
-
-	inputs := []float64{1.0, 2.0}
-
-	// Push one value to the heap, still under capacity.
-	s.addToMinHeap(&heap, inputs[0])
-	require.Equal(t, inputs[:1], []float64(heap))
-	require.Equal(t, 1, cap(heap))
-
-	// Push another value to the heap, which causes the capacity to grow.
-	s.addToMinHeap(&heap, inputs[1])
-	require.Equal(t, inputs, []float64(heap))
-	require.Equal(t, 2, cap(heap))
 }
 
 func testStreamWithIncreasingSamples(t *testing.T, opts Options) {
