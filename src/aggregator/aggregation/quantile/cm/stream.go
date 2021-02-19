@@ -22,8 +22,6 @@ package cm
 
 import (
 	"math"
-
-	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
@@ -43,7 +41,6 @@ type Stream struct {
 	capacity               int        // stream capacity
 	insertAndCompressEvery int        // stream insertion and compression frequency
 	streamPool             StreamPool // pool of streams
-	floatsPool             pool.FloatsPool
 
 	insertAndCompressCounter int        // insertion and compression counter
 	numValues                int64      // number of values inserted into the sorted stream
@@ -69,9 +66,8 @@ func NewStream(quantiles []float64, opts Options) *Stream {
 		computedQuantiles:      make([]float64, len(quantiles)),
 		capacity:               opts.Capacity(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
-		//floatsPool:             opts.FloatsPool(),
-		sampleBuf:  make([]*Sample, 0, opts.Capacity()),
-		streamPool: opts.StreamPool(),
+		sampleBuf:              make([]*Sample, 0, opts.Capacity()),
+		streamPool:             opts.StreamPool(),
 	}
 
 	if len(s.quantiles) > 0 { // do not pre-allocate
@@ -227,7 +223,7 @@ func (s *Stream) Close() {
 		sharedSamplePool.Put(s.sampleBuf[i])
 	}
 
-	s.sampleBuf = nil
+	s.sampleBuf = s.sampleBuf[:0]
 	// Clear out slices/lists/pointer to reduce GC overhead.
 	s.samples.Reset()
 	s.insertCursor = nil
@@ -411,7 +407,6 @@ func (s *Stream) acquireSample() *Sample {
 	for i := 0; i < s.capacity; i++ {
 		sample, ok := sharedSamplePool.Get().(*Sample)
 		if !ok {
-			panic("ZZZZ")
 			return &Sample{}
 		}
 		s.sampleBuf = append(s.sampleBuf, sample)
