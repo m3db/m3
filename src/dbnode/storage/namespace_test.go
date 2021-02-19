@@ -562,6 +562,7 @@ func TestNamespaceBootstrapUnfulfilledShards(t *testing.T) {
 	}
 }
 
+// nolint:thelper
 func testNamespaceBootstrapUnfulfilledShards(
 	t *testing.T,
 	shardIDs, unfulfilledShardIDs []uint32,
