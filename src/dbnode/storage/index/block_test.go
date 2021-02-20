@@ -1880,7 +1880,6 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	}, testOpts)
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
 		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
@@ -1951,7 +1950,6 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil)
 	iter.EXPECT().SearchDuration().Return(time.Second)
 	iter.EXPECT().Next().Return(true)
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
@@ -2044,7 +2042,6 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil)
 	// use seriesLimit instead of seriesLimit - 1 since the iterator peeks ahead to check for Done.
 	for i := 0; i < seriesLimit; i++ {
 		iter.EXPECT().Next().Return(true)
@@ -2125,7 +2122,6 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
 		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),

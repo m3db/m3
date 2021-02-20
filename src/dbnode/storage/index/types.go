@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -952,9 +951,6 @@ type fieldsAndTermsIterator interface {
 
 	// Close releases any resources held by the iterator.
 	Close() error
-
-	// Reset resets the iterator to the start iterating the given segment.
-	Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
 
 	// SearchDuration is how long it took to search the Segment.
 	SearchDuration() time.Duration

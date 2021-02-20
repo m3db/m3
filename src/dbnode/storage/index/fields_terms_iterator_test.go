@@ -65,61 +65,6 @@ func TestFieldsTermsIteratorSimple(t *testing.T) {
 	s.requireEquals(t, iter)
 }
 
-func TestFieldsTermsIteratorReuse(t *testing.T) {
-	ctx := context.NewBackground()
-	pairs := []pair{
-		{"a", "b"},
-		{"a", "c"},
-		{"d", "e"},
-		{"d", "f"},
-		{"g", "h"},
-		{"i", "j"},
-		{"k", "l"},
-	}
-
-	iter, err := newFieldsAndTermsIterator(ctx, nil, fieldsAndTermsIteratorOpts{})
-	require.NoError(t, err)
-
-	s := newFieldsTermsIterSetup(pairs...)
-	reader, err := s.asSegment(t).Reader()
-	require.NoError(t, err)
-
-	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
-	require.NoError(t, err)
-	s.requireEquals(t, iter)
-
-	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{
-		iterateTerms: true,
-		allowFn: func(f []byte) bool {
-			return !bytes.Equal([]byte("a"), f) && !bytes.Equal([]byte("k"), f)
-		},
-	})
-	require.NoError(t, err)
-	slice, err := toSlice(iter)
-	require.NoError(t, err)
-	requireSlicesEqual(t, []pair{
-		{"d", "e"},
-		{"d", "f"},
-		{"g", "h"},
-		{"i", "j"},
-	}, slice)
-
-	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{
-		iterateTerms: true,
-		allowFn: func(f []byte) bool {
-			return bytes.Equal([]byte("k"), f) || bytes.Equal([]byte("a"), f)
-		},
-	})
-	require.NoError(t, err)
-	slice, err = toSlice(iter)
-	require.NoError(t, err)
-	requireSlicesEqual(t, []pair{
-		{"a", "b"},
-		{"a", "c"},
-		{"k", "l"},
-	}, slice)
-}
-
 func TestFieldsTermsIteratorSimpleSkip(t *testing.T) {
 	ctx := context.NewBackground()
 	input := []pair{

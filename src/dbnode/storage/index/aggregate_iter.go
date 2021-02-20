@@ -54,13 +54,8 @@ func (it *aggregateIter) Next(ctx context.Context) bool {
 	}
 	if it.iters == nil {
 		for _, reader := range it.readers {
-			iter, err := it.newIterFn(ctx, nil, it.iterateOpts)
+			iter, err := it.newIterFn(ctx, reader, it.iterateOpts)
 			if err != nil {
-				it.err = err
-				return false
-			}
-			// TODO: remove
-			if err := iter.Reset(ctx, reader, it.iterateOpts); err != nil {
 				it.err = err
 				return false
 			}
