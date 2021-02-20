@@ -593,12 +593,10 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 	defer s.Unlock()
 
-	if s.closed {
-		return
-	}
-
-	// Should never happen
-	if !id.Equal(s.id) {
+	// If the series is closed, the ID will be nil, causing the ID equality
+	// check to panic. Further, closing the series resets the internal
+	// cached blocks, so we don't need to continue with the logic below.
+	if s.closed || !id.Equal(s.id) {
 		return
 	}
 

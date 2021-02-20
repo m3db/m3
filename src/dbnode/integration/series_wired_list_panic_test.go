@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -37,9 +38,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	numSeries = 10
+)
+
 var (
-	nsID       = ident.StringID("ns0")
-	seriesStrs = []string{"series0", "series1"}
+	nsID = ident.StringID("ns0")
 )
 
 func TestWiredListPanic(t *testing.T) {
@@ -93,10 +97,15 @@ func TestWiredListPanic(t *testing.T) {
 	blockSize := ropts.BlockSize()
 	filePathPrefix := testSetup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
+	seriesStrs := make([]string, 0, numSeries)
+	for i := 0; i < numSeries; i++ {
+		seriesStrs = append(seriesStrs, fmt.Sprintf("series-%d", i))
+	}
+
 	start := testSetup.NowFn()()
 	go func() {
 		for i := 0; true; i++ {
-			write(t, testSetup, blockSize, start, filePathPrefix, i)
+			write(t, testSetup, blockSize, start, filePathPrefix, i, seriesStrs)
 			time.Sleep(5 * time.Millisecond)
 		}
 	}()
@@ -108,7 +117,7 @@ func TestWiredListPanic(t *testing.T) {
 			case <-doneCh:
 				return
 			default:
-				read(t, testSetup, blockSize)
+				read(t, testSetup, blockSize, seriesStrs)
 				time.Sleep(5 * time.Millisecond)
 			}
 		}
@@ -126,6 +135,7 @@ func write(
 	start time.Time,
 	filePathPrefix string,
 	i int,
+	seriesStrs []string,
 ) {
 	blockStart := start.Add(time.Duration(2*i) * blockSize)
 	testSetup.SetNowFn(blockStart)
@@ -158,6 +168,7 @@ func read(
 	t *testing.T,
 	testSetup TestSetup,
 	blockSize time.Duration,
+	seriesStrs []string,
 ) {
 	// After every write, "now" would be progressed into the future so that the
 	// will be flushed to disk. This makes "now" a suitable RangeEnd for the
