@@ -28,6 +28,8 @@ import (
 	"os"
 
 	"github.com/m3db/bitset"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -174,6 +176,9 @@ func (w *writer) Open() (persist.CommitLogFile, error) {
 		w.Close()
 		return persist.CommitLogFile{}, err
 	}
+
+	logger := w.opts.InstrumentOptions().Logger()
+	logger.Info("started new commitlog file", zap.Int("index", index))
 
 	return persist.CommitLogFile{
 		FilePath: filePath,
