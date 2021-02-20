@@ -441,6 +441,18 @@ type Block interface {
 		logFields []opentracinglog.Field,
 	) (bool, error)
 
+	// AggregateWithIter aggregates N known tag names/values from the iterator.
+	AggregateWithIter(
+		ctx context.Context,
+		iter AggregateIterator,
+		opts QueryOptions,
+		results AggregateResults,
+		limit int,
+	) error
+
+	// AggregateIter returns a new AggregatorIterator.
+	AggregateIter(ctx context.Context, aggOpts AggregateResultsOptions) (AggregateIterator, error)
+
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
 
