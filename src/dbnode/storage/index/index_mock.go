@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -1556,20 +1555,6 @@ func (m *MockfieldsAndTermsIterator) Close() error {
 func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Close))
-}
-
-// Reset mocks base method
-func (m *MockfieldsAndTermsIterator) Reset(ctx context.Context, reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reset", ctx, reader, opts)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Reset indicates an expected call of Reset
-func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(ctx, reader, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), ctx, reader, opts)
 }
 
 // SearchDuration mocks base method
