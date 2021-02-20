@@ -517,16 +517,16 @@ type streamConfiguration struct {
 	// Error epsilon for quantile computation.
 	Eps float64 `yaml:"eps"`
 
-	// Initial heap capacity for quantile computation.
+	// Initial sample pool capacity for quantile computation.
 	Capacity int `yaml:"capacity"`
 
 	// Insertion and compression frequency.
 	InsertAndCompressEvery int `yaml:"insertAndCompressEvery"`
 
-	// Flush frequency.
+	// Flush frequency is deprecated.
 	FlushEvery int `yaml:"flushEvery"`
 
-	// Pool of streams.
+	// StreamPool is deprecated.
 	StreamPool pool.ObjectPoolConfiguration `yaml:"streamPool"`
 
 	// SamplePool is deprecated.
@@ -536,8 +536,7 @@ type streamConfiguration struct {
 	FloatsPool pool.BucketizedPoolConfiguration `yaml:"floatsPool"`
 }
 
-func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options) (cm.Options, error) {
-	scope := instrumentOpts.MetricsScope()
+func (c *streamConfiguration) NewStreamOptions(_ instrument.Options) (cm.Options, error) {
 	opts := cm.NewOptions().
 		SetEps(c.Eps).
 		SetCapacity(c.Capacity)
@@ -545,12 +544,6 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	if c.InsertAndCompressEvery != 0 {
 		opts = opts.SetInsertAndCompressEvery(c.InsertAndCompressEvery)
 	}
-
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream-pool"))
-	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
-	streamPool := cm.NewStreamPool(streamPoolOpts)
-	opts = opts.SetStreamPool(streamPool)
-	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, opts) })
 
 	if err := opts.Validate(); err != nil {
 		return nil, err

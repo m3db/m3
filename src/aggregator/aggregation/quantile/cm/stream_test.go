@@ -44,7 +44,8 @@ func testStreamOptions() Options {
 
 func TestEmptyStream(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	require.Equal(t, 0.0, s.Min())
 	require.Equal(t, 0.0, s.Max())
 	for _, q := range testQuantiles {
@@ -54,7 +55,8 @@ func TestEmptyStream(t *testing.T) {
 
 func TestStreamWithOnePositiveSample(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	s.Add(100.0)
 	s.Flush()
 
@@ -67,7 +69,8 @@ func TestStreamWithOnePositiveSample(t *testing.T) {
 
 func TestStreamWithOneNegativeSample(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	s.Add(-100.0)
 	s.Flush()
 
@@ -80,7 +83,8 @@ func TestStreamWithOneNegativeSample(t *testing.T) {
 
 func TestStreamWithThreeSamples(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for _, val := range []float64{100.0, 200.0, 300.0} {
 		s.Add(val)
 	}
@@ -136,7 +140,8 @@ func TestStreamWithSkewedDistributionPeriodicInsertCompressNoPeriodicFlush(t *te
 
 func TestStreamClose(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	require.False(t, s.closed)
 
 	// Close the stream.
@@ -150,7 +155,8 @@ func TestStreamClose(t *testing.T) {
 
 func testStreamWithIncreasingSamples(t *testing.T, opts Options) {
 	numSamples := 100000
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for i := 0; i < numSamples; i++ {
 		s.Add(float64(i))
 	}
@@ -167,7 +173,8 @@ func testStreamWithIncreasingSamples(t *testing.T, opts Options) {
 
 func testStreamWithDecreasingSamples(t *testing.T, opts Options) {
 	numSamples := 100000
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for i := numSamples - 1; i >= 0; i-- {
 		s.Add(float64(i))
 	}
@@ -185,7 +192,8 @@ func testStreamWithDecreasingSamples(t *testing.T, opts Options) {
 func testStreamWithRandomSamples(t *testing.T, opts Options) {
 	numSamples := 100000
 	maxInt64 := int64(math.MaxInt64)
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	min := math.MaxFloat64
 	max := -1.0
 
@@ -209,7 +217,8 @@ func testStreamWithRandomSamples(t *testing.T, opts Options) {
 }
 
 func testStreamWithSkewedDistribution(t *testing.T, opts Options) {
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for i := 0; i < 10000; i++ {
 		s.Add(1.0)
 	}

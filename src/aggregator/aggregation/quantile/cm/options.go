@@ -25,11 +25,10 @@ import (
 )
 
 const (
-	minEps          = 0.0
-	maxEps          = 0.5
-	defaultEps      = 1e-3
-	defaultCapacity = 32
-
+	minEps                        = 0.0
+	maxEps                        = 0.5
+	defaultEps                    = 1e-3
+	defaultCapacity               = 32
 	defaultInsertAndCompressEvery = 1024
 )
 
@@ -51,7 +50,7 @@ func NewOptions() Options {
 		capacity:               defaultCapacity,
 		insertAndCompressEvery: defaultInsertAndCompressEvery,
 	}
-
+	o.streamPool = NewStreamPool(o)
 	return o
 }
 

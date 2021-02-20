@@ -20,21 +20,6 @@
 
 package cm
 
-// StreamAlloc allocates a stream.
-type StreamAlloc func() *Stream
-
-// StreamPool provides a pool for streams.
-type StreamPool interface {
-	// Init initializes the pool.
-	Init(alloc StreamAlloc)
-
-	// Get provides a stream from the pool.
-	Get() *Stream
-
-	// Put returns a stream to the pool.
-	Put(value *Stream)
-}
-
 // Options represent various options for computing quantiles.
 type Options interface {
 	// SetEps sets the desired epsilon for errors.

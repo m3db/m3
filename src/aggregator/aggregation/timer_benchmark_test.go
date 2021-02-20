@@ -169,12 +169,9 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 
 func init() {
 	_aggregationOptions.ResetSetData(testAggTypes)
-	streamPool := cm.NewStreamPool(nil)
 	_cmOptions = cm.NewOptions().
 		SetInsertAndCompressEvery(_insertAndCompressEvery).
 		SetEps(_eps).
-		SetCapacity(_heapCapacity).
-		SetStreamPool(streamPool)
+		SetCapacity(_heapCapacity)
 	_aggregationOptions.ResetSetData(testAggTypes)
-	streamPool.Init(func() *cm.Stream { return cm.NewStream(nil, _cmOptions) })
 }

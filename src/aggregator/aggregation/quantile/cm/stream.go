@@ -29,19 +29,17 @@ const (
 )
 
 var (
-	nan         = math.NaN()
-	defaultOpts = NewOptions()
+	nan = math.NaN()
 )
 
 // Stream represents a data stream.
 type Stream struct {
-	eps                    float64    // desired epsilon for errors
-	quantiles              []float64  // sorted target quantiles
-	computedQuantiles      []float64  // sorted computed target quantiles
-	capacity               int        // initial stream sample buffer capacity
-	insertAndCompressEvery int        // stream insertion and compression frequency
-	streamPool             StreamPool // pool of streams
-
+	streamPool               StreamPool
+	eps                      float64    // desired epsilon for errors
+	quantiles                []float64  // sorted target quantiles
+	computedQuantiles        []float64  // sorted computed target quantiles
+	capacity                 int        // initial stream sample buffer capacity
+	insertAndCompressEvery   int        // stream insertion and compression frequency
 	insertAndCompressCounter int        // insertion and compression counter
 	numValues                int64      // number of values inserted into the sorted stream
 	bufLess                  minHeap    // sample buffer whose value is less than that at the insertion cursor
@@ -56,19 +54,17 @@ type Stream struct {
 }
 
 // NewStream creates a new sample stream.
-func NewStream(quantiles []float64, opts Options) *Stream {
+func NewStream(opts Options) *Stream {
 	if opts == nil {
-		opts = defaultOpts
+		opts = NewOptions()
 	}
 
 	s := &Stream{
+		streamPool:             opts.StreamPool(),
 		eps:                    opts.Eps(),
-		quantiles:              quantiles,
-		computedQuantiles:      make([]float64, len(quantiles)),
 		capacity:               opts.Capacity(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
 		sampleBuf:              make([]*Sample, 0, opts.Capacity()),
-		streamPool:             opts.StreamPool(),
 	}
 
 	return s
@@ -145,8 +141,33 @@ func (s *Stream) Quantile(q float64) float64 {
 	return math.NaN()
 }
 
+func (s *Stream) quantilesFromBuf() {
+	var (
+		curr = s.samples.Front()
+		buf  = make([]float64, 0, minSamplesToCompress)
+	)
+
+	for curr != nil {
+		buf = append(buf, curr.value)
+		curr = curr.next
+	}
+
+	n := len(buf)
+	for i, q := range s.quantiles {
+		idx := int(q * float64(n))
+		if idx >= n {
+			idx = n - 1
+		}
+		s.computedQuantiles[i] = buf[idx]
+	}
+}
+
 func (s *Stream) calcQuantiles() {
-	if len(s.quantiles) == 0 {
+	if len(s.quantiles) == 0 || s.numValues == 0 {
+		return
+	} else if s.numValues <= minSamplesToCompress {
+		// too few values for compress(), need to compute quantiles directly
+		s.quantilesFromBuf()
 		return
 	}
 
@@ -182,9 +203,13 @@ func (s *Stream) calcQuantiles() {
 
 func (s *Stream) ResetSetData(quantiles []float64) {
 	s.quantiles = quantiles
-	if len(quantiles) != len(s.computedQuantiles) {
+
+	if len(quantiles) > cap(s.computedQuantiles) {
 		s.computedQuantiles = make([]float64, len(quantiles))
+	} else {
+		s.computedQuantiles = s.computedQuantiles[:len(quantiles)]
 	}
+
 	s.closed = false
 }
 
@@ -217,10 +242,7 @@ func (s *Stream) Close() {
 	s.insertAndCompressCounter = 0
 	s.numValues = 0
 	s.compressMinRank = 0
-
-	if s.streamPool != nil {
-		s.streamPool.Put(s)
-	}
+	s.streamPool.Put(s)
 }
 
 // insert inserts a sample into the stream.

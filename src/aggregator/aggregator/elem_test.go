@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -844,14 +843,13 @@ func TestTimerElemAddUnique(t *testing.T) {
 
 func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	// Set up stream options.
-	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
+	streamOpts := cm.NewOptions()
 	isEarlierThanFn := isStandardMetricEarlierThan
 	timestampNanosFn := standardMetricTimestampNanos
 
 	// Verify the pool is big enough to supply all the streams.
 	opts := NewOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(testAlignedStarts[:len(testAlignedStarts)-1], testBatchTimerVals, maggregation.DefaultTypes, applied.DefaultPipeline, opts)
-	verifyStreamPoolSize(t, p, 0, numAlloc)
 
 	// Consume values before an early-enough time.
 	localFn, localRes := testFlushLocalMetricFn()
@@ -904,21 +902,17 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
-
-	// Verify the streams have been returned to pool.
-	verifyStreamPoolSize(t, p, len(testAlignedStarts)-1, numAlloc)
 }
 
 func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	// Set up stream options.
-	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
+	streamOpts := cm.NewOptions()
 	isEarlierThanFn := isStandardMetricEarlierThan
 	timestampNanosFn := standardMetricTimestampNanos
 
 	// Verify the pool is big enough to supply all the streams.
 	opts := NewOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(testAlignedStarts[:len(testAlignedStarts)-1], testBatchTimerVals, testTimerAggregationTypes, applied.DefaultPipeline, opts)
-	verifyStreamPoolSize(t, p, 0, numAlloc)
 
 	// Consume values before an early-enough time.
 	localFn, localRes := testFlushLocalMetricFn()
@@ -971,9 +965,6 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
-
-	// Verify the streams have been returned to pool.
-	verifyStreamPoolSize(t, p, len(testAlignedStarts)-1, numAlloc)
 }
 
 func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
@@ -1094,12 +1085,11 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 
 func TestTimerElemClose(t *testing.T) {
 	// Set up stream options.
-	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
+	streamOpts := cm.NewOptions()
 
 	// Verify the pool is big enough to supply all the streams.
 	opts := NewOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(testAlignedStarts[:len(testAlignedStarts)-1], testBatchTimerVals, maggregation.DefaultTypes, applied.DefaultPipeline, opts)
-	verifyStreamPoolSize(t, p, 0, numAlloc)
 
 	require.False(t, e.closed)
 
@@ -1119,9 +1109,6 @@ func TestTimerElemClose(t *testing.T) {
 	require.Equal(t, 0, len(e.toConsume))
 	require.Equal(t, 0, len(e.lastConsumedValues))
 	require.NotNil(t, e.values)
-
-	// Verify the streams have been returned to pool.
-	verifyStreamPoolSize(t, p, len(testAlignedStarts)-1, numAlloc)
 }
 
 func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
@@ -1883,18 +1870,6 @@ func testOnForwardedFlushedFn() (
 	}, &result
 }
 
-func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int) {
-	var numAlloc int
-	p := cm.NewStreamPool(pool.NewObjectPoolOptions().SetSize(size))
-	streamOpts := cm.NewOptions().SetStreamPool(p)
-	p.Init(func() cm.Stream {
-		numAlloc++
-		return cm.NewStream(nil, streamOpts)
-	})
-	require.Equal(t, numAlloc, len(testAlignedStarts)-1)
-	return streamOpts, p, &numAlloc
-}
-
 func testCounterElem(
 	alignedstartAtNanos []int64,
 	counterVals []int64,
@@ -2096,14 +2071,4 @@ func verifyOnForwardedFlushResult(t *testing.T, expected, actual []testOnForward
 	for i := 0; i < len(expected); i++ {
 		require.True(t, expected[i].aggregationKey.Equal(actual[i].aggregationKey))
 	}
-}
-
-func verifyStreamPoolSize(t *testing.T, p cm.StreamPool, expected int, numAlloc *int) {
-	*numAlloc = 0
-	for i := 0; i < expected; i++ {
-		p.Get()
-	}
-	require.Equal(t, 0, *numAlloc)
-	p.Get()
-	require.Equal(t, 1, *numAlloc)
 }
