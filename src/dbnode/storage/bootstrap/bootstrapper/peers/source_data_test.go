@@ -74,12 +74,10 @@ var (
 		return testNamespaceMetadata(t, newOpts...)
 	}
 
-	testDefaultRunOpts = bootstrap.NewRunOptions().
-		SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
-	testRunOptsWithPersist = bootstrap.NewRunOptions().
-		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
-	testBlockOpts         = block.NewOptions()
-	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
+	testDefaultRunOpts     = bootstrap.NewRunOptions().SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
+	testRunOptsWithPersist = bootstrap.NewRunOptions().SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
+	testBlockOpts          = block.NewOptions()
+	testDefaultResultOpts  = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 )
 
 type namespaceOption func(namespace.Options) namespace.Options
