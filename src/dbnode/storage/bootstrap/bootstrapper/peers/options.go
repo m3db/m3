@@ -41,20 +41,20 @@ import (
 var (
 	// DefaultShardConcurrency controls how many shards in parallel to stream
 	// for in memory data being streamed between peers (most recent block).
-	// Update BootstrapPeersConfiguration comment in
-	// src/cmd/services/m3dbnode/config package if this is changed.
-	DefaultShardConcurrency = runtime.NumCPU()
+	// Update config.BootstrapPeersConfiguration comment if this is changed.
+	DefaultShardConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
+
 	// DefaultShardPersistenceConcurrency controls how many shards in parallel to stream
 	// for historical data being streamed between peers (historical blocks).
-	// Update BootstrapPeersConfiguration comment in
-	// src/cmd/services/m3dbnode/config package if this is changed.
-	DefaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
-	defaultPersistenceMaxQueueSize     = 0
+	// Update config.BootstrapPeersConfiguration comment if this is changed.
+	DefaultShardPersistenceConcurrency = runtime.NumCPU()
+
 	// DefaultShardPersistenceFlushConcurrency controls how many shards in parallel to flush
 	// for historical data being streamed between peers (historical blocks).
-	// Update BootstrapPeersConfiguration comment in
-	// src/cmd/services/m3dbnode/config package if this is changed.
-	DefaultShardPersistenceFlushConcurrency = 1
+	// Update config.BootstrapPeersConfiguration comment if this is changed.
+	DefaultShardPersistenceFlushConcurrency = runtime.NumCPU()
+
+	defaultPersistenceMaxQueueSize = 0
 )
 
 var (

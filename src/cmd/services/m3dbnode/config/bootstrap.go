@@ -21,7 +21,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -42,9 +41,6 @@ import (
 )
 
 var (
-	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
-	defaultNumProcessorsPerCPU = 0.125
-
 	// default order in which bootstrappers are run
 	// (run in ascending order of precedence).
 	defaultOrderedBootstrappers = []string{
@@ -80,8 +76,6 @@ var (
 		PreferPeersBootstrapMode,
 		ExcludeCommitLogBootstrapMode,
 	}
-
-	errReadBootstrapModeInvalid = errors.New("bootstrap mode invalid")
 )
 
 // BootstrapMode defines the mode in which bootstrappers are run.
@@ -250,15 +244,15 @@ func newDefaultBootstrapCommitlogConfiguration() BootstrapCommitlogConfiguration
 type BootstrapPeersConfiguration struct {
 	// StreamShardConcurrency controls how many shards in parallel to stream
 	// for in memory data being streamed between peers (most recent block).
-	// Defaults to: numCPU.
+	// Defaults to: numCPU / 2.
 	StreamShardConcurrency int `yaml:"streamShardConcurrency"`
 	// StreamPersistShardConcurrency controls how many shards in parallel to stream
 	// for historical data being streamed between peers (historical blocks).
-	// Defaults to: numCPU / 2.
+	// Defaults to: numCPU.
 	StreamPersistShardConcurrency int `yaml:"streamPersistShardConcurrency"`
 	// StreamPersistShardFlushConcurrency controls how many shards in parallel to flush
 	// for historical data being streamed between peers (historical blocks).
-	// Defaults to: 1.
+	// Defaults to: numCPU.
 	StreamPersistShardFlushConcurrency int `yaml:"streamPersistShardFlushConcurrency"`
 }
 
