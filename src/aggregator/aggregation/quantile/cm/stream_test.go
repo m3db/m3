@@ -98,42 +98,42 @@ func TestStreamWithThreeSamples(t *testing.T) {
 	}
 }
 
-func TestStreamWithIncreasingSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithIncreasingSamplesNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithIncreasingSamples(t, opts)
 }
 
-func TestStreamWithIncreasingSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithIncreasingSamplesPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
 	testStreamWithIncreasingSamples(t, opts)
 }
 
-func TestStreamWithDecreasingSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithDecreasingSamplesNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithDecreasingSamples(t, opts)
 }
 
-func TestStreamWithDecreasingSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithDecreasingSamplesPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
 	testStreamWithDecreasingSamples(t, opts)
 }
 
-func TestStreamWithRandomSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithRandomSamplesNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithRandomSamples(t, opts)
 }
 
-func TestStreamWithRandomSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithRandomSamplesPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
 	testStreamWithRandomSamples(t, opts)
 }
 
-func TestStreamWithSkewedDistributionNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithSkewedDistributionNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithSkewedDistribution(t, opts)
 }
 
-func TestStreamWithSkewedDistributionPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithSkewedDistributionPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
 	testStreamWithSkewedDistribution(t, opts)
 }

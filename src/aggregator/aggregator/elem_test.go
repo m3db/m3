@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -757,6 +758,9 @@ func TestTimerElemAddUnion(t *testing.T) {
 	require.Equal(t, int64(5), timer.Count())
 	require.Equal(t, 18.0, timer.Sum())
 	require.Equal(t, 3.5, timer.Quantile(0.5))
+	//spew.Dump(e)
+	fmt.Println("zzzz")
+
 	require.Equal(t, 6.5, timer.Quantile(0.95))
 	require.Equal(t, 6.5, timer.Quantile(0.99))
 
@@ -928,6 +932,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+
 	require.False(t, e.Consume(testAlignedStarts[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[1], testStoragePolicy, testTimerAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))

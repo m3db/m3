@@ -32,25 +32,31 @@ var (
 	nan = math.NaN()
 )
 
+type threshold struct {
+	rank      int64
+	threshold int64
+}
+
 // Stream represents a data stream.
 type Stream struct {
 	streamPool               StreamPool
-	eps                      float64    // desired epsilon for errors
-	quantiles                []float64  // sorted target quantiles
-	computedQuantiles        []float64  // sorted computed target quantiles
-	capacity                 int        // initial stream sample buffer capacity
-	insertAndCompressEvery   int        // stream insertion and compression frequency
-	insertAndCompressCounter int        // insertion and compression counter
-	numValues                int64      // number of values inserted into the sorted stream
-	bufLess                  minHeap    // sample buffer whose value is less than that at the insertion cursor
-	bufMore                  minHeap    // sample buffer whose value is more than that at the insertion cursor
-	samples                  sampleList // sample list
-	insertCursor             *Sample    // insertion cursor
-	compressCursor           *Sample    // compression cursor
-	compressMinRank          int64      // compression min rank
-	sampleBuf                []*Sample  // sample buffer
-	closed                   bool       // whether the stream is closed
-	flushed                  bool       // whether the stream is flushed
+	eps                      float64     // desired epsilon for errors
+	quantiles                []float64   // sorted target quantiles
+	computedQuantiles        []float64   // sorted computed target quantiles
+	thresholdBuf             []threshold // temporary buffer for computed thresholds
+	capacity                 int         // initial stream sample buffer capacity
+	insertAndCompressEvery   int         // stream insertion and compression frequency
+	insertAndCompressCounter int         // insertion and compression counter
+	numValues                int64       // number of values inserted into the sorted stream
+	bufLess                  minHeap     // sample buffer whose value is less than that at the insertion cursor
+	bufMore                  minHeap     // sample buffer whose value is more than that at the insertion cursor
+	samples                  sampleList  // sample list
+	insertCursor             *Sample     // insertion cursor
+	compressCursor           *Sample     // compression cursor
+	compressMinRank          int64       // compression min rank
+	sampleBuf                []*Sample   // sample buffer
+	closed                   bool        // whether the stream is closed
+	flushed                  bool        // whether the stream is flushed
 }
 
 // NewStream creates a new sample stream.
@@ -141,6 +147,7 @@ func (s *Stream) Quantile(q float64) float64 {
 	return math.NaN()
 }
 
+// quantilesFromBuf calculates quantiles from buffer if there were too few samples to compress
 func (s *Stream) quantilesFromBuf() {
 	var (
 		curr = s.samples.Front()
@@ -172,32 +179,44 @@ func (s *Stream) calcQuantiles() {
 	}
 
 	var (
-		minRank   int64
-		maxRank   int64
-		idx       int
-		q         = s.quantiles[0]
-		qMax      = len(s.quantiles) - 1
-		prev      = s.samples.Front()
-		curr      = s.samples.Front()
-		rank      = int64(math.Ceil(q * float64(s.numValues)))
-		threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
+		minRank int64
+		maxRank int64
+		idx     int
+		curr    = s.samples.Front()
+		prev    = s.samples.Front()
 	)
 
+	for i, q := range s.quantiles {
+		rank := int64(math.Ceil(q * float64(s.numValues)))
+		s.thresholdBuf[i].rank = rank
+		s.thresholdBuf[i].threshold = int64(
+			math.Ceil(float64(s.threshold(rank)) / 2.0),
+		)
+	}
+
 	for curr != nil {
+		if idx == len(s.quantiles) {
+			break
+		}
 		maxRank = minRank + curr.numRanks + curr.delta
+		rank, threshold := s.thresholdBuf[idx].rank, s.thresholdBuf[idx].threshold
+
 		if maxRank > rank+threshold || minRank > rank {
 			s.computedQuantiles[idx] = prev.value
-			if idx == qMax {
-				return
-			}
 			idx++
-			q = s.quantiles[idx]
-			rank = int64(math.Ceil(q * float64(s.numValues)))
-			threshold = int64(math.Ceil(float64(s.threshold(rank)) / 2.0))
 		}
+
 		minRank += curr.numRanks
 		prev = curr
 		curr = curr.next
+	}
+
+	// check if last unset quantiles should be set to the last value
+	for i := idx; i < len(s.quantiles); i++ {
+		rank, threshold := s.thresholdBuf[i].rank, s.thresholdBuf[i].threshold
+		if maxRank >= rank+threshold || minRank > rank {
+			s.computedQuantiles[i] = prev.value
+		}
 	}
 }
 
@@ -206,8 +225,10 @@ func (s *Stream) ResetSetData(quantiles []float64) {
 
 	if len(quantiles) > cap(s.computedQuantiles) {
 		s.computedQuantiles = make([]float64, len(quantiles))
+		s.thresholdBuf = make([]threshold, len(quantiles))
 	} else {
 		s.computedQuantiles = s.computedQuantiles[:len(quantiles)]
+		s.thresholdBuf = s.thresholdBuf[:len(quantiles)]
 	}
 
 	s.closed = false
@@ -269,7 +290,6 @@ func (s *Stream) insert() {
 	var (
 		insertPointValue = s.insertCursor.value
 		minRank          = s.compressMinRank
-		numValues        = s.numValues
 		compCur          = s.compressCursor
 		compValue        float64
 	)
@@ -291,17 +311,16 @@ func (s *Stream) insert() {
 			sample.delta = curr.numRanks + curr.delta - 1
 
 			s.samples.InsertBefore(sample, s.insertCursor)
-			numValues++
 
 			if compCur != nil && compValue >= val {
 				minRank++
 			}
+			s.numValues++
 		}
 
 		s.insertCursor = s.insertCursor.next
 		insertPointValue = s.insertPointValue()
 	}
-	s.numValues = numValues
 	s.compressMinRank = minRank
 	if s.insertCursor != nil {
 		return
@@ -317,7 +336,6 @@ func (s *Stream) insert() {
 		s.samples.PushBack(sample)
 		s.numValues++
 	}
-
 	s.resetInsertCursor()
 }
 
@@ -365,9 +383,10 @@ func (s *Stream) compress() {
 // threshold computes the minimum threshold value.
 func (s *Stream) threshold(rank int64) int64 {
 	minVal := int64(math.MaxInt64)
+	nv := s.numValues
 	for _, quantile := range s.quantiles {
 		var quantileMin int64
-		if float64(rank) >= quantile*float64(s.numValues) {
+		if float64(rank) >= quantile*float64(nv) {
 			quantileMin = int64(2 * s.eps * float64(rank) / quantile)
 		} else {
 			quantileMin = int64(2 * s.eps * float64(s.numValues-rank) / (1 - quantile))
