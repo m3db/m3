@@ -1958,7 +1958,7 @@ func testDownsamplerAggregationIngest(
 
 		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
-			err = samplesAppender.AppendCounterSample(sample, nil)
+			err = samplesAppender.AppendUntimedCounterSample(sample, nil)
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
@@ -1968,7 +1968,7 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
-			err = samplesAppender.AppendCounterTimedSample(sample.time, sample.value, nil)
+			err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
 			require.NoError(t, err)
 		}
 	}
@@ -1986,7 +1986,7 @@ func testDownsamplerAggregationIngest(
 
 		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
-			err = samplesAppender.AppendGaugeSample(sample, nil)
+			err = samplesAppender.AppendUntimedGaugeSample(sample, nil)
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
@@ -1996,7 +1996,7 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
-			err = samplesAppender.AppendGaugeTimedSample(sample.time, sample.value, nil)
+			err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
 			require.NoError(t, err)
 		}
 	}

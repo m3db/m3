@@ -466,9 +466,7 @@ func (a *metricsAppender) resetTags() {
 }
 
 func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata metadata.StagedMetadata) error {
-	var (
-		pipelines []metadata.PipelineMetadata
-	)
+	var pipelines []metadata.PipelineMetadata
 	for _, pipeline := range stagedMetadata.Pipelines {
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
@@ -478,12 +476,12 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 			continue
 		}
 
-		tags := a.augmentTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		tags, dropTs := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm)
+		appender, err := a.newSamplesAppender(tags, sm, dropTs)
 		if err != nil {
 			return err
 		}
@@ -497,7 +495,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 
-	appender, err := a.newSamplesAppender(originalTags, sm)
+	appender, err := a.newSamplesAppender(originalTags, sm, false)
 	if err != nil {
 		return err
 	}
@@ -508,6 +506,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	sm metadata.StagedMetadata,
+	dropTs bool,
 ) (samplesAppender, error) {
 	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
@@ -520,19 +519,23 @@ func (a *metricsAppender) newSamplesAppender(
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
+		dropTs:          dropTs,
 		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
 	}, nil
 }
 
-func (a *metricsAppender) augmentTags(
+func (a *metricsAppender) processTags(
 	originalTags *tags,
 	graphitePrefix [][]byte,
 	t []models.Tag,
 	id aggregation.ID,
-) *tags {
+) (*tags, bool) {
 	// Create the prefix tags if any.
-	tags := a.tags()
+	var (
+		tags   = a.tags()
+		dropTs bool
+	)
 	for i, path := range graphitePrefix {
 		// Add the graphite prefix as the initial graphite tags.
 		tags.append(graphite.TagName(i), path)
@@ -581,9 +584,11 @@ func (a *metricsAppender) augmentTags(
 				value = types[0].Name()
 			)
 			tags.append(name, value)
+		} else if bytes.Equal(tag.Name, metric.M3MetricsDropTimestamp) {
+			dropTs = true
 		}
 	}
-	return tags
+	return tags, dropTs
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {
