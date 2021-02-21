@@ -346,7 +346,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		opts = opts.SetAdminClient(mockAdminClient)
 
 		flushPreparer := persist.NewMockFlushPreparer(ctrl)
-		flushPreparer.EXPECT().DoneFlush()
+		flushPreparer.EXPECT().DoneFlush().Times(DefaultShardPersistenceFlushConcurrency)
 		persists := make(map[string]int)
 		closes := make(map[string]int)
 		prepareOpts := xtest.CmpMatcher(persist.DataPrepareOptions{
@@ -432,7 +432,8 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 			}, nil)
 
 		mockPersistManager := persist.NewMockManager(ctrl)
-		mockPersistManager.EXPECT().StartFlushPersist().Return(flushPreparer, nil)
+		mockPersistManager.EXPECT().StartFlushPersist().Return(flushPreparer, nil).
+			Times(DefaultShardPersistenceFlushConcurrency)
 
 		src, err := newPeersSource(opts)
 		require.NoError(t, err)
