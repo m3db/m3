@@ -114,11 +114,11 @@ func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
 		SetFilesystemOptions(fsOpts).
 		SetCompactor(compactor).
 		SetIndexOptions(idxOpts).
-		SetAdminClient(newValidMockClient(t, ctrl)).
-		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
+		SetAdminClient(newValidMockClient(ctrl)).
+		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(ctrl))
 }
 
-func newValidMockClient(t *testing.T, ctrl *gomock.Controller) *client.MockAdminClient {
+func newValidMockClient(ctrl *gomock.Controller) *client.MockAdminClient {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockClient := client.NewMockAdminClient(ctrl)
 	mockClient.EXPECT().
@@ -129,7 +129,7 @@ func newValidMockClient(t *testing.T, ctrl *gomock.Controller) *client.MockAdmin
 	return mockClient
 }
 
-func newValidMockRuntimeOptionsManager(t *testing.T, ctrl *gomock.Controller) m3dbruntime.OptionsManager {
+func newValidMockRuntimeOptionsManager(ctrl *gomock.Controller) m3dbruntime.OptionsManager {
 	mockRuntimeOpts := m3dbruntime.NewMockOptions(ctrl)
 	mockRuntimeOpts.
 		EXPECT().
@@ -152,7 +152,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newTestDefaultOpts(t, ctrl).
-		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
+		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(ctrl))
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
@@ -578,8 +578,8 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
-	flushPreprarer := persist.NewMockFlushPreparer(ctrl)
-	flushPreprarer.EXPECT().DoneFlush()
+	flushPreparer := persist.NewMockFlushPreparer(ctrl)
+	flushPreparer.EXPECT().DoneFlush().Times(DefaultShardPersistenceFlushConcurrency)
 
 	persists := make(map[string]int)
 	closes := make(map[string]int)
@@ -591,7 +591,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        start,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -609,7 +609,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        midway,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -629,7 +629,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        start,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -647,7 +647,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        midway,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -667,7 +667,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        start,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -685,7 +685,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        midway,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -705,7 +705,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        start,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -723,7 +723,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		BlockStart:        midway,
 		DeleteIfExists:    true,
 	})
-	flushPreprarer.EXPECT().
+	flushPreparer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
@@ -737,7 +737,8 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		}, nil)
 
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(flushPreprarer, nil)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(flushPreparer, nil).
+		Times(DefaultShardPersistenceFlushConcurrency)
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
