@@ -23,6 +23,7 @@ package peers
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -74,9 +75,9 @@ var (
 	}
 
 	testDefaultRunOpts = bootstrap.NewRunOptions().
-				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 	testRunOptsWithPersist = bootstrap.NewRunOptions().
-				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 	testBlockOpts         = block.NewOptions()
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 )
@@ -347,8 +348,13 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 
 		flushPreparer := persist.NewMockFlushPreparer(ctrl)
 		flushPreparer.EXPECT().DoneFlush().Times(DefaultShardPersistenceFlushConcurrency)
-		persists := make(map[string]int)
-		closes := make(map[string]int)
+
+		var (
+			flushMut sync.Mutex
+			persists = make(map[string]int)
+			closes   = make(map[string]int)
+		)
+
 		prepareOpts := xtest.CmpMatcher(persist.DataPrepareOptions{
 			NamespaceMetadata: testNsMd,
 			Shard:             uint32(0),
@@ -359,14 +365,18 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
 				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+					flushMut.Lock()
 					persists["foo"]++
+					flushMut.Unlock()
 					assert.Equal(t, "foo", string(metadata.BytesID()))
 					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, fooBlock)
 					return nil
 				},
 				Close: func() error {
+					flushMut.Lock()
 					closes["foo"]++
+					flushMut.Unlock()
 					return nil
 				},
 			}, nil)
@@ -380,14 +390,18 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
 				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+					flushMut.Lock()
 					persists["bar"]++
+					flushMut.Unlock()
 					assert.Equal(t, "bar", string(metadata.BytesID()))
 					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, barBlock)
 					return nil
 				},
 				Close: func() error {
+					flushMut.Lock()
 					closes["bar"]++
+					flushMut.Unlock()
 					return nil
 				},
 			}, nil)
@@ -401,14 +415,18 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
 				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+					flushMut.Lock()
 					persists["baz"]++
+					flushMut.Unlock()
 					assert.Equal(t, "baz", string(metadata.BytesID()))
 					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, bazBlock)
 					return nil
 				},
 				Close: func() error {
+					flushMut.Lock()
 					closes["baz"]++
+					flushMut.Unlock()
 					return nil
 				},
 			}, nil)
@@ -426,7 +444,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 					return nil
 				},
 				Close: func() error {
+					flushMut.Lock()
 					closes["empty"]++
+					flushMut.Unlock()
 					return nil
 				},
 			}, nil)
@@ -581,8 +601,11 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreparer := persist.NewMockFlushPreparer(ctrl)
 	flushPreparer.EXPECT().DoneFlush().Times(DefaultShardPersistenceFlushConcurrency)
 
-	persists := make(map[string]int)
-	closes := make(map[string]int)
+	var (
+		flushMut sync.Mutex
+		persists = make(map[string]int)
+		closes   = make(map[string]int)
+	)
 
 	// expect foo
 	prepareOpts := xtest.CmpMatcher(persist.DataPrepareOptions{
@@ -599,7 +622,9 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 				return nil
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["foo"]++
+				flushMut.Unlock()
 				return nil
 			},
 		}, nil)
@@ -613,11 +638,15 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+				flushMut.Lock()
 				persists["foo"]++
+				flushMut.Unlock()
 				return nil
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["foo"]++
+				flushMut.Unlock()
 				return nil
 			},
 		}, nil)
@@ -637,7 +666,9 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 				return nil
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["bar"]++
+				flushMut.Unlock()
 				return nil
 			},
 		}, nil)
@@ -651,11 +682,15 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+				flushMut.Lock()
 				persists["bar"]++
+				flushMut.Unlock()
 				return nil
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["bar"]++
+				flushMut.Unlock()
 				return nil
 			},
 		}, nil)
@@ -671,11 +706,15 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+				flushMut.Lock()
 				persists["baz"]++
+				flushMut.Unlock()
 				return fmt.Errorf("a persist error")
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["baz"]++
+				flushMut.Unlock()
 				return nil
 			},
 		}, nil)
@@ -689,16 +728,20 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+				flushMut.Lock()
 				persists["baz"]++
+				flushMut.Unlock()
 				return nil
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["baz"]++
+				flushMut.Unlock()
 				return nil
 			},
 		}, nil)
 
-		// expect qux
+	// expect qux
 	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
 		NamespaceMetadata: testNsMd,
 		Shard:             uint32(3),
@@ -709,11 +752,15 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+				flushMut.Lock()
 				persists["qux"]++
+				flushMut.Unlock()
 				return nil
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["qux"]++
+				flushMut.Unlock()
 				return fmt.Errorf("a persist close error")
 			},
 		}, nil)
@@ -727,11 +774,15 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+				flushMut.Lock()
 				persists["qux"]++
+				flushMut.Unlock()
 				return nil
 			},
 			Close: func() error {
+				flushMut.Lock()
 				closes["qux"]++
+				flushMut.Unlock()
 				return nil
 			},
 		}, nil)
