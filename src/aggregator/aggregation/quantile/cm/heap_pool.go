@@ -25,14 +25,12 @@ import (
 )
 
 const (
-	// create buckets of 64, 256, 1024, 4096, 16484, 65536, 262144 floats
+	// create buckets of 64, 256, 1024, 4096, 16484, 65536 floats
 	_initialHeapBucketSize      = 16
-	_heapSizeBuckets            = 8
+	_heapSizeBuckets            = 7
 	_heapSizeBucketGrowthFactor = 4
 )
 
-// TODO(vytenis): generalize this, or at least make it an alternative, non-interface-wrapped implementation for
-// cases where cost of gets/puts is important.
 var sharedHeapPool heapPool
 
 type heapPool struct {
@@ -41,11 +39,13 @@ type heapPool struct {
 }
 
 func newHeapPool() heapPool {
-	p := heapPool{
-		pools: make([]*sync.Pool, _heapSizeBuckets),
-		sizes: make([]int, _heapSizeBuckets),
-	}
-	sz := _initialHeapBucketSize
+	var (
+		p = heapPool{
+			pools: make([]*sync.Pool, _heapSizeBuckets),
+			sizes: make([]int, _heapSizeBuckets),
+		}
+		sz = _initialHeapBucketSize
+	)
 
 	for i := 0; i < _heapSizeBuckets; i++ {
 		size := sz
@@ -60,6 +60,7 @@ func newHeapPool() heapPool {
 
 		sz *= _heapSizeBucketGrowthFactor
 	}
+
 	return p
 }
 
