@@ -72,7 +72,7 @@ func TestIngest(t *testing.T) {
 	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, nil, sp, callback)
 
 	for appender.cnt() != 1 {
 		time.Sleep(100 * time.Millisecond)
@@ -144,7 +144,7 @@ func TestIngestNonRetryableError(t *testing.T) {
 	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, nil, sp, callback)
 
 	for appender.cntErr() != 1 {
 		time.Sleep(100 * time.Millisecond)
