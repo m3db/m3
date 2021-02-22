@@ -78,7 +78,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		},
 		{
 			DisablePeersBootstrapper: false,
-			FinalBootstrapper:        bootstrapper.NoOpNoneBootstrapperName,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
