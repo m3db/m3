@@ -482,8 +482,8 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 }
 
 func (agg *forwardedAggregation) index(key aggregationKey) int {
-	for i, k := range agg.byKey {
-		if k.key.Equal(key) {
+	for i := range agg.byKey {
+		if agg.byKey[i].key.Equal(key) {
 			return i
 		}
 	}

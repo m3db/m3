@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -164,10 +165,13 @@ func (w TestIndexWrites) NumIndexed(t *testing.T, ns ident.ID, s client.Session)
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
 		q := newQuery(t, wi.Tags)
-		iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
-			StartInclusive: wi.Timestamp.Add(-1 * time.Second),
-			EndExclusive:   wi.Timestamp.Add(1 * time.Second),
-			SeriesLimit:    10})
+		iter, _, err := s.FetchTaggedIDs(ContextWithDefaultTimeout(), ns,
+			index.Query{Query: q},
+			index.QueryOptions{
+				StartInclusive: wi.Timestamp.Add(-1 * time.Second),
+				EndExclusive:   wi.Timestamp.Add(1 * time.Second),
+				SeriesLimit:    10,
+			})
 		if err != nil {
 			continue
 		}
@@ -246,10 +250,13 @@ func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags id
 
 func isIndexedChecked(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) (bool, error) {
 	q := newQuery(t, tags)
-	iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
-		StartInclusive: time.Now(),
-		EndExclusive:   time.Now(),
-		SeriesLimit:    10})
+	iter, _, err := s.FetchTaggedIDs(ContextWithDefaultTimeout(), ns,
+		index.Query{Query: q},
+		index.QueryOptions{
+			StartInclusive: time.Now(),
+			EndExclusive:   time.Now(),
+			SeriesLimit:    10,
+		})
 	if err != nil {
 		return false, err
 	}
@@ -287,4 +294,11 @@ func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
 		filters = append(filters, tq)
 	}
 	return idx.NewConjunctionQuery(filters...)
+}
+
+// ContextWithDefaultTimeout returns a context with a default timeout
+// set of one minute.
+func ContextWithDefaultTimeout() context.Context {
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+	return ctx
 }

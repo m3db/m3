@@ -37,7 +37,7 @@ func AssertCounterValue(t *testing.T, expected int64, s tally.Snapshot, name str
 	if !assert.NotNil(t, counter, notFound) {
 		return false
 	}
-	mismatch := fmt.Sprintf("current values: %v", counterMap(s.Counters()))
+	mismatch := fmt.Sprintf("current values: %v", CounterMap(s.Counters()))
 	return assert.Equal(t, expected, counter.Value(), mismatch)
 }
 
@@ -49,7 +49,7 @@ func AssertGaugeValue(t *testing.T, expected float64, s tally.Snapshot, name str
 	if !assert.NotNil(t, gauge, notFound) {
 		return false
 	}
-	mismatch := fmt.Sprintf("current values: %v", gaugeMap(s.Gauges()))
+	mismatch := fmt.Sprintf("current values: %v", GaugeMap(s.Gauges()))
 	return assert.InDelta(t, expected, gauge.Value(), 0.0001, mismatch)
 }
 
@@ -81,7 +81,8 @@ func flattenMetricIndex(name string, tags map[string]string) string {
 	return index
 }
 
-func counterMap(m map[string]tally.CounterSnapshot) map[string]int64 {
+// CounterMap returns the counter map for a snapshot.
+func CounterMap(m map[string]tally.CounterSnapshot) map[string]int64 {
 	result := make(map[string]int64, len(m))
 	for k, v := range m {
 		result[k] = v.Value()
@@ -89,7 +90,8 @@ func counterMap(m map[string]tally.CounterSnapshot) map[string]int64 {
 	return result
 }
 
-func gaugeMap(m map[string]tally.GaugeSnapshot) map[string]float64 {
+// GaugeMap returns the gauge map for a snapshot.
+func GaugeMap(m map[string]tally.GaugeSnapshot) map[string]float64 {
 	result := make(map[string]float64, len(m))
 	for k, v := range m {
 		result[k] = v.Value()

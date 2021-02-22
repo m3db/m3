@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/context"
 	xtest "github.com/m3db/m3/src/x/test"
 )
 
@@ -52,15 +53,20 @@ func TestFieldsTermsIteratorPropertyTest(t *testing.T) {
 
 	properties.Property("Fields Terms Iteration works", prop.ForAll(
 		func(i fieldsTermsIteratorPropInput) (bool, error) {
+			ctx := context.NewBackground()
 			expected := i.expected()
 			reader, err := i.setup.asSegment(t).Reader()
 			if err != nil {
 				return false, err
 			}
-			iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
-				iterateTerms: i.iterateTerms,
-				allowFn:      i.allowFn,
-			})
+			iter, err := newFieldsAndTermsIterator(
+				ctx,
+				reader,
+				fieldsAndTermsIteratorOpts{
+					iterateTerms: i.iterateTerms,
+					allowFn:      i.allowFn,
+				},
+			)
 			if err != nil {
 				return false, err
 			}
@@ -94,9 +100,13 @@ func TestFieldsTermsIteratorPropertyTestNoPanic(t *testing.T) {
 	// itself panics.
 	properties.Property("Fields Terms Iteration doesn't blow up", prop.ForAll(
 		func(reader segment.Reader, iterate bool) (bool, error) {
-			iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
-				iterateTerms: iterate,
-			})
+			iter, err := newFieldsAndTermsIterator(
+				context.NewBackground(),
+				reader,
+				fieldsAndTermsIteratorOpts{
+					iterateTerms: iterate,
+				},
+			)
 			if err != nil {
 				return false, err
 			}

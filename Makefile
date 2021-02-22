@@ -210,7 +210,7 @@ release-snapshot: check-for-goreleaser-github-token
 
 .PHONY: docs-build
 docs-build:
-	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
+	@HUGO_DOCKER=true ./scripts/site-build.sh
 
 .PHONY: docs-test
 docs-test: setup install-tools docs-build

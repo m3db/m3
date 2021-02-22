@@ -52,7 +52,7 @@ func TestParseRequest(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	parsed, err := ParseRequest(req.Context(), req, false, setup.options)
+	ctx, parsed, err := ParseRequest(req.Context(), req, false, setup.options)
 	require.NoError(t, err)
 	require.Equal(t, 15*time.Second, parsed.Params.Timeout)
 	require.Equal(t, 15*time.Second, parsed.FetchOpts.Timeout)
@@ -63,6 +63,13 @@ func TestParseRequest(t *testing.T) {
 	require.Equal(t, 0, parsed.QueryOpts.QueryContextOptions.LimitMaxTimeseries)
 	require.Equal(t, false, parsed.QueryOpts.QueryContextOptions.RequireExhaustive)
 	require.Nil(t, parsed.QueryOpts.QueryContextOptions.RestrictFetchType)
+	// Make sure the context has the deadline and http header set.
+	_, ok := ctx.Deadline()
+	require.True(t, ok)
+	header := ctx.Value(handleroptions.RequestHeaderKey)
+	require.NotNil(t, header)
+	_, ok = header.(http.Header)
+	require.True(t, ok)
 }
 
 func TestPromReadHandlerRead(t *testing.T) {

@@ -21,6 +21,7 @@
 package fs
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -127,6 +128,7 @@ type streamResult struct {
 	id         string
 	blockStart time.Time
 	stream     xio.BlockReader
+	canceled   bool
 }
 
 // TestBlockRetrieverHighConcurrentSeeks tests the retriever with high
@@ -369,13 +371,21 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				idString := shardIDStrings[shard][idIdx]
 
 				for k := 0; k < len(blockStarts); k++ {
-					ctx := context.NewContext()
-
 					var (
-						stream xio.BlockReader
-						err    error
+						stream   xio.BlockReader
+						err      error
+						canceled bool
 					)
+					ctx := context.NewBackground()
+					// simulate a caller canceling the request.
+					if i == 1 {
+						stdCtx, cancel := stdctx.WithCancel(ctx.GoContext())
+						ctx.SetGoContext(stdCtx)
+						cancel()
+						canceled = true
+					}
 					for {
+
 						// Run in a loop since the open seeker function is configured to randomly fail
 						// sometimes.
 						stream, err = retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve, nsCtx)
@@ -390,6 +400,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 						id:         idString,
 						blockStart: blockStarts[k],
 						stream:     stream,
+						canceled:   canceled,
 					})
 				}
 
@@ -403,23 +414,26 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					}
 
 					seg, err := r.stream.Segment()
-					if err != nil {
-						fmt.Printf("\nstream seg err: %v\n", err)
-						fmt.Printf("id: %s\n", r.id)
-						fmt.Printf("shard: %d\n", r.shard)
-						fmt.Printf("start: %v\n", r.blockStart.String())
+					if r.canceled {
+						require.Error(t, err)
+					} else {
+						if err != nil {
+							fmt.Printf("\nstream seg err: %v\n", err)
+							fmt.Printf("id: %s\n", r.id)
+							fmt.Printf("shard: %d\n", r.shard)
+							fmt.Printf("start: %v\n", r.blockStart.String())
+						}
+
+						require.NoError(t, err)
+						require.True(
+							t,
+							seg.Equal(&compare),
+							fmt.Sprintf(
+								"data mismatch for series %s, returned data: %v, expected: %v",
+								r.id,
+								string(seg.Head.Bytes()),
+								string(compare.Head.Bytes())))
 					}
-
-					require.NoError(t, err)
-					require.True(
-						t,
-						seg.Equal(&compare),
-						fmt.Sprintf(
-							"data mismatch for series %s, returned data: %v, expected: %v",
-							r.id,
-							string(seg.Head.Bytes()),
-							string(compare.Head.Bytes())))
-
 					r.ctx.Close()
 				}
 				results = results[:0]
@@ -503,7 +517,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Now that all the block lease updates have completed, all reads from this point should return tags with the
 	// highest volume number.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	for _, shard := range shards {
 		for _, blockStart := range blockStarts {
 			for _, idString := range shardIDStrings[shard] {
@@ -580,7 +594,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)
@@ -653,7 +667,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	_, err = retriever.Stream(ctx, shard,
@@ -758,7 +772,7 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	onRetrieveCalled := false
@@ -857,7 +871,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	defer cleanup()
 
 	// Make sure we return the correct error.
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)

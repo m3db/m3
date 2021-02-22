@@ -133,7 +133,6 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		m.state = Bootstrapping
 	}
 	m.Unlock()
-
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
 	m.mediator.DisableFileOpsAndWait()
@@ -195,7 +194,7 @@ func (m *bootstrapManager) Report() {
 }
 
 func (m *bootstrapManager) bootstrap() error {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// NB(r): construct new instance of the bootstrap process to avoid

@@ -93,7 +93,7 @@ func NewOptions() Options {
 		shardPersistenceFlushConcurrency: DefaultShardPersistenceFlushConcurrency,
 		indexSegmentConcurrency:          fsbootstrapper.DefaultIndexSegmentConcurrency,
 		persistenceMaxQueueSize:          defaultPersistenceMaxQueueSize,
-		// Use a zero pool, this should be overriden at config time.
+		// Use a zero pool, this should be overridden at config time.
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
 			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),

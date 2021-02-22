@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package xio
 
 import (
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"encoding/binary"
+	"io"
+	"testing"
 
-	"go.uber.org/zap/zapcore"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type bootstrapStep interface {
-	prepare(totalRanges result.ShardTimeRanges) (bootstrapStepPreparedResult, error)
-	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	mergeResults(totalUnfulfilled result.ShardTimeRanges)
+func TestBytesReader64(t *testing.T) {
+	var (
+		data = []byte{4, 5, 6, 7, 8, 9, 1, 2, 3, 0, 10, 11, 12, 13, 14, 15, 16, 17}
+		r    = NewBytesReader64(nil)
+	)
+
+	for l := 0; l < len(data); l++ {
+		testBytesReader64(t, r, data[:l])
+	}
 }
 
-type bootstrapStepPreparedResult struct {
-	currAvailable result.ShardTimeRanges
-}
+func testBytesReader64(t *testing.T, r *BytesReader64, data []byte) {
+	t.Helper()
+	r.Reset(data)
 
-type bootstrapStepStatus struct {
-	fulfilled result.ShardTimeRanges
-	logFields []zapcore.Field
+	var (
+		peeked = []byte{}
+		read   = []byte{}
+		buf    [8]byte
+		word   uint64
+		n      byte
+		err    error
+	)
+
+	for {
+		word, n, err = r.Peek64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		peeked = append(peeked, buf[:n]...)
+
+		word, n, err = r.Read64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		read = append(read, buf[:n]...)
+	}
+
+	require.Equal(t, io.EOF, err)
+	assert.Equal(t, data, peeked)
+	assert.Equal(t, data, read)
 }

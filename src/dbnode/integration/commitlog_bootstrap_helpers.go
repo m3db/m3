@@ -166,7 +166,7 @@ func writeCommitLogDataBase(
 		} else {
 			s.SetNowFn(currTs.ToTime())
 		}
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		defer ctx.Close()
 
 		m := map[xtime.UnixNano]generate.SeriesBlock{

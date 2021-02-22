@@ -22,13 +22,16 @@ package database
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/runtime/protoiface"
 
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
@@ -66,6 +69,17 @@ func TestUpdateQueryLimits(t *testing.T) {
 			commit: true,
 		},
 		{
+			name: `only metadata - commit`,
+			limits: &kvpb.QueryLimits{
+				MaxRecentlyQueriedMetadataRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+			},
+			commit: true,
+		},
+		{
 			name: `only block - no commit`,
 			limits: &kvpb.QueryLimits{
 				MaxRecentlyQueriedSeriesBlocks: &kvpb.QueryLimit{
@@ -89,6 +103,16 @@ func TestUpdateQueryLimits(t *testing.T) {
 					LookbackSeconds: 15,
 					ForceExceeded:   true,
 				},
+				MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedMetadataRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
 			},
 			commit: true,
 		},
@@ -101,6 +125,11 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 				MaxRecentlyQueriedSeriesDiskBytesRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
 					Limit:           1,
 					LookbackSeconds: 15,
 					ForceExceeded:   true,
@@ -143,11 +172,17 @@ func TestUpdateQueryLimits(t *testing.T) {
 				LookbackSeconds: 30,
 				ForceExceeded:   false,
 			},
+			MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
+				Limit:           100,
+				LookbackSeconds: 300,
+				ForceExceeded:   false,
+			},
 		}
 		mockVal := kv.NewMockValue(ctrl)
 		storeMock.EXPECT().Get(kvconfig.QueryLimits).Return(mockVal, nil)
 		mockVal.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v *kvpb.QueryLimits) error {
 			v.MaxRecentlyQueriedSeriesBlocks = oldLimits.MaxRecentlyQueriedSeriesBlocks
+			v.MaxRecentlyQueriedSeriesDiskRead = oldLimits.MaxRecentlyQueriedSeriesDiskRead
 			return nil
 		})
 		if test.commit {
@@ -165,7 +200,31 @@ func TestUpdateQueryLimits(t *testing.T) {
 		require.Equal(t, kvconfig.QueryLimits, r.Key)
 		require.Equal(t, *oldLimits.MaxRecentlyQueriedSeriesBlocks, *oldResult.MaxRecentlyQueriedSeriesBlocks)
 		require.Nil(t, oldResult.MaxRecentlyQueriedSeriesDiskBytesRead)
+		require.Equal(t, *oldLimits.MaxRecentlyQueriedSeriesDiskRead, *oldResult.MaxRecentlyQueriedSeriesDiskRead)
 		require.Equal(t, json.RawMessage(limitJSON), r.New)
 		require.Equal(t, 0, r.Version)
 	}
+}
+
+func TestProtoParser(t *testing.T) {
+	handler := &KeyValueStoreHandler{
+		kvStoreProtoParser: func(k string) (protoiface.MessageV1, error) {
+			if k == "test-key" {
+				return &commonpb.Int64Proto{}, nil
+			}
+			return nil, errors.New("invalid")
+		},
+	}
+
+	s, err := handler.newKVProtoMessage("not-present")
+	require.Error(t, err)
+	require.Nil(t, s)
+
+	s, err = handler.newKVProtoMessage("test-key")
+	require.NoError(t, err)
+	require.NotNil(t, s)
+
+	s, err = handler.newKVProtoMessage(kvconfig.NamespacesKey)
+	require.NoError(t, err)
+	require.NotNil(t, s)
 }

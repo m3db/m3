@@ -141,7 +141,8 @@ func newTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncod
 }
 
 // newTimeEncodingScheme creates a new time encoding scheme.
-// NB(xichen): numValueBitsForBbuckets should be ordered by value in ascending order (smallest value first).
+// NB(xichen): numValueBitsForBuckets should be ordered by value
+// in ascending order (smallest value first).
 func newTimeEncodingScheme(numValueBitsForBuckets []int, numValueBitsForDefault int) TimeEncodingScheme {
 	numBuckets := len(numValueBitsForBuckets)
 	buckets := make([]TimeBucket, 0, numBuckets)

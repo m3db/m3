@@ -91,25 +91,25 @@ type OpUnion struct {
 
 // Equal determines whether two operation unions are equal.
 func (u OpUnion) Equal(other OpUnion) bool {
+	// keep in sync with Pipeline.Equal as go is terrible at inlining anything with a loop
 	if u.Type != other.Type {
 		return false
 	}
-	switch u.Type {
-	case pipeline.TransformationOpType:
-		return u.Transformation.Equal(other.Transformation)
-	case pipeline.RollupOpType:
+
+	if u.Type == pipeline.RollupOpType {
 		return u.Rollup.Equal(other.Rollup)
 	}
-	return true
+
+	return u.Transformation.Type == other.Transformation.Type
 }
 
 // Clone clones an operation union.
 func (u OpUnion) Clone() OpUnion {
-	clone := OpUnion{Type: u.Type}
-	switch u.Type {
-	case pipeline.TransformationOpType:
-		clone.Transformation = u.Transformation.Clone()
-	case pipeline.RollupOpType:
+	clone := OpUnion{
+		Type:           u.Type,
+		Transformation: u.Transformation,
+	}
+	if u.Type == pipeline.RollupOpType {
 		clone.Rollup = u.Rollup.Clone()
 	}
 	return clone
@@ -180,29 +180,43 @@ func NewPipeline(ops []OpUnion) Pipeline {
 func (p Pipeline) Len() int { return len(p.operations) }
 
 // IsEmpty determines whether a pipeline is empty.
-func (p Pipeline) IsEmpty() bool { return p.Len() == 0 }
+func (p Pipeline) IsEmpty() bool { return len(p.operations) == 0 }
 
 // At returns the operation at a given step.
 func (p Pipeline) At(i int) OpUnion { return p.operations[i] }
 
 // Equal determines whether two pipelines are equal.
 func (p Pipeline) Equal(other Pipeline) bool {
+	// keep in sync with OpUnion.Equal as go is terrible at inlining anything with a loop
 	if len(p.operations) != len(other.operations) {
 		return false
 	}
+
 	for i := 0; i < len(p.operations); i++ {
-		if !p.operations[i].Equal(other.operations[i]) {
+		if p.operations[i].Type != other.operations[i].Type {
 			return false
 		}
+		//nolint:exhaustive
+		switch p.operations[i].Type {
+		case pipeline.RollupOpType:
+			if !p.operations[i].Rollup.Equal(other.operations[i].Rollup) {
+				return false
+			}
+		case pipeline.TransformationOpType:
+			if p.operations[i].Transformation.Type != other.operations[i].Transformation.Type {
+				return false
+			}
+		}
 	}
+
 	return true
 }
 
 // Clone clones the pipeline.
 func (p Pipeline) Clone() Pipeline {
 	clone := make([]OpUnion, len(p.operations))
-	for i, op := range p.operations {
-		clone[i] = op.Clone()
+	for i := range p.operations {
+		clone[i] = p.operations[i].Clone()
 	}
 	return Pipeline{operations: clone}
 }

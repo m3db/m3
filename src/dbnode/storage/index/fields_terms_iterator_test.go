@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/util"
+	"github.com/m3db/m3/src/x/context"
 	xtest "github.com/m3db/m3/src/x/test"
 )
 
@@ -48,6 +49,7 @@ var (
 )
 
 func TestFieldsTermsIteratorSimple(t *testing.T) {
+	ctx := context.NewBackground()
 	s := newFieldsTermsIterSetup(
 		pair{"a", "b"}, pair{"a", "c"},
 		pair{"d", "e"}, pair{"d", "f"},
@@ -58,12 +60,13 @@ func TestFieldsTermsIteratorSimple(t *testing.T) {
 	reader, err := s.asSegment(t).Reader()
 	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
+	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
-	s.requireEquals(t, iter)
+	s.requireEquals(ctx, t, iter)
 }
 
 func TestFieldsTermsIteratorReuse(t *testing.T) {
+	ctx := context.NewBackground()
 	pairs := []pair{
 		{"a", "b"},
 		{"a", "c"},
@@ -74,18 +77,18 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 		{"k", "l"},
 	}
 
-	iter, err := newFieldsAndTermsIterator(nil, fieldsAndTermsIteratorOpts{})
+	iter, err := newFieldsAndTermsIterator(ctx, nil, fieldsAndTermsIteratorOpts{})
 	require.NoError(t, err)
 
 	s := newFieldsTermsIterSetup(pairs...)
 	reader, err := s.asSegment(t).Reader()
 	require.NoError(t, err)
 
-	err = iter.Reset(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
+	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
-	s.requireEquals(t, iter)
+	s.requireEquals(ctx, t, iter)
 
-	err = iter.Reset(reader, fieldsAndTermsIteratorOpts{
+	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		allowFn: func(f []byte) bool {
 			return !bytes.Equal([]byte("a"), f) && !bytes.Equal([]byte("k"), f)
@@ -101,7 +104,7 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 		{"i", "j"},
 	}, slice)
 
-	err = iter.Reset(reader, fieldsAndTermsIteratorOpts{
+	err = iter.Reset(ctx, reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		allowFn: func(f []byte) bool {
 			return bytes.Equal([]byte("k"), f) || bytes.Equal([]byte("a"), f)
@@ -118,6 +121,7 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorSimpleSkip(t *testing.T) {
+	ctx := context.NewBackground()
 	input := []pair{
 		{"a", "b"},
 		{"a", "c"},
@@ -131,7 +135,7 @@ func TestFieldsTermsIteratorSimpleSkip(t *testing.T) {
 	reader, err := s.asSegment(t).Reader()
 	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
+	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		allowFn: func(f []byte) bool {
 			return !bytes.Equal([]byte("a"), f) && !bytes.Equal([]byte("k"), f)
@@ -149,6 +153,8 @@ func TestFieldsTermsIteratorSimpleSkip(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorTermsOnly(t *testing.T) {
+	ctx := context.NewBackground()
+
 	s := newFieldsTermsIterSetup(
 		pair{"a", "b"},
 		pair{"a", "c"},
@@ -161,7 +167,7 @@ func TestFieldsTermsIteratorTermsOnly(t *testing.T) {
 	reader, err := s.asSegment(t).Reader()
 	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{})
+	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{})
 	require.NoError(t, err)
 	slice, err := toSlice(iter)
 	require.NoError(t, err)
@@ -175,13 +181,15 @@ func TestFieldsTermsIteratorTermsOnly(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
+	ctx := context.NewBackground()
+
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	reader := newMockSegmentReader(ctrl, map[string]terms{
 		"a": {},
 	})
-	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: false})
+	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: false})
 	require.NoError(t, err)
 	slice, err := toSlice(iter)
 	require.NoError(t, err)
@@ -189,6 +197,8 @@ func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorRestrictByQueryFields(t *testing.T) {
+	ctx := context.NewBackground()
+
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
@@ -210,7 +220,7 @@ func TestFieldsTermsIteratorRestrictByQueryFields(t *testing.T) {
 	// Simulate term query for "bar":
 	reader.EXPECT().MatchField([]byte("bar")).Return(pl1, nil)
 
-	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
+	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: false,
 		restrictByQuery: &Query{
 			Query: idx.NewFieldQuery([]byte("bar")),
@@ -223,13 +233,15 @@ func TestFieldsTermsIteratorRestrictByQueryFields(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorEmptyTermInclude(t *testing.T) {
+	ctx := context.NewBackground()
+
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	reader := newMockSegmentReader(ctrl, map[string]terms{
 		"a": {},
 	})
-	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
+	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
 	slice, err := toSlice(iter)
 	require.NoError(t, err)
@@ -237,6 +249,8 @@ func TestFieldsTermsIteratorEmptyTermInclude(t *testing.T) {
 }
 
 func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
+	ctx := context.NewBackground()
+
 	testDocs := []doc.Metadata{
 		{
 			Fields: []doc.Field{
@@ -295,7 +309,7 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 	reader, err := seg.Reader()
 	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
+	iter, err := newFieldsAndTermsIterator(ctx, reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		restrictByQuery: &Query{
 			Query: idx.NewConjunctionQuery(fruitRegexp, colorRegexp),
@@ -502,7 +516,7 @@ func (s *fieldsTermsIterSetup) asSegment(t *testing.T) segment.Segment {
 	return fst.ToTestSegment(t, memSeg, testFstOptions)
 }
 
-func (s *fieldsTermsIterSetup) requireEquals(t *testing.T, iter fieldsAndTermsIterator) {
+func (s *fieldsTermsIterSetup) requireEquals(ctx context.Context, t *testing.T, iter fieldsAndTermsIterator) {
 	pending := s.fields
 	for len(pending) > 0 {
 		require.True(t, iter.Next())
@@ -517,7 +531,7 @@ func (s *fieldsTermsIterSetup) requireEquals(t *testing.T, iter fieldsAndTermsIt
 	}
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
-	require.NoError(t, iter.Close())
+	require.NoError(t, iter.Close(ctx))
 }
 
 func toSlice(iter fieldsAndTermsIterator) ([]pair, error) {

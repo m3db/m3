@@ -153,7 +153,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 			blTime := getAndIncStart()
 			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{}, namespace.Context{})
 			// Simulate concurrent reads
-			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize), namespace.Context{})
+			_, err := shard.ReadEncoded(context.NewBackground(), id, blTime, blTime.Add(blockSize), namespace.Context{})
 			require.NoError(t, err)
 			wg.Done()
 		}()

@@ -43,7 +43,7 @@ func LeadingAndTrailingZeros(v uint64) (int, int) {
 }
 
 // SignExtend sign extends the highest bit of v which has numBits (<=64).
-func SignExtend(v uint64, numBits uint) int64 {
+func SignExtend(v uint64, numBits uint8) int64 {
 	shift := 64 - numBits
 	return (int64(v) << shift) >> shift
 }

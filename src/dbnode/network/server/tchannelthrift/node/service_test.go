@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -49,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -1554,9 +1556,20 @@ func TestServiceFetchTagged(t *testing.T) {
 		name            string
 		blocksReadLimit int64
 		fetchErrMsg     string
+		blockReadCancel bool
 	}{
 		{
 			name: "happy path",
+		},
+		{
+			name:            "block read limit",
+			blocksReadLimit: 1,
+			fetchErrMsg:     "query aborted due to limit",
+		},
+		{
+			name:            "data read canceled",
+			fetchErrMsg:     "context canceled",
+			blockReadCancel: true,
 		},
 	}
 
@@ -1569,12 +1582,29 @@ func TestServiceFetchTagged(t *testing.T) {
 			mockDB := storage.NewMockDatabase(ctrl)
 			mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 			mockDB.EXPECT().IsOverloaded().Return(false)
-			queryLimits, err := limits.NewQueryLimits(limits.NewOptions().
+			limitsOpts := limits.NewOptions().
 				SetInstrumentOptions(testTChannelThriftOptions.InstrumentOptions()).
 				SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
-				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()))
+				SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
+					Limit:    tc.blocksReadLimit,
+					Lookback: time.Second * 1,
+				}).
+				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions())
+
+			queryLimits, err := limits.NewQueryLimits(limitsOpts)
+			permitOpts := permits.NewOptions().
+				SetSeriesReadPermitsManager(permits.NewLookbackLimitPermitsManager(
+					"disk-series-read",
+					limitsOpts.DiskSeriesReadLimitOpts(),
+					testTChannelThriftOptions.InstrumentOptions(),
+					limitsOpts.SourceLoggerBuilder(),
+					1,
+				))
+
 			require.NoError(t, err)
-			testTChannelThriftOptions = testTChannelThriftOptions.SetQueryLimits(queryLimits)
+			testTChannelThriftOptions = testTChannelThriftOptions.
+				SetQueryLimits(queryLimits).
+				SetPermitsOptions(permitOpts)
 
 			service := NewService(mockDB, testTChannelThriftOptions).(*service)
 
@@ -1584,7 +1614,10 @@ func TestServiceFetchTagged(t *testing.T) {
 
 			mtr := mocktracer.New()
 			sp := mtr.StartSpan("root")
-			ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
+			stdCtx := opentracing.ContextWithSpan(gocontext.Background(), sp)
+			stdCtx, cancel := gocontext.WithCancel(stdCtx)
+			defer cancel()
+			ctx.SetGoContext(stdCtx)
 
 			start := time.Now().Add(-2 * time.Hour)
 			end := start.Add(2 * time.Hour)
@@ -1622,13 +1655,22 @@ func TestServiceFetchTagged(t *testing.T) {
 				streams[id] = stream
 				mockDB.EXPECT().
 					ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-					Return(&series.FakeBlockReaderIter{
-						Readers: [][]xio.BlockReader{{
-							xio.BlockReader{
-								SegmentReader: stream,
-							},
-						}},
-					}, nil)
+					DoAndReturn(func(
+						ctx context.Context,
+						namespace ident.ID,
+						id ident.ID,
+						start, end time.Time) (series.BlockReaderIter, error) {
+						if tc.blockReadCancel {
+							cancel()
+						}
+						return &series.FakeBlockReaderIter{
+							Readers: [][]xio.BlockReader{{
+								xio.BlockReader{
+									SegmentReader: stream,
+								},
+							}},
+						}, nil
+					})
 			}
 
 			req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))

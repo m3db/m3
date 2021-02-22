@@ -1,28 +1,19 @@
-Contributing
-============
+# Contributing
 
-We'd love your help making M3DB better!
+M3 welcomes your help!
 
-## Proposing A Change
+## Proposing a Change
 
-*Before making any significant changes, please
-[open an issue](https://github.com/m3db/proposal/issues).*
+Before making any significant changes, [open an issue](https://github.com/m3db/proposal/issues).
 
-Discussing your proposed changes ahead of time will make the contribution
-process smooth for everyone.
+Discussing your proposed changes ahead of time makes the contribution process smoother for everyone.
 
-Once we've discussed your changes and you've got your code ready, make sure
-that tests are passing (`make test` or `make cover`) and open your PR! Your
-pull request is most likely to be accepted if it:
+Any major changes or feature requests will be reviewed by the [M3 Steering Committee](https://github.com/m3db/m3/blob/master/GOVERNANCE.md). To make sure an issue or pull request is reviewed by the steering committee, add the [TSC label](https://github.com/m3db/m3/labels/TSC).
 
-* Includes tests for new functionality.
-* Follows the guidelines in [Effective
-  Go](https://golang.org/doc/effective_go.html) and the [Go team's common code
-  review comments](https://github.com/golang/go/wiki/CodeReviewComments).
-* Has a [good commit
-  message](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
+## Code Changes
 
-## Developing
+For code changes that affect M3 functionality, or fix bugs, read the [developer guide](DEVELOPMENT.md).
 
-See the [developer notes](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
-for details on how to develop M3DB.
+## Reporting a Bug
+
+If you have found a bug in M3, [create an issue](https://github.com/m3db/m3/issues/new) and fill in the details asked for in the issue template as much as possible.
