@@ -22,10 +22,12 @@ package cm
 
 import "sync"
 
+// StreamPool is a pool of streams, wrapping sync.Pool.
 type StreamPool struct {
 	pool *sync.Pool
 }
 
+// NewStreamPool creates a new StreamPool.
 func NewStreamPool(opts Options) StreamPool {
 	return StreamPool{
 		pool: &sync.Pool{
@@ -36,10 +38,12 @@ func NewStreamPool(opts Options) StreamPool {
 	}
 }
 
+// Get returns a new Stream from the pool.
 func (p StreamPool) Get() *Stream {
 	return p.pool.Get().(*Stream) //nolint:errcheck
 }
 
+// Put puts a Stream back into the pool.
 func (p StreamPool) Put(s *Stream) {
 	p.pool.Put(s)
 }

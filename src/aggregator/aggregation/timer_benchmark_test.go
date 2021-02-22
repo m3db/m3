@@ -23,8 +23,6 @@ package aggregation
 import (
 	"math"
 	"math/rand"
-	"runtime"
-	"sort"
 	"testing"
 	"time"
 
@@ -34,7 +32,6 @@ import (
 
 const (
 	_insertAndCompressEvery = 1024
-	_sampleBatches          = 100
 	_eps                    = 0.001
 	_capacity               = 32
 )
@@ -47,18 +44,6 @@ var (
 
 func getTimer() Timer {
 	return NewTimer(testQuantiles, _cmOptions, _aggregationOptions)
-}
-
-func timerSamples() [][]float64 {
-	rnd := rand.New(rand.NewSource(0)) //nolint:gosec
-	samples := make([][]float64, _sampleBatches)
-	for i := 0; i < len(samples); i++ {
-		samples[i] = make([]float64, 1000)
-		for j := 0; j < 1000; j++ {
-			samples[i][j] = rnd.Float64()
-		}
-	}
-	return samples
 }
 
 func BenchmarkTimerValues(b *testing.B) {
@@ -91,78 +76,113 @@ func BenchmarkTimerValueOf(b *testing.B) {
 }
 
 func BenchmarkTimerAddBatch(b *testing.B) {
-	samples := timerSamples()
-
-	b.Run("100k samples in 100 batches", func(b *testing.B) {
-		benchAddBatch(b, samples[:100])
-	})
-
-	b.Run("10k samples in 10 batches", func(b *testing.B) {
-		benchAddBatch(b, samples[:10])
-	})
-
-	b.Run("5k samples in 5 batches", func(b *testing.B) {
-		benchAddBatch(b, samples[:5])
-	})
-
-	b.Run("1k samples in 1 batch", func(b *testing.B) {
-		benchAddBatch(b, samples[:1])
-	})
+	for _, bench := range []struct {
+		name      string
+		num       int
+		batchSize int
+		sampleFn  func(*rand.Rand) float64
+	}{
+		{
+			name:      "100k samples 1000 batch size",
+			num:       100_000,
+			batchSize: 1000,
+			sampleFn: func(r *rand.Rand) float64 {
+				return r.Float64()
+			},
+		},
+		{
+			name:      "100k samples 1000 batch size 0..1,000,000 range",
+			num:       100_000,
+			batchSize: 1000,
+			sampleFn: func(r *rand.Rand) float64 {
+				return r.Float64() * 1_000_000
+			},
+		},
+		{
+			name:      "100k samples 1000 batch size 0..100,000 range",
+			num:       100_000,
+			batchSize: 1000,
+			sampleFn: func(r *rand.Rand) float64 {
+				return r.Float64() * 100_000
+			},
+		},
+		{
+			name:      "10k samples 1000 batch size",
+			num:       10_000,
+			batchSize: 1000,
+			sampleFn: func(r *rand.Rand) float64 {
+				return r.Float64()
+			},
+		},
+		{
+			name:      "10k samples 100 batch size",
+			num:       10_000,
+			batchSize: 100,
+			sampleFn: func(r *rand.Rand) float64 {
+				return r.Float64()
+			},
+		},
+		{
+			name:      "10k samples 100 batch size with negative values",
+			num:       10_000,
+			batchSize: 100,
+			sampleFn: func(r *rand.Rand) float64 {
+				return -1.0*r.Float64() + 10.0
+			},
+		},
+		{
+			name:      "1k samples 100 batch size",
+			num:       1_000,
+			batchSize: 100,
+			sampleFn: func(r *rand.Rand) float64 {
+				return r.Float64()
+			},
+		},
+	} {
+		bench := bench
+		samples, q := getTimerSamples(bench.num, bench.sampleFn, testQuantiles)
+		b.Run(bench.name, func(b *testing.B) {
+			benchAddBatch(b, samples, bench.batchSize, testQuantiles, q)
+		})
+	}
 }
 
-func benchAddBatch(b *testing.B, samples [][]float64) {
+func benchAddBatch(
+	b *testing.B,
+	samples []float64,
+	batchSize int,
+	quantiles []float64,
+	quantileValues []float64,
+) {
 	b.Helper()
-	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
-
-	var (
-		z []float64
-		q float64
-	)
-
-	const _debug = true
-
-	if _debug {
-		for i := range samples {
-			for j := range samples[i] {
-				z = append(z, samples[i][j])
-			}
-		}
-		sort.Float64s(z)
-	}
-
+	b.SetBytes(int64(8 * len(samples)))
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		timer := getTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			timer := getTimer()
 
-		for i := 0; i < len(samples); i++ {
-			timer.AddBatch(_now, samples[i])
-		}
-
-		for i := range testQuantiles {
-			q = timer.Quantile(testQuantiles[i])
-		}
-
-		if math.IsNaN(q) {
-			b.FailNow()
-		}
-
-		if _debug && n == 0 {
-			q = timer.Quantile(testQuantiles[len(testQuantiles)-1])
-			n := int(float64(len(z)) * testQuantiles[len(testQuantiles)-1])
-			// fmt.Println(q, z[n], n, len(z))
-			// fmt.Println(z[0], z[len(z)-1])
-			delta := math.Abs(q - z[n])
-			eps := testQuantiles[len(testQuantiles)-1] * _eps // error bound is quantile * epsilon
-			if delta > eps {
-				b.Logf("unexpected delta: (q %f) (expected %v)  (delta %f) (eps %f)", q, z[n], delta, eps)
-				b.FailNow()
-				return
+			for i := 0; i < len(samples); i += batchSize {
+				end := i + batchSize
+				if end >= len(samples) {
+					end = len(samples) - 1
+				}
+				timer.AddBatch(_now, samples[i:end])
 			}
-			// fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
+
+			for i := range quantiles {
+				q := timer.Quantile(quantiles[i])
+				// error bound is quantile * epsilon
+				expected := (_eps / quantiles[i]) * quantileValues[i]
+				delta := math.Abs(q - quantileValues[i])
+				if delta > expected {
+					b.Logf("unexpected delta: value %f, expected delta %v, delta %f, quantile %f",
+						q, expected, delta, quantiles[i])
+					b.FailNow()
+				}
+			}
+			timer.Close()
 		}
-		timer.Close()
-	}
-	runtime.KeepAlive(q)
+	})
 }
 
 func init() {

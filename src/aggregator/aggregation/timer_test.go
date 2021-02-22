@@ -22,6 +22,8 @@ package aggregation
 
 import (
 	"math"
+	"math/rand"
+	"sort"
 	"testing"
 	"time"
 
@@ -52,6 +54,37 @@ var (
 
 func testStreamOptions() cm.Options {
 	return cm.NewOptions()
+}
+
+func getTimerSamples(
+	num int,
+	generator func(*rand.Rand) float64,
+	q []float64,
+) ([]float64, []float64) {
+	if generator == nil {
+		generator = func(r *rand.Rand) float64 {
+			return r.Float64()
+		}
+	}
+	var (
+		quantiles = make([]float64, len(q))
+		samples   = make([]float64, num)
+		sorted    = make([]float64, num)
+		rnd       = rand.New(rand.NewSource(0)) //nolint:gosec
+	)
+
+	for i := 0; i < len(samples); i++ {
+		samples[i] = generator(rnd)
+	}
+
+	copy(sorted, samples)
+	sort.Float64s(sorted)
+	n := float64(len(sorted) - 1)
+	for i, quantile := range q {
+		quantiles[i] = sorted[int(n*quantile)]
+	}
+
+	return samples, quantiles
 }
 
 func TestCreateTimerResetStream(t *testing.T) {

@@ -84,6 +84,7 @@ func NewStream(opts Options) *Stream {
 	return s
 }
 
+// AddBatch adds a batch of sample values.
 func (s *Stream) AddBatch(values []float64) {
 	s.flushed = false
 
@@ -124,10 +125,12 @@ func (s *Stream) AddBatch(values []float64) {
 	s.insertAndCompressCounter = insertCounter
 }
 
+// Add adds a sample value.
 func (s *Stream) Add(value float64) {
 	s.AddBatch([]float64{value})
 }
 
+// Flush flushes the internal buffer.
 func (s *Stream) Flush() {
 	if s.flushed {
 		return
@@ -144,14 +147,17 @@ func (s *Stream) Flush() {
 	s.flushed = true
 }
 
+// Min returns the minimum value.
 func (s *Stream) Min() float64 {
 	return s.Quantile(0.0)
 }
 
+// Max returns the maximum value.
 func (s *Stream) Max() float64 {
 	return s.Quantile(1.0)
 }
 
+// Quantile returns the quantile value.
 func (s *Stream) Quantile(q float64) float64 {
 	if q < 0.0 || q > 1.0 {
 		return nan
@@ -174,6 +180,51 @@ func (s *Stream) Quantile(q float64) float64 {
 		}
 	}
 	return math.NaN()
+}
+
+// ResetSetData resets the stream and sets data.
+func (s *Stream) ResetSetData(quantiles []float64) {
+	s.quantiles = quantiles
+
+	if len(quantiles) > cap(s.computedQuantiles) {
+		s.computedQuantiles = make([]float64, len(quantiles))
+		s.thresholdBuf = make([]threshold, len(quantiles))
+	} else {
+		s.computedQuantiles = s.computedQuantiles[:len(quantiles)]
+		s.thresholdBuf = s.thresholdBuf[:len(quantiles)]
+	}
+
+	s.closed = false
+}
+
+// Close closes the stream.
+func (s *Stream) Close() {
+	if s.closed {
+		return
+	}
+	s.closed = true
+
+	s.bufMore.Reset()
+	s.bufLess.Reset()
+
+	for curr := s.samples.Front(); curr != nil; {
+		next := curr.next
+		s.releaseSample(curr)
+		curr = next
+	}
+
+	for i := len(s.sampleBuf) - 1; i > s.capacity-1; i-- {
+		samplePool.Put(s.sampleBuf[i])
+		s.sampleBuf[i] = nil
+	}
+	s.sampleBuf = s.sampleBuf[:s.capacity-1]
+	s.samples.Reset()
+	s.insertCursor = nil
+	s.compressCursor = nil
+	s.insertAndCompressCounter = 0
+	s.numValues = 0
+	s.compressMinRank = 0
+	s.streamPool.Put(s)
 }
 
 // quantilesFromBuf calculates quantiles from buffer if there were too few samples to compress
@@ -247,49 +298,6 @@ func (s *Stream) calcQuantiles() {
 			s.computedQuantiles[i] = prev.value
 		}
 	}
-}
-
-func (s *Stream) ResetSetData(quantiles []float64) {
-	s.quantiles = quantiles
-
-	if len(quantiles) > cap(s.computedQuantiles) {
-		s.computedQuantiles = make([]float64, len(quantiles))
-		s.thresholdBuf = make([]threshold, len(quantiles))
-	} else {
-		s.computedQuantiles = s.computedQuantiles[:len(quantiles)]
-		s.thresholdBuf = s.thresholdBuf[:len(quantiles)]
-	}
-
-	s.closed = false
-}
-
-func (s *Stream) Close() {
-	if s.closed {
-		return
-	}
-	s.closed = true
-
-	s.bufMore.Reset()
-	s.bufLess.Reset()
-
-	for curr := s.samples.Front(); curr != nil; {
-		next := curr.next
-		s.releaseSample(curr)
-		curr = next
-	}
-
-	for i := len(s.sampleBuf) - 1; i > s.capacity-1; i-- {
-		samplePool.Put(s.sampleBuf[i])
-		s.sampleBuf[i] = nil
-	}
-	s.sampleBuf = s.sampleBuf[:s.capacity-1]
-	s.samples.Reset()
-	s.insertCursor = nil
-	s.compressCursor = nil
-	s.insertAndCompressCounter = 0
-	s.numValues = 0
-	s.compressMinRank = 0
-	s.streamPool.Put(s)
 }
 
 // insert inserts a sample into the stream.
