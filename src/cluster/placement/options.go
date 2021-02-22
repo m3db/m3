@@ -156,6 +156,7 @@ func (o options) IsStaged() bool {
 	return o.isStaged
 }
 
+// This functionality is deprecated and is left only for backward compatibility.
 func (o options) SetIsStaged(v bool) Options {
 	o.isStaged = v
 	return o
