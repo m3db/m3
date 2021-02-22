@@ -511,7 +511,7 @@ func (c *coordinator) query(
 	logger := c.resource.logger.With(
 		zapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
 	logger.Info("running")
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
