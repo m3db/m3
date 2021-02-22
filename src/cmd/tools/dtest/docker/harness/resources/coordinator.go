@@ -66,6 +66,8 @@ type ResponseVerifier func(int, map[string][]string, string, error) error
 type Coordinator interface {
 	Admin
 
+	// ApplyKVUpdate applies a KV update.
+	ApplyKVUpdate(body proto.Message) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// WriteProm writes a prometheus metric.
@@ -459,6 +461,24 @@ func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.
 	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	return http.DefaultClient.Do(req)
+}
+
+func (c *coordinator) ApplyKVUpdate(update proto.Message) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/kvstore")
+	logger := c.resource.logger.With(
+		zapMethod("apply update"), zap.String("url", url),
+		zap.String("updated", update.String()))
+
+	_, err := makePostRequest(logger, url, update)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *coordinator) query(
