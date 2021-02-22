@@ -1598,7 +1598,6 @@ func TestServiceFetchTagged(t *testing.T) {
 					limitsOpts.DiskSeriesReadLimitOpts(),
 					testTChannelThriftOptions.InstrumentOptions(),
 					limitsOpts.SourceLoggerBuilder(),
-					1,
 				))
 
 			require.NoError(t, err)
