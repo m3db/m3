@@ -125,6 +125,7 @@ func (i *Ingester) Ingest(
 	id []byte,
 	metricNanos, encodeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 	callback m3msg.Callbackable,
 ) {
@@ -133,6 +134,7 @@ func (i *Ingester) Ingest(
 	op.id = id
 	op.metricNanos = metricNanos
 	op.value = value
+	op.annotation = annotation
 	op.sp = sp
 	op.callback = callback
 	i.workers.Go(op.ingestFn)
@@ -154,6 +156,7 @@ type ingestOp struct {
 	id          []byte
 	metricNanos int64
 	value       float64
+	annotation  []byte
 	sp          policy.StoragePolicy
 	callback    m3msg.Callbackable
 	tags        models.Tags
@@ -223,6 +226,7 @@ func (op *ingestOp) resetWriteQuery() error {
 			Resolution:  op.sp.Resolution().Window,
 			Retention:   op.sp.Retention().Duration(),
 		},
+		Annotation: op.annotation,
 	})
 }
 

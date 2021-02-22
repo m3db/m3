@@ -103,25 +103,22 @@ func (s *server) handleMessage(
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddUntimed(
-			union.CounterWithMetadatas.ToUnion(),
-			union.CounterWithMetadatas.StagedMetadatas)
+		u := union.CounterWithMetadatas.ToUnion()
+		return s.aggregator.AddUntimed(u, union.CounterWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
 		err := union.BatchTimerWithMetadatas.FromProto(pb.BatchTimerWithMetadatas)
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddUntimed(
-			union.BatchTimerWithMetadatas.ToUnion(),
-			union.BatchTimerWithMetadatas.StagedMetadatas)
+		u := union.BatchTimerWithMetadatas.ToUnion()
+		return s.aggregator.AddUntimed(u, union.BatchTimerWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
 		err := union.GaugeWithMetadatas.FromProto(pb.GaugeWithMetadatas)
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddUntimed(
-			union.GaugeWithMetadatas.ToUnion(),
-			union.GaugeWithMetadatas.StagedMetadatas)
+		u := union.GaugeWithMetadatas.ToUnion()
+		return s.aggregator.AddUntimed(u, union.GaugeWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
 		err := union.ForwardedMetricWithMetadata.FromProto(pb.ForwardedMetricWithMetadata)
 		if err != nil {
