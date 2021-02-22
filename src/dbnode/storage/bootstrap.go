@@ -166,7 +166,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 			// needing to manually intervene for cases where failures are transient.
 			m.instrumentation.bootstrapFailed(i + 1)
 			m.sleepFn(bootstrapRetryInterval)
-			continue
+			break
 		}
 
 		// No pending bootstraps and last finished successfully.
