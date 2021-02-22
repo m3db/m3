@@ -67,7 +67,7 @@ type Coordinator interface {
 	Admin
 
 	// ApplyKVUpdate applies a KV update.
-	ApplyKVUpdate(body proto.Message) error
+	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// WriteProm writes a prometheus metric.
@@ -463,21 +463,40 @@ func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.
 	return http.DefaultClient.Do(req)
 }
 
-func (c *coordinator) ApplyKVUpdate(update proto.Message) error {
+func (c *coordinator) ApplyKVUpdate(update string) error {
 	if c.resource.closed {
 		return errClosed
 	}
 
 	url := c.resource.getURL(7201, "api/v1/kvstore")
-	logger := c.resource.logger.With(
-		zapMethod("apply update"), zap.String("url", url),
-		zap.String("updated", update.String()))
 
-	_, err := makePostRequest(logger, url, update)
+	logger := c.resource.logger.With(
+		zapMethod("ApplyKVUpdate"), zap.String("url", url),
+		zap.String("update", update))
+
+	data := bytes.NewBuffer([]byte(update))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
 	if err != nil {
-		return err
+		logger.Error("failed to construct request", zap.Error(err))
+		return fmt.Errorf("failed to construct request: %w", err)
 	}
 
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error("failed to apply request", zap.Error(err))
+		return fmt.Errorf("failed to apply request: %w", err)
+	}
+
+	bs, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("failed to read body", zap.Error(err))
+		return fmt.Errorf("failed to read body: %w", err)
+	}
+
+	logger.Info("applied KV update", zap.ByteString("response", bs))
+	_ = resp.Body.Close()
 	return nil
 }
 
