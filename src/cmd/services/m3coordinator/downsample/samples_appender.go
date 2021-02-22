@@ -37,13 +37,17 @@ type samplesAppender struct {
 	agg          aggregator.Aggregator
 	clientRemote client.Client
 
-	dropTs          bool
+	dropTS          bool
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
 }
 
 // Ensure samplesAppender implements SamplesAppender.
 var _ SamplesAppender = (*samplesAppender)(nil)
+
+func (a samplesAppender) DropTimestamp() bool {
+	return a.dropTS
+}
 
 func (a samplesAppender) AppendUntimedCounterSample(value int64, annotation []byte) error {
 	if a.clientRemote != nil {
@@ -106,7 +110,7 @@ func (a samplesAppender) AppendUntimedTimerSample(value float64, annotation []by
 }
 
 func (a *samplesAppender) AppendCounterSample(t time.Time, value int64, annotation []byte) error {
-	if a.dropTs {
+	if a.dropTS {
 		return a.AppendUntimedCounterSample(value, annotation)
 	}
 	return a.appendTimedSample(aggregated.Metric{
@@ -119,7 +123,7 @@ func (a *samplesAppender) AppendCounterSample(t time.Time, value int64, annotati
 }
 
 func (a *samplesAppender) AppendGaugeSample(t time.Time, value float64, annotation []byte) error {
-	if a.dropTs {
+	if a.dropTS {
 		return a.AppendUntimedGaugeSample(value, annotation)
 	}
 	return a.appendTimedSample(aggregated.Metric{
@@ -132,7 +136,7 @@ func (a *samplesAppender) AppendGaugeSample(t time.Time, value float64, annotati
 }
 
 func (a *samplesAppender) AppendTimerSample(t time.Time, value float64, annotation []byte) error {
-	if a.dropTs {
+	if a.dropTS {
 		return a.AppendUntimedTimerSample(value, annotation)
 	}
 	return a.appendTimedSample(aggregated.Metric{
@@ -172,6 +176,15 @@ func (a *multiSamplesAppender) reset() {
 
 func (a *multiSamplesAppender) addSamplesAppender(v samplesAppender) {
 	a.appenders = append(a.appenders, v)
+}
+
+func (a *multiSamplesAppender) DropTimestamp() bool {
+	for _, appender := range a.appenders {
+		if appender.DropTimestamp() {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *multiSamplesAppender) AppendUntimedCounterSample(value int64, annotation []byte) error {

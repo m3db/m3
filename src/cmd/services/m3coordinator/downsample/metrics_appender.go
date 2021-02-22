@@ -476,12 +476,12 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 			continue
 		}
 
-		tags, dropTs := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		tags, dropTS := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm, dropTs)
+		appender, err := a.newSamplesAppender(tags, sm, dropTS)
 		if err != nil {
 			return err
 		}
@@ -506,7 +506,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	sm metadata.StagedMetadata,
-	dropTs bool,
+	dropTS bool,
 ) (samplesAppender, error) {
 	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
@@ -519,7 +519,7 @@ func (a *metricsAppender) newSamplesAppender(
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		dropTs:          dropTs,
+		dropTS:          dropTS,
 		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
 	}, nil
@@ -534,7 +534,7 @@ func (a *metricsAppender) processTags(
 	// Create the prefix tags if any.
 	var (
 		tags   = a.tags()
-		dropTs bool
+		dropTS bool
 	)
 	for i, path := range graphitePrefix {
 		// Add the graphite prefix as the initial graphite tags.
@@ -585,10 +585,10 @@ func (a *metricsAppender) processTags(
 			)
 			tags.append(name, value)
 		} else if bytes.Equal(tag.Name, metric.M3MetricsDropTimestamp) {
-			dropTs = true
+			dropTS = true
 		}
 	}
-	return tags, dropTs
+	return tags, dropTS
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {
