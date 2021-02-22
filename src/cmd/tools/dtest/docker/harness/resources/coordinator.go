@@ -66,12 +66,14 @@ type ResponseVerifier func(int, map[string][]string, string, error) error
 type Coordinator interface {
 	Admin
 
+	// ApplyKVUpdate applies a KV update.
+	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// WriteProm writes a prometheus metric.
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
-	RunQuery(verifier ResponseVerifier, query string) error
+	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
 }
 
 // Admin is a wrapper for admin functions.
@@ -461,8 +463,45 @@ func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.
 	return http.DefaultClient.Do(req)
 }
 
+func (c *coordinator) ApplyKVUpdate(update string) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/kvstore")
+
+	logger := c.resource.logger.With(
+		zapMethod("ApplyKVUpdate"), zap.String("url", url),
+		zap.String("update", update))
+
+	data := bytes.NewBuffer([]byte(update))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
+	if err != nil {
+		logger.Error("failed to construct request", zap.Error(err))
+		return fmt.Errorf("failed to construct request: %w", err)
+	}
+
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error("failed to apply request", zap.Error(err))
+		return fmt.Errorf("failed to apply request: %w", err)
+	}
+
+	bs, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("failed to read body", zap.Error(err))
+		return fmt.Errorf("failed to read body: %w", err)
+	}
+
+	logger.Info("applied KV update", zap.ByteString("response", bs))
+	_ = resp.Body.Close()
+	return nil
+}
+
 func (c *coordinator) query(
-	verifier ResponseVerifier, query string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -470,9 +509,18 @@ func (c *coordinator) query(
 
 	url := c.resource.getURL(7201, query)
 	logger := c.resource.logger.With(
-		zapMethod("query"), zap.String("url", url))
+		zapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
 	logger.Info("running")
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	if headers != nil {
+		req.Header = headers
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err))
 		return err
@@ -485,7 +533,7 @@ func (c *coordinator) query(
 }
 
 func (c *coordinator) RunQuery(
-	verifier ResponseVerifier, query string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -494,7 +542,7 @@ func (c *coordinator) RunQuery(
 	logger := c.resource.logger.With(zapMethod("runQuery"),
 		zap.String("query", query))
 	err := c.resource.pool.Retry(func() error {
-		err := c.query(verifier, query)
+		err := c.query(verifier, query, headers)
 		if err != nil {
 			logger.Info("retrying", zap.Error(err))
 		}
