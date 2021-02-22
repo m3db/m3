@@ -21,28 +21,64 @@
 package aggregation
 
 import (
+	"math"
+	"math/rand"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+)
+
+const (
+	_flushEvery             = 10000
+	_insertAndCompressEvery = 1000
+	_eps                    = 0.001
+	_heapCapacity           = 32
+)
+
+var (
+	_floatsPool = pool.NewFloatsPool([]pool.Bucket{
+		{Capacity: 512, Count: 256},
+		{Capacity: 1024, Count: 256},
+		{Capacity: 4096, Count: 256},
+		{Capacity: 8192, Count: 256},
+		{Capacity: 16384, Count: 256},
+	}, pool.NewObjectPoolOptions())
+	_cmOptions = cm.NewOptions().
+			SetFlushEvery(_flushEvery).
+			SetInsertAndCompressEvery(_insertAndCompressEvery).
+			SetEps(_eps).
+			SetCapacity(_heapCapacity).
+			SetFloatsPool(_floatsPool)
+	_aggregationOptions = NewOptions(instrument.NewOptions())
+	_now                = time.Now()
 )
 
 func getTimer() Timer {
-	opts := NewOptions(instrument.NewOptions())
-	opts.ResetSetData(testAggTypes)
+	return NewTimer(testQuantiles, _cmOptions, _aggregationOptions)
+}
 
-	at := time.Now()
-	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
-
-	for i := 1; i <= 100; i++ {
-		timer.Add(at, float64(i), nil)
+func timerSamples() [][]float64 {
+	rnd := rand.New(rand.NewSource(0)) //nolint:gosec
+	numBatches := _flushEvery / _insertAndCompressEvery
+	samples := make([][]float64, numBatches)
+	for i := 0; i < len(samples); i++ {
+		samples[i] = make([]float64, _insertAndCompressEvery)
+		for j := 0; j < _insertAndCompressEvery; j++ {
+			samples[i][j] = rnd.ExpFloat64()
+		}
 	}
-	return timer
+	return samples
 }
 
 func BenchmarkTimerValues(b *testing.B) {
 	timer := getTimer()
+	for i := 1; i <= 2500; i++ {
+		timer.Add(_now, float64(i))
+	}
 	for n := 0; n < b.N; n++ {
 		timer.Sum()
 		timer.SumSq()
@@ -65,4 +101,33 @@ func BenchmarkTimerValueOf(b *testing.B) {
 			timer.ValueOf(aggType)
 		}
 	}
+}
+
+func BenchmarkTimerAddBatch(b *testing.B) {
+	var (
+		samples = timerSamples()
+		q       float64
+	)
+
+	b.ResetTimer()
+	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
+	for n := 0; n < b.N; n++ {
+		timer := getTimer()
+
+		for i := 0; i < len(samples); i++ {
+			timer.AddBatch(_now, samples[i])
+		}
+
+		q = timer.Quantile(testQuantiles[0])
+
+		if math.IsNaN(q) {
+			b.FailNow()
+		}
+	}
+	runtime.KeepAlive(q)
+}
+
+func init() {
+	_aggregationOptions.ResetSetData(testAggTypes)
+	_floatsPool.Init()
 }
