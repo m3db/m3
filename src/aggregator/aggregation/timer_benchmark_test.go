@@ -56,10 +56,6 @@ func timerSamples() [][]float64 {
 		samples[i] = make([]float64, 1000)
 		for j := 0; j < 1000; j++ {
 			samples[i][j] = rnd.Float64()
-			//* float64(
-			//	rnd.Int63n(int64(time.Minute/time.Millisecond)))
-			//fmt.Println(samples[i][j])
-			//fmt.Println(samples[i][j] * _eps)
 		}
 	}
 	return samples
@@ -153,7 +149,7 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 			//fmt.Println(z[0], z[len(z)-1])
 			delta := math.Abs(q - z[n])
 			eps := testQuantiles[len(testQuantiles)-1] * _eps // error bound is quantile * epsilon
-			if delta > 2*eps {
+			if delta > eps {
 				b.Logf("unexpected delta: (q %f) (expected %v)  (delta %f) (eps %f)", q, z[n], delta, eps)
 				b.FailNow()
 				return

@@ -79,20 +79,46 @@ func NewStream(opts Options) *Stream {
 func (s *Stream) AddBatch(values []float64) {
 	s.flushed = false
 
-	insertPointValue := s.insertPointValue()
+	if len(values) <= 0 {
+		return
+	}
+
+	if s.samples.Len() == 0 {
+		var sample *Sample
+
+		if sample = s.tryAcquireSample(); sample == nil {
+			sample = s.acquireSample()
+		}
+
+		sample.value = values[0]
+		sample.numRanks = 1
+		sample.delta = 0
+		s.samples.PushBack(sample)
+		s.insertCursor = s.samples.Front()
+		s.numValues++
+		values = values[1:]
+	}
+
+	var (
+		insertPointValue = s.insertCursor.value
+		insertCounter    = s.insertAndCompressCounter
+	)
+
 	for _, value := range values {
-		if s.numValues > 0 && value < insertPointValue {
+		if value < insertPointValue {
 			s.bufLess.Push(value)
 		} else {
 			s.bufMore.Push(value)
 		}
-		s.insertAndCompressCounter++
-		if s.insertAndCompressCounter == s.insertAndCompressEvery {
+
+		if insertCounter == s.insertAndCompressEvery {
 			s.insert()
 			s.compress()
-			s.insertAndCompressCounter = 0
+			insertCounter = 0
 		}
+		insertCounter++
 	}
+	s.insertAndCompressCounter = insertCounter
 }
 
 func (s *Stream) Add(value float64) {
@@ -211,7 +237,7 @@ func (s *Stream) calcQuantiles() {
 		curr = curr.next
 	}
 
-	// check if last unset quantiles should be set to the last value
+	// check if the last sample value should satisfy unprocessed quantiles
 	for i := idx; i < len(s.quantiles); i++ {
 		rank, threshold := s.thresholdBuf[i].rank, s.thresholdBuf[i].threshold
 		if maxRank >= rank+threshold || minRank > rank {
@@ -268,74 +294,59 @@ func (s *Stream) Close() {
 
 // insert inserts a sample into the stream.
 func (s *Stream) insert() {
-	var sample *Sample
-
-	if s.samples.Len() == 0 {
-		if s.bufMore.Len() == 0 {
-			return
-		}
-
-		if sample = s.tryAcquireSample(); sample == nil {
-			sample = s.acquireSample()
-		}
-
-		sample.value = s.bufMore.Pop()
-		sample.numRanks = 1
-		sample.delta = 0
-		s.samples.PushBack(sample)
-		s.insertCursor = s.samples.Front()
-		s.numValues++
-	}
-
 	var (
-		insertPointValue = s.insertCursor.value
-		minRank          = s.compressMinRank
+		bufMore          = &s.bufMore
 		compCur          = s.compressCursor
-		compValue        float64
+		compValue        = math.NaN()
+		insertPointValue float64
+		sample           *Sample
 	)
 
 	if compCur != nil {
 		compValue = compCur.value
 	}
 
-	for s.insertCursor != nil {
-		curr := *s.insertCursor
+	samples := &s.samples
 
-		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
+	for s.insertCursor != nil {
+		curr := s.insertCursor
+		insertPointValue = curr.value
+
+		for bufMore.Len() > 0 && bufMore.Min() <= insertPointValue {
 			if sample = s.tryAcquireSample(); sample == nil {
 				sample = s.acquireSample()
 			}
-			val := s.bufMore.Pop()
+			val := bufMore.Pop()
 			sample.value = val
 			sample.numRanks = 1
 			sample.delta = curr.numRanks + curr.delta - 1
 
-			s.samples.InsertBefore(sample, s.insertCursor)
+			samples.InsertBefore(sample, curr)
 
-			if compCur != nil && compValue >= val {
-				minRank++
+			if compValue >= val {
+				s.compressMinRank++
 			}
 			s.numValues++
 		}
 
 		s.insertCursor = s.insertCursor.next
-		insertPointValue = s.insertPointValue()
 	}
-	s.compressMinRank = minRank
+
 	if s.insertCursor != nil {
 		return
 	}
 
-	for s.bufMore.Len() > 0 && s.bufMore.Min() >= s.samples.Back().value {
+	for bufMore.Len() > 0 && bufMore.Min() >= samples.Back().value {
 		if sample = s.tryAcquireSample(); sample == nil {
 			sample = s.acquireSample()
 		}
-		sample.value = s.bufMore.Pop()
+		sample.value = bufMore.Pop()
 		sample.numRanks = 1
 		sample.delta = 0
-		s.samples.PushBack(sample)
+		samples.PushBack(sample)
 		s.numValues++
 	}
+
 	s.resetInsertCursor()
 }
 
@@ -355,10 +366,10 @@ func (s *Stream) compress() {
 	for s.compressCursor != s.samples.Front() {
 		next := s.compressCursor.next
 		maxRank := s.compressMinRank + s.compressCursor.numRanks + s.compressCursor.delta
-		s.compressMinRank -= s.compressCursor.numRanks
 		threshold := s.threshold(maxRank)
-
+		s.compressMinRank -= s.compressCursor.numRanks
 		testVal := s.compressCursor.numRanks + next.numRanks + next.delta
+
 		if testVal <= threshold {
 			if s.insertCursor == s.compressCursor {
 				s.insertCursor = next
@@ -382,14 +393,17 @@ func (s *Stream) compress() {
 
 // threshold computes the minimum threshold value.
 func (s *Stream) threshold(rank int64) int64 {
-	minVal := int64(math.MaxInt64)
-	nv := s.numValues
+	var (
+		minVal      = int64(math.MaxInt64)
+		numVals     = s.numValues
+		eps         = 2.0 * s.eps
+		quantileMin int64
+	)
 	for _, quantile := range s.quantiles {
-		var quantileMin int64
-		if float64(rank) >= quantile*float64(nv) {
-			quantileMin = int64(2 * s.eps * float64(rank) / quantile)
+		if rank >= int64(quantile*float64(numVals)) {
+			quantileMin = int64(eps * float64(rank) / quantile)
 		} else {
-			quantileMin = int64(2 * s.eps * float64(s.numValues-rank) / (1 - quantile))
+			quantileMin = int64(eps * float64(numVals-rank) / (1.0 - quantile))
 		}
 		if quantileMin < minVal {
 			minVal = quantileMin
@@ -403,15 +417,6 @@ func (s *Stream) threshold(rank int64) int64 {
 func (s *Stream) resetInsertCursor() {
 	s.bufLess, s.bufMore = s.bufMore, s.bufLess
 	s.insertCursor = s.samples.Front()
-}
-
-// insertPointValue returns the value under the insertion cursor.
-func (s *Stream) insertPointValue() float64 {
-	if s.insertCursor == nil {
-		return 0.0
-	}
-
-	return s.insertCursor.value
 }
 
 // tryAcquireSample is inline-friendly fastpath to get a sample from preallocated buffer

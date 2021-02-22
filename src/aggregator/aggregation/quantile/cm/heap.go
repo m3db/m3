@@ -74,20 +74,20 @@ func (h *minHeap) Reset() {
 func (h *minHeap) Pop() float64 {
 	var (
 		old = *h
-		n   = old.Len()
+		n   = old.Len() - 1
 		val = old[0]
+		i   int
 	)
 
-	old[0], old[n-1] = old[n-1], old[0]
-	i, nn := 0, n-1 // heapify, manually inlined.
+	old[0], old[n] = old[n], old[0]
 	for {
 		left := i*2 + 1
 		right := left + 1
 		smallest := i
-		if left < nn && old[left] < old[smallest] {
+		if left < n && old[left] < old[smallest] {
 			smallest = left
 		}
-		if right < nn && old[right] < old[smallest] {
+		if right < n && old[right] < old[smallest] {
 			smallest = right
 		}
 		if smallest == i {
@@ -96,6 +96,6 @@ func (h *minHeap) Pop() float64 {
 		old[i], old[smallest] = old[smallest], old[i]
 		i = smallest
 	}
-	*h = (*h)[0 : n-1]
+	*h = (*h)[0:n]
 	return val
 }

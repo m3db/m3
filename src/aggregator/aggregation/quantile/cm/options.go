@@ -55,9 +55,8 @@ func NewOptions() Options {
 }
 
 func (o *options) SetEps(value float64) Options {
-	opts := *o
-	opts.eps = value
-	return &opts
+	o.eps = value
+	return o
 }
 
 func (o *options) Eps() float64 {
@@ -65,9 +64,8 @@ func (o *options) Eps() float64 {
 }
 
 func (o *options) SetCapacity(value int) Options {
-	opts := *o
-	opts.capacity = value
-	return &opts
+	o.capacity = value
+	return o
 }
 
 func (o *options) Capacity() int {
@@ -75,9 +73,8 @@ func (o *options) Capacity() int {
 }
 
 func (o *options) SetInsertAndCompressEvery(value int) Options {
-	opts := *o
-	opts.insertAndCompressEvery = value
-	return &opts
+	o.insertAndCompressEvery = value
+	return o
 }
 
 func (o *options) InsertAndCompressEvery() int {
@@ -85,9 +82,8 @@ func (o *options) InsertAndCompressEvery() int {
 }
 
 func (o *options) SetStreamPool(value StreamPool) Options {
-	opts := *o
-	opts.streamPool = value
-	return &opts
+	o.streamPool = value
+	return o
 }
 
 func (o *options) StreamPool() StreamPool {

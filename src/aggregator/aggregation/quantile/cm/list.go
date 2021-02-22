@@ -48,48 +48,36 @@ func (l *sampleList) Reset() { *l = emptySampleList }
 
 // PushBack pushes a sample to the end of the list.
 func (l *sampleList) PushBack(sample *Sample) {
-	if sample == nil {
-		return
-	}
+	sample.prev = l.tail
+	sample.next = nil
 	if l.head == nil {
 		l.head = sample
-		l.tail = sample
-		sample.prev = nil
-		sample.next = nil
 	} else {
-		sample.prev = l.tail
-		sample.next = nil
 		l.tail.next = sample
-		l.tail = sample
 	}
+	l.tail = sample
 	l.len++
 }
 
 // InsertBefore inserts a sample before the mark.
 func (l *sampleList) InsertBefore(sample *Sample, mark *Sample) {
-	if sample == nil || mark == nil {
-		return
-	}
+	var prev *Sample
+
 	if mark.prev == nil {
-		mark.prev = sample
 		l.head = sample
-		sample.next = mark
-		sample.prev = nil
 	} else {
-		prev := mark.prev
+		prev = mark.prev
 		prev.next = sample
-		mark.prev = sample
-		sample.prev = prev
-		sample.next = mark
 	}
+
+	mark.prev = sample
+	sample.next = mark
+	sample.prev = prev
 	l.len++
 }
 
 // Remove removes a sample from the list.
 func (l *sampleList) Remove(sample *Sample) {
-	if sample == nil {
-		return
-	}
 	prev := sample.prev
 	next := sample.next
 	if prev == nil {
