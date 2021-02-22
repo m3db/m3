@@ -128,6 +128,12 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 			Start:     now.Add(-blockSize),
 		},
 		{
+			IDs:       []string{fooSeries.ID.String()},
+			Tags:      fooSeries.Tags,
+			NumPoints: 50,
+			Start:     now,
+		},
+		{
 			IDs:       []string{bazSeries.ID.String()},
 			Tags:      bazSeries.Tags,
 			NumPoints: 50,
@@ -190,6 +196,24 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		namespace:  ns1.ID(),
 		exhaustive: true,
 		expected:   []generate.Series{barSeries, bazSeries, quxSeries},
+	})
+
+	start = now.Add(-blockSize)
+	end = now
+	queryOpts = index.QueryOptions{StartInclusive: start, EndExclusive: end}
+
+	// Match all new_*r*
+	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*"))
+	require.NoError(t, err)
+	iter, fetchResponse, err = session.FetchTaggedIDs(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
+	require.NoError(t, err)
+	defer iter.Finalize()
+
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+		namespace:  ns1.ID(),
+		exhaustive: true,
+		expected:   []generate.Series{fooSeries, barSeries},
 	})
 
 	// Ensure that the index data for qux has been written to disk.
