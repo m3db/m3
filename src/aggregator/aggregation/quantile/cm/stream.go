@@ -70,7 +70,15 @@ func NewStream(opts Options) *Stream {
 		eps:                    opts.Eps(),
 		capacity:               opts.Capacity(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
-		sampleBuf:              make([]*Sample, 0, opts.Capacity()),
+		sampleBuf:              make([]*Sample, opts.Capacity()),
+	}
+
+	for i := 0; i < len(s.sampleBuf); i++ {
+		sample, ok := samplePool.Get().(*Sample)
+		if !ok {
+			sample = &Sample{}
+		}
+		s.sampleBuf[i] = sample
 	}
 
 	return s
@@ -86,10 +94,7 @@ func (s *Stream) AddBatch(values []float64) {
 	if s.samples.Len() == 0 {
 		var sample *Sample
 
-		if sample = s.tryAcquireSample(); sample == nil {
-			sample = s.acquireSample()
-		}
-
+		sample = s.tryAcquireSample()
 		sample.value = values[0]
 		sample.numRanks = 1
 		sample.delta = 0
@@ -269,21 +274,18 @@ func (s *Stream) Close() {
 	s.bufMore.Reset()
 	s.bufLess.Reset()
 
-	curr := s.samples.Front()
-	for curr != nil {
+	for curr := s.samples.Front(); curr != nil; {
 		next := curr.next
-		curr.next, curr.prev = nil, nil
-		samplePool.Put(curr)
+		s.releaseSample(curr)
 		curr = next
 	}
 
-	for i := range s.sampleBuf {
-		s.sampleBuf[i].next, s.sampleBuf[i].prev = nil, nil
+	for i := len(s.sampleBuf) - 1; i > s.capacity-1; i-- {
 		samplePool.Put(s.sampleBuf[i])
+		s.sampleBuf[i] = nil
 	}
-
+	s.sampleBuf = s.sampleBuf[:s.capacity-1]
 	s.samples.Reset()
-	s.sampleBuf = s.sampleBuf[:0]
 	s.insertCursor = nil
 	s.compressCursor = nil
 	s.insertAndCompressCounter = 0
@@ -313,9 +315,7 @@ func (s *Stream) insert() {
 		insertPointValue = curr.value
 
 		for bufMore.Len() > 0 && bufMore.Min() <= insertPointValue {
-			if sample = s.tryAcquireSample(); sample == nil {
-				sample = s.acquireSample()
-			}
+			sample = s.tryAcquireSample()
 			val := bufMore.Pop()
 			sample.value = val
 			sample.numRanks = 1
@@ -337,9 +337,7 @@ func (s *Stream) insert() {
 	}
 
 	for bufMore.Len() > 0 && bufMore.Min() >= samples.Back().value {
-		if sample = s.tryAcquireSample(); sample == nil {
-			sample = s.acquireSample()
-		}
+		sample = s.tryAcquireSample()
 		sample.value = bufMore.Pop()
 		sample.numRanks = 1
 		sample.delta = 0
@@ -419,12 +417,11 @@ func (s *Stream) resetInsertCursor() {
 	s.insertCursor = s.samples.Front()
 }
 
-// tryAcquireSample is inline-friendly fastpath to get a sample from preallocated buffer
 func (s *Stream) tryAcquireSample() *Sample {
 	l := len(s.sampleBuf)
 
 	if l == 0 {
-		return nil
+		return s.acquireSample()
 	}
 
 	sample := s.sampleBuf[l-1]
@@ -433,18 +430,20 @@ func (s *Stream) tryAcquireSample() *Sample {
 }
 
 func (s *Stream) acquireSample() *Sample {
-	for i := 0; i < s.capacity; i++ {
+	capacity := s.capacity
+	s.sampleBuf = s.sampleBuf[:capacity]
+	for i := 0; i < capacity; i++ {
 		sample, ok := samplePool.Get().(*Sample)
 		if !ok {
 			return &Sample{}
 		}
-		s.sampleBuf = append(s.sampleBuf, sample)
+		s.sampleBuf[i] = sample
 	}
 
-	return s.tryAcquireSample()
+	return samplePool.Get().(*Sample)
 }
 
 func (s *Stream) releaseSample(sample *Sample) {
-	sample.prev, sample.next = nil, nil
+	(*sample) = Sample{}
 	s.sampleBuf = append(s.sampleBuf, sample)
 }
