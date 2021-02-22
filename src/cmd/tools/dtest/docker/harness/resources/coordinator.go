@@ -71,7 +71,7 @@ type Coordinator interface {
 	// WriteProm writes a prometheus metric.
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
-	RunQuery(verifier ResponseVerifier, query string) error
+	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
 }
 
 // Admin is a wrapper for admin functions.
@@ -462,7 +462,7 @@ func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.
 }
 
 func (c *coordinator) query(
-	verifier ResponseVerifier, query string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -470,9 +470,18 @@ func (c *coordinator) query(
 
 	url := c.resource.getURL(7201, query)
 	logger := c.resource.logger.With(
-		zapMethod("query"), zap.String("url", url))
+		zapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
 	logger.Info("running")
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	if headers != nil {
+		req.Header = headers
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err))
 		return err
@@ -485,7 +494,7 @@ func (c *coordinator) query(
 }
 
 func (c *coordinator) RunQuery(
-	verifier ResponseVerifier, query string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -494,7 +503,7 @@ func (c *coordinator) RunQuery(
 	logger := c.resource.logger.With(zapMethod("runQuery"),
 		zap.String("query", query))
 	err := c.resource.pool.Retry(func() error {
-		err := c.query(verifier, query)
+		err := c.query(verifier, query, headers)
 		if err != nil {
 			logger.Info("retrying", zap.Error(err))
 		}
