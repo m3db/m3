@@ -163,7 +163,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	}
 
 	// Issue some index queries to the second node which bootstrapped the metadata
-	session, err := setups[1].M3DBClient().DefaultSession()
+	session, err := setups[0].M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())
