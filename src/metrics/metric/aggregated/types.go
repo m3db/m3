@@ -40,10 +40,11 @@ var (
 
 // Metric is a metric, which is essentially a named value at certain time.
 type Metric struct {
-	Type      metric.Type
-	ID        id.RawID
-	TimeNanos int64
-	Value     float64
+	Type       metric.Type
+	ID         id.RawID
+	TimeNanos  int64
+	Value      float64
+	Annotation []byte
 }
 
 // ToProto converts the metric to a protobuf message in place.
@@ -54,6 +55,7 @@ func (m Metric) ToProto(pb *metricpb.TimedMetric) error {
 	pb.Id = m.ID
 	pb.TimeNanos = m.TimeNanos
 	pb.Value = m.Value
+	pb.Annotation = m.Annotation
 	return nil
 }
 
@@ -65,6 +67,7 @@ func (m *Metric) FromProto(pb metricpb.TimedMetric) error {
 	m.ID = pb.Id
 	m.TimeNanos = pb.TimeNanos
 	m.Value = pb.Value
+	m.Annotation = pb.Annotation
 	return nil
 }
 
@@ -81,8 +84,9 @@ func (m Metric) String() string {
 // ChunkedMetric is a metric with a chunked ID.
 type ChunkedMetric struct {
 	id.ChunkedID
-	TimeNanos int64
-	Value     float64
+	TimeNanos  int64
+	Value      float64
+	Annotation []byte
 }
 
 // RawMetric is a metric in its raw form (e.g., encoded bytes associated with
@@ -143,10 +147,11 @@ type ChunkedMetricWithStoragePolicy struct {
 
 // ForwardedMetric is a forwarded metric.
 type ForwardedMetric struct {
-	Type      metric.Type
-	ID        id.RawID
-	TimeNanos int64
-	Values    []float64
+	Type       metric.Type
+	ID         id.RawID
+	TimeNanos  int64
+	Values     []float64
+	Annotation []byte
 }
 
 // ToProto converts the forwarded metric to a protobuf message in place.
@@ -168,6 +173,7 @@ func (m *ForwardedMetric) FromProto(pb metricpb.ForwardedMetric) error {
 	m.ID = pb.Id
 	m.TimeNanos = pb.TimeNanos
 	m.Values = pb.Values
+	m.Annotation = pb.Annotation
 	return nil
 }
 

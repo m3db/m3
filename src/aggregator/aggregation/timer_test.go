@@ -59,13 +59,13 @@ func TestCreateTimerResetStream(t *testing.T) {
 	// Add a value to the timer and close the timer, which returns the
 	// underlying stream to the pool.
 	timer := NewTimer(testQuantiles, streamOpts, NewOptions(instrument.NewOptions()))
-	timer.Add(time.Now(), 1.0)
+	timer.Add(time.Now(), 1.0, nil)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
 
 	// Create a new timer and assert the underlying stream has been closed.
 	timer = NewTimer(testQuantiles, streamOpts, NewOptions(instrument.NewOptions()))
-	timer.Add(time.Now(), 1.0)
+	timer.Add(time.Now(), 1.0, nil)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
 	require.Equal(t, 0.0, timer.stream.Min())
@@ -93,7 +93,7 @@ func TestTimerAggregations(t *testing.T) {
 	// Add values.
 	at := time.Now()
 	for i := 1; i <= 100; i++ {
-		timer.Add(at, float64(i))
+		timer.Add(at, float64(i), nil)
 	}
 
 	// Validate the timer values match expectations.
@@ -157,7 +157,7 @@ func TestTimerAggregationsNotExpensive(t *testing.T) {
 	// Add values.
 	at := time.Now()
 	for i := 1; i <= 100; i++ {
-		timer.Add(at, float64(i))
+		timer.Add(at, float64(i), nil)
 	}
 
 	// All Non expensive calculations should be performed.
@@ -172,4 +172,16 @@ func TestTimerAggregationsNotExpensive(t *testing.T) {
 
 	// Closing the timer a second time should be a no op.
 	timer.Close()
+}
+
+func TestTimerReturnsLastNonEmptyAnnotation(t *testing.T) {
+	opts := NewOptions(instrument.NewOptions())
+	opts.ResetSetData(testAggTypes)
+	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+
+	timer.Add(time.Now(), 1.1, []byte("first"))
+	timer.Add(time.Now(), 2.1, []byte("second"))
+	timer.Add(time.Now(), 3.1, nil)
+
+	require.Equal(t, []byte("second"), timer.Annotation())
 }

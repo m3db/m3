@@ -122,12 +122,12 @@ type metricElem interface {
 	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
 
 	// AddMetric adds a metric value at a given timestamp.
-	AddValue(timestamp time.Time, value float64) error
+	AddValue(timestamp time.Time, value float64, annotation []byte) error
 
 	// AddUnique adds a metric value from a given source at a given timestamp.
 	// If previous values from the same source have already been added to the
 	// same aggregation, the incoming value is discarded.
-	AddUnique(timestamp time.Time, values []float64, sourceID uint32) error
+	AddUnique(timestamp time.Time, values []float64, annotation []byte, sourceID uint32) error
 
 	// Consume consumes values before a given time and removes
 	// them from the element after they are consumed, returning whether
