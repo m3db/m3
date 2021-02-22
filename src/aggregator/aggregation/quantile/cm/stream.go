@@ -213,11 +213,11 @@ func (s *Stream) Close() {
 		curr = next
 	}
 
-	for i := len(s.sampleBuf) - 1; i > s.capacity-1; i-- {
+	for i := 0; i < len(s.sampleBuf); i++ {
 		samplePool.Put(s.sampleBuf[i])
 		s.sampleBuf[i] = nil
 	}
-	s.sampleBuf = s.sampleBuf[:s.capacity-1]
+	s.sampleBuf = s.sampleBuf[:0]
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
