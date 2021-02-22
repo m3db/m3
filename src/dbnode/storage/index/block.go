@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 	"time"
 
@@ -443,63 +444,84 @@ func (b *block) queryWithSpan(
 	opts QueryOptions,
 	results DocumentResults,
 ) (bool, error) {
+	iter, err := b.QueryIter(ctx, query)
+	if err != nil {
+		return false, err
+	}
+	iterCloser := safeCloser{closable: iter}
+	defer func() {
+		_ = iterCloser.Close()
+		b.metrics.queryDocsMatched.RecordValue(float64(results.TotalDocsCount()))
+		b.metrics.querySeriesMatched.RecordValue(float64(results.Size()))
+	}()
+
+	if err := b.QueryWithIter(ctx, opts, iter, results, math.MaxInt64); err != nil {
+		return false, err
+	}
+
+	if err := iterCloser.Close(); err != nil {
+		return false, err
+	}
+	results.AddBlockSearchDuration(iter.SearchDuration())
+
+	return opts.exhaustive(results.Size(), results.TotalDocsCount()), nil
+}
+
+func (b *block) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error) {
 	b.RLock()
 	defer b.RUnlock()
 
 	if b.state == blockStateClosed {
-		return false, ErrUnableToQueryBlockClosed
+		return nil, ErrUnableToQueryBlockClosed
 	}
-
 	exec, err := b.newExecutorWithRLockFn()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-
-	// Make sure if we don't register to close the executor later
-	// that we close it before returning.
-	execCloseRegistered := false
-	defer func() {
-		if !execCloseRegistered {
-			b.closeAsync(exec)
-		}
-	}()
 
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
 	iter, err := exec.Execute(ctx, query.Query.SearchQuery())
 	if err != nil {
-		return false, err
+		b.closeAsync(exec)
+		return nil, err
 	}
 
 	// Register the executor to close when context closes
 	// so can avoid copying the results into the map and just take
 	// references to it.
-	execCloseRegistered = true // Make sure to not locally close it.
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		b.closeAsync(exec)
 	}))
 
+	return iter, nil
+}
+
+func (b *block) QueryWithIter(
+	ctx context.Context,
+	opts QueryOptions,
+	docIter doc.Iterator,
+	results DocumentResults,
+	limit int,
+) error {
 	var (
-		source     = opts.Source
-		iterCloser = safeCloser{closable: iter}
-		size       = results.Size()
-		docsCount  = results.TotalDocsCount()
-		docsPool   = b.opts.DocumentArrayPool()
-		batch      = docsPool.Get()
-		batchSize  = cap(batch)
+		err       error
+		source    = opts.Source
+		size      = results.Size()
+		docsCount = results.TotalDocsCount()
+		docsPool  = b.opts.DocumentArrayPool()
+		batch     = docsPool.Get()
+		batchSize = cap(batch)
+		count     int
 	)
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
 	}
 
 	// Register local data structures that need closing.
-	defer func() {
-		b.metrics.queryDocsMatched.RecordValue(float64(docsCount))
-		b.metrics.querySeriesMatched.RecordValue(float64(size))
-		iterCloser.Close()
-		docsPool.Put(batch)
-	}()
+	defer docsPool.Put(batch)
 
-	for iter.Next() {
+	for count < limit && docIter.Next() {
+		count++
 		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
@@ -512,40 +534,34 @@ func (b *block) queryWithSpan(
 			select {
 			case <-ctx.GoContext().Done():
 				// indexNs will log something useful.
-				return false, ErrCancelledQuery
+				return ErrCancelledQuery
 			default:
 			}
 		}
 
-		batch = append(batch, iter.Current())
+		batch = append(batch, docIter.Current())
 		if len(batch) < batchSize {
 			continue
 		}
 
 		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
-			return false, err
+			return err
 		}
+	}
+	if err := docIter.Err(); err != nil {
+		return err
 	}
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
 		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 
-	if err := iter.Err(); err != nil {
-		return false, err
-	}
-	if err := iterCloser.Close(); err != nil {
-		return false, err
-	}
-
-	results.AddBlockSearchDuration(iter.SearchDuration())
-
-	return opts.exhaustive(size, docsCount), nil
+	return nil
 }
 
 func (b *block) closeAsync(closer io.Closer) {

@@ -420,6 +420,18 @@ type Block interface {
 		logFields []opentracinglog.Field,
 	) (bool, error)
 
+	// QueryWithIter processes n docs from the iterator into known IDs.
+	QueryWithIter(
+		ctx context.Context,
+		opts QueryOptions,
+		docIter doc.Iterator,
+		results DocumentResults,
+		limit int,
+	) error
+
+	// QueryIter returns a new QueryDocIterator for the query.
+	QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error)
+
 	// Aggregate aggregates known tag names/values.
 	// NB(prateek): different from aggregating by means of Query, as we can
 	// avoid going to documents, relying purely on the indexed FSTs.
