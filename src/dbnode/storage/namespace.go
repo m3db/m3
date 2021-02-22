@@ -582,6 +582,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 }
 
 func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
+	return nil
 	// Allow the reader cache to tick.
 	n.namespaceReaderMgr.tick()
 
