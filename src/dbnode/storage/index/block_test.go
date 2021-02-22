@@ -1637,9 +1637,9 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 6)
 	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
-	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[1].OperationName)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[1].OperationName)
 	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[2].OperationName)
-	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[3].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[3].OperationName)
 	require.Equal(t, tracepoint.BlockQuery, spans[4].OperationName)
 }
 
@@ -1721,8 +1721,8 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 6)
 	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
-	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[1].OperationName)
-	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[2].OperationName)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[1].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[2].OperationName)
 	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[3].OperationName)
 	require.Equal(t, tracepoint.BlockQuery, spans[4].OperationName)
 }

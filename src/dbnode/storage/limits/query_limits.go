@@ -98,16 +98,21 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 		docsMatched      = "docs-matched"
 		bytesRead        = "disk-bytes-read"
 		aggregateMatched = "aggregate-matched"
-		docsLimit        = newLookbackLimit(
-			iOpts, docsLimitOpts, docsMatched, docsMatched,
-			sourceLoggerBuilder, map[string]string{"type": "fetch"})
-		bytesReadLimit = newLookbackLimit(
-			iOpts, bytesReadLimitOpts, bytesRead, bytesRead,
-			sourceLoggerBuilder, nil)
-
-		aggregatedDocsLimit = newLookbackLimit(
-			iOpts, aggDocsLimitOpts, docsMatched, aggregateMatched,
-			sourceLoggerBuilder, map[string]string{"type": "aggregate"})
+		docsLimit        = newLookbackLimit(limitNames{
+			limitName:  docsMatched,
+			metricName: docsMatched,
+			metricType: "fetch",
+		}, docsLimitOpts, iOpts, sourceLoggerBuilder)
+		bytesReadLimit = newLookbackLimit(limitNames{
+			limitName:  bytesRead,
+			metricName: bytesRead,
+			metricType: "read",
+		}, bytesReadLimitOpts, iOpts, sourceLoggerBuilder)
+		aggregatedDocsLimit = newLookbackLimit(limitNames{
+			limitName:  aggregateMatched,
+			metricName: docsMatched,
+			metricType: "aggregate",
+		}, aggDocsLimitOpts, iOpts, sourceLoggerBuilder)
 	)
 
 	return &queryLimits{
@@ -119,32 +124,38 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 
 // NewLookbackLimit returns a new lookback limit.
 func NewLookbackLimit(
-	instrumentOpts instrument.Options,
-	opts LookbackLimitOptions,
 	name string,
+	opts LookbackLimitOptions,
+	instrumentOpts instrument.Options,
 	sourceLoggerBuilder SourceLoggerBuilder,
-	tags map[string]string,
 ) LookbackLimit {
-	return newLookbackLimit(instrumentOpts, opts, name, name, sourceLoggerBuilder, tags)
+	return newLookbackLimit(limitNames{
+		limitName:  name,
+		metricName: name,
+		metricType: name,
+	}, opts, instrumentOpts, sourceLoggerBuilder)
+}
+
+type limitNames struct {
+	limitName  string
+	metricName string
+	metricType string
 }
 
 func newLookbackLimit(
-	instrumentOpts instrument.Options,
+	limitNames limitNames,
 	opts LookbackLimitOptions,
-	metricName string,
-	name string,
+	instrumentOpts instrument.Options,
 	sourceLoggerBuilder SourceLoggerBuilder,
-	tags map[string]string,
 ) *lookbackLimit {
 	metrics := newLookbackLimitMetrics(
+		limitNames,
 		instrumentOpts,
-		metricName,
 		sourceLoggerBuilder,
-		tags,
 	)
 
 	return &lookbackLimit{
-		name:      name,
+		name:      limitNames.limitName,
 		options:   opts,
 		metrics:   metrics,
 		logger:    instrumentOpts.Logger(),
@@ -156,30 +167,29 @@ func newLookbackLimit(
 }
 
 func newLookbackLimitMetrics(
+	limitNames limitNames,
 	instrumentOpts instrument.Options,
-	name string,
 	sourceLoggerBuilder SourceLoggerBuilder,
-	tags map[string]string,
 ) lookbackLimitMetrics {
-	scope := instrumentOpts.
-		MetricsScope().
-		SubScope("query-limit")
+	metricName := limitNames.metricName
+	loggerScope := instrumentOpts.MetricsScope().Tagged(map[string]string{
+		"type": limitNames.metricType,
+	})
 
-	if tags != nil {
-		scope = scope.Tagged(tags)
-	}
+	var (
+		loggerOpts  = instrumentOpts.SetMetricsScope(loggerScope)
+		metricScope = loggerScope.SubScope("query-limit")
+	)
 
 	return lookbackLimitMetrics{
-		optionsLimit:    scope.Gauge(fmt.Sprintf("current-limit%s", name)),
-		optionsLookback: scope.Gauge(fmt.Sprintf("current-lookback-%s", name)),
-		recentCount:     scope.Gauge(fmt.Sprintf("recent-count-%s", name)),
-		recentMax:       scope.Gauge(fmt.Sprintf("recent-max-%s", name)),
-		total:           scope.Counter(fmt.Sprintf("total-%s", name)),
-		exceeded:        scope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
+		optionsLimit:    metricScope.Gauge(fmt.Sprintf("current-limit-%s", metricName)),
+		optionsLookback: metricScope.Gauge(fmt.Sprintf("current-lookback-%s", metricName)),
+		recentCount:     metricScope.Gauge(fmt.Sprintf("recent-count-%s", metricName)),
+		recentMax:       metricScope.Gauge(fmt.Sprintf("recent-max-%s", metricName)),
+		total:           metricScope.Counter(fmt.Sprintf("total-%s", metricName)),
+		exceeded:        metricScope.Tagged(map[string]string{"limit": metricName}).Counter("exceeded"),
 
-		// nb: no need to provide query-limits subscope to source logger,
-		// as it's not directly related to limits.
-		sourceLogger: sourceLoggerBuilder.NewSourceLogger(name, instrumentOpts),
+		sourceLogger: sourceLoggerBuilder.NewSourceLogger(metricName, loggerOpts),
 	}
 }
 

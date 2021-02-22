@@ -36,7 +36,7 @@ func getTimer() Timer {
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
 
 	for i := 1; i <= 100; i++ {
-		timer.Add(at, float64(i))
+		timer.Add(at, float64(i), nil)
 	}
 	return timer
 }

@@ -129,6 +129,8 @@ func TestSegmentReader64(t *testing.T) {
 }
 
 func testSegmentReader64(t *testing.T, head []byte, tail []byte) {
+	t.Helper()
+
 	var expected []byte
 	expected = append(expected, head...)
 	expected = append(expected, tail...)

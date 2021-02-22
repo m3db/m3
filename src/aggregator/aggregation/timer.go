@@ -31,11 +31,12 @@ import (
 type Timer struct {
 	Options
 
-	lastAt time.Time
-	count  int64     // Number of values received.
-	sum    float64   // Sum of the values.
-	sumSq  float64   // Sum of squared values.
-	stream cm.Stream // Stream of values received.
+	lastAt     time.Time
+	count      int64     // Number of values received.
+	sum        float64   // Sum of the values.
+	sumSq      float64   // Sum of squared values.
+	stream     cm.Stream // Stream of values received.
+	annotation []byte
 }
 
 // NewTimer creates a new timer
@@ -49,9 +50,20 @@ func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
 }
 
 // Add adds a timer value.
-func (t *Timer) Add(timestamp time.Time, value float64) {
+func (t *Timer) Add(timestamp time.Time, value float64, annotation []byte) {
 	t.recordLastAt(timestamp)
 	t.addValue(value)
+
+	// Keep the last annotation which was set.
+	if len(annotation) > 0 {
+		if cap(t.annotation) < len(annotation) {
+			// Twice as long in case another one comes in
+			// and we could avoid realloc as long as less than this first alloc.
+			t.annotation = make([]byte, 0, 2*len(annotation))
+		}
+		// Reuse any previous allocation while taking a copy.
+		t.annotation = append(t.annotation[:0], annotation...)
+	}
 }
 
 // AddBatch adds a batch of timer values.
@@ -148,6 +160,11 @@ func (t *Timer) ValueOf(aggType aggregation.Type) float64 {
 		return t.Stdev()
 	}
 	return 0
+}
+
+// Annotation returns the annotation associated with the timer.
+func (t *Timer) Annotation() []byte {
+	return t.annotation
 }
 
 // Close closes the timer.

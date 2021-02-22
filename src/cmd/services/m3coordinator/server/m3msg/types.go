@@ -32,6 +32,7 @@ type WriteFn func(
 	id []byte,
 	metricNanos, encodeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 	callback Callbackable,
 )

@@ -402,6 +402,7 @@ type Options interface {
 	IsStaged() bool
 
 	// SetIsStaged sets whether the placement should keep all the snapshots.
+	// This functionality is deprecated and is left only for backward compatibility.
 	SetIsStaged(v bool) Options
 
 	// InstrumentOptions is the options for instrument.

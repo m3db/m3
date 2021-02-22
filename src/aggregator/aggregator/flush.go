@@ -86,6 +86,7 @@ type flushLocalMetricFn func(
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 )
 
@@ -98,6 +99,7 @@ type flushForwardedMetricFn func(
 	aggregationKey aggregationKey,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 )
 
 // An onForwardingElemFlushedFn is a callback function that should be called
