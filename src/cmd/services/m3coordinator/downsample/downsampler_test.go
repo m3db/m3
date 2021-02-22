@@ -1012,6 +1012,16 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesWithDropTSTag(t *testi
 					},
 					Tags: tags,
 				},
+				{
+					Filter:       "app:testapp",
+					Aggregations: []aggregation.Type{aggregation.Sum},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
 			},
 		},
 		ingest: &testDownsamplerOptionsIngest{
@@ -1023,6 +1033,15 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesWithDropTSTag(t *testi
 				{
 					tags:   gaugeMetric.tags,
 					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  1 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+				{
+					tags:   counterMetric.tags,
+					values: []expectedValue{{value: 6}},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  1 * time.Second,
