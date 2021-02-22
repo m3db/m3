@@ -146,11 +146,14 @@ type entryMetrics struct {
 	forwarded forwardedEntryMetrics
 }
 
-func newEntryMetrics(scope tally.Scope) entryMetrics {
+// NewEntryMetrics creates new entry metrics.
+//nolint:golint,revive
+func NewEntryMetrics(scope tally.Scope) *entryMetrics {
+	scope = scope.SubScope("entry")
 	untimedEntryScope := scope.Tagged(map[string]string{"entry-type": "untimed"})
 	timedEntryScope := scope.Tagged(map[string]string{"entry-type": "timed"})
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
-	return entryMetrics{
+	return &entryMetrics{
 		untimed:   newUntimedEntryMetrics(untimedEntryScope),
 		timed:     newTimedEntryMetrics(timedEntryScope),
 		forwarded: newForwardedEntryMetrics(forwardedEntryScope),
@@ -168,28 +171,33 @@ func newEntryMetrics(scope tally.Scope) entryMetrics {
 type Entry struct {
 	sync.RWMutex
 
-	closed              bool
-	opts                Options
-	rateLimiter         *rate.Limiter
-	hasDefaultMetadatas bool
-	cutoverNanos        int64
-	lists               *metricLists
-	numWriters          int32
-	lastAccessNanos     int64
-	aggregations        aggregationValues
-	metrics             entryMetrics
+	opts            Options
+	rateLimiter     *rate.Limiter
+	cutoverNanos    int64
+	lists           *metricLists
+	lastAccessNanos int64
+	aggregations    aggregationValues
+	metrics         *entryMetrics
 	// The entry keeps a decompressor to reuse the bitset in it, so we can
 	// save some heap allocations.
-	decompressor aggregation.IDDecompressor
-	nowFn        clock.NowFn
+	decompressor        aggregation.IDDecompressor
+	nowFn               clock.NowFn
+	numWriters          int32
+	closed              bool
+	hasDefaultMetadatas bool
 }
 
 // NewEntry creates a new entry.
 func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *Entry {
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("entry")
+	scope := opts.InstrumentOptions().MetricsScope()
+	return NewEntryWithMetrics(lists, NewEntryMetrics(scope), runtimeOpts, opts)
+}
+
+// NewEntryWithMetrics creates a new entry.
+func NewEntryWithMetrics(lists *metricLists, metrics *entryMetrics, runtimeOpts runtime.Options, opts Options) *Entry {
 	e := &Entry{
 		aggregations: make(aggregationValues, 0, initialAggregationCapacity),
-		metrics:      newEntryMetrics(scope),
+		metrics:      metrics,
 		decompressor: aggregation.NewPooledIDDecompressor(opts.AggregationTypesOptions().TypesPool()),
 		rateLimiter:  rate.NewLimiter(0),
 		nowFn:        opts.ClockOptions().NowFn(),

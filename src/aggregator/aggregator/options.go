@@ -796,10 +796,11 @@ func (o *options) TimerQuantiles() []float64 {
 }
 
 func (o *options) initPools() {
+	metrics := NewEntryMetrics(o.InstrumentOptions().MetricsScope())
 	defaultRuntimeOpts := runtime.NewOptions()
 	o.entryPool = NewEntryPool(nil)
 	o.entryPool.Init(func() *Entry {
-		return NewEntry(nil, defaultRuntimeOpts, o)
+		return NewEntryWithMetrics(nil, metrics, defaultRuntimeOpts, o)
 	})
 
 	o.counterElemPool = NewCounterElemPool(nil)
