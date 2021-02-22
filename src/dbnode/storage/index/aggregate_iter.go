@@ -75,6 +75,8 @@ func (it *aggregateIter) Next(ctx context.Context) bool {
 	if it.next() {
 		it.nextField, it.nextTerm = it.current()
 	} else {
+		// the iterators have been exhausted. mark done so the next call Done returns true. Still return true from
+		// this call so the caller can retrieve the last element with Current.
 		it.done = true
 	}
 	return true
