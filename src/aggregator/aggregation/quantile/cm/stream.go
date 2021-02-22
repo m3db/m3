@@ -297,7 +297,6 @@ func (s *Stream) Close() {
 // insert inserts a sample into the stream.
 func (s *Stream) insert() {
 	var (
-		bufMore          = &s.bufMore
 		compCur          = s.compressCursor
 		compValue        = math.NaN()
 		insertPointValue float64
@@ -314,9 +313,9 @@ func (s *Stream) insert() {
 		curr := s.insertCursor
 		insertPointValue = curr.value
 
-		for bufMore.Len() > 0 && bufMore.Min() <= insertPointValue {
+		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
 			sample = s.tryAcquireSample()
-			val := bufMore.Pop()
+			val := s.bufMore.Pop()
 			sample.value = val
 			sample.numRanks = 1
 			sample.delta = curr.numRanks + curr.delta - 1
@@ -336,9 +335,9 @@ func (s *Stream) insert() {
 		return
 	}
 
-	for bufMore.Len() > 0 && bufMore.Min() >= samples.Back().value {
+	for s.bufMore.Len() > 0 && s.bufMore.Min() >= samples.Back().value {
 		sample = s.tryAcquireSample()
-		sample.value = bufMore.Pop()
+		sample.value = s.bufMore.Pop()
 		sample.numRanks = 1
 		sample.delta = 0
 		samples.PushBack(sample)

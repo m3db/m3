@@ -34,20 +34,19 @@ func (h minHeap) Min() float64 { return h[0] }
 
 // Push pushes a value onto the heap.
 func (h *minHeap) Push(value float64) {
-	heap := *h
-	if len(heap) == cap(heap) {
+	if len(*h) == cap(*h) {
 		h.ensureSize()
 	}
 	// append
-	*h = append(*h, value)
-
-	// then, shift up if necessary. manually inlined.
-	heap = *h
-	i := len(heap) - 1
+	(*h) = append(*h, value)
+	// then, shift up if necessary to fix heap structure. manually inlined.
+	heap := *h
+	n := len(heap)
+	i := n - 1
 	for {
 		parent := (i - 1) / 2
 		if parent == i || heap[parent] <= heap[i] {
-			return
+			break
 		}
 		heap[parent], heap[i] = heap[i], heap[parent]
 		i = parent
@@ -74,20 +73,19 @@ func (h *minHeap) Reset() {
 func (h *minHeap) Pop() float64 {
 	var (
 		old = *h
-		n   = old.Len() - 1
+		n   = len(old) - 1
 		val = old[0]
 		i   int
 	)
-
 	old[0], old[n] = old[n], old[0]
-	for {
-		left := i*2 + 1
+	smallest := i
+	for smallest >= 0 && smallest <= n { // bounds-check elimination hint
+		left := smallest*2 + 1
 		right := left + 1
-		smallest := i
-		if left < n && old[left] < old[smallest] {
+		if left < n && left >= 0 && old[left] < old[smallest] {
 			smallest = left
 		}
-		if right < n && old[right] < old[smallest] {
+		if right < n && right >= 0 && old[right] < old[smallest] {
 			smallest = right
 		}
 		if smallest == i {
@@ -96,6 +94,6 @@ func (h *minHeap) Pop() float64 {
 		old[i], old[smallest] = old[smallest], old[i]
 		i = smallest
 	}
-	*h = (*h)[0:n]
+	*h = old[0:n]
 	return val
 }

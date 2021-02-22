@@ -36,7 +36,7 @@ const (
 	_insertAndCompressEvery = 1024
 	_sampleBatches          = 100
 	_eps                    = 0.001
-	_heapCapacity           = 32
+	_capacity               = 32
 )
 
 var (
@@ -126,7 +126,6 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 	}
 
 	b.ResetTimer()
-	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
 	for n := 0; n < b.N; n++ {
 		timer := getTimer()
 
@@ -160,6 +159,7 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 		}
 		timer.Close()
 	}
+	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
 	runtime.KeepAlive(q)
 }
 
@@ -168,6 +168,6 @@ func init() {
 	_cmOptions = cm.NewOptions().
 		SetInsertAndCompressEvery(_insertAndCompressEvery).
 		SetEps(_eps).
-		SetCapacity(_heapCapacity)
+		SetCapacity(_capacity)
 	_aggregationOptions.ResetSetData(testAggTypes)
 }
