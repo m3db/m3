@@ -523,7 +523,7 @@ type streamConfiguration struct {
 	// Insertion and compression frequency.
 	InsertAndCompressEvery int `yaml:"insertAndCompressEvery"`
 
-	// Flush frequency is deprecated.
+	// FlushEvery is deprecated.
 	FlushEvery int `yaml:"flushEvery"`
 
 	// StreamPool is deprecated.
