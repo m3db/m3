@@ -457,7 +457,13 @@ func Run(runOpts RunOptions) {
 		SetDiskSeriesReadLimitOpts(diskSeriesReadLimit).
 		SetAggregateDocsLimitOpts(aggDocsLimit).
 		SetInstrumentOptions(iOpts)
-	if builder := opts.SourceLoggerBuilder(); builder != nil {
+
+	appliedOpts := opts
+	for _, transform := range runOpts.Transforms {
+		appliedOpts = transform(appliedOpts)
+	}
+
+	if builder := appliedOpts.SourceLoggerBuilder(); builder != nil {
 		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
 	}
 	queryLimits, err := limits.NewQueryLimits(limitOpts)
@@ -740,6 +746,7 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
 		SetQueryLimits(queryLimits).
+		SetFetchTaggedSeriesBlocksPerBatch(cfg.FetchTagged.SeriesBlocksPerBatchOrDefault()).
 		SetPermitsOptions(opts.PermitsOptions())
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
