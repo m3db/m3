@@ -87,14 +87,12 @@ func NewStream(opts Options) *Stream {
 func (s *Stream) AddBatch(values []float64) {
 	s.flushed = false
 
-	if len(values) <= 0 {
+	if len(values) == 0 {
 		return
 	}
 
 	if s.samples.Len() == 0 {
-		var sample *Sample
-
-		sample = s.tryAcquireSample()
+		sample := s.tryAcquireSample()
 		sample.value = values[0]
 		sample.numRanks = 1
 		sample.delta = 0

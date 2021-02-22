@@ -64,7 +64,7 @@ func timerSamples() [][]float64 {
 func BenchmarkTimerValues(b *testing.B) {
 	timer := getTimer()
 	for i := 1; i <= 2500; i++ {
-		timer.Add(_now, float64(i))
+		timer.Add(_now, float64(i), nil)
 	}
 	for n := 0; n < b.N; n++ {
 		timer.Sum()
@@ -91,7 +91,7 @@ func BenchmarkTimerValueOf(b *testing.B) {
 }
 
 func BenchmarkTimerAddBatch(b *testing.B) {
-	var samples = timerSamples()
+	samples := timerSamples()
 
 	b.Run("100k samples in 100 batches", func(b *testing.B) {
 		benchAddBatch(b, samples[:100])
@@ -111,8 +111,13 @@ func BenchmarkTimerAddBatch(b *testing.B) {
 }
 
 func benchAddBatch(b *testing.B, samples [][]float64) {
-	var q float64
-	var z []float64
+	b.Helper()
+	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
+
+	var (
+		z []float64
+		q float64
+	)
 
 	const _debug = true
 
@@ -144,8 +149,8 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 		if _debug && n == 0 {
 			q = timer.Quantile(testQuantiles[len(testQuantiles)-1])
 			n := int(float64(len(z)) * testQuantiles[len(testQuantiles)-1])
-			//fmt.Println(q, z[n], n, len(z))
-			//fmt.Println(z[0], z[len(z)-1])
+			// fmt.Println(q, z[n], n, len(z))
+			// fmt.Println(z[0], z[len(z)-1])
 			delta := math.Abs(q - z[n])
 			eps := testQuantiles[len(testQuantiles)-1] * _eps // error bound is quantile * epsilon
 			if delta > eps {
@@ -153,13 +158,10 @@ func benchAddBatch(b *testing.B, samples [][]float64) {
 				b.FailNow()
 				return
 			}
-			//fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
-
-			//panic("")
+			// fmt.Printf("EXPECTED delta: (q %f) (expected %v)  (delta %f) (eps %f)\n", q, z[n], delta, eps)
 		}
 		timer.Close()
 	}
-	b.SetBytes(int64(8 * len(samples) * len(samples[0])))
 	runtime.KeepAlive(q)
 }
 

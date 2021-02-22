@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -758,8 +757,6 @@ func TestTimerElemAddUnion(t *testing.T) {
 	require.Equal(t, int64(5), timer.Count())
 	require.Equal(t, 18.0, timer.Sum())
 	require.Equal(t, 3.5, timer.Quantile(0.5))
-	//spew.Dump(e)
-	fmt.Println("zzzz")
 
 	require.Equal(t, 6.5, timer.Quantile(0.95))
 	require.Equal(t, 6.5, timer.Quantile(0.99))
