@@ -128,6 +128,12 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 			Start:     now.Add(-blockSize),
 		},
 		{
+			IDs:       []string{barSeries.ID.String()},
+			Tags:      barSeries.Tags,
+			NumPoints: 50,
+			Start:     now,
+		},
+		{
 			IDs:       []string{fooSeries.ID.String()},
 			Tags:      fooSeries.Tags,
 			NumPoints: 50,
