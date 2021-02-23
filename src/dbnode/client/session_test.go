@@ -331,7 +331,7 @@ func TestDedicatedConnection(t *testing.T) {
 
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
-	multiErr, ok := err.(xerror.MultiError)
+	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
 }
