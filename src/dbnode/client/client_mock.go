@@ -5076,6 +5076,60 @@ func (mr *MockhostQueueMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockhostQueue)(nil).Close))
 }
 
+// MockChannel is a mock of Channel interface
+type MockChannel struct {
+	ctrl     *gomock.Controller
+	recorder *MockChannelMockRecorder
+}
+
+// MockChannelMockRecorder is the mock recorder for MockChannel
+type MockChannelMockRecorder struct {
+	mock *MockChannel
+}
+
+// NewMockChannel creates a new mock instance
+func NewMockChannel(ctrl *gomock.Controller) *MockChannel {
+	mock := &MockChannel{ctrl: ctrl}
+	mock.recorder = &MockChannelMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockChannel) EXPECT() *MockChannelMockRecorder {
+	return m.recorder
+}
+
+// GetSubChannel mocks base method
+func (m *MockChannel) GetSubChannel(serviceName string, opts ...tchannel.SubChannelOption) *tchannel.SubChannel {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{serviceName}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetSubChannel", varargs...)
+	ret0, _ := ret[0].(*tchannel.SubChannel)
+	return ret0
+}
+
+// GetSubChannel indicates an expected call of GetSubChannel
+func (mr *MockChannelMockRecorder) GetSubChannel(serviceName interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{serviceName}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubChannel", reflect.TypeOf((*MockChannel)(nil).GetSubChannel), varargs...)
+}
+
+// Close mocks base method
+func (m *MockChannel) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (mr *MockChannelMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockChannel)(nil).Close))
+}
+
 // MockconnectionPool is a mock of connectionPool interface
 type MockconnectionPool struct {
 	ctrl     *gomock.Controller

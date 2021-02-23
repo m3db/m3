@@ -31,7 +31,6 @@ import (
 
 	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
@@ -65,12 +64,6 @@ type connPool struct {
 	sleepHealthRetry   sleepFn
 	status             status
 	healthStatus       tally.Gauge
-}
-
-// Channel is an interface for tchannel.Channel struct.
-type Channel interface {
-	GetSubChannel(serviceName string, opts ...tchannel.SubChannelOption) *tchannel.SubChannel
-	Close()
 }
 
 type conn struct {

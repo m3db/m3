@@ -800,6 +800,12 @@ type hostQueue interface {
 // WithConnectionFn is a callback for a connection to a host.
 type WithConnectionFn func(client rpc.TChanNode, ch Channel)
 
+// Channel is an interface for tchannel.Channel struct.
+type Channel interface {
+	GetSubChannel(serviceName string, opts ...tchannel.SubChannelOption) *tchannel.SubChannel
+	Close()
+}
+
 type connectionPool interface {
 	// Open starts the connection pool connecting and health checking.
 	Open()
