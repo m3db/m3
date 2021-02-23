@@ -154,15 +154,6 @@ type BaseResults interface {
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
 
-	// TotalDuration is the total ResultDurations for the query.
-	TotalDuration() ResultDurations
-
-	// AddBlockProcessingDuration adds the processing duration for a single block to the TotalDuration.
-	AddBlockProcessingDuration(duration time.Duration)
-
-	// AddBlockSearchDuration adds the search duration for a single block to the TotalDuration.
-	AddBlockSearchDuration(duration time.Duration)
-
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
@@ -410,36 +401,18 @@ type Block interface {
 	// WriteBatch writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
-	// Query resolves the given query into known IDs.
-	Query(
-		ctx context.Context,
-		query Query,
-		opts QueryOptions,
-		results DocumentResults,
-		logFields []opentracinglog.Field,
-	) (bool, error)
-
 	// QueryWithIter processes n docs from the iterator into known IDs.
 	QueryWithIter(
 		ctx context.Context,
 		opts QueryOptions,
-		docIter doc.Iterator,
+		docIter doc.QueryDocIterator,
 		results DocumentResults,
 		limit int,
+		logFields []opentracinglog.Field,
 	) error
 
 	// QueryIter returns a new QueryDocIterator for the query.
 	QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error)
-
-	// Aggregate aggregates known tag names/values.
-	// NB(prateek): different from aggregating by means of Query, as we can
-	// avoid going to documents, relying purely on the indexed FSTs.
-	Aggregate(
-		ctx context.Context,
-		opts QueryOptions,
-		results AggregateResults,
-		logFields []opentracinglog.Field,
-	) (bool, error)
 
 	// AggregateWithIter aggregates N known tag names/values from the iterator.
 	AggregateWithIter(
@@ -448,6 +421,7 @@ type Block interface {
 		opts QueryOptions,
 		results AggregateResults,
 		limit int,
+		logFields []opentracinglog.Field,
 	) error
 
 	// AggregateIter returns a new AggregatorIterator.
@@ -1105,4 +1079,10 @@ type Options interface {
 
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
+
+	// ResultsPerPermit returns the max index results that are processed per permit acquired.
+	ResultsPerPermit() int
+
+	// SetResultsPerPermit sets the max index results that are processed per permit acquired.
+	SetResultsPerPermit(value int) Options
 }

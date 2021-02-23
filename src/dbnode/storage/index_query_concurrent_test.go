@@ -34,12 +34,12 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	testutil "github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
@@ -123,8 +123,7 @@ func testNamespaceIndexHighConcurrentQueries(
 	nsIdx := test.index.(*nsIndex)
 	nsIdx.state.Lock()
 	// Make the query pool really high to improve concurrency likelihood
-	nsIdx.queryWorkersPool = xsync.NewWorkerPool(1000)
-	nsIdx.queryWorkersPool.Init()
+	nsIdx.permitsManager = permits.NewFixedPermitsManager(1000)
 
 	currNow := min
 	nowLock := &sync.Mutex{}
@@ -223,32 +222,39 @@ func testNamespaceIndexHighConcurrentQueries(
 				EndTime().
 				DoAndReturn(func() time.Time { return block.EndTime() }).
 				AnyTimes()
+			mockBlock.EXPECT().QueryIter(gomock.Any(), gomock.Any()).DoAndReturn(func(
+				ctx context.Context, query index.Query) (doc.QueryDocIterator, error) {
+				return block.QueryIter(ctx, query)
+			},
+			).AnyTimes()
 
 			if opts.blockErrors {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						_ context.Context,
-						_ index.Query,
 						_ index.QueryOptions,
+						_ doc.QueryDocIterator,
 						_ index.QueryResults,
+						_ int,
 						_ []opentracinglog.Field,
-					) (bool, error) {
-						return false, errors.New("some-error")
+					) error {
+						return errors.New("some-error")
 					}).
 					AnyTimes()
 			} else {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						ctx context.Context,
-						q index.Query,
 						opts index.QueryOptions,
+						iter doc.QueryDocIterator,
 						r index.QueryResults,
+						limit int,
 						logFields []opentracinglog.Field,
-					) (bool, error) {
+					) error {
 						time.Sleep(timeoutValue + time.Second)
-						return block.Query(ctx, q, opts, r, logFields)
+						return block.QueryWithIter(ctx, opts, iter, r, limit, logFields)
 					}).
 					AnyTimes()
 			}

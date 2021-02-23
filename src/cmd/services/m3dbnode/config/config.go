@@ -387,6 +387,14 @@ type IndexConfiguration struct {
 	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 
+	// MaxResultsPerPermit is the maximum index results a query can process after obtaining a permit. If a query needs
+	// to process more results it yields the permit and must wait again for another permit to resume. The number of
+	// permits available to all queries is defined by MaxQueryIDsConcurrency.
+	// Capping the maximum results per permit ensures a few large queries don't hold all the concurrent permits and lock
+	// out many small queries from running. This should be set higher than the max results returned by the vast majority
+	// of queries, so most queries only need to obtain a single permit.
+	MaxResultsPerPermit int `yaml:"maxResultsPerPermit"`
+
 	// RegexpDFALimit is the limit on the max number of states used by a
 	// regexp deterministic finite automaton. Default is 10,000 states.
 	RegexpDFALimit *int `yaml:"regexpDFALimit"`

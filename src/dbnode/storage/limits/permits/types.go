@@ -25,6 +25,10 @@ import "github.com/m3db/m3/src/x/context"
 
 // Options is the permit options.
 type Options interface {
+	// IndexQueryPermitsManager returns the index query permits manager.
+	IndexQueryPermitsManager() Manager
+	// SetIndexQueryPermitsManager sets the index query permits manager.
+	SetIndexQueryPermitsManager(manager Manager) Options
 	// SeriesReadPermitsManager returns the series read permits manager.
 	SeriesReadPermitsManager() Manager
 	// SetSeriesReadPermitsManager sets the series read permits manager.

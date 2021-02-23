@@ -21,42 +21,47 @@
 package permits
 
 import (
-	"math"
-	"runtime"
+	stdctx "context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/context"
 )
 
-type options struct {
-	seriesReadManager Manager
-	indexQueryManager Manager
+func TestFixedPermits(t *testing.T) {
+	ctx := context.NewBackground()
+	fp := NewFixedPermitsManager(3).NewPermits(ctx)
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
+
+	fp.Release()
+	require.NoError(t, fp.Acquire(ctx))
 }
 
-// NewOptions return a new set of default permit managers.
-func NewOptions() Options {
-	return &options{
-		seriesReadManager: NewNoOpPermitsManager(),
-		// Default to using half of the available cores for querying IDs
-		indexQueryManager: NewFixedPermitsManager(int64(math.Ceil(float64(runtime.NumCPU()) / 2))),
-	}
-}
+func TestFixedPermitsTimeouts(t *testing.T) {
+	ctx := context.NewBackground()
+	fp := NewFixedPermitsManager(1).NewPermits(ctx)
+	require.NoError(t, fp.Acquire(ctx))
 
-// SetSeriesReadPermitsManager sets the series read permits manager.
-func (o *options) SetSeriesReadPermitsManager(value Manager) Options {
-	opts := *o
-	opts.seriesReadManager = value
-	return &opts
-}
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
 
-// SeriesReadPermitsManager returns the series read permits manager.
-func (o *options) SeriesReadPermitsManager() Manager {
-	return o.seriesReadManager
-}
+	stdCtx, cancel := stdctx.WithCancel(stdctx.Background())
+	cancel()
+	ctx = context.NewWithGoContext(stdCtx)
 
-func (o *options) IndexQueryPermitsManager() Manager {
-	return o.indexQueryManager
-}
+	err = fp.Acquire(ctx)
+	require.Error(t, err)
 
-func (o *options) SetIndexQueryPermitsManager(value Manager) Options {
-	opts := *o
-	opts.indexQueryManager = value
-	return &opts
+	fp.Release()
+
+	_, err = fp.TryAcquire(ctx)
+	require.Error(t, err)
 }

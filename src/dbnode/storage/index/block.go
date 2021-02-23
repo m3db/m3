@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"sync"
 	"time"
 
@@ -40,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
-	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -48,7 +46,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -412,63 +409,10 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 	return readers, nil
 }
 
-// Query acquires a read lock on the block so that the segments
-// are guaranteed to not be freed/released while accumulating results.
-// This allows references to the mmap'd segment data to be accumulated
-// and then copied into the results before this method returns (it is not
-// safe to return docs directly from the segments from this method, the
-// results datastructure is used to copy it every time documents are added
-// to the results datastructure).
-func (b *block) Query(
-	ctx context.Context,
-	query Query,
-	opts QueryOptions,
-	results DocumentResults,
-	logFields []opentracinglog.Field,
-) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
-
-	start := time.Now()
-	exhaustive, err := b.queryWithSpan(ctx, query, opts, results)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-	results.AddBlockProcessingDuration(time.Since(start))
-	return exhaustive, err
-}
-
-func (b *block) queryWithSpan(
-	ctx context.Context,
-	query Query,
-	opts QueryOptions,
-	results DocumentResults,
-) (bool, error) {
-	iter, err := b.QueryIter(ctx, query)
-	if err != nil {
-		return false, err
-	}
-
-	iterCloser := x.NewSafeCloser(iter)
-	defer func() {
-		_ = iterCloser.Close()
-		b.metrics.queryDocsMatched.RecordValue(float64(results.TotalDocsCount()))
-		b.metrics.querySeriesMatched.RecordValue(float64(results.Size()))
-	}()
-
-	if err := b.QueryWithIter(ctx, opts, iter, results, math.MaxInt64); err != nil {
-		return false, err
-	}
-
-	if err := iterCloser.Close(); err != nil {
-		return false, err
-	}
-	results.AddBlockSearchDuration(iter.SearchDuration())
-
-	return opts.exhaustive(results.Size(), results.TotalDocsCount()), nil
-}
-
+// QueryIter acquires a read lock on the block to get the set of segments for the returned iterator. However, the
+// segments are searched and results are processed lazily in the returned iterator. The segments are finalized when
+// the ctx is finalized to ensure the mmaps are not freed until the ctx closes. This allows the returned results to
+// reference data in the mmap without copying.
 func (b *block) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -501,7 +445,30 @@ func (b *block) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterato
 func (b *block) QueryWithIter(
 	ctx context.Context,
 	opts QueryOptions,
-	docIter doc.Iterator,
+	docIter doc.QueryDocIterator,
+	results DocumentResults,
+	limit int,
+	logFields []opentracinglog.Field,
+) error {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	err := b.queryWithSpan(ctx, opts, docIter, results, limit)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	if docIter.Done() {
+		b.metrics.queryDocsMatched.RecordValue(float64(results.TotalDocsCount()))
+		b.metrics.querySeriesMatched.RecordValue(float64(results.Size()))
+	}
+	return err
+}
+
+func (b *block) queryWithSpan(
+	ctx context.Context,
+	opts QueryOptions,
+	docIter doc.QueryDocIterator,
 	results DocumentResults,
 	limit int,
 ) error {
@@ -606,57 +573,10 @@ func (b *block) addQueryResults(
 	return batch, size, docsCount, err
 }
 
-// Aggregate acquires a read lock on the block so that the segments
-// are guaranteed to not be freed/released while accumulating results.
-// NB: Aggregate is an optimization of the general aggregate Query approach
-// for the case when we can skip going to raw documents, and instead rely on
-// pre-aggregated results via the FST underlying the index.
-func (b *block) Aggregate(
-	ctx context.Context,
-	opts QueryOptions,
-	results AggregateResults,
-	logFields []opentracinglog.Field,
-) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
-
-	start := time.Now()
-	exhaustive, err := b.aggregateWithSpan(ctx, opts, results, sp)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-	results.AddBlockProcessingDuration(time.Since(start))
-
-	return exhaustive, err
-}
-
-func (b *block) aggregateWithSpan(
-	ctx context.Context,
-	opts QueryOptions,
-	results AggregateResults,
-	sp opentracing.Span,
-) (bool, error) {
-	iter, err := b.AggregateIter(ctx, results.AggregateResultsOptions())
-	if err != nil {
-		return false, err
-	}
-
-	defer func() {
-		_ = iter.Close()
-		b.metrics.aggregateDocsMatched.RecordValue(float64(results.TotalDocsCount()))
-		b.metrics.aggregateSeriesMatched.RecordValue(float64(results.Size()))
-	}()
-
-	if err := b.AggregateWithIter(ctx, iter, opts, results, math.MaxInt64); err != nil {
-		return false, err
-	}
-
-	results.AddBlockSearchDuration(iter.SearchDuration())
-
-	return opts.exhaustive(results.Size(), results.TotalDocsCount()), nil
-}
-
+// AggIter acquires a read lock on the block to get the set of segments for the returned iterator. However, the
+// segments are searched and results are processed lazily in the returned iterator. The segments are finalized when
+// the ctx is finalized to ensure the mmaps are not freed until the ctx closes. This allows the returned results to
+// reference data in the mmap without copying.
 func (b *block) AggregateIter(ctx context.Context, aggOpts AggregateResultsOptions) (AggregateIterator, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -718,7 +638,32 @@ func (b *block) AggregateWithIter(
 	iter AggregateIterator,
 	opts QueryOptions,
 	results AggregateResults,
-	limit int) error {
+	limit int,
+	logFields []opentracinglog.Field,
+) error {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	err := b.aggregateWithSpan(ctx, iter, opts, results, limit)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	if iter.Done() {
+		b.metrics.aggregateDocsMatched.RecordValue(float64(results.TotalDocsCount()))
+		b.metrics.aggregateSeriesMatched.RecordValue(float64(results.Size()))
+	}
+
+	return err
+}
+
+func (b *block) aggregateWithSpan(
+	ctx context.Context,
+	iter AggregateIterator,
+	opts QueryOptions,
+	results AggregateResults,
+	limit int,
+) error {
 	var (
 		count         int
 		err           error

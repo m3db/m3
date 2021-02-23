@@ -64,6 +64,9 @@ const (
 	aggregateResultsEntryArrayPoolSize        = 256
 	aggregateResultsEntryArrayPoolCapacity    = 256
 	aggregateResultsEntryArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
+
+	// defaultResultsPerPermit sets the default index results that can be processed per permit acquired.
+	defaultResultsPerPermit = 10000
 )
 
 var (
@@ -135,6 +138,7 @@ type opts struct {
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
+	resultsPerPermit                int
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -195,6 +199,7 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryLimits:                     limits.NoOpQueryLimits(),
+		resultsPerPermit:                defaultResultsPerPermit,
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -459,4 +464,14 @@ func (o *opts) SetQueryLimits(value limits.QueryLimits) Options {
 
 func (o *opts) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
+}
+
+func (o *opts) ResultsPerPermit() int {
+	return o.resultsPerPermit
+}
+
+func (o *opts) SetResultsPerPermit(value int) Options {
+	opts := *o
+	opts.resultsPerPermit = value
+	return &opts
 }

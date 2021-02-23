@@ -21,42 +21,46 @@
 package permits
 
 import (
-	"math"
-	"runtime"
+	"golang.org/x/sync/semaphore"
+
+	"github.com/m3db/m3/src/x/context"
 )
 
-type options struct {
-	seriesReadManager Manager
-	indexQueryManager Manager
+type fixedPermits struct {
+	permits *semaphore.Weighted
 }
 
-// NewOptions return a new set of default permit managers.
-func NewOptions() Options {
-	return &options{
-		seriesReadManager: NewNoOpPermitsManager(),
-		// Default to using half of the available cores for querying IDs
-		indexQueryManager: NewFixedPermitsManager(int64(math.Ceil(float64(runtime.NumCPU()) / 2))),
+type fixedPermitsManager struct {
+	fp fixedPermits
+}
+
+var (
+	_ Permits = &fixedPermits{}
+	_ Manager = &fixedPermitsManager{}
+)
+
+// NewFixedPermitsManager returns a permits manager that uses a fixed size of permits.
+func NewFixedPermitsManager(size int64) Manager {
+	return &fixedPermitsManager{fixedPermits{permits: semaphore.NewWeighted(size)}}
+}
+
+func (f *fixedPermitsManager) NewPermits(ctx context.Context) Permits {
+	return &f.fp
+}
+
+func (f *fixedPermits) Acquire(ctx context.Context) error {
+	return f.permits.Acquire(ctx.GoContext(), 1)
+}
+
+func (f *fixedPermits) TryAcquire(ctx context.Context) (bool, error) {
+	select {
+	case <-ctx.GoContext().Done():
+		return false, ctx.GoContext().Err()
+	default:
 	}
+	return f.permits.TryAcquire(1), nil
 }
 
-// SetSeriesReadPermitsManager sets the series read permits manager.
-func (o *options) SetSeriesReadPermitsManager(value Manager) Options {
-	opts := *o
-	opts.seriesReadManager = value
-	return &opts
-}
-
-// SeriesReadPermitsManager returns the series read permits manager.
-func (o *options) SeriesReadPermitsManager() Manager {
-	return o.seriesReadManager
-}
-
-func (o *options) IndexQueryPermitsManager() Manager {
-	return o.indexQueryManager
-}
-
-func (o *options) SetIndexQueryPermitsManager(value Manager) Options {
-	opts := *o
-	opts.indexQueryManager = value
-	return &opts
+func (f *fixedPermits) Release() {
+	f.permits.Release(1)
 }
