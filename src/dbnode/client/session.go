@@ -669,7 +669,7 @@ func (s *session) BorrowConnections(
 		)
 		borrowErr := s.BorrowConnection(host.ID(), func(
 			client rpc.TChanNode,
-			channel PooledChannel,
+			channel Channel,
 		) {
 			userResult, userErr = fn(shard, host, client, channel)
 		})
@@ -710,7 +710,7 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 		s.state.RUnlock()
 		return errSessionHasNoHostQueueForHost
 	}
-	err := queue.BorrowConnection(func(client rpc.TChanNode, ch PooledChannel) {
+	err := queue.BorrowConnection(func(client rpc.TChanNode, ch Channel) {
 		// Unlock early on success
 		s.state.RUnlock()
 		unlocked = true
@@ -727,7 +727,7 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 func (s *session) DedicatedConnection(
 	shardID uint32,
 	opts DedicatedConnectionOptions,
-) (rpc.TChanNode, PooledChannel, error) {
+) (rpc.TChanNode, Channel, error) {
 	s.state.RLock()
 	topoMap, err := s.topologyMapWithStateRLock()
 	s.state.RUnlock()
@@ -737,7 +737,7 @@ func (s *session) DedicatedConnection(
 
 	var (
 		client    rpc.TChanNode
-		channel   PooledChannel
+		channel   Channel
 		succeeded bool
 		multiErr  = xerrors.NewMultiError()
 	)
@@ -2711,7 +2711,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	var attemptErr error
-	checkedAttemptFn := func(client rpc.TChanNode, _ PooledChannel) {
+	checkedAttemptFn := func(client rpc.TChanNode, _ Channel) {
 		attemptErr = attemptFn(client)
 	}
 
@@ -3228,7 +3228,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Attempt request
 	if err := retrier.Attempt(func() error {
 		var attemptErr error
-		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ PooledChannel) {
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ Channel) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})

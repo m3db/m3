@@ -368,7 +368,7 @@ func (s *replicatedSession) BorrowConnections(
 func (s *replicatedSession) DedicatedConnection(
 	shardID uint32,
 	opts DedicatedConnectionOptions,
-) (rpc.TChanNode, PooledChannel, error) {
+) (rpc.TChanNode, Channel, error) {
 	return s.session.DedicatedConnection(shardID, opts)
 }
 

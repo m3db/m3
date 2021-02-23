@@ -1102,11 +1102,11 @@ func (mr *MockAdminSessionMockRecorder) BorrowConnections(shardID, fn, opts inte
 }
 
 // DedicatedConnection mocks base method
-func (m *MockAdminSession) DedicatedConnection(shardID uint32, opts DedicatedConnectionOptions) (rpc.TChanNode, PooledChannel, error) {
+func (m *MockAdminSession) DedicatedConnection(shardID uint32, opts DedicatedConnectionOptions) (rpc.TChanNode, Channel, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DedicatedConnection", shardID, opts)
 	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(PooledChannel)
+	ret1, _ := ret[1].(Channel)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -4916,11 +4916,11 @@ func (mr *MockclientSessionMockRecorder) BorrowConnections(shardID, fn, opts int
 }
 
 // DedicatedConnection mocks base method
-func (m *MockclientSession) DedicatedConnection(shardID uint32, opts DedicatedConnectionOptions) (rpc.TChanNode, PooledChannel, error) {
+func (m *MockclientSession) DedicatedConnection(shardID uint32, opts DedicatedConnectionOptions) (rpc.TChanNode, Channel, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DedicatedConnection", shardID, opts)
 	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(PooledChannel)
+	ret1, _ := ret[1].(Channel)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -5126,11 +5126,11 @@ func (mr *MockconnectionPoolMockRecorder) ConnectionCount() *gomock.Call {
 }
 
 // NextClient mocks base method
-func (m *MockconnectionPool) NextClient() (rpc.TChanNode, PooledChannel, error) {
+func (m *MockconnectionPool) NextClient() (rpc.TChanNode, Channel, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NextClient")
 	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(PooledChannel)
+	ret1, _ := ret[1].(Channel)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }

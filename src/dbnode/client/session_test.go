@@ -441,6 +441,6 @@ func noopNewConnection(
 	channelName string,
 	addr string,
 	opts Options,
-) (PooledChannel, rpc.TChanNode, error) {
+) (Channel, rpc.TChanNode, error) {
 	return &noopPooledChannel{addr}, nil, nil
 }
