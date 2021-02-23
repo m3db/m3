@@ -722,6 +722,65 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 	return err
 }
 
+func (s *session) DedicatedConnection(
+	shardID uint32,
+	opts DedicatedConnectionOptions,
+) (rpc.TChanNode, PooledChannel, error) {
+	s.state.RLock()
+	topoMap, err := s.topologyMapWithStateRLock()
+	s.state.RUnlock()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		client    rpc.TChanNode
+		channel   PooledChannel
+		succeeded bool
+		multiErr  = xerrors.NewMultiError()
+	)
+	err = topoMap.RouteShardForEach(shardID, func(
+		_ int,
+		targetShard shard.Shard,
+		host topology.Host,
+	) {
+		stateFilter := opts.ShardStateFilter
+		if succeeded || !(stateFilter == shard.Unknown || targetShard.State() == stateFilter) {
+			return
+		}
+
+		if s.origin != nil && s.origin.ID() == host.ID() {
+			// Skip origin host.
+			return
+		}
+
+		newConnFn := s.opts.NewConnectionFn()
+		channel, client, err = newConnFn(channelName, host.Address(), s.opts)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			return
+		}
+
+		if err := healthCheck(client, s.opts); err != nil {
+			multiErr = multiErr.Add(err)
+			return
+		}
+
+		succeeded = true
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !succeeded {
+		multiErr = multiErr.Add(
+			fmt.Errorf("failed to create a dedicated connection for shard %d", shardID))
+		return nil, nil, multiErr.FinalError()
+	}
+
+	return client, channel, nil
+}
+
 func (s *session) hostQueues(
 	topoMap topology.Map,
 	existing []hostQueue,
