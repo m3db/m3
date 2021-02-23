@@ -473,7 +473,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool := aggregator.NewEntryPool(entryPoolOpts)
 	runtimeOpts := runtimeOptsManager.RuntimeOptions()
 	opts = opts.SetEntryPool(entryPool)
-	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, runtimeOpts, opts) })
+	// allocate metrics only once to reduce memory utilization
+	metrics := aggregator.NewEntryMetrics(iOpts.MetricsScope())
+	entryPool.Init(func() *aggregator.Entry {
+		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
+	})
 	return opts, nil
 }
 
