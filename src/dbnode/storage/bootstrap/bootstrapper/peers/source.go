@@ -1177,6 +1177,7 @@ func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
 
 func (s *peersSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
 	persistConfig := runOpts.PersistConfig()
+
 	return persistConfig.Enabled &&
 		persistConfig.FileSetType == persist.FileSetFlushType &&
 		// TODO(bodu): We should migrate to series.CacheLRU only.

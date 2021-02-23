@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -160,7 +161,7 @@ func TestBootstrapIndex(t *testing.T) {
 		{
 			name:                "now",
 			indexBlockStart:     time.Now(),
-			expectedIndexBlocks: 2,
+			expectedIndexBlocks: 12,
 			retentionPeriod:     48 * time.Hour,
 		},
 		{
@@ -183,6 +184,8 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 	defer ctrl.Finish()
 
 	opts := newTestDefaultOpts(t, ctrl)
+	opts = opts.SetResultOptions(result.NewOptions().
+		SetSeriesCachePolicy(series.CacheLRU))
 	pm, err := fs.NewPersistManager(opts.FilesystemOptions())
 	require.NoError(t, err)
 	opts = opts.SetPersistManager(pm)
@@ -289,9 +292,16 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 			goodID := ident.StringID("foo")
 			goodResult := result.NewShardResult(opts.ResultOptions())
 			for ; blockStart.Before(blockEnd); blockStart = blockStart.Add(blockSize) {
+				head := checked.NewBytes([]byte{0x1}, nil)
+				head.IncRef()
+				tail := checked.NewBytes([]byte{0x2}, nil)
+				tail.IncRef()
 				fooBlock := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
-					ts.Segment{}, testBlockOpts, namespace.Context{})
-				goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+					ts.Segment{Head: head, Tail: tail}, testBlockOpts, namespace.Context{})
+				goodResult.AddBlock(goodID, ident.NewTags(
+					ident.StringTag("aaa", "bbb"),
+					ident.StringTag("ccc", "ddd"),
+				), fooBlock)
 			}
 			return goodResult, nil
 		}).AnyTimes()
@@ -301,7 +311,8 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 	opts = opts.SetAdminClient(mockAdminClient)
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
-	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, testDefaultRunOpts, shardTimeRanges,
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t,
+		testRunOptsWithPersist, shardTimeRanges,
 		opts.FilesystemOptions(), nsMetadata)
 	defer tester.Finish()
 	tester.TestReadWith(src)
