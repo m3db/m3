@@ -331,7 +331,9 @@ func TestDedicatedConnection(t *testing.T) {
 
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
-	assert.True(t, err.(xerror.MultiError).Contains(healthErr))
+	multiErr, ok := err.(xerror.MultiError)
+	assert.True(t, ok, "expecting MultiError")
+	assert.True(t, multiErr.Contains(healthErr))
 }
 
 func testSessionClusterConnectConsistencyLevel(
@@ -431,8 +433,8 @@ func mockHost(ctrl *gomock.Controller, id, address string) topology.Host {
 	return host
 }
 
-func testHealthCheck(err error) func (rpc.TChanNode, Options) error {
-	return func (rpc.TChanNode, Options) error {
+func testHealthCheck(err error) func(rpc.TChanNode, Options) error {
+	return func(rpc.TChanNode, Options) error {
 		return err
 	}
 }

@@ -45,7 +45,7 @@ var (
 	h = topology.NewHost(testHostStr, testHostAddr)
 )
 
-type noopPooledChannel struct{
+type noopPooledChannel struct {
 	address string
 }
 

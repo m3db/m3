@@ -333,6 +333,7 @@ type WithBorrowConnectionResult struct {
 	Break bool
 }
 
+// DedicatedConnectionOptions are options used for getting a dedicated connection.
 type DedicatedConnectionOptions struct {
 	ShardStateFilter shard.State
 }
