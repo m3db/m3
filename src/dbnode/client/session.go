@@ -152,6 +152,7 @@ type session struct {
 	newPeerBlocksQueueFn                 newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn     reattemptStreamBlocksFromPeersFn
 	pickBestPeerFn                       pickBestPeerFn
+	healthCheckNewConnFn                 healthCheckFn
 	origin                               topology.Host
 	streamBlocksMaxBlockRetries          int
 	streamBlocksWorkers                  xsync.WorkerPool
@@ -283,6 +284,7 @@ func newSession(opts Options) (clientSession, error) {
 		newHostQueueFn:       newHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
+		healthCheckNewConnFn: healthCheck,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{
@@ -761,7 +763,7 @@ func (s *session) DedicatedConnection(
 			return
 		}
 
-		if err := healthCheck(client, s.opts); err != nil {
+		if err := s.healthCheckNewConnFn(client, s.opts); err != nil {
 			multiErr = multiErr.Add(err)
 			return
 		}
