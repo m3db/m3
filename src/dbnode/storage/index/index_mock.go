@@ -2070,3 +2070,31 @@ func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
 }
+
+// ResultsPerPermit mocks base method
+func (m *MockOptions) ResultsPerPermit() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResultsPerPermit")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// ResultsPerPermit indicates an expected call of ResultsPerPermit
+func (mr *MockOptionsMockRecorder) ResultsPerPermit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResultsPerPermit", reflect.TypeOf((*MockOptions)(nil).ResultsPerPermit))
+}
+
+// SetResultsPerPermit mocks base method
+func (m *MockOptions) SetResultsPerPermit(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetResultsPerPermit", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetResultsPerPermit indicates an expected call of SetResultsPerPermit
+func (mr *MockOptionsMockRecorder) SetResultsPerPermit(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetResultsPerPermit", reflect.TypeOf((*MockOptions)(nil).SetResultsPerPermit), value)
+}
