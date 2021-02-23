@@ -1101,6 +1101,22 @@ func (mr *MockAdminSessionMockRecorder) BorrowConnections(shardID, fn, opts inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BorrowConnections", reflect.TypeOf((*MockAdminSession)(nil).BorrowConnections), shardID, fn, opts)
 }
 
+// DedicatedConnection mocks base method
+func (m *MockAdminSession) DedicatedConnection(shardID uint32, opts DedicatedConnectionOptions) (rpc.TChanNode, PooledChannel, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DedicatedConnection", shardID, opts)
+	ret0, _ := ret[0].(rpc.TChanNode)
+	ret1, _ := ret[1].(PooledChannel)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DedicatedConnection indicates an expected call of DedicatedConnection
+func (mr *MockAdminSessionMockRecorder) DedicatedConnection(shardID, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DedicatedConnection", reflect.TypeOf((*MockAdminSession)(nil).DedicatedConnection), shardID, opts)
+}
+
 // MockOptions is a mock of Options interface
 type MockOptions struct {
 	ctrl     *gomock.Controller
@@ -4897,6 +4913,22 @@ func (m *MockclientSession) BorrowConnections(shardID uint32, fn WithBorrowConne
 func (mr *MockclientSessionMockRecorder) BorrowConnections(shardID, fn, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BorrowConnections", reflect.TypeOf((*MockclientSession)(nil).BorrowConnections), shardID, fn, opts)
+}
+
+// DedicatedConnection mocks base method
+func (m *MockclientSession) DedicatedConnection(shardID uint32, opts DedicatedConnectionOptions) (rpc.TChanNode, PooledChannel, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DedicatedConnection", shardID, opts)
+	ret0, _ := ret[0].(rpc.TChanNode)
+	ret1, _ := ret[1].(PooledChannel)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DedicatedConnection indicates an expected call of DedicatedConnection
+func (mr *MockclientSessionMockRecorder) DedicatedConnection(shardID, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DedicatedConnection", reflect.TypeOf((*MockclientSession)(nil).DedicatedConnection), shardID, opts)
 }
 
 // Open mocks base method
