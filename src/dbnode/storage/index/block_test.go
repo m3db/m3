@@ -1880,13 +1880,12 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	}, testOpts)
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
 		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("unknown error")),
-		iter.EXPECT().Close(gomock.Any()).Return(nil),
+		iter.EXPECT().Close().Return(nil),
 	)
 
 	ctx := context.NewBackground()
@@ -1951,7 +1950,6 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil)
 	iter.EXPECT().SearchDuration().Return(time.Second)
 	iter.EXPECT().Next().Return(true)
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
@@ -1963,7 +1961,7 @@ func TestBlockAggregate(t *testing.T) {
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t3"))
 	iter.EXPECT().Next().Return(false)
 	iter.EXPECT().Err().Return(nil)
-	iter.EXPECT().Close(gomock.Any()).Return(nil)
+	iter.EXPECT().Close().Return(nil)
 
 	exhaustive, err := b.Aggregate(
 		ctx,
@@ -2044,13 +2042,13 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil)
-	for i := 0; i < seriesLimit-1; i++ {
+	// use seriesLimit instead of seriesLimit - 1 since the iterator peeks ahead to check for Done.
+	for i := 0; i < seriesLimit; i++ {
 		iter.EXPECT().Next().Return(true)
 		curr := []byte(fmt.Sprint(i))
 		iter.EXPECT().Current().Return([]byte("f1"), curr)
 	}
-	iter.EXPECT().Close(gomock.Any()).Return(nil)
+	iter.EXPECT().Close().Return(nil)
 	iter.EXPECT().SearchDuration().Return(time.Second)
 
 	exhaustive, err := b.Aggregate(
@@ -2124,13 +2122,15 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(gomock.Any(), reader, gomock.Any()).Return(nil),
 		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Err().Return(nil),
-		iter.EXPECT().Close(gomock.Any()).Return(nil),
+		// even though there is a limit 1, the iterator peeks ahead so 3 results are actually consumed.
+		iter.EXPECT().Current().Return([]byte("f2"), []byte("t2")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f3"), []byte("f3")),
+		iter.EXPECT().Close().Return(nil),
 	)
 	exhaustive, err := b.Aggregate(
 		ctx,
