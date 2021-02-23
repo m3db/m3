@@ -90,8 +90,6 @@ func TestSampleListRemove(t *testing.T) {
 	for i := 0; i < iter; i++ {
 		elem := l.Front()
 		l.Remove(elem)
-		require.Nil(t, elem.prev)
-		require.Nil(t, elem.next)
 		validateList(t, &l, inputs[i+1:])
 	}
 }
