@@ -35,7 +35,7 @@ func NewOptions() Options {
 	return &options{
 		seriesReadManager: NewNoOpPermitsManager(),
 		// Default to using half of the available cores for querying IDs
-		indexQueryManager: NewFixedPermitsManager(int64(math.Ceil(float64(runtime.NumCPU()) / 2))),
+		indexQueryManager: NewFixedPermitsManager(int(math.Ceil(float64(runtime.NumCPU()) / 2))),
 	}
 }
 

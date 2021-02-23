@@ -21,13 +21,11 @@
 package permits
 
 import (
-	"golang.org/x/sync/semaphore"
-
 	"github.com/m3db/m3/src/x/context"
 )
 
 type fixedPermits struct {
-	permits *semaphore.Weighted
+	permits chan struct{}
 }
 
 type fixedPermitsManager struct {
@@ -40,27 +38,54 @@ var (
 )
 
 // NewFixedPermitsManager returns a permits manager that uses a fixed size of permits.
-func NewFixedPermitsManager(size int64) Manager {
-	return &fixedPermitsManager{fixedPermits{permits: semaphore.NewWeighted(size)}}
+func NewFixedPermitsManager(size int) Manager {
+	fp := fixedPermits{permits: make(chan struct{}, size)}
+	for i := 0; i < size; i++ {
+		fp.permits <- struct{}{}
+	}
+	return &fixedPermitsManager{fp}
 }
 
-func (f *fixedPermitsManager) NewPermits(ctx context.Context) Permits {
+func (f *fixedPermitsManager) NewPermits(_ context.Context) Permits {
 	return &f.fp
 }
 
 func (f *fixedPermits) Acquire(ctx context.Context) error {
-	return f.permits.Acquire(ctx.GoContext(), 1)
+	// don't acquire a permit if ctx is already done.
+	select {
+	case <-ctx.GoContext().Done():
+		return ctx.GoContext().Err()
+	default:
+	}
+
+	select {
+	case <-ctx.GoContext().Done():
+		return ctx.GoContext().Err()
+	case <-f.permits:
+		return nil
+	}
 }
 
 func (f *fixedPermits) TryAcquire(ctx context.Context) (bool, error) {
+	// don't acquire a permit if ctx is already done.
 	select {
 	case <-ctx.GoContext().Done():
 		return false, ctx.GoContext().Err()
 	default:
 	}
-	return f.permits.TryAcquire(1), nil
+
+	select {
+	case <-f.permits:
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func (f *fixedPermits) Release() {
-	f.permits.Release(1)
+	select {
+	case f.permits <- struct{}{}:
+	default:
+		panic("more permits released than acquired")
+	}
 }
