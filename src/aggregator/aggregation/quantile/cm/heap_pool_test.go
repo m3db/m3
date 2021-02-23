@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,29 +20,31 @@
 
 package cm
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"testing"
 
-type samplePool struct {
-	pool pool.ObjectPool
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-// NewSamplePool creates a new pool for samples.
-func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
-	return &samplePool{pool: pool.NewObjectPool(opts)}
-}
+func TestHeapPool(t *testing.T) {
+	h := sharedHeapPool.Get(_initialHeapBucketSize)
+	require.NotNil(t, h)
+	assert.Equal(t, _initialHeapBucketSize, cap(*h))
+	assert.Equal(t, 0, len(*h))
+	h.Reset()
 
-func (p *samplePool) Init() {
-	p.pool.Init(func() interface{} {
-		return newSample()
-	})
-}
+	h2 := sharedHeapPool.Get(_initialHeapBucketSize + 1) // should fall into different bucket
+	require.NotNil(t, h2)
+	require.True(t, h != h2)
+	assert.Equal(t, _initialHeapBucketSize*_heapSizeBucketGrowthFactor, cap(*h2))
+	assert.Equal(t, 0, len(*h2))
+	h2.Reset()
 
-func (p *samplePool) Get() *Sample {
-	return p.pool.Get().(*Sample)
-}
-
-func (p *samplePool) Put(sample *Sample) {
-	// Reset sample to reduce GC sweep overhead.
-	sample.reset()
-	p.pool.Put(sample)
+	h3 := sharedHeapPool.Get(65) // should get the next largest one
+	require.NotNil(t, h3)
+	require.True(t, h3 != h)
+	require.True(t, h3 != h2)
+	assert.Equal(t, 256, cap(*h3))
+	assert.Equal(t, 0, len(*h3))
 }
