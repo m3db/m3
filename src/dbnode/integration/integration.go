@@ -353,14 +353,21 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	}
 }
 
+type generatorOptionsFn = func(generate.Options) generate.Options
+
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
+	generatorOptionsFns ...generatorOptionsFn,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	gOpts := setup.GeneratorOptions(ropts)
+	for _, fn := range generatorOptionsFns {
+		gOpts = fn(gOpts)
+	}
+	writer := generate.NewWriter(gOpts)
 	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
 }
 
