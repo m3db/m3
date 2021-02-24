@@ -28,9 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -96,57 +94,6 @@ func (s testSeriesMetadata) Tags() ident.Tags {
 	}
 
 	return tags
-}
-
-func writeTSDBFiles(
-	t *testing.T,
-	dir string,
-	namespace ident.ID,
-	shard uint32,
-	start time.Time,
-	series []testSeriesMetadata,
-	blockSize time.Duration,
-	fsOpts fs.Options,
-) {
-	w, err := fs.NewWriter(fsOpts)
-	require.NoError(t, err)
-	writerOpts := fs.DataWriterOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:  namespace,
-			Shard:      shard,
-			BlockStart: start,
-		},
-		BlockSize: blockSize,
-	}
-	require.NoError(t, w.Open(writerOpts))
-
-	for _, v := range series {
-		bytes := checked.NewBytes(v.data, nil)
-		bytes.IncRef()
-		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(v.id),
-			sortedTagsFromTagsMap(v.tags),
-			persist.MetadataOptions{})
-		require.NoError(t, w.Write(metadata, bytes,
-			digest.Checksum(bytes.Bytes())))
-		bytes.DecRef()
-	}
-
-	require.NoError(t, w.Close())
-}
-
-func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
-	var (
-		seriesTags ident.Tags
-		tagNames   []string
-	)
-	for name := range tags {
-		tagNames = append(tagNames, name)
-	}
-	sort.Strings(tagNames)
-	for _, name := range tagNames {
-		seriesTags.Append(ident.StringTag(name, tags[name]))
-	}
-	return seriesTags
 }
 
 type testOptions struct {
@@ -255,18 +202,6 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 	opts = opts.SetFilesystemOptions(newTestFsOptions(dir))
-	for _, block := range dataBlocks {
-		writeTSDBFiles(
-			t,
-			dir,
-			nsMetadata.ID(),
-			testShard,
-			block.blockStart,
-			block.series,
-			blockSize,
-			opts.FilesystemOptions(),
-		)
-	}
 
 	end := start.Add(ropts.RetentionPeriod())
 
@@ -278,6 +213,8 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 		}),
 	)
 
+	// data block start at the edge of retention so return those first.
+	var dataBlocksIdx int
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(gomock.Any(),
@@ -292,12 +229,23 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 			goodID := ident.StringID("foo")
 			goodResult := result.NewShardResult(opts.ResultOptions())
 			for ; blockStart.Before(blockEnd); blockStart = blockStart.Add(blockSize) {
+				if dataBlocksIdx < len(dataBlocks) {
+					dataBlock := dataBlocks[dataBlocksIdx]
+					for _, s := range dataBlock.series {
+						head := checked.NewBytes(s.data, nil)
+						head.IncRef()
+						block := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
+							ts.Segment{Head: head}, testBlockOpts, namespace.Context{})
+						goodResult.AddBlock(s.ID(), s.Tags(), block)
+					}
+					dataBlocksIdx++
+					continue
+				}
+
 				head := checked.NewBytes([]byte{0x1}, nil)
 				head.IncRef()
-				tail := checked.NewBytes([]byte{0x2}, nil)
-				tail.IncRef()
 				fooBlock := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
-					ts.Segment{Head: head, Tail: tail}, testBlockOpts, namespace.Context{})
+					ts.Segment{Head: head}, testBlockOpts, namespace.Context{})
 				goodResult.AddBlock(goodID, ident.NewTags(
 					ident.StringTag("aaa", "bbb"),
 					ident.StringTag("ccc", "ddd"),
