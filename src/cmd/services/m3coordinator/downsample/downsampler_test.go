@@ -973,6 +973,90 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesAugmentTag(t *testing.
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRulesConfigMappingRulesWithDropTSTag(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	counterMetric := testCounterMetric{
+		tags: map[string]string{
+			nameTag: "counter0",
+			"app":   "testapp",
+			"foo":   "bar",
+		},
+		timedSamples: []testCounterMetricTimedSample{
+			{value: 1}, {value: 2}, {value: 3},
+		},
+	}
+	tags := []Tag{
+		{Name: "__m3_drop_timestamp__", Value: ""},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+					Tags: tags,
+				},
+				{
+					Filter:       "app:testapp",
+					Aggregations: []aggregation.Type{aggregation.Sum},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics:   []testGaugeMetric{gaugeMetric},
+			counterMetrics: []testCounterMetric{counterMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  1 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+				{
+					tags:   counterMetric.tags,
+					values: []expectedValue{{value: 6}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  1 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+			gaugeDropTimestamp: true,
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigRollupRulesNoNameTag(t *testing.T) {
 	t.Parallel()
 
@@ -1958,7 +2042,7 @@ func testDownsamplerAggregationIngest(
 
 		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
-			err = samplesAppender.AppendCounterSample(sample)
+			err = samplesAppender.AppendUntimedCounterSample(sample, nil)
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
@@ -1968,9 +2052,10 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
-			err = samplesAppender.AppendCounterTimedSample(sample.time, sample.value)
+			err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
 			require.NoError(t, err)
 		}
+		require.Equal(t, testDownsampler.testOpts.expect.counterDropTimestamp, samplesAppender.DropTimestamp())
 	}
 	for _, metric := range testGaugeMetrics {
 		appender.NextMetric()
@@ -1986,7 +2071,7 @@ func testDownsamplerAggregationIngest(
 
 		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
-			err = samplesAppender.AppendGaugeSample(sample)
+			err = samplesAppender.AppendUntimedGaugeSample(sample, nil)
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
@@ -1996,9 +2081,10 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
-			err = samplesAppender.AppendGaugeTimedSample(sample.time, sample.value)
+			err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
 			require.NoError(t, err)
 		}
+		require.Equal(t, testDownsampler.testOpts.expect.gaugeDropTimestamp, samplesAppender.DropTimestamp())
 	}
 }
 
@@ -2059,10 +2145,15 @@ type testDownsamplerOptionsIngest struct {
 }
 
 type testDownsamplerOptionsExpect struct {
-	writes []testExpectedWrite
+	writes               []testExpectedWrite
+	counterDropTimestamp bool
+	gaugeDropTimestamp   bool
 }
 
 func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampler {
+	if opts.expect == nil {
+		opts.expect = &testDownsamplerOptionsExpect{}
+	}
 	storage := mock.NewMockStorage()
 	rulesKVStore := mem.NewStore()
 

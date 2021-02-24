@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -1494,14 +1495,14 @@ func (i *nsIndex) query(
 		}
 
 		// NB(r): Make sure error is not retried and returns as bad request.
-		return exhaustive, xerrors.NewInvalidParamsError(fmt.Errorf(
+		return exhaustive, xerrors.NewInvalidParamsError(limits.NewQueryLimitExceededError(fmt.Sprintf(
 			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
 			opts.SeriesLimit,
 			seriesCount,
 			opts.DocsLimit,
 			docsCount,
-		))
+		)))
 	}
 
 	// Otherwise non-exhaustive but not required to be.

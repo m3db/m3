@@ -76,7 +76,8 @@ func testInvalidQueryReturns400(t *testing.T, tests []urlTest) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.NoError(t, coord.RunQuery(verifyResponse(400), tt.url), "for query '%v'", tt.url)
+			err := coord.RunQuery(verifyResponse(400), tt.url, nil)
+			assert.NoError(t, err, "for query '%v'", tt.url)
 		})
 	}
 }

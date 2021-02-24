@@ -165,23 +165,13 @@ func (h *stagedPlacementHelper) PlacementProto() (proto.Message, int, error) {
 	return ps, value.Version(), err
 }
 
-// GenerateProto generates a proto message with the placement appended to the snapshots.
+// GenerateProto generates a proto message with placement slice
+// containing only single active placement - the specified placement with cutover time set to 0.
+// This ensures backward comapatiblity with clients that rely on staged placement
+// and expect to find at least one placement snapshot having CutoverNanos < now.
 func (h *stagedPlacementHelper) GenerateProto(p placement.Placement) (proto.Message, error) {
-	ps, _, err := h.placements()
-	if err != nil && err != kv.ErrNotFound {
-		return nil, err
-	}
-
-	if l := len(ps); l > 0 {
-		lastCutoverNanos := ps[l-1].CutoverNanos()
-		// When there is valid placement in the snapshots, the new placement must be scheduled after last placement.
-		if lastCutoverNanos >= p.CutoverNanos() {
-			return nil, fmt.Errorf("invalid placement: cutover nanos %d must be later than last placement cutover nanos %d",
-				p.CutoverNanos(), lastCutoverNanos)
-		}
-	}
-
-	ps = append(ps, p)
+	active := p.SetCutoverNanos(0)
+	ps := placement.Placements{active}
 	return ps.Proto()
 }
 
