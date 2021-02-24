@@ -15,7 +15,7 @@ bootstrappers = {filesystem, commitlog, peer, uninitialized}
 
 while true:
     namespaces = getOwnedNamespaces()
-    shards = filterNonBootstrapped(getOwnedShards())
+    shards = filterNonBootstrapped(getOwnedShards()) # NOTE: peer bootstrapper takes INITIALIZING shards
 
     # shard time ranges which needs to be bootstrapped
     persistRange, memoryRange =
