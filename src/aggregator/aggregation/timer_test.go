@@ -22,6 +22,8 @@ package aggregation
 
 import (
 	"math"
+	"math/rand"
+	"sort"
 	"testing"
 	"time"
 
@@ -50,12 +52,45 @@ var (
 	}
 )
 
-func TestCreateTimerResetStream(t *testing.T) {
-	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	streamPool := cm.NewStreamPool(poolOpts)
-	streamOpts := cm.NewOptions().SetStreamPool(streamPool)
-	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, streamOpts) })
+func testStreamOptions() cm.Options {
+	return cm.NewOptions()
+}
 
+func getTimerSamples(
+	num int,
+	generator func(*rand.Rand) float64,
+	q []float64,
+) ([]float64, []float64) {
+	if generator == nil {
+		generator = func(r *rand.Rand) float64 {
+			return r.Float64()
+		}
+	}
+	var (
+		quantiles = make([]float64, len(q))
+		samples   = make([]float64, num)
+		sorted    = make([]float64, num)
+		rnd       = rand.New(rand.NewSource(0)) //nolint:gosec
+	)
+
+	for i := 0; i < len(samples); i++ {
+		samples[i] = generator(rnd)
+	}
+
+	copy(sorted, samples)
+	sort.Float64s(sorted)
+	n := float64(len(sorted) - 1)
+	for i, quantile := range q {
+		quantiles[i] = sorted[int(n*quantile)]
+	}
+
+	return samples, quantiles
+}
+
+func TestCreateTimerResetStream(t *testing.T) {
+	floatsPool := pool.NewFloatsPool([]pool.Bucket{{Capacity: 2048, Count: 100}}, nil)
+	floatsPool.Init()
+	streamOpts := cm.NewOptions()
 	// Add a value to the timer and close the timer, which returns the
 	// underlying stream to the pool.
 	timer := NewTimer(testQuantiles, streamOpts, NewOptions(instrument.NewOptions()))
@@ -75,10 +110,10 @@ func TestTimerAggregations(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.ResetSetData(testAggTypes)
 
-	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+	timer := NewTimer(testQuantiles, testStreamOptions(), opts)
 
 	// Assert the state of an empty timer.
-	require.True(t, timer.HasExpensiveAggregations)
+	require.True(t, timer.hasExpensiveAggregations)
 	require.Equal(t, int64(0), timer.Count())
 	require.Equal(t, 0.0, timer.Sum())
 	require.Equal(t, 0.0, timer.SumSq())
@@ -149,10 +184,10 @@ func TestTimerAggregationsNotExpensive(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.ResetSetData(aggregation.Types{aggregation.Sum})
 
-	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+	timer := NewTimer(testQuantiles, testStreamOptions(), opts)
 
 	// Assert the state of an empty timer.
-	require.False(t, timer.HasExpensiveAggregations)
+	require.False(t, timer.hasExpensiveAggregations)
 
 	// Add values.
 	at := time.Now()

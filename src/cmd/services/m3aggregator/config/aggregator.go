@@ -521,27 +521,26 @@ type streamConfiguration struct {
 	// Error epsilon for quantile computation.
 	Eps float64 `yaml:"eps"`
 
-	// Initial heap capacity for quantile computation.
+	// Initial sample pool capacity for quantile computation.
 	Capacity int `yaml:"capacity"`
 
 	// Insertion and compression frequency.
 	InsertAndCompressEvery int `yaml:"insertAndCompressEvery"`
 
-	// Flush frequency.
+	// FlushEvery is deprecated.
 	FlushEvery int `yaml:"flushEvery"`
 
-	// Pool of streams.
+	// StreamPool is deprecated.
 	StreamPool pool.ObjectPoolConfiguration `yaml:"streamPool"`
 
-	// Pool of metric samples.
+	// SamplePool is deprecated.
 	SamplePool *pool.ObjectPoolConfiguration `yaml:"samplePool"`
 
-	// Pool of float slices.
+	// FloatsPool is deprecated.
 	FloatsPool pool.BucketizedPoolConfiguration `yaml:"floatsPool"`
 }
 
-func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options) (cm.Options, error) {
-	scope := instrumentOpts.MetricsScope()
+func (c *streamConfiguration) NewStreamOptions(_ instrument.Options) (cm.Options, error) {
 	opts := cm.NewOptions().
 		SetEps(c.Eps).
 		SetCapacity(c.Capacity)
@@ -549,29 +548,6 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	if c.InsertAndCompressEvery != 0 {
 		opts = opts.SetInsertAndCompressEvery(c.InsertAndCompressEvery)
 	}
-	if c.FlushEvery != 0 {
-		opts = opts.SetFlushEvery(c.FlushEvery)
-	}
-
-	if c.SamplePool != nil {
-		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("sample-pool"))
-		samplePoolOpts := c.SamplePool.NewObjectPoolOptions(iOpts)
-		samplePool := cm.NewSamplePool(samplePoolOpts)
-		opts = opts.SetSamplePool(samplePool)
-		samplePool.Init()
-	}
-
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
-	floatsPoolOpts := c.FloatsPool.NewObjectPoolOptions(iOpts)
-	floatsPool := pool.NewFloatsPool(c.FloatsPool.NewBuckets(), floatsPoolOpts)
-	opts = opts.SetFloatsPool(floatsPool)
-	floatsPool.Init()
-
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("stream-pool"))
-	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
-	streamPool := cm.NewStreamPool(streamPoolOpts)
-	opts = opts.SetStreamPool(streamPool)
-	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, opts) })
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
