@@ -1630,9 +1630,28 @@ func (i *nsIndex) queryWithSpan(
 		}
 	}()
 
-	// used by each blockIter to break the iteration loop if the query can't continue processing.
-	queryCanceled := func() bool {
-		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
+	// waitForPermit waits for a permit. returns true if the permit was acquired and the wait time.
+	waitForPermit := func() (bool, time.Duration) {
+		queryCanceled := func() bool {
+			return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
+		}
+		// make sure the query hasn't been canceled before waiting for a permit.
+		if queryCanceled() {
+			return false, 0
+		}
+		startWait := time.Now()
+		err := permits.Acquire(ctx)
+		waitTime := time.Since(startWait)
+		if err != nil {
+			state.addErr(err)
+			return false, waitTime
+		}
+		// make sure the query hasn't been canceled while waiting for a permit.
+		if queryCanceled() {
+			permits.Release()
+			return false, waitTime
+		}
+		return true, waitTime
 	}
 
 	// We're looping through all the blocks that we need to query and kicking
@@ -1644,32 +1663,14 @@ func (i *nsIndex) queryWithSpan(
 		// Capture for async query execution below.
 		blockIter := blockIter
 
-		// make sure the query hasn't been canceled
-		if queryCanceled() {
+		// acquire a permit before kicking off the goroutine to process the iterator. this limits the number of
+		// concurrent goroutines to # of permits + large queries that needed multiple iterations to finish.
+		acq, waitTime := waitForPermit()
+		blockIter.waitTime += waitTime
+		if !acq {
 			break
 		}
 
-		// first use TryAcquire to kick off as many parallel block queries as possible, in case no other queries are
-		// actively running.
-		acq, err := permits.TryAcquire(ctx)
-		if err != nil {
-			state.addErr(err)
-			break
-		}
-		// block waiting for a permit if none are available. this limits the number of concurrent go routines running.
-		if !acq {
-			startWait := time.Now()
-			err := permits.Acquire(ctx)
-			blockIter.waitTime += time.Since(startWait)
-			if err != nil {
-				state.addErr(err)
-				break
-			}
-			// make sure the query hasn't been canceled while waiting for a permit.
-			if queryCanceled() {
-				break
-			}
-		}
 		wg.Add(1)
 		// kick off a go routine to process the entire iterator.
 		go func() {
@@ -1678,19 +1679,9 @@ func (i *nsIndex) queryWithSpan(
 				// if this is not the first iteration of the iterator, there were more results than the
 				// MaxResultsPerPermit, so need to acquire another permit.
 				if !first {
-					// don't wait for a permit if the query has been canceled.
-					if queryCanceled() {
-						break
-					}
-					startWait := time.Now()
-					err := permits.Acquire(ctx)
-					blockIter.waitTime += time.Since(startWait)
-					if err != nil {
-						state.addErr(err)
-						break
-					}
-					// check the query hasn't been canceled while waiting.
-					if queryCanceled() {
+					acq, waitTime := waitForPermit()
+					blockIter.waitTime += waitTime
+					if !acq {
 						break
 					}
 				}
