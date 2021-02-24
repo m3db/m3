@@ -68,8 +68,7 @@ func setPlacement(
 	store kv.Store,
 	pl placement.Placement,
 ) error {
-	stagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]placement.Placement{pl})
+	stagedPlacement := placement.Placements{pl}
 	stagedPlacementProto, err := stagedPlacement.Proto()
 	if err != nil {
 		return err

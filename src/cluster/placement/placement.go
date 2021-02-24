@@ -37,12 +37,11 @@ const (
 )
 
 var (
-	errNilPlacementProto          = errors.New("nil placement proto")
-	errNilPlacementSnapshotsProto = errors.New("nil placement snapshots proto")
-	errNilPlacementInstanceProto  = errors.New("nil placement instance proto")
-	errDuplicatedShards           = errors.New("invalid placement, there are duplicated shards in one replica")
-	errUnexpectedShards           = errors.New("invalid placement, there are unexpected shard ids on instance")
-	errMirrorNotSharded           = errors.New("invalid placement, mirrored placement must be sharded")
+	errNilPlacementProto         = errors.New("nil placement proto")
+	errNilPlacementInstanceProto = errors.New("nil placement instance proto")
+	errDuplicatedShards          = errors.New("invalid placement, there are duplicated shards in one replica")
+	errUnexpectedShards          = errors.New("invalid placement, there are unexpected shard ids on instance")
+	errMirrorNotSharded          = errors.New("invalid placement, mirrored placement must be sharded")
 )
 
 type placement struct {
@@ -241,54 +240,6 @@ func (p *placement) Clone() Placement {
 		SetCutoverNanos(p.CutoverNanos()).
 		SetMaxShardSetID(p.MaxShardSetID()).
 		SetVersion(p.Version())
-}
-
-// Placements represents a list of placements.
-type Placements []Placement
-
-// NewPlacementsFromProto creates a list of placements from proto.
-func NewPlacementsFromProto(p *placementpb.PlacementSnapshots) (Placements, error) {
-	if p == nil {
-		return nil, errNilPlacementSnapshotsProto
-	}
-
-	placements := make([]Placement, 0, len(p.Snapshots))
-	for _, snapshot := range p.Snapshots {
-		placement, err := NewPlacementFromProto(snapshot)
-		if err != nil {
-			return nil, err
-		}
-		placements = append(placements, placement)
-	}
-	sort.Sort(placementsByCutoverAsc(placements))
-	return placements, nil
-}
-
-// Proto converts a list of Placement to a proto.
-func (placements Placements) Proto() (*placementpb.PlacementSnapshots, error) {
-	snapshots := make([]*placementpb.Placement, 0, len(placements))
-	for _, p := range placements {
-		placementProto, err := p.Proto()
-		if err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, placementProto)
-	}
-	return &placementpb.PlacementSnapshots{
-		Snapshots: snapshots,
-	}, nil
-}
-
-// ActiveIndex finds the index of the last placement whose cutover time is no
-// later than timeNanos (a.k.a. the active placement). Assuming the cutover times
-// of the placements are sorted in ascending order (i.e., earliest time first).
-func (placements Placements) ActiveIndex(timeNanos int64) int {
-	idx := 0
-	for idx < len(placements) && placements[idx].CutoverNanos() <= timeNanos {
-		idx++
-	}
-	idx--
-	return idx
 }
 
 // Validate validates a placement to ensure:

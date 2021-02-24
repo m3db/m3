@@ -68,18 +68,17 @@ func defaultStagedPlacementProto() (*placementpb.PlacementSnapshots, error) {
 	testPlacement := placement.NewPlacement().
 		SetInstances([]placement.Instance{instance}).
 		SetShards(shards.AllIDs())
-	stagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]placement.Placement{testPlacement})
+	stagedPlacement := placement.Placements{testPlacement}
 	return stagedPlacement.Proto()
 }
 
 func defaultNamespaces() *rulepb.Namespaces {
 	return &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: defaultNamespace,
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
@@ -91,16 +90,16 @@ func defaultNamespaces() *rulepb.Namespaces {
 
 func defaultMappingRulesConfig() []*rulepb.MappingRule {
 	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule1",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 1000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -118,10 +117,10 @@ func defaultMappingRulesConfig() []*rulepb.MappingRule {
 
 func defaultRollupRulesConfig() []*rulepb.RollupRule {
 	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule1",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 500,
@@ -141,7 +140,7 @@ func defaultRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -221,7 +220,7 @@ func defaultBytesPool() pool.BytesPool {
 func defaultAggregatorClientOptions(
 	store kv.Store,
 ) aggclient.Options {
-	watcherOpts := placement.NewStagedPlacementWatcherOptions().
+	watcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(defaultPlacementKey).
 		SetStagedPlacementStore(store)
 	bytesPool := defaultBytesPool()
@@ -229,6 +228,6 @@ func defaultAggregatorClientOptions(
 	encoderOpts := protobuf.NewUnaggregatedOptions().SetBytesPool(bytesPool)
 	return aggclient.NewOptions().
 		SetShardFn(defaultShardFn).
-		SetStagedPlacementWatcherOptions(watcherOpts).
+		SetWatcherOptions(watcherOpts).
 		SetEncoderOptions(encoderOpts)
 }

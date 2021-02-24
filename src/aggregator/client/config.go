@@ -40,16 +40,14 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")
-)
+var errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")
 
 // Configuration contains client configuration.
 type Configuration struct {
 	Type                       AggregatorClientType            `yaml:"type"`
 	M3Msg                      *M3MsgConfiguration             `yaml:"m3msg"`
 	PlacementKV                *kv.OverrideConfiguration       `yaml:"placementKV"`
-	PlacementWatcher           *placement.WatcherConfiguration `yaml:"placementWatcher"`
+	Watcher                    *placement.WatcherConfiguration `yaml:"placementWatcher"`
 	HashType                   *sharding.HashType              `yaml:"hashType"`
 	ShardCutoverWarmupDuration *time.Duration                  `yaml:"shardCutoverWarmupDuration"`
 	ShardCutoffLingerDuration  *time.Duration                  `yaml:"shardCutoffLingerDuration"`
@@ -93,8 +91,8 @@ func (c *Configuration) NewClient(
 }
 
 var (
-	errLegacyClientNoPlacementKVConfig      = errors.New("no placement KV config set")
-	errLegacyClientNoPlacementWatcherConfig = errors.New("no placement watcher config set")
+	errLegacyClientNoPlacementKVConfig = errors.New("no placement KV config set")
+	errLegacyClientNoWatcherConfig     = errors.New("no placement watcher config set")
 )
 
 func (c *Configuration) newClientOptions(
@@ -133,9 +131,9 @@ func (c *Configuration) newClientOptions(
 			return nil, errLegacyClientNoPlacementKVConfig
 		}
 
-		placementWatcher := c.PlacementWatcher
+		placementWatcher := c.Watcher
 		if placementWatcher == nil {
-			return nil, errLegacyClientNoPlacementWatcherConfig
+			return nil, errLegacyClientNoWatcherConfig
 		}
 
 		scope := instrumentOpts.MetricsScope()
@@ -166,7 +164,7 @@ func (c *Configuration) newClientOptions(
 			return nil, err
 		}
 
-		opts = opts.SetStagedPlacementWatcherOptions(watcherOpts).
+		opts = opts.SetWatcherOptions(watcherOpts).
 			SetShardFn(shardFn).
 			SetEncoderOptions(encoderOpts).
 			SetConnectionOptions(connectionOpts)

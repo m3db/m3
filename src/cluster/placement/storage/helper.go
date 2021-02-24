@@ -147,12 +147,12 @@ func (h *stagedPlacementHelper) Placement() (placement.Placement, int, error) {
 		return nil, 0, err
 	}
 
-	l := len(ps)
-	if l == 0 {
-		return nil, 0, errNoPlacementInTheSnapshots
+	last, err := ps.Last()
+	if err != nil {
+		return nil, 0, err
 	}
 
-	return ps[l-1], v, nil
+	return last, v, nil
 }
 
 func (h *stagedPlacementHelper) PlacementProto() (proto.Message, int, error) {
@@ -210,12 +210,12 @@ func (h *stagedPlacementHelper) PlacementForVersion(version int) (placement.Plac
 		return nil, err
 	}
 
-	l := len(ps)
-	if l == 0 {
-		return nil, errNoPlacementInTheSnapshots
+	last, err := ps.Last()
+	if err != nil {
+		return nil, err
 	}
 
-	return ps[l-1], nil
+	return last, nil
 }
 
 func placementProtoFromValue(v kv.Value) (*placementpb.Placement, error) {
