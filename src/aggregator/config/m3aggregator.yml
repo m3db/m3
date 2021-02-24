@@ -29,26 +29,6 @@ rawtcp:
     forever: true
     jitter: true
   readBufferSize: 65536
-  protobufIterator:
-    initBufferSize: 1440
-    maxMessageSize: 50000000  # max message size is 50MB
-    bytesPool:
-      buckets:
-        - count: 1024
-          capacity: 2048
-        - count: 512
-          capacity: 4096
-        - count: 256
-          capacity: 8192
-        - count: 128
-          capacity: 16384
-        - count: 64
-          capacity: 32768
-        - count: 32
-          capacity: 65536
-      watermark:
-        low: 0.001
-        high: 0.002
 
 kvClient:
   etcd:

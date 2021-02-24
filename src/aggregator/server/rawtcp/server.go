@@ -21,261 +21,64 @@
 package rawtcp
 
 import (
-	"bufio"
-	"fmt"
-	"io"
-	"net"
-	"sync"
+	"context"
+	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3/src/aggregator/rate"
-	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-	"github.com/m3db/m3/src/metrics/metadata"
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3/src/metrics/policy"
-	xio "github.com/m3db/m3/src/x/io"
-	xserver "github.com/m3db/m3/src/x/server"
-	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
+	"github.com/panjf2000/gnet"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/aggregator/aggregator"
 )
 
-const (
-	unknownRemoteHostAddress = "<unknown>"
-)
+//const _poolRecycleInterval = 5 * time.Second
 
 // NewServer creates a new raw TCP server.
-func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
+func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (*Server, error) {
 	iOpts := opts.InstrumentOptions()
 	handlerScope := iOpts.MetricsScope().Tagged(map[string]string{"handler": "rawtcp"})
-	handler := NewHandler(aggregator, opts.SetInstrumentOptions(iOpts.SetMetricsScope(handlerScope)))
-	return xserver.NewServer(address, handler, opts.ServerOptions())
-}
+	logger := iOpts.Logger()
 
-type handlerMetrics struct {
-	unknownMessageTypeErrors tally.Counter
-	addUntimedErrors         tally.Counter
-	addTimedErrors           tally.Counter
-	addForwardedErrors       tally.Counter
-	addPassthroughErrors     tally.Counter
-	unknownErrorTypeErrors   tally.Counter
-	decodeErrors             tally.Counter
-	errLogRateLimited        tally.Counter
-}
-
-func newHandlerMetrics(scope tally.Scope) handlerMetrics {
-	return handlerMetrics{
-		unknownMessageTypeErrors: scope.Counter("unknown-message-type-errors"),
-		addUntimedErrors:         scope.Counter("add-untimed-errors"),
-		addTimedErrors:           scope.Counter("add-timed-errors"),
-		addForwardedErrors:       scope.Counter("add-forwarded-errors"),
-		addPassthroughErrors:     scope.Counter("add-passthrough-errors"),
-		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
-		decodeErrors:             scope.Counter("decode-errors"),
-		errLogRateLimited:        scope.Counter("error-log-rate-limited"),
-	}
-}
-
-type handler struct {
-	sync.Mutex
-
-	aggregator     aggregator.Aggregator
-	log            *zap.Logger
-	readBufferSize int
-	protobufItOpts protobuf.UnaggregatedOptions
-
-	errLogRateLimiter *rate.Limiter
-	metrics           handlerMetrics
-
-	opts Options
-}
-
-// NewHandler creates a new raw TCP handler.
-func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler {
-	iOpts := opts.InstrumentOptions()
-	var limiter *rate.Limiter
-	if rateLimit := opts.ErrorLogLimitPerSecond(); rateLimit != 0 {
-		limiter = rate.NewLimiter(rateLimit)
-	}
-	return &handler{
-		aggregator:        aggregator,
-		log:               iOpts.Logger(),
-		readBufferSize:    opts.ReadBufferSize(),
-		protobufItOpts:    opts.ProtobufUnaggregatedIteratorOptions(),
-		errLogRateLimiter: limiter,
-		metrics:           newHandlerMetrics(iOpts.MetricsScope()),
-		opts:              opts,
-	}
-}
-
-func (s *handler) Handle(conn net.Conn) {
-	remoteAddress := unknownRemoteHostAddress
-	if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
-		remoteAddress = remoteAddr.String()
+	keepalive := opts.ServerOptions().TCPConnectionKeepAlivePeriod()
+	if !opts.ServerOptions().TCPConnectionKeepAlive() {
+		keepalive = 0
 	}
 
-	nowFn := s.opts.ClockOptions().NowFn()
-	rOpts := xio.ResettableReaderOptions{ReadBufferSize: s.readBufferSize}
-	read := s.opts.RWOptions().ResettableReaderFn()(conn, rOpts)
-	reader := bufio.NewReaderSize(read, s.readBufferSize)
-	it := protobuf.NewUnaggregatedIterator(reader, s.protobufItOpts)
-	defer it.Close()
-
-	// Iterate over the incoming metrics stream and queue up metrics.
-	var (
-		untimedMetric       unaggregated.MetricUnion
-		stagedMetadatas     metadata.StagedMetadatas
-		forwardedMetric     aggregated.ForwardedMetric
-		forwardMetadata     metadata.ForwardMetadata
-		timedMetric         aggregated.Metric
-		timedMetadata       metadata.TimedMetadata
-		passthroughMetric   aggregated.Metric
-		passthroughMetadata policy.StoragePolicy
-		err                 error
-	)
-	for it.Next() {
-		current := it.Current()
-		switch current.Type {
-		case encoding.CounterWithMetadatasType:
-			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
-			untimedMetric.Annotation = current.CounterWithMetadatas.Annotation
-			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
-			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
-		case encoding.BatchTimerWithMetadatasType:
-			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
-			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
-			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
-			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
-		case encoding.GaugeWithMetadatasType:
-			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
-			untimedMetric.Annotation = current.GaugeWithMetadatas.Annotation
-			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
-			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
-		case encoding.ForwardedMetricWithMetadataType:
-			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
-			untimedMetric.Annotation = current.ForwardedMetricWithMetadata.Annotation
-			forwardMetadata = current.ForwardedMetricWithMetadata.ForwardMetadata
-			err = addForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
-		case encoding.TimedMetricWithMetadataType:
-			timedMetric = current.TimedMetricWithMetadata.Metric
-			timedMetric.Annotation = current.TimedMetricWithMetadata.Annotation
-			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
-			err = addTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
-		case encoding.TimedMetricWithMetadatasType:
-			timedMetric = current.TimedMetricWithMetadatas.Metric
-			timedMetric.Annotation = current.TimedMetricWithMetadatas.Annotation
-			stagedMetadatas = current.TimedMetricWithMetadatas.StagedMetadatas
-			err = addTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
-		case encoding.PassthroughMetricWithMetadataType:
-			passthroughMetric = current.PassthroughMetricWithMetadata.Metric
-			passthroughMetric.Annotation = current.PassthroughMetricWithMetadata.Annotation
-			passthroughMetadata = current.PassthroughMetricWithMetadata.StoragePolicy
-			err = addPassthroughError(s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata))
-		default:
-			err = newUnknownMessageTypeError(current.Type)
-		}
-
-		if err == nil {
-			continue
-		}
-
-		// We rate limit the error log here because the error rate may scale with
-		// the metrics incoming rate and consume lots of cpu cycles.
-		if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1, xtime.ToUnixNano(nowFn())) {
-			s.metrics.errLogRateLimited.Inc(1)
-			continue
-		}
-		switch err.(type) {
-		case unknownMessageTypeError:
-			s.metrics.unknownMessageTypeErrors.Inc(1)
-			s.log.Error("unexpected message type",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Error(err),
-			)
-		case addUntimedError:
-			s.metrics.addUntimedErrors.Inc(1)
-			s.log.Error("error adding untimed metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("type", untimedMetric.Type),
-				zap.Stringer("id", untimedMetric.ID),
-				zap.Any("metadatas", stagedMetadatas),
-				zap.Error(err),
-			)
-		case addForwardedError:
-			s.metrics.addForwardedErrors.Inc(1)
-			s.log.Error("error adding forwarded metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", forwardedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, forwardedMetric.TimeNanos)),
-				zap.Float64s("values", forwardedMetric.Values),
-				zap.Error(err),
-			)
-		case addTimedError:
-			s.metrics.addTimedErrors.Inc(1)
-			s.log.Error("error adding timed metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", timedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
-				zap.Float64("value", timedMetric.Value),
-				zap.Error(err),
-			)
-		case addPassthroughError:
-			s.metrics.addPassthroughErrors.Inc(1)
-			s.log.Error("error adding passthrough metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", timedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
-				zap.Float64("value", timedMetric.Value),
-				zap.Error(err),
-			)
-		default:
-			s.metrics.unknownErrorTypeErrors.Inc(1)
-			s.log.Error("unknown error type",
-				zap.String("errorType", fmt.Sprintf("%T", err)),
-				zap.Error(err),
-			)
-		}
-	}
-
-	// If there is an error during decoding, it's likely due to a broken connection
-	// and therefore we ignore the EOF error.
-	if err := it.Err(); err != nil && err != io.EOF {
-		s.log.Error("decode error",
-			zap.String("remoteAddress", remoteAddress),
-			zap.Error(err),
-		)
-		s.metrics.decodeErrors.Inc(1)
-	}
+	return &Server{
+		addr:      "tcp://" + address,
+		logger:    logger,
+		keepalive: keepalive,
+		bufSize:   opts.ReadBufferSize(),
+		handler:   NewConnHandler(aggregator, nil, logger, handlerScope, opts.ErrorLogLimitPerSecond()),
+	}, nil
 }
 
-func (s *handler) Close() {
-	// NB(cw) Do not close s.aggregator here because it's shared between
-	// the raw TCP server and the http server, and it will be closed on
-	// exit signal.
+// Server is raw TCP server.
+type Server struct {
+	addr      string
+	keepalive time.Duration
+	logger    *zap.Logger
+	handler   *connHandler
+	bufSize   int
 }
 
-type unknownMessageTypeError struct {
-	msgType encoding.UnaggregatedMessageType
+// ListenAndServe starts the server and event loops.
+func (s *Server) ListenAndServe() error {
+	gnet.Serve(s.handler, s.addr, gnet.WithOptions(
+		gnet.Options{
+			ReadBufferCap: s.bufSize,
+			TCPKeepAlive:  s.keepalive,
+			NumEventLoop:  runtime.GOMAXPROCS(0) / 2,
+			Codec:         s.handler,
+		},
+	))
+	return nil
 }
 
-func newUnknownMessageTypeError(
-	msgType encoding.UnaggregatedMessageType,
-) unknownMessageTypeError {
-	return unknownMessageTypeError{msgType: msgType}
+// Close closes the server.
+func (s *Server) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	s.handler.Close()
+	return gnet.Stop(ctx, s.addr)
 }
-
-func (e unknownMessageTypeError) Error() string {
-	return fmt.Sprintf("unknown message type %v", e.msgType)
-}
-
-type addForwardedError error
-
-type addPassthroughError error
-
-type addTimedError error
-
-type addUntimedError error

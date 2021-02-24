@@ -62,6 +62,8 @@ require (
 	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest/v3 v3.6.3
+	github.com/panjf2000/ants/v2 v2.4.3
+	github.com/panjf2000/gnet v1.4.3
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
 	github.com/pkg/errors v0.9.1
@@ -106,7 +108,7 @@ require (
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20210324051636-2c4c8ecb7826
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210324051608-47abb6519492
+	golang.org/x/sys v0.0.0-20210326220804-49726bf1d181
 	golang.org/x/tools v0.1.0
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.25.0

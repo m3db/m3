@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/encoding"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 
@@ -570,4 +571,46 @@ func TestUnaggregatedIteratorNextOnInvalid(t *testing.T) {
 	it = NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
 	require.False(t, it.Next())
 	require.False(t, it.Next())
+}
+
+func TestTypeFromProto(t *testing.T) {
+	for _, tt := range []struct {
+		src metricpb.MetricWithMetadatas_Type
+		dst encoding.UnaggregatedMessageType
+	}{
+		{
+			src: metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS,
+			dst: encoding.CounterWithMetadatasType,
+		},
+		{
+			src: metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
+			dst: encoding.BatchTimerWithMetadatasType,
+		},
+		{
+			src: metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
+			dst: encoding.GaugeWithMetadatasType,
+		},
+		{
+			src: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+			dst: encoding.ForwardedMetricWithMetadataType,
+		},
+		{
+			src: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
+			dst: encoding.TimedMetricWithMetadataType,
+		},
+		{
+			src: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS,
+			dst: encoding.TimedMetricWithMetadatasType,
+		},
+		{
+			src: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY,
+			dst: encoding.PassthroughMetricWithMetadataType,
+		},
+		{
+			src: metricpb.MetricWithMetadatas_UNKNOWN,
+			dst: encoding.UnknownMessageType,
+		},
+	} {
+		require.Equal(t, tt.dst, TypeFromProto(tt.src))
+	}
 }

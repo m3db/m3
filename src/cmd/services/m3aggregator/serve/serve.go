@@ -54,14 +54,22 @@ func Serve(
 		log.Info("m3msg server listening", zap.String("addr", m3msgAddr))
 	}
 
+	errCh := make(chan error, 1)
 	if rawTCPAddr := opts.RawTCPAddr(); rawTCPAddr != "" {
 		serverOpts := opts.RawTCPServerOpts()
-		rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, serverOpts)
-		if err := rawTCPServer.ListenAndServe(); err != nil {
-			return fmt.Errorf("could not start raw TCP server at: addr=%s, err=%v", rawTCPAddr, err)
+		rawTCPServer, err := rawtcpserver.NewServer(rawTCPAddr, aggregator, serverOpts)
+		if err != nil {
+			return fmt.Errorf("could not init raw TCP server: %w", err)
 		}
+		go func() {
+			if err := rawTCPServer.ListenAndServe(); err != nil {
+				errCh <- err
+				log.Warn("raw TCP server exited", zap.String("address", rawTCPAddr),
+					zap.Error(err))
+			}
+		}()
 		defer rawTCPServer.Close()
-		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
+		log.Info("raw TCP server starting up", zap.String("addr", rawTCPAddr))
 	}
 
 	if httpAddr := opts.HTTPAddr(); httpAddr != "" {
@@ -75,7 +83,10 @@ func Serve(
 	}
 
 	// Wait for exit signal.
-	<-doneCh
+	select {
+	case <-doneCh:
+	case <-errCh:
+	}
 
 	return nil
 }
