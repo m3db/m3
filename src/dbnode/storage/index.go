@@ -1631,7 +1631,7 @@ func (i *nsIndex) queryWithSpan(
 	}()
 
 	// used by each blockIter to break the iteration loop if the query can't continue processing.
-	breakIter := func() bool {
+	queryCanceled := func() bool {
 		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
 	}
 
@@ -1643,24 +1643,67 @@ func (i *nsIndex) queryWithSpan(
 	for _, blockIter := range blockIters {
 		// Capture for async query execution below.
 		blockIter := blockIter
+
+		// make sure the query hasn't been canceled
+		if queryCanceled() {
+			break
+		}
+
+		// first use TryAcquire to kick off as many parallel block queries as possible, in case no other queries are
+		// actively running.
+		acq, err := permits.TryAcquire(ctx)
+		if err != nil {
+			state.addErr(err)
+			break
+		}
+		// block waiting for a permit if none are available. this limits the number of concurrent go routines running.
+		if !acq {
+			startWait := time.Now()
+			err := permits.Acquire(ctx)
+			blockIter.waitTime += time.Since(startWait)
+			if err != nil {
+				state.addErr(err)
+				break
+			}
+			// make sure the query hasn't been canceled while waiting for a permit.
+			if queryCanceled() {
+				break
+			}
+		}
 		wg.Add(1)
+		// kick off a go routine to process the entire iterator.
 		go func() {
-			for !blockIter.iter.Done() && !breakIter() {
-				startWait := time.Now()
-				err := permits.Acquire(ctx)
-				blockIter.waitTime += time.Since(startWait)
-				if err != nil {
-					state.addErr(err)
-					break
+			first := true
+			for !blockIter.iter.Done() {
+				// if this is not the first iteration of the iterator, there were more results than the
+				// MaxResultsPerPermit, so need to acquire another permit.
+				if !first {
+					// don't wait for a permit if the query has been canceled.
+					if queryCanceled() {
+						break
+					}
+					startWait := time.Now()
+					err := permits.Acquire(ctx)
+					blockIter.waitTime += time.Since(startWait)
+					if err != nil {
+						state.addErr(err)
+						break
+					}
+					// check the query hasn't been canceled while waiting.
+					if queryCanceled() {
+						break
+					}
 				}
-				// check the query hasn't been canceled while waiting.
-				if !breakIter() {
-					startProcessing := time.Now()
-					execBlockFn(ctx, blockIter.block, blockIter.iter, opts, &state, results, logFields)
-					processingTime := time.Since(startProcessing)
-					i.metrics.queryMetrics.blockProcessingTime.RecordDuration(processingTime)
-					blockIter.processingTime += processingTime
-				}
+				first = false
+				startProcessing := time.Now()
+				execBlockFn(ctx, blockIter.block, blockIter.iter, opts, &state, results, logFields)
+				processingTime := time.Since(startProcessing)
+				i.metrics.queryMetrics.blockProcessingTime.RecordDuration(processingTime)
+				blockIter.processingTime += processingTime
+				permits.Release()
+			}
+			if first {
+				// this should never happen since a new iter cannot be Done, but just to be safe.
 				permits.Release()
 			}
 			blockIter.searchTime += blockIter.iter.SearchDuration()
