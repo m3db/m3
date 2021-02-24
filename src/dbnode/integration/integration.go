@@ -353,14 +353,12 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	}
 }
 
-type generatorOptionsFn = func(generate.Options) generate.Options
-
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
-	generatorOptionsFns ...generatorOptionsFn,
+	generatorOptionsFns ...func(generate.Options) generate.Options,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	gOpts := setup.GeneratorOptions(ropts)
