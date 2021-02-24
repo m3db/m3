@@ -21,6 +21,7 @@
 package client
 
 import (
+	"context"
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -55,7 +56,7 @@ func TestAggregateOp(t *testing.T) {
 		require.Equal(t, err, e)
 		count++
 	}
-	op.update(rpc.AggregateQueryRawRequest{}, fn)
+	op.update(context.Background(), rpc.AggregateQueryRawRequest{}, fn)
 	op.CompletionFn()(inter, err)
 	require.Equal(t, 1, count)
 }

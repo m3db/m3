@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"runtime"
 	"time"
@@ -41,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -181,6 +181,7 @@ type options struct {
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 	tileAggregator                  TileAggregator
+	permitsOptions                  permits.Options
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -258,6 +259,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
+		permitsOptions:                  permits.NewOptions(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -502,16 +504,12 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
-	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(opts.poolOpts)
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
 	opts.blockOpts = opts.blockOpts.
@@ -920,6 +918,17 @@ func (o *options) NamespaceHooks() NamespaceHooks {
 func (o *options) SetTileAggregator(value TileAggregator) Options {
 	opts := *o
 	opts.tileAggregator = value
+
+	return &opts
+}
+
+func (o *options) PermitsOptions() permits.Options {
+	return o.permitsOptions
+}
+
+func (o *options) SetPermitsOptions(value permits.Options) Options {
+	opts := *o
+	opts.permitsOptions = value
 
 	return &opts
 }

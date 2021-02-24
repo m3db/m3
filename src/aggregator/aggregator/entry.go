@@ -146,11 +146,14 @@ type entryMetrics struct {
 	forwarded forwardedEntryMetrics
 }
 
-func newEntryMetrics(scope tally.Scope) entryMetrics {
+// NewEntryMetrics creates new entry metrics.
+//nolint:golint,revive
+func NewEntryMetrics(scope tally.Scope) *entryMetrics {
+	scope = scope.SubScope("entry")
 	untimedEntryScope := scope.Tagged(map[string]string{"entry-type": "untimed"})
 	timedEntryScope := scope.Tagged(map[string]string{"entry-type": "timed"})
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
-	return entryMetrics{
+	return &entryMetrics{
 		untimed:   newUntimedEntryMetrics(untimedEntryScope),
 		timed:     newTimedEntryMetrics(timedEntryScope),
 		forwarded: newForwardedEntryMetrics(forwardedEntryScope),
@@ -168,28 +171,33 @@ func newEntryMetrics(scope tally.Scope) entryMetrics {
 type Entry struct {
 	sync.RWMutex
 
-	closed              bool
-	opts                Options
-	rateLimiter         *rate.Limiter
-	hasDefaultMetadatas bool
-	cutoverNanos        int64
-	lists               *metricLists
-	numWriters          int32
-	lastAccessNanos     int64
-	aggregations        aggregationValues
-	metrics             entryMetrics
+	opts            Options
+	rateLimiter     *rate.Limiter
+	cutoverNanos    int64
+	lists           *metricLists
+	lastAccessNanos int64
+	aggregations    aggregationValues
+	metrics         *entryMetrics
 	// The entry keeps a decompressor to reuse the bitset in it, so we can
 	// save some heap allocations.
-	decompressor aggregation.IDDecompressor
-	nowFn        clock.NowFn
+	decompressor        aggregation.IDDecompressor
+	nowFn               clock.NowFn
+	numWriters          int32
+	closed              bool
+	hasDefaultMetadatas bool
 }
 
 // NewEntry creates a new entry.
 func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *Entry {
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("entry")
+	scope := opts.InstrumentOptions().MetricsScope()
+	return NewEntryWithMetrics(lists, NewEntryMetrics(scope), runtimeOpts, opts)
+}
+
+// NewEntryWithMetrics creates a new entry.
+func NewEntryWithMetrics(lists *metricLists, metrics *entryMetrics, runtimeOpts runtime.Options, opts Options) *Entry {
 	e := &Entry{
 		aggregations: make(aggregationValues, 0, initialAggregationCapacity),
-		metrics:      newEntryMetrics(scope),
+		metrics:      metrics,
 		decompressor: aggregation.NewPooledIDDecompressor(opts.AggregationTypesOptions().TypesPool()),
 		rateLimiter:  rate.NewLimiter(0),
 		nowFn:        opts.ClockOptions().NowFn(),
@@ -495,13 +503,13 @@ func (e *Entry) shouldUpdateStagedMetadatasWithLock(sm metadata.StagedMetadata) 
 	// set but also have duplicates, there is no need to update metadatas as long as
 	// the cached set has all aggregation keys in the incoming metadata and vice versa.
 	bs := bitset.New(uint(len(e.aggregations)))
-	for _, pipeline := range sm.Pipelines {
-		storagePolicies := e.storagePolicies(pipeline.StoragePolicies)
-		for _, storagePolicy := range storagePolicies {
+	for i := range sm.Pipelines {
+		storagePolicies := e.storagePolicies(sm.Pipelines[i].StoragePolicies)
+		for j := range storagePolicies {
 			key := aggregationKey{
-				aggregationID:      pipeline.AggregationID,
-				storagePolicy:      storagePolicy,
-				pipeline:           pipeline.Pipeline,
+				aggregationID:      sm.Pipelines[i].AggregationID,
+				storagePolicy:      storagePolicies[j],
+				pipeline:           sm.Pipelines[i].Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
 			idx := e.aggregations.index(key)
@@ -583,9 +591,9 @@ func (e *Entry) addNewAggregationKeyWithLock(
 }
 
 func (e *Entry) removeOldAggregations(newAggregations aggregationValues) {
-	for _, val := range e.aggregations {
-		if !newAggregations.contains(val.key) {
-			val.elem.Value.(metricElem).MarkAsTombstoned()
+	for i := range e.aggregations {
+		if !newAggregations.contains(e.aggregations[i].key) {
+			e.aggregations[i].elem.Value.(metricElem).MarkAsTombstoned()
 		}
 	}
 }
@@ -602,17 +610,17 @@ func (e *Entry) updateStagedMetadatasWithLock(
 	)
 
 	// Update the metadatas.
-	for _, pipeline := range sm.Pipelines {
-		storagePolicies := e.storagePolicies(pipeline.StoragePolicies)
-		for _, storagePolicy := range storagePolicies {
+	for i := range sm.Pipelines {
+		storagePolicies := e.storagePolicies(sm.Pipelines[i].StoragePolicies)
+		for j := range storagePolicies {
 			key := aggregationKey{
-				aggregationID:      pipeline.AggregationID,
-				storagePolicy:      storagePolicy,
-				pipeline:           pipeline.Pipeline,
+				aggregationID:      sm.Pipelines[i].AggregationID,
+				storagePolicy:      storagePolicies[j],
+				pipeline:           sm.Pipelines[i].Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
 			listID := standardMetricListID{
-				resolution: storagePolicy.Resolution().Window,
+				resolution: storagePolicies[j].Resolution().Window,
 			}.toMetricListID()
 			var err error
 			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations)
@@ -635,8 +643,8 @@ func (e *Entry) updateStagedMetadatasWithLock(
 
 func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	multiErr := xerrors.NewMultiError()
-	for _, val := range e.aggregations {
-		if err := val.elem.Value.(metricElem).AddUnion(timestamp, mu); err != nil {
+	for i := range e.aggregations {
+		if err := e.aggregations[i].elem.Value.(metricElem).AddUnion(timestamp, mu); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -864,7 +872,7 @@ func (e *Entry) addTimedWithLock(
 	metric aggregated.Metric,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value)
+	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation)
 }
 
 func (e *Entry) addTimedWithStagedMetadatasAndLock(
@@ -872,8 +880,8 @@ func (e *Entry) addTimedWithStagedMetadatasAndLock(
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
 	multiErr := xerrors.NewMultiError()
-	for _, val := range e.aggregations {
-		if err := val.elem.Value.(metricElem).AddValue(timestamp, metric.Value); err != nil {
+	for i := range e.aggregations {
+		if err := e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -1027,7 +1035,7 @@ func (e *Entry) addForwardedWithLock(
 	sourceID uint32,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, sourceID)
+	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, metric.Annotation, sourceID)
 	if err == errDuplicateForwardingSource {
 		// Duplicate forwarding sources may occur during a leader re-election and is not
 		// considered an external facing error. Hence, we record it and move on.

@@ -21,7 +21,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -35,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/getopt"
@@ -159,7 +159,7 @@ func main() {
 		if benchMode != benchmarkSeries {
 			data.IncRef()
 
-			iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
+			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data.Bytes()), true, encodingOpts)
 			for iter.Next() {
 				dp, _, annotation := iter.Current()
 				if benchMode == benchmarkNone {

@@ -142,30 +142,37 @@ func (s *handler) Handle(conn net.Conn) {
 		switch current.Type {
 		case encoding.CounterWithMetadatasType:
 			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
+			untimedMetric.Annotation = current.CounterWithMetadatas.Annotation
 			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
 			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.BatchTimerWithMetadatasType:
 			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
+			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
 			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
 			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.GaugeWithMetadatasType:
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
+			untimedMetric.Annotation = current.GaugeWithMetadatas.Annotation
 			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
 			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.ForwardedMetricWithMetadataType:
 			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
+			untimedMetric.Annotation = current.ForwardedMetricWithMetadata.Annotation
 			forwardMetadata = current.ForwardedMetricWithMetadata.ForwardMetadata
 			err = addForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
 		case encoding.TimedMetricWithMetadataType:
 			timedMetric = current.TimedMetricWithMetadata.Metric
+			timedMetric.Annotation = current.TimedMetricWithMetadata.Annotation
 			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
 			err = addTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
 		case encoding.TimedMetricWithMetadatasType:
 			timedMetric = current.TimedMetricWithMetadatas.Metric
+			timedMetric.Annotation = current.TimedMetricWithMetadatas.Annotation
 			stagedMetadatas = current.TimedMetricWithMetadatas.StagedMetadatas
 			err = addTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
 		case encoding.PassthroughMetricWithMetadataType:
 			passthroughMetric = current.PassthroughMetricWithMetadata.Metric
+			passthroughMetric.Annotation = current.PassthroughMetricWithMetadata.Annotation
 			passthroughMetadata = current.PassthroughMetricWithMetadata.StoragePolicy
 			err = addPassthroughError(s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata))
 		default:

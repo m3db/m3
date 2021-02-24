@@ -22,7 +22,6 @@ package client
 
 import (
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"sort"
@@ -32,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
@@ -272,9 +270,7 @@ func initTestFetchTaggedPools() *testFetchTaggedPools {
 	pools.readerSlices.Init()
 
 	pools.multiReader = encoding.NewMultiReaderIteratorPool(opts)
-	pools.multiReader.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	pools.multiReader.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 
 	pools.seriesIter = encoding.NewSeriesIteratorPool(opts)
 	pools.seriesIter.Init()

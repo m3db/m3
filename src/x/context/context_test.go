@@ -36,7 +36,7 @@ import (
 )
 
 func TestRegisterFinalizerWithChild(t *testing.T) {
-	xCtx := NewContext().(*ctx)
+	xCtx := NewBackground().(*ctx)
 	assert.Nil(t, xCtx.parentCtx())
 
 	childCtx := xCtx.newChildContext().(*ctx)
@@ -67,7 +67,7 @@ func TestRegisterFinalizer(t *testing.T) {
 	var (
 		wg     sync.WaitGroup
 		closed = false
-		ctx    = NewContext().(*ctx)
+		ctx    = NewBackground().(*ctx)
 	)
 
 	wg.Add(1)
@@ -85,7 +85,7 @@ func TestRegisterFinalizer(t *testing.T) {
 }
 
 func TestRegisterCloserWithChild(t *testing.T) {
-	xCtx := NewContext().(*ctx)
+	xCtx := NewBackground().(*ctx)
 	assert.Nil(t, xCtx.parentCtx())
 
 	childCtx := xCtx.newChildContext().(*ctx)
@@ -116,7 +116,7 @@ func TestRegisterCloser(t *testing.T) {
 	var (
 		wg     sync.WaitGroup
 		closed = false
-		ctx    = NewContext().(*ctx)
+		ctx    = NewBackground().(*ctx)
 	)
 
 	wg.Add(1)
@@ -134,7 +134,7 @@ func TestRegisterCloser(t *testing.T) {
 }
 
 func TestDoesNotRegisterFinalizerWhenClosed(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 	ctx.Close()
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {}))
 
@@ -142,7 +142,7 @@ func TestDoesNotRegisterFinalizerWhenClosed(t *testing.T) {
 }
 
 func TestDoesNotCloseTwice(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 
 	var closed int32
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
@@ -159,18 +159,18 @@ func TestDoesNotCloseTwice(t *testing.T) {
 }
 
 func TestDependsOnNoCloserAllocation(t *testing.T) {
-	ctx := NewContext().(*ctx)
-	ctx.DependsOn(NewContext())
+	ctx := NewBackground().(*ctx)
+	ctx.DependsOn(NewBackground())
 	assert.Equal(t, 0, ctx.numFinalizeables())
 }
 
 func TestDependsOn(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 	testDependsOn(t, ctx)
 }
 
 func TestDependsOnWithReset(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 
 	testDependsOn(t, ctx)
 
@@ -184,7 +184,7 @@ func testDependsOn(t *testing.T, c *ctx) {
 	var wg sync.WaitGroup
 	var closed int32
 
-	other := NewContext().(*ctx)
+	other := NewBackground().(*ctx)
 
 	wg.Add(1)
 	c.RegisterFinalizer(xresource.FinalizerFn(func() {
@@ -212,9 +212,9 @@ func testDependsOn(t *testing.T, c *ctx) {
 
 func TestDependsOnWithChild(t *testing.T) {
 	var (
-		c     = NewContext().(*ctx)
+		c     = NewBackground().(*ctx)
 		child = c.newChildContext().(*ctx)
-		other = NewContext().(*ctx)
+		other = NewBackground().(*ctx)
 
 		wg     sync.WaitGroup
 		closed int32
@@ -247,7 +247,7 @@ func TestDependsOnWithChild(t *testing.T) {
 
 func TestSampledTraceSpan(t *testing.T) {
 	var (
-		xCtx  = NewContext()
+		xCtx  = NewBackground()
 		goCtx = stdctx.Background()
 		sp    opentracing.Span
 		spCtx Context
@@ -275,26 +275,18 @@ func TestSampledTraceSpan(t *testing.T) {
 }
 
 func TestGoContext(t *testing.T) {
-	goCtx := stdctx.Background()
-	xCtx := NewContext()
+	goCtx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Minute)
+	defer cancel()
+	xCtx := NewWithGoContext(goCtx)
 
 	var (
-		exists    bool
 		returnCtx stdctx.Context
 	)
 
-	returnCtx, exists = xCtx.GoContext()
-	assert.False(t, exists)
-	assert.Nil(t, returnCtx)
-
-	xCtx.SetGoContext(goCtx)
-
-	returnCtx, exists = xCtx.GoContext()
-	assert.True(t, exists)
+	returnCtx = xCtx.GoContext()
 	assert.Equal(t, goCtx, returnCtx)
 
 	xCtx.Reset()
-	returnCtx, exists = xCtx.GoContext()
-	assert.False(t, exists)
-	assert.Nil(t, returnCtx)
+	returnCtx = xCtx.GoContext()
+	assert.Equal(t, stdctx.Background(), returnCtx)
 }

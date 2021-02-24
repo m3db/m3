@@ -24,6 +24,7 @@ package commitlog
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -45,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -191,14 +193,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					ctx := context.NewBackground()
 					reader, ok := encoder.Stream(ctx)
 					if ok {
-						seg, err := reader.Segment()
-						if err != nil {
-							return false, err
-						}
-
-						bytes := make([]byte, seg.Len())
-						_, err = reader.Read(bytes)
-						if err != nil {
+						bytes, err := xio.ToBytes(reader)
+						if err != io.EOF {
 							return false, err
 						}
 						encodersBySeries[seriesID] = bytes

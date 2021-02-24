@@ -22,7 +22,6 @@ package remote
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"net/http"
 
@@ -49,8 +48,7 @@ const (
 	NameReplace = "name"
 
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = handler.RoutePrefixV1 +
-		"/label/{" + NameReplace + "}/values"
+	TagValuesURL = handler.RoutePrefixV1 + "/label/{" + NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet
@@ -75,27 +73,29 @@ func NewTagValuesHandler(opts options.HandlerOptions) http.Handler {
 	return &TagValuesHandler{
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		parseOpts:           promql.NewParseOptions().SetNowFn(opts.NowFn()),
-		instrumentOpts:      opts.InstrumentOpts(),
-		tagOpts:             opts.TagOptions(),
+		parseOpts: promql.NewParseOptions().
+			SetRequireStartEndTime(opts.Config().Query.RequireLabelsEndpointStartEndTime).
+			SetNowFn(opts.NowFn()),
+		instrumentOpts: opts.InstrumentOpts(),
+		tagOpts:        opts.TagOptions(),
 	}
 }
 
 func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	if rErr != nil {
+		xhttp.WriteError(w, rErr)
+		return
+	}
+
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	query, err := h.parseTagValuesToQuery(r)
 	if err != nil {
 		logger.Error("unable to parse tag values to query", zap.Error(err))
 		xhttp.WriteError(w, err)
-		return
-	}
-
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.WriteError(w, rErr)
 		return
 	}
 

@@ -21,13 +21,7 @@
 // Package handler contains root level handlers.
 package handler
 
-// HeaderKeyType is the type for the header key.
-type HeaderKeyType int
-
 const (
-	// HeaderKey is the key which headers will be added to in the request context.
-	HeaderKey HeaderKeyType = iota
-
 	// RoutePrefixV1 is the v1 prefix for all coordinator routes.
 	RoutePrefixV1 = "/api/v1"
 

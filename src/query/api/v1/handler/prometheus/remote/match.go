@@ -21,7 +21,6 @@
 package remote
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -66,26 +65,27 @@ func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
-		parseOpts:           opts.Engine().Options().ParseOptions(),
+		parseOpts: opts.Engine().Options().ParseOptions().
+			SetRequireStartEndTime(opts.Config().Query.RequireSeriesEndpointStartEndTime),
 	}
 }
 
 func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	if rErr != nil {
+		xhttp.WriteError(w, rErr)
+		return
+	}
+
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	queries, err := prometheus.ParseSeriesMatchQuery(r, h.parseOpts, h.tagOptions)
 	if err != nil {
 		logger.Error("unable to parse series match values to query", zap.Error(err))
 		xhttp.WriteError(w, err)
-		return
-	}
-
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.WriteError(w, rErr)
 		return
 	}
 

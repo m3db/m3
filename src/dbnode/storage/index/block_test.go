@@ -24,6 +24,7 @@ import (
 	stdlibctx "context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -398,7 +399,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
@@ -524,7 +525,7 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 		return exec, nil
 	}
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
 		exec.EXPECT().Close(),
 	)
 
@@ -553,7 +554,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(false),
@@ -594,7 +595,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(true),
@@ -647,7 +648,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(fmt.Errorf("random-err")),
@@ -685,7 +686,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(true),
@@ -738,7 +739,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(false),
@@ -791,7 +792,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(true),
@@ -842,7 +843,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1())),
 		dIter.EXPECT().Next().Return(false),
@@ -904,7 +905,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
@@ -958,7 +959,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 
 	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		exec.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc1DupeID())),
 		dIter.EXPECT().Next().Return(true),
@@ -1464,8 +1465,10 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
+	require.Len(t, spans, 4)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[1].OperationName)
+	require.Equal(t, tracepoint.BlockQuery, spans[2].OperationName)
 }
 
 func TestBlockE2EInsertQueryLimit(t *testing.T) {
@@ -1632,8 +1635,12 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
+	require.Len(t, spans, 6)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[1].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[2].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[3].OperationName)
+	require.Equal(t, tracepoint.BlockQuery, spans[4].OperationName)
 }
 
 func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
@@ -1712,8 +1719,12 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
+	require.Len(t, spans, 6)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[1].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[2].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[3].OperationName)
+	require.Equal(t, tracepoint.BlockQuery, spans[4].OperationName)
 }
 
 func TestBlockWriteBackgroundCompact(t *testing.T) {
@@ -1834,7 +1845,7 @@ func TestBlockAggregateAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Aggregate(context.NewBackground(), QueryOptions{}, nil, emptyLogFields)
+	_, err = b.Aggregate(context.NewBackground(), QueryOptions{}, &aggregatedResults{}, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1859,7 +1870,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1869,7 +1880,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	}, testOpts)
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
+		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(false),
@@ -1897,7 +1908,8 @@ func TestBlockAggregate(t *testing.T) {
 	limitOpts := limits.NewOptions().
 		SetInstrumentOptions(iOpts).
 		SetDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute}).
-		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
 	queryLimits, err := limits.NewQueryLimits((limitOpts))
 	require.NoError(t, err)
 	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
@@ -1921,7 +1933,7 @@ func TestBlockAggregate(t *testing.T) {
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1938,7 +1950,7 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(reader, gomock.Any()).Return(nil)
+	iter.EXPECT().SearchDuration().Return(time.Second)
 	iter.EXPECT().Next().Return(true)
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
 	iter.EXPECT().Next().Return(true)
@@ -1966,11 +1978,99 @@ func TestBlockAggregate(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Len(t, spans, 3)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
 
 	snap := scope.Snapshot()
-	tallytest.AssertCounterValue(t, 3, snap, "query-limit.total-docs-matched", nil)
+
+	tallytest.AssertCounterValue(t, 3, snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+	tallytest.AssertCounterValue(t, 7, snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
+}
+
+func TestBlockAggregateWithAggregateLimits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	seriesLimit := 100
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+	limitOpts := limits.NewOptions().
+		SetInstrumentOptions(iOpts).
+		SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{
+			Limit:    int64(seriesLimit),
+			Lookback: time.Minute,
+		})
+	queryLimits, err := limits.NewQueryLimits((limitOpts))
+	require.NoError(t, err)
+	aggTestOpts := testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), aggTestOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+	reader := segment.NewMockReader(ctrl)
+	reader.EXPECT().Close().Return(nil)
+	seg1.EXPECT().Reader().Return(reader, nil)
+
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, aggTestOpts)}
+	iter := NewMockfieldsAndTermsIterator(ctrl)
+	b.newFieldsAndTermsIteratorFn = func(
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		return iter, nil
+	}
+	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+		SizeLimit: seriesLimit,
+		Type:      AggregateTagNamesAndValues,
+	}, aggTestOpts)
+
+	ctx := context.NewBackground()
+	defer ctx.BlockingClose()
+
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	// use seriesLimit instead of seriesLimit - 1 since the iterator peeks ahead to check for Done.
+	for i := 0; i < seriesLimit; i++ {
+		iter.EXPECT().Next().Return(true)
+		curr := []byte(fmt.Sprint(i))
+		iter.EXPECT().Current().Return([]byte("f1"), curr)
+	}
+	iter.EXPECT().Close().Return(nil)
+	iter.EXPECT().SearchDuration().Return(time.Second)
+
+	exhaustive, err := b.Aggregate(
+		ctx,
+		QueryOptions{SeriesLimit: seriesLimit},
+		results,
+		emptyLogFields)
+	require.Error(t, err)
+	assert.True(t, strings.Contains(err.Error(), "query aborted due to limit"))
+	require.False(t, exhaustive)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 3)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
+
+	snap := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 1, snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+	tallytest.AssertCounterValue(t, int64(seriesLimit), snap,
+		"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -2004,7 +2104,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ context.Context, _ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -2022,11 +2122,14 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
+		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Err().Return(nil),
+		// even though there is a limit 1, the iterator peeks ahead so 3 results are actually consumed.
+		iter.EXPECT().Current().Return([]byte("f2"), []byte("t2")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f3"), []byte("f3")),
 		iter.EXPECT().Close().Return(nil),
 	)
 	exhaustive, err := b.Aggregate(
@@ -2043,8 +2146,9 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Len(t, spans, 3)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
 }
 
 func TestBlockE2EInsertAggregate(t *testing.T) {
@@ -2122,7 +2226,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 
 	exhaustive, err := b.Aggregate(
 		ctx,
-		QueryOptions{SeriesLimit: 10},
+		QueryOptions{SeriesLimit: 1000},
 		results,
 		emptyLogFields)
 	require.NoError(t, err)
@@ -2155,7 +2259,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	}, testOpts)
 	exhaustive, err = b.Aggregate(
 		ctx,
-		QueryOptions{SeriesLimit: 10},
+		QueryOptions{SeriesLimit: 100},
 		results,
 		emptyLogFields)
 	require.NoError(t, err)
@@ -2164,10 +2268,12 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 4)
-	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Len(t, spans, 6)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[0].OperationName)
 	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
-	require.Equal(t, tracepoint.BlockAggregate, spans[2].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockAggregateQueryAddDocuments, spans[2].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[3].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[4].OperationName)
 }
 
 func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string, observed AggregateResults) {
@@ -2327,11 +2433,12 @@ func TestBlockAggregateBatching(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		batchSize           int
-		segments            []*readableSeg
-		expectedDocsMatched int64
-		expected            map[string][]string
+		name                   string
+		batchSize              int
+		segments               []*readableSeg
+		expectedDocsMatched    int64
+		expectedAggDocsMatched int64
+		expected               map[string][]string
 	}{
 		{
 			name:      "single term multiple fields duplicated across readers",
@@ -2341,7 +2448,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
 				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
 			},
-			expectedDocsMatched: 1,
+			expectedDocsMatched:    1,
+			expectedAggDocsMatched: 9,
 			expected: map[string][]string{
 				"foo": {"bar", "baz"},
 			},
@@ -2354,7 +2462,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 				buildSegment(t, "foo", []string{"bag", "bat"}, memOpts),
 				buildSegment(t, "qux", []string{"bar", "baz"}, memOpts),
 			},
-			expectedDocsMatched: 2,
+			expectedDocsMatched:    2,
+			expectedAggDocsMatched: 9,
 			expected: map[string][]string{
 				"foo": {"bag", "bar", "bat", "baz"},
 				"qux": {"bar", "baz"},
@@ -2375,7 +2484,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 				buildSegment(t, "qaz", []string{"bar", "baz"}, memOpts),
 				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
 			},
-			expectedDocsMatched: 7,
+			expectedDocsMatched:    7,
+			expectedAggDocsMatched: 15,
 			expected: map[string][]string{
 				"foo": {"bar", "baz"},
 				"dog": {"bar", "baz"},
@@ -2384,11 +2494,12 @@ func TestBlockAggregateBatching(t *testing.T) {
 			},
 		},
 		{
-			name:                "batch size case",
-			batchSize:           defaultQueryDocsBatchSize,
-			segments:            batchSizeSegments,
-			expectedDocsMatched: 1,
-			expected:            batchSizeMap,
+			name:                   "batch size case",
+			batchSize:              defaultQueryDocsBatchSize,
+			segments:               batchSizeSegments,
+			expectedDocsMatched:    1,
+			expectedAggDocsMatched: 256*257 + 2,
+			expected:               batchSizeMap,
 		},
 	}
 
@@ -2399,7 +2510,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 			limitOpts := limits.NewOptions().
 				SetInstrumentOptions(iOpts).
 				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
-				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
 			queryLimits, err := limits.NewQueryLimits((limitOpts))
 			require.NoError(t, err)
 			testOpts = optionsWithAggResultsPool(tt.batchSize).
@@ -2418,6 +2530,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 			// NB: wrap existing aggregate results fn to more easily inspect batch size.
 			addAggregateResultsFn := b.addAggregateResultsFn
 			b.addAggregateResultsFn = func(
+				ctx context.Context,
 				results AggregateResults,
 				batch []AggregateResultsEntry,
 				source []byte,
@@ -2432,7 +2545,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 				require.True(t, count <= tt.batchSize,
 					fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
 
-				return addAggregateResultsFn(results, batch, source)
+				return addAggregateResultsFn(ctx, results, batch, source)
 			}
 
 			b.mutableSegments.foregroundSegments = tt.segments
@@ -2452,7 +2565,11 @@ func TestBlockAggregateBatching(t *testing.T) {
 			require.True(t, exhaustive)
 
 			snap := scope.Snapshot()
-			tallytest.AssertCounterValue(t, tt.expectedDocsMatched, snap, "query-limit.total-docs-matched", nil)
+			tallytest.AssertCounterValue(t, tt.expectedDocsMatched, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+			tallytest.AssertCounterValue(t, tt.expectedAggDocsMatched, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
+
 			resultsMap := make(map[string][]string, results.Map().Len())
 			for _, res := range results.Map().Iter() {
 				vals := make([]string, 0, res.Value().valuesMap.Len())

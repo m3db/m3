@@ -21,11 +21,12 @@
 package pools
 
 import (
-	"io"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
@@ -33,8 +34,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/uber-go/tally"
 )
 
 const (
@@ -42,10 +41,8 @@ const (
 	defaultReplicas                    = 3
 	defaultSeriesIteratorPoolSize      = 2 << 12 // ~8k
 	defaultCheckedBytesWrapperPoolSize = 2 << 12 // ~8k
-	defaultBucketCapacity              = 256
 	defaultPoolableConcurrentQueries   = 64
 	defaultPoolableSeriesPerQuery      = 4096
-	defaultSeriesReplicaReaderPoolSize = defaultPoolableConcurrentQueries * defaultPoolableSeriesPerQuery * defaultReplicas
 )
 
 var (
@@ -212,16 +209,15 @@ func BuildIteratorPools(
 	encodingOpts := encoding.NewOptions().
 		SetReaderIteratorPool(readerIteratorPool)
 
-	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(defaultPerSeriesPoolOpts)
-	pools.multiReaderIterator.Init(func(r io.Reader, s namespace.SchemaDescr) encoding.ReaderIterator {
-		iter := readerIteratorPool.Get()
-		iter.Reset(r, s)
-		return iter
-	})
+	pools.multiReaderIterator.Init(
+		func(r xio.Reader64, s namespace.SchemaDescr) encoding.ReaderIterator {
+			iter := readerIteratorPool.Get()
+			iter.Reset(r, s)
+			return iter
+		})
 
 	pools.seriesIterator = encoding.NewSeriesIteratorPool(defaultPerSeriesPoolOpts)
 	pools.seriesIterator.Init()
