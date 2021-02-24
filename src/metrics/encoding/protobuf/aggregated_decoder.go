@@ -62,6 +62,11 @@ func (d AggregatedDecoder) Value() float64 {
 	return d.pb.Metric.TimedMetric.Value
 }
 
+// Annotation returns the decoded annotation.
+func (d *AggregatedDecoder) Annotation() []byte {
+	return d.pb.Metric.TimedMetric.Annotation
+}
+
 // StoragePolicy returns the decoded storage policy.
 func (d AggregatedDecoder) StoragePolicy() policy.StoragePolicy {
 	return d.sp

@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
@@ -67,14 +66,8 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		SetUseTChannelClientForReading(true)
 
 	setupOpts := []BootstrappableTestSetupOptions{
-		{
-			DisablePeersBootstrapper: true,
-			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
-		},
-		{
-			DisablePeersBootstrapper: false,
-			FinalBootstrapper:        bootstrapper.NoOpNoneBootstrapperName,
-		},
+		{DisablePeersBootstrapper: true},
+		{DisablePeersBootstrapper: false},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

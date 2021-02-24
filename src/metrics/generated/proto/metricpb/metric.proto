@@ -51,6 +51,7 @@ message TimedMetric {
   bytes id = 2;
   int64 time_nanos = 3;
   double value = 4;
+  bytes annotation = 5;
 }
 
 message ForwardedMetric {
@@ -58,6 +59,7 @@ message ForwardedMetric {
   bytes id = 2;
   int64 time_nanos = 3;
   repeated double values = 4;
+  bytes annotation = 5;
 }
 
 message Tag {

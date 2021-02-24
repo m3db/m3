@@ -131,7 +131,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 			},
 		)
 
-		require.NoError(t, a.SamplesAppender.AppendCounterSample(int64(i)))
+		require.NoError(t, a.SamplesAppender.AppendUntimedCounterSample(int64(i), nil))
 
 		assert.False(t, a.IsDropPolicyApplied)
 		appender.Finalize()
