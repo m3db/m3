@@ -27,13 +27,13 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-var _ WatcherOptions = (*placementWatcherOptions)(nil) // enforce interface compliance
+var _ WatcherOptions = (*watcherOptions)(nil) // enforce interface compliance
 
 const (
 	defaultInitWatchTimeout = 10 * time.Second
 )
 
-type placementWatcherOptions struct {
+type watcherOptions struct {
 	instrumentOpts       instrument.Options
 	stagedPlacementKey   string
 	stagedPlacementStore kv.Store
@@ -43,58 +43,58 @@ type placementWatcherOptions struct {
 
 // NewWatcherOptions create a new set of options.
 func NewWatcherOptions() WatcherOptions {
-	return &placementWatcherOptions{
+	return &watcherOptions{
 		instrumentOpts:   instrument.NewOptions(),
 		initWatchTimeout: defaultInitWatchTimeout,
 	}
 }
 
-func (o *placementWatcherOptions) SetInstrumentOptions(value instrument.Options) WatcherOptions {
+func (o *watcherOptions) SetInstrumentOptions(value instrument.Options) WatcherOptions {
 	opts := *o
 	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *placementWatcherOptions) InstrumentOptions() instrument.Options {
+func (o *watcherOptions) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *placementWatcherOptions) SetStagedPlacementKey(value string) WatcherOptions {
+func (o *watcherOptions) SetStagedPlacementKey(value string) WatcherOptions {
 	opts := *o
 	opts.stagedPlacementKey = value
 	return &opts
 }
 
-func (o *placementWatcherOptions) StagedPlacementKey() string {
+func (o *watcherOptions) StagedPlacementKey() string {
 	return o.stagedPlacementKey
 }
 
-func (o *placementWatcherOptions) SetStagedPlacementStore(value kv.Store) WatcherOptions {
+func (o *watcherOptions) SetStagedPlacementStore(value kv.Store) WatcherOptions {
 	opts := *o
 	opts.stagedPlacementStore = value
 	return &opts
 }
 
-func (o *placementWatcherOptions) StagedPlacementStore() kv.Store {
+func (o *watcherOptions) StagedPlacementStore() kv.Store {
 	return o.stagedPlacementStore
 }
 
-func (o *placementWatcherOptions) SetInitWatchTimeout(value time.Duration) WatcherOptions {
+func (o *watcherOptions) SetInitWatchTimeout(value time.Duration) WatcherOptions {
 	opts := *o
 	opts.initWatchTimeout = value
 	return &opts
 }
 
-func (o *placementWatcherOptions) InitWatchTimeout() time.Duration {
+func (o *watcherOptions) InitWatchTimeout() time.Duration {
 	return o.initWatchTimeout
 }
 
-func (o *placementWatcherOptions) SetOnPlacementChangedFn(value OnPlacementChangedFn) WatcherOptions {
+func (o *watcherOptions) SetOnPlacementChangedFn(value OnPlacementChangedFn) WatcherOptions {
 	opts := *o
 	opts.onPlacementChangedFn = value
 	return &opts
 }
 
-func (o *placementWatcherOptions) OnPlacementChangedFn() OnPlacementChangedFn {
+func (o *watcherOptions) OnPlacementChangedFn() OnPlacementChangedFn {
 	return o.onPlacementChangedFn
 }

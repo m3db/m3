@@ -1066,7 +1066,7 @@ func testWatcherWithPlacementProto(
 	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKey).
 		SetStagedPlacementStore(store)
-	placementWatcher := placement.NewWatcher(placementWatcherOpts)
+	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	return placementWatcher, store
 }
 

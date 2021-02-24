@@ -37,9 +37,10 @@ var (
 	errWatcherIsWatching    = errors.New("placement watcher is watching")
 	errWatcherCastError     = errors.New("interface cast failed, unexpected placement type")
 
-	_ Watcher = (*placementWatcher)(nil) // enforce interface compliance
+	_ Watcher = (*placementsWatcher)(nil) // enforce interface compliance
 )
 
+// placementsWatcher implements watcher of staged placement.
 // TODO: Consider migrating to non-staged placement.
 // Currently, the aggregator placement is stored as staged placement in etcd using
 // protobuf type `*placementpb.PlacementSnapshots` as a remnant of now deprecated concept
@@ -56,7 +57,7 @@ var (
 // - upgrade all deployed clients (this is most difficult as we don't control all the deployments
 //   out there in the world)
 // - modify placement management code to stop storing staged placement
-type placementWatcher struct {
+type placementsWatcher struct {
 	mtx                sync.Mutex
 	valuePayload       atomic.Value
 	value              runtime.Value
@@ -70,9 +71,9 @@ type payload struct {
 	placement Placement
 }
 
-// NewWatcher creates a new placement watcher.
-func NewWatcher(opts WatcherOptions) Watcher {
-	watcher := &placementWatcher{
+// NewPlacementsWatcher creates a new staged placement watcher.
+func NewPlacementsWatcher(opts WatcherOptions) Watcher {
+	watcher := &placementsWatcher{
 		onPlacementChanged: opts.OnPlacementChangedFn(),
 	}
 
@@ -86,7 +87,7 @@ func NewWatcher(opts WatcherOptions) Watcher {
 	return watcher
 }
 
-func (t *placementWatcher) Watch() error {
+func (t *placementsWatcher) Watch() error {
 	if !t.watching.CAS(false, true) {
 		return errWatcherIsWatching
 	}
@@ -94,7 +95,7 @@ func (t *placementWatcher) Watch() error {
 	return t.value.Watch()
 }
 
-func (t *placementWatcher) Get() (Placement, error) {
+func (t *placementsWatcher) Get() (Placement, error) {
 	if !t.watching.Load() {
 		return nil, errWatcherIsNotWatching
 	}
@@ -108,7 +109,7 @@ func (t *placementWatcher) Get() (Placement, error) {
 	return pl.placement, nil
 }
 
-func (t *placementWatcher) Unwatch() error {
+func (t *placementsWatcher) Unwatch() error {
 	if !t.watching.CAS(true, false) {
 		return errWatcherIsNotWatching
 	}
@@ -117,7 +118,7 @@ func (t *placementWatcher) Unwatch() error {
 	return nil
 }
 
-func (t *placementWatcher) unmarshalAsPlacementSnapshots(value kv.Value) (interface{}, error) {
+func (t *placementsWatcher) unmarshalAsPlacementSnapshots(value kv.Value) (interface{}, error) {
 	if !t.watching.Load() {
 		return nil, errWatcherIsNotWatching
 	}
@@ -146,7 +147,7 @@ func (t *placementWatcher) unmarshalAsPlacementSnapshots(value kv.Value) (interf
 }
 
 // process is called upon update of value, the value is already unmarshalled.
-func (t *placementWatcher) process(newValue interface{}) error {
+func (t *placementsWatcher) process(newValue interface{}) error {
 	t.mtx.Lock() // serialize value processing
 	defer t.mtx.Unlock()
 

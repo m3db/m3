@@ -159,7 +159,7 @@ func TestWatcherProcessSuccess(t *testing.T) {
 	}
 }
 
-func testWatcher(t *testing.T) (*placementWatcher, kv.Store) {
+func testWatcher(t *testing.T) (*placementsWatcher, kv.Store) {
 	t.Helper()
 	opts := testWatcherOptions()
 	watcher := testWatcherWithOpts(t, opts)
@@ -167,14 +167,14 @@ func testWatcher(t *testing.T) (*placementWatcher, kv.Store) {
 	return watcher, opts.StagedPlacementStore()
 }
 
-func testWatcherWithOpts(t *testing.T, opts WatcherOptions) *placementWatcher {
+func testWatcherWithOpts(t *testing.T, opts WatcherOptions) *placementsWatcher {
 	t.Helper()
 	_, err := opts.StagedPlacementStore().
 		SetIfNotExists(testPlacementKey, testStagedPlacementProto)
 	require.NoError(t, err)
 
-	watcher := NewWatcher(opts)
-	return watcher.(*placementWatcher)
+	watcher := NewPlacementsWatcher(opts)
+	return watcher.(*placementsWatcher)
 }
 
 func testWatcherOptions() WatcherOptions {

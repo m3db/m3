@@ -81,7 +81,7 @@ func NewTCPClient(opts Options) (*TCPClient, error) {
 		}
 	}
 
-	placementWatcher = placement.NewWatcher(
+	placementWatcher = placement.NewPlacementsWatcher(
 		opts.WatcherOptions().
 			SetOnPlacementChangedFn(onPlacementChangedFn))
 
