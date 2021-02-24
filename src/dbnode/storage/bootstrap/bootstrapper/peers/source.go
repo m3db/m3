@@ -55,6 +55,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var errNamespaceNotFound = errors.New("namespace not found")
+
 type peersSource struct {
 	opts              Options
 	newPersistManager func() (persist.Manager, error)
@@ -181,11 +183,9 @@ func (s *peersSource) Read(
 		}
 
 		var (
-			opts           = namespace.IndexRunOptions.RunOptions
-			indexBlockSize = md.Options().IndexOptions().BlockSize()
-			idxOpts        = md.Options().IndexOptions()
-			r              result.IndexBootstrapResult
-			err            error
+			opts = namespace.IndexRunOptions.RunOptions
+			r    result.IndexBootstrapResult
+			err  error
 		)
 		if s.shouldPersist(opts) {
 			// Only attempt to bootstrap index if we've persisted tsdb data.
@@ -199,21 +199,14 @@ func (s *peersSource) Read(
 				return bootstrap.NamespaceResults{}, err
 			}
 		} else {
-			// Mark index ranges as fulfilled if we did not persist any tsdb data (e.g. snapshot data).
-			r = result.NewIndexBootstrapResult()
-			min, max := namespace.IndexRunOptions.ShardTimeRanges.MinMax()
-			for start := min.Truncate(indexBlockSize); start.Before(max); start = start.Add(indexBlockSize) {
-				shardTimeRanges := result.NewShardTimeRangesFromRange(start, start.Add(indexBlockSize), namespace.Shards...)
-				if err := r.IndexResults().MarkFulfilled(
-					start,
-					shardTimeRanges,
-					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
-					idxpersist.DefaultIndexVolumeType,
-					idxOpts,
-				); err != nil {
-					return bootstrap.NamespaceResults{}, err
-				}
+			// Copy data unfulfilled ranges over to index results
+			// we did not persist any tsdb data (e.g. snapshot data).
+			dataNsResult, ok := results.Results.Get(md.ID())
+			if !ok {
+				return bootstrap.NamespaceResults{}, errNamespaceNotFound
 			}
+			r = result.NewIndexBootstrapResult()
+			r.SetUnfulfilled(dataNsResult.DataResult.Unfulfilled().Copy())
 		}
 
 		result, ok := results.Results.Get(md.ID())
