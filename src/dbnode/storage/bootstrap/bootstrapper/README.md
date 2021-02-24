@@ -109,3 +109,15 @@ For example, see the following sequences:
     - Bootstrap (128 shards) // These are received form Node 2, it owns 256 now.
 - Node 2:
     - Node remove
+
+### Node add
+
+When a node is added to the cluster it is assigned shards that relieves load fairly from the existing nodes.  The shards assigned to the new node will become _INITIALIZING_, the nodes then discover they need to be bootstrapped and will begin bootstrapping the data using all replicas available.  The shards that will be removed from the existing nodes are marked as _LEAVING_.
+
+### Node down
+
+A node needs to be explicitly taken out of the cluster.  If a node goes down and is unavailable the clients performing reads will be served an error from the replica for the shard range that the node owns.  During this time it will rely on reads from other replicas to continue uninterrupted operation.
+
+### Node remove
+
+When a node is removed the shards it owns are assigned to existing nodes in the cluster.  Remaining servers discover they are now in possession of shards that are _INITIALIZING_ and need to be bootstrapped and will begin bootstrapping the data using all replicas available.
