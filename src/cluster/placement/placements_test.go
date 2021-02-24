@@ -50,7 +50,7 @@ var (
 )
 
 func TestPlacements(t *testing.T) {
-	t.Run("new_process_all_snapshots", func(t *testing.T) {
+	t.Run("new_processes_all_snapshots", func(t *testing.T) {
 		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
 		require.Equal(
@@ -70,7 +70,7 @@ func TestPlacements(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, testPlacementsProto[1], sortedLast)
 	})
-	t.Run("proto_process_all_snapshots", func(t *testing.T) {
+	t.Run("proto_processes_all_snapshots", func(t *testing.T) {
 		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
 
@@ -86,15 +86,24 @@ func TestPlacements(t *testing.T) {
 		require.Equal(t, testPlacementsProto[1], proto.Snapshots[2])
 	})
 	t.Run("last_returns_last_by_cutover_time", func(t *testing.T) {
-		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
+		p0, err := NewPlacementFromProto(testPlacementsProto[0])
 		require.NoError(t, err)
 
-		expected, err := NewPlacementFromProto(testLastPlacementProto)
+		p1, err := NewPlacementFromProto(testPlacementsProto[1])
 		require.NoError(t, err)
+
+		p2, err := NewPlacementFromProto(testPlacementsProto[2])
+		require.NoError(t, err)
+
+		ps := Placements{
+			p0,
+			p1,
+			p2,
+		}
 
 		actual, err := ps.Last()
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Equal(t, p1, actual)
 	})
 }
 

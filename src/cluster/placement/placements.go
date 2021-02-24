@@ -79,6 +79,11 @@ func (placements Placements) Last() (Placement, error) {
 		return nil, errEmptyPlacementSnapshots
 	}
 
+	if n > 1 {
+		// Sorting for the same reason as mentioned above.
+		sort.Sort(placementsByCutoverAsc(placements))
+	}
+
 	return placements[n-1], nil
 }
 
