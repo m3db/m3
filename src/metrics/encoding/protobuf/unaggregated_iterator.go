@@ -156,3 +156,8 @@ func (it *UnaggregatedIterator) decodeMessage(size int) error {
 	}
 	return it.err
 }
+
+// TypeFromProto returns metric type from protobuf definition
+func TypeFromProto(metricType metricpb.MetricWithMetadatas_Type) encoding.UnaggregatedMessageType {
+	return encoding.UnaggregatedMessageType(metricType)
+}

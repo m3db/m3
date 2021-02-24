@@ -62,6 +62,8 @@ require (
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest/v3 v3.6.3
+	github.com/panjf2000/ants/v2 v2.4.3
+	github.com/panjf2000/gnet v1.4.0
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml v1.5.0 // indirect
@@ -101,13 +103,13 @@ require (
 	// Version string was obtained by the method described in
 	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
-	go.uber.org/atomic v1.6.0
+	go.uber.org/atomic v1.7.0
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
-	go.uber.org/zap v1.13.0
+	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
+	golang.org/x/sys v0.0.0-20210220050731-9a76102bfb43
 	golang.org/x/tools v0.1.0
 	google.golang.org/grpc v1.29.1
 	google.golang.org/protobuf v1.23.0
