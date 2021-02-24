@@ -73,15 +73,12 @@ func (placements Placements) Proto() (*placementpb.PlacementSnapshots, error) {
 }
 
 // Last returns the last placement from the list.
+// It assumes that placements was instantiated using NewPlacementsFromProto
+// above to avoid doing thread-unsafe sorting.
 func (placements Placements) Last() (Placement, error) {
 	n := len(placements)
 	if n == 0 {
 		return nil, errEmptyPlacementSnapshots
-	}
-
-	if n > 1 {
-		// Sorting for the same reason as mentioned above.
-		sort.Sort(placementsByCutoverAsc(placements))
 	}
 
 	return placements[n-1], nil

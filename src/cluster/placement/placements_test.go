@@ -86,24 +86,15 @@ func TestPlacements(t *testing.T) {
 		require.Equal(t, testPlacementsProto[1], proto.Snapshots[2])
 	})
 	t.Run("last_returns_last_by_cutover_time", func(t *testing.T) {
-		p0, err := NewPlacementFromProto(testPlacementsProto[0])
+		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
 
-		p1, err := NewPlacementFromProto(testPlacementsProto[1])
+		expected, err := NewPlacementFromProto(testLastPlacementProto)
 		require.NoError(t, err)
-
-		p2, err := NewPlacementFromProto(testPlacementsProto[2])
-		require.NoError(t, err)
-
-		ps := Placements{
-			p0,
-			p1,
-			p2,
-		}
 
 		actual, err := ps.Last()
 		require.NoError(t, err)
-		require.Equal(t, p1, actual)
+		require.Equal(t, expected, actual)
 	})
 }
 

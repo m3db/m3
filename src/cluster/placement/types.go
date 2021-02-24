@@ -209,12 +209,13 @@ type Watch interface {
 	Close()
 }
 
-// Watcher watches for updates of the placement.
+// Watcher watches for updates of the placement. Unlike above type Watch,
+// it notifies the client of placement changes via a callback function.
 type Watcher interface {
 	// Watch starts watching the updates.
 	Watch() error
 
-	// Get returns the current/latest placement and its version.
+	// Get returns the latest version of the placement.
 	Get() (Placement, error)
 
 	// Unwatch stops watching the updates.
