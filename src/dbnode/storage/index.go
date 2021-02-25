@@ -1712,7 +1712,6 @@ func (i *nsIndex) queryWithSpan(
 
 	// update timing metrics even if the query was canceled due to a timeout
 	queryRuntime := time.Since(start)
-	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
 
 	var (
 		totalWaitTime       time.Duration
@@ -1726,13 +1725,9 @@ func (i *nsIndex) queryWithSpan(
 		totalSearchTime += blockIter.searchTime
 	}
 
-	queryMetrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
 	queryMetrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
-	queryMetrics.queryWaitTime.ByRange.Record(queryRange, totalWaitTime)
 	queryMetrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
-	queryMetrics.queryProcessingTime.ByRange.Record(queryRange, totalProcessingTime)
 	queryMetrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), totalProcessingTime)
-	queryMetrics.querySearchTime.ByRange.Record(queryRange, totalSearchTime)
 	queryMetrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), totalSearchTime)
 
 	return exhaustive, err
