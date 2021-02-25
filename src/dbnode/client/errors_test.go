@@ -76,7 +76,7 @@ func TestConsistencyResultTimeoutError(t *testing.T) {
 }
 
 func TestConsistencyResultTchannelTimeoutError(t *testing.T) {
-	timeoutErr := xerrors.NewRenamedError(errors.NewInternalError(tchannel.ErrTimeout), fmt.Errorf("error"))
+	timeoutErr := xerrors.NewRenamedError(tchannel.ErrTimeout, fmt.Errorf("error"))
 
 	level := topology.ReadConsistencyLevelMajority
 	enqueued := 3

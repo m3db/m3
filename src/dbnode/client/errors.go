@@ -72,14 +72,16 @@ func IsTimeoutError(err error) bool {
 	for err != nil {
 		// nolint:errorlint
 		if e, ok := err.(*rpc.Error); ok {
-			// Need to check both RPC flag and if the message is directly
-			// the tchannel ErrTimeout error. The reason for the latter is
-			// that those errors can come through at the tchannel layer,
-			// rather than in our application layer, meaning we don't have any
-			// means to intercept / set the SERVER_TIMEOUT flag.
-			if tterrors.IsTimeoutError(e) || e.Message == tchannel.ErrTimeout.Error() {
+			if tterrors.IsTimeoutError(e) {
 				return true
 			}
+		}
+		// Need to also check if the message is directly the tchannel ErrTimeout error.
+		// This is because those errors can come through at the tchannel layer,
+		// rather than in our application layer, meaning we don't have any
+		// means to intercept / set the SERVER_TIMEOUT flag.
+		if err.Error() == tchannel.ErrTimeout.Error() {
+			return true
 		}
 		err = xerrors.InnerError(err)
 	}
