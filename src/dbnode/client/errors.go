@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/uber/tchannel-go"
+
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -58,6 +60,27 @@ func IsBadRequestError(err error) bool {
 func IsResourceExhaustedError(err error) bool {
 	for err != nil {
 		if e, ok := err.(*rpc.Error); ok && tterrors.IsResourceExhaustedErrorFlag(e) { //nolint:errorlint
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
+}
+
+// IsTimeoutError determines if the error is a timeout.
+func IsTimeoutError(err error) bool {
+	for err != nil {
+		// nolint:errorlint
+		if e, ok := err.(*rpc.Error); ok {
+			if tterrors.IsTimeoutError(e) {
+				return true
+			}
+		}
+		// Need to also check if the message is directly the tchannel ErrTimeout error.
+		// This is because those errors can come through at the tchannel layer,
+		// rather than in our application layer, meaning we don't have any
+		// means to intercept / set the SERVER_TIMEOUT flag.
+		if err.Error() == tchannel.ErrTimeout.Error() {
 			return true
 		}
 		err = xerrors.InnerError(err)
@@ -164,6 +187,11 @@ func newConsistencyResultError(
 		if IsBadRequestError(errs[i]) {
 			topLevelErr = errs[i]
 			break
+		}
+		if IsTimeoutError(errs[i]) {
+			topLevelErr = errs[i]
+			// Still continue iterating since bad request errors take precedence.
+			continue
 		}
 	}
 	return consistencyResultErr{
