@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/x/bytes"
+	"github.com/m3db/m3/src/query/models"
 )
 
 var (
@@ -44,6 +45,7 @@ var (
 type rollupTarget struct {
 	Pipeline        pipeline.Pipeline
 	StoragePolicies policy.StoragePolicies
+	Tags            []models.Tag
 }
 
 // newRollupTargetFromV1Proto creates a new rollup target from v1 proto

@@ -74,6 +74,7 @@ message RollupRuleSnapshot {
   // TODO(xichen): rename this once all rules are updated in KV.
   repeated RollupTargetV2 targets_v2 = 8;
   bool keep_original = 9;
+  repeated metricpb.Tag tags = 10;
 }
 
 message RollupRule {

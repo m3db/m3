@@ -23,6 +23,7 @@ package view
 import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // RollupTarget is a rollup target model.
@@ -50,6 +51,7 @@ type RollupRule struct {
 	CutoverMillis       int64          `json:"cutoverMillis,omitempty"`
 	Filter              string         `json:"filter" validate:"required"`
 	Targets             []RollupTarget `json:"targets" validate:"required,dive,required"`
+	Tags                []models.Tag   `json:"tags"`
 	LastUpdatedBy       string         `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64          `json:"lastUpdatedAtMillis"`
 	KeepOriginal        bool           `json:"keepOriginal"`
