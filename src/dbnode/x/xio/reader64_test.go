@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cm
+package xio
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"encoding/binary"
+	"io"
+	"testing"
 
-type samplePool struct {
-	pool pool.ObjectPool
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestBytesReader64(t *testing.T) {
+	var (
+		data = []byte{4, 5, 6, 7, 8, 9, 1, 2, 3, 0, 10, 11, 12, 13, 14, 15, 16, 17}
+		r    = NewBytesReader64(nil)
+	)
+
+	for l := 0; l < len(data); l++ {
+		testBytesReader64(t, r, data[:l])
+	}
 }
 
-// NewSamplePool creates a new pool for samples.
-func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
-	return &samplePool{pool: pool.NewObjectPool(opts)}
-}
+func testBytesReader64(t *testing.T, r *BytesReader64, data []byte) {
+	t.Helper()
+	r.Reset(data)
 
-func (p *samplePool) Init() {
-	p.pool.Init(func() interface{} {
-		return newSample()
-	})
-}
+	var (
+		peeked = []byte{}
+		read   = []byte{}
+		buf    [8]byte
+		word   uint64
+		n      byte
+		err    error
+	)
 
-func (p *samplePool) Get() *Sample {
-	return p.pool.Get().(*Sample)
-}
+	for {
+		word, n, err = r.Peek64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		peeked = append(peeked, buf[:n]...)
 
-func (p *samplePool) Put(sample *Sample) {
-	// Reset sample to reduce GC sweep overhead.
-	sample.reset()
-	p.pool.Put(sample)
+		word, n, err = r.Read64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		read = append(read, buf[:n]...)
+	}
+
+	require.Equal(t, io.EOF, err)
+	assert.Equal(t, data, peeked)
+	assert.Equal(t, data, read)
 }

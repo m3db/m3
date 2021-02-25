@@ -22,6 +22,7 @@ package prometheus
 
 import (
 	"bytes"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -45,7 +46,6 @@ const (
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
-	maxTimeout          = 5 * time.Minute
 	tolerance           = 0.0000001
 )
 
@@ -185,10 +185,15 @@ func ParseStartAndEnd(
 		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
 	}
 
-	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
-		time.Unix(0, 0))
+	defaultTime := time.Unix(0, 0)
+	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"), defaultTime)
 	if err != nil {
 		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	if parseOpts.RequireStartEndTime() && start.Equal(defaultTime) {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(
+			goerrors.New("invalid start time. start time must be set"))
 	}
 
 	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),

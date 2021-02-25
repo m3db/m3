@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -72,7 +73,10 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	setupOpts := []BootstrappableTestSetupOptions{
 		{DisablePeersBootstrapper: true},
-		{DisablePeersBootstrapper: false},
+		{
+			DisablePeersBootstrapper: false,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
@@ -166,8 +170,8 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err := session.FetchTaggedIDs(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
@@ -180,8 +184,8 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.FetchTaggedIDs(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 

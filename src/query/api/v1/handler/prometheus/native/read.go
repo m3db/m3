@@ -21,12 +21,12 @@
 package native
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -111,11 +111,10 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
 
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	iOpts := h.opts.InstrumentOpts()
-	logger := logging.WithContext(ctx, iOpts)
+	logger := logging.WithContext(r.Context(), iOpts)
 
-	parsedOptions, rErr := ParseRequest(ctx, r, h.instant, h.opts)
+	ctx, parsedOptions, rErr := ParseRequest(r.Context(), r, h.instant, h.opts)
 	if rErr != nil {
 		h.promReadMetrics.incError(rErr)
 		logger.Error("could not parse request", zap.Error(rErr))
@@ -158,18 +157,49 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		keepNaNs = result.Meta.KeepNaNs
 	}
 
-	if h.instant {
-		renderResultsInstantaneousJSON(w, result, keepNaNs)
-		return
+	renderOpts := RenderResultsOptions{
+		Start:                   parsedOptions.Params.Start,
+		End:                     parsedOptions.Params.End,
+		KeepNaNs:                keepNaNs,
+		ReturnedSeriesLimit:     parsedOptions.FetchOpts.ReturnedSeriesLimit,
+		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
 	}
 
-	err = RenderResultsJSON(w, result, RenderResultsOptions{
-		Start:    parsedOptions.Params.Start,
-		End:      parsedOptions.Params.End,
-		KeepNaNs: h.opts.Config().ResultOptions.KeepNaNs,
-	})
+	// First invoke the results rendering with a noop writer in order to
+	// check the returned-data limits. This must be done before the actual rendering
+	// so that we can add the returned-data-limited header which must precede body writing.
+	var (
+		renderResult RenderResultsResult
+		noopWriter   = json.NewNoopWriter()
+	)
+	if h.instant {
+		renderResult = renderResultsInstantaneousJSON(noopWriter, result, renderOpts)
+	} else {
+		renderResult = RenderResultsJSON(noopWriter, result, renderOpts)
+	}
 
-	if err != nil {
+	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
+	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
+
+	if renderResult.LimitedMaxReturnedData {
+		if err := WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
+			Series:      renderResult.Series,
+			TotalSeries: renderResult.TotalSeries,
+			Datapoints:  renderResult.Datapoints,
+		}); err != nil {
+			logger.Error("error writing returned data limited header", zap.Error(err))
+		}
+	}
+
+	// Write the actual results after having checked for limits and wrote headers if needed.
+	responseWriter := json.NewWriter(w)
+	if h.instant {
+		_ = renderResultsInstantaneousJSON(responseWriter, result, renderOpts)
+	} else {
+		_ = RenderResultsJSON(responseWriter, result, renderOpts)
+	}
+
+	if responseWriter.Close() != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		logger.Error("failed to render results", zap.Error(err))
 	} else {

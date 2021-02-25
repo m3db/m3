@@ -22,6 +22,7 @@ package client
 
 import (
 	"bytes"
+	gocontext "context"
 	"errors"
 	"fmt"
 	"math"
@@ -1359,9 +1360,13 @@ func (s *session) FetchIDs(
 }
 
 func (s *session) Aggregate(
-	ns ident.ID, q index.Query, opts index.AggregationOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
 ) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	f := s.pools.aggregateAttempt.Get()
+	f.args.ctx = ctx
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
@@ -1372,7 +1377,10 @@ func (s *session) Aggregate(
 }
 
 func (s *session) aggregateAttempt(
-	ns ident.ID, q index.Query, opts index.AggregationOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
 ) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
@@ -1391,7 +1399,7 @@ func (s *session) aggregateAttempt(
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
-	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
+	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:        aggregateFetchState,
 		aggregateRequest: req,
 		startInclusive:   opts.StartInclusive,
@@ -1420,9 +1428,13 @@ func (s *session) aggregateAttempt(
 }
 
 func (s *session) FetchTagged(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ctx = ctx
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
@@ -1433,9 +1445,13 @@ func (s *session) FetchTagged(
 }
 
 func (s *session) FetchTaggedIDs(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ctx = ctx
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
@@ -1446,7 +1462,10 @@ func (s *session) FetchTaggedIDs(
 }
 
 func (s *session) fetchTaggedAttempt(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	nsCtx, err := s.nsCtxFor(ns)
 	if err != nil {
@@ -1474,7 +1493,7 @@ func (s *session) fetchTaggedAttempt(
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
-	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
+	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:          fetchTaggedFetchState,
 		fetchTaggedRequest: req,
 		startInclusive:     opts.StartInclusive,
@@ -1504,7 +1523,10 @@ func (s *session) fetchTaggedAttempt(
 }
 
 func (s *session) fetchTaggedIDsAttempt(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
@@ -1528,7 +1550,7 @@ func (s *session) fetchTaggedIDsAttempt(
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
-	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
+	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:          fetchTaggedFetchState,
 		fetchTaggedRequest: req,
 		startInclusive:     opts.StartInclusive,
@@ -1573,6 +1595,7 @@ type newFetchStateOpts struct {
 // of the object (including releasing the lock/decRef'ing it).
 // NB: ownership of ns is transferred to the returned fetchState object.
 func (s *session) newFetchStateWithRLock(
+	ctx gocontext.Context,
 	ns ident.ID,
 	opts newFetchStateOpts,
 ) (*fetchState, error) {
@@ -1593,7 +1616,7 @@ func (s *session) newFetchStateWithRLock(
 		fetchOp := s.pools.fetchTaggedOp.Get()
 		fetchOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = fetchOp.decRef // release the ref for the current go-routine
-		fetchOp.update(opts.fetchTaggedRequest, fetchState.completionFn)
+		fetchOp.update(ctx, opts.fetchTaggedRequest, fetchState.completionFn)
 		fetchState.ResetFetchTagged(opts.startInclusive, opts.endExclusive,
 			fetchOp, topoMap, s.state.majority, s.state.readLevel)
 		op = fetchOp
@@ -1602,7 +1625,7 @@ func (s *session) newFetchStateWithRLock(
 		aggOp := s.pools.aggregateOp.Get()
 		aggOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = aggOp.decRef // release the ref for the current go-routine
-		aggOp.update(opts.aggregateRequest, fetchState.completionFn)
+		aggOp.update(ctx, opts.aggregateRequest, fetchState.completionFn)
 		fetchState.ResetAggregate(opts.startInclusive, opts.endExclusive,
 			aggOp, topoMap, s.state.majority, s.state.readLevel)
 		op = aggOp

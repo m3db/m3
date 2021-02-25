@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
@@ -300,7 +300,7 @@ func encodeMetadata(ctx context.Context, requestID string) context.Context {
 		return ctx
 	}
 
-	headerValues := ctx.Value(handler.HeaderKey)
+	headerValues := ctx.Value(handleroptions.RequestHeaderKey)
 	headers, ok := headerValues.(http.Header)
 	if !ok {
 		return metadata.NewOutgoingContext(ctx, metadata.MD{reqIDKey: []string{requestID}})

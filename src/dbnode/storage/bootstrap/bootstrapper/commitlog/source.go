@@ -936,7 +936,7 @@ func (s *commitLogSource) readCommitLogFilePredicate(f commitlog.FileFilterInfo)
 }
 
 func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	for input := range worker.inputCh {

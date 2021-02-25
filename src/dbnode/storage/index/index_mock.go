@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -1097,6 +1096,35 @@ func (mr *MockBlockMockRecorder) Query(ctx, query, opts, results, logFields inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), ctx, query, opts, results, logFields)
 }
 
+// QueryWithIter mocks base method
+func (m *MockBlock) QueryWithIter(ctx context.Context, opts QueryOptions, docIter doc.Iterator, results DocumentResults, limit int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryWithIter", ctx, opts, docIter, results, limit)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// QueryWithIter indicates an expected call of QueryWithIter
+func (mr *MockBlockMockRecorder) QueryWithIter(ctx, opts, docIter, results, limit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryWithIter", reflect.TypeOf((*MockBlock)(nil).QueryWithIter), ctx, opts, docIter, results, limit)
+}
+
+// QueryIter mocks base method
+func (m *MockBlock) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryIter", ctx, query)
+	ret0, _ := ret[0].(doc.QueryDocIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryIter indicates an expected call of QueryIter
+func (mr *MockBlockMockRecorder) QueryIter(ctx, query interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIter", reflect.TypeOf((*MockBlock)(nil).QueryIter), ctx, query)
+}
+
 // Aggregate mocks base method
 func (m *MockBlock) Aggregate(ctx context.Context, opts QueryOptions, results AggregateResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
@@ -1110,6 +1138,35 @@ func (m *MockBlock) Aggregate(ctx context.Context, opts QueryOptions, results Ag
 func (mr *MockBlockMockRecorder) Aggregate(ctx, opts, results, logFields interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregate", reflect.TypeOf((*MockBlock)(nil).Aggregate), ctx, opts, results, logFields)
+}
+
+// AggregateWithIter mocks base method
+func (m *MockBlock) AggregateWithIter(ctx context.Context, iter AggregateIterator, opts QueryOptions, results AggregateResults, limit int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateWithIter", ctx, iter, opts, results, limit)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AggregateWithIter indicates an expected call of AggregateWithIter
+func (mr *MockBlockMockRecorder) AggregateWithIter(ctx, iter, opts, results, limit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateWithIter", reflect.TypeOf((*MockBlock)(nil).AggregateWithIter), ctx, iter, opts, results, limit)
+}
+
+// AggregateIter mocks base method
+func (m *MockBlock) AggregateIter(ctx context.Context, aggOpts AggregateResultsOptions) (AggregateIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateIter", ctx, aggOpts)
+	ret0, _ := ret[0].(AggregateIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateIter indicates an expected call of AggregateIter
+func (mr *MockBlockMockRecorder) AggregateIter(ctx, aggOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateIter", reflect.TypeOf((*MockBlock)(nil).AggregateIter), ctx, aggOpts)
 }
 
 // AddResults mocks base method
@@ -1327,6 +1384,128 @@ func (mr *MockBlockStatsReporterMockRecorder) ReportIndexingStats(stats interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportIndexingStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportIndexingStats), stats)
 }
 
+// MockAggregateIterator is a mock of AggregateIterator interface
+type MockAggregateIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockAggregateIteratorMockRecorder
+}
+
+// MockAggregateIteratorMockRecorder is the mock recorder for MockAggregateIterator
+type MockAggregateIteratorMockRecorder struct {
+	mock *MockAggregateIterator
+}
+
+// NewMockAggregateIterator creates a new mock instance
+func NewMockAggregateIterator(ctrl *gomock.Controller) *MockAggregateIterator {
+	mock := &MockAggregateIterator{ctrl: ctrl}
+	mock.recorder = &MockAggregateIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockAggregateIterator) EXPECT() *MockAggregateIteratorMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockAggregateIterator) Next(ctx context.Context) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next", ctx)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockAggregateIteratorMockRecorder) Next(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockAggregateIterator)(nil).Next), ctx)
+}
+
+// Done mocks base method
+func (m *MockAggregateIterator) Done() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Done")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Done indicates an expected call of Done
+func (mr *MockAggregateIteratorMockRecorder) Done() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockAggregateIterator)(nil).Done))
+}
+
+// Err mocks base method
+func (m *MockAggregateIterator) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockAggregateIteratorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockAggregateIterator)(nil).Err))
+}
+
+// Current mocks base method
+func (m *MockAggregateIterator) Current() ([]byte, []byte) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].([]byte)
+	return ret0, ret1
+}
+
+// Current indicates an expected call of Current
+func (mr *MockAggregateIteratorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockAggregateIterator)(nil).Current))
+}
+
+// Close mocks base method
+func (m *MockAggregateIterator) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockAggregateIteratorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAggregateIterator)(nil).Close))
+}
+
+// SearchDuration mocks base method
+func (m *MockAggregateIterator) SearchDuration() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchDuration")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// SearchDuration indicates an expected call of SearchDuration
+func (mr *MockAggregateIteratorMockRecorder) SearchDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockAggregateIterator)(nil).SearchDuration))
+}
+
+// fieldsAndTermsIteratorOpts mocks base method
+func (m *MockAggregateIterator) fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "fieldsAndTermsIteratorOpts")
+	ret0, _ := ret[0].(fieldsAndTermsIteratorOpts)
+	return ret0
+}
+
+// fieldsAndTermsIteratorOpts indicates an expected call of fieldsAndTermsIteratorOpts
+func (mr *MockAggregateIteratorMockRecorder) fieldsAndTermsIteratorOpts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "fieldsAndTermsIteratorOpts", reflect.TypeOf((*MockAggregateIterator)(nil).fieldsAndTermsIteratorOpts))
+}
+
 // MockfieldsAndTermsIterator is a mock of fieldsAndTermsIterator interface
 type MockfieldsAndTermsIterator struct {
 	ctrl     *gomock.Controller
@@ -1407,18 +1586,18 @@ func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Close))
 }
 
-// Reset mocks base method
-func (m *MockfieldsAndTermsIterator) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
+// SearchDuration mocks base method
+func (m *MockfieldsAndTermsIterator) SearchDuration() time.Duration {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reset", reader, opts)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "SearchDuration")
+	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-// Reset indicates an expected call of Reset
-func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(reader, opts interface{}) *gomock.Call {
+// SearchDuration indicates an expected call of SearchDuration
+func (mr *MockfieldsAndTermsIteratorMockRecorder) SearchDuration() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), reader, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).SearchDuration))
 }
 
 // MockOptions is a mock of Options interface

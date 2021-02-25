@@ -114,4 +114,12 @@ type Options interface {
 
 	// SetPermitsOptions sets the permits options.
 	SetPermitsOptions(value permits.Options) Options
+
+	// FetchTaggedSeriesBlocksPerBatch gets the series blocks allowed to be read
+	// per permit acquired.
+	FetchTaggedSeriesBlocksPerBatch() int
+
+	// SetFetchTaggedSeriesBlocksPerBatch sets the series blocks allowed to be read
+	// per permit acquired.
+	SetFetchTaggedSeriesBlocksPerBatch(value int) Options
 }

@@ -31,74 +31,19 @@ import (
 
 // NewQueryMetrics returns a new QueryMetrics.
 func NewQueryMetrics(name string, scope tally.Scope) QueryMetrics {
+	return NewQueryMetricsWithLabels(name, scope, nil)
+}
+
+// NewQueryMetricsWithLabels returns a new QueryMetrics with additional labels.
+func NewQueryMetricsWithLabels(name string, scope tally.Scope, labels map[string]string) QueryMetrics {
 	return QueryMetrics{
-		ByRange: NewQueryRangeMetrics(name, scope),
-		ByDocs:  NewDocCountMetrics(name, scope),
+		ByDocs: NewDocCountMetrics(name, scope, labels),
 	}
 }
 
 // QueryMetrics is a composite type of QueryDurationMetrics and QueryDocCountMetrics.
 type QueryMetrics struct {
-	ByRange QueryDurationMetrics
-	ByDocs  QueryDocCountMetrics
-}
-
-type queryRangeHist struct {
-	threshold time.Duration
-	timing    tally.Histogram
-}
-
-func newQueryRangeHist(
-	threshold time.Duration,
-	value string,
-	scope tally.Scope,
-) *queryRangeHist {
-	return &queryRangeHist{
-		threshold: threshold,
-		timing: scope.
-			Tagged(map[string]string{"range": value}).
-			Histogram("timing", instrument.SparseHistogramTimerHistogramBuckets()),
-	}
-}
-
-type queryDurationMetrics struct {
-	histograms []*queryRangeHist
-}
-
-func (bm *queryDurationMetrics) Record(
-	queryRange time.Duration,
-	queryRuntime time.Duration,
-) {
-	for _, m := range bm.histograms {
-		if queryRange <= m.threshold {
-			m.timing.RecordDuration(queryRuntime)
-			return
-		}
-	}
-}
-
-// NewQueryRangeMetrics creates QueryDurationMetrics.
-func NewQueryRangeMetrics(metricType string, scope tally.Scope) QueryDurationMetrics {
-	scope = scope.SubScope(metricType).SubScope("query_range")
-	return &queryDurationMetrics{
-		histograms: []*queryRangeHist{
-			newQueryRangeHist(time.Minute*5, "5m", scope),
-			newQueryRangeHist(time.Minute*30, "30m", scope),
-			newQueryRangeHist(time.Hour, "1hr", scope),
-			newQueryRangeHist(time.Hour*6, "6hr", scope),
-			newQueryRangeHist(time.Hour*24, "1d", scope),
-			newQueryRangeHist(time.Hour*24*5, "5d", scope),
-			newQueryRangeHist(time.Hour*24*10, "10d", scope),
-			newQueryRangeHist(time.Hour*24*30, "30d", scope),
-			newQueryRangeHist(time.Duration(math.MaxInt32), "max", scope),
-		},
-	}
-}
-
-// QueryDurationMetrics are timing metrics bucketed by the query window (start, end).
-type QueryDurationMetrics interface {
-	// Record records the duration for queries given their range.
-	Record(queryRange time.Duration, duration time.Duration)
+	ByDocs QueryDocCountMetrics
 }
 
 type docCountHist struct {
@@ -110,11 +55,16 @@ func newDocCountHist(
 	threshold int,
 	docCount string,
 	scope tally.Scope,
+	labels map[string]string,
 ) *docCountHist {
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels["count"] = docCount
 	return &docCountHist{
 		threshold: threshold,
 		timing: scope.
-			Tagged(map[string]string{"count": docCount}).
+			Tagged(labels).
 			Histogram("timing", instrument.SparseHistogramTimerHistogramBuckets()),
 	}
 }
@@ -133,22 +83,22 @@ func (bm *queryDocCount) Record(docCount int, duration time.Duration) {
 }
 
 // NewDocCountMetrics creates QueryDocCountMetrics.
-func NewDocCountMetrics(metricType string, scope tally.Scope) QueryDocCountMetrics {
+func NewDocCountMetrics(metricType string, scope tally.Scope, labels map[string]string) QueryDocCountMetrics {
 	scope = scope.SubScope(metricType).SubScope("doc_count")
 	return &queryDocCount{
 		docCountHists: []*docCountHist{
-			newDocCountHist(50, "50", scope),
-			newDocCountHist(200, "200", scope),
-			newDocCountHist(1000, "1k", scope),
-			newDocCountHist(5000, "5k", scope),
-			newDocCountHist(10_000, "10k", scope),
-			newDocCountHist(50_000, "50k", scope),
-			newDocCountHist(100_000, "100k", scope),
-			newDocCountHist(250_000, "250k", scope),
-			newDocCountHist(500_000, "500k", scope),
-			newDocCountHist(750_000, "750k", scope),
-			newDocCountHist(1_000_000, "1M", scope),
-			newDocCountHist(int(math.MaxInt32), "max", scope),
+			newDocCountHist(50, "50", scope, labels),
+			newDocCountHist(200, "200", scope, labels),
+			newDocCountHist(1000, "1k", scope, labels),
+			newDocCountHist(5000, "5k", scope, labels),
+			newDocCountHist(10_000, "10k", scope, labels),
+			newDocCountHist(50_000, "50k", scope, labels),
+			newDocCountHist(100_000, "100k", scope, labels),
+			newDocCountHist(250_000, "250k", scope, labels),
+			newDocCountHist(500_000, "500k", scope, labels),
+			newDocCountHist(750_000, "750k", scope, labels),
+			newDocCountHist(1_000_000, "1M", scope, labels),
+			newDocCountHist(int(math.MaxInt32), "max", scope, labels),
 		},
 	}
 }

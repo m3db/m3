@@ -124,7 +124,8 @@ type serviceMetrics struct {
 	writeTaggedBatchRawRPCs tally.Counter
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
-
+	rpcTotalRead            tally.Counter
+	rpcStatusCanceledRead   tally.Counter
 	// the total time to call FetchTagged, both querying the index and reading data results (if requested).
 	queryTimingFetchTagged index.QueryMetrics
 	// the total time to read data blocks.
@@ -133,9 +134,12 @@ type serviceMetrics struct {
 	queryTimingAggregate index.QueryMetrics
 	// the total time to call AggregateRaw.
 	queryTimingAggregateRaw index.QueryMetrics
+	// the series blocks read during a call to fetchTagged
+	fetchTaggedSeriesBlocks tally.Histogram
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
+	buckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return serviceMetrics{
 		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
 		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
@@ -153,11 +157,18 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
-
+		rpcTotalRead: scope.Tagged(map[string]string{
+			"rpc_type": "read",
+		}).Counter("rpc_total"),
+		rpcStatusCanceledRead: scope.Tagged(map[string]string{
+			"rpc_status": "canceled",
+			"rpc_type":   "read",
+		}).Counter("rpc_status"),
 		queryTimingFetchTagged:  index.NewQueryMetrics("fetch_tagged", scope),
 		queryTimingAggregate:    index.NewQueryMetrics("aggregate", scope),
 		queryTimingAggregateRaw: index.NewQueryMetrics("aggregate_raw", scope),
 		queryTimingDataRead:     index.NewQueryMetrics("data_read", scope),
+		fetchTaggedSeriesBlocks: scope.Histogram("fetchTagged-seriesBlocks", buckets),
 	}
 }
 
@@ -482,7 +493,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	ctx := addSourceToContext(tctx, req.Source)
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.Query)
@@ -654,7 +665,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart = s.nowFn()
@@ -745,6 +756,7 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	if err != nil {
 		return nil, err
 	}
+
 	result, err := s.buildFetchTaggedResult(ctx, iter)
 	iter.Close(err)
 
@@ -765,7 +777,7 @@ func (s *service) buildFetchTaggedResult(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		segments, err := cur.WriteSegments(nil)
+		segments, err := cur.WriteSegments(ctx, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -818,7 +830,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		return nil, err
 	}
 	ctx.RegisterCloser(xresource.SimpleCloserFn(func() {
-		s.readRPCCompleted()
+		s.readRPCCompleted(ctx.GoContext())
 	}))
 
 	startTime := s.nowFn()
@@ -851,6 +863,8 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		fetchStart:      startTime,
 		dataReadMetrics: s.metrics.queryTimingDataRead,
 		totalMetrics:    s.metrics.queryTimingFetchTagged,
+		blocksPerBatch:  s.opts.FetchTaggedSeriesBlocksPerBatch(),
+		seriesBlocks:    s.metrics.fetchTaggedSeriesBlocks,
 	}), nil
 }
 
@@ -885,14 +899,15 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	fetchTaggedResultsIterOpts
-	idResults       []idResult
-	idx             int
-	blockReadIdx    int
-	cur             IDResult
-	err             error
-	batchesAcquired int
-	blocksAvailable int
-	dataReadStart   time.Time
+	idResults         []idResult
+	idx               int
+	blockReadIdx      int
+	cur               IDResult
+	err               error
+	batchesAcquired   int
+	blocksAvailable   int
+	dataReadStart     time.Time
+	totalSeriesBlocks int
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -912,10 +927,17 @@ type fetchTaggedResultsIterOpts struct {
 	totalDocsCount  int
 	dataReadMetrics index.QueryMetrics
 	totalMetrics    index.QueryMetrics
-	blocksReadLimit limits.LookbackLimit
+	seriesBlocks    tally.Histogram
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
+	_, limitBased := opts.blockPermits.(*permits.LookbackLimitPermit)
+	if opts.blocksPerBatch == 0 || limitBased {
+		// NB(nate): if blocksPerBatch is unset, set blocksPerBatch to 1 (i.e. acquire a permit
+		// for each block as opposed to acquiring in bulk). Additionally, limit-based permits
+		// are required to use a blocksPerBatch size of 1 so as to not throw off limit accounting.
+		opts.blocksPerBatch = 1
+	}
 	return &fetchTaggedResultsIter{
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
@@ -981,6 +1003,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 
 			for blockIter.Next(ctx) {
 				curr := blockIter.Current()
+				i.totalSeriesBlocks++
 				currResult.blockReaders = append(currResult.blockReaders, curr)
 				acquired, err := i.acquire(ctx, i.blockReadIdx)
 				if err != nil {
@@ -1052,15 +1075,14 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
 
-	queryRange := i.queryOpts.EndExclusive.Sub(i.queryOpts.StartInclusive)
 	now := i.nowFn()
 	dataReadTime := now.Sub(i.dataReadStart)
-	i.dataReadMetrics.ByRange.Record(queryRange, dataReadTime)
 	i.dataReadMetrics.ByDocs.Record(i.totalDocsCount, dataReadTime)
 
 	totalFetchTime := now.Sub(i.fetchStart)
-	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
 	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
+
+	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
 
 	for n := 0; n < i.batchesAcquired; n++ {
 		i.blockPermits.Release()
@@ -1078,7 +1100,8 @@ type IDResult interface {
 
 	// WriteSegments writes the Segments to the provided slice. Callers must use the returned reference in case the slice
 	// needs to grow, just like append().
-	WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error)
+	// This method blocks until segment data is available or the context deadline expires.
+	WriteSegments(ctx context.Context, dst []*rpc.Segments) ([]*rpc.Segments, error)
 }
 
 type idResult struct {
@@ -1110,10 +1133,10 @@ func (i *idResult) WriteTags(dst []byte) ([]byte, error) {
 	return dst, nil
 }
 
-func (i *idResult) WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error) {
+func (i *idResult) WriteSegments(ctx context.Context, dst []*rpc.Segments) ([]*rpc.Segments, error) {
 	dst = dst[:0]
 	for _, blockReaders := range i.blockReaders {
-		segments, err := readEncodedResultSegment(blockReaders)
+		segments, err := readEncodedResultSegment(ctx, blockReaders)
 		if err != nil {
 			return nil, err
 		}
@@ -1129,7 +1152,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1171,8 +1194,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregate
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
 	queryTiming.ByDocs.Record(size, duration)
 
 	return response, nil
@@ -1183,7 +1204,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := addSourceToContext(tctx, req.Source)
@@ -1226,8 +1247,6 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregateRaw
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
 	queryTiming.ByDocs.Record(size, duration)
 
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
@@ -1264,7 +1283,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := addSourceToContext(tctx, req.Source)
@@ -1348,7 +1367,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart          = s.nowFn()
@@ -1434,7 +1453,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart = s.nowFn()
@@ -1482,7 +1501,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 				block.Err = convert.ToRPCError(err)
 			} else {
 				var converted convert.ToSegmentsResult
-				converted, err = convert.ToSegments(fetchedBlock.Blocks)
+				converted, err = convert.ToSegments(ctx, fetchedBlock.Blocks)
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}
@@ -1510,7 +1529,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	defer func() {
@@ -2572,7 +2591,14 @@ func (s *service) startReadRPCWithDB() (storage.Database, error) {
 	return db, nil
 }
 
-func (s *service) readRPCCompleted() {
+func (s *service) readRPCCompleted(ctx goctx.Context) {
+	s.metrics.rpcTotalRead.Inc(1)
+	select {
+	case <-ctx.Done():
+		s.metrics.rpcStatusCanceledRead.Inc(1)
+	default:
+	}
+
 	if s.state.maxOutstandingReadRPCs == 0 {
 		// Nothing to do since we're not tracking the number outstanding RPCs.
 		return
@@ -2623,7 +2649,7 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
-		segment, err := readEncodedResultSegment(readers)
+		segment, err := readEncodedResultSegment(ctx, readers)
 		if err != nil {
 			return nil, err
 		}
@@ -2637,9 +2663,10 @@ func (s *service) readEncodedResult(
 }
 
 func readEncodedResultSegment(
+	ctx context.Context,
 	readers []xio.BlockReader,
 ) (*rpc.Segments, *rpc.Error) {
-	converted, err := convert.ToSegments(readers)
+	converted, err := convert.ToSegments(ctx, readers)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
@@ -2924,12 +2951,7 @@ func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
 
 func addSourceToM3Context(ctx context.Context, source []byte) context.Context {
 	if len(source) > 0 {
-		if base, ok := ctx.GoContext(); ok {
-			ctx.SetGoContext(goctx.WithValue(base, limits.SourceContextKey, source))
-		} else {
-			ctx.SetGoContext(goctx.WithValue(goctx.Background(), limits.SourceContextKey, source))
-		}
+		ctx.SetGoContext(goctx.WithValue(ctx.GoContext(), limits.SourceContextKey, source))
 	}
-
 	return ctx
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -676,7 +677,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 11)
+			require.Len(t, spans, 15)
 		})
 	}
 }
@@ -739,12 +740,12 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	for _, test := range []struct {
-		name                     string
-		seriesLimit              int
-		docsLimit                int
-		requireExhaustive        bool
-		expectedErr              string
-		expectedInvalidParamsErr bool
+		name                            string
+		seriesLimit                     int
+		docsLimit                       int
+		requireExhaustive               bool
+		expectedErr                     string
+		expectedQueryLimitExceededError bool
 	}{
 		{
 			name:              "no limits",
@@ -775,36 +776,40 @@ func TestLimits(t *testing.T) {
 			expectedErr:       "",
 		},
 		{
-			name:                     "no limits",
-			seriesLimit:              0,
-			docsLimit:                0,
-			requireExhaustive:        true,
-			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
-			expectedInvalidParamsErr: true,
+			name:              "no limits",
+			seriesLimit:       0,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr: "query exceeded limit: require_exhaustive=true, " +
+				"series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
+			expectedQueryLimitExceededError: true,
 		},
 		{
-			name:                     "series limit only",
-			seriesLimit:              1,
-			docsLimit:                0,
-			requireExhaustive:        true,
-			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
-			expectedInvalidParamsErr: true,
+			name:              "series limit only",
+			seriesLimit:       1,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr: "query exceeded limit: require_exhaustive=true, " +
+				"series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
+			expectedQueryLimitExceededError: true,
 		},
 		{
-			name:                     "docs limit only",
-			seriesLimit:              0,
-			docsLimit:                1,
-			requireExhaustive:        true,
-			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
-			expectedInvalidParamsErr: true,
+			name:              "docs limit only",
+			seriesLimit:       0,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr: "query exceeded limit: require_exhaustive=true, " +
+				"series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+			expectedQueryLimitExceededError: true,
 		},
 		{
-			name:                     "both series and docs limit",
-			seriesLimit:              1,
-			docsLimit:                1,
-			requireExhaustive:        true,
-			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
-			expectedInvalidParamsErr: true,
+			name:              "both series and docs limit",
+			seriesLimit:       1,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr: "query exceeded limit: require_exhaustive=true, " +
+				"series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
+			expectedQueryLimitExceededError: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -847,7 +852,8 @@ func TestLimits(t *testing.T) {
 			if test.requireExhaustive {
 				require.Error(t, err)
 				require.Equal(t, test.expectedErr, err.Error())
-				require.Equal(t, test.expectedInvalidParamsErr, xerrors.IsInvalidParams(err))
+				require.Equal(t, test.expectedQueryLimitExceededError, limits.IsQueryLimitExceededError(err))
+				require.Equal(t, test.expectedQueryLimitExceededError, xerrors.IsInvalidParams(err))
 			} else {
 				require.NoError(t, err)
 			}
@@ -1093,7 +1099,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 11)
+			require.Len(t, spans, 15)
 		})
 	}
 }
