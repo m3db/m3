@@ -2388,30 +2388,30 @@ func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
 }
 
-// ResultsPerPermit mocks base method
-func (m *MockOptions) ResultsPerPermit() int {
+// MaxResultsPerWorker mocks base method
+func (m *MockOptions) MaxResultsPerWorker() MaxResultsPerWorker {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxResultsPerWorker")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(MaxResultsPerWorker)
 	return ret0
 }
 
-// ResultsPerPermit indicates an expected call of ResultsPerPermit
-func (mr *MockOptionsMockRecorder) ResultsPerPermit() *gomock.Call {
+// MaxResultsPerWorker indicates an expected call of MaxResultsPerWorker
+func (mr *MockOptionsMockRecorder) MaxResultsPerWorker() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxResultsPerWorker", reflect.TypeOf((*MockOptions)(nil).ResultsPerPermit))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxResultsPerWorker", reflect.TypeOf((*MockOptions)(nil).MaxResultsPerWorker))
 }
 
-// SetResultsPerPermit mocks base method
-func (m *MockOptions) SetResultsPerPermit(value int) Options {
+// SetMaxResultsPerWorker mocks base method
+func (m *MockOptions) SetMaxResultsPerWorker(value MaxResultsPerWorker) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMaxResultsPerWorker", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetResultsPerPermit indicates an expected call of SetResultsPerPermit
-func (mr *MockOptionsMockRecorder) SetResultsPerPermit(value interface{}) *gomock.Call {
+// SetMaxResultsPerWorker indicates an expected call of SetMaxResultsPerWorker
+func (mr *MockOptionsMockRecorder) SetMaxResultsPerWorker(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxResultsPerWorker", reflect.TypeOf((*MockOptions)(nil).SetResultsPerPermit), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxResultsPerWorker", reflect.TypeOf((*MockOptions)(nil).SetMaxResultsPerWorker), value)
 }

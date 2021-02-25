@@ -223,7 +223,7 @@ func testNamespaceIndexHighConcurrentQueries(
 				DoAndReturn(func() time.Time { return block.EndTime() }).
 				AnyTimes()
 			mockBlock.EXPECT().QueryIter(gomock.Any(), gomock.Any()).DoAndReturn(func(
-				ctx context.Context, query index.Query) (doc.QueryDocIterator, error) {
+				ctx context.Context, query index.Query) (index.QueryIterator, error) {
 				return block.QueryIter(ctx, query)
 			},
 			).AnyTimes()
@@ -234,7 +234,7 @@ func testNamespaceIndexHighConcurrentQueries(
 					DoAndReturn(func(
 						_ context.Context,
 						_ index.QueryOptions,
-						_ doc.QueryDocIterator,
+						_ index.QueryIterator,
 						_ index.QueryResults,
 						_ int,
 						_ []opentracinglog.Field,
@@ -248,7 +248,7 @@ func testNamespaceIndexHighConcurrentQueries(
 					DoAndReturn(func(
 						ctx context.Context,
 						opts index.QueryOptions,
-						iter doc.QueryDocIterator,
+						iter index.QueryIterator,
 						r index.QueryResults,
 						limit int,
 						logFields []opentracinglog.Field,
