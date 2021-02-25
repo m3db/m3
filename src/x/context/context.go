@@ -27,7 +27,7 @@ import (
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xresource "github.com/m3db/m3/src/x/resource"
 
-	lightstep "github.com/lightstep/lightstep-tracer-go"
+	"github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
@@ -327,14 +327,20 @@ func (c *ctx) parentCtx() Context {
 }
 
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	if c.checkedAndNotSampled {
+	c.RLock()
+	checkedAndNotSampled := c.checkedAndNotSampled
+	c.RUnlock()
+
+	if checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
 	}
 	goCtx := c.GoContext()
 
 	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
 	if !sampled {
+		c.Lock()
 		c.checkedAndNotSampled = true
+		c.Unlock()
 		return c, noopTracer.StartSpan(name), false
 	}
 
