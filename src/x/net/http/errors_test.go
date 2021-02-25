@@ -27,9 +27,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	terrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
@@ -58,6 +60,21 @@ func TestErrorStatus(t *testing.T) {
 			name:           "canceled",
 			err:            context.Canceled,
 			expectedStatus: 499,
+		},
+		{
+			name:           "prom canceled",
+			err:            promql.ErrQueryCanceled("canceled"),
+			expectedStatus: 499,
+		},
+		{
+			name:           "client timeout",
+			err:            terrors.NewTimeoutError(fmt.Errorf("timeout")),
+			expectedStatus: 504,
+		},
+		{
+			name:           "prom timeout",
+			err:            promql.ErrQueryTimeout("timeout"),
+			expectedStatus: 504,
 		},
 	}
 
