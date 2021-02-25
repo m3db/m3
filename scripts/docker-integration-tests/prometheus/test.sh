@@ -52,19 +52,19 @@ function test_prometheus_remote_read {
   # Ensure Prometheus can proxy a Prometheus query
   echo "Wait until the remote write endpoint generates and allows for data to be queried"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gsSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_samples_total | jq -r .data.result[0].value[1]) -gt 100 ]]'
+    '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_samples_total | jq -r .data.result[0].value[1]) -gt 100 ]]'
 }
 
 function test_prometheus_remote_write_multi_namespaces {
   # Make sure we're proxying writes to the unaggregated namespace
   echo "Wait until data begins being written to remote storage for the unaggregated namespace"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gsSf 0.0.0.0:9090/api/v1/query?query=database_write_tagged_success\\{namespace=\"unagg\"\\} | jq -r .data.result[0].value[1]) -gt 0 ]]'
+    '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=database_write_tagged_success\\{namespace=\"unagg\"\\} | jq -r .data.result[0].value[1]) -gt 0 ]]'
 
   # Make sure we're proxying writes to the aggregated namespace
   echo "Wait until data begins being written to remote storage for the aggregated namespace"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gsSf 0.0.0.0:9090/api/v1/query?query=database_write_tagged_success\\{namespace=\"agg\"\\} | jq -r .data.result[0].value[1]) -gt 0 ]]'
+    '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=database_write_tagged_success\\{namespace=\"agg\"\\} | jq -r .data.result[0].value[1]) -gt 0 ]]'
 }
 
 function prometheus_remote_write {
@@ -204,7 +204,7 @@ function test_query_lookback_applied {
   # Now query and ensure that the latest timestamp is within the last two steps
   # from now.
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/query_range?query=lookback_test&step=15&start=$(expr $(date "+%s") - 600)&end=$(date "+%s")" | jq -r ".data.result[0].values[-1][0]") -gt $(expr $(date "+%s") - 30) ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/query_range?query=lookback_test&step=15&start=$(expr $(date "+%s") - 600)&end=$(date "+%s")" | jq -r ".data.result[0].values[-1][0]") -gt $(expr $(date "+%s") - 30) ]]'
 }
 
 function test_query_limits_applied {
@@ -213,97 +213,71 @@ function test_query_limits_applied {
   # NB: ensure that the limit is not exceeded (it may be below limit).
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
   # Test the series limit applied when directly querying
   # coordinator (series limit set by header)
   echo "Test query series limit with coordinator limit header (default errors without RequireExhaustive disabled)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq ."error" | grep "") ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq ."error" | grep "") ]]'
 
   echo "Test query series limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 2 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 2 ]]'
 
   echo "Test query series limit with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Series: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
 
   echo "Test query series limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ -n $(curl -gs -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
   # Test that require exhaustive error is 4xx
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "400" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "400" ]]'
 
   # Test the docs limit applied when directly querying
   # coordinator (docs limit set by header)
   echo "Test query docs limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
   echo "Test query docs limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
 
   echo "Test query docs limit with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Docs: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
 
   echo "Test query docs limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ -n $(curl -gs -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
   # Test that require exhaustive error is 4xx
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "400" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "400" ]]'
 
   echo "Test query returned-datapoints limit - zero limit disabled"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Returned-Datapoints: 0" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-Datapoints: 0" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
 
   echo "Test query returned-series limit - zero limit disabled"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Returned-Series: 0" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-Series: 0" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
 
   echo "Test query returned-series limit - above limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Returned-Series: 4" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-Series: 4" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
 
   echo "Test query returned-series limit - at limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Returned-Series: 3" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-Series: 3" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 3 ]]'
 
   echo "Test query returned-series limit - below limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Returned-Series: 2" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 2 ]]'
-}
-
-function test_query_timeouts {
-  echo "Test query timeouts"
-
-  # Exercise APIs with different minimal timeouts to trigger timeouts in varying parts of the stack
-
-  # Confirms that timeouts at the coordinator layer return a 504
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "504" ]]'
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "504" ]]'
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/labels) = "504" ]]'
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/label/__name__/values) = "504" ]]'
-
-  # Confirms that timeouts from coordinator -> m3db return a 504
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "504" ]]'
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "504" ]]'
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/labels) = "504" ]]'
-  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/label/__name__/values) = "504" ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-Series: 2" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 2 ]]'
 }
 
 function prometheus_query_native {
@@ -327,7 +301,7 @@ function prometheus_query_native {
       -H "M3-Storage-Policy: ${metrics_storage_policy}"                   \
       "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}")
   else
-    result=$(curl -gs                                    \
+    result=$(curl -s                                    \
       -H "M3-Metrics-Type: ${metrics_type}"             \
       -H "M3-Storage-Policy: ${metrics_storage_policy}" \
       "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | head -1)
@@ -410,22 +384,22 @@ function test_query_restrict_tags {
   # don't appear by default we know that the metrics are already visible).
   echo "Test restrict by tags with header override to remove restrict works"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Restrict-By-Tags-JSON: {}" 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 1 ]]'
+    '[[ $(curl -s -H "M3-Restrict-By-Tags-JSON: {}" 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 1 ]]'
 
   # Now test that the defaults will hide the metrics altogether.
   echo "Test restrict by tags with coordinator defaults"
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 0 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 0 ]]'
 }
 
 function test_series {
   # Test series search with start/end specified
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_samples_total&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_samples_total&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 1 ]]'
 
   # Test series search with no start/end specified
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_samples_total" | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_samples_total" | jq -r ".data | length") -eq 1 ]]'
 
   # Test series search with min/max start time using the Prometheus Go
   # min/max formatted timestamps, which is sent as part of a Prometheus
@@ -438,47 +412,47 @@ function test_series {
   # minTimeFormatted="-292273086-05-16T16:47:06Z"
   # maxTimeFormatted="292277025-08-18T07:12:54.999999999Z"
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_samples_total&start=-292273086-05-16T16:47:06Z&end=292277025-08-18T07:12:54.999999999Z" | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_samples_total&start=-292273086-05-16T16:47:06Z&end=292277025-08-18T07:12:54.999999999Z" | jq -r ".data | length") -eq 1 ]]'
 }
 
 function test_label_query_limits_applied {
   # Test that require exhaustive does nothing if limits are not hit
   echo "Test label limits with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 10000" -H "M3-Limit-Max-Series: 10000" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "200" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 10000" -H "M3-Limit-Max-Series: 10000" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "200" ]]'
 
   # the header takes precedence over the configured default series limit
   echo "Test label series limit with coordinator limit header (default requires exhaustive so error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ -n $(curl -gs -H "M3-Limit-Max-Series: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Series: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
 
   echo "Test label series limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -eq 1 ]]'
 
   echo "Test label series limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ -n $(curl -gs -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
   # Test that require exhaustive error is 4xx
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "400" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "400" ]]'
 
   echo "Test label docs limit with coordinator limit header (default requires exhaustive so error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ -n $(curl -gs -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
 
   echo "Test label docs limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -H "M3-Limit-Max-Docs: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -eq 1 ]]'
 
  echo "Test label docs limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ -n $(curl -gs -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
   # Test that require exhaustive error is 4xx
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "400" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "400" ]]'
 }
 
 function test_labels {
@@ -499,27 +473,27 @@ function test_labels {
 
   # Test label search with match
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/labels" | jq -r "[.data[] | select(index(\"name_0\", \"name_1\", \"name_2\"))] | length") -eq 3 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels" | jq -r "[.data[] | select(index(\"name_0\", \"name_1\", \"name_2\"))] | length") -eq 3 ]]'
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/labels?match[]=label_metric" | jq -r ".data | length") -eq 4 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric" | jq -r ".data | length") -eq 4 ]]'
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/labels?match[]=label_metric_2" | jq -r ".data | length") -eq 3 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric_2" | jq -r ".data | length") -eq 3 ]]'
 
   # Test label values search with match
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/label/name_1/values" | jq -r ".data | length") -eq 2 ]]' # two values without a match
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values" | jq -r ".data | length") -eq 2 ]]' # two values without a match
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data | length") -eq 1 ]]'
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data[0]") = "value_1_1" ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data[0]") = "value_1_1" ]]'
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data | length") -eq 1 ]]'
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -gs "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data[0]") = "value_1_2" ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data[0]") = "value_1_2" ]]'
 }
 
 echo "Running readiness test"
@@ -536,7 +510,6 @@ test_prometheus_remote_write_restrict_metrics_type
 test_query_lookback_applied
 test_query_limits_applied
 test_query_restrict_metrics_type
-test_query_timeouts
 test_prometheus_query_native_timeout
 test_query_restrict_tags
 test_prometheus_remote_write_map_tags
