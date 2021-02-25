@@ -22,6 +22,7 @@ package storage
 
 import (
 	"bytes"
+	gocontext "context"
 	"errors"
 	"fmt"
 	"io"
@@ -1592,8 +1593,12 @@ func (i *nsIndex) queryWithSpan(
 		// State contains concurrent mutable state for async execution below.
 		state   = &asyncQueryExecState{}
 		wg      sync.WaitGroup
-		permits = i.permitsManager.NewPermits(ctx)
+
 	)
+	permits, err := i.permitsManager.NewPermits(ctx)
+	if err != nil {
+		return false, err
+	}
 
 	blockIters := make([]*blockIter, 0, len(blocks))
 	for _, block := range blocks {
@@ -1705,7 +1710,7 @@ func (i *nsIndex) queryWithSpan(
 	multiErr := state.multiErr
 	err = multiErr.FinalError()
 
-	if err != nil && !multiErr.Contains(index.ErrCancelledQuery) {
+	if err != nil && !multiErr.Contains(gocontext.DeadlineExceeded) && !multiErr.Contains(gocontext.Canceled) {
 		// an unexpected error occurred processing the query, bail without updating timing metrics.
 		return false, err
 	}

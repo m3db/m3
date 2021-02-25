@@ -418,7 +418,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 	require.NoError(t, err)
 	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, 100, emptyLogFields)
 	require.Error(t, err)
-	require.Equal(t, ErrCancelledQuery, err)
+	require.Equal(t, stdlibctx.Canceled, err)
 }
 
 func TestBlockQueryExecutorError(t *testing.T) {

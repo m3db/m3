@@ -472,15 +472,12 @@ func Run(runOpts RunOptions) {
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	permitOptions := runOpts.StorageOptions.PermitOptions
-	if permitOptions == nil {
-		permitOptions = opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
-		if cfg.Index.MaxQueryIDsConcurrency != 0 {
-			permitOptions = permitOptions.SetIndexQueryPermitsManager(
-				permits.NewFixedPermitsManager(cfg.Index.MaxQueryIDsConcurrency))
-		} else {
-			logger.Warn("max index query IDs concurrency was not set, falling back to default value")
-		}
+	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
+	if cfg.Index.MaxQueryIDsConcurrency != 0 {
+		permitOptions = permitOptions.SetIndexQueryPermitsManager(
+			permits.NewFixedPermitsManager(cfg.Index.MaxQueryIDsConcurrency))
+	} else {
+		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
 	opts = opts.SetPermitsOptions(permitOptions)
 

@@ -56,8 +56,6 @@ var (
 	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
 	// ErrUnableReportStatsBlockClosed is returned from Stats when the block is closed.
 	ErrUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
-	// ErrCancelledQuery is returned when the block processing is canceled before finishing.
-	ErrCancelledQuery = errors.New("query was canceled")
 
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
 	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
@@ -505,7 +503,7 @@ func (b *block) queryWithSpan(
 			select {
 			case <-ctx.GoContext().Done():
 				// indexNs will log something useful.
-				return ErrCancelledQuery
+				return ctx.GoContext().Err()
 			default:
 			}
 		}
@@ -714,7 +712,7 @@ func (b *block) aggregateWithSpan(
 		if len(batch) == 0 {
 			select {
 			case <-ctx.GoContext().Done():
-				return ErrCancelledQuery
+				return ctx.GoContext().Err()
 			default:
 			}
 		}

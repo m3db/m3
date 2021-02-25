@@ -31,7 +31,8 @@ import (
 
 func TestFixedPermits(t *testing.T) {
 	ctx := context.NewBackground()
-	fp := NewFixedPermitsManager(3).NewPermits(ctx)
+	fp, err := NewFixedPermitsManager(3).NewPermits(ctx)
+	require.NoError(t, err)
 	require.NoError(t, fp.Acquire(ctx))
 	require.NoError(t, fp.Acquire(ctx))
 	require.NoError(t, fp.Acquire(ctx))
@@ -46,7 +47,8 @@ func TestFixedPermits(t *testing.T) {
 
 func TestFixedPermitsTimeouts(t *testing.T) {
 	ctx := context.NewBackground()
-	fp := NewFixedPermitsManager(1).NewPermits(ctx)
+	fp, err := NewFixedPermitsManager(1).NewPermits(ctx)
+	require.NoError(t, err)
 	require.NoError(t, fp.Acquire(ctx))
 
 	acq, err := fp.TryAcquire(ctx)

@@ -422,7 +422,7 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 			logFields []opentracinglog.Field,
 		) error {
 			<-ctx.GoContext().Done()
-			return index.ErrCancelledQuery
+			return ctx.GoContext().Err()
 		})
 	mockBlock.EXPECT().Close().Return(nil)
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
@@ -439,7 +439,7 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 	require.Error(t, err)
 	var multiErr xerrors.MultiError
 	require.True(t, errors.As(err, &multiErr))
-	require.True(t, multiErr.Contains(index.ErrCancelledQuery))
+	require.True(t, multiErr.Contains(stdctx.DeadlineExceeded))
 }
 
 func verifyFlushForShards(

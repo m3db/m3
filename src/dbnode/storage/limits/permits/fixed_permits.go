@@ -46,8 +46,8 @@ func NewFixedPermitsManager(size int) Manager {
 	return &fixedPermitsManager{fp}
 }
 
-func (f *fixedPermitsManager) NewPermits(_ context.Context) Permits {
-	return &f.fp
+func (f *fixedPermitsManager) NewPermits(_ context.Context) (Permits, error) {
+	return &f.fp, nil
 }
 
 func (f *fixedPermits) Acquire(ctx context.Context) error {
