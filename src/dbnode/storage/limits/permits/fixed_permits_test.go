@@ -41,7 +41,7 @@ func TestFixedPermits(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, acq)
 
-	fp.Release()
+	fp.Release(ctx, 0)
 	require.NoError(t, fp.Acquire(ctx))
 }
 
@@ -59,7 +59,7 @@ func TestFixedPermitsTimeouts(t *testing.T) {
 	cancel()
 	ctx = context.NewWithGoContext(stdCtx)
 
-	fp.Release()
+	fp.Release(ctx, 0)
 
 	err = fp.Acquire(ctx)
 	require.Error(t, err)

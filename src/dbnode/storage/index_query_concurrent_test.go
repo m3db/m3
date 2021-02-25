@@ -236,7 +236,7 @@ func testNamespaceIndexHighConcurrentQueries(
 						_ index.QueryOptions,
 						_ index.QueryIterator,
 						_ index.QueryResults,
-						_ int,
+						_ time.Time,
 						_ []opentracinglog.Field,
 					) error {
 						return errors.New("some-error")
@@ -250,11 +250,11 @@ func testNamespaceIndexHighConcurrentQueries(
 						opts index.QueryOptions,
 						iter index.QueryIterator,
 						r index.QueryResults,
-						limit int,
+						deadline time.Time,
 						logFields []opentracinglog.Field,
 					) error {
 						time.Sleep(timeoutValue + time.Second)
-						return block.QueryWithIter(ctx, opts, iter, r, limit, logFields)
+						return block.QueryWithIter(ctx, opts, iter, r, deadline, logFields)
 					}).
 					AnyTimes()
 			}

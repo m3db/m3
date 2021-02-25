@@ -930,17 +930,17 @@ func (mr *MockBlockMockRecorder) WriteBatch(inserts interface{}) *gomock.Call {
 }
 
 // QueryWithIter mocks base method
-func (m *MockBlock) QueryWithIter(ctx context.Context, opts QueryOptions, iter QueryIterator, results DocumentResults, limit int, logFields []log.Field) error {
+func (m *MockBlock) QueryWithIter(ctx context.Context, opts QueryOptions, iter QueryIterator, results DocumentResults, deadline time.Time, logFields []log.Field) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryWithIter", ctx, opts, iter, results, limit, logFields)
+	ret := m.ctrl.Call(m, "QueryWithIter", ctx, opts, iter, results, deadline, logFields)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // QueryWithIter indicates an expected call of QueryWithIter
-func (mr *MockBlockMockRecorder) QueryWithIter(ctx, opts, iter, results, limit, logFields interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) QueryWithIter(ctx, opts, iter, results, deadline, logFields interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryWithIter", reflect.TypeOf((*MockBlock)(nil).QueryWithIter), ctx, opts, iter, results, limit, logFields)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryWithIter", reflect.TypeOf((*MockBlock)(nil).QueryWithIter), ctx, opts, iter, results, deadline, logFields)
 }
 
 // QueryIter mocks base method
@@ -959,17 +959,17 @@ func (mr *MockBlockMockRecorder) QueryIter(ctx, query interface{}) *gomock.Call 
 }
 
 // AggregateWithIter mocks base method
-func (m *MockBlock) AggregateWithIter(ctx context.Context, iter AggregateIterator, opts QueryOptions, results AggregateResults, limit int, logFields []log.Field) error {
+func (m *MockBlock) AggregateWithIter(ctx context.Context, iter AggregateIterator, opts QueryOptions, results AggregateResults, deadline time.Time, logFields []log.Field) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateWithIter", ctx, iter, opts, results, limit, logFields)
+	ret := m.ctrl.Call(m, "AggregateWithIter", ctx, iter, opts, results, deadline, logFields)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AggregateWithIter indicates an expected call of AggregateWithIter
-func (mr *MockBlockMockRecorder) AggregateWithIter(ctx, iter, opts, results, limit, logFields interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) AggregateWithIter(ctx, iter, opts, results, deadline, logFields interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateWithIter", reflect.TypeOf((*MockBlock)(nil).AggregateWithIter), ctx, iter, opts, results, limit, logFields)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateWithIter", reflect.TypeOf((*MockBlock)(nil).AggregateWithIter), ctx, iter, opts, results, deadline, logFields)
 }
 
 // AggregateIter mocks base method
@@ -2388,30 +2388,30 @@ func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
 }
 
-// MaxResultsPerWorker mocks base method
-func (m *MockOptions) MaxResultsPerWorker() MaxResultsPerWorker {
+// MaxWorkerTime mocks base method
+func (m *MockOptions) MaxWorkerTime() time.Duration {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MaxResultsPerWorker")
-	ret0, _ := ret[0].(MaxResultsPerWorker)
+	ret := m.ctrl.Call(m, "MaxWorkerTime")
+	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-// MaxResultsPerWorker indicates an expected call of MaxResultsPerWorker
-func (mr *MockOptionsMockRecorder) MaxResultsPerWorker() *gomock.Call {
+// MaxWorkerTime indicates an expected call of MaxWorkerTime
+func (mr *MockOptionsMockRecorder) MaxWorkerTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxResultsPerWorker", reflect.TypeOf((*MockOptions)(nil).MaxResultsPerWorker))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxWorkerTime", reflect.TypeOf((*MockOptions)(nil).MaxWorkerTime))
 }
 
-// SetMaxResultsPerWorker mocks base method
-func (m *MockOptions) SetMaxResultsPerWorker(value MaxResultsPerWorker) Options {
+// SetMaxWorkerTime mocks base method
+func (m *MockOptions) SetMaxWorkerTime(value time.Duration) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetMaxResultsPerWorker", value)
+	ret := m.ctrl.Call(m, "SetMaxWorkerTime", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetMaxResultsPerWorker indicates an expected call of SetMaxResultsPerWorker
-func (mr *MockOptionsMockRecorder) SetMaxResultsPerWorker(value interface{}) *gomock.Call {
+// SetMaxWorkerTime indicates an expected call of SetMaxWorkerTime
+func (mr *MockOptionsMockRecorder) SetMaxWorkerTime(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxResultsPerWorker", reflect.TypeOf((*MockOptions)(nil).SetMaxResultsPerWorker), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxWorkerTime", reflect.TypeOf((*MockOptions)(nil).SetMaxWorkerTime), value)
 }

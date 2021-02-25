@@ -418,7 +418,7 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 			opts index.QueryOptions,
 			iter index.QueryIterator,
 			r index.QueryResults,
-			limit int,
+			deadline time.Time,
 			logFields []opentracinglog.Field,
 		) error {
 			<-ctx.GoContext().Done()

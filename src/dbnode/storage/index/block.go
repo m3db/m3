@@ -446,14 +446,14 @@ func (b *block) QueryWithIter(
 	opts QueryOptions,
 	iter QueryIterator,
 	results DocumentResults,
-	limit int,
+	deadline time.Time,
 	logFields []opentracinglog.Field,
 ) error {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	err := b.queryWithSpan(ctx, opts, iter, results, limit)
+	err := b.queryWithSpan(ctx, opts, iter, results, deadline)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -470,7 +470,7 @@ func (b *block) queryWithSpan(
 	opts QueryOptions,
 	iter QueryIterator,
 	results DocumentResults,
-	limit int,
+	deadline time.Time,
 ) error {
 	var (
 		err       error
@@ -480,7 +480,6 @@ func (b *block) queryWithSpan(
 		docsPool  = b.opts.DocumentArrayPool()
 		batch     = docsPool.Get()
 		batchSize = cap(batch)
-		count     int
 	)
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
@@ -489,8 +488,7 @@ func (b *block) queryWithSpan(
 	// Register local data structures that need closing.
 	defer docsPool.Put(batch)
 
-	for count < limit && iter.Next(ctx) {
-		count++
+	for time.Now().Before(deadline) && iter.Next(ctx) {
 		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
@@ -642,14 +640,14 @@ func (b *block) AggregateWithIter(
 	iter AggregateIterator,
 	opts QueryOptions,
 	results AggregateResults,
-	limit int,
+	deadline time.Time,
 	logFields []opentracinglog.Field,
 ) error {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	err := b.aggregateWithSpan(ctx, iter, opts, results, limit)
+	err := b.aggregateWithSpan(ctx, iter, opts, results, deadline)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -667,10 +665,9 @@ func (b *block) aggregateWithSpan(
 	iter AggregateIterator,
 	opts QueryOptions,
 	results AggregateResults,
-	limit int,
+	deadline time.Time,
 ) error {
 	var (
-		count         int
 		err           error
 		source        = opts.Source
 		size          = results.Size()
@@ -699,8 +696,7 @@ func (b *block) aggregateWithSpan(
 		maxBatch = opts.DocsLimit
 	}
 
-	for count < limit && iter.Next(ctx) {
-		count++
+	for time.Now().Before(deadline) && iter.Next(ctx) {
 		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}

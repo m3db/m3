@@ -522,11 +522,8 @@ func Run(runOpts RunOptions) {
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
 
-	if cfg.Index.MaxResultsPerWorker != nil {
-		indexOpts = indexOpts.SetMaxResultsPerWorker(index.MaxResultsPerWorker{
-			Fetch:     cfg.Index.MaxResultsPerWorker.Fetch,
-			Aggregate: cfg.Index.MaxResultsPerWorker.Aggregate,
-		})
+	if cfg.Index.MaxWorkerTime > 0 {
+		indexOpts = indexOpts.SetMaxWorkerTime(cfg.Index.MaxWorkerTime)
 	}
 
 	opts = opts.SetIndexOptions(indexOpts)

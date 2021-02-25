@@ -688,7 +688,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 					opts index.QueryOptions,
 					iter index.QueryIterator,
 					r index.QueryResults,
-					limit int,
+					deadline time.Time,
 					logFields []opentracinglog.Field,
 				) error {
 					_, _, err = r.AddDocuments([]doc.Document{
@@ -873,7 +873,7 @@ func TestLimits(t *testing.T) {
 					opts interface{},
 					iter interface{},
 					results index.DocumentResults,
-					limit interface{},
+					deadline interface{},
 					logFields interface{}) error {
 					_, _, err = results.AddDocuments([]doc.Document{
 						// Results in size=1 and docs=2.
@@ -1157,7 +1157,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 					iter index.AggregateIterator,
 					opts index.QueryOptions,
 					results index.AggregateResults,
-					limit int,
+					deadline time.Time,
 					logFields []opentracinglog.Field,
 				) error {
 					_, _ = results.AddFields([]index.AggregateResultsEntry{{
@@ -1446,7 +1446,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 						iter index.AggregateIterator,
 						opts index.QueryOptions,
 						results index.AggregateResults,
-						limit int,
+						deadline time.Time,
 						logFields []opentracinglog.Field,
 					) error {
 						_, _ = results.AddFields([]index.AggregateResultsEntry{{

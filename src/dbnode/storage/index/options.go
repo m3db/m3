@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -81,11 +82,8 @@ var (
 
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions
-	// defaultMaxResultsPerWorker sets the default index results that can be processed per worker acquired.
-	defaultMaxResultsPerWorker = MaxResultsPerWorker{
-		Fetch:     10000,
-		Aggregate: 10000,
-	}
+	// defaultMaxWorkerTime sets the default time a query can hold an index worker.
+	defaultMaxWorkerTime = time.Millisecond
 )
 
 func init() {
@@ -140,7 +138,7 @@ type opts struct {
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
-	maxResultsPerWorker             MaxResultsPerWorker
+	maxWorkerTime                   time.Duration
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -201,7 +199,7 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryLimits:                     limits.NoOpQueryLimits(),
-		maxResultsPerWorker:             defaultMaxResultsPerWorker,
+		maxWorkerTime:                   defaultMaxWorkerTime,
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -468,12 +466,12 @@ func (o *opts) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
 }
 
-func (o *opts) MaxResultsPerWorker() MaxResultsPerWorker {
-	return o.maxResultsPerWorker
+func (o *opts) MaxWorkerTime() time.Duration {
+	return o.maxWorkerTime
 }
 
-func (o *opts) SetMaxResultsPerWorker(value MaxResultsPerWorker) Options {
+func (o *opts) SetMaxWorkerTime(value time.Duration) Options {
 	opts := *o
-	opts.maxResultsPerWorker = value
+	opts.maxWorkerTime = value
 	return &opts
 }

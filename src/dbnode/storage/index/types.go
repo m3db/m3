@@ -407,7 +407,7 @@ type Block interface {
 		opts QueryOptions,
 		iter QueryIterator,
 		results DocumentResults,
-		limit int,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
 	) error
 
@@ -420,7 +420,7 @@ type Block interface {
 		iter AggregateIterator,
 		opts QueryOptions,
 		results AggregateResults,
-		limit int,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
 	) error
 
@@ -960,14 +960,6 @@ type fieldsAndTermsIterator interface {
 	SearchDuration() time.Duration
 }
 
-// MaxResultsPerWorker is the maximum results a query can process with an index worker at once.
-type MaxResultsPerWorker struct {
-	// Query is the max for queries.
-	Fetch int
-	// Aggregate is the max for aggregates.
-	Aggregate int
-}
-
 // Options control the Indexing knobs.
 type Options interface {
 	// Validate validates assumptions baked into the code.
@@ -1106,9 +1098,9 @@ type Options interface {
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
 
-	// MaxResultsPerWorker returns the max index results that are processed per worker acquired.
-	MaxResultsPerWorker() MaxResultsPerWorker
+	// MaxWorkerTime returns the max time a query can hold an index worker.
+	MaxWorkerTime() time.Duration
 
-	// SetMaxResultsPerWorker sets the max index results that are processed per worker acquired.
-	SetMaxResultsPerWorker(value MaxResultsPerWorker) Options
+	// SetMaxWorkerTime sets MaxWorkerTime.
+	SetMaxWorkerTime(value time.Duration) Options
 }

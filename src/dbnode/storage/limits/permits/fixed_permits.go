@@ -82,7 +82,7 @@ func (f *fixedPermits) TryAcquire(ctx context.Context) (bool, error) {
 	}
 }
 
-func (f *fixedPermits) Release() {
+func (f *fixedPermits) Release(_ context.Context, _ int) {
 	select {
 	case f.permits <- struct{}{}:
 	default:

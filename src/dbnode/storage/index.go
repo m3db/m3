@@ -122,8 +122,8 @@ type nsIndex struct {
 	resultsPool          index.QueryResultsPool
 	aggregateResultsPool index.AggregateResultsPool
 
-	permitsManager      permits.Manager
-	maxResultsPerWorker index.MaxResultsPerWorker
+	permitsManager permits.Manager
+	maxWorkerTime  time.Duration
 
 	// queriesWg tracks outstanding queries to ensure
 	// we wait for all queries to complete before actually closing
@@ -369,7 +369,7 @@ func newNamespaceIndexWithOptions(
 
 		doNotIndexWithFields: doNotIndexWithFields,
 		shardSet:             shardSet,
-		maxResultsPerWorker:  indexOpts.MaxResultsPerWorker(),
+		maxWorkerTime:        indexOpts.MaxWorkerTime(),
 	}
 
 	// Assign shard set upfront.
@@ -1591,9 +1591,8 @@ func (i *nsIndex) queryWithSpan(
 
 	var (
 		// State contains concurrent mutable state for async execution below.
-		state   = &asyncQueryExecState{}
-		wg      sync.WaitGroup
-
+		state = &asyncQueryExecState{}
+		wg    sync.WaitGroup
 	)
 	permits, err := i.permitsManager.NewPermits(ctx)
 	if err != nil {
@@ -1639,7 +1638,7 @@ func (i *nsIndex) queryWithSpan(
 		}
 		// make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
-			permits.Release()
+			permits.Release(ctx, 0)
 			return false, waitTime
 		}
 		return true, waitTime
@@ -1668,8 +1667,7 @@ func (i *nsIndex) queryWithSpan(
 			defer wg.Done()
 			first := true
 			for !blockIter.iter.Done() {
-				// if this is not the first iteration of the iterator, there were more results than the
-				// maxResultsPerWorker, so need to acquire another permit.
+				// if this is not the first iteration of the iterator, need to acquire another permit.
 				if !first {
 					acq, waitTime := waitForPermit()
 					blockIter.waitTime += waitTime
@@ -1683,11 +1681,11 @@ func (i *nsIndex) queryWithSpan(
 				processingTime := time.Since(startProcessing)
 				queryMetrics.blockProcessingTime.RecordDuration(processingTime)
 				blockIter.processingTime += processingTime
-				permits.Release()
+				permits.Release(ctx, int(processingTime))
 			}
 			if first {
 				// this should never happen since a new iter cannot be Done, but just to be safe.
-				permits.Release()
+				permits.Release(ctx, 0)
 			}
 			blockIter.searchTime += blockIter.iter.SearchDuration()
 
@@ -1777,7 +1775,7 @@ func (i *nsIndex) execBlockQueryFn(
 		return
 	}
 
-	err := block.QueryWithIter(ctx, opts, queryIter, docResults, i.maxResultsPerWorker.Fetch, logFields)
+	err := block.QueryWithIter(ctx, opts, queryIter, docResults, time.Now().Add(i.maxWorkerTime), logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1821,7 +1819,7 @@ func (i *nsIndex) execBlockWideQueryFn(
 		return
 	}
 
-	err := block.QueryWithIter(ctx, opts, queryIter, docResults, i.maxResultsPerWorker.Fetch, logFields)
+	err := block.QueryWithIter(ctx, opts, queryIter, docResults, time.Now().Add(i.maxWorkerTime), logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1882,7 +1880,7 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		return
 	}
 
-	err := block.AggregateWithIter(ctx, aggIter, opts, aggResults, i.maxResultsPerWorker.Aggregate, logFields)
+	err := block.AggregateWithIter(ctx, aggIter, opts, aggResults, time.Now().Add(i.maxWorkerTime), logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in

@@ -99,7 +99,7 @@ func (p *LookbackLimitPermit) TryAcquire(context.Context) (bool, error) {
 }
 
 // Release is a no-op in this implementation.
-func (p *LookbackLimitPermit) Release() {
+func (p *LookbackLimitPermit) Release(context.Context, int) {
 }
 
 func sourceFromContext(ctx context.Context) []byte {

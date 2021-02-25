@@ -73,7 +73,7 @@ func TestFetchResultIterTest(t *testing.T) {
 		require.Len(t, iter.Current().(*idResult).blockReaders, 10)
 	}
 	require.NoError(t, iter.Err())
-	iter.Close(nil)
+	iter.Close(ctx, nil)
 
 	require.Equal(t, 10, total)
 	require.Equal(t, 5, blockPermits.acquired)
@@ -113,7 +113,7 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 		require.Len(t, iter.Current().(*idResult).blockReaders, 10)
 	}
 	require.NoError(t, iter.Err())
-	iter.Close(nil)
+	iter.Close(ctx, nil)
 
 	require.Equal(t, 10, total)
 	require.Equal(t, 10, blockPermits.acquired)
@@ -201,7 +201,7 @@ func (p *fakePermits) TryAcquire(_ context.Context) (bool, error) {
 	return true, nil
 }
 
-func (p *fakePermits) Release() {
+func (p *fakePermits) Release(_ context.Context, _ int) {
 	p.released++
 	p.available++
 }
