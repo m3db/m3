@@ -849,7 +849,7 @@ func (s *service) fetchTaggedIter(
 
 	permits, err := s.seriesReadPermits.NewPermits(ctx)
 	if err != nil {
-		return nil, convert.ToRPCError(err)
+		return nil, convert.ToRPCError(limits.NewQueryLimitExceededError(err.Error()))
 	}
 
 	tagEncoder := s.pools.tagEncoder.Get()
