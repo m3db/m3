@@ -37,8 +37,9 @@ import (
 )
 
 var (
-	errRetentionNil = errors.New("retention options must be set")
-	errNamespaceNil = errors.New("namespace options must be set")
+	errRetentionNil       = errors.New("retention options must be set")
+	errNamespaceNil       = errors.New("namespace options must be set")
+	errExtendedOptionsNil = errors.New("extendedOptions.Options must be set")
 
 	dynamicExtendedOptionsConverters = sync.Map{}
 )
@@ -130,6 +131,10 @@ func ToExtendedOptions(
 	converter, ok := dynamicExtendedOptionsConverters.Load(extendedOptsProto.Type)
 	if !ok {
 		return nil, fmt.Errorf("dynamic ExtendedOptions converter not registered for type %s", extendedOptsProto.Type)
+	}
+
+	if extendedOptsProto.Options == nil {
+		return nil, errExtendedOptionsNil
 	}
 
 	extendedOpts, err := converter.(ExtendedOptsConverter)(extendedOptsProto.Options)

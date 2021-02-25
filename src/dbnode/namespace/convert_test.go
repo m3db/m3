@@ -336,6 +336,16 @@ func TestInvalidExtendedOptions(t *testing.T) {
 	invalidExtendedOpts := xtest.NewTestExtendedOptionsProto("invalid")
 	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
 	assert.EqualError(t, err, "invalid ExtendedOptions")
+
+	invalidExtendedOptionsNoOptions := &nsproto.ExtendedOptions{Type: "testExtendedOptions"}
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptionsNoOptions)
+	assert.EqualError(t, err, "extendedOptions.Options must be set")
+}
+
+func TestConvertEnterpriseExtendedOptionsNil(t *testing.T) {
+	convertedExtendedOpts, err := namespace.ToExtendedOptions(nil)
+	require.NoError(t, err)
+	require.Nil(t, convertedExtendedOpts)
 }
 
 func TestToAggregationOptions(t *testing.T) {
