@@ -41,22 +41,11 @@ var (
 )
 
 // placementsWatcher implements watcher of staged placement.
-// TODO: Consider migrating to non-staged placement.
 // Currently, the aggregator placement is stored as staged placement in etcd using
 // protobuf type `*placementpb.PlacementSnapshots` as a remnant of now deprecated concept
 // of "staged placement". This Watcher abstracts that detail from the clients while
 // maintaining backward compatibility.
-// Migrating from storing `*placementpb.PlacementSnapshots` to storing `*placementpb.Placement`
-// in etcd is desirable in future, although not necessary.
-// It would have to be done in a graceful manner that doesn't break clients,
-// such as in the following sequence:
-// - change code that manages placement to store both types of placement protobufs in different
-//   well-known etcd keys within a single transaction
-// - deploy that code and make at least one placement change
-// - change this watcher code to read the non-staged placement from respective etcd key
-// - upgrade all deployed clients (this is most difficult as we don't control all the deployments
-//   out there in the world)
-// - modify placement management code to stop storing staged placement
+// TODO: Consider migrating to storing protobuf type `*placementpb.Placement` in etcd.
 type placementsWatcher struct {
 	mtx                sync.Mutex
 	valuePayload       atomic.Value
