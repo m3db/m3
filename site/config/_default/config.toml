@@ -89,8 +89,6 @@ anchor = "smart"
 # Comment out the next line to disable GA tracking. Also disables the feature described in [params.ui.feedback].
 # id = "UA-00000000-0"
 
-#fullversion = "v1.18.0"
-#version = "v1.18"
 githubbranch = "master"
 docsbranch = "master"
 deprecated = false
@@ -148,7 +146,7 @@ offlineSearch = false
   [params.api]
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
-# TODO: Can all the below be consolidated?
+
   [[params.versions]]
     version = "1.1"
     url = "/docs"
@@ -157,6 +155,7 @@ offlineSearch = false
     url = "/v1.0/docs"
   [params.releases]
     docker = "v1.1.0"
+    operator = "v0.13.0"
 
 # TODO: Do not like doing this really
 [markup]

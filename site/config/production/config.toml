@@ -137,6 +137,9 @@ offlineSearch = false
     url = "/v0.15.17/docs"    
   [params.releases]
     docker = "v1.0.0"
+  [params.api]
+    localCordinator = "http://localhost:7201/"
+    apiEndpoint = "api/v1/"
 
 # TODO: Do not like doing this really
 [markup]

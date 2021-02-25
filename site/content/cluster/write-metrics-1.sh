@@ -1,5 +1,5 @@
 #!/bin/bash
-curl -X POST http://localhost:7201/api/v1/json/write -d '{
+curl -X POST {{% apiendpoint %}}json/write -d '{
   "tags": 
     {
       "__name__": "third_avenue",

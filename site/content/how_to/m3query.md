@@ -57,7 +57,7 @@ docker run quay.io/m3db/m3query:v1.1.0
 You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace. It is important to note that all writes go to all namespaces marked as ready. Aggregation is done strictly by the query service. As an example, to configure an aggregated namespace named `metrics_10s_48h`, you can execute the following API call:
 
 ```shell
-curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace -d '{
+curl -X POST {{% apiendpoint %}}services/m3db/namespace -d '{
   "name": "metrics_10s_48h",
   "options": {
     "bootstrapEnabled": true,
