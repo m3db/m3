@@ -60,9 +60,7 @@ var (
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
 
-var (
-	defaultNumPassthroughWriters = 8
-)
+var defaultNumPassthroughWriters = 8
 
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
@@ -214,12 +212,10 @@ func (t InstanceIDType) String() string {
 	return "unknown"
 }
 
-var (
-	validInstanceIDTypes = []InstanceIDType{
-		HostIDInstanceIDType,
-		HostIDPortInstanceIDType,
-	}
-)
+var validInstanceIDTypes = []InstanceIDType{
+	HostIDInstanceIDType,
+	HostIDPortInstanceIDType,
+}
 
 // UnmarshalYAML unmarshals a InstanceIDType into a valid type from string.
 func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -556,8 +552,8 @@ func (c *streamConfiguration) NewStreamOptions(_ instrument.Options) (cm.Options
 }
 
 type placementManagerConfiguration struct {
-	KVConfig         kv.OverrideConfiguration       `yaml:"kvConfig"`
-	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
+	KVConfig kv.OverrideConfiguration       `yaml:"kvConfig"`
+	Watcher  placement.WatcherConfiguration `yaml:"placementWatcher"`
 }
 
 func (c placementManagerConfiguration) NewPlacementManager(
@@ -575,12 +571,12 @@ func (c placementManagerConfiguration) NewPlacementManager(
 	}
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	placementWatcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	placementWatcherOpts := c.Watcher.NewOptions(store, iOpts)
+	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcher(placementWatcher)
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
 

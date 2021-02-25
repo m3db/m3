@@ -82,8 +82,8 @@ type WatcherConfiguration struct {
 func (c *WatcherConfiguration) NewOptions(
 	store kv.Store,
 	instrumentOpts instrument.Options,
-) StagedPlacementWatcherOptions {
-	opts := NewStagedPlacementWatcherOptions().
+) WatcherOptions {
+	opts := NewWatcherOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetStagedPlacementKey(c.Key).
 		SetStagedPlacementStore(store)
