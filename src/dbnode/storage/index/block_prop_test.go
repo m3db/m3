@@ -128,7 +128,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				require.NoError(t, err)
 				for !queryIter.Done() {
 					err = uncachedBlock.QueryWithIter(ctx,
-						queryOpts, queryIter, uncachedResults, 1000, emptyLogFields)
+						queryOpts, queryIter, uncachedResults, time.Now().Add(time.Millisecond * 10), emptyLogFields)
 					if err != nil {
 						return false, fmt.Errorf("error querying uncached block: %v", err)
 					}
@@ -138,8 +138,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				ctx = context.NewBackground()
 				queryIter, err = cachedBlock.QueryIter(ctx, indexQuery)
 				for !queryIter.Done() {
-					err = cachedBlock.QueryWithIter(ctx, queryOpts, queryIter, cachedResults, 1000,
-						emptyLogFields)
+					err = cachedBlock.QueryWithIter(ctx, queryOpts, queryIter, cachedResults,
+						time.Now().Add(time.Millisecond * 10), emptyLogFields)
 					if err != nil {
 						return false, fmt.Errorf("error querying cached block: %v", err)
 					}
@@ -378,7 +378,7 @@ func TestAggregateDocLimits(t *testing.T) {
 					aggIter,
 					QueryOptions{},
 					results,
-					1000,
+					time.Now().Add(time.Millisecond * 10),
 					emptyLogFields)
 
 				if err != nil {

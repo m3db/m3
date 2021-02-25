@@ -416,7 +416,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Second), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.Error(t, err)
 	require.Equal(t, stdlibctx.Canceled, err)
 }
@@ -562,7 +562,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 	require.NoError(t, err)
 
 	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter,
-		NewQueryResults(nil, QueryResultsOptions{}, testOpts), time.Now().Add(time.Second), emptyLogFields)
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts), time.Now().Add(time.Minute), emptyLogFields)
 	require.Error(t, err)
 
 	// NB(r): Make sure to call finalizers blockingly (to finish
@@ -606,7 +606,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -659,7 +659,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -714,7 +714,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -767,7 +767,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{DocsLimit: docsLimit}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{DocsLimit: docsLimit}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -820,7 +820,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{DocsLimit: docsLimit}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{DocsLimit: docsLimit}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -878,7 +878,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -937,7 +937,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 
 	queryIter, err := b.QueryIter(ctx, defaultQuery)
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -1409,7 +1409,7 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Second), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1490,7 +1490,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	ctx := context.NewBackground()
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Second),
+	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 1, results.Size())
@@ -1582,7 +1582,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Second), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1667,7 +1667,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Second), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1866,7 +1866,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 		aggIter,
 		QueryOptions{SeriesLimit: 3},
 		results,
-		time.Now().Add(time.Second),
+		time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.Error(t, err)
 }
@@ -1942,7 +1942,7 @@ func TestBlockAggregate(t *testing.T) {
 		aggIter,
 		QueryOptions{SeriesLimit: seriesLimit},
 		results,
-		time.Now().Add(time.Second),
+		time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -2032,7 +2032,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 		aggIter,
 		QueryOptions{SeriesLimit: seriesLimit},
 		results,
-		time.Now().Add(time.Second),
+		time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "query aborted due to limit"))
@@ -2115,7 +2115,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		aggIter,
 		QueryOptions{SeriesLimit: 1},
 		results,
-		time.Now().Add(time.Second),
+		time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 
@@ -2210,7 +2210,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		aggIter,
 		QueryOptions{SeriesLimit: 1000},
 		results,
-		time.Now().Add(time.Second),
+		time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -2230,7 +2230,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		aggIter,
 		QueryOptions{SeriesLimit: 1000},
 		results,
-		time.Now().Add(time.Second),
+		time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -2249,7 +2249,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		aggIter,
 		QueryOptions{SeriesLimit: 1000},
 		results,
-		time.Now().Add(time.Second),
+		time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 	assertAggregateResultsMapEquals(t, map[string][]string{}, results)
@@ -2551,7 +2551,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 				aggIter,
 				QueryOptions{},
 				results,
-				time.Now().Add(time.Second),
+				time.Now().Add(time.Minute),
 				emptyLogFields)
 			require.NoError(t, err)
 
