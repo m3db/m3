@@ -67,7 +67,7 @@ func (p *LookbackLimitPermitManager) NewPermits(ctx context.Context) (Permits, e
 	s := sourceFromContext(ctx)
 	// Ensure currently under limit.
 	if err := p.Limit.Inc(0, s); err != nil {
-		return nil, err
+		return nil, limits.NewQueryLimitExceededError(err.Error())
 	}
 
 	return &LookbackLimitPermit{
