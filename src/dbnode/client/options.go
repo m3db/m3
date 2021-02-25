@@ -323,7 +323,7 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 
 func defaultNewConnectionFn(
 	channelName string, address string, clientOpts Options,
-) (PooledChannel, rpc.TChanNode, error) {
+) (Channel, rpc.TChanNode, error) {
 	// NB(r): Keep ref to a local channel options since it's actually modified
 	// by TChannel itself to set defaults.
 	var opts *tchannel.ChannelOptions

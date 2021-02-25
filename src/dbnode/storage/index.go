@@ -1622,15 +1622,10 @@ func (i *nsIndex) queryWithSpan(
 
 	// update timing metrics even if the query was canceled due to a timeout
 	queryRuntime := time.Since(start)
-	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
 
-	queryMetrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
 	queryMetrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
-	queryMetrics.queryWaitTime.ByRange.Record(queryRange, totalWaitTime)
 	queryMetrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
-	queryMetrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Processing)
 	queryMetrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
-	queryMetrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
 	queryMetrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
 
 	return exhaustive, err
