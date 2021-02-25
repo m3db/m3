@@ -262,10 +262,32 @@ func TestToRPCError(t *testing.T) {
 	limitErr := limits.NewQueryLimitExceededError("limit")
 	invalidParamsErr := xerrors.NewInvalidParamsError(errors.New("param"))
 
-	require.Equal(t, convert.ToRPCError(limitErr), tterrors.NewResourceExhaustedError(limitErr))
-	require.Equal(t, convert.ToRPCError(invalidParamsErr), tterrors.NewBadRequestError(invalidParamsErr))
-	require.Equal(t, convert.ToRPCError(stdctx.Canceled), tterrors.NewTimeoutError(stdctx.Canceled))
-	require.Equal(t, convert.ToRPCError(stdctx.DeadlineExceeded), tterrors.NewTimeoutError(stdctx.DeadlineExceeded))
+	require.Equal(t, tterrors.NewResourceExhaustedError(limitErr), convert.ToRPCError(limitErr))
+	require.Equal(
+		t,
+		tterrors.NewResourceExhaustedError(xerrors.Wrap(limitErr, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(limitErr, "wrap")),
+	)
+
+	require.Equal(t, tterrors.NewBadRequestError(invalidParamsErr), convert.ToRPCError(invalidParamsErr))
+	require.Equal(
+		t,
+		tterrors.NewBadRequestError(xerrors.Wrap(invalidParamsErr, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(invalidParamsErr, "wrap")),
+	)
+
+	require.Equal(t, tterrors.NewTimeoutError(stdctx.Canceled), convert.ToRPCError(stdctx.Canceled))
+	require.Equal(t, tterrors.NewTimeoutError(stdctx.DeadlineExceeded), convert.ToRPCError(stdctx.DeadlineExceeded))
+	require.Equal(
+		t,
+		tterrors.NewTimeoutError(xerrors.Wrap(stdctx.Canceled, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(stdctx.Canceled, "wrap")),
+	)
+	require.Equal(
+		t,
+		tterrors.NewTimeoutError(xerrors.Wrap(stdctx.DeadlineExceeded, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(stdctx.DeadlineExceeded, "wrap")),
+	)
 }
 
 type testPools struct {

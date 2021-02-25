@@ -210,7 +210,7 @@ func ToRPCError(err error) *rpc.Error {
 	if xerrors.IsInvalidParams(err) {
 		return tterrors.NewBadRequestError(err)
 	}
-	if errors.Is(err, stdctx.Canceled) || errors.Is(err, stdctx.DeadlineExceeded) {
+	if xerrors.Is(err, stdctx.Canceled) || xerrors.Is(err, stdctx.DeadlineExceeded) {
 		return tterrors.NewTimeoutError(err)
 	}
 
