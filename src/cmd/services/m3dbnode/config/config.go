@@ -387,13 +387,13 @@ type IndexConfiguration struct {
 	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 
-	// MaxResultsPerPermit is the maximum index results a query can process after obtaining a permit. If a query needs
-	// to process more results it yields the permit and must wait again for another permit to resume. The number of
-	// permits available to all queries is defined by MaxQueryIDsConcurrency.
-	// Capping the maximum results per permit ensures a few large queries don't hold all the concurrent permits and lock
+	// MaxResultsPerWorker is the maximum index results a query can process after obtaining a shared worker. If a query
+	// needs to process more results it yields the worker and must wait again for another worker to resume. The number
+	// of workers available to all queries is defined by MaxQueryIDsConcurrency.
+	// Capping the maximum results per worker ensures a few large queries don't hold all the concurrent workers and lock
 	// out many small queries from running. This should be set higher than the max results returned by the vast majority
-	// of queries, so most queries only need to obtain a single permit.
-	MaxResultsPerPermit int `yaml:"maxResultsPerPermit"`
+	// of queries, so most queries only need to obtain a single worker.
+	MaxResultsPerWorker *MaxResultsPerWorkerConfiguration `yaml:"maxResultsPerWorker"`
 
 	// RegexpDFALimit is the limit on the max number of states used by a
 	// regexp deterministic finite automaton. Default is 10,000 states.
@@ -418,6 +418,14 @@ type IndexConfiguration struct {
 	// block boundaries by eagerly writing the series to the next block
 	// preemptively.
 	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
+}
+
+// MaxResultsPerWorkerConfiguration configures the max results per index worker.
+type MaxResultsPerWorkerConfiguration struct {
+	// Fetch is the max for fetch queries.
+	Fetch int `yaml:"fetch"`
+	// Aggregate is the max for aggregate queries.
+	Aggregate int `yaml:"aggregate"`
 }
 
 // RegexpDFALimitOrDefault returns the deterministic finite automaton states

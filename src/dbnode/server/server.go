@@ -474,7 +474,8 @@ func Run(runOpts RunOptions) {
 
 	permitOpts := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		permitOpts.SetIndexQueryPermitsManager(permits.NewFixedPermitsManager(cfg.Index.MaxQueryIDsConcurrency))
+		permitOpts = permitOpts.SetIndexQueryPermitsManager(
+			permits.NewFixedPermitsManager(cfg.Index.MaxQueryIDsConcurrency))
 	} else {
 		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
@@ -522,8 +523,11 @@ func Run(runOpts RunOptions) {
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
 
-	if cfg.Index.MaxResultsPerPermit > 0 {
-		indexOpts.SetResultsPerPermit(cfg.Index.MaxResultsPerPermit)
+	if cfg.Index.MaxResultsPerWorker != nil {
+		indexOpts = indexOpts.SetMaxResultsPerWorker(index.MaxResultsPerWorker{
+			Fetch:     cfg.Index.MaxResultsPerWorker.Fetch,
+			Aggregate: cfg.Index.MaxResultsPerWorker.Aggregate,
+		})
 	}
 
 	opts = opts.SetIndexOptions(indexOpts)

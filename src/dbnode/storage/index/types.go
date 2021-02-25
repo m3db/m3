@@ -405,14 +405,14 @@ type Block interface {
 	QueryWithIter(
 		ctx context.Context,
 		opts QueryOptions,
-		docIter doc.QueryDocIterator,
+		iter QueryIterator,
 		results DocumentResults,
 		limit int,
 		logFields []opentracinglog.Field,
 	) error
 
-	// QueryIter returns a new QueryDocIterator for the query.
-	QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error)
+	// QueryIter returns a new QueryIterator for the query.
+	QueryIter(ctx context.Context, query Query) (QueryIterator, error)
 
 	// AggregateWithIter aggregates N known tag names/values from the iterator.
 	AggregateWithIter(
@@ -896,31 +896,49 @@ func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return *e.result
 }
 
+// QueryIterator iterates through the documents for a block.
+type QueryIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() doc.Document
+}
+
 // AggregateIterator iterates through the (field,term)s for a block.
 type AggregateIterator interface {
-	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
-	// Callers need to check Err after this returns false to check if an error occurred while iterating.
-	Next(ctx context.Context) bool
-
-	// Done returns true if the iterator is exhausted. This non-standard iterating method allows any index query to
-	// check if there is more work to be done before waiting for a worker from the pool.
-	// If this method returns true, Next is guaranteed to return false. However, on the first iteration this will always
-	// return false and Next may return false for an empty iterator.
-	Done() bool
-
-	// Err returns an non-nil error if an error occurred calling Next.
-	Err() error
+	ResultIterator
 
 	// Current returns the current (field, term).
 	Current() (field, term []byte)
 
-	// Close the iterator and underlying resources.
-	Close() error
+	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+}
 
-	// SearchDuration is how long it took to search the segments in the block.
+// ResultIterator is a common interface for query and aggregate result iterators.
+type ResultIterator interface {
+	// Done returns true if there are no more elements in the iterator. Allows checking if the query should acquire
+	// a permit, which might block, before calling Next().
+	Done() bool
+
+	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
+	// Callers need to check Err after this returns false to check if an error occurred while iterating.
+	Next(ctx context.Context) bool
+
+	// Err returns an non-nil error if an error occurred calling Next.
+	Err() error
+
+	// SearchDuration is how long it took search the FSTs for the results returned by the iterator.
 	SearchDuration() time.Duration
 
-	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+	// Close the iterator.
+	Close() error
+
+	AddSeries(count int)
+
+	AddDocs(count int)
+
+	// Counts returns the number of series and documents processed by the iterator.
+	Counts() (series, docs int)
 }
 
 // fieldsAndTermsIterator iterates over all known fields and terms for a segment.
@@ -940,6 +958,14 @@ type fieldsAndTermsIterator interface {
 
 	// SearchDuration is how long it took to search the Segment.
 	SearchDuration() time.Duration
+}
+
+// MaxResultsPerWorker is the maximum results a query can process with an index worker at once.
+type MaxResultsPerWorker struct {
+	// Query is the max for queries.
+	Fetch int
+	// Aggregate is the max for aggregates.
+	Aggregate int
 }
 
 // Options control the Indexing knobs.
@@ -1080,9 +1106,9 @@ type Options interface {
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
 
-	// ResultsPerPermit returns the max index results that are processed per permit acquired.
-	ResultsPerPermit() int
+	// MaxResultsPerWorker returns the max index results that are processed per worker acquired.
+	MaxResultsPerWorker() MaxResultsPerWorker
 
-	// SetResultsPerPermit sets the max index results that are processed per permit acquired.
-	SetResultsPerPermit(value int) Options
+	// SetMaxResultsPerWorker sets the max index results that are processed per worker acquired.
+	SetMaxResultsPerWorker(value MaxResultsPerWorker) Options
 }

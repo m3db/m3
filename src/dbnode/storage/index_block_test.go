@@ -643,7 +643,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			sp := mtr.StartSpan("root")
 			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-			mockIter0 := doc.NewMockQueryDocIterator(ctrl)
+			mockIter0 := index.NewMockQueryIterator(ctrl)
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
 			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
@@ -664,7 +664,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
 			mockIter0.EXPECT().Close().Return(nil)
 
-			mockIter1 := doc.NewMockQueryDocIterator(ctrl)
+			mockIter1 := index.NewMockQueryIterator(ctrl)
 			b1.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter1, nil)
 			mockIter1.EXPECT().Done().Return(true)
 			mockIter1.EXPECT().SearchDuration().Return(time.Minute)
@@ -686,7 +686,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 				DoAndReturn(func(
 					ctx context.Context,
 					opts index.QueryOptions,
-					iter doc.QueryDocIterator,
+					iter index.QueryIterator,
 					r index.QueryResults,
 					limit int,
 					logFields []opentracinglog.Field,
@@ -859,7 +859,7 @@ func TestLimits(t *testing.T) {
 			sp := mtr.StartSpan("root")
 			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-			mockIter := doc.NewMockQueryDocIterator(ctrl)
+			mockIter := index.NewMockQueryIterator(ctrl)
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter, nil)
 			gomock.InOrder(
 				mockIter.EXPECT().Done().Return(false),
@@ -996,7 +996,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
-	mockIter := doc.NewMockQueryDocIterator(ctrl)
+	mockIter := index.NewMockQueryIterator(ctrl)
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
 		b0.EXPECT().QueryIter(ctx, q).Return(mockIter, nil),

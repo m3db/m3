@@ -57,10 +57,10 @@ func TestFixedPermitsTimeouts(t *testing.T) {
 	cancel()
 	ctx = context.NewWithGoContext(stdCtx)
 
+	fp.Release()
+
 	err = fp.Acquire(ctx)
 	require.Error(t, err)
-
-	fp.Release()
 
 	_, err = fp.TryAcquire(ctx)
 	require.Error(t, err)

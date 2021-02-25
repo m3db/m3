@@ -413,7 +413,7 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 // segments are searched and results are processed lazily in the returned iterator. The segments are finalized when
 // the ctx is finalized to ensure the mmaps are not freed until the ctx closes. This allows the returned results to
 // reference data in the mmap without copying.
-func (b *block) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error) {
+func (b *block) QueryIter(ctx context.Context, query Query) (QueryIterator, error) {
 	b.RLock()
 	defer b.RUnlock()
 
@@ -426,7 +426,7 @@ func (b *block) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterato
 	}
 
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := exec.Execute(ctx, query.Query.SearchQuery())
+	docIter, err := exec.Execute(ctx, query.Query.SearchQuery())
 	if err != nil {
 		b.closeAsync(exec)
 		return nil, err
@@ -439,13 +439,14 @@ func (b *block) QueryIter(ctx context.Context, query Query) (doc.QueryDocIterato
 		b.closeAsync(exec)
 	}))
 
-	return iter, nil
+	return NewQueryIter(docIter), nil
 }
 
+// nolint: dupl
 func (b *block) QueryWithIter(
 	ctx context.Context,
 	opts QueryOptions,
-	docIter doc.QueryDocIterator,
+	iter QueryIterator,
 	results DocumentResults,
 	limit int,
 	logFields []opentracinglog.Field,
@@ -454,13 +455,14 @@ func (b *block) QueryWithIter(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	err := b.queryWithSpan(ctx, opts, docIter, results, limit)
+	err := b.queryWithSpan(ctx, opts, iter, results, limit)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
-	if docIter.Done() {
-		b.metrics.queryDocsMatched.RecordValue(float64(results.TotalDocsCount()))
-		b.metrics.querySeriesMatched.RecordValue(float64(results.Size()))
+	if iter.Done() {
+		docs, series := iter.Counts()
+		b.metrics.queryDocsMatched.RecordValue(float64(docs))
+		b.metrics.querySeriesMatched.RecordValue(float64(series))
 	}
 	return err
 }
@@ -468,7 +470,7 @@ func (b *block) QueryWithIter(
 func (b *block) queryWithSpan(
 	ctx context.Context,
 	opts QueryOptions,
-	docIter doc.QueryDocIterator,
+	iter QueryIterator,
 	results DocumentResults,
 	limit int,
 ) error {
@@ -489,7 +491,7 @@ func (b *block) queryWithSpan(
 	// Register local data structures that need closing.
 	defer docsPool.Put(batch)
 
-	for count < limit && docIter.Next() {
+	for count < limit && iter.Next(ctx) {
 		count++
 		if opts.LimitsExceeded(size, docsCount) {
 			break
@@ -508,7 +510,7 @@ func (b *block) queryWithSpan(
 			}
 		}
 
-		batch = append(batch, docIter.Current())
+		batch = append(batch, iter.Current())
 		if len(batch) < batchSize {
 			continue
 		}
@@ -518,7 +520,7 @@ func (b *block) queryWithSpan(
 			return err
 		}
 	}
-	if err := docIter.Err(); err != nil {
+	if err := iter.Err(); err != nil {
 		return err
 	}
 
@@ -529,6 +531,9 @@ func (b *block) queryWithSpan(
 			return err
 		}
 	}
+
+	iter.AddSeries(size)
+	iter.AddDocs(docsCount)
 
 	return nil
 }
@@ -633,6 +638,7 @@ func (b *block) AggregateIter(ctx context.Context, aggOpts AggregateResultsOptio
 	}, nil
 }
 
+// nolint: dupl
 func (b *block) AggregateWithIter(
 	ctx context.Context,
 	iter AggregateIterator,
@@ -650,8 +656,9 @@ func (b *block) AggregateWithIter(
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	if iter.Done() {
-		b.metrics.aggregateDocsMatched.RecordValue(float64(results.TotalDocsCount()))
-		b.metrics.aggregateSeriesMatched.RecordValue(float64(results.Size()))
+		docs, series := iter.Counts()
+		b.metrics.aggregateDocsMatched.RecordValue(float64(docs))
+		b.metrics.aggregateSeriesMatched.RecordValue(float64(series))
 	}
 
 	return err
@@ -778,6 +785,9 @@ func (b *block) aggregateWithSpan(
 			return err
 		}
 	}
+
+	iter.AddSeries(size)
+	iter.AddDocs(docsCount)
 
 	return nil
 }

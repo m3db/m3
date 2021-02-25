@@ -400,7 +400,7 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 	ctx := context.NewWithGoContext(stdCtx)
 	defer ctx.Close()
 
-	mockIter := doc.NewMockQueryDocIterator(ctrl)
+	mockIter := index.NewMockQueryIterator(ctrl)
 	mockIter.EXPECT().Done().Return(false).Times(2)
 	mockIter.EXPECT().SearchDuration().Return(time.Minute * 1)
 	mockIter.EXPECT().Close().Return(nil)
@@ -416,7 +416,7 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 		DoAndReturn(func(
 			ctx context.Context,
 			opts index.QueryOptions,
-			iter doc.QueryDocIterator,
+			iter index.QueryIterator,
 			r index.QueryResults,
 			limit int,
 			logFields []opentracinglog.Field,
