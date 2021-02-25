@@ -56,6 +56,7 @@ var (
 	M3TypeTag                    = []byte(M3MetricsPrefixString + "_type__")
 	M3MetricsGraphiteAggregation = []byte(M3MetricsPrefixString + "_graphite_aggregation__")
 	M3MetricsGraphitePrefix      = []byte(M3MetricsPrefixString + "_graphite_prefix__")
+	M3MetricsDropTimestamp       = []byte(M3MetricsPrefixString + "_drop_timestamp__")
 )
 
 func (t Type) String() string {

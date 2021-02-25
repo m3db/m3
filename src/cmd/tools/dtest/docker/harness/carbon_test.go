@@ -114,7 +114,8 @@ func TestCarbon(t *testing.T) {
 	read := func(metric string, expected float64) {
 		assert.NoError(t, coord.RunQuery(
 			renderVerifier(expected),
-			graphiteQuery(metric, timestamp)))
+			graphiteQuery(metric, timestamp),
+			nil))
 	}
 
 	// NB: since carbon writes are aggregated, it might be up to 10 seconds for
@@ -175,7 +176,6 @@ func TestCarbon(t *testing.T) {
 	}
 
 	for query, ex := range findResults {
-		assert.NoError(t, coord.RunQuery(
-			findVerifier(ex), graphiteFind(query)))
+		assert.NoError(t, coord.RunQuery(findVerifier(ex), graphiteFind(query), nil))
 	}
 }

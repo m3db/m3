@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
+	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -448,7 +449,8 @@ func (b *block) queryWithSpan(
 	if err != nil {
 		return false, err
 	}
-	iterCloser := safeCloser{closable: iter}
+
+	iterCloser := x.NewSafeCloser(iter)
 	defer func() {
 		_ = iterCloser.Close()
 		b.metrics.queryDocsMatched.RecordValue(float64(results.TotalDocsCount()))
@@ -1292,21 +1294,4 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 		})
 		return err
 	}
-}
-
-type closable interface {
-	Close() error
-}
-
-type safeCloser struct {
-	closable
-	closed bool
-}
-
-func (c *safeCloser) Close() error {
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	return c.closable.Close()
 }

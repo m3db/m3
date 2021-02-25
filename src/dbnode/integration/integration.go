@@ -181,7 +181,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		)
 
 		if finalBootstrapperToUse == "" {
-			finalBootstrapperToUse = bootstrapper.NoOpAllBootstrapperName
+			finalBootstrapperToUse = bootstrapper.NoOpNoneBootstrapperName
 		}
 
 		if topologyInitializer == nil {
@@ -253,6 +253,8 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		switch finalBootstrapperToUse {
 		case bootstrapper.NoOpAllBootstrapperName:
 			finalBootstrapper = bootstrapper.NewNoOpAllBootstrapperProvider()
+		case bootstrapper.NoOpNoneBootstrapperName:
+			finalBootstrapper = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case uninitialized.UninitializedTopologyBootstrapperName:
 			uninitialized.NewUninitializedTopologyBootstrapperProvider(
 				uninitialized.NewOptions().

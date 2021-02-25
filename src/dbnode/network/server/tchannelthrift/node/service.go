@@ -931,9 +931,11 @@ type fetchTaggedResultsIterOpts struct {
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
-	if opts.blocksPerBatch == 0 {
+	_, limitBased := opts.blockPermits.(*permits.LookbackLimitPermit)
+	if opts.blocksPerBatch == 0 || limitBased {
 		// NB(nate): if blocksPerBatch is unset, set blocksPerBatch to 1 (i.e. acquire a permit
-		// for each block as opposed to acquiring in bulk).
+		// for each block as opposed to acquiring in bulk). Additionally, limit-based permits
+		// are required to use a blocksPerBatch size of 1 so as to not throw off limit accounting.
 		opts.blocksPerBatch = 1
 	}
 	return &fetchTaggedResultsIter{

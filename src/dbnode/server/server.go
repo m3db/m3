@@ -477,13 +477,17 @@ func Run(runOpts RunOptions) {
 		diskSeriesReadLimit,
 		iOpts,
 		limitOpts.SourceLoggerBuilder(),
-		runOpts.Config.FetchTagged.SeriesBlocksPerBatchOrDefault(),
 	)
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	opts = opts.SetPermitsOptions(opts.PermitsOptions().
-		SetSeriesReadPermitsManager(seriesReadPermits))
+	var permitOptions permits.Options
+	if permitOptions = runOpts.StorageOptions.PermitOptions; permitOptions != nil {
+		opts = opts.SetPermitsOptions(permitOptions)
+	} else {
+		opts = opts.SetPermitsOptions(opts.PermitsOptions().
+			SetSeriesReadPermitsManager(seriesReadPermits))
+	}
 
 	// Setup postings list cache.
 	var (

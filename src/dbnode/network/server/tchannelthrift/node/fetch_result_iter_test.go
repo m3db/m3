@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -118,6 +119,22 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 	require.Equal(t, 10, blockPermits.acquired)
 	require.Equal(t, 10, blockPermits.released)
 	requireSeriesBlockMetric(t, scope)
+}
+
+func TestFetchResultIterTestForceBlocksPerBatch(t *testing.T) {
+	blockPermits := &permits.LookbackLimitPermit{}
+	resMap := index.NewQueryResults(ident.StringID("testNs"), index.QueryResultsOptions{}, testIndexOptions)
+	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
+		queryResult: index.QueryResult{
+			Results: resMap,
+		},
+		blockPermits:   blockPermits,
+		blocksPerBatch: 1000,
+		nowFn:          time.Now,
+	})
+	downcast, ok := iter.(*fetchTaggedResultsIter)
+	require.True(t, ok)
+	require.Equal(t, 1, downcast.blocksPerBatch)
 }
 
 func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
