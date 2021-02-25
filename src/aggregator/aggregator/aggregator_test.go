@@ -1104,7 +1104,8 @@ func testStagedPlacementProtoWithCustomShards(
 		SetInstances([]placement.Instance{instance}).
 		SetShards(shards.AllIDs()).
 		SetCutoverNanos(placementCutoverNanos)
-	testStagedPlacement := placement.Placements{testPlacement}
+	testStagedPlacement, err := placement.NewPlacementsFromLatest(testPlacement)
+	require.NoError(t, err)
 	stagedPlacementProto, err := testStagedPlacement.Proto()
 	require.NoError(t, err)
 	return stagedPlacementProto

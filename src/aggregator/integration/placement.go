@@ -68,7 +68,10 @@ func setPlacement(
 	store kv.Store,
 	pl placement.Placement,
 ) error {
-	stagedPlacement := placement.Placements{pl}
+	stagedPlacement, err := placement.NewPlacementsFromLatest(pl)
+	if err != nil {
+		return err
+	}
 	stagedPlacementProto, err := stagedPlacement.Proto()
 	if err != nil {
 		return err

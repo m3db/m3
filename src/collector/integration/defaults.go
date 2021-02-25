@@ -68,7 +68,10 @@ func defaultStagedPlacementProto() (*placementpb.PlacementSnapshots, error) {
 	testPlacement := placement.NewPlacement().
 		SetInstances([]placement.Instance{instance}).
 		SetShards(shards.AllIDs())
-	stagedPlacement := placement.Placements{testPlacement}
+	stagedPlacement, err := placement.NewPlacementsFromLatest(testPlacement)
+	if err != nil {
+		return nil, err
+	}
 	return stagedPlacement.Proto()
 }
 

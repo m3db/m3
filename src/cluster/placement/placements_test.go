@@ -70,51 +70,45 @@ var (
 )
 
 func TestPlacements(t *testing.T) {
-	t.Run("new_processes_all_snapshots", func(t *testing.T) {
+	t.Run("new_fails_for_nil", func(t *testing.T) {
+		_, err := NewPlacementsFromProto(nil)
+		require.Equal(t, errNilPlacementSnapshotsProto, err)
+	})
+	t.Run("new_fails_for_empty", func(t *testing.T) {
+		emptyProto := &placementpb.PlacementSnapshots{}
+		_, err := NewPlacementsFromProto(emptyProto)
+		require.Equal(t, errEmptyPlacementSnapshots, err)
+	})
+	t.Run("new_keeps_only_latest_by_cutover_time", func(t *testing.T) {
 		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
-		require.Equal(
-			t,
-			len(testPlacementsProto),
-			len(ps))
+		require.NotNil(t, ps)
 
-		sortedFirst, err := ps[0].Proto()
+		actual, err := ps.Proto()
 		require.NoError(t, err)
-		require.Equal(t, testPlacementsProto[2], sortedFirst)
-
-		sortedSecond, err := ps[1].Proto()
-		require.NoError(t, err)
-		require.Equal(t, testPlacementsProto[0], sortedSecond)
-
-		sortedLast, err := ps[2].Proto()
-		require.NoError(t, err)
-		require.Equal(t, testPlacementsProto[1], sortedLast)
+		require.Equal(t, 1, len(actual.Snapshots))
+		require.Equal(t, testLastPlacementProto, actual.Snapshots[0])
 	})
-	t.Run("proto_processes_all_snapshots", func(t *testing.T) {
-		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
-		require.NoError(t, err)
-
-		proto, err := ps.Proto()
-		require.NoError(t, err)
-		require.Equal(
-			t,
-			len(testPlacementsProto),
-			len(proto.Snapshots))
-
-		require.Equal(t, testPlacementsProto[2], proto.Snapshots[0])
-		require.Equal(t, testPlacementsProto[0], proto.Snapshots[1])
-		require.Equal(t, testPlacementsProto[1], proto.Snapshots[2])
-	})
-	t.Run("last_returns_last_by_cutover_time", func(t *testing.T) {
+	t.Run("backward_compatible_latest_returns_latest_by_cutover_time", func(t *testing.T) {
 		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
 
 		expected, err := NewPlacementFromProto(testLastPlacementProto)
 		require.NoError(t, err)
-
-		actual, err := ps.Last()
+		require.Equal(t, expected, ps.Latest())
+	})
+	t.Run("compatible_with_single_snapshot_in_the_proto", func(t *testing.T) {
+		singleSnapshotProto := &placementpb.PlacementSnapshots{
+			Snapshots: []*placementpb.Placement{
+				testLastPlacementProto,
+			},
+		}
+		ps, err := NewPlacementsFromProto(singleSnapshotProto)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+
+		expected, err := NewPlacementFromProto(testLastPlacementProto)
+		require.NoError(t, err)
+		require.Equal(t, expected, ps.Latest())
 	})
 }
 

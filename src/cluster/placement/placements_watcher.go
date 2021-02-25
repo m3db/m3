@@ -136,14 +136,10 @@ func (t *placementsWatcher) unmarshalAsPlacementSnapshots(value kv.Value) (inter
 		return nil, err
 	}
 
-	last, err := snapshots.Last()
-	if err != nil {
-		return nil, err
-	}
+	latest := snapshots.Latest()
+	latest.SetVersion(value.Version())
 
-	last.SetVersion(value.Version())
-
-	return last, nil
+	return latest, nil
 }
 
 // process is called upon update of value, the value is already unmarshalled.

@@ -28,60 +28,69 @@ import (
 )
 
 var (
+	errNilPlacement               = errors.New("nil placement")
 	errNilPlacementSnapshotsProto = errors.New("nil placement snapshots proto")
 	errEmptyPlacementSnapshots    = errors.New("placement snapshots is empty")
 )
 
-// Placements represents a list of placements that is backward compatible with
+// Placements represents a placement that is backward compatible with
 // the deprecated concept of staged placement.
-type Placements []Placement
+type Placements struct {
+	latest Placement
+}
 
-// NewPlacementsFromProto creates a list of placements from proto.
-func NewPlacementsFromProto(p *placementpb.PlacementSnapshots) (Placements, error) {
+// NewPlacementsFromLatest creates Placements from latest placement.
+func NewPlacementsFromLatest(p Placement) (*Placements, error) {
+	if p == nil {
+		return nil, errNilPlacement
+	}
+
+	return &Placements{
+		latest: p,
+	}, nil
+}
+
+// NewPlacementsFromProto creates Placements from proto.
+func NewPlacementsFromProto(p *placementpb.PlacementSnapshots) (*Placements, error) {
 	if p == nil {
 		return nil, errNilPlacementSnapshotsProto
 	}
 
-	placements := make([]Placement, 0, len(p.Snapshots))
+	n := len(p.Snapshots)
+	if n == 0 {
+		return nil, errEmptyPlacementSnapshots
+	}
+
+	all := make([]Placement, 0, n)
 	for _, snapshot := range p.Snapshots {
 		placement, err := NewPlacementFromProto(snapshot)
 		if err != nil {
 			return nil, err
 		}
-		placements = append(placements, placement)
+		all = append(all, placement)
 	}
 
-	// For backward compatibility, we still have to sort
-	// if there are actual staged placements.
-	sort.Sort(placementsByCutoverAsc(placements))
-	return placements, nil
-}
-
-// Proto converts a list of Placement to a proto.
-func (placements Placements) Proto() (*placementpb.PlacementSnapshots, error) {
-	snapshots := make([]*placementpb.Placement, 0, len(placements))
-	for _, p := range placements {
-		placementProto, err := p.Proto()
-		if err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, placementProto)
-	}
-	return &placementpb.PlacementSnapshots{
-		Snapshots: snapshots,
+	// Keep only the latest.
+	sort.Sort(placementsByCutoverAsc(all))
+	return &Placements{
+		latest: all[n-1],
 	}, nil
 }
 
-// Last returns the last placement from the list.
-// It assumes that placements was instantiated using NewPlacementsFromProto
-// above to avoid doing thread-unsafe sorting.
-func (placements Placements) Last() (Placement, error) {
-	n := len(placements)
-	if n == 0 {
-		return nil, errEmptyPlacementSnapshots
+// Proto converts Placements to a proto.
+func (placements *Placements) Proto() (*placementpb.PlacementSnapshots, error) {
+	latestSnapshot, err := placements.latest.Proto()
+	if err != nil {
+		return nil, err
 	}
+	return &placementpb.PlacementSnapshots{
+		Snapshots: []*placementpb.Placement{latestSnapshot},
+	}, nil
+}
 
-	return placements[n-1], nil
+// Latest returns the latest placement.
+func (placements *Placements) Latest() Placement {
+	return placements.latest
 }
 
 type placementsByCutoverAsc []Placement
