@@ -21,16 +21,14 @@
 package rawtcp
 
 import (
-	"context"
 	"runtime"
 	"time"
 
+	"github.com/Allenxuxu/gev"
 	"github.com/panjf2000/ants/v2"
-	"github.com/panjf2000/gnet"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3/src/aggregator/rate"
 )
 
 const _poolRecycleInterval = 30 * time.Second
@@ -41,7 +39,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 	handlerScope := iOpts.MetricsScope().Tagged(map[string]string{"handler": "rawtcp"})
 	logger := iOpts.Logger()
 
-	pool, err := ants.NewPool(runtime.GOMAXPROCS(0)*2,
+	pool, err := ants.NewPool(1024,
 		ants.WithPanicHandler(func(v interface{}) {
 			panic(v)
 		}),
@@ -64,13 +62,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 		addr:      address,
 		logger:    logger,
 		keepalive: keepalive,
-		handler: &connHandler{
-			agg:     aggregator,
-			logger:  logger,
-			p:       pool,
-			metrics: newHandlerMetrics(handlerScope),
-			limiter: rate.NewLimiter(opts.ErrorLogLimitPerSecond()),
-		},
+		handler:   NewConnHandler(aggregator, pool, logger, handlerScope, opts.ErrorLogLimitPerSecond()),
 	}, nil
 }
 
@@ -80,27 +72,35 @@ type Server struct {
 	keepalive time.Duration
 	logger    *zap.Logger
 	handler   *connHandler
+	srv       *gev.Server
 }
 
 // ListenAndServe starts the server and event loops.
 func (s Server) ListenAndServe() error {
-	opts := []gnet.Option{
-		gnet.WithLogger(s.logger.Sugar()),
-		gnet.WithLoadBalancing(gnet.LeastConnections),
-		gnet.WithNumEventLoop(runtime.GOMAXPROCS(0)),
+	opts := []gev.Option{
+		gev.NumLoops(runtime.GOMAXPROCS(0)),
+		gev.Address(s.addr),
+		gev.Protocol(s.handler),
+		gev.Network("tcp"),
 	}
 
-	if s.keepalive > 0 {
-		opts = append(opts, gnet.WithTCPKeepAlive(s.keepalive))
+	//if s.keepalive > 0 {
+	//	opts = append(opts, )
+	//}
+	srv, err := gev.NewServer(s.handler, opts...)
+	if err != nil {
+		return err
 	}
 
-	return gnet.Serve(s.handler, "tcp://"+s.addr, opts...)
+	s.srv = srv
+	s.srv.Start()
+
+	return nil
 }
 
 // Close closes the server.
 func (s Server) Close() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
+	s.srv.Stop()
 
-	return gnet.Stop(ctx, "tcp://"+s.addr)
+	return nil
 }

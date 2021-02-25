@@ -19,7 +19,3 @@
 // THE SOFTWARE.
 
 package rawtcp
-
-const (
-	testListenAddress = "127.0.0.1:0"
-)
