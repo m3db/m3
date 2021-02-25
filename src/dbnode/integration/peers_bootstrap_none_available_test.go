@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -32,10 +31,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,34 +94,25 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 		{
 			DisablePeersBootstrapper: false,
 			TopologyInitializer:      topoInit,
+			FinalBootstrapper:        uninitialized.UninitializedTopologyBootstrapperName,
 		},
 		{
 			DisablePeersBootstrapper: false,
 			TopologyInitializer:      topoInit,
+			FinalBootstrapper:        uninitialized.UninitializedTopologyBootstrapperName,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
-	serversAreUp := &sync.WaitGroup{}
-	serversAreUp.Add(2)
-
-	// Start both servers "simultaneously"
-	go func() {
-		if err := setups[0].StartServer(); err != nil {
-			panic(err)
-		}
-		serversAreUp.Done()
-	}()
-	go func() {
-		if err := setups[1].StartServer(); err != nil {
-			panic(err)
-		}
-		serversAreUp.Done()
-	}()
-
-	serversAreUp.Wait()
+	setups.parallel(func(s TestSetup) {
+		s.StartServer()
+	})
 	log.Debug("servers are now up")
+
+	for i, s := range setups {
+		assert.True(t, s.ServerIsBootstrapped(), "setups[%v] should be bootstrapped", i)
+	}
 
 	// Stop the servers
 	defer func() {
