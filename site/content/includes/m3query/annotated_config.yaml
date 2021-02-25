@@ -19,11 +19,9 @@ metrics:
     # Listen address for metrics
     # Default = "0.0.0.0:7203"
     listenAddress: <url>
-    # NOTE: Mostly configures Tally which is what M3 uses
-    # The default Prometheus type to use for Tally timers
-    # TODO: What are the options? In Tally docs? Match one to the other, histogram and quantiles, summary
+    # The default Prometheus type to use for Tally timers, valid options: [histogram, summary]
     timerType: <string>
-    # The default Prometheus histogram buckets used by the reporter
+    # If specified sets the default histogram objectives used by the reporter
     defaultHistogramBuckets:
       # Upper bound of the bucket
       upper: <float>
@@ -44,9 +42,6 @@ metrics:
   extended: <string>
 
 # Logging configuration
-# TODO: More detail than this 
-# https://github.com/m3db/m3/blob/9f129cf9f16430cc5a399f60aa5684fb72b55bb5/src/cmd/services/m3query/config/config.go#L116
-# Configuration for logging.
 logging:
   # Log file location
   file: <string>
@@ -74,14 +69,15 @@ clusters:
     client:
       config:
         service:
-          # Name for the environment
-          # NOTE: Configures the keyspace (see etcd), default_env = bare metal, signle node, k8s kubernetesnames/clustername
+          # Configures the etcd keyspace, valid options: [default_env, user_defined]
+          # default_env is bare metal single node, user-defined matches a kubernetes-namespace/cluster-name pattern
           env: <string>
           # Availability zone, valid options: [user-defined, embedded]
           # user-defined should match the availabilty zone for your hosting proider
           # NOTE: Since V1, not used as much anymore, now more simplified (see rob message)
           zone: <string>
           # TODO: ?? Largely replaced, again see somment ConfigurationType
+          # TODO: Now I am not sure if this is actually true… Looking at code and examples…
           service: m3db
           # Directory to store cached etcd data
           cacheDir: <string>
@@ -115,11 +111,11 @@ clusters:
                 # Key store path
                 keyPath: <string>
               autoSyncInterval: <duration>    
-        # Seed node configuration
-        # NOTE: Largely dropped, but mostly single node case, 
+        # Seed node configuration, mostly used for single node setups
         seedNodes:
-          rootDir:
-          initialAdvertisePeerUrls:
+          # Path to key-value store directory
+          rootDir: <string>
+          initialAdvertisePeerUrls: <array_of_strings>
           advertiseClientUrls: <array_of_strings>
           listenPeerUrls: <array_of_strings>
           listenClientUrls: <array_of_strings>
@@ -129,11 +125,9 @@ clusters:
             - hostID: <string>
               # URL of node
               endpoint: <url>
-              # TODO: ? Existing?
+              # Specify that this is an existing cluster, or leave blank if it is now, valid options: [existing]
               clusterState: <string>
-          # Seed node security configuration
-          # TODO: Specifics
-          # TODO: Inconsistency with naming of the above
+          # Seed node client security configuration
           clientTransportSecurity:
             # Certificiate authority path
             caFile: <string>
@@ -144,8 +138,7 @@ clusters:
             trustedCaFile: <string>
             clientCertAuth: <bool>
             autoTls: <bool>
-          # Seed node security configuration
-          # TODO: Specifics
+          # Seed node peer security configuration
           peerTransportSecurity:
             # Certificiate authority path
             caFile: <string>
@@ -219,6 +212,7 @@ local:
 clusterManagement:
   # etcd client configuration
   etcd:
+    # TODO: As above, I am still confused here…
     # Name for the environment
     env: <string>
     # Availability zone, valid options: [user-defined, embedded]
@@ -257,11 +251,10 @@ clusterManagement:
           # Key store path
           keyPath: <string>
         autoSyncInterval: <duration>    
-    # TODO: What is this? Service options?
-    # NOTE: Service discovery
+    # M3 service discovery configuration
     m3sd:
       # Initialization timeout
-      # TODO: Defualt?
+      # Default = 5s
       initTimeout: <duration>
     # The revision that watch requests start from
     watchWithRevision: <int>
@@ -283,14 +276,29 @@ clusterManagement:
     # The timeout for etcd requests
     requestTimeout: <duration>
     # The timeout for a watchChan initialization
+    # Default = 10s
     watchChanInitTimeout: <duration>
     # Frequency to check if a watch chan is no longer subscribed and should be closed
+    # Default = 10s    
     watchChanCheckInterval: <duration>
     # The delay before resetting the etcd watch chan
+    # Default = 10s  
     watchChanResetInterval: <duration>
 
-# TODO:
+# Filters for write/read/complete tags storage filters
+# All have the same configuration, so only explained once
 filter:
+  read:
+    # Specifies to use local only storage
+    local_only: <string>
+    # Specifies to use remote only storage
+    remote_only: <string>
+    # Specifies to use all storage
+    allow_all: <string>
+    # Specifies to use no storage
+    allow_none: <string>
+  write:
+  completeTags:
 
 # The RPC configuration for the coordinator for the GRPC server used for remote coordinator to coordinator calls
 rpc:
@@ -313,8 +321,8 @@ rpc:
   reflectionEnabled: <bool>
 
 
-# TODO: Potential feature for contacting remote coordinators to distribute across data centers, another BE tyoe is actually noop-etcd (blackhole)
-# Backend store for query service, valid options: [grpc, m3db].
+# Configures methods to contact remote coordinators to distribute M3 clusters across data centers
+# Backend store for query service, valid options: [grpc, m3db, noop-etcd].
 # Default = m3db
 backend: <string>
 
@@ -332,8 +340,7 @@ writeWorkerPoolPolicy:
   # Static pool size, or initial size for dynamically growing pools
   size: <int>
 
-# Write forwarding options
-# TODO: Which is? To other Prometheus backends, mirroring etc, HA etc
+# Write forwarding to other Prometheus backends for mirroring, high availability etc
 writeForwarding:
   # Forwarding options for prometheus write handler
   promRemoteWrite:
@@ -366,10 +373,60 @@ downsample:
   # The configuration for the downsampler matcher
   matcher:
   # Downsample rules which overrides any rules set in the KV store
-  # TODO: KV store? etcd? It's abstracted etcd, but easier to refer to as
   rules:
+    # Rules (multiple) that set retention and resolution for metrics given a filter to match metrics against
+    mappingRules:
+      # String separated label name to label value glob patterns to filter the mapping rule
+      filter: <string>
+      # Aggregations to apply to the set of metrics
+      # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+      aggregations: <array_of_strings>
+      # Retention/resolution storage policies to keep matched metrics
+      storagePolicies:
+        # How long to store metrics data
+        retention: <duration>
+        # Metrics sampling resolution
+        resolution: <duration>
+      # Drop any metrics that match the filter rather than keeping them with a storage policy
+      drop: <bool>
+      # Tags to add to the metric while applying the mapping rule
+      tags: <array_of_strings>
+      # Name for the mapping rule
+      name: <string>
+    # Rules (multiple) that sets aggregations for sets of metrics given a filter to match metrics against
+    rollupRules:
+      # String separated label name to label value glob patterns to filter the mapping rule
+      filter: <string>
+      # A set of of rollup rule transforms
+      transforms:
+        rollup:
+          # Name of the new metric emitted after the rollup is applied with its aggregations and group bys
+          metricName: <string>
+          # Set of labels to group by, only these remain on the new metric name produced by the rollup operation
+          groupBy: <array_of_strings>
+          # Aggregations to apply to the set of metrics
+          # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+          aggregations: <array_of_strings>
+        # Aggregation operation type
+        aggregate:
+          # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+          type: <string>
+        # Transform operation type
+        transform:
+          # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+          type: <string>
+      # Retention/resolution storage policies to keep matched metrics
+      storagePolicies:
+        # How long to store metrics data
+        retention: <duration>
+        # Metrics sampling resolution
+        resolution: <duration>
+      # Name for the rollup rule
+      name: <string>
   # Downsample remotely by sending values to a remote m3aggregator cluster which forwards the aggregated values to stateless m3coordinator backends
   remoteAggregator:
+    # TODO: Rob mentioned removing things here, but they are shown in coord downsample options
+    # TODO: Or is it that it's very complex?
     # Remote aggregator client
     client:
       # The aggregator client type, valid options: [legacy, m3msg, tcp]
@@ -379,22 +436,20 @@ downsample:
         producer:
           # Buffer configuration for m3msg client type
           buffer:
-            # TODO: Not sure
             # The buffer behavior when the buffer is full, valid options: [returnError, dropOldest]
             # returnError means an error is returned
-	          # dropOldest means the oldest message in the buffer is dropped
+            # dropOldest means the oldest message in the buffer is dropped
             onFullStrategy:
             # Maximum duration data are buffered without getting flushed or discarded
             maxBufferSize: <duration>
             # Maximum message size
             # Max is 50MB
             maxMessageSize: <int>
-            # TODO: Close check interval, close of what?
+            # Interval to check for connection closed
             closeCheckInterval: <duration>
-            # The interval to drop oldest buffer	
+            # The interval to drop oldest buffer
             dropOldestInterval: <duration>
             # Scan batch size
-            # TODO: Which is?
             scanBatchSize: <int>
             # Ratio for allowed buffer spill over below which the buffer drops oldest messages asynchronizely for better performance. When the limit for allowed spill over is reached the buffer will start to drop oldest messages synchronizely.
             allowedSpilloverRatio: <float>
@@ -422,9 +477,8 @@ downsample:
               allowAllZones: <bool>
               addAllCandidates: <bool>
               isSharded: <bool>
-              # The mode to manage shard state in the placement
-              # TODO: Values? Not used much… stable, includetransitional
-              shardStateMode:
+              # The mode to manage shard state in the placement, valid options: [stable, includetransitional]
+              shardStateMode: <string>
               # Mirror shard distribution to support master/slave model.
               isMirrored: <bool>
               # Should placement keep all snapshots
@@ -542,7 +596,6 @@ downsample:
         environment: <string>
         namespace: <string>
       # Placement watcher configuration
-      # TODO: Which is?
       placementWatcher:
         # Placement key
         key: <string>
@@ -598,7 +651,6 @@ downsample:
         # Max threshold for re-establishing connections
         maxReconnectThreshold: <int>
         # Threshold multiplier
-        # TODO: What does that mean
         reconnectThresholdMultiplier: <int>
         # Max duration between attempts to re-establish connections
         maxReconnectDuration: <duration>
@@ -649,8 +701,7 @@ downsample:
         count: <int>
         # Capacity of each item in the bucket
         capacity: <int> 
-  # Pool of counter elements?
-  # TODO: Which means?
+  # Pool of counter elements
   counterElemPool:
     # Size of the pool
     size: <int>
@@ -661,8 +712,7 @@ downsample:
       # The high watermark to start refilling the pool
       # min=0.0, max=1.0
       high: <float>
-  # Pool of timer elements?
-  # TODO: Which means?  
+  # Pool of timer elements
   timerElemPool:
     # Size of the pool
     size: <int>
@@ -673,8 +723,7 @@ downsample:
       # The high watermark to start refilling the pool
       # min=0.0, max=1.0
       high: <float>
-  # Pool of gauge elements?
-  # TODO: Which means?  
+  # Pool of gauge elements
   gaugeElemPool:
     # Size of the pool
     size: <int>
@@ -701,7 +750,6 @@ ingest:
   ingester:
     workerPoolSize: <int>
     # Write operation pool size
-    # TODO: Read?
     opPool:
       size: <int>
       watermark:
@@ -724,12 +772,21 @@ ingest:
       # Add randomness to wait intervals
       jitter: <bool>
     logSampleRate: <float>
-  # NOTE: Protocol between coord and agg
-  # Also potetnaily cut 
-  m3msg:
-    # Server configuration
-    server:
-      listenAddress: <url>
+
+# Configuration for the carbon server that offers graphite metrics support
+carbon:
+  ingester:
+    workerPoolSize: <int>
+    # Write operation pool size
+    opPool:
+      size: <int>
+      watermark:
+        # The low watermark to start refilling the pool
+        # min=0.0, max=1.0
+        low: <float>
+        # The high watermark to start refilling the pool
+        # min=0.0, max=1.0
+        high: <float>
     retry:
       initialBackoff: <duration>
       # Factor for exponential backoff
@@ -739,93 +796,10 @@ ingest:
       # Maximum retry attempts
       maxRetries: <int>
       # Retry connection forever until the attempt succeeds, or the retry condition becomes false
-      forever: <bool>
+      forever: <bool>      
       # Add randomness to wait intervals
-      jitter: <bool>  
-    # Keep connections alive
-    keepAliveEnabled: <bool>
-    # Keep connections alive duration
-    keepAlivePeriod: <duration>
-    handler:
-      # Protobuf decoder pool configuration
-      protobufDecoderPool:
-        size: <int>
-        watermark:
-          # The low watermark to start refilling the pool
-          # min=0.0, max=1.0
-          low: <float>
-          # The high watermark to start refilling the pool
-          # min=0.0, max=1.0
-          high: <float>
-      # The resolution and retention period for storage of metric datapoints
-      blackholePolicies:
-        # TODO: I think these are correct
-        retention: <duration>
-        resolution: <duration>
-    # TODO: Which is?
-    consumer:
-      encoder:
-        maxMessageSize: <int>
-        # Bucketized pool configuration
-        bytesPool:
-          # Configuration for buckets in a pool
-          buckets:
-            # Number of items in the bucket
-            count: <int>
-            # Capacity of each item in the bucket
-            capacity: <int>
-          watermark:
-            # The low watermark to start refilling the pool
-            # min=0.0, max=1.0
-            low: <float>
-            # The high watermark to start refilling the pool
-            # min=0.0, max=1.0
-            high: <float>
-      decoder:
-        maxMessageSize: <int>
-        # Bucketized pool configuration
-        bytesPool:
-          # Configuration for buckets in a pool
-          buckets:
-            # Number of items in the bucket
-            count: <int>
-            # Capacity of each item in the bucket
-            capacity: <int>
-          watermark:
-            # The low watermark to start refilling the pool
-            # min=0.0, max=1.0
-            low: <float>
-            # The high watermark to start refilling the pool
-            # min=0.0, max=1.0
-            high: <float>
-      messagePool:
-        size: <int>
-        # Pool watermark configuration
-        watermark:
-          # The low watermark to start refilling the pool
-          # min=0.0, max=1.0
-          low: <float>
-          # The high watermark to start refilling the pool
-          # min=0.0, max=1.0
-          high: <float>
-      # TODO: Which is? All below
-      # Acknowledgement flush interval
-      ackFlushInterval: <duration>
-      # Acknowledgement buffer size
-      ackBufferSize: <int>
-      # Write buffer size
-      connectionWriteBufferSize: <int>
-      # Read buffer size
-      connectionReadBufferSize: <int>
-      # Write timeout
-      connectionWriteTimeout: <duration>
-
-# Configuration for the carbon server
-# TODO: Which is?
-# NOTE: Related to graphite support, graphite metrics
-carbon:
-  # TODO: is this the same as above?
-  ingester:
+      jitter: <bool>
+    logSampleRate: <float>
   aggregateNamespacesAllData:
   # A constant time to shift start by
   shiftTimeStart: <duration>
@@ -852,27 +826,31 @@ carbon:
   # escape all characters using a backslash in a quoted string instead of only escaping quotes
   compileEscapeAllNotOnlyQuotes: <bool>
 
-# TODO: Query configuration, which is?
+# Configuration for M3 Query component
 query:
   # Query timeout
   timeout: <duration>
-  # DefaultEngine is the default query engine.
-  # TODO: The what now?
+  # The default query engine, valid options: [prometheus, m3query]
   defaultEngine: <string>
   # Configuration for consolidating fetched queries
   consolidation:
-    # Determines the options by which series should match
-    # TODO: Need to understand here
-    matchType:
+    # Determines the options by which series should match, valid options: [ids, tags]
+    matchType: <string>
   # Prometheus client configuration
   prometheus:
     # The limit on fetched samples per query
     maxSamplesPerQuery: <int>
-  # Optional configuration that can be set to restrict all queries with certain tags
+  # Optional configuration to restrict all queries with certain tags
   restrictTags:
-  # TODO: Fill in
     match:
-    strip:
+      # Tag to match
+      name: <string>
+      # How to match, valid options: [EQUAL, NOTEQUAL, REGEXP, NOTREGEXP, EXISTS, NOTEXISTS, ALL]
+      type: <string>
+      # Value of tag
+      value: <string>
+    # Tags to strip from response 
+    strip: <array_of_strings>
 
 # Specifies limitations on resource usage in the query instance. Limits are split between per-query and global limits
 limits:
@@ -885,38 +863,7 @@ limits:
     # Generate an error if the query exceeds any limit
     requireExhaustive: <bool>
 
-# Additional configuration for metrics tags
-# Read https://m3db.io/docs/how_to/query/#id-generation for more details
-
-# NOTE: Rarely configured, Prom mostly handles it
-# Configuration for shared tag options
-# currently only name, but can expand to cover deduplication settings, or other relevant options
-tagOptions:
-  # TODO: To do…
-  # Specifies the tag name that corresponds to the metric's name tag
-  # if not provided, defaults to `__name__`
-  metricName: <string>
-  # Specifies the tag name that corresponds to the metric's bucket
-  # if not provided, defaults to 'le'
-  bucketName: <string>
-  # Determines the default ID generation scheme, valid options: [TypeDefault, TypeQuoted, TypePrependMeta, TypeGraphite]
-  # Default TypeQuoted
-  # TODO: Details link
-  idScheme: <id_scheme>
-  # Optional tag filters, removing all series with tags
-  # matching the filter from computations.  
-  # TODO: What does the above mean?
-  # TODO: TBD
-  filters:
-    values:
-    name:
-  # Allow for duplicate tags to appear on series
-  allowTagNameDuplicates: <bool>
-  # Allow for empty tags to appear on series
-  allowTagValueEmpty: <bool>
-
 # Sets the lookback duration for queries
-# TODO: Which means what?
 # Default = 5m
 lookbackDuration: <duration>
 
@@ -926,15 +873,10 @@ resultOptions:
   # Default = false
   keepNans: <bool>
 
-# Configuration for the experimental API group
-# TODO: Which is? Probably remove
-experimental: <bool>
-
 # Controls if metrics type stored or not
 storeMetricsType: <bool>
 
 # Multi-process configuration
-# TODO: Which means?
 multiProcess:
   # Enable multi-process execution
   enabled: <bool>
@@ -948,5 +890,9 @@ multiProcess:
   # Explicitly sets the child GOMAXPROCs env var
   goMaxProcs: <int>
 
-# TODO:
+# Debug package configuration
 debug:
+  # Sets the runtime to report mutex contention events, read https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the value
+  mutexProfileFraction: <int>
+  # Sets the runtime to report blocking events, read https://golang.org/pkg/runtime/#SetBlockProfileRate for more details about the value
+  blockProfileRate: <int>

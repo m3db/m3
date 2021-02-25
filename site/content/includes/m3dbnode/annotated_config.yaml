@@ -3,75 +3,42 @@ coordinator:
   # Address for M3 Coordinator to listen for traffic.
   listenAddress: <url>
 
-# Logging configuration
-# TODO: More detail than this 
-# https://github.com/m3db/m3/blob/9f129cf9f16430cc5a399f60aa5684fb72b55bb5/src/cmd/services/m3query/config/config.go#L116
-# Configuration for logging.
-logging:
-  # Log file location
-  file: <string>
-  # Error logging level
-  level: <string>
-  # TODO: ??
-  fields:
-
-# Metrics configuration
-# TODO: Which is what?
-metrics:
-  # Scope of metrics root
-  # TODO: Again, which is?
-  scope:
-    # Prefix prepended to metrics collected
-    prefix: <string>
-    # Reporting frequendy of metrics collected
-    reportingInterval: <duration>
-    # Tags shared by metrics collected
-    tags: <map of strings>
-  # Configuration for a Prometheus reporter (if used)
-  prometheus:
-    # Metrics collection endpoint for application
-    # Default = "/metrics"
-    handlerPath: <string>
-    # Listen address for metrics
-    # Default = "0.0.0.0:7203"
-    listenAddress: <url>
-    # The default Prometheus type to use for Tally timers
-    # TODO: What are the options?
-    timerType: <string>
-    # If specified, sets the default histogram buckets used by the reporter
-    defaultHistogramBuckets:
-      # TODO: Which means?
-      upper: <float>
-    # If specified sets the default summary objectives used by the reporter
-    defaultSummaryObjectives:
-      percentile: <float>
-      allowedError: <float>
-    # What to do with errors when listening on the specified listen address or registering a metric with Prometheus. By default the registerer panics
-    # TODO: Specifies how?
-    onError: <string>
-  # Metric sanitization type, valid options: [none, m3, prometheus]
-  # Default = "none"
-  sanitization: <string>
-  # Sampling rate for metrics. min=0.0, max=1.0
-  # TODO: What does this mean exactly?
-  samplingRate: <float>
-  # Enable Go runtime metrics, valid options: [none, simple, moderate, detailed]
-  # See https://github.com/m3db/m3/blob/master/src/x/instrument/extended.go#L39:L64 for more details
-  extended: <string>
-
-# Configuration for a DB node
+# Configuration for a DB node (required)
 db:
+  # Database index configuration
   index:
+    # The maximum number of outstanding QueryID requests to service concurrently
+    maxQueryIDsConcurrency: <int>
+    # Limit on the max number of states used by a regexp deterministic finite automaton
+    # Default = 10000
+    regexpDFALimit: <int>
+    # Limit on the max number of bytes used by the finite state automaton
+    # Default 10mb (10 million)
+    regexpFSALimit: <int>
+    # Likelihood that an incoming write is written to the next block when close to the block boundary
+    forwardIndexProbability: <float>
+    # Threshold for forward writes, as a fraction of the given namespace's bufferFuture
+    forwardIndexThreshold: <float>
+  # Configuration options to transform incoming writes
   transforms:
-  # Minimum log level which will be emitted.
+    # Truncatation type applied to incoming writes, valid options: [none, block]
+    # none = No truncation occurs
+    # block = Truncates incoming writes to the block boundary preceding this point's timestamp
+    truncateBy: <string>
+    # What to set all incoming write values to
+    forceValue: <float>
+  # Minimum log level emitted.
   logging:
-    level: info
+    # Log file location
+    file: <string>
+    # Error logging level
+    level: <string>
+    # TODO: ??
+    fields:
 
-  # Metrics configuration
-  # TODO: Which is what?
+  # Options for emitting metrics
   metrics:
-    # Scope of metrics root
-    # TODO: Again, which is?
+    # Metrics scope
     scope:
       # Prefix prepended to metrics collected
       prefix: <string>
@@ -87,32 +54,63 @@ db:
       # Listen address for metrics
       # Default = "0.0.0.0:7203"
       listenAddress: <url>
-      # Metric sanitization type, valid options: [none, m3, prometheus]
-      # Default = "none"
-      sanitization: <string>
-    # Sampling rate for metrics. min=0.0, max=1.0
-    # TODO: What does this mean exactly?
+      # The default Prometheus type to use for Tally timers, valid options: [histogram, summary]
+      timerType: <string>
+      # Sets the default histogram objectives used by the reporter
+      defaultHistogramBuckets:
+        # Upper bound of the bucket
+        upper: <float>
+      # Sets the default summary objectives used by the reporter
+      defaultSummaryObjectives:
+        percentile: <float>
+        allowedError: <float>
+      # What to do with errors when listening on the specified listen address or registering a metric with Prometheus, valid options: [stderr, log, none]
+      # Default = panic and stop exceution of go routine
+      onError: <string>
+    # Metric sanitization type, valid options: [none, m3, prometheus]
+    # Default = "none"
+    sanitization: <string>
+    # Metrics sampling rate. min=0.0, max=1.0
     samplingRate: <float>
     # Enable Go runtime metrics, valid options: [none, simple, moderate, detailed]
     # See https://github.com/m3db/m3/blob/master/src/x/instrument/extended.go#L39:L64 for more details
     extended: <string>
 
   # Host and port to listen for the node service
+  # Default = "0.0.0.0:9000"
   listenAddress: <url>
   # Host and port to listen for the cluster service
+  # Default = "0.0.0.0:9001"
   clusterListenAddress: <url>
   # Host and port to listen for the node json/http APIs (Primarily used for debugging)
+  # Default = "0.0.0.0:9002"  
   httpNodeListenAddress: <url>
   # Host and port to listen for the cluster json/http APIs (Primarily used for debugging)
+  # Default = "0.0.0.0:9003"  
   httpClusterListenAddress: <url>
   # Address to listen on for debug APIs (pprof, etc).
+  # Default = "0.0.0.0:9004"
   debugListenAddress: <url>
 
   # Configuration for resolving the instances host ID.
   hostID:
-    # "Config" resolver states that the host ID will be resolved from this file.
-    resolver: config
+    # Resolver used to match the host ID, valid options: [hostname, config, environment, file]
+    resolver: <string>
+    # If using "environment" resolver, is the environment variable specified host ID
+    envVarName: <string>
+    # If using "file" resolver, is the file path to specified host ID
+    file:
+      # Path to file
+      path: <string>
+      # Timeout to wait for file
+      timeout: <duration>
+    # If using "config" resolver, is the config specified host ID
+    # Default = "m3db_local"
     value: m3db_local
+    # If using "hostname" resolver, is the hostname of the specified host
+    hostname:
+      # Custom format to use, using go templates.
+      format: <string>
 
   client:
     # The consistency level for writing to a cluster, valid options: [none, one, majority, all]
@@ -120,7 +118,6 @@ db:
     # The consistency level for reading from a cluster, valid options: [none, one, unstrict_majority, majority, unstrict_all, all]
     readConsistencyLevel: <string>
     # The timeout for writing data
-    # TODO: Defaults?
     writeTimeout: <duration>
     # The fetch timeout for any given query
     # Range =  30s to 5m
@@ -139,7 +136,6 @@ db:
       # Add randomness to wait intervals
       jitter: <bool>
     # Configuration for retrying fetch operations
-    # TODO: Query?
     fetchRetry:
       initialBackoff: <duration>
       # Factor for exponential backoff
@@ -159,76 +155,148 @@ db:
   # Range = 0 to 100
   gcPercentage: <int>
 
+  # Tick configuration for background processing of block rotation
   tick:
+    # Batch size to process series together during a tick
+    seriesBatchSize: <int>
+    # Tick per series sleep at the completion of a tick batch
+    perSeriesSleepDuration: <duration>
+    # Minimum tick interval for the node
+    minimumInterval: <duration>
   # Write new series asynchronously for fast ingestion of new ID bursts
   writeNewSeriesAsync: <bool>
   # Write new series backoff between batches of new series insertions
   writeNewSeriesBackoffDuration: <duration>
 
-  # Config for bootstrappers
-  # TODO: Which is? People configure a fair bit (Msg from Rob)
+  # Config for node bootstrappers
   bootstrap:
+    # Boostrap mode, valid options: [default, prefer_peers, exclude_commitlog]
+    mode: <string>
+    # File system bootstrapper
+    filesystem:
+      # What version, if any, to migrate existing data filesets to
+      migration:
+        # Upgrade filesets to specified version
+        targetMigrationVersion: <int>
+        # Number of concurrent workers performing migration
+        concurrency: <int>
+    # Configuration for commitlog bootstrapper 
     commitlog:
-      # Return unfulfilled when encountering corrupt ommit log files.
+      # Return unfulfilled when encountering corrupt ommit log files
       returnUnfulfilledForCorruptCommitLogFiles: <bool>
+    # Config for peers bootstrapper
+    peers:
+      # How many shards in parallel to stream in memory data between peers
+      # Defaults = numCPU
+      streamShardConcurrency: <int>
+      # How many shards in parallel to stream for historical streamed between peers
+      # Default  = numCPU / 2
+      streamPersistShardConcurrency: <int>
+      # Controls how many shards in parallel to flush for historical data streamed between peers
+      # Default = 1
+      streamPersistShardFlushConcurrency: <int>
+    # Whether individual bootstrappers cache series metadata across all namespaces, shards, or blocks
+    cacheSeriesMetadata: <bool>
+    # Concurrency for building index segments
+    indexSegmentConcurrency: <int>
+    # Verification checks to enable during a bootstrap
+    verify:
+      verifyIndexSegments: <bool>
 
+  # Block retrieval policy
   blockRetrieve:
-
+    # Concurrency to fetch blocks from disk
+    fetchConcurrency: <int>
+    # Globally enables/disables callbacks used to cache blocks fetched from disk
+    cacheBlocksOnRetrieve: <bool>
+    
+  # Caching policy for database blocks
   cache:
-    # Caching policy for database blocks.
+    # Series cache policy
     series:
-      policy: lru
+      # Policy to use, valid options: [none, all, recently_read, lru]
+      policy: <string>
+      # If using LRU policy
+      lru:
+        maxBlocks: <int>
+        eventsChannelSize: <int>
+    # PostingsList cache policy
+    postingsList:
+      size: <int>
+      cacheRegexp: <bool>
+      cacheTerms: <bool>
+    # Compiled regexp cache for query regexp
+    regexp:
+      size: <int>
 
+  # Commit log configuration
   commitlog:
-    # Maximum number of bytes that will be buffered before flushing the commitlog.
-    flushMaxBytes: 524288
-    # Maximum amount of time data can remain buffered before flushing the commitlog.
-    flushEvery: 1s
+    # Maximum number of bytes buffered before flushing the commitlog
+    flushMaxBytes: <int>
+    # Maximum amount of time data can remain buffered before flushing the commitlog
+    flushEvery: <duration>
     # Configuration for the commitlog queue. High throughput setups may require higher
-    # values. Higher values will use more memory.
+    # values. Higher values use more memory.
     queue:
-      calculationType: fixed
-      size: 2097152
+      # How to scale calculation size, valid options: [fixed, percpu]
+      calculationType: <string>
+      size: <int>
+    # The Golang channel that implements the commit log queue
+    queueChannel:
+      # How to scale calculation size, valid options: [fixed, percpu]
+      calculationType: <string>
+      size: <int>
 
+  # Configuration for node filesystem
   filesystem:
-    # Directory to store M3DB data in.
-    filePathPrefix: /var/lib/m3db
-    # Various fixed-sized buffers used for M3DB I/O.
-    writeBufferSize: 65536
-    dataReadBufferSize: 65536
-    infoReadBufferSize: 128
-    seekReadBufferSize: 4096
-    # Maximum Mib/s that can be written to disk by background operations like flushing
-    # and snapshotting to prevent them from interfering with the commitlog. Increasing
-    # this value can make node adds significantly faster if the underlyign disk can
-    # support the throughput.
-    throughputLimitMbps: 1000.0
-    throughputCheckEvery: 128
+    # Directory to store M3DB data in
+    filePathPrefix: <string>
+    # Write buffer size
+    writeBufferSize: <int>
+    # Data read buffer size
+    dataReadBufferSize: <int>
+    # Info metadata file read buffer size
+    infoReadBufferSize: <int>
+    # Seek data read buffer size
+    seekReadBufferSize: <int>
+    # Disk flush throughput limit in Mb/s
+    throughputLimitMbps: <float>
+    # Disk flush throughput check interval
+    throughputCheckEvery: <int>
+    # New file permissions mode to use when creating files, specified as three digits
+    newFileMode: <string>
+    # New file permissions mode to use when creating directories, specified as three digits
+    newDirectoryMode: <string>
+    # mmap configuration
+    mmap:
+      # Huge pages config (Linux only)
+      hugeTLB:
+        enabled: <bool>
+        # Threshold on which to use huge TLB
+        threshold: <int>
+    # Forces the mmap that stores the index lookup bytes to be an anonymous region in memory
+    force_index_summaries_mmap_memory: <bool>
+    # Forces the mmap that stores the bloom filter bytes to be an anonymous region in memory
+    force_bloom_filter_mmap_memory: <bool>
+    # Target false positive percentage for the bloom filters for the fileset files
+    bloomFilterFalsePositivePercent: <float>
 
-  # This feature is currently not working, do not enable.
-  # NOTE: Don't incliude?
-  repair:
-    enabled: false
-    throttle: 2m
-    checkInterval: 1m
-  # Replication policy for replicating data between clusters
+  # Policy for replicating data between clusters
   replication:
     # Clusters to replicate data from
     clusters:
+      # Cluster name
       name: <string>
-      # TODO: What does this mean?
-      repairEnabled: <bool>
       # Configuration used to construct a client
       client:
         config:
-        # The consistency level for writing to a cluster, valid options: [none, one, majority, all]
+        # Consistency level for writing to a cluster, valid options: [none, one, majority, all]
         writeConsistencyLevel: <string>
-        # The consistency level for reading from a cluster, valid options: [none, one, unstrict_majority, majority, unstrict_all, all]
+        # Consistency level for reading from a cluster, valid options: [none, one, unstrict_majority, majority, unstrict_all, all]
         readConsistencyLevel: <string>
-        # TODO: Details
+        # Consistency level for connecting to a cluster, valid options: [unknown, any, all, unrestrict_all, one, none, majority, unstrict_majority]
         connectConsistencyLevel: <string>
         # The timeout for writing data
-        # TODO: Defaults?
         writeTimeout: <duration>
         # The fetch timeout for any given query
         # Range =  30s to 5m
@@ -247,7 +315,6 @@ db:
           # Add randomness to wait intervals
           jitter: <bool>
         # Configuration for retrying fetch operations
-        # TODO: Query?
         fetchRetry:
           initialBackoff: <duration>
           # Factor for exponential backoff
@@ -258,8 +325,8 @@ db:
           maxRetries: <int>
           # Add randomness to wait intervals
           jitter: <bool>
-        # TODO: details
-        logErrorSampleRate:  
+        # Log error sample rate
+        logErrorSampleRate: <float>
         # The amount of times a background check fails before a connection is taken out of consideration
         backgroundHealthCheckFailLimit: <int>
         # The factor of the host connect time when sleeping between a failed health check and the next check
@@ -281,8 +348,6 @@ db:
         asyncWriteWorkerPoolSize: <int>
         # Maximum concurrency for async write requests
         asyncWriteMaxConcurrency: <int>
-        # TODO: What are V2 APIs? In the weeds…
-        useV2BatchAPIs: <bool>
         # Offsets all writes by specified duration into the past
         writeTimestampOffset: <duration>
         # Sets the number of blocks to retrieve in a single batch from the remote peer
@@ -294,13 +359,8 @@ db:
         # Whether or not writes to leaving shards count towards consistency
         # Default = false
         shardsLeavingCountTowardsConsistency: <bool>
-  # Specifies the pooling policy. 
-  # TODO: This should all go somewhere else
-  # To add a new pool, follow these steps:
-  # 1. Add the pool to the struct below.
-  # 2. Add the default values to the defaultPoolPolicies or defaultBucketPoolPolicies map.
-  # 3. Add a call to initDefaultsAndValidate() for the new pool in the
-  # PoolingPolicy.InitDefaultsAndValidate() method.        
+  # Specifies the pooling policy
+  # TODO: Fill in ?
   pooling:
   hashing:
     # Murmur32 seed value
@@ -322,41 +382,114 @@ db:
     backend: <string>
     # If using Jaeger, options to send to tracing backend
     jaeger:
+      serviceName:
+      disabled:
+      rpc_metrics:
+      tags:
+      sampler:
+      reporter:
+      headers:
+      baggage_restrictions:
+      throttler:
     # If using Lightstep, options to send to tracing backend
     lightstep:
+      access_token:
+      collector:
+      tags:
+      lightstep_api:
+      max_buffered_spans:
+      max_log_key_lenmax_log_key_len:
+      max_log_value_len:
+      max_logs_per_span:
+      grpc_max_call_send_msg_size_bytes:
+      reporting_period:
+      min_reporting_period:
+      report_timeout:
+      drop_span_logs:
+      verbose:
+      use_http:
+      usegrpc:
+      reconnect_period:
+      meta_event_reporting_enabled:
+  # Defines limits for wide operations which optimize for query completeness across arbitary query ranges rather than speed
   limits:
-  # Defines limits for wide operations which optimize for query completeness across arbitary query ranges rather than speed.
+    # Upper limit on time series bytes read from disk within a given lookback period
+    maxRecentlyQueriedSeriesDiskBytesRead:
+      # Max value for the limit
+      value: <int>
+      # The period in which a resource limit is enforced
+      lookback: <duration>
+    # Upper limit on time series blocks count within a given lookback period
+    maxRecentlyQueriedSeriesBlocks:
+      # Max value for the limit
+      value: <int>
+      # The period in which a resource limit is enforced
+      lookback: <duration>
+    # Maximum number of outstanding write requests that the server allows before it begins rejecting requests
+    maxOutstandingWriteRequests: <int>
+    # Maximum number of outstanding read requests that the server allows before it begins rejecting requests
+    maxOutstandingReadRequests: <int>
+    # Maximum number of bytes that can be loaded into memory as part of the repair process
+    maxOutstandingRepairedBytes: <int>
+    # Maximum number of encoders permitted in a block
+    maxEncodersPerBlock: <int>
+    # Write new series limit per second to limit overwhelming during new ID bursts
+    writeNewSeriesPerSecond: <int>
+  # Configuration for wide operations that differ from regular paths by optimizing for query completeness across arbitary query ranges rather than speed.
   wide:
     # Batch size for wide operations. This corresponds to how many series are processed within a single "chunk"
     # Larger batch sizes complete the query faster, but increase memory consumption
     batchSize: <int>
   # TChannel configuration
-  # TODO: Which is?
   tchannel:
     # Maximum idle time
     maxIdleTime: <duration>
     # Idle check interview
     idleCheckInterval: <duration>
+  # Debug configuration
   debug:
+    # Sets runtime.SetMutexProfileFraction to report mutex contention events
+    # See https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the value
+    mutexProfileFraction: <int>
+    # Sets runtime.BlockProfileRate to report blocking events
+    # See https://golang.org/pkg/runtime/#SetBlockProfileRate for more details about the value.    
+    blockProfileRate: <int>
   # Enable cold writes for all namespaces
   forceColdWritesEnabled: <bool>
-  # etcd configuration.
+  # etcd configuration
   discovery:
+    # The type of discovery configuration being used, valid options: [config, m3db_single_node, m3db_cluster, m3aggregator_cluster]
+    type: <string>
+    m3dbCluster:
+      env: <string>
+      zone: <string>
+      endpoints: <array_of_strings>
+    m3AggregatorCluster:
+      env: <string>
+      zone: <string>
+      endpoints: <array_of_strings>    
     config:
         service:
             # KV environment, zone, and service from which to write/read KV data (placement
             # and configuration). Leave these as the default values unless you know what
-            # you're doing.
+            # you're doing
             env: default_env
             zone: embedded
             service: m3db
-            # Directory to store cached etcd data in.
+            # Directory to store cached etcd data in
             cacheDir: /var/lib/m3kv
-            # Configuration to identify the etcd hosts this node should connect to.
+            # Configuration to identify the etcd hosts this node should connect to
             etcdClusters:
                 - zone: embedded
                   endpoints:
                       - 127.0.0.1:2379
+        # Configuration for running M3 with static configs
+        statics:
+          async:
+          clientOverrides:
+          namespaces:
+          topology:
+          listenAddress:
         # Should only be present if running an M3DB cluster with embedded etcd.
         seedNodes:
             initialCluster:
