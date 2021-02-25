@@ -25,14 +25,11 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	testInsertAndCompressEvery = 100
-	testFlushEvery             = 1000
 )
 
 var (
@@ -47,7 +44,8 @@ func testStreamOptions() Options {
 
 func TestEmptyStream(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	require.Equal(t, 0.0, s.Min())
 	require.Equal(t, 0.0, s.Max())
 	for _, q := range testQuantiles {
@@ -57,7 +55,8 @@ func TestEmptyStream(t *testing.T) {
 
 func TestStreamWithOnePositiveSample(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	s.Add(100.0)
 	s.Flush()
 
@@ -70,7 +69,8 @@ func TestStreamWithOnePositiveSample(t *testing.T) {
 
 func TestStreamWithOneNegativeSample(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	s.Add(-100.0)
 	s.Flush()
 
@@ -83,7 +83,8 @@ func TestStreamWithOneNegativeSample(t *testing.T) {
 
 func TestStreamWithThreeSamples(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for _, val := range []float64{100.0, 200.0, 300.0} {
 		s.Add(val)
 	}
@@ -97,97 +98,50 @@ func TestStreamWithThreeSamples(t *testing.T) {
 	}
 }
 
-func TestStreamWithIncreasingSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithIncreasingSamplesNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithIncreasingSamples(t, opts)
 }
 
-func TestStreamWithIncreasingSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithIncreasingSamplesPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
 	testStreamWithIncreasingSamples(t, opts)
 }
 
-func TestStreamWithIncreasingSamplesNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
-	testStreamWithIncreasingSamples(t, opts)
-}
-
-func TestStreamWithIncreasingSamplesPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().
-		SetInsertAndCompressEvery(testInsertAndCompressEvery).
-		SetFlushEvery(testFlushEvery)
-	testStreamWithIncreasingSamples(t, opts)
-}
-
-func TestStreamWithDecreasingSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithDecreasingSamplesNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithDecreasingSamples(t, opts)
 }
 
-func TestStreamWithDecreasingSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithDecreasingSamplesPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
 	testStreamWithDecreasingSamples(t, opts)
 }
 
-func TestStreamWithDecreasingSamplesNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
-	testStreamWithDecreasingSamples(t, opts)
-}
-
-func TestStreamWithDecreasingSamplesPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().
-		SetInsertAndCompressEvery(testInsertAndCompressEvery).
-		SetFlushEvery(testFlushEvery)
-	testStreamWithDecreasingSamples(t, opts)
-}
-
-func TestStreamWithRandomSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithRandomSamplesNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithRandomSamples(t, opts)
 }
 
-func TestStreamWithRandomSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithRandomSamplesPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
 	testStreamWithRandomSamples(t, opts)
 }
 
-func TestStreamWithRandomSamplesNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
-	testStreamWithRandomSamples(t, opts)
-}
-
-func TestStreamWithRandomSamplesPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().
-		SetInsertAndCompressEvery(testInsertAndCompressEvery).
-		SetFlushEvery(testFlushEvery)
-	testStreamWithRandomSamples(t, opts)
-}
-
-func TestStreamWithSkewedDistributionNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithSkewedDistributionNoPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithSkewedDistribution(t, opts)
 }
 
-func TestStreamWithSkewedDistributionPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+func TestStreamWithSkewedDistributionPeriodicInsertCompress(t *testing.T) {
 	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
-	testStreamWithSkewedDistribution(t, opts)
-}
-
-func TestStreamWithSkewedDistributionNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
-	testStreamWithSkewedDistribution(t, opts)
-}
-
-func TestStreamWithSkewedDistributionPeriodicInsertCompressPeriodicFlush(t *testing.T) {
-	opts := testStreamOptions().
-		SetInsertAndCompressEvery(testInsertAndCompressEvery).
-		SetFlushEvery(testFlushEvery)
 	testStreamWithSkewedDistribution(t, opts)
 }
 
 func TestStreamClose(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(testQuantiles, opts).(*stream)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	require.False(t, s.closed)
 
 	// Close the stream.
@@ -199,35 +153,10 @@ func TestStreamClose(t *testing.T) {
 	require.True(t, s.closed)
 }
 
-func TestStreamAddToMinHeap(t *testing.T) {
-	floatsPool := pool.NewFloatsPool(
-		[]pool.Bucket{
-			{Capacity: 1, Count: 1},
-			{Capacity: 2, Count: 1},
-		}, nil)
-	floatsPool.Init()
-	opts := testStreamOptions().SetFloatsPool(floatsPool)
-	s := NewStream(testQuantiles, opts).(*stream)
-
-	heap := minHeap(floatsPool.Get(1))
-	require.Equal(t, 1, cap(heap))
-
-	inputs := []float64{1.0, 2.0}
-
-	// Push one value to the heap, still under capacity.
-	s.addToMinHeap(&heap, inputs[0])
-	require.Equal(t, inputs[:1], []float64(heap))
-	require.Equal(t, 1, cap(heap))
-
-	// Push another value to the heap, which causes the capacity to grow.
-	s.addToMinHeap(&heap, inputs[1])
-	require.Equal(t, inputs, []float64(heap))
-	require.Equal(t, 2, cap(heap))
-}
-
 func testStreamWithIncreasingSamples(t *testing.T, opts Options) {
 	numSamples := 100000
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for i := 0; i < numSamples; i++ {
 		s.Add(float64(i))
 	}
@@ -244,7 +173,8 @@ func testStreamWithIncreasingSamples(t *testing.T, opts Options) {
 
 func testStreamWithDecreasingSamples(t *testing.T, opts Options) {
 	numSamples := 100000
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for i := numSamples - 1; i >= 0; i-- {
 		s.Add(float64(i))
 	}
@@ -262,7 +192,8 @@ func testStreamWithDecreasingSamples(t *testing.T, opts Options) {
 func testStreamWithRandomSamples(t *testing.T, opts Options) {
 	numSamples := 100000
 	maxInt64 := int64(math.MaxInt64)
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	min := math.MaxFloat64
 	max := -1.0
 
@@ -286,7 +217,8 @@ func testStreamWithRandomSamples(t *testing.T, opts Options) {
 }
 
 func testStreamWithSkewedDistribution(t *testing.T, opts Options) {
-	s := NewStream(testQuantiles, opts)
+	s := NewStream(opts)
+	s.ResetSetData(testQuantiles)
 	for i := 0; i < 10000; i++ {
 		s.Add(1.0)
 	}
