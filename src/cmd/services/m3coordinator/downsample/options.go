@@ -474,15 +474,30 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		switch {
 		case elem.Rollup != nil:
 			cfg := elem.Rollup
+			if len(cfg.GroupBy) > 0 && len(cfg.ExcludeBy) > 0 {
+				return view.RollupRule{}, fmt.Errorf(
+					"must specify group by or exclude by tags for rollup operation not both: "+
+						"groupBy=%d, excludeBy=%d", len(cfg.GroupBy), len(cfg.ExcludeBy))
+			}
+
+			rollupType := pipelinepb.RollupOpType_GROUP_BY
+			tags := cfg.GroupBy
+			if len(cfg.ExcludeBy) > 0 {
+				rollupType = pipelinepb.RollupOpType_EXCLUDE_BY
+				tags = cfg.ExcludeBy
+			}
+
 			aggregationTypes, err := AggregationTypes(cfg.Aggregations).Proto()
 			if err != nil {
 				return view.RollupRule{}, err
 			}
+
 			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
 				Type: pipelinepb.PipelineOp_ROLLUP,
 				Rollup: &pipelinepb.RollupOp{
+					Type:             rollupType,
 					NewName:          cfg.MetricName,
-					Tags:             cfg.GroupBy,
+					Tags:             tags,
 					AggregationTypes: aggregationTypes,
 				},
 			})
@@ -563,7 +578,15 @@ type RollupOperationConfiguration struct {
 
 	// GroupBy is a set of labels to group by, only these remain on the
 	// new metric name produced by the rollup operation.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
 	GroupBy []string `yaml:"groupBy"`
+
+	// ExcludeBy is a set of labels to exclude by, only these tags are removed
+	// from the resulting rolled up metric.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
+	ExcludeBy []string `yaml:"excludeBy"`
 
 	// Aggregations is a set of aggregate operations to perform.
 	Aggregations []aggregation.Type `yaml:"aggregations"`
