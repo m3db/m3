@@ -39,41 +39,41 @@ const (
 
 var (
 	testPlacementsProto = []*placementpb.Placement{
-		&placementpb.Placement{
+		{
 			NumShards:   4,
 			CutoverTime: 0,
 			Instances: map[string]*placementpb.Instance{
-				testInstanceID1: &placementpb.Instance{
+				testInstanceID1: {
 					Id:       testInstanceID1,
 					Endpoint: testInstanceID1,
 					Shards: []*placementpb.Shard{
-						&placementpb.Shard{Id: 0, State: placementpb.ShardState_INITIALIZING},
-						&placementpb.Shard{Id: 1, State: placementpb.ShardState_INITIALIZING},
-						&placementpb.Shard{Id: 2, State: placementpb.ShardState_INITIALIZING},
-						&placementpb.Shard{Id: 3, State: placementpb.ShardState_INITIALIZING},
+						{Id: 0, State: placementpb.ShardState_INITIALIZING},
+						{Id: 1, State: placementpb.ShardState_INITIALIZING},
+						{Id: 2, State: placementpb.ShardState_INITIALIZING},
+						{Id: 3, State: placementpb.ShardState_INITIALIZING},
 					},
 				},
 			},
 		},
-		&placementpb.Placement{
+		{
 			NumShards:   4,
 			CutoverTime: 10000,
 			Instances: map[string]*placementpb.Instance{
-				testInstanceID1: &placementpb.Instance{
+				testInstanceID1: {
 					Id:       testInstanceID1,
 					Endpoint: testInstanceID1,
 					Shards: []*placementpb.Shard{
-						&placementpb.Shard{Id: 0, State: placementpb.ShardState_INITIALIZING},
-						&placementpb.Shard{Id: 1, State: placementpb.ShardState_INITIALIZING},
+						{Id: 0, State: placementpb.ShardState_INITIALIZING},
+						{Id: 1, State: placementpb.ShardState_INITIALIZING},
 					},
 					ShardSetId: 0,
 				},
-				testInstanceID2: &placementpb.Instance{
+				testInstanceID2: {
 					Id:       testInstanceID2,
 					Endpoint: testInstanceID2,
 					Shards: []*placementpb.Shard{
-						&placementpb.Shard{Id: 2, State: placementpb.ShardState_INITIALIZING},
-						&placementpb.Shard{Id: 3, State: placementpb.ShardState_INITIALIZING},
+						{Id: 2, State: placementpb.ShardState_INITIALIZING},
+						{Id: 3, State: placementpb.ShardState_INITIALIZING},
 					},
 					ShardSetId: 1,
 				},
@@ -99,7 +99,7 @@ func TestPlacementManagerOpenSuccess(t *testing.T) {
 
 func TestPlacementManagerPlacementNotOpen(t *testing.T) {
 	mgr, _ := testPlacementManager(t)
-	_, _, err := mgr.Placement()
+	_, err := mgr.Placement()
 	require.Equal(t, errPlacementManagerNotOpenOrClosed, err)
 }
 
@@ -112,7 +112,7 @@ func TestPlacementManagerPlacement(t *testing.T) {
 	require.NoError(t, err)
 	var placement placement.Placement
 	for {
-		_, placement, err = mgr.Placement()
+		placement, err = mgr.Placement()
 		if err == nil {
 			break
 		}
@@ -158,29 +158,30 @@ func TestPlacementManagerInstanceFound(t *testing.T) {
 	}
 }
 
+// nolint: dupl
 func TestPlacementHasReplacementInstance(t *testing.T) {
 	protos := []*placementpb.PlacementSnapshots{
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					NumShards:   4,
 					CutoverTime: 100,
 					Instances: map[string]*placementpb.Instance{
-						testInstanceID1: &placementpb.Instance{
+						testInstanceID1: {
 							Id:       testInstanceID1,
 							Endpoint: testInstanceID1,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoffNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoffNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoffNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoffNanos: 1000},
 							},
 							ShardSetId: 0,
 						},
-						testInstanceID2: &placementpb.Instance{
+						testInstanceID2: {
 							Id:       testInstanceID2,
 							Endpoint: testInstanceID2,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_LEAVING, CutoverNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_LEAVING, CutoverNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_LEAVING, CutoverNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_LEAVING, CutoverNanos: 1000},
 							},
 							ShardSetId: 0,
 						},
@@ -188,26 +189,26 @@ func TestPlacementHasReplacementInstance(t *testing.T) {
 				},
 			},
 		},
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					NumShards:   4,
 					CutoverTime: 200,
 					Instances: map[string]*placementpb.Instance{
-						testInstanceID1: &placementpb.Instance{
+						testInstanceID1: {
 							Id:       testInstanceID1,
 							Endpoint: testInstanceID1,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
 							},
 							ShardSetId: 0,
 						},
-						testInstanceID2: &placementpb.Instance{
+						testInstanceID2: {
 							Id:       testInstanceID2,
 							Endpoint: testInstanceID2,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
 							},
 							ShardSetId: 0,
 						},
@@ -215,27 +216,27 @@ func TestPlacementHasReplacementInstance(t *testing.T) {
 				},
 			},
 		},
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					NumShards:   4,
 					CutoverTime: 300,
 					Instances: map[string]*placementpb.Instance{
-						testInstanceID1: &placementpb.Instance{
+						testInstanceID1: {
 							Id:       testInstanceID1,
 							Endpoint: testInstanceID1,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
 							},
 							ShardSetId: 0,
 						},
-						testInstanceID2: &placementpb.Instance{
+						testInstanceID2: {
 							Id:       testInstanceID2,
 							Endpoint: testInstanceID2,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 800},
+								{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 800},
 							},
 							ShardSetId: 0,
 						},
@@ -243,36 +244,36 @@ func TestPlacementHasReplacementInstance(t *testing.T) {
 				},
 			},
 		},
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					NumShards:   4,
 					CutoverTime: 400,
 					Instances: map[string]*placementpb.Instance{
-						testInstanceID1: &placementpb.Instance{
+						testInstanceID1: {
 							Id:       testInstanceID1,
 							Endpoint: testInstanceID1,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_LEAVING, CutoffNanos: 1000},
 							},
 							ShardSetId: 0,
 						},
-						testInstanceID2: &placementpb.Instance{
+						testInstanceID2: {
 							Id:       testInstanceID2,
 							Endpoint: testInstanceID2,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
 							},
 							ShardSetId: 1,
 						},
-						testInstanceID3: &placementpb.Instance{
+						testInstanceID3: {
 							Id:       testInstanceID3,
 							Endpoint: testInstanceID3,
 							Shards: []*placementpb.Shard{
-								&placementpb.Shard{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
-								&placementpb.Shard{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
+								{Id: 0, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
+								{Id: 1, State: placementpb.ShardState_INITIALIZING, CutoverNanos: 1000},
 							},
 							ShardSetId: 0,
 						},
@@ -290,7 +291,7 @@ func TestPlacementHasReplacementInstance(t *testing.T) {
 		_, err := store.Set(testPlacementKey, proto)
 		require.NoError(t, err)
 		for {
-			_, p, err := mgr.Placement()
+			p, err := mgr.Placement()
 			if err == nil && p.CutoverNanos() == proto.Snapshots[0].CutoverTime {
 				res, err := mgr.HasReplacementInstance()
 				require.NoError(t, err)
@@ -328,10 +329,10 @@ func TestPlacementClose(t *testing.T) {
 }
 
 func testPlacementManager(t *testing.T) (*placementManager, kv.Store) {
-	watcher, store := testPlacementWatcherWithPlacementProto(t, testPlacementKey, testStagedPlacementProto)
+	watcher, store := testWatcherWithPlacementProto(t, testPlacementKey, testStagedPlacementProto)
 	opts := NewPlacementManagerOptions().
 		SetInstanceID(testInstanceID).
-		SetStagedPlacementWatcher(watcher)
+		SetWatcher(watcher)
 	placementManager := NewPlacementManager(opts).(*placementManager)
 	return placementManager, store
 }

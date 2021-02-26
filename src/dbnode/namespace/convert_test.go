@@ -27,7 +27,6 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	m3test "github.com/m3db/m3/src/x/generated/proto/test"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -57,7 +56,7 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
-	validExtendedOpts, _ = xtest.NewExtendedOptionsProto("foo")
+	validExtendedOpts = xtest.NewTestExtendedOptionsProto("foo")
 
 	validAggregationOpts = nsproto.AggregationOptions{
 		Aggregations: []*nsproto.Aggregation{
@@ -133,7 +132,7 @@ var (
 )
 
 func init() {
-	namespace.RegisterExtendedOptionsConverter(xtest.TypeURLPrefix, &m3test.PingResponse{}, xtest.ConvertToExtendedOptions)
+	namespace.RegisterExtendedOptionsConverter("testExtendedOptions", xtest.ConvertToTestExtendedOptions)
 }
 
 func TestNamespaceToRetentionValid(t *testing.T) {
@@ -309,7 +308,7 @@ func TestToProtoSnapshotEnabled(t *testing.T) {
 func TestFromProtoSnapshotEnabled(t *testing.T) {
 	validRegistry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"testns1": &nsproto.NamespaceOptions{
+			"testns1": {
 				// Use non-default value
 				SnapshotEnabled: !namespace.NewOptions().SnapshotEnabled(),
 				// Retention must be set
@@ -326,26 +325,27 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 }
 
 func TestInvalidExtendedOptions(t *testing.T) {
-	invalidExtendedOptsBadValue, err := xtest.NewExtendedOptionsProto("foo")
-	require.NoError(t, err)
-	invalidExtendedOptsBadValue.Value = []byte{1, 2, 3}
-	_, err = namespace.ToExtendedOptions(invalidExtendedOptsBadValue)
-	assert.Error(t, err)
+	invalidExtendedOptsNoConverterForType := &nsproto.ExtendedOptions{Type: "unknown"}
+	_, err := namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
+	assert.EqualError(t, err, "dynamic ExtendedOptions converter not registered for type unknown")
 
-	invalidExtendedOptsNoConverterForType, err := xtest.NewProtobufAny(&protobuftypes.Int32Value{})
-	require.NoError(t, err)
-	_, err = namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
-	assert.EqualError(t, err, "dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value")
-
-	invalidExtendedOptsConverterFailure, err := xtest.NewExtendedOptionsProto("error")
-	require.NoError(t, err)
+	invalidExtendedOptsConverterFailure := xtest.NewTestExtendedOptionsProto("error")
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsConverterFailure)
-	assert.EqualError(t, err, "error in converter")
+	assert.EqualError(t, err, "test error in converter")
 
-	invalidExtendedOpts, err := xtest.NewExtendedOptionsProto("invalid")
-	require.NoError(t, err)
+	invalidExtendedOpts := xtest.NewTestExtendedOptionsProto("invalid")
 	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
 	assert.EqualError(t, err, "invalid ExtendedOptions")
+
+	invalidExtendedOptionsNoOptions := &nsproto.ExtendedOptions{Type: "testExtendedOptions"}
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptionsNoOptions)
+	assert.EqualError(t, err, "extendedOptions.Options must be set")
+}
+
+func TestConvertExtendedOptionsNil(t *testing.T) {
+	convertedExtendedOpts, err := namespace.ToExtendedOptions(nil)
+	require.NoError(t, err)
+	require.Nil(t, convertedExtendedOpts)
 }
 
 func TestToAggregationOptions(t *testing.T) {
@@ -420,17 +420,15 @@ func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, obse
 		observed.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds())
 }
 
-func assertEqualExtendedOpts(t *testing.T, expectedProto *protobuftypes.Any, observed namespace.ExtendedOptions) {
+func assertEqualExtendedOpts(t *testing.T, expectedProto *nsproto.ExtendedOptions, observed namespace.ExtendedOptions) {
+	t.Helper()
+
 	if expectedProto == nil {
 		assert.Nil(t, observed)
 		return
 	}
 
-	var value = &m3test.PingResponse{}
-	err := protobuftypes.UnmarshalAny(expectedProto, value)
-	require.NoError(t, err)
-
-	expected, err := xtest.ConvertToExtendedOptions(value)
+	expected, err := xtest.ConvertToTestExtendedOptions(expectedProto.Options)
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, observed)
