@@ -942,6 +942,8 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		// and is an expensive task that doesn't require
 		// holding the index lock.
 		_ = activeBlock.InMemoryBlockNotifySealedBlocks(sealedBlocks)
+		i.metrics.blocksNotifySealed.Inc(int64(len(sealedBlocks)))
+		i.metrics.tick.Inc(1)
 	}()
 
 	earliestBlockStartToRetain := i.earliestBlockStartToRetainWithLock(startTime)
@@ -2286,6 +2288,7 @@ type nsIndexMetrics struct {
 	asyncInsertAttemptSkip  tally.Counter
 	asyncInsertAttemptWrite tally.Counter
 
+	tick                             tally.Counter
 	asyncInsertSuccess               tally.Counter
 	asyncInsertErrors                tally.Counter
 	insertAfterClose                 tally.Counter
@@ -2295,6 +2298,7 @@ type nsIndexMetrics struct {
 	forwardIndexCounter              tally.Counter
 	insertEndToEndLatency            tally.Timer
 	blocksEvictedMutableSegments     tally.Counter
+	blocksNotifySealed               tally.Counter
 	blockMetrics                     nsIndexBlocksMetrics
 	indexingConcurrencyMin           tally.Gauge
 	indexingConcurrencyMax           tally.Gauge
@@ -2330,6 +2334,7 @@ func newNamespaceIndexMetrics(
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
 	m := nsIndexMetrics{
+		tick: scope.Counter("index-tick"),
 		asyncInsertAttemptTotal: scope.Tagged(map[string]string{
 			"stage": "process",
 		}).Counter(indexAttemptName),
@@ -2361,6 +2366,7 @@ func newNamespaceIndexMetrics(
 		insertEndToEndLatency: instrument.NewTimer(scope,
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
+		blocksNotifySealed:           scope.Counter("blocks-notify-sealed"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 		indexingConcurrencyMin: scope.Tagged(map[string]string{
 			"stat": "min",

@@ -23,17 +23,22 @@
 package integration
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
-
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 /*
@@ -57,9 +62,10 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 		indexBlockSize  = time.Hour
 		bufferFuture    = 5 * time.Minute
 		bufferPast      = 10 * time.Minute
+		verifyTimeout   = 2 * time.Minute
 	)
 
-	// Test setup
+	// Test setup.
 	md, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().
 			SetRetentionOptions(
@@ -80,6 +86,13 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.Close()
 
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(
+		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
+	defer closer.Close()
+	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
+		instrument.NewOptions().SetMetricsScope(scope)))
+
 	t0 := time.Date(2018, time.May, 6, 12, 50, 0, 0, time.UTC)
 	t1 := t0.Add(10 * time.Minute)
 	t2 := t1.Add(5 * time.Minute)
@@ -88,11 +101,11 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 	writesPeriod1 := GenerateTestIndexWrite(1, numWrites, numTags, t1, t2)
 
-	// Start the server
+	// Start the server.
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	require.NoError(t, testSetup.StartServer())
 
-	// Stop the server
+	// Stop the server.
 	defer func() {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
@@ -118,7 +131,40 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 	require.True(t, indexed)
 	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
 
-	// "shared":"shared", is a common tag across all written metrics
+	// Progress and flush so that data gets evicted from in-memory block
+	// that no longer needs to be there.
+	testSetup.SetNowFn(t2.Add(indexBlockSize).Add(bufferPast))
+	// Now wait for a flush so that in memory data is empty.
+	log.Info("waiting till filesets found on disk")
+	found := xclock.WaitUntil(func() bool {
+		filesets, err := fs.IndexFileSetsAt(testSetup.FilePathPrefix(), md.ID(), t1)
+		require.NoError(t, err)
+		return len(filesets) == 1
+	}, verifyTimeout)
+	require.True(t, found)
+	log.Info("found filesets found on disk")
+	// Ensure we've evicted the mutable segments.
+	log.Info("waiting till notify sealed blocks")
+	evicted := xclock.WaitUntil(func() bool {
+		counters := reporter.Counters()
+		counter, ok := counters["dbindex.blocks-notify-sealed"]
+		return ok && counter > 10
+	}, verifyTimeout)
+	require.True(t, evicted)
+	log.Info("notify sealed blocks complete")
+
+	for {
+		log.Info("reporting metrics")
+		for k, v := range reporter.Counters() {
+			if strings.Contains(k, "active") || strings.Contains(k, "notify") || strings.Contains(k, "tick") {
+				log.Info("metric reported", zap.String("k", k), zap.Int64("k", v))
+			}
+		}
+		// time.Sleep(5 * time.Second)
+		break
+	}
+
+	// "shared":"shared", is a common tag across all written metrics.
 	query := index.Query{
 		Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 

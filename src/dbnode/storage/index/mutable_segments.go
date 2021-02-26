@@ -118,10 +118,6 @@ type mutableSegmentsMetrics struct {
 	backgroundCompactionPlanRunLatency tally.Timer
 	backgroundCompactionTaskRunLatency tally.Timer
 	activeBlockIndexNew                tally.Counter
-	activeBlockIndexExists             tally.Counter
-	activeBlockBloomNew                tally.Counter
-	activeBlockBloomExists             tally.Counter
-	activeBlockBloomUpdate             tally.Counter
 	activeBlockGarbageCollectSegment   tally.Counter
 	activeBlockGarbageCollectSeries    tally.Counter
 }
@@ -138,18 +134,6 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		activeBlockIndexNew: activeBlockScope.Tagged(map[string]string{
 			"result_type": "new",
 		}).Counter("index-result"),
-		activeBlockIndexExists: activeBlockScope.Tagged(map[string]string{
-			"result_type": "exists",
-		}).Counter("index-result"),
-		activeBlockBloomNew: activeBlockScope.Tagged(map[string]string{
-			"result_type": "new",
-		}).Counter("bloom-result"),
-		activeBlockBloomExists: activeBlockScope.Tagged(map[string]string{
-			"result_type": "exists",
-		}).Counter("bloom-result"),
-		activeBlockBloomUpdate: activeBlockScope.Tagged(map[string]string{
-			"result_type": "update",
-		}).Counter("bloom-result"),
 		activeBlockGarbageCollectSegment: activeBlockScope.Counter("gc-segment"),
 		activeBlockGarbageCollectSeries:  activeBlockScope.Counter("gc-series"),
 	}
@@ -273,7 +257,8 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 		Docs:                docs,
 		AllowPartialUpdates: true,
 	})
-	if len(segmentBuilder.Docs()) == 0 {
+	n := len(segmentBuilder.Docs())
+	if n == 0 {
 		// No inserts, no need to compact.
 		return MutableSegmentsStats{}, insertResultErr
 	}
@@ -285,6 +270,8 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	if err != nil {
 		return MutableSegmentsStats{}, err
 	}
+
+	m.metrics.activeBlockIndexNew.Inc(int64(n))
 
 	// Return result from the original insertion since compaction was successful.
 	return result, insertResultErr
