@@ -1636,6 +1636,16 @@ func (s *session) fetchTaggedIDsAttempt(
 	// pool if ref count == 0.
 	fetchState.decRef()
 
+	if err == nil {
+		s.log.Info("dbnode client result",
+			zap.String("q", q.String()),
+			zap.Int("n", iter.Remaining()))
+	} else {
+		s.log.Info("dbnode client result",
+			zap.String("q", q.String()),
+			zap.Error(err))
+	}
+
 	return iter, metadata, err
 }
 

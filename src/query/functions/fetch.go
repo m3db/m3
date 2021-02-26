@@ -130,6 +130,16 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 	if err != nil {
 		return err
 	}
+	for _, b := range blockResult.Blocks {
+		si, se := b.SeriesIter()
+		if se == nil {
+			logging.WithContext(ctx, n.instrumentOpts).Info("fetch num series",
+				zap.Int("n", si.SeriesCount()))
+		} else {
+			logging.WithContext(ctx, n.instrumentOpts).Info("fetch num series",
+				zap.Error(se))
+		}
+	}
 
 	for _, block := range blockResult.Blocks {
 		if n.debug {

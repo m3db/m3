@@ -349,6 +349,11 @@ func (s *m3storage) fetchCompressed(
 	default:
 	}
 
+	fr, fe := result.FinalResult()
+	s.logger.Info("query storage num series",
+		zap.Error(fe),
+		zap.Int("n", len(fr.SeriesIterators())))
+
 	return result, m3query, err
 }
 
