@@ -43,12 +43,21 @@ func TestMarshalAndUnmarshalPlacementProto(t *testing.T) {
 }
 
 func TestCompressAndDecompressPlacementProto(t *testing.T) {
-	compressed, err := compressPlacementProto(testLatestPlacementProto)
-	require.NoError(t, err)
+	t.Run("nil_input", func(t *testing.T) {
+		_, err := compressPlacementProto(nil)
+		require.Equal(t, errNilPlacementSnapshotsProto, err)
 
-	actual, err := decompressPlacementProto(compressed)
-	require.NoError(t, err)
-	require.Equal(t, testLatestPlacementProto.String(), actual.String())
+		_, err = decompressPlacementProto(nil)
+		require.Equal(t, errNilValue, err)
+	})
+	t.Run("compress_then_decompress", func(t *testing.T) {
+		compressed, err := compressPlacementProto(testLatestPlacementProto)
+		require.NoError(t, err)
+
+		actual, err := decompressPlacementProto(compressed)
+		require.NoError(t, err)
+		require.Equal(t, testLatestPlacementProto.String(), actual.String())
+	})
 }
 
 func BenchmarkCompressPlacementProto(b *testing.B) {

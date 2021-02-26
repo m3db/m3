@@ -30,14 +30,14 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
-func compressPlacementProto(proto *placementpb.Placement) ([]byte, error) {
-	uncompressed, err := proto.Marshal()
-	if err != nil {
-		return nil, err
+func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
+	if p == nil {
+		return nil, errNilPlacementSnapshotsProto
 	}
 
-	var compressed bytes.Buffer
+	uncompressed, _ := p.Marshal()
 	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
+	var compressed bytes.Buffer
 	w, err := zstd.NewWriter(&compressed, opts)
 	if err != nil {
 		return nil, err
@@ -56,6 +56,10 @@ func compressPlacementProto(proto *placementpb.Placement) ([]byte, error) {
 }
 
 func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error) {
+	if compressed == nil {
+		return nil, errNilValue
+	}
+
 	r, err := zstd.NewReader(bytes.NewReader(compressed))
 	if err != nil {
 		return nil, err

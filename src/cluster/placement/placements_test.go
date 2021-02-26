@@ -138,6 +138,29 @@ func TestPlacements(t *testing.T) {
 
 		require.Equal(t, expected, actual)
 	})
+	t.Run("new_fails_to_decompress_invalid_proto", func(t *testing.T) {
+		invalidProto := &placementpb.PlacementSnapshots{
+			CompressMode:        placementpb.CompressMode_FLATE,
+			CompressedPlacement: nil,
+		}
+
+		_, err := NewPlacementsFromProto(invalidProto)
+		require.Equal(t, errNilValue, err)
+	})
+	t.Run("new_fails_to_decompress_corrupt_proto", func(t *testing.T) {
+		compressed, err := compressPlacementProto(testLatestPlacementProto)
+		require.NoError(t, err)
+
+		i := len(compressed) / 2
+		compressed[i] = (compressed[i] + 1) % 255 // corrupt
+		corruptProto := &placementpb.PlacementSnapshots{
+			CompressMode:        placementpb.CompressMode_FLATE,
+			CompressedPlacement: compressed,
+		}
+
+		_, err = NewPlacementsFromProto(corruptProto)
+		require.Error(t, err)
+	})
 	t.Run("proto_compressed_compresses_placement", func(t *testing.T) {
 		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
