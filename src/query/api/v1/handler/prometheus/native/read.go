@@ -165,6 +165,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
 	}
 
+	logger.Info("native read pre", zap.Any("series", len(result.Series)))
+
 	// First invoke the results rendering with a noop writer in order to
 	// check the returned-data limits. This must be done before the actual rendering
 	// so that we can add the returned-data-limited header which must precede body writing.
