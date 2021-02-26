@@ -481,13 +481,8 @@ func Run(runOpts RunOptions) {
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	var permitOptions permits.Options
-	if permitOptions = runOpts.StorageOptions.PermitOptions; permitOptions != nil {
-		opts = opts.SetPermitsOptions(permitOptions)
-	} else {
-		opts = opts.SetPermitsOptions(opts.PermitsOptions().
-			SetSeriesReadPermitsManager(seriesReadPermits))
-	}
+	opts = opts.SetPermitsOptions(opts.PermitsOptions().
+		SetSeriesReadPermitsManager(seriesReadPermits))
 
 	// Setup postings list cache.
 	var (

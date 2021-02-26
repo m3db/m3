@@ -165,7 +165,7 @@ func TestAggregatorOpenPlacementError(t *testing.T) {
 	errPlacement := errors.New("error getting placement")
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Open().Return(nil)
-	placementManager.EXPECT().Placement().Return(nil, nil, errPlacement)
+	placementManager.EXPECT().Placement().Return(nil, errPlacement)
 
 	agg, _ := testAggregator(t, ctrl)
 	agg.placementManager = placementManager
@@ -177,11 +177,10 @@ func TestAggregatorOpenInstanceFromError(t *testing.T) {
 	defer ctrl.Finish()
 
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
 	errInstanceFrom := errors.New("error getting instance from placement")
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Open().Return(nil)
-	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().Placement().Return(testPlacement, nil)
 	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, errInstanceFrom)
 
 	agg, _ := testAggregator(t, ctrl)
@@ -199,11 +198,10 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	agg.placementManager = placementManager
 
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
 
 	placementManager.EXPECT().Open().Return(nil)
 	placementManager.EXPECT().InstanceID().Return(agg.opts.PlacementManager().InstanceID())
-	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().Placement().Return(testPlacement, nil)
 	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, ErrInstanceNotFoundInPlacement)
 
 	require.NoError(t, agg.Open())
@@ -211,7 +209,6 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	require.False(t, agg.shardSetOpen)
 	require.Equal(t, 0, len(agg.shardIDs))
 	require.Nil(t, agg.shards)
-	require.Equal(t, agg.currStagedPlacement, testStagedPlacement)
 	require.Equal(t, agg.currPlacement, testPlacement)
 	require.Equal(t, aggregatorOpen, agg.state)
 }
@@ -229,7 +226,6 @@ func TestAggregatorOpenSuccess(t *testing.T) {
 	for i := 0; i < testNumShards; i++ {
 		require.NotNil(t, agg.shards[i])
 	}
-	require.NotNil(t, agg.currStagedPlacement)
 	require.NotNil(t, agg.currPlacement)
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 }
@@ -239,17 +235,17 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	placements := []*placementpb.PlacementSnapshots{
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					CutoverTime: 0,
 				},
 			},
 		},
 		testStagedPlacementProtoWithNumShards(t, testInstanceID, testShardSetID, 4),
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					CutoverTime: testPlacementCutover + 1000,
 				},
 			},
@@ -270,7 +266,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	_, err := store.Set(testPlacementKey, placements[1])
 	require.NoError(t, err)
 	for {
-		_, p, err := agg.placementManager.Placement()
+		p, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if p.CutoverNanos() == testPlacementCutover {
 			break
@@ -294,7 +290,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	_, err = store.Set(testPlacementKey, placements[2])
 	require.NoError(t, err)
 	for {
-		_, p, err := agg.placementManager.Placement()
+		p, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if p.CutoverNanos() == testPlacementCutover+1000 {
 			break
@@ -381,7 +377,7 @@ func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 
 	// Wait for the placement to be updated.
 	for {
-		_, placement, err := agg.placementManager.Placement()
+		placement, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if placement.CutoverNanos() == newPlacementCutoverNanos {
 			break
@@ -491,7 +487,7 @@ func TestAggregatorAddTimedSuccessWithPlacementUpdate(t *testing.T) {
 
 	// Wait for the placement to be updated.
 	for {
-		_, placement, err := agg.placementManager.Placement()
+		placement, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if placement.CutoverNanos() == newPlacementCutoverNanos {
 			break
@@ -601,7 +597,7 @@ func TestAggregatorAddForwardedSuccessWithPlacementUpdate(t *testing.T) {
 
 	// Wait for the placement to be updated.
 	for {
-		_, placement, err := agg.placementManager.Placement()
+		placement, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if placement.CutoverNanos() == newPlacementCutoverNanos {
 			break
@@ -1046,10 +1042,10 @@ func testAggregatorWithCustomPlacements(
 	ctrl *gomock.Controller,
 	proto *placementpb.PlacementSnapshots,
 ) (*aggregator, kv.Store) {
-	watcher, store := testPlacementWatcherWithPlacementProto(t, testPlacementKey, proto)
+	watcher, store := testWatcherWithPlacementProto(t, testPlacementKey, proto)
 	placementManagerOpts := NewPlacementManagerOptions().
 		SetInstanceID(testInstanceID).
-		SetStagedPlacementWatcher(watcher)
+		SetWatcher(watcher)
 	placementManager := NewPlacementManager(placementManagerOpts)
 	opts := testOptions(ctrl).
 		SetEntryCheckInterval(0).
@@ -1058,18 +1054,19 @@ func testAggregatorWithCustomPlacements(
 }
 
 // nolint: unparam
-func testPlacementWatcherWithPlacementProto(
+func testWatcherWithPlacementProto(
 	t *testing.T,
 	placementKey string,
 	proto *placementpb.PlacementSnapshots,
-) (placement.StagedPlacementWatcher, kv.Store) {
+) (placement.Watcher, kv.Store) {
+	t.Helper()
 	store := mem.NewStore()
 	_, err := store.SetIfNotExists(placementKey, proto)
 	require.NoError(t, err)
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKey).
 		SetStagedPlacementStore(store)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	return placementWatcher, store
 }
 
@@ -1107,8 +1104,8 @@ func testStagedPlacementProtoWithCustomShards(
 		SetInstances([]placement.Instance{instance}).
 		SetShards(shards.AllIDs()).
 		SetCutoverNanos(placementCutoverNanos)
-	testStagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]placement.Placement{testPlacement})
+	testStagedPlacement, err := placement.NewPlacementsFromLatest(testPlacement)
+	require.NoError(t, err)
 	stagedPlacementProto, err := testStagedPlacement.Proto()
 	require.NoError(t, err)
 	return stagedPlacementProto

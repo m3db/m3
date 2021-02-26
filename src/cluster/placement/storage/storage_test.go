@@ -150,8 +150,7 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	// Only latest snapshot is retained.
 	newPs, err := placement.NewPlacementsFromProto(newProto.(*placementpb.PlacementSnapshots))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(newPs))
-	require.Equal(t, pGet2.SetVersion(0), newPs[0])
+	require.Equal(t, pGet2.SetVersion(0), newPs.Latest())
 
 	err = ps.Delete()
 	require.NoError(t, err)
