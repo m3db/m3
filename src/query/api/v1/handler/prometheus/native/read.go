@@ -181,6 +181,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
 	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
 
+	logger.Info("native read check", zap.Any("render", renderResult), zap.Any("parsedOptions", parsedOptions))
+
 	if renderResult.LimitedMaxReturnedData {
 		if err := WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
 			Series:      renderResult.Series,
@@ -194,10 +196,12 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Write the actual results after having checked for limits and wrote headers if needed.
 	responseWriter := json.NewWriter(w)
 	if h.instant {
-		_ = renderResultsInstantaneousJSON(responseWriter, result, renderOpts)
+		renderResult = renderResultsInstantaneousJSON(responseWriter, result, renderOpts)
 	} else {
-		_ = RenderResultsJSON(responseWriter, result, renderOpts)
+		renderResult = RenderResultsJSON(responseWriter, result, renderOpts)
 	}
+
+	logger.Info("native read result", zap.Any("render", renderResult), zap.Any("parsedOptions", parsedOptions))
 
 	if responseWriter.Close() != nil {
 		w.WriteHeader(http.StatusInternalServerError)
