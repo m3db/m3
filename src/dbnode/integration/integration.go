@@ -32,9 +32,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
@@ -256,7 +258,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		case bootstrapper.NoOpNoneBootstrapperName:
 			finalBootstrapper = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			uninitialized.NewUninitializedTopologyBootstrapperProvider(
+			finalBootstrapper = uninitialized.NewUninitializedTopologyBootstrapperProvider(
 				uninitialized.NewOptions().
 					SetInstrumentOptions(instrumentOpts), nil)
 		default:
@@ -303,6 +305,15 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			require.NoError(t, err)
 		}
 
+		bootstrapCommitlogOpts := commitlog.NewOptions().
+			SetResultOptions(bsOpts).
+			SetCommitLogOptions(setup.StorageOpts().CommitLogOptions()).
+			SetRuntimeOptionsManager(runtime.NewOptionsManager())
+
+		commitlogBootstrapper, err := commitlog.NewCommitLogBootstrapperProvider(bootstrapCommitlogOpts,
+			mustInspectFilesystem(fsOpts), finalBootstrapper)
+		require.NoError(t, err)
+
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
 
@@ -314,7 +325,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			SetPersistManager(persistMgr).
 			SetIndexClaimsManager(setup.StorageOpts().IndexClaimsManager())
 
-		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, finalBootstrapper)
+		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, commitlogBootstrapper)
 		require.NoError(t, err)
 
 		processOpts := bootstrap.NewProcessOptions().
