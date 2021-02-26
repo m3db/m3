@@ -221,35 +221,6 @@ func parseQuery(r *http.Request) (string, error) {
 	return queries[0], nil
 }
 
-func filterNaNSeries(
-	series []*ts.Series,
-	startInclusive time.Time,
-	endInclusive time.Time,
-) []*ts.Series {
-	filtered := series[:0]
-	for _, s := range series {
-		dps := s.Values().Datapoints()
-		hasVal := false
-		for _, dp := range dps {
-			if !math.IsNaN(dp.Value) {
-				ts := dp.Timestamp
-				if ts.Before(startInclusive) || ts.After(endInclusive) {
-					continue
-				}
-
-				hasVal = true
-				break
-			}
-		}
-
-		if hasVal {
-			filtered = append(filtered, s)
-		}
-	}
-
-	return filtered
-}
-
 // RenderResultsOptions is a set of options for rendering the result.
 type RenderResultsOptions struct {
 	KeepNaNs                bool
@@ -285,11 +256,6 @@ func RenderResultsJSON(
 		datapointsRendered = 0
 		limited            = false
 	)
-
-	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
-	if !opts.KeepNaNs {
-		series = filterNaNSeries(series, opts.Start, opts.End)
-	}
 
 	jw.BeginObject()
 
@@ -328,21 +294,8 @@ func RenderResultsJSON(
 			limited = true
 			break
 		}
-		seriesRendered++
-		datapointsRendered += length
 
-		jw.BeginObject()
-		jw.BeginObjectField("metric")
-		jw.BeginObject()
-		for _, t := range s.Tags.Tags {
-			jw.BeginObjectField(string(t.Name))
-			jw.WriteString(string(t.Value))
-		}
-		jw.EndObject()
-
-		jw.BeginObjectField("values")
-		jw.BeginArray()
-
+		currentDatapoint := 0
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 
@@ -355,14 +308,39 @@ func RenderResultsJSON(
 			// would be at the result node but that would make it inefficient since
 			// we would need to create another block just for the sake of restricting
 			// the bounds.
-			if dp.Timestamp.Before(opts.Start) {
+			if dp.Timestamp.Before(opts.Start) || dp.Timestamp.After(opts.End) {
 				continue
 			}
+
+			// On first datapoint for the series, write out the series beginning content.
+			if currentDatapoint == 0 {
+				jw.BeginObject()
+				jw.BeginObjectField("metric")
+				jw.BeginObject()
+				for _, t := range s.Tags.Tags {
+					jw.BeginObjectField(string(t.Name))
+					jw.WriteString(string(t.Value))
+				}
+				jw.EndObject()
+
+				jw.BeginObjectField("values")
+				jw.BeginArray()
+
+				seriesRendered++
+			}
+			currentDatapoint++
+			datapointsRendered++
 
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
+		}
+
+		if currentDatapoint == 0 {
+			// No datapoints written for series so continue to
+			// next instead of writing the end content.
+			continue
 		}
 
 		jw.EndArray()
