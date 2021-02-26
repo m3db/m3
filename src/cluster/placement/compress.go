@@ -22,10 +22,10 @@ package placement
 
 import (
 	"bytes"
-	"compress/flate"
 	"io/ioutil"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
@@ -37,12 +37,14 @@ func compressPlacementProto(proto *placementpb.Placement) ([]byte, error) {
 	}
 
 	var compressed bytes.Buffer
-	w, err := flate.NewWriter(&compressed, flate.BestCompression)
+	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
+	w, err := zstd.NewWriter(&compressed, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	if _, err := w.Write(uncompressed); err != nil {
+		w.Close() //nolint:errcheck
 		return nil, err
 	}
 
@@ -54,13 +56,14 @@ func compressPlacementProto(proto *placementpb.Placement) ([]byte, error) {
 }
 
 func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error) {
-	r := flate.NewReader(bytes.NewReader(compressed))
-	decompressed, err := ioutil.ReadAll(r)
+	r, err := zstd.NewReader(bytes.NewReader(compressed))
 	if err != nil {
 		return nil, err
 	}
+	defer r.Close()
 
-	if err := r.Close(); err != nil {
+	decompressed, err := ioutil.ReadAll(r)
+	if err != nil {
 		return nil, err
 	}
 
