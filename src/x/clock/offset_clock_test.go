@@ -38,17 +38,29 @@ func TestOffsetClockNow(t *testing.T) {
 		{
 			name:       "past",
 			offsetTime: time.Unix(1614245284, 0),
-			expected:   []time.Time{time.Unix(1614245285, 0), time.Unix(1614245286, 0), time.Unix(1614245287, 0)},
+			expected: []time.Time{
+				time.Unix(1614245285, 0),
+				time.Unix(1614245286, 0),
+				time.Unix(1614245287, 0),
+			},
 		},
 		{
 			name:       "initial unix time",
 			offsetTime: time.Unix(0, 0),
-			expected:   []time.Time{time.Unix(1, 0), time.Unix(2, 0), time.Unix(3, 0)},
+			expected: []time.Time{
+				time.Unix(1, 0),
+				time.Unix(2, 0),
+				time.Unix(3, 0),
+			},
 		},
 		{
 			name:       "future",
 			offsetTime: OneYearFromNow,
-			expected:   []time.Time{OneYearFromNow.Add(1 * time.Second), OneYearFromNow.Add(2 * time.Second), OneYearFromNow.Add(3 * time.Second)},
+			expected: []time.Time{
+				OneYearFromNow.Add(1 * time.Second),
+				OneYearFromNow.Add(2 * time.Second),
+				OneYearFromNow.Add(3 * time.Second),
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -62,9 +74,7 @@ func TestOffsetClockNow(t *testing.T) {
 	}
 }
 
-var (
-	initialSeedTime = time.Now()
-)
+var initialSeedTime = time.Now()
 
 func advanceByOneSec() time.Time {
 	initialSeedTime = initialSeedTime.Add(1 * time.Second)
