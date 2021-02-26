@@ -27,16 +27,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestPeersBootstrapNoneAvailable makes sure that a cluster with the peer bootstrapper enabled can still turn on
@@ -93,10 +94,12 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 		{
 			DisablePeersBootstrapper: false,
 			TopologyInitializer:      topoInit,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		},
 		{
 			DisablePeersBootstrapper: false,
 			TopologyInitializer:      topoInit,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)

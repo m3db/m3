@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -90,8 +91,16 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{ns1}).
 		SetNumShards(numShards)
 	setupOpts := []BootstrappableTestSetupOptions{
-		{DisablePeersBootstrapper: true, TopologyInitializer: topoInit},
-		{DisablePeersBootstrapper: true, TopologyInitializer: topoInit},
+		{
+			DisablePeersBootstrapper: true,
+			TopologyInitializer:      topoInit,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		},
+		{
+			DisablePeersBootstrapper: true,
+			TopologyInitializer:      topoInit,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		},
 	}
 
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
