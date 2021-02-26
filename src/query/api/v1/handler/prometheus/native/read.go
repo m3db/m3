@@ -134,7 +134,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	watcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	parsedOptions.CancelWatcher = watcher
 
-	result, err := read(ctx, parsedOptions, h.opts)
+	result, err := read(ctx, logger, parsedOptions, h.opts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))

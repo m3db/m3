@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	"go.uber.org/zap"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
@@ -177,6 +178,7 @@ type ParsedOptions struct {
 
 func read(
 	ctx context.Context,
+	logger *zap.Logger,
 	parsed ParsedOptions,
 	handlerOpts options.HandlerOptions,
 ) (ReadResult, error) {
@@ -273,6 +275,10 @@ func read(
 	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)
 
 	blockType := bl.Info().Type()
+
+	logger.Info("read", zap.Int("numSeries", numSeries),
+		zap.Int("seriesListLen", len(seriesList)),
+		zap.Int("dataLen", len(data)))
 
 	return ReadResult{
 		Series:    seriesList,
