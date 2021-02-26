@@ -1681,7 +1681,7 @@ func (i *nsIndex) queryWithSpan(
 				processingTime := time.Since(startProcessing)
 				queryMetrics.blockProcessingTime.RecordDuration(processingTime)
 				blockIter.processingTime += processingTime
-				permits.Release(int(processingTime))
+				permits.Release(int64(processingTime))
 			}
 			if first {
 				// this should never happen since a new iter cannot be Done, but just to be safe.
