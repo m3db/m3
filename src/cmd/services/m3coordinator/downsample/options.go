@@ -1069,13 +1069,13 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 		return nil, err
 	}
 
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKVKey).
 		SetStagedPlacementStore(localKVStore)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcher(placementWatcher)
 
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
@@ -1219,14 +1219,12 @@ type bufferPastLimit struct {
 	bufferPast time.Duration
 }
 
-var (
-	defaultBufferPastLimits = []bufferPastLimit{
-		{upperBound: 0, bufferPast: 15 * time.Second},
-		{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
-		{upperBound: time.Minute, bufferPast: time.Minute},
-		{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
-	}
-)
+var defaultBufferPastLimits = []bufferPastLimit{
+	{upperBound: 0, bufferPast: 15 * time.Second},
+	{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
+	{upperBound: time.Minute, bufferPast: time.Minute},
+	{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
+}
 
 func bufferForPastTimedMetric(
 	limits []bufferPastLimit,

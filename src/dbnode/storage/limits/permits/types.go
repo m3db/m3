@@ -34,7 +34,7 @@ type Options interface {
 // Manager manages a set of permits.
 type Manager interface {
 	// NewPermits builds a new set of permits.
-	NewPermits(ctx context.Context) Permits
+	NewPermits(ctx context.Context) (Permits, error)
 }
 
 // Permits are the set of permits that individual codepaths will utilize.

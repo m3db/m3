@@ -53,7 +53,7 @@ type TCPClient struct {
 	shardCutoffLingerDuration  time.Duration
 	writerMgr                  instanceWriterManager
 	shardFn                    sharding.ShardFn
-	placementWatcher           placement.StagedPlacementWatcher
+	placementWatcher           placement.Watcher
 	metrics                    tcpClientMetrics
 }
 
@@ -66,31 +66,24 @@ func NewTCPClient(opts Options) (*TCPClient, error) {
 	var (
 		instrumentOpts   = opts.InstrumentOptions()
 		writerMgr        instanceWriterManager
-		placementWatcher placement.StagedPlacementWatcher
+		placementWatcher placement.Watcher
 	)
 
 	writerMgrScope := instrumentOpts.MetricsScope().SubScope("writer-manager")
 	writerMgrOpts := opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
 	writerMgr = newInstanceWriterManager(writerMgrOpts)
 
-	onPlacementsAddedFn := func(placements []placement.Placement) {
-		for _, placement := range placements {
-			writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
+	onPlacementChangedFn := func(prev, curr placement.Placement) {
+		writerMgr.AddInstances(curr.Instances()) // nolint: errcheck
+
+		if prev != nil {
+			writerMgr.RemoveInstances(prev.Instances()) // nolint: errcheck
 		}
 	}
 
-	onPlacementsRemovedFn := func(placements []placement.Placement) {
-		for _, placement := range placements {
-			writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
-		}
-	}
-
-	activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
-		SetClockOptions(opts.ClockOptions()).
-		SetOnPlacementsAddedFn(onPlacementsAddedFn).
-		SetOnPlacementsRemovedFn(onPlacementsRemovedFn)
-	placementWatcher = placement.NewStagedPlacementWatcher(opts.StagedPlacementWatcherOptions().
-		SetActiveStagedPlacementOptions(activeStagedPlacementOpts))
+	placementWatcher = placement.NewPlacementsWatcher(
+		opts.WatcherOptions().
+			SetOnPlacementChangedFn(onPlacementChangedFn))
 
 	return &TCPClient{
 		nowFn:                      opts.ClockOptions().NowFn(),
@@ -229,34 +222,29 @@ func (c *TCPClient) WriteForwarded(
 
 // ActivePlacement returns a copy of the currently active placement and its version.
 func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
-	stagedPlacement, err := c.placementWatcher.ActiveStagedPlacement()
+	placement, err := c.placementWatcher.Get()
 	if err != nil {
 		return nil, 0, err
 	}
-	if stagedPlacement == nil {
+	if placement == nil {
 		return nil, 0, errNilPlacement
 	}
 
-	placement, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return placement.Clone(), stagedPlacement.Version(), nil
+	return placement.Clone(), placement.Version(), nil
 }
 
 // ActivePlacementVersion returns a copy of the currently active placement version. It is a far less expensive call
 // than ActivePlacement, as it does not clone the placement.
 func (c *TCPClient) ActivePlacementVersion() (int, error) {
-	stagedPlacement, err := c.placementWatcher.ActiveStagedPlacement()
+	placement, err := c.placementWatcher.Get()
 	if err != nil {
 		return 0, err
 	}
-	if stagedPlacement == nil {
+	if placement == nil {
 		return 0, errNilPlacement
 	}
 
-	return stagedPlacement.Version(), nil
+	return placement.Version(), nil
 }
 
 // Flush flushes any remaining data buffered by the client.
@@ -278,16 +266,12 @@ func (c *TCPClient) write(
 	timeNanos int64,
 	payload payloadUnion,
 ) error {
-	stagedPlacement, err := c.placementWatcher.ActiveStagedPlacement()
+	placement, err := c.placementWatcher.Get()
 	if err != nil {
 		return err
 	}
-	if stagedPlacement == nil {
+	if placement == nil {
 		return errNilPlacement
-	}
-	placement, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		return err
 	}
 	var (
 		shardID            = c.shardFn(metricID, uint32(placement.NumShards()))

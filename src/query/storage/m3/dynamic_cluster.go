@@ -435,6 +435,10 @@ func (d *dynamicCluster) AggregatedClusterNamespace(attrs RetentionResolution) (
 	return namespace, ok
 }
 
+func (d *dynamicCluster) ConfigType() ClusterConfigType {
+	return ClusterConfigTypeDynamic
+}
+
 // clusterNamespaceLookup is a helper to track namespace changes. Two maps are necessary
 // to handle the update case which causes the metadata for a previously seen namespaces to change.
 // idToMetadata map allows us to find the previous metadata to detect changes. metadataToClusterNamespaces

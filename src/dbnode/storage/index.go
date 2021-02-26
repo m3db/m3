@@ -22,6 +22,7 @@ package storage
 
 import (
 	"bytes"
+	gocontext "context"
 	"errors"
 	"fmt"
 	"math"
@@ -1594,7 +1595,7 @@ func (i *nsIndex) queryWithSpan(
 		totalWaitTime += scheduleResult.WaitTime
 		if !scheduleResult.Available {
 			state.Lock()
-			state.multiErr = state.multiErr.Add(index.ErrCancelledQuery)
+			state.multiErr = state.multiErr.Add(gocontext.Canceled)
 			state.Unlock()
 			// Did not launch task, need to ensure don't wait for it
 			wg.Done()
@@ -1615,22 +1616,17 @@ func (i *nsIndex) queryWithSpan(
 	state.Unlock()
 	err = multiErr.FinalError()
 
-	if err != nil && !multiErr.Contains(index.ErrCancelledQuery) {
+	if err != nil && !multiErr.Contains(gocontext.DeadlineExceeded) && !multiErr.Contains(gocontext.Canceled) {
 		// an unexpected error occurred processing the query, bail without updating timing metrics.
 		return false, err
 	}
 
 	// update timing metrics even if the query was canceled due to a timeout
 	queryRuntime := time.Since(start)
-	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
 
-	queryMetrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
 	queryMetrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
-	queryMetrics.queryWaitTime.ByRange.Record(queryRange, totalWaitTime)
 	queryMetrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
-	queryMetrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Processing)
 	queryMetrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
-	queryMetrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
 	queryMetrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
 
 	return exhaustive, err
