@@ -342,7 +342,7 @@ func TestInvalidExtendedOptions(t *testing.T) {
 	assert.EqualError(t, err, "extendedOptions.Options must be set")
 }
 
-func TestConvertEnterpriseExtendedOptionsNil(t *testing.T) {
+func TestConvertExtendedOptionsNil(t *testing.T) {
 	convertedExtendedOpts, err := namespace.ToExtendedOptions(nil)
 	require.NoError(t, err)
 	require.Nil(t, convertedExtendedOpts)
