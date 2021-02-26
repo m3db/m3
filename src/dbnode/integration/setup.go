@@ -287,7 +287,8 @@ func NewTestSetup(
 
 	indexOpts := storageOpts.IndexOptions().
 		SetInsertMode(indexMode).
-		SetPostingsListCache(plCache)
+		SetPostingsListCache(plCache).
+		SetInstrumentOptions(storageOpts.InstrumentOptions())
 	storageOpts = storageOpts.SetIndexOptions(indexOpts)
 
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()

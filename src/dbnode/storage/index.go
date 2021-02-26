@@ -2538,15 +2538,18 @@ func newBlocksIterStackAlloc(
 
 func (i blocksIterStackAlloc) Next() (blocksIterStackAlloc, bool) {
 	iter := i
-	if i.queryRanges.IsEmpty() {
-		return iter, false
-	}
 
 	for {
 		iter.idx++
 		if iter.idx == -1 {
 			// This will return the active block.
 			return iter, true
+		}
+
+		// No more ranges to query, perform this second so that
+		// the in memory block always returns results.
+		if i.queryRanges.IsEmpty() {
+			return iter, false
 		}
 
 		if iter.idx >= len(i.blocks) {
