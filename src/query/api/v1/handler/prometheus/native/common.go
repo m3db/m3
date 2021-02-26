@@ -295,7 +295,7 @@ func RenderResultsJSON(
 			break
 		}
 
-		currentDatapoint := 0
+		hasData := false
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 
@@ -315,7 +315,7 @@ func RenderResultsJSON(
 			}
 
 			// On first datapoint for the series, write out the series beginning content.
-			if currentDatapoint == 0 {
+			if !hasData {
 				jw.BeginObject()
 				jw.BeginObjectField("metric")
 				jw.BeginObject()
@@ -329,8 +329,8 @@ func RenderResultsJSON(
 				jw.BeginArray()
 
 				seriesRendered++
+				hasData = true
 			}
-			currentDatapoint++
 			datapointsRendered++
 
 			jw.BeginArray()
@@ -339,7 +339,7 @@ func RenderResultsJSON(
 			jw.EndArray()
 		}
 
-		if currentDatapoint == 0 {
+		if !hasData {
 			// No datapoints written for series so continue to
 			// next instead of writing the end content.
 			continue
