@@ -108,6 +108,7 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 		flusher := NewMockflushingMetricList(ctrl)
 		flusher.EXPECT().ID().Return(standardMetricListID{resolution: intv}.toMetricListID()).AnyTimes()
 		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
+		flusher.EXPECT().FixedFlushOffset().Return(time.Duration(0), false).AnyTimes()
 		flushers = append(flushers, flusher)
 	}
 
@@ -138,19 +139,19 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 	}
 
 	expectedNewBuckets := []*flushBucket{
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
 			offset:   250 * time.Millisecond,
 			flushers: []flushingMetricList{flushers[0], flushers[2]},
 		},
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Minute}.toMetricListID(),
 			interval: time.Minute,
 			offset:   15 * time.Second,
 			flushers: []flushingMetricList{flushers[1]},
 		},
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
 			interval: time.Hour,
 			offset:   15 * time.Minute,
@@ -214,13 +215,13 @@ func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
 		{resolution: time.Second, numForwardedTimes: 3, flushOffset: 7 * time.Second},
 		{resolution: time.Minute, numForwardedTimes: 2, flushOffset: 6 * time.Second},
 	} {
-		flusher := NewMockfixedOffsetFlushingMetricList(ctrl)
+		flusher := NewMockflushingMetricList(ctrl)
 		flusher.EXPECT().ID().Return(forwardedMetricListID{
 			resolution:        intv.resolution,
 			numForwardedTimes: intv.numForwardedTimes,
 		}.toMetricListID()).MinTimes(1)
 		flusher.EXPECT().FlushInterval().Return(intv.resolution).AnyTimes()
-		flusher.EXPECT().FlushOffset().Return(intv.flushOffset).AnyTimes()
+		flusher.EXPECT().FixedFlushOffset().Return(intv.flushOffset, true).AnyTimes()
 		flushers = append(flushers, flusher)
 	}
 
@@ -544,6 +545,7 @@ func TestFlushManagerFlush(t *testing.T) {
 		flusher := NewMockflushingMetricList(ctrl)
 		flusher.EXPECT().ID().Return(standardMetricListID{resolution: intv}.toMetricListID()).AnyTimes()
 		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
+		flusher.EXPECT().FixedFlushOffset().Return(time.Duration(0), false).AnyTimes()
 		flushers = append(flushers, flusher)
 	}
 	for _, flusher := range flushers {
@@ -578,15 +580,15 @@ func TestFlushManagerFlush(t *testing.T) {
 	require.Equal(t, 1, leaderInits)
 
 	expectedBuckets := []*flushBucket{
-		&flushBucket{
+		{
 			interval: 100 * time.Millisecond,
 			flushers: []flushingMetricList{flushers[0], flushers[2]},
 		},
-		&flushBucket{
+		{
 			interval: 200 * time.Millisecond,
 			flushers: []flushingMetricList{flushers[1]},
 		},
-		&flushBucket{
+		{
 			interval: 500 * time.Millisecond,
 			flushers: []flushingMetricList{flushers[3]},
 		},

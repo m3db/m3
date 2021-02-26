@@ -277,13 +277,9 @@ func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flus
 	// Forwarded metric list has a fixed flush offset to ensure forwarded metrics are flushed
 	// immediately after we have waited long enough, whereas a standard metric list has a flexible
 	// flush offset to more evenly spread out the load during flushing.
-	var (
-		flushInterval = l.FlushInterval()
-		flushOffset   time.Duration
-	)
-	if fl, ok := l.(fixedOffsetFlushingMetricList); ok {
-		flushOffset = fl.FlushOffset()
-	} else {
+	flushInterval := l.FlushInterval()
+	flushOffset, ok := l.FixedFlushOffset()
+	if !ok {
 		flushOffset = mgr.computeFlushIntervalOffset(flushInterval)
 	}
 	scope := mgr.scope.SubScope("bucket").Tagged(map[string]string{

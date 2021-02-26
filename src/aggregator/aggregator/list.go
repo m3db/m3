@@ -584,6 +584,10 @@ func (l *standardMetricList) ID() metricListID {
 	return standardMetricListID{resolution: l.resolution}.toMetricListID()
 }
 
+func (l *standardMetricList) FixedFlushOffset() (time.Duration, bool) {
+	return 0, false
+}
+
 func (l *standardMetricList) Close() {
 	if !l.baseMetricList.Close() {
 		return
@@ -681,8 +685,8 @@ func (l *forwardedMetricList) ID() metricListID {
 	}.toMetricListID()
 }
 
-func (l *forwardedMetricList) FlushOffset() time.Duration {
-	return l.flushOffset
+func (l *forwardedMetricList) FixedFlushOffset() (time.Duration, bool) {
+	return l.flushOffset, true
 }
 
 func (l *forwardedMetricList) Close() {
@@ -756,8 +760,8 @@ func (l *timedMetricList) ID() metricListID {
 	}.toMetricListID()
 }
 
-func (l *timedMetricList) FlushOffset() time.Duration {
-	return l.flushOffset
+func (l *timedMetricList) FixedFlushOffset() (time.Duration, bool) {
+	return l.flushOffset, true
 }
 
 func (l *timedMetricList) Close() {
