@@ -76,7 +76,7 @@ writeNewMetricNoLimitWarmupDuration: 10m
 	testShards := []uint32{0, 1, 2, 3}
 	testPlacement := placement.NewPlacement().SetReplicaFactor(2).SetShards(testShards)
 	testPlacementManager := aggregator.NewMockPlacementManager(ctrl)
-	testPlacementManager.EXPECT().Placement().Return(nil, testPlacement, nil).AnyTimes()
+	testPlacementManager.EXPECT().Placement().Return(testPlacement, nil).AnyTimes()
 
 	mockClient := client.NewMockClient(ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil)

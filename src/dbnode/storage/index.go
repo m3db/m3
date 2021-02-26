@@ -22,6 +22,7 @@ package storage
 
 import (
 	"bytes"
+	gocontext "context"
 	"errors"
 	"fmt"
 	"math"
@@ -1594,7 +1595,7 @@ func (i *nsIndex) queryWithSpan(
 		totalWaitTime += scheduleResult.WaitTime
 		if !scheduleResult.Available {
 			state.Lock()
-			state.multiErr = state.multiErr.Add(index.ErrCancelledQuery)
+			state.multiErr = state.multiErr.Add(gocontext.Canceled)
 			state.Unlock()
 			// Did not launch task, need to ensure don't wait for it
 			wg.Done()
@@ -1615,7 +1616,7 @@ func (i *nsIndex) queryWithSpan(
 	state.Unlock()
 	err = multiErr.FinalError()
 
-	if err != nil && !multiErr.Contains(index.ErrCancelledQuery) {
+	if err != nil && !multiErr.Contains(gocontext.DeadlineExceeded) && !multiErr.Contains(gocontext.Canceled) {
 		// an unexpected error occurred processing the query, bail without updating timing metrics.
 		return false, err
 	}
