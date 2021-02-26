@@ -51,7 +51,7 @@ type Permits interface {
 	TryAcquire(ctx context.Context) (bool, error)
 
 	// Release gives back one acquired permit from the specific permits instance. The user can pass an optional quota
-	// indicating how much of quota was used.
+	// indicating how much of quota was used while holding the permit.
 	// Cannot release more permits than have been acquired.
-	Release(ctx context.Context, quota int)
+	Release(quota int)
 }

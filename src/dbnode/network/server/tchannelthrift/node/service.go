@@ -758,7 +758,7 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 
 	result, err := s.buildFetchTaggedResult(ctx, iter)
-	iter.Close(ctx, err)
+	iter.Close(err)
 
 	return result, err
 }
@@ -902,7 +902,7 @@ type FetchTaggedResultsIter interface {
 
 	// Close closes the iterator. The provided error is non-nil if the client of the Iterator encountered an error
 	// while iterating.
-	Close(ctx context.Context, err error)
+	Close(err error)
 }
 
 type fetchTaggedResultsIter struct {
@@ -1080,7 +1080,7 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 	return i.cur
 }
 
-func (i *fetchTaggedResultsIter) Close(ctx context.Context, err error) {
+func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
 
 	now := i.nowFn()
@@ -1093,9 +1093,9 @@ func (i *fetchTaggedResultsIter) Close(ctx context.Context, err error) {
 	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
 
 	for n := 0; n < i.batchesAcquired-1; n++ {
-		i.blockPermits.Release(ctx, i.blocksPerBatch)
+		i.blockPermits.Release(i.blocksPerBatch)
 	}
-	i.blockPermits.Release(ctx, i.blocksPerBatch-i.blocksAvailable)
+	i.blockPermits.Release(i.blocksPerBatch - i.blocksAvailable)
 }
 
 // IDResult is the FetchTagged result for a series ID.

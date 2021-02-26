@@ -51,5 +51,5 @@ func (p noOpPermits) TryAcquire(context.Context) (bool, error) {
 	return true, nil
 }
 
-func (p noOpPermits) Release(_ context.Context, _ int) {
+func (p noOpPermits) Release(_ int) {
 }

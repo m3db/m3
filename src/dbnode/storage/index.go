@@ -1638,7 +1638,7 @@ func (i *nsIndex) queryWithSpan(
 		}
 		// make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
-			permits.Release(ctx, 0)
+			permits.Release(0)
 			return false, waitTime
 		}
 		return true, waitTime
@@ -1681,11 +1681,11 @@ func (i *nsIndex) queryWithSpan(
 				processingTime := time.Since(startProcessing)
 				queryMetrics.blockProcessingTime.RecordDuration(processingTime)
 				blockIter.processingTime += processingTime
-				permits.Release(ctx, int(processingTime))
+				permits.Release(int(processingTime))
 			}
 			if first {
 				// this should never happen since a new iter cannot be Done, but just to be safe.
-				permits.Release(ctx, 0)
+				permits.Release(0)
 			}
 			blockIter.searchTime += blockIter.iter.SearchDuration()
 
