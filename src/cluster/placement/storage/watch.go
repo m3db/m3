@@ -48,15 +48,15 @@ func (w *w) Get() (placement.Placement, error) {
 	}
 
 	if w.opts.IsStaged() {
-		p, err := placementsFromValue(v)
+		ps, err := placementsFromValue(v)
 		if err != nil {
 			return nil, err
 		}
-		if len(p) == 0 {
-			return nil, errStagedPlacementNoActivePlacement
-		}
 
-		return p[len(p)-1], nil
+		latest := ps.Latest()
+		latest.SetVersion(v.Version())
+
+		return latest, nil
 	}
 
 	return placementFromValue(v)

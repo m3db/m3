@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,30 +26,37 @@ import (
 	"testing"
 	"time"
 
+	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestPeersBootstrapSingleNode makes sure that we can include the peer bootstrapper
-// in a single-node topology without causing a bootstrap failure or infinite hang.
-func TestPeersBootstrapSingleNode(t *testing.T) {
+// This test simulates a case where node fails / reboots while fetching data from peers.
+// When restarting / retrying bootstrap process, there already will be some data on disk,
+// which can be fulfilled by filesystem bootstrapper.
+func TestPeersBootstrapPartialData(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	// Test setups
 	log := xtest.NewLogger(t)
+	blockSize := 2 * time.Hour
 	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(20 * time.Hour).
-		SetBlockSize(2 * time.Hour).
+		SetRetentionPeriod(5 * blockSize).
+		SetBlockSize(blockSize).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	idxOpts := namespace.NewIndexOptions().
+		SetEnabled(true).
+		SetBlockSize(blockSize)
+	nsOpts := namespace.NewOptions().SetRetentionOptions(retentionOpts).SetIndexOptions(idxOpts)
+	namesp, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
@@ -59,33 +66,47 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 		SetUseTChannelClientForReading(true)
 
 	setupOpts := []BootstrappableTestSetupOptions{
-		{
-			DisablePeersBootstrapper: false,
-			// This will bootstrap w/ unfulfilled ranges.
-			FinalBootstrapper: bootstrapper.NoOpAllBootstrapperName,
-		},
+		{DisablePeersBootstrapper: true},
+		{DisablePeersBootstrapper: false},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
-	// Write test data
+	// Write test data to first node
 	now := setups[0].NowFn()()
-	blockSize := retentionOpts.BlockSize()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
+		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-5 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
-	})
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
 	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
 
-	// Set the time to one blockSize in the future (for which we do not have
-	// a fileset file) to ensure we try and use the peer bootstrapper.
-	setups[0].SetNowFn(now.Add(blockSize))
+	// Write a subset of blocks to second node, simulating an incomplete peer bootstrap.
+	partialBlockStarts := map[xtime.UnixNano]struct{}{
+		xtime.ToUnixNano(inputData[0].Start): {},
+		xtime.ToUnixNano(inputData[1].Start): {},
+		xtime.ToUnixNano(inputData[2].Start): {},
+	}
+	partialSeriesMaps := make(generate.SeriesBlocksByStart)
+	for blockStart, series := range seriesMaps {
+		if _, ok := partialBlockStarts[blockStart]; ok {
+			partialSeriesMaps[blockStart] = series
+		}
+	}
+	require.NoError(t, writeTestDataToDisk(namesp, setups[1], partialSeriesMaps, 0,
+		func(gOpts generate.Options) generate.Options {
+			return gOpts.SetWriteEmptyShards(false)
+		}))
 
-	// Start the server with peers and filesystem bootstrappers
+	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].StartServer())
+
+	// Start the last server with peers and filesystem bootstrappers
+	require.NoError(t, setups[1].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers

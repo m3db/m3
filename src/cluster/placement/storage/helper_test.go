@@ -175,11 +175,11 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 
 		_, _, err := helper.Placement()
 		require.Error(t, err)
-		require.Equal(t, errNoPlacementInTheSnapshots, err)
+		require.Contains(t, err.Error(), "placement snapshots is empty")
 
 		_, err = helper.PlacementForVersion(1)
 		require.Error(t, err)
-		require.Equal(t, errNoPlacementInTheSnapshots, err)
+		require.Contains(t, err.Error(), "placement snapshots is empty")
 	})
 }
 

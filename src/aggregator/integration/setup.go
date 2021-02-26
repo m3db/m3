@@ -114,15 +114,13 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
 
 	// Set up placement manager.
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
-		SetClockOptions(clockOpts).
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(opts.PlacementKVKey()).
 		SetStagedPlacementStore(opts.KVStore())
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
-		SetClockOptions(clockOpts).
 		SetInstanceID(opts.InstanceID()).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcher(placementWatcher)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
 	aggregatorOpts = aggregatorOpts.
 		SetShardFn(opts.ShardFn()).
@@ -173,7 +171,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetClockOptions(clockOpts).
 		SetConnectionOptions(opts.ClientConnectionOptions()).
 		SetShardFn(opts.ShardFn()).
-		SetStagedPlacementWatcherOptions(placementWatcherOpts).
+		SetWatcherOptions(placementWatcherOpts).
 		SetRWOptions(rwOpts)
 	c, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)
