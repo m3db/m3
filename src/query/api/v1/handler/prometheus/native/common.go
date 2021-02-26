@@ -300,6 +300,8 @@ func RenderResultsJSON(
 			dp := vals.DatapointAt(i)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.
+			// If the series has no datapoints at all then this datapoint iteration will
+			// count zero total and end up skipping writing the series entirely.
 			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
 				continue
 			}
