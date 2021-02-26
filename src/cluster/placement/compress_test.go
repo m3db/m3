@@ -21,12 +21,15 @@
 package placement
 
 import (
+	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/shard"
 )
 
 func TestMarshalAndUnmarshalPlacementProto(t *testing.T) {
@@ -49,24 +52,99 @@ func TestCompressAndDecompressPlacementProto(t *testing.T) {
 }
 
 func BenchmarkCompressPlacementProto(b *testing.B) {
+	p := testBigRandPlacement()
+	ps, err := NewPlacementsFromLatest(p)
+	require.NoError(b, err)
+
+	proto, err := ps.Latest().Proto()
+	require.NoError(b, err)
+
+	totalCompressedBytes := 0
+	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := compressPlacementProto(testLatestPlacementProto)
+		compressed, err := compressPlacementProto(proto)
 		if err != nil {
 			b.FailNow()
 		}
+
+		totalCompressedBytes += len(compressed)
 	}
+
+	uncompressed, err := proto.Marshal()
+	require.NoError(b, err)
+
+	avgCompressedBytes := float64(totalCompressedBytes) / float64(b.N)
+	avgRate := float64(len(uncompressed)) / avgCompressedBytes
+	b.ReportMetric(avgRate, "compress_rate/op")
 }
 
 func BenchmarkDecompressPlacementProto(b *testing.B) {
-	compressed, err := compressPlacementProto(testLatestPlacementProto)
+	ps, err := NewPlacementsFromLatest(testBigRandPlacement())
+	require.NoError(b, err)
+
+	proto, err := ps.Latest().Proto()
+	require.NoError(b, err)
+
+	compressed, err := compressPlacementProto(proto)
 	if err != nil {
 		b.FailNow()
 	}
 
+	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		_, err := decompressPlacementProto(compressed)
 		if err != nil {
 			b.FailNow()
 		}
 	}
+}
+
+func testBigRandPlacement() Placement {
+	numInstances := 2000
+	numShardsPerInstance := 20
+	return testRandPlacement(numInstances, numShardsPerInstance)
+}
+
+func testRandPlacement(numInstances, numShardsPerInstance int) Placement {
+	instances := make([]Instance, numInstances)
+	var shardID uint32
+	for i := 0; i < numInstances; i++ {
+		instances[i] = testRandInstance()
+		shards := make([]shard.Shard, numShardsPerInstance)
+		for j := 0; j < numShardsPerInstance; j++ {
+			shardID++
+			shards[j] = shard.NewShard(shardID).
+				SetState(shard.Available).
+				SetCutoverNanos(0)
+		}
+		instances[i].SetShards(shard.NewShards(shards))
+	}
+
+	return NewPlacement().SetInstances(instances)
+}
+
+func testRandInstance() Instance {
+	id := "prod-cluster-zone-" + randStringBytes(10)
+	host := "host" + randStringBytes(4) + "-zone"
+	port := rand.Intn(1000) // nolint:gosec
+	endpoint := fmt.Sprintf("%s:%d", host, port)
+	return NewInstance().
+		SetID(id).
+		SetHostname(host).
+		SetIsolationGroup(host).
+		SetPort(uint32(port)).
+		SetEndpoint(endpoint).
+		SetMetadata(InstanceMetadata{DebugPort: 80}).
+		SetZone("zone").
+		SetWeight(1)
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))] // nolint:gosec
+	}
+	return string(b)
 }
