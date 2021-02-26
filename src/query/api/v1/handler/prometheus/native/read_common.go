@@ -291,6 +291,10 @@ type ReturnedDataLimited struct {
 	// and so this value is useful for indicating how many series would have
 	// been rendered without limiting either series or datapoints.
 	TotalSeries int
+
+	// Limited signals that the results returned were
+	// limited by either series or datapoint limits.
+	Limited bool
 }
 
 // WriteReturnedDataLimitedHeader writes a header to indicate the returned data
