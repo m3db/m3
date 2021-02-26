@@ -469,6 +469,23 @@ func TestTimedMetricListID(t *testing.T) {
 	require.Equal(t, expectedListID, l.ID())
 }
 
+func TestTimedMetricListFlushOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	resolution := 10 * time.Second
+	bufferForPastTimedMetricFn := func(resolution time.Duration) time.Duration {
+		return resolution + 3*time.Second
+	}
+	opts := testOptions(ctrl).SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn)
+	listID := timedMetricListID{resolution: resolution}
+
+	l, err := newTimedMetricList(testShard, listID, opts)
+	require.NoError(t, err)
+
+	require.Equal(t, 3*time.Second, l.FlushOffset())
+}
+
 func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -733,6 +750,7 @@ func TestForwardedMetricListFlushOffset(t *testing.T) {
 	resolution := 10 * time.Second
 	opts := testOptions(ctrl).SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn)
 	listID := forwardedMetricListID{resolution: resolution, numForwardedTimes: 2}
+
 	l, err := newForwardedMetricList(testShard, listID, opts)
 	require.NoError(t, err)
 

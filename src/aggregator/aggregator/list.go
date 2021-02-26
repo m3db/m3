@@ -756,6 +756,10 @@ func (l *timedMetricList) ID() metricListID {
 	}.toMetricListID()
 }
 
+func (l *timedMetricList) FlushOffset() time.Duration {
+	return l.flushOffset
+}
+
 func (l *timedMetricList) Close() {
 	if !l.baseMetricList.Close() {
 		return
