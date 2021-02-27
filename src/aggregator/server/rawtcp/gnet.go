@@ -225,11 +225,11 @@ func (h *connHandler) Close() {
 func (h *connHandler) process() {
 	var (
 		timer = time.NewTimer(_poolRecycleInterval)
-		w     *payload
 	)
 	defer timer.Stop()
 
 	for {
+		var w *payload
 		select {
 		case <-timer.C:
 			return
