@@ -34,23 +34,23 @@ import (
 const _poolRecycleInterval = 30 * time.Second
 
 // NewServer creates a new raw TCP server.
-func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (Server, error) {
+func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (*Server, error) {
 	iOpts := opts.InstrumentOptions()
 	handlerScope := iOpts.MetricsScope().Tagged(map[string]string{"handler": "rawtcp"})
 	logger := iOpts.Logger()
 
-	pool, err := ants.NewPool(1024,
+	pool, err := ants.NewPool(512,
 		ants.WithPanicHandler(func(v interface{}) {
 			panic(v)
 		}),
 		ants.WithNonblocking(false),
 		ants.WithLogger(poolZapLogger{logger: logger}),
 		ants.WithExpiryDuration(_poolRecycleInterval),
-		ants.WithPreAlloc(true),
+		ants.WithPreAlloc(false),
 	)
 
 	if err != nil {
-		return Server{}, err
+		return nil, err
 	}
 
 	keepalive := opts.ServerOptions().TCPConnectionKeepAlivePeriod()
@@ -58,7 +58,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 		keepalive = 0
 	}
 
-	return Server{
+	return &Server{
 		addr:      address,
 		logger:    logger,
 		keepalive: keepalive,
@@ -76,7 +76,7 @@ type Server struct {
 }
 
 // ListenAndServe starts the server and event loops.
-func (s Server) ListenAndServe() error {
+func (s *Server) ListenAndServe() error {
 	opts := []gev.Option{
 		gev.NumLoops(runtime.GOMAXPROCS(0)),
 		gev.Address(s.addr),
@@ -99,8 +99,10 @@ func (s Server) ListenAndServe() error {
 }
 
 // Close closes the server.
-func (s Server) Close() error {
-	s.srv.Stop()
-
+func (s *Server) Close() error {
+	if s.srv != nil {
+		s.srv.Stop()
+		s.handler.Close()
+	}
 	return nil
 }

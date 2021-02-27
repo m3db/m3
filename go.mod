@@ -69,7 +69,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest/v3 v3.6.3
 	github.com/panjf2000/ants/v2 v2.4.3
-	github.com/panjf2000/gnet v1.4.0
+	github.com/panjf2000/gnet v1.4.0 // indirect
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml v1.5.0 // indirect

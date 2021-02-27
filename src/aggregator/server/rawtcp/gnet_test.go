@@ -169,7 +169,7 @@ func TestServer(t *testing.T) {
 		}),
 		ants.WithLogger(poolZapLogger{logger: logger}),
 		ants.WithExpiryDuration(1*time.Minute),
-		ants.WithPreAlloc(true))
+		ants.WithPreAlloc(false))
 	require.NoError(t, err)
 
 	h := NewConnHandler(agg, pool, logger, tally.NoopScope, 100)
@@ -177,9 +177,10 @@ func TestServer(t *testing.T) {
 	sockName = "127.0.0.1:12341"
 	srv, err := testServer(h, sockName, logger)
 	require.NoError(t, err)
+	doneCh := make(chan struct{})
 	go func() {
 		srv.Start()
-
+		close(doneCh)
 	}()
 
 	// wait for server to come up
@@ -220,12 +221,6 @@ func TestServer(t *testing.T) {
 
 		go func() {
 			defer wgClient.Done()
-			defer func() {
-				runtime.Gosched()
-				time.Sleep(250 * time.Millisecond)
-				require.NoError(t, conn.Close())
-			}()
-
 			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
 			assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 				Type:                 encoding.CounterWithMetadatasType,
@@ -266,11 +261,12 @@ func TestServer(t *testing.T) {
 
 	// Close the server.
 	srv.Stop()
-
+	<-doneCh
 	// Assert the snapshot match expectations.
 	snapshot := agg.Snapshot()
 	if !cmp.Equal(expectedResult, snapshot, testCmpOpts...) {
 		t.Log("expected result to match snapshot")
+		//t.Log(cmp.Diff(expectedResult, snapshot, testCmpOpts...))
 		t.Log(cmp.Diff(expectedResult.CountersWithMetadatas, snapshot.CountersWithMetadatas, testCmpOpts...))
 		t.Fail()
 	}
@@ -281,6 +277,7 @@ func testServer(handler *connHandler, addr string, logger *zap.Logger) (*gev.Ser
 		gev.NumLoops(runtime.GOMAXPROCS(0)),
 		gev.Address(addr),
 		gev.Protocol(handler),
+		//gev.ReusePort(true),
 	}
 
 	//if s.keepalive > 0 {

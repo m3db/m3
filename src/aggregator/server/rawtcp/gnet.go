@@ -88,7 +88,6 @@ type payload struct {
 type decodeError error
 
 type connHandler struct {
-	//gnet.EventServer
 	doneCh  chan struct{}
 	logger  *zap.Logger
 	agg     aggregator.Aggregator
@@ -125,6 +124,10 @@ func (h *connHandler) OnClose(_ *connection.Connection) {}
 func (h *connHandler) OnConnect(_ *connection.Connection) {}
 
 func (h *connHandler) OnMessage(c *connection.Connection, _ interface{}, frame []byte) []byte {
+	if len(frame) == 0 {
+		return nil
+
+	}
 	w := payloadPool.Get().(*payload)
 	if len(w.message) < len(frame) {
 		w.message = make([]byte, len(frame))
@@ -165,39 +168,48 @@ func (h *connHandler) UnPacket(c *connection.Connection, buffer *ringbuffer.Ring
 		return nil, nil
 	}
 	buf := *byteSlicePool.Get().(*[]byte)
+	origBuf := buf
 	n, err = buffer.VirtualRead(buf)
-	if  n < 0 || n > len(buf) || err != nil {
+	if n < 0 || n > len(buf) || err != nil {
 		c.Close() //nolint:errcheck
 		goto HandleErr
 	}
+	buf = buf[:n]
+	//fmt.Println(n, len(buf), cap(buf), buf)
+	//panic("z")
 
 For:
-	for n > binary.MaxVarintLen32 && consumed < n {
+	for len(buf) > 0 {
 		var (
-			size, nn   = binary.Varint(buf[consumed:])
+			size, nn   = binary.Varint(buf)
 			payloadLen = int(size) + nn
 		)
-
 		switch {
 		case nn <= 0 || size < 0:
+			//fmt.Println(nn, size,len(buf), buf)
 			err = errDecodeTooSmall
 			goto HandleErr
 		case payloadLen > _maxPayloadSize:
 			err = errDecodePayloadSize
 			goto HandleErr
-		case consumed+payloadLen > n:
+		case payloadLen > len(buf):
+			fmt.Println("size, nn", size, nn, len(buf), n)
 			// buffer does not contain a complete message anymore
 			break For
 		}
+		buf = buf[payloadLen:]
 		consumed += payloadLen
 	}
+	//fmt.Println("zzzzz", len(buf), len(origBuf), consumed)
+
 	buffer.Retrieve(consumed)
-	return nil, buf[:consumed]
+	return nil, origBuf[:consumed]
 
 HandleErr:
 	if err == nil {
 		err = errPayloadNotConsumed
 	}
+	buffer.RetrieveAll()
 	h.handleErr("decode error", err, c)
 	return err, nil
 }
@@ -225,28 +237,34 @@ func (h *connHandler) process() {
 			return
 		case w = <-h.bufCh:
 		}
-		buf, msg := w.message, w.message
+		buf := w.message
 		for len(buf) > 0 {
-			size, n := binary.Varint(buf)
-			payloadLen := int(size) + n
-			if size <= 0 || n <= 0 {
+			var (
+				size, n    = binary.Varint(buf)
+				payloadLen = int(size) + n
+				pb         = &metricpb.MetricWithMetadatas{}
+				metric     encoding.UnaggregatedMessageUnion
+				err        error
+			)
+			//if size == 0 {
+			//	fmt.Println(w.message, buf, len(buf))
+			//	break
+			//}
+			if size < 0 || n <= 0 {
+				fmt.Println(len(buf), "n", n, "pl", payloadLen,
+					fmt.Sprintf("%v:%v", n, payloadLen))
 				h.handleErr("decode error", errDecodeTooSmall, w.conn)
 				break
 			}
-			msg = buf[n:payloadLen]
+			//fmt.Println(len(w.message), len(buf))
+			msg := buf[n:int(size)+n]
 			buf = buf[payloadLen:]
-
-			var (
-				pb     metricpb.MetricWithMetadatas
-				metric encoding.UnaggregatedMessageUnion
-				err    error
-			)
+			//fmt.Println(len(w.message), len(buf), len(msg))
 
 			if err := pb.Unmarshal(msg); err != nil {
 				h.handleErr("decode error", err, w.conn)
 				continue
 			}
-
 			switch pb.Type {
 			case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
 				if err = metric.CounterWithMetadatas.FromProto(pb.CounterWithMetadatas); err == nil {
@@ -288,8 +306,9 @@ func (h *connHandler) process() {
 				}, w.conn)
 			}
 		}
+		byteSlicePool.Put(&w.message)
 		w.conn = nil
-		w.message = w.message[:cap(w.message)]
+		w.message = nil
 		payloadPool.Put(w)
 	}
 }
@@ -356,6 +375,7 @@ func (h *connHandler) handleErr(msg string, err error, c *connection.Connection)
 	fields := make([]zap.Field, 0, 10)
 	fields = append(
 		fields,
+		zap.StackSkip("logCaller", 1),
 		zap.String("remoteAddress", addr),
 		zap.Error(err))
 
