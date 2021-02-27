@@ -83,7 +83,7 @@ var (
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions
 	// defaultMaxWorkerTime sets the default time a query can hold an index worker.
-	defaultMaxWorkerTime = time.Millisecond
+	defaultMaxWorkerTime = time.Second
 )
 
 func init() {
