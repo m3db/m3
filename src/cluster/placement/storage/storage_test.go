@@ -218,7 +218,7 @@ func TestStorageCompressesStagedPlacement(t *testing.T) {
 			require.NoError(t, err)
 			proto := m.(*placementpb.PlacementSnapshots)
 			require.NotNil(t, proto)
-			require.Equal(t, placementpb.CompressMode_FLATE, proto.CompressMode)
+			require.Equal(t, placementpb.CompressMode_ZSTD, proto.CompressMode)
 			require.True(t, len(proto.CompressedPlacement) > 0)
 			require.Equal(t, 0, len(proto.Snapshots))
 

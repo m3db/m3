@@ -200,7 +200,7 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 		proto := m.(*placementpb.PlacementSnapshots)
 		require.NotNil(t, proto)
 
-		require.Equal(t, placementpb.CompressMode_FLATE, proto.CompressMode)
+		require.Equal(t, placementpb.CompressMode_ZSTD, proto.CompressMode)
 		require.Equal(t, 0, len(proto.Snapshots))
 
 		ps, err := placement.NewPlacementsFromProto(proto)

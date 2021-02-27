@@ -56,7 +56,7 @@ func NewPlacementsFromProto(p *placementpb.PlacementSnapshots) (*Placements, err
 		return nil, errNilPlacementSnapshotsProto
 	}
 
-	if p.CompressMode == placementpb.CompressMode_FLATE {
+	if p.CompressMode == placementpb.CompressMode_ZSTD {
 		placementProto, err := decompressPlacementProto(p.CompressedPlacement)
 		if err != nil {
 			return nil, err
@@ -117,7 +117,7 @@ func (placements *Placements) ProtoCompressed() (*placementpb.PlacementSnapshots
 	}
 
 	return &placementpb.PlacementSnapshots{
-		CompressMode:        placementpb.CompressMode_FLATE,
+		CompressMode:        placementpb.CompressMode_ZSTD,
 		CompressedPlacement: compressed,
 	}, nil
 }

@@ -78,7 +78,7 @@ enum ShardState {
 
 enum CompressMode {
   NONE = 0;
-  FLATE = 1;
+  ZSTD = 1;
 }
 
 message PlacementSnapshots {

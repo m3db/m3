@@ -123,7 +123,7 @@ func TestPlacements(t *testing.T) {
 		compressed, err := compressPlacementProto(testLatestPlacementProto)
 		require.NoError(t, err)
 		compressedProto := &placementpb.PlacementSnapshots{
-			CompressMode:        placementpb.CompressMode_FLATE,
+			CompressMode:        placementpb.CompressMode_ZSTD,
 			CompressedPlacement: compressed,
 		}
 
@@ -140,7 +140,7 @@ func TestPlacements(t *testing.T) {
 	})
 	t.Run("new_fails_to_decompress_invalid_proto", func(t *testing.T) {
 		invalidProto := &placementpb.PlacementSnapshots{
-			CompressMode:        placementpb.CompressMode_FLATE,
+			CompressMode:        placementpb.CompressMode_ZSTD,
 			CompressedPlacement: nil,
 		}
 
@@ -154,7 +154,7 @@ func TestPlacements(t *testing.T) {
 		i := len(compressed) / 2
 		compressed[i] = (compressed[i] + 1) % 255 // corrupt
 		corruptProto := &placementpb.PlacementSnapshots{
-			CompressMode:        placementpb.CompressMode_FLATE,
+			CompressMode:        placementpb.CompressMode_ZSTD,
 			CompressedPlacement: compressed,
 		}
 
@@ -168,7 +168,7 @@ func TestPlacements(t *testing.T) {
 
 		compressedProto, err := ps.ProtoCompressed()
 		require.NoError(t, err)
-		require.Equal(t, placementpb.CompressMode_FLATE, compressedProto.CompressMode)
+		require.Equal(t, placementpb.CompressMode_ZSTD, compressedProto.CompressMode)
 		require.Equal(t, 0, len(compressedProto.Snapshots))
 
 		decompressedProto, err := decompressPlacementProto(compressedProto.CompressedPlacement)
