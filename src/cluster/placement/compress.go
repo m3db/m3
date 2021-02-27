@@ -22,7 +22,6 @@ package placement
 
 import (
 	"bytes"
-	"io/ioutil"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
@@ -37,22 +36,14 @@ func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
 
 	uncompressed, _ := p.Marshal()
 	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
-	var compressed bytes.Buffer
-	w, err := zstd.NewWriter(&compressed, opts)
+	w, err := zstd.NewWriter(nil, opts)
 	if err != nil {
 		return nil, err
 	}
+	defer w.Close() //nolint:errcheck
+	compressed := w.EncodeAll(uncompressed, nil)
 
-	if _, err := w.Write(uncompressed); err != nil {
-		w.Close() //nolint:errcheck
-		return nil, err
-	}
-
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-
-	return compressed.Bytes(), nil
+	return compressed, nil
 }
 
 func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error) {
@@ -65,8 +56,7 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 		return nil, err
 	}
 	defer r.Close()
-
-	decompressed, err := ioutil.ReadAll(r)
+	decompressed, err := r.DecodeAll(compressed, nil)
 	if err != nil {
 		return nil, err
 	}
