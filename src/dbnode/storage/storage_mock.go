@@ -3653,18 +3653,18 @@ func (m *MockOnColdFlush) EXPECT() *MockOnColdFlushMockRecorder {
 }
 
 // ColdFlushNamespace mocks base method
-func (m *MockOnColdFlush) ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error) {
+func (m *MockOnColdFlush) ColdFlushNamespace(ns Namespace, reuseResources bool) (OnColdFlushNamespace, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlushNamespace", ns)
+	ret := m.ctrl.Call(m, "ColdFlushNamespace", ns, reuseResources)
 	ret0, _ := ret[0].(OnColdFlushNamespace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ColdFlushNamespace indicates an expected call of ColdFlushNamespace
-func (mr *MockOnColdFlushMockRecorder) ColdFlushNamespace(ns interface{}) *gomock.Call {
+func (mr *MockOnColdFlushMockRecorder) ColdFlushNamespace(ns, reuseResources interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushNamespace", reflect.TypeOf((*MockOnColdFlush)(nil).ColdFlushNamespace), ns)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushNamespace", reflect.TypeOf((*MockOnColdFlush)(nil).ColdFlushNamespace), ns, reuseResources)
 }
 
 // MockOnColdFlushNamespace is a mock of OnColdFlushNamespace interface

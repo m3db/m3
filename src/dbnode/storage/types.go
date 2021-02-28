@@ -1009,7 +1009,7 @@ type databaseMediator interface {
 
 // OnColdFlush can perform work each time a series is flushed.
 type OnColdFlush interface {
-	ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error)
+	ColdFlushNamespace(ns Namespace, reuseResources bool) (OnColdFlushNamespace, error)
 }
 
 // OnColdFlushNamespace performs work on a per namespace level.

@@ -1288,7 +1288,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		}
 	}
 
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, true)
 	if err != nil {
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
@@ -1743,7 +1743,7 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	// Cold flusher builds the reverse index for target (current) ns.
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, false)
 	if err != nil {
 		return 0, err
 	}
