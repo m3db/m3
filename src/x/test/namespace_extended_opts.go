@@ -22,68 +22,68 @@ package test
 
 import (
 	"errors"
+	"fmt"
 
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	m3test "github.com/m3db/m3/src/x/generated/proto/test"
 	xjson "github.com/m3db/m3/src/x/json"
 
-	"github.com/gogo/protobuf/proto"
 	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 // TypeURLPrefix is a type URL prefix for storing in protobuf Any messages.
 const TypeURLPrefix = "testm3db.io/"
 
-// ExtendedOptions is a struct for testing namespace ExtendedOptions.
-type ExtendedOptions struct {
+type testExtendedOptions struct {
 	value string
 }
 
-func (o *ExtendedOptions) Validate() error {
+func (o *testExtendedOptions) Validate() error {
 	if o.value == "invalid" {
 		return errors.New("invalid ExtendedOptions")
 	}
 	return nil
 }
 
-func (o *ExtendedOptions) ToProto() (proto.Message, string) {
-	return &m3test.PingResponse{Value: o.value}, TypeURLPrefix
+func (o *testExtendedOptions) ToProto() (string, *protobuftypes.Struct) {
+	extOptsProto := NewTestExtendedOptionsProto(o.value)
+	return extOptsProto.Type, extOptsProto.Options
 }
 
-// ConvertToExtendedOptions converts protobuf message to ExtendedOptions.
-func ConvertToExtendedOptions(msg proto.Message) (namespace.ExtendedOptions, error) {
-	typedMsg := msg.(*m3test.PingResponse)
-	if typedMsg.Value == "error" {
-		return nil, errors.New("error in converter")
+// ConvertToTestExtendedOptions is ExtendedOptsConverter for testExtendedOptions.
+func ConvertToTestExtendedOptions(
+	opts *protobuftypes.Struct,
+) (namespace.ExtendedOptions, error) {
+	value, ok := opts.Fields["value"]
+	if !ok {
+		return nil, fmt.Errorf("missing field 'value' in %s", opts)
 	}
-	return &ExtendedOptions{typedMsg.Value}, nil
-}
-
-// NewProtobufAny converts a typed protobuf message into protobuf Any type.
-func NewProtobufAny(msg proto.Message) (*protobuftypes.Any, error) {
-	serializedMsg, err := proto.Marshal(msg)
-	if err != nil {
-		return nil, err
+	stringValue := value.GetStringValue()
+	if stringValue == "error" {
+		return nil, errors.New("test error in converter")
 	}
-	return &protobuftypes.Any{
-		TypeUrl: TypeURLPrefix + proto.MessageName(msg),
-		Value:   serializedMsg,
-	}, nil
+
+	return &testExtendedOptions{stringValue}, nil
 }
 
-// NewExtendedOptionsProto construct a new protobuf Any message with ExtendedOptions.
-func NewExtendedOptionsProto(value string) (*protobuftypes.Any, error) {
-	// NB: using some arbitrary custom protobuf message to avoid well known protobuf types as these work across
-	// gogo/golang implementations.
-	msg := &m3test.PingResponse{Value: value}
-	return NewProtobufAny(msg)
+// NewTestExtendedOptionsProto construct a new protobuf ExtendedOptions message.
+func NewTestExtendedOptionsProto(value string) *nsproto.ExtendedOptions {
+	options := map[string]*protobuftypes.Value{
+		"value": {Kind: &protobuftypes.Value_StringValue{StringValue: value}},
+	}
+
+	return &nsproto.ExtendedOptions{
+		Type:    "testExtendedOptions",
+		Options: &protobuftypes.Struct{Fields: options},
+	}
 }
 
-// NewExtendedOptionsJson returns a json Map with ExtendedOptions as protobuf Any.
-func NewExtendedOptionsJson(value string) xjson.Map {
+// NewTestExtendedOptionsJSON returns a json Map for testExtendedOptions.
+func NewTestExtendedOptionsJSON(value string) xjson.Map {
 	return xjson.Map{
-		"@type": TypeURLPrefix + proto.MessageName(&m3test.PingResponse{}),
-		"Value": value,
-		"counter": 0,
+		"type": "testExtendedOptions",
+		"options": xjson.Map{
+			"value": value,
+		},
 	}
 }

@@ -37,8 +37,9 @@ import (
 )
 
 var (
-	errRetentionNil = errors.New("retention options must be set")
-	errNamespaceNil = errors.New("namespace options must be set")
+	errRetentionNil       = errors.New("retention options must be set")
+	errNamespaceNil       = errors.New("namespace options must be set")
+	errExtendedOptionsNil = errors.New("extendedOptions.Options must be set")
 
 	dynamicExtendedOptionsConverters = sync.Map{}
 )
@@ -111,34 +112,32 @@ func ToRuntimeOptions(
 }
 
 // ExtendedOptsConverter is function for converting from protobuf message to ExtendedOptions.
-type ExtendedOptsConverter func(proto.Message) (ExtendedOptions, error)
+type ExtendedOptsConverter func(p *protobuftypes.Struct) (ExtendedOptions, error)
 
 // RegisterExtendedOptionsConverter registers conversion function from protobuf message to ExtendedOptions.
-func RegisterExtendedOptionsConverter(typeURLPrefix string, msg proto.Message, converter ExtendedOptsConverter) {
-	typeURL := typeUrlForMessage(typeURLPrefix, msg)
-	dynamicExtendedOptionsConverters.Store(typeURL, converter)
+func RegisterExtendedOptionsConverter(_type string, converter ExtendedOptsConverter) {
+	dynamicExtendedOptionsConverters.Store(_type, converter)
 }
 
 // ToExtendedOptions converts protobuf message to ExtendedOptions.
 func ToExtendedOptions(
-	opts *protobuftypes.Any,
+	extendedOptsProto *nsproto.ExtendedOptions,
 ) (ExtendedOptions, error) {
 	var extendedOpts ExtendedOptions
-	if opts == nil {
+	if extendedOptsProto == nil {
 		return extendedOpts, nil
 	}
 
-	converter, ok := dynamicExtendedOptionsConverters.Load(opts.TypeUrl)
+	converter, ok := dynamicExtendedOptionsConverters.Load(extendedOptsProto.Type)
 	if !ok {
-		return nil, fmt.Errorf("dynamic ExtendedOptions converter not registered for protobuf type %s", opts.TypeUrl)
+		return nil, fmt.Errorf("dynamic ExtendedOptions converter not registered for type %s", extendedOptsProto.Type)
 	}
 
-	var extendedOptsProto protobuftypes.DynamicAny
-	if err := protobuftypes.UnmarshalAny(opts, &extendedOptsProto); err != nil {
-		return nil, err
+	if extendedOptsProto.Options == nil {
+		return nil, errExtendedOptionsNil
 	}
 
-	extendedOpts, err := converter.(ExtendedOptsConverter)(extendedOptsProto.Message)
+	extendedOpts, err := converter.(ExtendedOptsConverter)(extendedOptsProto.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -297,9 +296,13 @@ func FromProto(protoRegistry nsproto.Registry) (Map, error) {
 
 // OptionsToProto converts Options -> nsproto.NamespaceOptions
 func OptionsToProto(opts Options) (*nsproto.NamespaceOptions, error) {
-	extendedOpts, err := toExtendedOptions(opts.ExtendedOptions())
-	if err != nil {
-		return nil, err
+	var extendedOpts *nsproto.ExtendedOptions
+	if extOpts := opts.ExtendedOptions(); extOpts != nil {
+		extOptsType, extOptsStruct := extOpts.ToProto()
+		extendedOpts = &nsproto.ExtendedOptions{
+			Type:    extOptsType,
+			Options: extOptsStruct,
+		}
 	}
 
 	ropts := opts.RetentionOptions()
@@ -399,24 +402,6 @@ func toRuntimeOptions(opts RuntimeOptions) *nsproto.NamespaceRuntimeOptions {
 		WriteIndexingPerCPUConcurrency: writeIndexingPerCPUConcurrency,
 		FlushIndexingPerCPUConcurrency: flushIndexingPerCPUConcurrency,
 	}
-}
-
-// toExtendedOptions returns the corresponding ExtendedOptions proto.
-func toExtendedOptions(opts ExtendedOptions) (*protobuftypes.Any, error) {
-	if opts == nil {
-		return nil, nil
-	}
-
-	protoMsg, typeURLPrefix := opts.ToProto()
-	serialized, err := proto.Marshal(protoMsg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &protobuftypes.Any{
-		TypeUrl: typeUrlForMessage(typeURLPrefix, protoMsg),
-		Value:   serialized,
-	}, nil
 }
 
 func typeUrlForMessage(typeURLPrefix string, msg proto.Message) string {
