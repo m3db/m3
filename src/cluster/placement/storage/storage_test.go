@@ -169,6 +169,67 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.Equal(t, p.SetVersion(1), pGet3)
 }
 
+func TestStorageCompressesStagedPlacement(t *testing.T) {
+	expected := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			testInstance("i1"),
+			testInstance("i2"),
+		}).
+		SetShards([]uint32{}).
+		SetReplicaFactor(2).
+		SetCutoverNanos(100)
+
+	testCases := []struct {
+		name          string
+		storeActionFn func(s placement.Storage, p placement.Placement) error
+	}{
+		{
+			name: "set_if_not_exiss",
+			storeActionFn: func(s placement.Storage, p placement.Placement) error {
+				_, err := s.SetIfNotExist(p)
+				return err
+			},
+		},
+		{
+			name: "check_and_set",
+			storeActionFn: func(s placement.Storage, p placement.Placement) error {
+				_, err := s.CheckAndSet(p, 0)
+				return err
+			},
+		},
+		{
+			name: "set",
+			storeActionFn: func(s placement.Storage, p placement.Placement) error {
+				_, err := s.Set(p)
+				return err
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := placement.NewOptions().SetIsStaged(true).SetCompress(true)
+			storage := newTestPlacementStorage(mem.NewStore(), opts)
+
+			err := tc.storeActionFn(storage, expected.Clone()) // nolint: scopelint
+			require.NoError(t, err)
+
+			m, _, err := storage.Proto()
+			require.NoError(t, err)
+			proto := m.(*placementpb.PlacementSnapshots)
+			require.NotNil(t, proto)
+			require.Equal(t, placementpb.CompressMode_ZSTD, proto.CompressMode)
+			require.True(t, len(proto.CompressedPlacement) > 0)
+			require.Equal(t, 0, len(proto.Snapshots))
+
+			ps, err := placement.NewPlacementsFromProto(proto)
+			require.NoError(t, err)
+			actual := ps.Latest()
+			require.Equal(t, expected.String(), actual.String())
+		})
+	}
+}
+
 func TestCheckAndSetProto(t *testing.T) {
 	m := mem.NewStore()
 	ps := newTestPlacementStorage(m, placement.NewOptions())
@@ -251,4 +312,13 @@ func TestDryrun(t *testing.T) {
 
 func newTestPlacementStorage(store kv.Store, pOpts placement.Options) placement.Storage {
 	return NewPlacementStorage(store, "key", pOpts)
+}
+
+func testInstance(id string) placement.Instance {
+	return placement.NewInstance().
+		SetID(id).
+		SetIsolationGroup("rack-" + id).
+		SetEndpoint("endpoint-" + id).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 80}).
+		SetWeight(1)
 }
