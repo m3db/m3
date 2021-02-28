@@ -79,11 +79,17 @@ func newContext() *ctx {
 }
 
 func (c *ctx) GoContext() stdctx.Context {
-	return c.goCtx
+	c.RLock()
+	goCtx := c.goCtx
+	c.RUnlock()
+
+	return goCtx
 }
 
 func (c *ctx) SetGoContext(v stdctx.Context) {
+	c.Lock()
 	c.goCtx = v
+	c.Unlock()
 }
 
 func (c *ctx) IsClosed() bool {
