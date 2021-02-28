@@ -197,7 +197,7 @@ func TestServer(t *testing.T) {
 	}
 
 	var (
-		numClients     = 10
+		numClients     = 1
 		wgClient       sync.WaitGroup
 		expectedResult capture.SnapshotResult
 	)
@@ -208,46 +208,50 @@ func TestServer(t *testing.T) {
 		wgClient.Add(1)
 
 		// Add test metrics to expected result.
-		expectedResult.CountersWithMetadatas = append(expectedResult.CountersWithMetadatas, testCounterWithMetadatas)
-		expectedResult.BatchTimersWithMetadatas = append(expectedResult.BatchTimersWithMetadatas, testBatchTimerWithMetadatas)
-		expectedResult.GaugesWithMetadatas = append(expectedResult.GaugesWithMetadatas, testGaugeWithMetadatas)
-		expectedResult.TimedMetricWithMetadata = append(expectedResult.TimedMetricWithMetadata, testTimedMetricWithMetadata)
-		expectedResult.PassthroughMetricWithMetadata = append(expectedResult.PassthroughMetricWithMetadata, testPassthroughMetricWithMetadata)
-		expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
-		expectedTotalMetrics += 6
-
+		for i := 0; i < 1000; i++ {
+			expectedResult.CountersWithMetadatas = append(expectedResult.CountersWithMetadatas, testCounterWithMetadatas)
+			expectedResult.BatchTimersWithMetadatas = append(expectedResult.BatchTimersWithMetadatas, testBatchTimerWithMetadatas)
+			expectedResult.GaugesWithMetadatas = append(expectedResult.GaugesWithMetadatas, testGaugeWithMetadatas)
+			expectedResult.TimedMetricWithMetadata = append(expectedResult.TimedMetricWithMetadata, testTimedMetricWithMetadata)
+			expectedResult.PassthroughMetricWithMetadata = append(expectedResult.PassthroughMetricWithMetadata, testPassthroughMetricWithMetadata)
+			expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
+			expectedTotalMetrics += 6
+		}
 		conn, err := net.Dial("tcp", sockName)
 		require.NoError(t, err)
 
 		go func() {
 			defer wgClient.Done()
 			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
-			assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-				Type:                 encoding.CounterWithMetadatasType,
-				CounterWithMetadatas: testCounterWithMetadatas,
-			}))
-			assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-				Type:                    encoding.BatchTimerWithMetadatasType,
-				BatchTimerWithMetadatas: testBatchTimerWithMetadatas,
-			}))
-			assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-				Type:               encoding.GaugeWithMetadatasType,
-				GaugeWithMetadatas: testGaugeWithMetadatas,
-			}))
-			assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-				Type:                    encoding.TimedMetricWithMetadataType,
-				TimedMetricWithMetadata: testTimedMetricWithMetadata,
-			}))
-			assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-				Type:                          encoding.PassthroughMetricWithMetadataType,
-				PassthroughMetricWithMetadata: testPassthroughMetricWithMetadata,
-			}))
-			assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-				Type:                        encoding.ForwardedMetricWithMetadataType,
-				ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
-			}))
 
+			for i := 0; i < 1000; i++ {
+				assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type:                 encoding.CounterWithMetadatasType,
+					CounterWithMetadatas: testCounterWithMetadatas,
+				}))
+				assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type:                    encoding.BatchTimerWithMetadatasType,
+					BatchTimerWithMetadatas: testBatchTimerWithMetadatas,
+				}))
+				assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type:               encoding.GaugeWithMetadatasType,
+					GaugeWithMetadatas: testGaugeWithMetadatas,
+				}))
+				assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type:                    encoding.TimedMetricWithMetadataType,
+					TimedMetricWithMetadata: testTimedMetricWithMetadata,
+				}))
+				assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type:                          encoding.PassthroughMetricWithMetadataType,
+					PassthroughMetricWithMetadata: testPassthroughMetricWithMetadata,
+				}))
+				assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type:                        encoding.ForwardedMetricWithMetadataType,
+					ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
+				}))
+			}
 			b := encoder.Relinquish().Bytes()
+			t.Logf("wrote %v byte payload with %v metrics", len(b), 6*1000)
 			_, err = conn.Write(b)
 			require.NoError(t, err)
 		}()
@@ -267,7 +271,7 @@ func TestServer(t *testing.T) {
 	if !cmp.Equal(expectedResult, snapshot, testCmpOpts...) {
 		t.Log("expected result to match snapshot")
 		//t.Log(cmp.Diff(expectedResult, snapshot, testCmpOpts...))
-		t.Log(cmp.Diff(expectedResult.CountersWithMetadatas, snapshot.CountersWithMetadatas, testCmpOpts...))
+		//t.Log(cmp.Diff(expectedResult.CountersWithMetadatas, snapshot.CountersWithMetadatas, testCmpOpts...))
 		t.Fail()
 	}
 }

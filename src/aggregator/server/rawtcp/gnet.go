@@ -34,6 +34,7 @@ import (
 	"github.com/Allenxuxu/ringbuffer"
 	"github.com/panjf2000/ants/v2"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/sys/cpu"
 
@@ -124,6 +125,8 @@ func (h *connHandler) OnClose(_ *connection.Connection) {}
 func (h *connHandler) OnConnect(_ *connection.Connection) {}
 
 func (h *connHandler) OnMessage(c *connection.Connection, _ interface{}, frame []byte) []byte {
+	return nil
+
 	if len(frame) == 0 {
 		return nil
 
@@ -158,60 +161,44 @@ func (h *connHandler) OnMessage(c *connection.Connection, _ interface{}, frame [
 	return nil
 }
 
+var v atomic.Int64
+
 func (h *connHandler) UnPacket(c *connection.Connection, buffer *ringbuffer.RingBuffer) (interface{}, []byte) {
 	var (
 		err      error
 		n        int
 		consumed int
 	)
+
 	if buffer.VirtualLength() < binary.MaxVarintLen32 {
 		return nil, nil
 	}
-	buf := *byteSlicePool.Get().(*[]byte)
-	origBuf := buf
-	n, err = buffer.VirtualRead(buf)
-	if n < 0 || n > len(buf) || err != nil {
-		c.Close() //nolint:errcheck
-		goto HandleErr
-	}
-	buf = buf[:n]
-	//fmt.Println(n, len(buf), cap(buf), buf)
-	//panic("z")
-
+	//consumedTotal := 0
+	tmpbuf := make([]byte, 16384)
+	buf := (*byteSlicePool.Get().(*[]byte))[:0]
+	//a, b := buffer.PeekAll()
 For:
-	for len(buf) > 0 {
-		var (
-			size, nn   = binary.Varint(buf)
-			payloadLen = int(size) + nn
-		)
-		switch {
-		case nn <= 0 || size < 0:
-			//fmt.Println(nn, size,len(buf), buf)
-			err = errDecodeTooSmall
-			goto HandleErr
-		case payloadLen > _maxPayloadSize:
-			err = errDecodePayloadSize
-			goto HandleErr
-		case payloadLen > len(buf):
-			fmt.Println("size, nn", size, nn, len(buf), n)
-			// buffer does not contain a complete message anymore
-			break For
+	for !buffer.IsEmpty() {
+		n, _ = buffer.VirtualRead(tmpbuf)
+		if n <= 1 { // at least 1 byte for len
+			break
 		}
-		buf = buf[payloadLen:]
-		consumed += payloadLen
+		consumed := 0
+		for {
+			payloadLen, headerLen := binary.Varint(tmpbuf)
+			if headerLen <= 0 {
+				continue For
+			}
+			if payloadLen+int64(headerLen+consumed) > int64(n) {
+				continue For
+			}
+		}
 	}
-	//fmt.Println("zzzzz", len(buf), len(origBuf), consumed)
+	tbuf := tmpbuf
+	fmt.Println("total consumed", v.Load())
+	fmt.Println("end read.", "buflen", len(buf), "orig buf len", len(tbuf), "consumed", consumed, "delta", len(tbuf)-consumed)
 
-	buffer.Retrieve(consumed)
-	return nil, origBuf[:consumed]
-
-HandleErr:
-	if err == nil {
-		err = errPayloadNotConsumed
-	}
-	buffer.RetrieveAll()
-	h.handleErr("decode error", err, c)
-	return err, nil
+	return nil, nil
 }
 
 func (h *connHandler) Packet(_ *connection.Connection, buf []byte) []byte {
@@ -246,18 +233,15 @@ func (h *connHandler) process() {
 				metric     encoding.UnaggregatedMessageUnion
 				err        error
 			)
-			//if size == 0 {
-			//	fmt.Println(w.message, buf, len(buf))
-			//	break
-			//}
 			if size < 0 || n <= 0 {
 				fmt.Println(len(buf), "n", n, "pl", payloadLen,
 					fmt.Sprintf("%v:%v", n, payloadLen))
+				panic("zz")
 				h.handleErr("decode error", errDecodeTooSmall, w.conn)
 				break
 			}
 			//fmt.Println(len(w.message), len(buf))
-			msg := buf[n:int(size)+n]
+			msg := buf[n:payloadLen]
 			buf = buf[payloadLen:]
 			//fmt.Println(len(w.message), len(buf), len(msg))
 
@@ -375,7 +359,6 @@ func (h *connHandler) handleErr(msg string, err error, c *connection.Connection)
 	fields := make([]zap.Field, 0, 10)
 	fields = append(
 		fields,
-		zap.StackSkip("logCaller", 1),
 		zap.String("remoteAddress", addr),
 		zap.Error(err))
 
