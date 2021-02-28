@@ -28,8 +28,8 @@ import (
 )
 
 var (
-	errNilPlacement               = errors.New("nil placement")
-	errNilPlacementSnapshotsProto = errors.New("nil placement snapshots proto")
+	errNilPlacement               = errors.New("placement is nil")
+	errNilPlacementSnapshotsProto = errors.New("PlacementSnapshots proto is nil")
 	errEmptyPlacementSnapshots    = errors.New("placement snapshots is empty")
 )
 
@@ -56,6 +56,22 @@ func NewPlacementsFromProto(p *placementpb.PlacementSnapshots) (*Placements, err
 		return nil, errNilPlacementSnapshotsProto
 	}
 
+	if p.CompressMode == placementpb.CompressMode_ZSTD {
+		placementProto, err := decompressPlacementProto(p.CompressedPlacement)
+		if err != nil {
+			return nil, err
+		}
+
+		placement, err := NewPlacementFromProto(placementProto)
+		if err != nil {
+			return nil, err
+		}
+		return &Placements{
+			latest: placement,
+		}, nil
+	}
+
+	// Fallback to Snapshots field for backward compatibility.
 	n := len(p.Snapshots)
 	if n == 0 {
 		return nil, errEmptyPlacementSnapshots
@@ -79,12 +95,30 @@ func NewPlacementsFromProto(p *placementpb.PlacementSnapshots) (*Placements, err
 
 // Proto converts Placements to a proto.
 func (placements *Placements) Proto() (*placementpb.PlacementSnapshots, error) {
-	latestSnapshot, err := placements.latest.Proto()
+	latest, err := placements.latest.Proto()
 	if err != nil {
 		return nil, err
 	}
 	return &placementpb.PlacementSnapshots{
-		Snapshots: []*placementpb.Placement{latestSnapshot},
+		Snapshots: []*placementpb.Placement{latest},
+	}, nil
+}
+
+// ProtoCompressed converts Placements to a proto with compressed placement.
+func (placements *Placements) ProtoCompressed() (*placementpb.PlacementSnapshots, error) {
+	latest, err := placements.latest.Proto()
+	if err != nil {
+		return nil, err
+	}
+
+	compressed, err := compressPlacementProto(latest)
+	if err != nil {
+		return nil, err
+	}
+
+	return &placementpb.PlacementSnapshots{
+		CompressMode:        placementpb.CompressMode_ZSTD,
+		CompressedPlacement: compressed,
 	}, nil
 }
 
