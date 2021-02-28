@@ -125,6 +125,12 @@ func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 	c.registerFinalizeable(finalizeable{closer: f})
 }
 
+func (c *ctx) AddValueToGoContext(key, value interface{}) {
+	c.Lock()
+	c.goCtx = stdctx.WithValue(c.goCtx, key, value)
+	c.Unlock()
+}
+
 func (c *ctx) registerFinalizeable(f finalizeable) {
 	if c.Lock(); c.done {
 		c.Unlock()

@@ -290,3 +290,18 @@ func TestGoContext(t *testing.T) {
 	returnCtx = xCtx.GoContext()
 	assert.Equal(t, stdctx.Background(), returnCtx)
 }
+
+func TestAddValueToGoContext(t *testing.T) {
+	goCtx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Minute)
+	defer cancel()
+
+	var (
+		xCtx  = NewWithGoContext(goCtx)
+		key   = "key"
+		value = "value"
+	)
+
+	xCtx.AddValueToGoContext(key, value)
+
+	assert.Equal(t, value, xCtx.GoContext().Value(key))
+}

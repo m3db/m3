@@ -2959,7 +2959,7 @@ func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
 
 func addSourceToM3Context(ctx context.Context, source []byte) context.Context {
 	if len(source) > 0 {
-		ctx.SetGoContext(goctx.WithValue(ctx.GoContext(), limits.SourceContextKey, source))
+		ctx.AddValueToGoContext(limits.SourceContextKey, source)
 	}
 	return ctx
 }
