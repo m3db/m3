@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,46 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package clock
 
 import (
-	"errors"
-
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/placement"
+	"time"
 )
 
-var (
-	errPlacementNotAvailable            = errors.New("placement is not available")
-	errStagedPlacementNoActivePlacement = errors.New("staged placement with no active placement")
-)
-
-type w struct {
-	kv.ValueWatch
-	opts placement.Options
+// OffsetClock represents offset clock which returns current time from the initial seed time value.
+type OffsetClock struct {
+	timeDelta time.Duration
+	nowFn     NowFn
 }
 
-func newPlacementWatch(vw kv.ValueWatch, opts placement.Options) placement.Watch {
-	return &w{ValueWatch: vw, opts: opts}
+// NewOffsetClock returns new offset clock.
+func NewOffsetClock(offsetTime time.Time, nowFn NowFn) OffsetClock {
+	return OffsetClock{nowFn: nowFn, timeDelta: offsetTime.Sub(nowFn())}
 }
 
-func (w *w) Get() (placement.Placement, error) {
-	v := w.ValueWatch.Get()
-	if v == nil {
-		return nil, errPlacementNotAvailable
-	}
-
-	if w.opts.IsStaged() {
-		ps, err := placementsFromValue(v)
-		if err != nil {
-			return nil, err
-		}
-
-		latest := ps.Latest()
-		latest.SetVersion(v.Version())
-
-		return latest, nil
-	}
-
-	return placementFromValue(v)
+// Now returns current time from the initial seed time value.
+func (c OffsetClock) Now() time.Time {
+	now := c.nowFn()
+	return now.Add(c.timeDelta)
 }

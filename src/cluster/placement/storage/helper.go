@@ -59,7 +59,7 @@ type helper interface {
 // newHelper returns a new placement storage helper.
 func newHelper(store kv.Store, key string, opts placement.Options) helper {
 	if opts.IsStaged() {
-		return newStagedPlacementHelper(store, key)
+		return newStagedPlacementHelper(store, key, opts.Compress())
 	}
 
 	return newPlacementHelper(store, key)
@@ -129,14 +129,20 @@ func (h *placementHelper) ValidateProto(proto proto.Message) error {
 }
 
 type stagedPlacementHelper struct {
-	store kv.Store
-	key   string
+	store    kv.Store
+	key      string
+	compress bool
 }
 
-func newStagedPlacementHelper(store kv.Store, key string) helper {
+func newStagedPlacementHelper(
+	store kv.Store,
+	key string,
+	compress bool,
+) helper {
 	return &stagedPlacementHelper{
-		store: store,
-		key:   key,
+		store:    store,
+		key:      key,
+		compress: compress,
 	}
 }
 
@@ -147,12 +153,10 @@ func (h *stagedPlacementHelper) Placement() (placement.Placement, int, error) {
 		return nil, 0, err
 	}
 
-	l := len(ps)
-	if l == 0 {
-		return nil, 0, errNoPlacementInTheSnapshots
-	}
+	latest := ps.Latest()
+	latest.SetVersion(v)
 
-	return ps[l-1], v, nil
+	return latest, v, nil
 }
 
 func (h *stagedPlacementHelper) PlacementProto() (proto.Message, int, error) {
@@ -171,7 +175,15 @@ func (h *stagedPlacementHelper) PlacementProto() (proto.Message, int, error) {
 // and expect to find at least one placement snapshot having CutoverNanos < now.
 func (h *stagedPlacementHelper) GenerateProto(p placement.Placement) (proto.Message, error) {
 	active := p.SetCutoverNanos(0)
-	ps := placement.Placements{active}
+	ps, err := placement.NewPlacementsFromLatest(active)
+	if err != nil {
+		return nil, err
+	}
+
+	if h.compress {
+		return ps.ProtoCompressed()
+	}
+
 	return ps.Proto()
 }
 
@@ -185,7 +197,7 @@ func (h *stagedPlacementHelper) ValidateProto(proto proto.Message) error {
 	return err
 }
 
-func (h *stagedPlacementHelper) placements() (placement.Placements, int, error) {
+func (h *stagedPlacementHelper) placements() (*placement.Placements, int, error) {
 	value, err := h.store.Get(h.key)
 	if err != nil {
 		return nil, 0, err
@@ -205,17 +217,16 @@ func (h *stagedPlacementHelper) PlacementForVersion(version int) (placement.Plac
 		return nil, fmt.Errorf("invalid number of placements returned: %d, expecting 1", len(values))
 	}
 
-	ps, err := placementsFromValue(values[0])
+	v := values[0]
+	ps, err := placementsFromValue(v)
 	if err != nil {
 		return nil, err
 	}
 
-	l := len(ps)
-	if l == 0 {
-		return nil, errNoPlacementInTheSnapshots
-	}
+	latest := ps.Latest()
+	latest.SetVersion(v.Version())
 
-	return ps[l-1], nil
+	return latest, nil
 }
 
 func placementProtoFromValue(v kv.Value) (*placementpb.Placement, error) {
@@ -250,7 +261,7 @@ func placementSnapshotsProtoFromValue(v kv.Value) (*placementpb.PlacementSnapsho
 	return &placementsProto, nil
 }
 
-func placementsFromValue(v kv.Value) (placement.Placements, error) {
+func placementsFromValue(v kv.Value) (*placement.Placements, error) {
 	placementsProto, err := placementSnapshotsProtoFromValue(v)
 	if err != nil {
 		return nil, err
@@ -261,8 +272,5 @@ func placementsFromValue(v kv.Value) (placement.Placements, error) {
 		return nil, err
 	}
 
-	for i, p := range ps {
-		ps[i] = p.SetVersion(v.Version())
-	}
 	return ps, nil
 }

@@ -37,78 +37,13 @@ func NewQueryMetrics(name string, scope tally.Scope) QueryMetrics {
 // NewQueryMetricsWithLabels returns a new QueryMetrics with additional labels.
 func NewQueryMetricsWithLabels(name string, scope tally.Scope, labels map[string]string) QueryMetrics {
 	return QueryMetrics{
-		ByRange: NewQueryRangeMetrics(name, scope, labels),
-		ByDocs:  NewDocCountMetrics(name, scope, labels),
+		ByDocs: NewDocCountMetrics(name, scope, labels),
 	}
 }
 
 // QueryMetrics is a composite type of QueryDurationMetrics and QueryDocCountMetrics.
 type QueryMetrics struct {
-	ByRange QueryDurationMetrics
-	ByDocs  QueryDocCountMetrics
-}
-
-type queryRangeHist struct {
-	threshold time.Duration
-	timing    tally.Histogram
-}
-
-func newQueryRangeHist(
-	threshold time.Duration,
-	value string,
-	scope tally.Scope,
-	labels map[string]string,
-) *queryRangeHist {
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	labels["range"] = value
-	return &queryRangeHist{
-		threshold: threshold,
-		timing: scope.
-			Tagged(labels).
-			Histogram("timing", instrument.SparseHistogramTimerHistogramBuckets()),
-	}
-}
-
-type queryDurationMetrics struct {
-	histograms []*queryRangeHist
-}
-
-func (bm *queryDurationMetrics) Record(
-	queryRange time.Duration,
-	queryRuntime time.Duration,
-) {
-	for _, m := range bm.histograms {
-		if queryRange <= m.threshold {
-			m.timing.RecordDuration(queryRuntime)
-			return
-		}
-	}
-}
-
-// NewQueryRangeMetrics creates QueryDurationMetrics.
-func NewQueryRangeMetrics(metricType string, scope tally.Scope, labels map[string]string) QueryDurationMetrics {
-	scope = scope.SubScope(metricType).SubScope("query_range")
-	return &queryDurationMetrics{
-		histograms: []*queryRangeHist{
-			newQueryRangeHist(time.Minute*5, "5m", scope, labels),
-			newQueryRangeHist(time.Minute*30, "30m", scope, labels),
-			newQueryRangeHist(time.Hour, "1hr", scope, labels),
-			newQueryRangeHist(time.Hour*6, "6hr", scope, labels),
-			newQueryRangeHist(time.Hour*24, "1d", scope, labels),
-			newQueryRangeHist(time.Hour*24*5, "5d", scope, labels),
-			newQueryRangeHist(time.Hour*24*10, "10d", scope, labels),
-			newQueryRangeHist(time.Hour*24*30, "30d", scope, labels),
-			newQueryRangeHist(time.Duration(math.MaxInt32), "max", scope, labels),
-		},
-	}
-}
-
-// QueryDurationMetrics are timing metrics bucketed by the query window (start, end).
-type QueryDurationMetrics interface {
-	// Record records the duration for queries given their range.
-	Record(queryRange time.Duration, duration time.Duration)
+	ByDocs QueryDocCountMetrics
 }
 
 type docCountHist struct {

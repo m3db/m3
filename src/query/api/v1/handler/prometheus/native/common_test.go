@@ -183,15 +183,34 @@ func TestParseBlockType(t *testing.T) {
 func TestRenderResultsJSON(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
-	params := models.RequestParams{}
 	series := testSeries(2)
 
+	start := series[0].Values().DatapointAt(0).Timestamp
+	params := models.RequestParams{
+		Start: start,
+		End:   start.Add(time.Hour * 1),
+	}
+
 	readResult := ReadResult{Series: series}
-	RenderResultsJSON(jw, readResult, RenderResultsOptions{
+	rr := RenderResultsJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{
 		Start:    params.Start,
 		End:      params.End,
 		KeepNaNs: true,
 	})
+	require.Equal(t, false, rr.LimitedMaxReturnedData)
+	require.Equal(t, 6, rr.Datapoints)
+	require.Equal(t, 3, rr.Series)
+	require.Equal(t, 3, rr.TotalSeries)
+
+	rr = RenderResultsJSON(jw, readResult, RenderResultsOptions{
+		Start:    params.Start,
+		End:      params.End,
+		KeepNaNs: true,
+	})
+	require.Equal(t, false, rr.LimitedMaxReturnedData)
+	require.Equal(t, 6, rr.Datapoints)
+	require.Equal(t, 3, rr.Series)
+	require.Equal(t, 3, rr.TotalSeries)
 	require.NoError(t, jw.Close())
 
 	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
@@ -282,17 +301,17 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 				{Name: []byte("bar"), Value: []byte("baz")},
 				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
-		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(step, 2, 2, start),
-			test.TagSliceToTags([]models.Tag{
-				{Name: []byte("baz"), Value: []byte("bar")},
-				{Name: []byte("qaz"), Value: []byte("qux")},
-			})),
 		ts.NewSeries([]byte("foobar"),
 			ts.NewFixedStepValues(step, 2, math.NaN(), start),
 			test.TagSliceToTags([]models.Tag{
 				{Name: []byte("biz"), Value: []byte("baz")},
 				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(step, 2, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 	}
 
@@ -304,11 +323,26 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 		Meta:   meta,
 	}
 
-	RenderResultsJSON(jw, readResult, RenderResultsOptions{
+	// Ensure idempotent by running first once with noop render.
+	rr := RenderResultsJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{
 		Start:    params.Start,
 		End:      params.End,
 		KeepNaNs: false,
 	})
+	require.Equal(t, false, rr.LimitedMaxReturnedData)
+	require.Equal(t, 3, rr.Datapoints)
+	require.Equal(t, 2, rr.Series)
+	require.Equal(t, 3, rr.TotalSeries)
+
+	rr = RenderResultsJSON(jw, readResult, RenderResultsOptions{
+		Start:    params.Start,
+		End:      params.End,
+		KeepNaNs: false,
+	})
+	require.Equal(t, false, rr.LimitedMaxReturnedData)
+	require.Equal(t, 3, rr.Datapoints)
+	require.Equal(t, 2, rr.Series)
+	require.Equal(t, 3, rr.TotalSeries)
 	require.NoError(t, jw.Close())
 
 	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
@@ -418,14 +452,22 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 		},
 	}
 
+	// Ensure idempotent by running first once with noop render.
+	r := renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: true})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 3, r.Datapoints)
+	require.Equal(t, 3, r.Series)
+	require.Equal(t, 3, r.TotalSeries)
+
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
-	r := renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
+	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 3, r.Datapoints)
 	require.Equal(t, 3, r.Series)
 	require.Equal(t, 3, r.TotalSeries)
+
 	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -435,6 +477,16 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	})
 	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
+
+	// Ensure idempotent by running first once with noop render.
+	r = renderResultsInstantaneousJSON(json.NewNoopWriter(),
+		readResult,
+		RenderResultsOptions{KeepNaNs: false})
+	require.NoError(t, jw.Close())
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 2, r.Datapoints)
+	require.Equal(t, 2, r.Series)
+	require.Equal(t, 3, r.TotalSeries) // This is > rendered series due to keepNaN: false.
 
 	buffer = bytes.NewBuffer(nil)
 	jw = json.NewWriter(buffer)
@@ -496,14 +548,22 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 		},
 	}
 
+	// Ensure idempotent by running first once with noop render.
+	r := renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: true})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 2, r.Datapoints)
+	require.Equal(t, 2, r.Series)
+	require.Equal(t, 2, r.TotalSeries)
+
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
-	r := renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
+	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 2, r.Datapoints)
 	require.Equal(t, 2, r.Series)
 	require.Equal(t, 2, r.TotalSeries)
+
 	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -513,6 +573,13 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	})
 	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
+
+	// Ensure idempotent by running first once with noop render.
+	r = renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: false})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 0, r.Datapoints)
+	require.Equal(t, 0, r.Series)
+	require.Equal(t, 2, r.TotalSeries) // This is > rendered series due to keepNaN: false.
 
 	buffer = bytes.NewBuffer(nil)
 	jw = json.NewWriter(buffer)
@@ -549,14 +616,22 @@ func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
 		BlockType: block.BlockScalar,
 	}
 
+	// Ensure idempotent by running first once with noop render.
+	r := renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: false})
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 1, r.Datapoints)
+	require.Equal(t, 1, r.Series)
+	require.Equal(t, 1, r.TotalSeries)
+
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
-	r := renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
+	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 1, r.Datapoints)
 	require.Equal(t, 1, r.Series)
 	require.Equal(t, 1, r.TotalSeries)
+
 	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
 		"data": xjson.Map{
@@ -595,7 +670,7 @@ func TestSanitizeSeries(t *testing.T) {
 	var (
 		series = make([]*ts.Series, 0, len(testData))
 		tags   = models.NewTags(0, models.NewTagOptions())
-		now    = time.Now()
+		now    = time.Unix(1535948880, 0)
 		step   = time.Minute
 		start  = now.Add(step)
 		end    = now.Add(step * 3)
@@ -607,25 +682,86 @@ func TestSanitizeSeries(t *testing.T) {
 		for i, p := range d.data {
 			timestamp := now.Add(time.Duration(i) * step)
 			dps = append(dps, ts.Datapoint{Value: p, Timestamp: timestamp})
+			vals.EXPECT().DatapointAt(i).Return(dps[i])
 		}
 
-		vals.EXPECT().Datapoints().Return(dps)
+		vals.EXPECT().Len().Return(len(dps))
 		series = append(series, ts.NewSeries([]byte(d.name), vals, tags))
 	}
 
-	series = filterNaNSeries(series, start, end)
-	require.Equal(t, 3, len(series))
-	assert.Equal(t, "2", string(series[0].Name()))
-	assert.Equal(t, "4", string(series[1].Name()))
-	assert.Equal(t, "5", string(series[2].Name()))
+	buffer := bytes.NewBuffer(nil)
+	jw := json.NewWriter(buffer)
+	r := RenderResultsJSON(jw,
+		ReadResult{Series: series},
+		RenderResultsOptions{Start: start, End: end})
+	require.NoError(t, jw.Close())
+
+	require.Equal(t, false, r.LimitedMaxReturnedData)
+	require.Equal(t, 3, r.Series)
+	require.Equal(t, 9, r.TotalSeries)
+	require.Equal(t, 5, r.Datapoints)
+
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "matrix",
+			"result": xjson.Array{
+				xjson.Map{
+					"metric": xjson.Map{},
+					"values": xjson.Array{
+						xjson.Array{
+							1535949060,
+							"1",
+						},
+					},
+				},
+				xjson.Map{
+					"metric": xjson.Map{},
+					"values": xjson.Array{
+						xjson.Array{
+							1535949000,
+							"1",
+						},
+					},
+				},
+				xjson.Map{
+					"metric": xjson.Map{},
+					"values": xjson.Array{
+						xjson.Array{
+							1535948940,
+							"1",
+						},
+						xjson.Array{
+							1535949000,
+							"1",
+						},
+						xjson.Array{
+							1535949060,
+							"1",
+						},
+					},
+				},
+			},
+		},
+		"warnings": xjson.Array{
+			"m3db exceeded query limit: results not exhaustive",
+		},
+	})
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestRenderResultsJSONWithLimits(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
 	defer require.NoError(t, jw.Close())
-	params := models.RequestParams{}
 	series := testSeries(5)
+
+	start := series[0].Values().DatapointAt(0).Timestamp
+	params := models.RequestParams{
+		Start: start,
+		End:   start.Add(time.Hour * 24),
+	}
 
 	intPrt := func(v int) *int {
 		return &v
@@ -635,76 +771,90 @@ func TestRenderResultsJSONWithLimits(t *testing.T) {
 		name               string
 		limit              *int
 		expectedDatapoints int
+		expectedSeries     int
 		expectedLimited    bool
 	}{
 		{
 			name:               "Omit limit",
 			expectedDatapoints: 15,
+			expectedSeries:     3,
 			expectedLimited:    false,
 		},
 		{
 			name:               "Below limit",
 			limit:              intPrt(16),
 			expectedDatapoints: 15,
+			expectedSeries:     3,
 			expectedLimited:    false,
 		},
 		{
 			name:               "At limit",
 			limit:              intPrt(15),
 			expectedDatapoints: 15,
+			expectedSeries:     3,
 			expectedLimited:    false,
 		},
 		{
 			name:               "Above limit - skip 1 series high",
 			limit:              intPrt(14),
 			expectedDatapoints: 10,
+			expectedSeries:     2,
 			expectedLimited:    true,
 		},
 		{
 			name:               "Above limit - skip 1 series low",
 			limit:              intPrt(11),
 			expectedDatapoints: 10,
+			expectedSeries:     2,
 			expectedLimited:    true,
 		},
 		{
 			name:               "Above limit - skip 1 series equal",
 			limit:              intPrt(10),
 			expectedDatapoints: 10,
+			expectedSeries:     2,
 			expectedLimited:    true,
 		},
 		{
 			name:               "Above limit - skip 2 series",
 			limit:              intPrt(9),
 			expectedDatapoints: 5,
+			expectedSeries:     1,
 			expectedLimited:    true,
 		},
 		{
 			name:               "Above limit - skip 3 series",
 			limit:              intPrt(4),
 			expectedDatapoints: 0,
+			expectedSeries:     0,
 			expectedLimited:    true,
 		},
 		{
 			name:               "Zero enforces no limit",
 			limit:              intPrt(0),
 			expectedDatapoints: 15,
+			expectedSeries:     3,
 			expectedLimited:    false,
 		},
 	}
 
 	for _, test := range tests {
-		readResult := ReadResult{Series: series}
-		o := RenderResultsOptions{
-			Start:    params.Start,
-			End:      params.End,
-			KeepNaNs: true,
-		}
-		if test.limit != nil {
-			o.ReturnedDatapointsLimit = *test.limit
-		}
-		r := RenderResultsJSON(jw, readResult, o)
-		require.Equal(t, test.expectedDatapoints, r.Datapoints)
-		require.Equal(t, test.expectedLimited, r.LimitedMaxReturnedData)
+		t.Run(test.name, func(t *testing.T) {
+			readResult := ReadResult{Series: series}
+			o := RenderResultsOptions{
+				Start:    params.Start,
+				End:      params.End,
+				KeepNaNs: true,
+			}
+			if test.limit != nil {
+				o.ReturnedDatapointsLimit = *test.limit
+			}
+			r := RenderResultsJSON(jw, readResult, o)
+			require.Equal(t, 3, r.TotalSeries)
+			require.Equal(t, test.expectedSeries, r.Series)
+			require.Equal(t, test.expectedDatapoints, r.Datapoints)
+			require.Equal(t, test.expectedLimited, r.LimitedMaxReturnedData)
+		})
 	}
 }
 

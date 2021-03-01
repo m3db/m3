@@ -63,12 +63,17 @@ func NewLookbackLimitPermitsManager(
 }
 
 // NewPermits returns a new set of permits.
-func (p *LookbackLimitPermitManager) NewPermits(ctx context.Context) Permits {
+func (p *LookbackLimitPermitManager) NewPermits(ctx context.Context) (Permits, error) {
 	s := sourceFromContext(ctx)
+	// Ensure currently under limit.
+	if err := p.Limit.Inc(0, s); err != nil {
+		return nil, limits.NewQueryLimitExceededError(err.Error())
+	}
+
 	return &LookbackLimitPermit{
 		limit:  p.Limit,
 		source: s,
-	}
+	}, nil
 }
 
 // Start starts background handling of the lookback limit for the permits.
@@ -82,13 +87,13 @@ func (p *LookbackLimitPermitManager) Stop() {
 }
 
 // Acquire increments the underlying querying limit.
-func (p *LookbackLimitPermit) Acquire(_ context.Context) error {
+func (p *LookbackLimitPermit) Acquire(context.Context) error {
 	return p.limit.Inc(1, p.source)
 }
 
 // TryAcquire increments the underlying querying limit. Functionally equivalent
 // to Acquire.
-func (p *LookbackLimitPermit) TryAcquire(_ context.Context) (bool, error) {
+func (p *LookbackLimitPermit) TryAcquire(context.Context) (bool, error) {
 	err := p.limit.Inc(1, p.source)
 	return err != nil, err
 }

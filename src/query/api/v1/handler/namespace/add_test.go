@@ -67,8 +67,10 @@ const testAddJSON = `
 				"status": "INITIALIZING"
 			},
 			"extendedOptions": {
-				"@type": "testm3db.io/m3.test.PingResponse",
-				"Value": "foo"
+				"type": "testExtendedOptions",
+				"options": {
+					"value": "foo"
+				}
 			}
 		}
 }
@@ -149,7 +151,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
-						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("foo"),
 					},
 				},
 			},

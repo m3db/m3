@@ -823,8 +823,11 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 	return iter, err
 }
 
-func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest, instrumentClose func(error)) (
-	FetchTaggedResultsIter, error) {
+func (s *service) fetchTaggedIter(
+	ctx context.Context,
+	req *rpc.FetchTaggedRequest,
+	instrumentClose func(error),
+) (FetchTaggedResultsIter, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -844,6 +847,11 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		return nil, convert.ToRPCError(err)
 	}
 
+	permits, err := s.seriesReadPermits.NewPermits(ctx)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
 	tagEncoder := s.pools.tagEncoder.Get()
 	ctx.RegisterFinalizer(tagEncoder)
 
@@ -857,7 +865,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
-		blockPermits:    s.seriesReadPermits.NewPermits(ctx),
+		blockPermits:    permits,
 		totalDocsCount:  queryResult.Results.TotalDocsCount(),
 		nowFn:           s.nowFn,
 		fetchStart:      startTime,
@@ -1075,14 +1083,11 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
 
-	queryRange := i.queryOpts.EndExclusive.Sub(i.queryOpts.StartInclusive)
 	now := i.nowFn()
 	dataReadTime := now.Sub(i.dataReadStart)
-	i.dataReadMetrics.ByRange.Record(queryRange, dataReadTime)
 	i.dataReadMetrics.ByDocs.Record(i.totalDocsCount, dataReadTime)
 
 	totalFetchTime := now.Sub(i.fetchStart)
-	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
 	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
 
 	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
@@ -1197,8 +1202,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregate
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
 	queryTiming.ByDocs.Record(size, duration)
 
 	return response, nil
@@ -1252,8 +1255,6 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregateRaw
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
 	queryTiming.ByDocs.Record(size, duration)
 
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
