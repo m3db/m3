@@ -22,7 +22,6 @@ package rawtcp
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"time"
 
@@ -41,7 +40,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 	handlerScope := iOpts.MetricsScope().Tagged(map[string]string{"handler": "rawtcp"})
 	logger := iOpts.Logger()
 
-	pool, err := ants.NewPool(runtime.GOMAXPROCS(0)*8,
+	pool, err := ants.NewPool(256,
 		ants.WithPanicHandler(func(v interface{}) {
 			panic(v)
 		}),
@@ -80,16 +79,16 @@ type Server struct {
 
 // ListenAndServe starts the server and event loops.
 func (s *Server) ListenAndServe() error {
-	go func() {
-		for {
-			time.Sleep(1 * time.Second)
-			fmt.Println("numpools", s.handler.p.Free(), s.handler.p.Running())
-		}
-	}()
+	//go func() {
+	//	for {
+	//		time.Sleep(1 * time.Second)
+	//		fmt.Println("numpools", s.handler.p.Free(), s.handler.p.Running())
+	//	}
+	//}()
 
 	gnet.Serve(s.handler, s.addr, gnet.WithOptions(
 		gnet.Options{
-			ReadBufferCap: s.bufSize,
+			ReadBufferCap: 16384, //s.bufSize,
 			TCPKeepAlive:  s.keepalive,
 			NumEventLoop:  runtime.GOMAXPROCS(0),
 			Codec:         s.handler,
