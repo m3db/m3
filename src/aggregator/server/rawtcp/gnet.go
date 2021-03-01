@@ -33,6 +33,7 @@ import (
 	"github.com/Allenxuxu/gev/connection"
 	"github.com/Allenxuxu/ringbuffer"
 	"github.com/panjf2000/ants/v2"
+	"github.com/panjf2000/gnet"
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -89,6 +90,7 @@ type payload struct {
 type decodeError error
 
 type connHandler struct {
+	gnet.EventServer
 	doneCh  chan struct{}
 	logger  *zap.Logger
 	agg     aggregator.Aggregator
@@ -161,7 +163,12 @@ func (h *connHandler) OnMessage(c *connection.Connection, _ interface{}, frame [
 	return nil
 }
 
-var v atomic.Int64
+var v = atomic.NewInt64(0)
+
+func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
+	//c.ReadN()
+	return nil, gnet.None
+}
 
 func (h *connHandler) UnPacket(c *connection.Connection, buffer *ringbuffer.RingBuffer) (interface{}, []byte) {
 	var (
@@ -170,39 +177,60 @@ func (h *connHandler) UnPacket(c *connection.Connection, buffer *ringbuffer.Ring
 		consumed int
 	)
 
-	if buffer.VirtualLength() < binary.MaxVarintLen32 {
-		return nil, nil
-	}
-	//consumedTotal := 0
-	tmpbuf := make([]byte, 16384)
-	buf := (*byteSlicePool.Get().(*[]byte))[:0]
-	//a, b := buffer.PeekAll()
-For:
-	for !buffer.IsEmpty() {
-		n, _ = buffer.VirtualRead(tmpbuf)
-		if n <= 1 { // at least 1 byte for len
-			break
+	buf := *byteSlicePool.Get().(*[]byte)
+	var hasNext = true
+	for buffer.VirtualLength() > 1 && hasNext {
+		n, err = buffer.VirtualRead(buf)
+		fmt.Println("zzzzz", "nread", n)
+		if n == 0 || err != nil {
+			return nil, nil // buffer is empty
 		}
-		consumed := 0
-		for {
-			payloadLen, headerLen := binary.Varint(tmpbuf)
-			if headerLen <= 0 {
-				continue For
+		for consumed+binary.MaxVarintLen32 < n {
+			payloadLen, headerLen := binary.Varint(buf[consumed:n])
+			fmt.Println("qewreqr", payloadLen, headerLen)
+			if payloadLen < 0 {
+				return nil, nil
 			}
-			if payloadLen+int64(headerLen+consumed) > int64(n) {
-				continue For
+			if headerLen <= 0 || payloadLen <= 0 || payloadLen > _maxPayloadSize {
+				break
 			}
+			if int(payloadLen)+headerLen+consumed > n {
+				fmt.Println(payloadLen, headerLen, consumed, int(payloadLen)+headerLen+consumed)
+				if buffer.VirtualLength() < n {
+					fmt.Println("not has next", buffer.VirtualLength(), consumed, n)
+					hasNext = false
+				}
+				break
+			}
+			consumed += int(payloadLen) + headerLen
 		}
+		if consumed == 0 {
+			continue // read more
+		}
+		v.Add(int64(consumed))
+		buffer.VirtualRevert()
+		buffer.Retrieve(consumed)
+		fmt.Println("total consumed", v.Load())
+		fmt.Println("end read.", "buflen", len(buf), "orig buf len", n,
+			"consumed", consumed, "delta", n-consumed)
+		consumed = 0
 	}
-	tbuf := tmpbuf
-	fmt.Println("total consumed", v.Load())
-	fmt.Println("end read.", "buflen", len(buf), "orig buf len", len(tbuf), "consumed", consumed, "delta", len(tbuf)-consumed)
-
-	return nil, nil
+	return nil, buf[:consumed]
 }
 
 func (h *connHandler) Packet(_ *connection.Connection, buf []byte) []byte {
 	return buf
+}
+
+func (h *connHandler) OnInitComplete(srv gnet.Server) gnet.Action {
+	h.logger.Info(
+		"gnet server init complete",
+		zap.String("server_addr", srv.Addr.String()),
+		zap.Duration("keep_alive_duration", srv.TCPKeepAlive),
+		zap.Int("num_event_loops", srv.NumEventLoop),
+	)
+
+	return gnet.None
 }
 
 func (h *connHandler) Close() {
@@ -236,7 +264,7 @@ func (h *connHandler) process() {
 			if size < 0 || n <= 0 {
 				fmt.Println(len(buf), "n", n, "pl", payloadLen,
 					fmt.Sprintf("%v:%v", n, payloadLen))
-				panic("zz")
+				//panic("zz")
 				h.handleErr("decode error", errDecodeTooSmall, w.conn)
 				break
 			}

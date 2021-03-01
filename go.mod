@@ -69,7 +69,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest/v3 v3.6.3
 	github.com/panjf2000/ants/v2 v2.4.3
-	github.com/panjf2000/gnet v1.4.0 // indirect
+	github.com/panjf2000/gnet v1.4.1
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml v1.5.0 // indirect
@@ -116,7 +116,7 @@ require (
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys v0.0.0-20210225134936-a50acf3fe073
+	golang.org/x/sys v0.0.0-20210228012217-479acdf4ea46
 	golang.org/x/tools v0.1.0
 	google.golang.org/grpc v1.29.1
 	google.golang.org/protobuf v1.23.0

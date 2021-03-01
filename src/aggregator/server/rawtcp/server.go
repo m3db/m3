@@ -26,6 +26,7 @@ import (
 
 	"github.com/Allenxuxu/gev"
 	"github.com/panjf2000/ants/v2"
+	"github.com/panjf2000/gnet"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
@@ -62,6 +63,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 		addr:      address,
 		logger:    logger,
 		keepalive: keepalive,
+		bufSize:   opts.ReadBufferSize(),
 		handler:   NewConnHandler(aggregator, pool, logger, handlerScope, opts.ErrorLogLimitPerSecond()),
 	}, nil
 }
@@ -73,36 +75,43 @@ type Server struct {
 	logger    *zap.Logger
 	handler   *connHandler
 	srv       *gev.Server
+	bufSize   int
 }
 
 // ListenAndServe starts the server and event loops.
 func (s *Server) ListenAndServe() error {
-	opts := []gev.Option{
-		gev.NumLoops(runtime.GOMAXPROCS(0)),
-		gev.Address(s.addr),
-		gev.Protocol(s.handler),
-		gev.Network("tcp"),
-	}
-
-	//if s.keepalive > 0 {
-	//	opts = append(opts, )
+	//opts := []gev.Option{
+	//	gev.NumLoops(runtime.GOMAXPROCS(0)),
+	//	gev.Address(s.addr),
+	//	gev.Protocol(s.handler),
+	//	gev.Network("tcp"),
 	//}
-	srv, err := gev.NewServer(s.handler, opts...)
-	if err != nil {
-		return err
-	}
-
-	s.srv = srv
-	s.srv.Start()
-
+	//
+	//if s.keepalive > 0 {
+	//	opts = append(opts)
+	//}
+	//srv, err := gev.NewServer(s.handler, opts...)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//s.srv = srv
+	//s.srv.Start()
+	gnet.Serve(s.handler, "tcp", gnet.WithOptions(
+		gnet.Options{
+			ReadBufferCap: s.bufSize,
+			TCPKeepAlive:  s.keepalive,
+			NumEventLoop:  runtime.GOMAXPROCS(0),
+		},
+	))
 	return nil
 }
 
 // Close closes the server.
 func (s *Server) Close() error {
-	if s.srv != nil {
-		s.srv.Stop()
-		s.handler.Close()
-	}
+	//if s.srv != nil {
+	//	//s.srv.Stop()
+	//}
+	s.handler.Close()
 	return nil
 }

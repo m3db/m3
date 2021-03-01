@@ -1,6 +1,7 @@
 package rawtcp
 
 import (
+	"context"
 	"io/ioutil"
 	"net"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/panjf2000/ants/v2"
+	"github.com/panjf2000/gnet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -174,18 +176,20 @@ func TestServer(t *testing.T) {
 
 	h := NewConnHandler(agg, pool, logger, tally.NoopScope, 100)
 
-	sockName = "127.0.0.1:12341"
-	srv, err := testServer(h, sockName, logger)
-	require.NoError(t, err)
+	sockName = getTestUnixSockName(t) //"127.0.0.1:12341"
+	//srv, err := testServer(h, sockName, logger)
+	//require.NoError(t, err)
 	doneCh := make(chan struct{})
+	errCh := make(chan error, 1)
 	go func() {
-		srv.Start()
+		_, err := testServer(h, sockName, logger)
+		errCh <- err
 		close(doneCh)
 	}()
 
 	// wait for server to come up
 	for i := 0; i < 100; i++ {
-		conn, err := net.Dial("tcp", sockName)
+		conn, err := net.Dial("unix", sockName)
 		if conn != nil {
 			conn.Close() //nolint:errcheck
 		}
@@ -217,11 +221,11 @@ func TestServer(t *testing.T) {
 			expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
 			expectedTotalMetrics += 6
 		}
-		conn, err := net.Dial("tcp", sockName)
-		require.NoError(t, err)
-
 		go func() {
 			defer wgClient.Done()
+			conn, err := net.Dial("unix", sockName)
+			require.NoError(t, err)
+
 			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
 
 			for i := 0; i < 1000; i++ {
@@ -254,6 +258,7 @@ func TestServer(t *testing.T) {
 			t.Logf("wrote %v byte payload with %v metrics", len(b), 6*1000)
 			_, err = conn.Write(b)
 			require.NoError(t, err)
+			//require.NoError(t, conn.Close())
 		}()
 	}
 
@@ -264,7 +269,17 @@ func TestServer(t *testing.T) {
 	}
 
 	// Close the server.
-	srv.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	if err := gnet.Stop(ctx, "unix://"+sockName); err != nil {
+		t.Fail()
+		t.Log("got error while shutting down server:", err.Error())
+	}
+	cancel()
+
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+	//srv.Stop()
 	<-doneCh
 	// Assert the snapshot match expectations.
 	snapshot := agg.Snapshot()
@@ -277,20 +292,24 @@ func TestServer(t *testing.T) {
 }
 
 func testServer(handler *connHandler, addr string, logger *zap.Logger) (*gev.Server, error) {
-	opts := []gev.Option{
-		gev.NumLoops(runtime.GOMAXPROCS(0)),
-		gev.Address(addr),
-		gev.Protocol(handler),
-		//gev.ReusePort(true),
-	}
+	//opts := []gev.Option{
+	//	gev.NumLoops(runtime.GOMAXPROCS(0)),
+	//	gev.Address(addr),
+	//	gev.Protocol(handler),
+	//	//gev.ReusePort(true),
+	//}
 
 	//if s.keepalive > 0 {
 	//	opts = append(opts, )
 	//}
-	srv, err := gev.NewServer(handler, opts...)
-	if err != nil {
-		return nil, err
-	}
+	err := gnet.Serve(handler, "unix://"+addr, gnet.WithOptions(
+		gnet.Options{
+			Logger:        logger.Sugar(),
+			ReadBufferCap: 16384,
+			TCPKeepAlive:  10 * time.Second,
+			NumEventLoop:  runtime.GOMAXPROCS(0),
+		},
+	))
 
-	return srv, nil
+	return nil, err
 }
