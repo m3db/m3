@@ -39,7 +39,6 @@ func TestDeploymentOptions(t *testing.T) {
 
 func TestPlacementOptions(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
-
 		o := NewOptions()
 		assert.True(t, o.AllowPartialReplace())
 		assert.False(t, o.AddAllCandidates())
@@ -48,6 +47,7 @@ func TestPlacementOptions(t *testing.T) {
 		assert.False(t, o.Dryrun())
 		assert.False(t, o.IsMirrored())
 		assert.False(t, o.IsStaged())
+		assert.False(t, o.Compress())
 		assert.NotNil(t, o.InstrumentOptions())
 		assert.Equal(t, int64(0), o.PlacementCutoverNanosFn()())
 		assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
@@ -77,6 +77,9 @@ func TestPlacementOptions(t *testing.T) {
 
 		o = o.SetIsStaged(true)
 		assert.True(t, o.IsStaged())
+
+		o = o.SetCompress(true)
+		assert.True(t, o.Compress())
 
 		iopts := instrument.NewOptions().
 			SetTimerOptions(instrument.TimerOptions{StandardSampleRate: 0.5})

@@ -58,7 +58,7 @@ func TestWatcherGetSuccess(t *testing.T) {
 	require.NoError(t, watcher.Watch())
 	actual, err := watcher.Get()
 	require.NoError(t, err)
-	expected := testLastPlacement(t)
+	expected := testLatestPlacement(t)
 	expected.SetVersion(1)
 	require.Equal(t, expected, actual)
 }
@@ -105,7 +105,7 @@ func TestWatcherUnmarshalAsPlacementSnapshots(t *testing.T) {
 	actual, ok := p.(*placement)
 	require.True(t, ok)
 
-	expected := testLastPlacement(t)
+	expected := testLatestPlacement(t)
 	expected.SetVersion(1)
 
 	require.Equal(t, 1, actual.version)
@@ -118,7 +118,7 @@ func TestWatcherProcessNotWatching(t *testing.T) {
 }
 
 func TestWatcherProcessSuccess(t *testing.T) {
-	p := testLastPlacement(t)
+	p := testLatestPlacement(t)
 	testCases := []struct {
 		name         string
 		expectedPrev Placement
