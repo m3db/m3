@@ -65,8 +65,7 @@ func (h *minHeap) ensureSize() {
 }
 
 func (h *minHeap) Reset() {
-	heap := *h
-	if cap(heap) >= _initialHeapBucketSize {
+	if heap := *h; cap(heap) >= _initialHeapBucketSize {
 		sharedHeapPool.Put(heap)
 	}
 	(*h) = nil
