@@ -137,14 +137,16 @@ func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
 		return nil, gnet.None
 	}
 
-	w := *payloadPool.Get().(*payload)
+	var w *payload
+	(*w) = *payloadPool.Get().(*payload)
+
 	if len(w.message) < len(frame) {
 		// frame size is bounded by decoder checks
 		w.message = make([]byte, len(frame))
 	}
 	w.message = w.message[:copy(w.message, frame)]
 	w.conn = c
-	h.bufCh <- &w
+	h.bufCh <- w
 	return nil, gnet.None
 }
 
@@ -255,15 +257,13 @@ func (h *connHandler) process(bufCh <-chan *payload) {
 			case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
 				m := &unaggregated.BatchTimer{}
 				m.FromProto(pb.BatchTimerWithMetadatas.BatchTimer)
-				metadatas := &metadata.StagedMetadatas{}
 				metadatas.FromProto(pb.BatchTimerWithMetadatas.Metadatas)
-				err = agg.AddUntimed(m.ToUnion(), *metadatas)
+				err = agg.AddUntimed(m.ToUnion(), metadatas)
 			case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
 				m := &unaggregated.Gauge{}
 				m.FromProto(pb.GaugeWithMetadatas.Gauge)
-				metadatas := &metadata.StagedMetadatas{}
 				metadatas.FromProto(pb.GaugeWithMetadatas.Metadatas)
-				err = agg.AddUntimed(m.ToUnion(), *metadatas)
+				err = agg.AddUntimed(m.ToUnion(), metadatas)
 			case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
 				m := &aggregated.ForwardedMetricWithMetadata{}
 				m.FromProto(pb.ForwardedMetricWithMetadata)
