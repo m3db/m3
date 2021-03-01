@@ -41,6 +41,7 @@ require (
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
+	github.com/klauspost/compress v1.11.8
 	github.com/leanovate/gopter v0.2.8
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible

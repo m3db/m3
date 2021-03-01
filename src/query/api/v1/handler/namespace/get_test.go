@@ -82,8 +82,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 	req.Header.Set(headers.HeaderClusterEnvironmentName, "test_env")
 	require.NotNil(t, req)
 
-	extendedOpts, err := xtest.NewExtendedOptionsProto("foo")
-	require.NoError(t, err)
+	extendedOpts := xtest.NewTestExtendedOptionsProto("foo")
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -145,7 +144,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 						"snapshotEnabled":   true,
 						"stagingState":      xjson.Map{"status": "READY"},
 						"writesToCommitLog": true,
-						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("foo"),
 					},
 				},
 			},

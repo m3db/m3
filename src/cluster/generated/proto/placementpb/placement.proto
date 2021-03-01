@@ -76,6 +76,14 @@ enum ShardState {
   LEAVING = 2;
 }
 
+enum CompressMode {
+  NONE = 0;
+  ZSTD = 1;
+}
+
 message PlacementSnapshots {
-  repeated Placement snapshots = 1;
+  // snapshots field is used only when compress_mode == NONE.
+  repeated Placement snapshots = 1 [deprecated = true];
+  CompressMode compress_mode = 2;
+  bytes compressed_placement = 3;
 }

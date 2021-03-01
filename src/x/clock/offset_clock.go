@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,14 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package clock
 
 import (
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
+	"time"
 )
 
-// StorageOptions are options to apply to the database storage options.
-type StorageOptions struct {
-	TChanChannelFn    node.NewTChanChannelFn
-	TChanNodeServerFn node.NewTChanNodeServerFn
+// OffsetClock represents offset clock which returns current time from the initial seed time value.
+type OffsetClock struct {
+	timeDelta time.Duration
+	nowFn     NowFn
+}
+
+// NewOffsetClock returns new offset clock.
+func NewOffsetClock(offsetTime time.Time, nowFn NowFn) OffsetClock {
+	return OffsetClock{nowFn: nowFn, timeDelta: offsetTime.Sub(nowFn())}
+}
+
+// Now returns current time from the initial seed time value.
+func (c OffsetClock) Now() time.Time {
+	now := c.nowFn()
+	return now.Add(c.timeDelta)
 }

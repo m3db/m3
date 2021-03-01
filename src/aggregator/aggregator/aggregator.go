@@ -112,20 +112,19 @@ type aggregator struct {
 	adminClient       client.AdminClient
 	resignTimeout     time.Duration
 
-	shardSetID          uint32
-	shardSetOpen        bool
-	shardIDs            []uint32
-	shards              []*aggregatorShard
-	currStagedPlacement placement.ActiveStagedPlacement
-	currPlacement       placement.Placement
-	currNumShards       atomic.Int32
-	state               aggregatorState
-	doneCh              chan struct{}
-	wg                  sync.WaitGroup
-	sleepFn             sleepFn
-	shardsPendingClose  atomic.Int32
-	metrics             aggregatorMetrics
-	logger              *zap.Logger
+	shardSetID         uint32
+	shardSetOpen       bool
+	shardIDs           []uint32
+	shards             []*aggregatorShard
+	currPlacement      placement.Placement
+	currNumShards      atomic.Int32
+	state              aggregatorState
+	doneCh             chan struct{}
+	wg                 sync.WaitGroup
+	sleepFn            sleepFn
+	shardsPendingClose atomic.Int32
+	metrics            aggregatorMetrics
+	logger             *zap.Logger
 }
 
 // NewAggregator creates a new aggregator.
@@ -164,11 +163,11 @@ func (agg *aggregator) Open() error {
 	if err := agg.placementManager.Open(); err != nil {
 		return err
 	}
-	stagedPlacement, placement, err := agg.placementManager.Placement()
+	placement, err := agg.placementManager.Placement()
 	if err != nil {
 		return err
 	}
-	if err := agg.processPlacementWithLock(stagedPlacement, placement); err != nil {
+	if err := agg.processPlacementWithLock(placement); err != nil {
 		return err
 	}
 	if agg.checkInterval > 0 {
@@ -392,16 +391,16 @@ func (agg *aggregator) shardForWithLock(
 		return nil, errAggregatorNotOpenOrClosed
 	}
 
-	stagedPlacement, placement, err := agg.placementManager.Placement()
+	placement, err := agg.placementManager.Placement()
 	if err != nil {
 		return nil, err
 	}
 
-	if agg.shouldProcessPlacementWithLock(stagedPlacement, placement) {
+	if agg.shouldProcessPlacementWithLock(placement) {
 		if updateShardsType == noUpdateShards {
 			return nil, errActivePlacementChanged
 		}
-		if err := agg.processPlacementWithLock(stagedPlacement, placement); err != nil {
+		if err := agg.processPlacementWithLock(placement); err != nil {
 			return nil, err
 		}
 		// check if number of shards in placement changed, and recalculate shardID if needed
@@ -418,11 +417,10 @@ func (agg *aggregator) shardForWithLock(
 }
 
 func (agg *aggregator) processPlacementWithLock(
-	newStagedPlacement placement.ActiveStagedPlacement,
 	newPlacement placement.Placement,
 ) error {
 	// If someone has already processed the placement ahead of us, do nothing.
-	if !agg.shouldProcessPlacementWithLock(newStagedPlacement, newPlacement) {
+	if !agg.shouldProcessPlacementWithLock(newPlacement) {
 		return nil
 	}
 	var newShardSet shard.Shards
@@ -449,7 +447,7 @@ func (agg *aggregator) processPlacementWithLock(
 		return err
 	}
 
-	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
+	agg.updateShardsWithLock(newPlacement, newShardSet)
 	if err := agg.updateShardSetIDWithLock(instance); err != nil {
 		return err
 	}
@@ -459,18 +457,11 @@ func (agg *aggregator) processPlacementWithLock(
 }
 
 func (agg *aggregator) shouldProcessPlacementWithLock(
-	newStagedPlacement placement.ActiveStagedPlacement,
 	newPlacement placement.Placement,
 ) bool {
-	// If there is no staged placement yet, or the staged placement has been updated,
+	// If there is no placement yet, or the placement has been updated,
 	// process this placement.
-	if agg.currStagedPlacement == nil || agg.currStagedPlacement != newStagedPlacement {
-		agg.metrics.placement.stagedPlacementChanged.Inc(1)
-		return true
-	}
-	// If there is no placement yet, or the new placement has a later cutover time,
-	// process this placement.
-	if agg.currPlacement == nil || agg.currPlacement.CutoverNanos() < newPlacement.CutoverNanos() {
+	if agg.currPlacement == nil || agg.currPlacement != newPlacement {
 		agg.metrics.placement.cutoverChanged.Inc(1)
 		return true
 	}
@@ -562,7 +553,6 @@ func (agg *aggregator) closeShardSetWithLock() error {
 }
 
 func (agg *aggregator) updateShardsWithLock(
-	newStagedPlacement placement.ActiveStagedPlacement,
 	newPlacement placement.Placement,
 	newShardSet shard.Shards,
 ) {
@@ -607,7 +597,6 @@ func (agg *aggregator) updateShardsWithLock(
 
 	agg.shardIDs = newShardIDs
 	agg.shards = incoming
-	agg.currStagedPlacement = newStagedPlacement
 	agg.currPlacement = newPlacement
 	agg.currNumShards.Store(int32(newPlacement.NumShards()))
 	agg.closeShardsAsync(closing)
@@ -1010,16 +999,14 @@ func newAggregatorShardsMetrics(scope tally.Scope) aggregatorShardsMetrics {
 }
 
 type aggregatorPlacementMetrics struct {
-	stagedPlacementChanged tally.Counter
-	cutoverChanged         tally.Counter
-	updated                tally.Counter
+	cutoverChanged tally.Counter
+	updated        tally.Counter
 }
 
 func newAggregatorPlacementMetrics(scope tally.Scope) aggregatorPlacementMetrics {
 	return aggregatorPlacementMetrics{
-		stagedPlacementChanged: scope.Counter("staged-placement-changed"),
-		cutoverChanged:         scope.Counter("cutover-changed"),
-		updated:                scope.Counter("updated"),
+		cutoverChanged: scope.Counter("placement-changed"),
+		updated:        scope.Counter("updated"),
 	}
 }
 

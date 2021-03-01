@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,53 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package execution
+package placement
 
 import (
-	"context"
-	"fmt"
+	"bytes"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/klauspost/compress/zstd"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
-type (
-	// ErrQueryTimeout is returned if a query timed out during processing.
-	ErrQueryTimeout string
-	// ErrQueryCanceled is returned if a query was canceled during processing.
-	ErrQueryCanceled string
-)
-
-func (e ErrQueryTimeout) Error() string  { return fmt.Sprintf("query timed out in %s", string(e)) }
-func (e ErrQueryCanceled) Error() string { return fmt.Sprintf("query was canceled in %s", string(e)) }
-
-// ContextDone returns an error if the context was canceled or timed out.
-func ContextDone(ctx context.Context, env string) error {
-	select {
-	case <-ctx.Done():
-		err := ctx.Err()
-		switch err {
-		case context.Canceled:
-			return ErrQueryCanceled(env)
-		case context.DeadlineExceeded:
-			return ErrQueryTimeout(env)
-		default:
-			return err
-		}
-	default:
-		return nil
+func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
+	if p == nil {
+		return nil, errNilPlacementSnapshotsProto
 	}
+
+	uncompressed, _ := p.Marshal()
+	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
+	w, err := zstd.NewWriter(nil, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer w.Close() //nolint:errcheck
+	compressed := w.EncodeAll(uncompressed, nil)
+
+	return compressed, nil
+}
+
+func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error) {
+	if compressed == nil {
+		return nil, errNilValue
+	}
+
+	r, err := zstd.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	decompressed, err := r.DecodeAll(compressed, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &placementpb.Placement{}
+	if err := proto.Unmarshal(decompressed, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }

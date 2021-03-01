@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -85,7 +86,8 @@ func TestRepairMergeSeries(t *testing.T) {
 		allData = generate.BlocksByStart([]generate.BlockConfig{
 			{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-4 * blockSize)},
 			{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-3 * blockSize)},
-			{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-2 * blockSize)}})
+			{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-2 * blockSize)},
+		})
 		node0Data = make(map[xtime.UnixNano]generate.SeriesBlock)
 		node1Data = make(map[xtime.UnixNano]generate.SeriesBlock)
 
@@ -146,7 +148,8 @@ func TestRepairDoesNotRepairCurrentBlock(t *testing.T) {
 	currBlockSeries := []ident.ID{ident.StringID("currBlock1"), ident.StringID("currBlock2")}
 	testRepairOpts := testRepairOptions{
 		node1ShouldNotContainSeries: currBlockSeries,
-		node2ShouldNotContainSeries: currBlockSeries}
+		node2ShouldNotContainSeries: currBlockSeries,
+	}
 	testRepair(t, genRepairData, testRepairOpts)
 }
 
@@ -197,9 +200,21 @@ func testRepair(
 		SetUseTChannelClientForReading(true)
 
 	setupOpts := []BootstrappableTestSetupOptions{
-		{DisablePeersBootstrapper: true, EnableRepairs: true},
-		{DisablePeersBootstrapper: true, EnableRepairs: true},
-		{DisablePeersBootstrapper: true, EnableRepairs: true},
+		{
+			DisablePeersBootstrapper: true,
+			EnableRepairs:            true,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		},
+		{
+			DisablePeersBootstrapper: true,
+			EnableRepairs:            true,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		},
+		{
+			DisablePeersBootstrapper: true,
+			EnableRepairs:            true,
+			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
