@@ -304,6 +304,7 @@ func testServer(handler *connHandler, addr string, logger *zap.Logger) (*gev.Ser
 	//}
 	err := gnet.Serve(handler, "unix://"+addr, gnet.WithOptions(
 		gnet.Options{
+			Codec:         handler,
 			Logger:        logger.Sugar(),
 			ReadBufferCap: 16384,
 			TCPKeepAlive:  10 * time.Second,

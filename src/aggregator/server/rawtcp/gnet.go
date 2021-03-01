@@ -50,7 +50,7 @@ import (
 
 const (
 	_pbSlicePoolCap = 32
-	_maxPayloadSize = 2 << 24
+	_maxPayloadSize = 512 * 1024 // 512 kB
 )
 
 var (
@@ -168,6 +168,55 @@ var v = atomic.NewInt64(0)
 func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
 	//c.ReadN()
 	return nil, gnet.None
+}
+
+func (h *connHandler) Encode(_ gnet.Conn, _ []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (h *connHandler) Decode(c gnet.Conn) ([]byte, error) {
+	if c.BufferLength() < 1 {
+		// payload must be at lest 1 byte for length
+		return nil, nil
+	}
+
+	if c.BufferLength() > _maxPayloadSize {
+		fmt.Println("payload too large")
+		c.ResetBuffer()
+		return nil, c.Close()
+	}
+
+	var (
+		size     int
+		consumed int
+		buf      = c.Read()
+		tmp      = buf
+	)
+
+	for len(tmp) > 0 {
+		payloadLen, headerLen := binary.Varint(tmp)
+		size = int(payloadLen) + headerLen
+		fmt.Println("consumed", consumed, "size", size, "lentmp", len(tmp), "nn", headerLen)
+		if size > _maxPayloadSize {
+			fmt.Println("payload too large2")
+			c.ResetBuffer()
+			return nil, c.Close()
+		}
+		if size > len(tmp) || size <= 0 || headerLen <= 0 {
+			fmt.Println("buf reached", consumed, "size", size, "lentmp", len(tmp), "nn", headerLen)
+			break
+		}
+		tmp = tmp[size:]
+		consumed += size
+	}
+	if consumed == 0 {
+		// must return a nil slice to end the read
+		return nil, nil
+	}
+	c.ShiftN(consumed)
+	v.Add(int64(consumed))
+	fmt.Println("consumed total, consumed", v.Load(), consumed)
+	return buf[:consumed], nil
 }
 
 func (h *connHandler) UnPacket(c *connection.Connection, buffer *ringbuffer.RingBuffer) (interface{}, []byte) {
