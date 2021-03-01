@@ -41,14 +41,14 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 	handlerScope := iOpts.MetricsScope().Tagged(map[string]string{"handler": "rawtcp"})
 	logger := iOpts.Logger()
 
-	pool, err := ants.NewPool(runtime.GOMAXPROCS(0)*16,
+	pool, err := ants.NewPool(runtime.GOMAXPROCS(0)*8,
 		ants.WithPanicHandler(func(v interface{}) {
 			panic(v)
 		}),
 		ants.WithNonblocking(false),
 		ants.WithLogger(poolZapLogger{logger: logger}),
-		ants.WithExpiryDuration(_poolRecycleInterval),
-		ants.WithPreAlloc(false),
+		//ants.WithExpiryDuration(_poolRecycleInterval),
+		ants.WithPreAlloc(true),
 	)
 
 	if err != nil {

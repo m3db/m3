@@ -34,6 +34,12 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sys/cpu"
 
+	"github.com/m3db/m3/src/metrics/metadata"
+
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/metrics/encoding"
@@ -192,17 +198,19 @@ func (h *connHandler) OnInitComplete(srv gnet.Server) gnet.Action {
 	return gnet.None
 }
 
-func (h *connHandler) Close() {
-}
+func (h *connHandler) Close() {}
 
 func (h *connHandler) process(w *payload) {
-	buf := w.message
-	pb := metricpb.MetricWithMetadatas{}
+	var (
+		buf = w.message
+		pb  = metricpb.MetricWithMetadatas{}
+		agg = h.agg
+	)
+
 	for len(buf) > 0 {
 		var (
 			size, n    = binary.Varint(buf)
 			payloadLen = int(size) + n
-			metric     encoding.UnaggregatedMessageUnion
 			err        error
 		)
 		protobuf.ReuseMetricWithMetadatasProto(&pb)
@@ -223,42 +231,48 @@ func (h *connHandler) process(w *payload) {
 
 		switch pb.Type {
 		case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
-			if err = metric.CounterWithMetadatas.FromProto(pb.CounterWithMetadatas); err == nil {
-				err = h.agg.AddUntimed(metric.CounterWithMetadatas.Counter.ToUnion(), metric.CounterWithMetadatas.StagedMetadatas)
-			}
+			m := &unaggregated.Counter{}
+			m.FromProto(pb.CounterWithMetadatas.Counter)
+			metadatas := &metadata.StagedMetadatas{}
+			metadatas.FromProto(pb.CounterWithMetadatas.Metadatas)
+			err = agg.AddUntimed(m.ToUnion(), *metadatas)
 		case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
-			if err = metric.BatchTimerWithMetadatas.FromProto(pb.BatchTimerWithMetadatas); err == nil {
-				err = h.agg.AddUntimed(metric.BatchTimerWithMetadatas.BatchTimer.ToUnion(), metric.BatchTimerWithMetadatas.StagedMetadatas)
-			}
+			m := &unaggregated.BatchTimer{}
+			m.FromProto(pb.BatchTimerWithMetadatas.BatchTimer)
+			metadatas := &metadata.StagedMetadatas{}
+			metadatas.FromProto(pb.BatchTimerWithMetadatas.Metadatas)
+			err = agg.AddUntimed(m.ToUnion(), *metadatas)
 		case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
-			if err = metric.GaugeWithMetadatas.FromProto(pb.GaugeWithMetadatas); err == nil {
-				err = h.agg.AddUntimed(metric.GaugeWithMetadatas.Gauge.ToUnion(), metric.GaugeWithMetadatas.StagedMetadatas)
-			}
+			m := &unaggregated.Gauge{}
+			m.FromProto(pb.GaugeWithMetadatas.Gauge)
+			metadatas := &metadata.StagedMetadatas{}
+			metadatas.FromProto(pb.GaugeWithMetadatas.Metadatas)
+			err = agg.AddUntimed(m.ToUnion(), *metadatas)
 		case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
-			if err = metric.ForwardedMetricWithMetadata.FromProto(pb.ForwardedMetricWithMetadata); err == nil {
-				err = h.agg.AddForwarded(metric.ForwardedMetricWithMetadata.ForwardedMetric, metric.ForwardedMetricWithMetadata.ForwardMetadata)
-			}
+			m := &aggregated.ForwardedMetricWithMetadata{}
+			m.FromProto(pb.ForwardedMetricWithMetadata)
+			err = agg.AddForwarded(m.ForwardedMetric, m.ForwardMetadata)
 		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
-			if err = metric.TimedMetricWithMetadata.FromProto(pb.TimedMetricWithMetadata); err == nil {
-				err = h.agg.AddTimed(metric.TimedMetricWithMetadata.Metric, metric.TimedMetricWithMetadata.TimedMetadata)
-			}
+			m := &aggregated.TimedMetricWithMetadata{}
+			m.FromProto(pb.TimedMetricWithMetadata)
+			err = agg.AddTimed(m.Metric, m.TimedMetadata)
 		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
-			if err = metric.TimedMetricWithMetadatas.FromProto(pb.TimedMetricWithMetadatas); err == nil {
-				err = h.agg.AddTimedWithStagedMetadatas(metric.TimedMetricWithMetadatas.Metric, metric.TimedMetricWithMetadatas.StagedMetadatas)
-			}
+			m := &aggregated.TimedMetricWithMetadatas{}
+			m.FromProto(pb.TimedMetricWithMetadatas)
+			err = agg.AddTimedWithStagedMetadatas(m.Metric, m.StagedMetadatas)
 		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
-			if err = metric.PassthroughMetricWithMetadata.FromProto(pb.TimedMetricWithStoragePolicy); err == nil {
-				err = h.agg.AddPassthrough(metric.PassthroughMetricWithMetadata.Metric, metric.PassthroughMetricWithMetadata.StoragePolicy)
-			}
+			m := &aggregated.MetricWithStoragePolicy{}
+			m.FromProto(*pb.TimedMetricWithStoragePolicy)
+			err = agg.AddPassthrough(m.Metric, m.StoragePolicy)
 		default:
 			err = newUnknownMessageTypeError(encoding.UnaggregatedMessageType(pb.Type))
 		}
 
 		if err != nil {
-			metric.Type = protobuf.TypeFromProto(pb.Type)
+			//metric.Type = protobuf.TypeFromProto(pb.Type)
 			h.handleErr("error adding metric", addMetricError{
-				error:  err,
-				metric: &metric,
+				error: err,
+				//metric: metric,
 			}, w.conn)
 		}
 	}
@@ -278,9 +292,6 @@ func (h *connHandler) handleErr(msg string, err error, c gnet.Conn) {
 	switch merr := err.(type) {
 	// not using wrapped errors here, just custom types
 	case addMetricError:
-		if merr.metric == nil {
-			break
-		}
 		metric := merr.metric
 		mtype = metric.Type
 
@@ -382,7 +393,7 @@ func (e unknownMessageTypeError) Error() string {
 
 type addMetricError struct {
 	error
-	metric *encoding.UnaggregatedMessageUnion
+	metric encoding.UnaggregatedMessageUnion
 }
 
 type poolZapLogger struct {
