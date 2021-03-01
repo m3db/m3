@@ -128,7 +128,13 @@ func (h *AddHandler) Add(
 	if !req.Force {
 		validateFn = validateAllAvailable
 	}
-	service, _, err := ServiceWithAlgo(h.clusterClient, serviceOpts, h.nowFn(), validateFn)
+	service, _, err := ServiceWithAlgo(
+		h.clusterClient,
+		serviceOpts,
+		h.config.ClusterManagement.Placement,
+		h.nowFn(),
+		validateFn,
+	)
 	if err != nil {
 		return nil, err
 	}

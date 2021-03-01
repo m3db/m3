@@ -91,7 +91,13 @@ func (h *DeleteHandler) ServeHTTP(
 		opts  = handleroptions.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
-	service, algo, err := ServiceWithAlgo(h.clusterClient, opts, h.nowFn(), nil)
+	service, algo, err := ServiceWithAlgo(
+		h.clusterClient,
+		opts,
+		h.config.ClusterManagement.Placement,
+		h.nowFn(),
+		nil,
+	)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return

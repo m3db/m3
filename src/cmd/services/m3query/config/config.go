@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"github.com/m3db/m3/src/cluster/placement"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
@@ -126,9 +127,9 @@ type Configuration struct {
 	// coordinator embedded in the DB.
 	Local *LocalConfiguration `yaml:"local"`
 
-	// ClusterManagement for placemement, namespaces and database management
-	// endpoints (optional).
-	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
+	// ClusterManagement for placement, namespaces and database management
+	// endpoints.
+	ClusterManagement ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
 	ListenAddress *string `yaml:"listenAddress"`
@@ -591,11 +592,14 @@ type LocalConfiguration struct {
 	Namespaces []m3.ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 }
 
-// ClusterManagementConfiguration is configuration for the placemement,
+// ClusterManagementConfiguration is configuration for the placement,
 // namespaces and database management endpoints (optional).
 type ClusterManagementConfiguration struct {
 	// Etcd is the client configuration for etcd.
-	Etcd etcdclient.Configuration `yaml:"etcd"`
+	Etcd *etcdclient.Configuration `yaml:"etcd"`
+
+	// Placement is the cluster placement configuration.
+	Placement placement.Configuration `yaml:"placement"`
 }
 
 // RemoteConfigurations is a set of remote host configurations.
