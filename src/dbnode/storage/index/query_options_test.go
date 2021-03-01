@@ -45,9 +45,9 @@ func TestQueryOptions(t *testing.T) {
 	assert.True(t, opts.LimitsExceeded(20, 9))
 	assert.False(t, opts.LimitsExceeded(19, 9))
 
-	assert.False(t, opts.exhaustive(19, 10))
-	assert.False(t, opts.exhaustive(20, 9))
-	assert.True(t, opts.exhaustive(19, 9))
+	assert.False(t, opts.Exhaustive(19, 10))
+	assert.False(t, opts.Exhaustive(20, 9))
+	assert.True(t, opts.Exhaustive(19, 9))
 }
 
 func TestInvalidWideQueryOptions(t *testing.T) {

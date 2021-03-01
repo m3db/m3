@@ -20,36 +20,50 @@
 
 package permits
 
-import "github.com/m3db/m3/src/x/context"
+import (
+	stdctx "context"
+	"testing"
 
-type noOpPermits struct {
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/context"
+)
+
+func TestFixedPermits(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(3).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
+
+	fp.Release(0)
+	require.NoError(t, fp.Acquire(ctx))
 }
 
-var _ Manager = (*noOpPermits)(nil)
+func TestFixedPermitsTimeouts(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(1).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
 
-var _ Permits = (*noOpPermits)(nil)
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
 
-// NewNoOpPermitsManager builds a new no-op permits manager.
-func NewNoOpPermitsManager() Manager {
-	return &noOpPermits{}
-}
+	stdCtx, cancel := stdctx.WithCancel(stdctx.Background())
+	cancel()
+	ctx = context.NewWithGoContext(stdCtx)
 
-// NewNoOpPermits builds a new no-op permits.
-func NewNoOpPermits() Permits {
-	return &noOpPermits{}
-}
+	fp.Release(0)
 
-func (p noOpPermits) NewPermits(context.Context) (Permits, error) {
-	return p, nil
-}
+	err = fp.Acquire(ctx)
+	require.Error(t, err)
 
-func (p noOpPermits) Acquire(context.Context) error {
-	return nil
-}
-
-func (p noOpPermits) TryAcquire(context.Context) (bool, error) {
-	return true, nil
-}
-
-func (p noOpPermits) Release(_ int64) {
+	_, err = fp.TryAcquire(ctx)
+	require.Error(t, err)
 }
