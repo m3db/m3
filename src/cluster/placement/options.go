@@ -77,6 +77,7 @@ type options struct {
 	isSharded           bool
 	isMirrored          bool
 	isStaged            bool
+	compress            bool
 	instanceSelector    InstanceSelector
 }
 
@@ -158,6 +159,15 @@ func (o options) IsStaged() bool {
 
 func (o options) SetIsStaged(v bool) Options {
 	o.isStaged = v
+	return o
+}
+
+func (o options) Compress() bool {
+	return o.compress
+}
+
+func (o options) SetCompress(v bool) Options {
+	o.compress = v
 	return o
 }
 

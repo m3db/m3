@@ -59,7 +59,7 @@ type helper interface {
 // newHelper returns a new placement storage helper.
 func newHelper(store kv.Store, key string, opts placement.Options) helper {
 	if opts.IsStaged() {
-		return newStagedPlacementHelper(store, key)
+		return newStagedPlacementHelper(store, key, opts.Compress())
 	}
 
 	return newPlacementHelper(store, key)
@@ -129,14 +129,20 @@ func (h *placementHelper) ValidateProto(proto proto.Message) error {
 }
 
 type stagedPlacementHelper struct {
-	store kv.Store
-	key   string
+	store    kv.Store
+	key      string
+	compress bool
 }
 
-func newStagedPlacementHelper(store kv.Store, key string) helper {
+func newStagedPlacementHelper(
+	store kv.Store,
+	key string,
+	compress bool,
+) helper {
 	return &stagedPlacementHelper{
-		store: store,
-		key:   key,
+		store:    store,
+		key:      key,
+		compress: compress,
 	}
 }
 
@@ -172,6 +178,10 @@ func (h *stagedPlacementHelper) GenerateProto(p placement.Placement) (proto.Mess
 	ps, err := placement.NewPlacementsFromLatest(active)
 	if err != nil {
 		return nil, err
+	}
+
+	if h.compress {
+		return ps.ProtoCompressed()
 	}
 
 	return ps.Proto()
