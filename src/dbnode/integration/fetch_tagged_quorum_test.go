@@ -26,13 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
-
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -252,6 +251,7 @@ func makeMultiNodeSetup(
 	numShards int,
 	indexingEnabled bool,
 	asyncInserts bool,
+	finalBootstrapperName string,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, client.Options) {
 	nsOpts := namespace.NewOptions()
@@ -263,8 +263,7 @@ func makeMultiNodeSetup(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md1, md2}
-	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts,
-		uninitialized.UninitializedTopologyBootstrapperName)
+	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts, finalBootstrapperName)
 	for _, node := range nodes {
 		node.SetOpts(node.Opts().SetNumShards(numShards))
 	}
@@ -285,7 +284,8 @@ func makeTestFetchTagged(
 	numShards int,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testFetchFn) {
-	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
+	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false,
+		uninitialized.UninitializedTopologyBootstrapperName, instances)
 	testFetch := func(cLevel topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error) {
 		clientopts := clientopts.SetReadConsistencyLevel(cLevel)
 		c, err := client.NewClient(clientopts)
