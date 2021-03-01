@@ -419,14 +419,6 @@ type IndexConfiguration struct {
 	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
 }
 
-// MaxResultsPerWorkerConfiguration configures the max results per index worker.
-type MaxResultsPerWorkerConfiguration struct {
-	// Fetch is the max for fetch queries.
-	Fetch int `yaml:"fetch"`
-	// Aggregate is the max for aggregate queries.
-	Aggregate int `yaml:"aggregate"`
-}
-
 // RegexpDFALimitOrDefault returns the deterministic finite automaton states
 // limit or default.
 func (c IndexConfiguration) RegexpDFALimitOrDefault() int {
