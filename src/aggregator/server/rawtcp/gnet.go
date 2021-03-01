@@ -206,16 +206,23 @@ func (h *connHandler) OnInitComplete(srv gnet.Server) gnet.Action {
 }
 
 func (h *connHandler) Close() {
-	close(h.bufCh)
+	close(h.doneCh)
 }
 
 func (h *connHandler) process(bufCh <-chan *payload) {
 	var (
+		agg       = h.agg
+		w         *payload
 		metadatas metadata.StagedMetadatas
 		pb        metricpb.MetricWithMetadatas
-		agg       = h.agg
 	)
-	for w := range bufCh {
+	for {
+		select {
+		case <-h.doneCh:
+			return
+		case w = <-bufCh:
+		}
+
 		buf := w.message
 		for len(buf) > 0 {
 			var (
