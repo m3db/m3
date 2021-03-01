@@ -102,8 +102,10 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 	ctx := req.Context()
+	var cancel context.CancelFunc
 	// Clients calling into read have the timeout set from the defined fetch params
-	ctx, _ = context.WithTimeout(ctx, 1*time.Nanosecond)
+	ctx, cancel = context.WithTimeout(ctx, 1*time.Nanosecond)
+	defer cancel()
 
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
@@ -122,6 +124,8 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 }
 
 func testPromReadHandlerRead(t *testing.T, resultMeta block.ResultMetadata) {
+	t.Helper()
+
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup(t, nil)
