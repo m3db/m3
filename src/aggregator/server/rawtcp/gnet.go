@@ -35,18 +35,17 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sys/cpu"
 
-	"github.com/m3db/m3/src/metrics/metadata"
-
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
-
-	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/x/unsafe"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -62,13 +61,6 @@ var (
 
 	_ gnet.EventHandler = (*connHandler)(nil)
 	_ gnet.ICodec       = (*connHandler)(nil)
-
-	pbSlicePool = &sync.Pool{
-		New: func() interface{} {
-			pb := make([]metricpb.MetricWithMetadatas, _pbSlicePoolCap)
-			return &pb
-		},
-	}
 
 	byteSlicePool = &sync.Pool{
 		New: func() interface{} {
@@ -91,6 +83,11 @@ type payload struct {
 	conn    gnet.Conn
 }
 
+type bufCh struct {
+	ch chan *payload
+	_  cpu.CacheLinePad
+}
+
 type decodeError error
 
 type connHandler struct {
@@ -104,7 +101,7 @@ type connHandler struct {
 	_       cpu.CacheLinePad
 	limiter *rate.Limiter
 	_       cpu.CacheLinePad
-	bufCh   chan *payload
+	bufCh   []bufCh
 }
 
 // NewConnHandler returns new connection handler
@@ -124,10 +121,11 @@ func NewConnHandler(
 		metrics: newHandlerMetrics(scope),
 		limiter: rate.NewLimiter(errLogLimit),
 		doneCh:  make(chan struct{}),
-		bufCh:   make(chan *payload, runtime.GOMAXPROCS(0)*2),
+		bufCh:   make([]bufCh, runtime.GOMAXPROCS(0)),
 	}
-	for i := 0; i < cap(h.bufCh); i++ {
-		go h.process(h.bufCh)
+	for i := 0; i < len(h.bufCh); i++ {
+		h.bufCh[i].ch = make(chan *payload, 1)
+		go h.process(h.bufCh[i].ch)
 	}
 	return h
 }
@@ -137,16 +135,16 @@ func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
 		return nil, gnet.None
 	}
 
-	var w *payload
-	(*w) = *payloadPool.Get().(*payload)
-
+	w := payloadPool.Get().(*payload)
 	if len(w.message) < len(frame) {
 		// frame size is bounded by decoder checks
 		w.message = make([]byte, len(frame))
 	}
 	w.message = w.message[:copy(w.message, frame)]
 	w.conn = c
-	h.bufCh <- w
+
+	i := int(unsafe.Fastrandn(uint32(len(h.bufCh))))
+	h.bufCh[i].ch <- w
 	return nil, gnet.None
 }
 
@@ -157,12 +155,6 @@ func (h *connHandler) Encode(_ gnet.Conn, _ []byte) ([]byte, error) {
 func (h *connHandler) Decode(c gnet.Conn) ([]byte, error) {
 	if c.BufferLength() < 1 {
 		return nil, nil
-	}
-
-	if c.BufferLength() > _maxPayloadSize {
-		c.ResetBuffer()
-		h.handleErr("decode error", errDecodePayloadSize, c)
-		return nil, c.Close()
 	}
 
 	var (
@@ -250,34 +242,34 @@ func (h *connHandler) process(bufCh <-chan *payload) {
 
 			switch pb.Type {
 			case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
-				m := &unaggregated.Counter{}
+				m := unaggregated.Counter{}
 				m.FromProto(pb.CounterWithMetadatas.Counter)
 				metadatas.FromProto(pb.CounterWithMetadatas.Metadatas)
 				err = agg.AddUntimed(m.ToUnion(), metadatas)
 			case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
-				m := &unaggregated.BatchTimer{}
+				m := unaggregated.BatchTimer{}
 				m.FromProto(pb.BatchTimerWithMetadatas.BatchTimer)
 				metadatas.FromProto(pb.BatchTimerWithMetadatas.Metadatas)
 				err = agg.AddUntimed(m.ToUnion(), metadatas)
 			case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
-				m := &unaggregated.Gauge{}
+				m := unaggregated.Gauge{}
 				m.FromProto(pb.GaugeWithMetadatas.Gauge)
 				metadatas.FromProto(pb.GaugeWithMetadatas.Metadatas)
 				err = agg.AddUntimed(m.ToUnion(), metadatas)
 			case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
-				m := &aggregated.ForwardedMetricWithMetadata{}
+				m := aggregated.ForwardedMetricWithMetadata{}
 				m.FromProto(pb.ForwardedMetricWithMetadata)
 				err = agg.AddForwarded(m.ForwardedMetric, m.ForwardMetadata)
 			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
-				m := &aggregated.TimedMetricWithMetadata{}
+				m := aggregated.TimedMetricWithMetadata{}
 				m.FromProto(pb.TimedMetricWithMetadata)
 				err = agg.AddTimed(m.Metric, m.TimedMetadata)
 			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
-				m := &aggregated.TimedMetricWithMetadatas{}
+				m := aggregated.TimedMetricWithMetadatas{}
 				m.FromProto(pb.TimedMetricWithMetadatas)
 				err = agg.AddTimedWithStagedMetadatas(m.Metric, m.StagedMetadatas)
 			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
-				m := &aggregated.MetricWithStoragePolicy{}
+				m := aggregated.MetricWithStoragePolicy{}
 				m.FromProto(*pb.TimedMetricWithStoragePolicy)
 				err = agg.AddPassthrough(m.Metric, m.StoragePolicy)
 			default:
