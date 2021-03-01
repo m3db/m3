@@ -25,14 +25,13 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/panjf2000/ants/v2"
 	"github.com/panjf2000/gnet"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 )
 
-const _poolRecycleInterval = 5 * time.Second
+//const _poolRecycleInterval = 5 * time.Second
 
 // NewServer creates a new raw TCP server.
 func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (*Server, error) {
@@ -40,19 +39,19 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 	handlerScope := iOpts.MetricsScope().Tagged(map[string]string{"handler": "rawtcp"})
 	logger := iOpts.Logger()
 
-	pool, err := ants.NewPool(256,
-		ants.WithPanicHandler(func(v interface{}) {
-			panic(v)
-		}),
-		ants.WithNonblocking(false),
-		ants.WithLogger(poolZapLogger{logger: logger}),
-		//ants.WithExpiryDuration(_poolRecycleInterval),
-		ants.WithPreAlloc(true),
-	)
-
-	if err != nil {
-		return nil, err
-	}
+	//pool, err := ants.NewPool(256,
+	//	ants.WithPanicHandler(func(v interface{}) {
+	//		panic(v)
+	//	}),
+	//	ants.WithNonblocking(false),
+	//	ants.WithLogger(poolZapLogger{logger: logger}),
+	//	//ants.WithExpiryDuration(_poolRecycleInterval),
+	//	ants.WithPreAlloc(true),
+	//)
+	//
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	keepalive := opts.ServerOptions().TCPConnectionKeepAlivePeriod()
 	if !opts.ServerOptions().TCPConnectionKeepAlive() {
@@ -64,7 +63,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) (
 		logger:    logger,
 		keepalive: keepalive,
 		bufSize:   opts.ReadBufferSize(),
-		handler:   NewConnHandler(aggregator, pool, logger, handlerScope, opts.ErrorLogLimitPerSecond()),
+		handler:   NewConnHandler(aggregator, nil, logger, handlerScope, opts.ErrorLogLimitPerSecond()),
 	}, nil
 }
 
@@ -79,18 +78,11 @@ type Server struct {
 
 // ListenAndServe starts the server and event loops.
 func (s *Server) ListenAndServe() error {
-	//go func() {
-	//	for {
-	//		time.Sleep(1 * time.Second)
-	//		fmt.Println("numpools", s.handler.p.Free(), s.handler.p.Running())
-	//	}
-	//}()
-
 	gnet.Serve(s.handler, s.addr, gnet.WithOptions(
 		gnet.Options{
-			ReadBufferCap: 16384, //s.bufSize,
+			ReadBufferCap: s.bufSize,
 			TCPKeepAlive:  s.keepalive,
-			NumEventLoop:  runtime.GOMAXPROCS(0),
+			NumEventLoop:  runtime.GOMAXPROCS(0) / 2,
 			Codec:         s.handler,
 		},
 	))

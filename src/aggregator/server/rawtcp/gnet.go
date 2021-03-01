@@ -25,6 +25,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -102,6 +103,8 @@ type connHandler struct {
 	metrics handlerMetrics
 	_       cpu.CacheLinePad
 	limiter *rate.Limiter
+	_       cpu.CacheLinePad
+	bufCh   chan *payload
 }
 
 // NewConnHandler returns new connection handler
@@ -112,14 +115,21 @@ func NewConnHandler(
 	scope tally.Scope,
 	errLogLimit int64,
 ) *connHandler {
-	return &connHandler{
+	// we're logging messages in handleErr method only
+	logger = logger.WithOptions(zap.AddCallerSkip(1))
+	h := &connHandler{
 		agg:     aggregator,
 		logger:  logger,
 		p:       pool,
 		metrics: newHandlerMetrics(scope),
 		limiter: rate.NewLimiter(errLogLimit),
 		doneCh:  make(chan struct{}),
+		bufCh:   make(chan *payload, runtime.GOMAXPROCS(0)*2),
 	}
+	for i := 0; i < cap(h.bufCh); i++ {
+		go h.process(h.bufCh)
+	}
+	return h
 }
 
 func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
@@ -134,10 +144,7 @@ func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
 	}
 	w.message = w.message[:copy(w.message, frame)]
 	w.conn = c
-
-	h.p.Submit(func() {
-		h.process(&w)
-	})
+	h.bufCh <- &w
 	return nil, gnet.None
 }
 
@@ -198,87 +205,89 @@ func (h *connHandler) OnInitComplete(srv gnet.Server) gnet.Action {
 	return gnet.None
 }
 
-func (h *connHandler) Close() {}
+func (h *connHandler) Close() {
+	close(h.bufCh)
+}
 
-func (h *connHandler) process(w *payload) {
+func (h *connHandler) process(bufCh <-chan *payload) {
 	var (
-		buf = w.message
-		pb  = metricpb.MetricWithMetadatas{}
-		agg = h.agg
+		metadatas metadata.StagedMetadatas
+		pb        metricpb.MetricWithMetadatas
+		agg       = h.agg
 	)
+	for w := range bufCh {
+		buf := w.message
+		for len(buf) > 0 {
+			var (
+				size, n    = binary.Varint(buf)
+				payloadLen = int(size) + n
+				err        error
+			)
+			protobuf.ReuseMetricWithMetadatasProto(&pb)
 
-	for len(buf) > 0 {
-		var (
-			size, n    = binary.Varint(buf)
-			payloadLen = int(size) + n
-			err        error
-		)
-		protobuf.ReuseMetricWithMetadatasProto(&pb)
+			if size <= 0 || n <= 0 || payloadLen > len(buf) {
+				h.handleErr("decode error", errDecodeTooSmall, w.conn)
+				w.conn.Close()
+				break
+			}
 
-		if size <= 0 || n <= 0 || payloadLen > len(buf) {
-			h.handleErr("decode error", errDecodeTooSmall, w.conn)
-			//w.conn.Close()
-			break
+			msg := buf[n:payloadLen]
+			buf = buf[payloadLen:]
+
+			if err := pb.Unmarshal(msg); err != nil {
+				h.handleErr("decode error", err, w.conn)
+				continue
+			}
+
+			switch pb.Type {
+			case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
+				m := &unaggregated.Counter{}
+				m.FromProto(pb.CounterWithMetadatas.Counter)
+				metadatas.FromProto(pb.CounterWithMetadatas.Metadatas)
+				err = agg.AddUntimed(m.ToUnion(), metadatas)
+			case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
+				m := &unaggregated.BatchTimer{}
+				m.FromProto(pb.BatchTimerWithMetadatas.BatchTimer)
+				metadatas := &metadata.StagedMetadatas{}
+				metadatas.FromProto(pb.BatchTimerWithMetadatas.Metadatas)
+				err = agg.AddUntimed(m.ToUnion(), *metadatas)
+			case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
+				m := &unaggregated.Gauge{}
+				m.FromProto(pb.GaugeWithMetadatas.Gauge)
+				metadatas := &metadata.StagedMetadatas{}
+				metadatas.FromProto(pb.GaugeWithMetadatas.Metadatas)
+				err = agg.AddUntimed(m.ToUnion(), *metadatas)
+			case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
+				m := &aggregated.ForwardedMetricWithMetadata{}
+				m.FromProto(pb.ForwardedMetricWithMetadata)
+				err = agg.AddForwarded(m.ForwardedMetric, m.ForwardMetadata)
+			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
+				m := &aggregated.TimedMetricWithMetadata{}
+				m.FromProto(pb.TimedMetricWithMetadata)
+				err = agg.AddTimed(m.Metric, m.TimedMetadata)
+			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
+				m := &aggregated.TimedMetricWithMetadatas{}
+				m.FromProto(pb.TimedMetricWithMetadatas)
+				err = agg.AddTimedWithStagedMetadatas(m.Metric, m.StagedMetadatas)
+			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
+				m := &aggregated.MetricWithStoragePolicy{}
+				m.FromProto(*pb.TimedMetricWithStoragePolicy)
+				err = agg.AddPassthrough(m.Metric, m.StoragePolicy)
+			default:
+				err = newUnknownMessageTypeError(encoding.UnaggregatedMessageType(pb.Type))
+			}
+
+			if err != nil {
+				h.handleErr("error adding metric", addMetricError{
+					error:  err,
+					metric: pb,
+				}, w.conn)
+			}
 		}
-
-		msg := buf[n:payloadLen]
-		buf = buf[payloadLen:]
-
-		if err := (&pb).Unmarshal(msg); err != nil {
-			h.handleErr("decode error", err, w.conn)
-			continue
-		}
-
-		switch pb.Type {
-		case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
-			m := &unaggregated.Counter{}
-			m.FromProto(pb.CounterWithMetadatas.Counter)
-			metadatas := &metadata.StagedMetadatas{}
-			metadatas.FromProto(pb.CounterWithMetadatas.Metadatas)
-			err = agg.AddUntimed(m.ToUnion(), *metadatas)
-		case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
-			m := &unaggregated.BatchTimer{}
-			m.FromProto(pb.BatchTimerWithMetadatas.BatchTimer)
-			metadatas := &metadata.StagedMetadatas{}
-			metadatas.FromProto(pb.BatchTimerWithMetadatas.Metadatas)
-			err = agg.AddUntimed(m.ToUnion(), *metadatas)
-		case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
-			m := &unaggregated.Gauge{}
-			m.FromProto(pb.GaugeWithMetadatas.Gauge)
-			metadatas := &metadata.StagedMetadatas{}
-			metadatas.FromProto(pb.GaugeWithMetadatas.Metadatas)
-			err = agg.AddUntimed(m.ToUnion(), *metadatas)
-		case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
-			m := &aggregated.ForwardedMetricWithMetadata{}
-			m.FromProto(pb.ForwardedMetricWithMetadata)
-			err = agg.AddForwarded(m.ForwardedMetric, m.ForwardMetadata)
-		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
-			m := &aggregated.TimedMetricWithMetadata{}
-			m.FromProto(pb.TimedMetricWithMetadata)
-			err = agg.AddTimed(m.Metric, m.TimedMetadata)
-		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
-			m := &aggregated.TimedMetricWithMetadatas{}
-			m.FromProto(pb.TimedMetricWithMetadatas)
-			err = agg.AddTimedWithStagedMetadatas(m.Metric, m.StagedMetadatas)
-		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
-			m := &aggregated.MetricWithStoragePolicy{}
-			m.FromProto(*pb.TimedMetricWithStoragePolicy)
-			err = agg.AddPassthrough(m.Metric, m.StoragePolicy)
-		default:
-			err = newUnknownMessageTypeError(encoding.UnaggregatedMessageType(pb.Type))
-		}
-
-		if err != nil {
-			//metric.Type = protobuf.TypeFromProto(pb.Type)
-			h.handleErr("error adding metric", addMetricError{
-				error: err,
-				//metric: metric,
-			}, w.conn)
-		}
+		w.conn = nil
+		w.message = w.message[:cap(w.message)]
+		payloadPool.Put(w)
 	}
-	w.conn = nil
-	w.message = w.message[:cap(w.message)]
-	payloadPool.Put(w)
 }
 
 //nolint:gocyclo
@@ -286,7 +295,7 @@ func (h *connHandler) handleErr(msg string, err error, c gnet.Conn) {
 	var (
 		mid       id.RawID
 		timestamp int64
-		mtype     encoding.UnaggregatedMessageType
+		mtype     metricpb.MetricWithMetadatas_Type
 	)
 	//nolint:errorlint
 	switch merr := err.(type) {
@@ -296,32 +305,32 @@ func (h *connHandler) handleErr(msg string, err error, c gnet.Conn) {
 		mtype = metric.Type
 
 		switch metric.Type {
-		case encoding.CounterWithMetadatasType:
+		case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
 			h.metrics.addUntimedErrors.Inc(1)
-			mid = metric.CounterWithMetadatas.ID
-		case encoding.BatchTimerWithMetadatasType:
+			mid = metric.CounterWithMetadatas.GetCounter().Id
+		case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
 			h.metrics.addUntimedErrors.Inc(1)
-			mid = metric.BatchTimerWithMetadatas.ID
-		case encoding.GaugeWithMetadatasType:
+			mid = metric.BatchTimerWithMetadatas.GetBatchTimer().Id
+		case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
 			h.metrics.addUntimedErrors.Inc(1)
-			mid = metric.GaugeWithMetadatas.ID
-		case encoding.ForwardedMetricWithMetadataType:
+			mid = metric.GaugeWithMetadatas.GetGauge().Id
+		case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
 			h.metrics.addForwardedErrors.Inc(1)
-			mid = metric.ForwardedMetricWithMetadata.ID
-			timestamp = metric.ForwardedMetricWithMetadata.TimeNanos
-		case encoding.TimedMetricWithMetadataType:
+			mid = metric.ForwardedMetricWithMetadata.GetMetric().Id
+			timestamp = metric.ForwardedMetricWithMetadata.GetMetric().TimeNanos
+		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
 			h.metrics.addTimedErrors.Inc(1)
-			mid = metric.TimedMetricWithMetadata.ID
-			timestamp = metric.TimedMetricWithMetadata.TimeNanos
-		case encoding.TimedMetricWithMetadatasType:
+			mid = metric.TimedMetricWithMetadata.GetMetric().Id
+			timestamp = metric.TimedMetricWithMetadata.GetMetric().TimeNanos
+		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
 			h.metrics.addTimedErrors.Inc(1)
-			mid = metric.TimedMetricWithMetadatas.ID
-			timestamp = metric.TimedMetricWithMetadatas.TimeNanos
-		case encoding.PassthroughMetricWithMetadataType:
+			mid = metric.TimedMetricWithMetadatas.GetMetric().Id
+			timestamp = metric.TimedMetricWithMetadatas.GetMetric().TimeNanos
+		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
 			h.metrics.addPassthroughErrors.Inc(1)
-			mid = metric.PassthroughMetricWithMetadata.ID
-			timestamp = metric.PassthroughMetricWithMetadata.TimeNanos
-		case encoding.UnknownMessageType:
+			mid = metric.TimedMetricWithStoragePolicy.GetTimedMetric().Id
+			timestamp = metric.TimedMetricWithStoragePolicy.GetTimedMetric().TimeNanos
+		default:
 			h.metrics.unknownErrorTypeErrors.Inc(1)
 		}
 	default:
@@ -393,7 +402,7 @@ func (e unknownMessageTypeError) Error() string {
 
 type addMetricError struct {
 	error
-	metric encoding.UnaggregatedMessageUnion
+	metric metricpb.MetricWithMetadatas
 }
 
 type poolZapLogger struct {
