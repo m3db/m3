@@ -120,16 +120,17 @@ func newMultiAddrAdminClient(
 
 // BootstrappableTestSetupOptions defines options for test setups.
 type BootstrappableTestSetupOptions struct {
-	FinalBootstrapper           string
-	BootstrapBlocksBatchSize    int
-	BootstrapBlocksConcurrency  int
-	BootstrapConsistencyLevel   topology.ReadConsistencyLevel
-	TopologyInitializer         topology.Initializer
-	TestStatsReporter           xmetrics.TestStatsReporter
-	DisablePeersBootstrapper    bool
-	UseTChannelClientForWriting bool
-	EnableRepairs               bool
-	AdminClientCustomOpts       []client.CustomAdminOption
+	FinalBootstrapper            string
+	BootstrapBlocksBatchSize     int
+	BootstrapBlocksConcurrency   int
+	BootstrapConsistencyLevel    topology.ReadConsistencyLevel
+	TopologyInitializer          topology.Initializer
+	TestStatsReporter            xmetrics.TestStatsReporter
+	DisableCommitLogBootstrapper bool
+	DisablePeersBootstrapper     bool
+	UseTChannelClientForWriting  bool
+	EnableRepairs                bool
+	AdminClientCustomOpts        []client.CustomAdminOption
 }
 
 type closeFn func()
@@ -168,6 +169,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                    = i
+			usingCommitLogBootstrapper  = !setupOpts[i].DisableCommitLogBootstrapper
 			usingPeersBootstrapper      = !setupOpts[i].DisablePeersBootstrapper
 			finalBootstrapperToUse      = setupOpts[i].FinalBootstrapper
 			useTChannelClientForWriting = setupOpts[i].UseTChannelClientForWriting
@@ -305,14 +307,16 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			require.NoError(t, err)
 		}
 
-		bootstrapCommitlogOpts := commitlog.NewOptions().
-			SetResultOptions(bsOpts).
-			SetCommitLogOptions(setup.StorageOpts().CommitLogOptions()).
-			SetRuntimeOptionsManager(runtime.NewOptionsManager())
+		if usingCommitLogBootstrapper {
+			bootstrapCommitlogOpts := commitlog.NewOptions().
+				SetResultOptions(bsOpts).
+				SetCommitLogOptions(setup.StorageOpts().CommitLogOptions()).
+				SetRuntimeOptionsManager(runtime.NewOptionsManager())
 
-		commitlogBootstrapper, err := commitlog.NewCommitLogBootstrapperProvider(bootstrapCommitlogOpts,
-			mustInspectFilesystem(fsOpts), finalBootstrapper)
-		require.NoError(t, err)
+			finalBootstrapper, err = commitlog.NewCommitLogBootstrapperProvider(bootstrapCommitlogOpts,
+				mustInspectFilesystem(fsOpts), finalBootstrapper)
+			require.NoError(t, err)
+		}
 
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
@@ -325,7 +329,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			SetPersistManager(persistMgr).
 			SetIndexClaimsManager(setup.StorageOpts().IndexClaimsManager())
 
-		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, commitlogBootstrapper)
+		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, finalBootstrapper)
 		require.NoError(t, err)
 
 		processOpts := bootstrap.NewProcessOptions().
