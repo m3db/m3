@@ -256,7 +256,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		case bootstrapper.NoOpNoneBootstrapperName:
 			finalBootstrapper = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			uninitialized.NewUninitializedTopologyBootstrapperProvider(
+			finalBootstrapper = uninitialized.NewUninitializedTopologyBootstrapperProvider(
 				uninitialized.NewOptions().
 					SetInstrumentOptions(instrumentOpts), nil)
 		default:
