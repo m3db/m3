@@ -391,11 +391,11 @@ func Run(runOpts RunOptions) {
 		backendStorage = storage.NewNoopStorage()
 		etcd := cfg.ClusterManagement.Etcd
 
-		if ectd == nil || len(etcd.ETCDClusters) == 0 {
+		if etcd == nil || len(etcd.ETCDClusters) == 0 {
 			logger.Fatal("must specify cluster management config and at least one etcd cluster")
 		}
 
-		opts := mgmt.Etcd.NewOptions()
+		opts := etcd.NewOptions()
 		clusterClient, err = etcdclient.NewConfigServiceClient(opts)
 		if err != nil {
 			logger.Fatal("error constructing etcd client", zap.Error(err))
