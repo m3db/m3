@@ -1270,6 +1270,82 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesAggregateTransformNoRol
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRulesConfigRollupRulesAggregateTransformNoRollupCounter(t *testing.T) {
+	t.Parallel()
+
+	counterMetric := testCounterMetric{
+		tags: map[string]string{
+			nameTag:         "http_requests",
+			"app":           "nginx_edge",
+			"status_code":   "500",
+			"endpoint":      "/foo/bar",
+			"not_rolled_up": "not_rolled_up_value",
+		},
+		timedSamples: []testCounterMetricTimedSample{
+			{value: 42},
+			{value: 64},
+			{value: 4, offset: 10 * time.Second},
+			{value: 6, offset: 10 * time.Second},
+		},
+	}
+	res := 5 * time.Second
+	ret := 30 * 24 * time.Hour
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Aggregate: &AggregateOperationConfiguration{
+								Type: aggregation.Sum,
+							},
+						},
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.Add,
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			counterMetrics: []testCounterMetric{counterMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:         "http_requests",
+						"app":           "nginx_edge",
+						"status_code":   "500",
+						"endpoint":      "/foo/bar",
+						"not_rolled_up": "not_rolled_up_value",
+					},
+					values: []expectedValue{{value: 106}, {value: 116, offset: 10 * time.Second}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.T) {
 	t.Parallel()
 
