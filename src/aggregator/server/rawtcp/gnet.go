@@ -25,17 +25,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 	"time"
 
-	"github.com/Allenxuxu/gev"
-	"github.com/Allenxuxu/gev/connection"
-	"github.com/Allenxuxu/ringbuffer"
 	"github.com/panjf2000/ants/v2"
 	"github.com/panjf2000/gnet"
 	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/sys/cpu"
 
@@ -54,12 +49,12 @@ const (
 )
 
 var (
-	errDecodeTooSmall     decodeError = errors.New("error decoding payload: payload too short")
+	errDecodeTooSmall     decodeError = errors.New("error decoding payload: unexpected end of payload")
 	errDecodePayloadSize  decodeError = errors.New("error decoding payload size")
 	errPayloadNotConsumed decodeError = errors.New("payload not fully consumed")
 
-	_ gev.Handler         = (*connHandler)(nil)
-	_ connection.Protocol = (*connHandler)(nil)
+	_ gnet.EventHandler = (*connHandler)(nil)
+	_ gnet.ICodec       = (*connHandler)(nil)
 
 	pbSlicePool = &sync.Pool{
 		New: func() interface{} {
@@ -77,14 +72,16 @@ var (
 
 	payloadPool = &sync.Pool{
 		New: func() interface{} {
-			return &payload{}
+			return &payload{
+				message: make([]byte, 65536),
+			}
 		},
 	}
 )
 
 type payload struct {
 	message []byte
-	conn    *connection.Connection
+	conn    gnet.Conn
 }
 
 type decodeError error
@@ -99,8 +96,6 @@ type connHandler struct {
 	metrics handlerMetrics
 	_       cpu.CacheLinePad
 	limiter *rate.Limiter
-	_       cpu.CacheLinePad
-	bufCh   chan *payload
 }
 
 // NewConnHandler returns new connection handler
@@ -117,56 +112,26 @@ func NewConnHandler(
 		p:       pool,
 		metrics: newHandlerMetrics(scope),
 		limiter: rate.NewLimiter(errLogLimit),
-		bufCh:   make(chan *payload, runtime.GOMAXPROCS(0)),
 		doneCh:  make(chan struct{}),
 	}
 }
 
-func (h *connHandler) OnClose(_ *connection.Connection) {}
-
-func (h *connHandler) OnConnect(_ *connection.Connection) {}
-
-func (h *connHandler) OnMessage(c *connection.Connection, _ interface{}, frame []byte) []byte {
-	return nil
-
+func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
 	if len(frame) == 0 {
-		return nil
+		return nil, gnet.None
+	}
 
-	}
-	w := payloadPool.Get().(*payload)
+	w := *payloadPool.Get().(*payload)
 	if len(w.message) < len(frame) {
+		// frame size is bounded by decoder checks
 		w.message = make([]byte, len(frame))
-		w.message = w.message[:copy(w.message, frame)]
-	} else {
-		w.message = frame
 	}
+	w.message = w.message[:copy(w.message, frame)]
 	w.conn = c
 
-	if h.p.Running() == 0 {
-		h.p.Submit(h.process) //nolint:errcheck
-	}
-
-	select {
-	case h.bufCh <- w:
-	default:
-		// spawn an additional goroutine to process queue
-		//nolint:errcheck
-		h.p.Submit(func() { // we're using a blocking pool, call can not fail
-			h.process()
-		})
-		//nolint:errcheck
-		h.p.Submit(func() {
-			h.bufCh <- w
-		})
-	}
-
-	return nil
-}
-
-var v = atomic.NewInt64(0)
-
-func (h *connHandler) React(frame []byte, c gnet.Conn) ([]byte, gnet.Action) {
-	//c.ReadN()
+	h.p.Submit(func() {
+		h.process(&w)
+	})
 	return nil, gnet.None
 }
 
@@ -176,13 +141,12 @@ func (h *connHandler) Encode(_ gnet.Conn, _ []byte) ([]byte, error) {
 
 func (h *connHandler) Decode(c gnet.Conn) ([]byte, error) {
 	if c.BufferLength() < 1 {
-		// payload must be at lest 1 byte for length
 		return nil, nil
 	}
 
 	if c.BufferLength() > _maxPayloadSize {
-		fmt.Println("payload too large")
 		c.ResetBuffer()
+		h.handleErr("decode error", errDecodePayloadSize, c)
 		return nil, c.Close()
 	}
 
@@ -196,79 +160,25 @@ func (h *connHandler) Decode(c gnet.Conn) ([]byte, error) {
 	for len(tmp) > 0 {
 		payloadLen, headerLen := binary.Varint(tmp)
 		size = int(payloadLen) + headerLen
-		fmt.Println("consumed", consumed, "size", size, "lentmp", len(tmp), "nn", headerLen)
 		if size > _maxPayloadSize {
-			fmt.Println("payload too large2")
 			c.ResetBuffer()
+			h.handleErr("decode error", errDecodePayloadSize, c)
 			return nil, c.Close()
 		}
 		if size > len(tmp) || size <= 0 || headerLen <= 0 {
-			fmt.Println("buf reached", consumed, "size", size, "lentmp", len(tmp), "nn", headerLen)
 			break
 		}
 		tmp = tmp[size:]
 		consumed += size
 	}
+
 	if consumed == 0 {
 		// must return a nil slice to end the read
 		return nil, nil
 	}
+
 	c.ShiftN(consumed)
-	v.Add(int64(consumed))
-	fmt.Println("consumed total, consumed", v.Load(), consumed)
 	return buf[:consumed], nil
-}
-
-func (h *connHandler) UnPacket(c *connection.Connection, buffer *ringbuffer.RingBuffer) (interface{}, []byte) {
-	var (
-		err      error
-		n        int
-		consumed int
-	)
-
-	buf := *byteSlicePool.Get().(*[]byte)
-	var hasNext = true
-	for buffer.VirtualLength() > 1 && hasNext {
-		n, err = buffer.VirtualRead(buf)
-		fmt.Println("zzzzz", "nread", n)
-		if n == 0 || err != nil {
-			return nil, nil // buffer is empty
-		}
-		for consumed+binary.MaxVarintLen32 < n {
-			payloadLen, headerLen := binary.Varint(buf[consumed:n])
-			fmt.Println("qewreqr", payloadLen, headerLen)
-			if payloadLen < 0 {
-				return nil, nil
-			}
-			if headerLen <= 0 || payloadLen <= 0 || payloadLen > _maxPayloadSize {
-				break
-			}
-			if int(payloadLen)+headerLen+consumed > n {
-				fmt.Println(payloadLen, headerLen, consumed, int(payloadLen)+headerLen+consumed)
-				if buffer.VirtualLength() < n {
-					fmt.Println("not has next", buffer.VirtualLength(), consumed, n)
-					hasNext = false
-				}
-				break
-			}
-			consumed += int(payloadLen) + headerLen
-		}
-		if consumed == 0 {
-			continue // read more
-		}
-		v.Add(int64(consumed))
-		buffer.VirtualRevert()
-		buffer.Retrieve(consumed)
-		fmt.Println("total consumed", v.Load())
-		fmt.Println("end read.", "buflen", len(buf), "orig buf len", n,
-			"consumed", consumed, "delta", n-consumed)
-		consumed = 0
-	}
-	return nil, buf[:consumed]
-}
-
-func (h *connHandler) Packet(_ *connection.Connection, buf []byte) []byte {
-	return buf
 }
 
 func (h *connHandler) OnInitComplete(srv gnet.Server) gnet.Action {
@@ -283,112 +193,96 @@ func (h *connHandler) OnInitComplete(srv gnet.Server) gnet.Action {
 }
 
 func (h *connHandler) Close() {
-	close(h.doneCh)
 }
 
-func (h *connHandler) process() {
-	var (
-		timer = time.NewTimer(_poolRecycleInterval)
-	)
-	defer timer.Stop()
+func (h *connHandler) process(w *payload) {
+	buf := w.message
+	pb := metricpb.MetricWithMetadatas{}
+	for len(buf) > 0 {
+		var (
+			size, n    = binary.Varint(buf)
+			payloadLen = int(size) + n
+			metric     encoding.UnaggregatedMessageUnion
+			err        error
+		)
+		protobuf.ReuseMetricWithMetadatasProto(&pb)
 
-	for {
-		var w *payload
-		select {
-		case <-timer.C:
-			return
-		case <-h.doneCh:
-			return
-		case w = <-h.bufCh:
+		if size <= 0 || n <= 0 || payloadLen > len(buf) {
+			h.handleErr("decode error", errDecodeTooSmall, w.conn)
+			//w.conn.Close()
+			break
 		}
-		buf := w.message
-		for len(buf) > 0 {
-			var (
-				size, n    = binary.Varint(buf)
-				payloadLen = int(size) + n
-				pb         = &metricpb.MetricWithMetadatas{}
-				metric     encoding.UnaggregatedMessageUnion
-				err        error
-			)
-			if size < 0 || n <= 0 {
-				fmt.Println(len(buf), "n", n, "pl", payloadLen,
-					fmt.Sprintf("%v:%v", n, payloadLen))
-				//panic("zz")
-				h.handleErr("decode error", errDecodeTooSmall, w.conn)
-				break
-			}
-			//fmt.Println(len(w.message), len(buf))
-			msg := buf[n:payloadLen]
-			buf = buf[payloadLen:]
-			//fmt.Println(len(w.message), len(buf), len(msg))
 
-			if err := pb.Unmarshal(msg); err != nil {
-				h.handleErr("decode error", err, w.conn)
-				continue
-			}
-			switch pb.Type {
-			case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
-				if err = metric.CounterWithMetadatas.FromProto(pb.CounterWithMetadatas); err == nil {
-					err = h.agg.AddUntimed(metric.CounterWithMetadatas.Counter.ToUnion(), metric.CounterWithMetadatas.StagedMetadatas)
-				}
-			case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
-				if err = metric.BatchTimerWithMetadatas.FromProto(pb.BatchTimerWithMetadatas); err == nil {
-					err = h.agg.AddUntimed(metric.BatchTimerWithMetadatas.BatchTimer.ToUnion(), metric.BatchTimerWithMetadatas.StagedMetadatas)
-				}
-			case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
-				if err = metric.GaugeWithMetadatas.FromProto(pb.GaugeWithMetadatas); err == nil {
-					err = h.agg.AddUntimed(metric.GaugeWithMetadatas.Gauge.ToUnion(), metric.GaugeWithMetadatas.StagedMetadatas)
-				}
-			case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
-				if err = metric.ForwardedMetricWithMetadata.FromProto(pb.ForwardedMetricWithMetadata); err == nil {
-					err = h.agg.AddForwarded(metric.ForwardedMetricWithMetadata.ForwardedMetric, metric.ForwardedMetricWithMetadata.ForwardMetadata)
-				}
-			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
-				if err = metric.TimedMetricWithMetadata.FromProto(pb.TimedMetricWithMetadata); err == nil {
-					err = h.agg.AddTimed(metric.TimedMetricWithMetadata.Metric, metric.TimedMetricWithMetadata.TimedMetadata)
-				}
-			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
-				if err = metric.TimedMetricWithMetadatas.FromProto(pb.TimedMetricWithMetadatas); err == nil {
-					err = h.agg.AddTimedWithStagedMetadatas(metric.TimedMetricWithMetadatas.Metric, metric.TimedMetricWithMetadatas.StagedMetadatas)
-				}
-			case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
-				if err = metric.PassthroughMetricWithMetadata.FromProto(pb.TimedMetricWithStoragePolicy); err == nil {
-					err = h.agg.AddPassthrough(metric.PassthroughMetricWithMetadata.Metric, metric.PassthroughMetricWithMetadata.StoragePolicy)
-				}
-			default:
-				err = newUnknownMessageTypeError(encoding.UnaggregatedMessageType(pb.Type))
-			}
+		msg := buf[n:payloadLen]
+		buf = buf[payloadLen:]
 
-			if err != nil {
-				metric.Type = protobuf.TypeFromProto(pb.Type)
-				h.handleErr("error adding metric", addMetricError{
-					error:  err,
-					metric: &metric,
-				}, w.conn)
-			}
+		if err := (&pb).Unmarshal(msg); err != nil {
+			h.handleErr("decode error", err, w.conn)
+			continue
 		}
-		byteSlicePool.Put(&w.message)
-		w.conn = nil
-		w.message = nil
-		payloadPool.Put(w)
+
+		switch pb.Type {
+		case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
+			if err = metric.CounterWithMetadatas.FromProto(pb.CounterWithMetadatas); err == nil {
+				err = h.agg.AddUntimed(metric.CounterWithMetadatas.Counter.ToUnion(), metric.CounterWithMetadatas.StagedMetadatas)
+			}
+		case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
+			if err = metric.BatchTimerWithMetadatas.FromProto(pb.BatchTimerWithMetadatas); err == nil {
+				err = h.agg.AddUntimed(metric.BatchTimerWithMetadatas.BatchTimer.ToUnion(), metric.BatchTimerWithMetadatas.StagedMetadatas)
+			}
+		case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
+			if err = metric.GaugeWithMetadatas.FromProto(pb.GaugeWithMetadatas); err == nil {
+				err = h.agg.AddUntimed(metric.GaugeWithMetadatas.Gauge.ToUnion(), metric.GaugeWithMetadatas.StagedMetadatas)
+			}
+		case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
+			if err = metric.ForwardedMetricWithMetadata.FromProto(pb.ForwardedMetricWithMetadata); err == nil {
+				err = h.agg.AddForwarded(metric.ForwardedMetricWithMetadata.ForwardedMetric, metric.ForwardedMetricWithMetadata.ForwardMetadata)
+			}
+		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
+			if err = metric.TimedMetricWithMetadata.FromProto(pb.TimedMetricWithMetadata); err == nil {
+				err = h.agg.AddTimed(metric.TimedMetricWithMetadata.Metric, metric.TimedMetricWithMetadata.TimedMetadata)
+			}
+		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
+			if err = metric.TimedMetricWithMetadatas.FromProto(pb.TimedMetricWithMetadatas); err == nil {
+				err = h.agg.AddTimedWithStagedMetadatas(metric.TimedMetricWithMetadatas.Metric, metric.TimedMetricWithMetadatas.StagedMetadatas)
+			}
+		case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
+			if err = metric.PassthroughMetricWithMetadata.FromProto(pb.TimedMetricWithStoragePolicy); err == nil {
+				err = h.agg.AddPassthrough(metric.PassthroughMetricWithMetadata.Metric, metric.PassthroughMetricWithMetadata.StoragePolicy)
+			}
+		default:
+			err = newUnknownMessageTypeError(encoding.UnaggregatedMessageType(pb.Type))
+		}
+
+		if err != nil {
+			metric.Type = protobuf.TypeFromProto(pb.Type)
+			h.handleErr("error adding metric", addMetricError{
+				error:  err,
+				metric: &metric,
+			}, w.conn)
+		}
 	}
+	w.conn = nil
+	w.message = w.message[:cap(w.message)]
+	payloadPool.Put(w)
 }
 
 //nolint:gocyclo
-func (h *connHandler) handleErr(msg string, err error, c *connection.Connection) {
+func (h *connHandler) handleErr(msg string, err error, c gnet.Conn) {
 	var (
 		mid       id.RawID
 		timestamp int64
-		metric    *encoding.UnaggregatedMessageUnion
+		mtype     encoding.UnaggregatedMessageType
 	)
 	//nolint:errorlint
 	switch merr := err.(type) {
 	// not using wrapped errors here, just custom types
 	case addMetricError:
-		metric = merr.metric
-		if metric == nil {
+		if merr.metric == nil {
 			break
 		}
+		metric := merr.metric
+		mtype = metric.Type
 
 		switch metric.Type {
 		case encoding.CounterWithMetadatasType:
@@ -428,24 +322,19 @@ func (h *connHandler) handleErr(msg string, err error, c *connection.Connection)
 		return
 	}
 
-	addr := "<unknown>"
+	fields := make([]zap.Field, 0, 10)
+	fields = append(fields, zap.Error(err))
 	if c != nil {
-		addr = c.PeerAddr()
+		fields = append(fields, zap.Stringer("remoteAddress", c.RemoteAddr()))
 	}
 
-	fields := make([]zap.Field, 0, 10)
-	fields = append(
-		fields,
-		zap.String("remoteAddress", addr),
-		zap.Error(err))
-
-	if metric == nil {
+	if len(mid) == 0 {
 		h.logger.Info(msg, fields...)
 		return
 	}
 
 	fields = append(fields,
-		zap.Int("metricType", int(metric.Type)),
+		zap.Int("metricType", int(mtype)),
 		zap.Stringer("id", mid),
 		zap.Time("timestamp", time.Unix(0, timestamp)),
 	)
@@ -502,5 +391,5 @@ type poolZapLogger struct {
 
 func (p poolZapLogger) Printf(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	p.logger.Warn("got error from ants worker pool", zap.String("error", msg))
+	p.logger.Warn("got error from  worker pool", zap.String("error", msg))
 }

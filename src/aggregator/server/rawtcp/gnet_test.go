@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Allenxuxu/gev"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/panjf2000/ants/v2"
@@ -158,6 +157,11 @@ func getTestUnixSockName(t *testing.T) string {
 
 //nolint:lll
 func TestServer(t *testing.T) {
+	const (
+		numClients = 50
+		numIters   = 100
+	)
+
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 	defer logger.Sync() //nolint:errcheck
@@ -165,7 +169,7 @@ func TestServer(t *testing.T) {
 	agg := capture.NewAggregator()
 	sockName := getTestUnixSockName(t)
 
-	pool, err := ants.NewPool(64,
+	pool, err := ants.NewPool(runtime.GOMAXPROCS(0)*2,
 		ants.WithPanicHandler(func(v interface{}) {
 			panic(v)
 		}),
@@ -177,14 +181,10 @@ func TestServer(t *testing.T) {
 	h := NewConnHandler(agg, pool, logger, tally.NoopScope, 100)
 
 	sockName = getTestUnixSockName(t) //"127.0.0.1:12341"
-	//srv, err := testServer(h, sockName, logger)
-	//require.NoError(t, err)
-	doneCh := make(chan struct{})
 	errCh := make(chan error, 1)
 	go func() {
-		_, err := testServer(h, sockName, logger)
-		errCh <- err
-		close(doneCh)
+		errCh <- testServer(h, sockName, logger)
+		close(errCh)
 	}()
 
 	// wait for server to come up
@@ -201,7 +201,6 @@ func TestServer(t *testing.T) {
 	}
 
 	var (
-		numClients     = 1
 		wgClient       sync.WaitGroup
 		expectedResult capture.SnapshotResult
 	)
@@ -212,7 +211,7 @@ func TestServer(t *testing.T) {
 		wgClient.Add(1)
 
 		// Add test metrics to expected result.
-		for i := 0; i < 1000; i++ {
+		for i := 0; i < numIters; i++ {
 			expectedResult.CountersWithMetadatas = append(expectedResult.CountersWithMetadatas, testCounterWithMetadatas)
 			expectedResult.BatchTimersWithMetadatas = append(expectedResult.BatchTimersWithMetadatas, testBatchTimerWithMetadatas)
 			expectedResult.GaugesWithMetadatas = append(expectedResult.GaugesWithMetadatas, testGaugeWithMetadatas)
@@ -228,7 +227,7 @@ func TestServer(t *testing.T) {
 
 			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
 
-			for i := 0; i < 1000; i++ {
+			for i := 0; i < numIters; i++ {
 				assert.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 					Type:                 encoding.CounterWithMetadatasType,
 					CounterWithMetadatas: testCounterWithMetadatas,
@@ -253,21 +252,25 @@ func TestServer(t *testing.T) {
 					Type:                        encoding.ForwardedMetricWithMetadataType,
 					ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
 				}))
+				b := encoder.Relinquish().Bytes()
+				_, err = conn.Write(b)
+				require.NoError(t, err)
 			}
-			b := encoder.Relinquish().Bytes()
-			t.Logf("wrote %v byte payload with %v metrics", len(b), 6*1000)
-			_, err = conn.Write(b)
-			require.NoError(t, err)
-			//require.NoError(t, conn.Close())
+			// should read all data off local unix socket in <1 s
+			time.Sleep(1 * time.Second)
+			require.NoError(t, conn.Close())
 		}()
 	}
 
+	<-time.After(1 * time.Second)
 	// Wait for all metrics to be processed.
 	wgClient.Wait()
 	for i := 0; i < 20 && agg.NumMetricsAdded() < expectedTotalMetrics; i++ {
 		time.Sleep(100 * time.Millisecond)
 	}
+	h.Close()
 
+	t.Log("stopping server")
 	// Close the server.
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	if err := gnet.Stop(ctx, "unix://"+sockName); err != nil {
@@ -276,41 +279,30 @@ func TestServer(t *testing.T) {
 	}
 	cancel()
 
-	for err := range errCh {
-		require.NoError(t, err)
-	}
-	//srv.Stop()
-	<-doneCh
+	t.Log("comparing results")
 	// Assert the snapshot match expectations.
 	snapshot := agg.Snapshot()
 	if !cmp.Equal(expectedResult, snapshot, testCmpOpts...) {
 		t.Log("expected result to match snapshot")
-		//t.Log(cmp.Diff(expectedResult, snapshot, testCmpOpts...))
-		//t.Log(cmp.Diff(expectedResult.CountersWithMetadatas, snapshot.CountersWithMetadatas, testCmpOpts...))
+		t.Log(cmp.Diff(expectedResult, snapshot, testCmpOpts...))
 		t.Fail()
+	} else {
+		t.Log("snapshot matches expected result")
+	}
+
+	for err := range errCh {
+		require.NoError(t, err)
 	}
 }
 
-func testServer(handler *connHandler, addr string, logger *zap.Logger) (*gev.Server, error) {
-	//opts := []gev.Option{
-	//	gev.NumLoops(runtime.GOMAXPROCS(0)),
-	//	gev.Address(addr),
-	//	gev.Protocol(handler),
-	//	//gev.ReusePort(true),
-	//}
-
-	//if s.keepalive > 0 {
-	//	opts = append(opts, )
-	//}
-	err := gnet.Serve(handler, "unix://"+addr, gnet.WithOptions(
+func testServer(handler *connHandler, addr string, logger *zap.Logger) error {
+	return gnet.Serve(handler, "unix://"+addr, gnet.WithOptions(
 		gnet.Options{
 			Codec:         handler,
 			Logger:        logger.Sugar(),
 			ReadBufferCap: 16384,
 			TCPKeepAlive:  10 * time.Second,
-			NumEventLoop:  runtime.GOMAXPROCS(0),
+			NumEventLoop:  runtime.GOMAXPROCS(0)/4 + 1,
 		},
 	))
-
-	return nil, err
 }

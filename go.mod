@@ -3,8 +3,8 @@ module github.com/m3db/m3
 go 1.13
 
 require (
-	github.com/Allenxuxu/gev v0.1.10
-	github.com/Allenxuxu/ringbuffer v0.0.6
+	github.com/Allenxuxu/gev v0.1.10 // indirect
+	github.com/Allenxuxu/ringbuffer v0.0.6 // indirect
 	github.com/Allenxuxu/toolkit v0.0.0-20201014055025-62998795ea16 // indirect
 	github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d // indirect
 	github.com/DataDog/datadog-go v3.7.1+incompatible // indirect
