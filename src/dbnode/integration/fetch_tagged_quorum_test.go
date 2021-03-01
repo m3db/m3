@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -261,7 +263,8 @@ func makeMultiNodeSetup(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md1, md2}
-	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts)
+	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts,
+		uninitialized.UninitializedTopologyBootstrapperName)
 	for _, node := range nodes {
 		node.SetOpts(node.Opts().SetNumShards(numShards))
 	}
