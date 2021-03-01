@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
@@ -44,25 +43,7 @@ import (
 // TestPeersBootstrapSingleNodeUninitialized makes sure that we can include the peer bootstrapper
 // in a single-node topology of a non-initialized cluster without causing a bootstrap failure or infinite hang.
 func TestPeersBootstrapSingleNodeUninitialized(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	// Test setups
-	log := xtest.NewLogger(t)
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(20 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute)
-	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
-	require.NoError(t, err)
-	opts := NewTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp}).
-		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
-		// and not write/read all nodes in the cluster.
-		SetUseTChannelClientForWriting(true).
-		SetUseTChannelClientForReading(true)
+	opts := NewTestOptions(t)
 
 	// Define a topology with initializing shards
 	minShard := uint32(0)
@@ -99,46 +80,19 @@ func TestPeersBootstrapSingleNodeUninitialized(t *testing.T) {
 			FinalBootstrapper: uninitialized.UninitializedTopologyBootstrapperName,
 		},
 	}
-	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
-	defer closeFn()
-
-	// Write test data
-	now := setups[0].NowFn()()
-	blockSize := retentionOpts.BlockSize()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
-		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
-		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
-		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
-		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
-	})
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
-
-	// Set the time to one blockSize in the future (for which we do not have
-	// a fileset file) to ensure we try and use the peer bootstrapper.
-	setups[0].SetNowFn(now.Add(blockSize))
-
-	// Start the server with peers and filesystem bootstrappers
-	require.NoError(t, setups[0].StartServer())
-	log.Debug("servers are now up")
-
-	// Stop the servers
-	defer func() {
-		setups.parallel(func(s TestSetup) {
-			require.NoError(t, s.StopServer())
-		})
-		log.Debug("servers are now down")
-	}()
-
-	// Verify in-memory data match what we expect
-	for _, setup := range setups {
-		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
-	}
+	testPeersBootstrapSingleNode(t, setupOpts)
 }
 
 // TestPeersBootstrapSingleNodeInitialized makes sure that we can include the peer bootstrapper
 // in a single-node topology of already initialized cluster without causing a bootstrap failure or infinite hang.
 func TestPeersBootstrapSingleNodeInitialized(t *testing.T) {
+	setupOpts := []BootstrappableTestSetupOptions{
+		{DisablePeersBootstrapper: false},
+	}
+	testPeersBootstrapSingleNode(t, setupOpts)
+}
+
+func testPeersBootstrapSingleNode(t *testing.T, setupOpts []BootstrappableTestSetupOptions) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -159,13 +113,6 @@ func TestPeersBootstrapSingleNodeInitialized(t *testing.T) {
 		SetUseTChannelClientForWriting(true).
 		SetUseTChannelClientForReading(true)
 
-	setupOpts := []BootstrappableTestSetupOptions{
-		{
-			DisablePeersBootstrapper: false,
-			// This will bootstrap w/ unfulfilled ranges.
-			FinalBootstrapper: bootstrapper.NoOpAllBootstrapperName,
-		},
-	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
