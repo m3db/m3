@@ -32,9 +32,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
@@ -118,16 +120,17 @@ func newMultiAddrAdminClient(
 
 // BootstrappableTestSetupOptions defines options for test setups.
 type BootstrappableTestSetupOptions struct {
-	FinalBootstrapper           string
-	BootstrapBlocksBatchSize    int
-	BootstrapBlocksConcurrency  int
-	BootstrapConsistencyLevel   topology.ReadConsistencyLevel
-	TopologyInitializer         topology.Initializer
-	TestStatsReporter           xmetrics.TestStatsReporter
-	DisablePeersBootstrapper    bool
-	UseTChannelClientForWriting bool
-	EnableRepairs               bool
-	AdminClientCustomOpts       []client.CustomAdminOption
+	FinalBootstrapper            string
+	BootstrapBlocksBatchSize     int
+	BootstrapBlocksConcurrency   int
+	BootstrapConsistencyLevel    topology.ReadConsistencyLevel
+	TopologyInitializer          topology.Initializer
+	TestStatsReporter            xmetrics.TestStatsReporter
+	DisableCommitLogBootstrapper bool
+	DisablePeersBootstrapper     bool
+	UseTChannelClientForWriting  bool
+	EnableRepairs                bool
+	AdminClientCustomOpts        []client.CustomAdminOption
 }
 
 type closeFn func()
@@ -166,6 +169,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                    = i
+			usingCommitLogBootstrapper  = !setupOpts[i].DisableCommitLogBootstrapper
 			usingPeersBootstrapper      = !setupOpts[i].DisablePeersBootstrapper
 			finalBootstrapperToUse      = setupOpts[i].FinalBootstrapper
 			useTChannelClientForWriting = setupOpts[i].UseTChannelClientForWriting
@@ -256,7 +260,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		case bootstrapper.NoOpNoneBootstrapperName:
 			finalBootstrapper = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			uninitialized.NewUninitializedTopologyBootstrapperProvider(
+			finalBootstrapper = uninitialized.NewUninitializedTopologyBootstrapperProvider(
 				uninitialized.NewOptions().
 					SetInstrumentOptions(instrumentOpts), nil)
 		default:
@@ -300,6 +304,17 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				SetContextPool(setup.StorageOpts().ContextPool())
 
 			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
+			require.NoError(t, err)
+		}
+
+		if usingCommitLogBootstrapper {
+			bootstrapCommitlogOpts := commitlog.NewOptions().
+				SetResultOptions(bsOpts).
+				SetCommitLogOptions(setup.StorageOpts().CommitLogOptions()).
+				SetRuntimeOptionsManager(runtime.NewOptionsManager())
+
+			finalBootstrapper, err = commitlog.NewCommitLogBootstrapperProvider(bootstrapCommitlogOpts,
+				mustInspectFilesystem(fsOpts), finalBootstrapper)
 			require.NoError(t, err)
 		}
 
