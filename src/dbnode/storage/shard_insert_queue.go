@@ -203,9 +203,7 @@ func (q *dbShardInsertQueue) insertLoop() {
 		}
 		// Batch together for single insertion.
 		for _, batchByCPUCore := range batch.insertsByCPUCore {
-			batchByCPUCore.Lock()
 			allInserts = append(allInserts, batchByCPUCore.inserts...)
-			batchByCPUCore.Unlock()
 		}
 
 		err := q.insertEntryBatchFn(allInserts)

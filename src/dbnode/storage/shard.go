@@ -1470,7 +1470,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		numPendingIndexing = 0
 	)
 
-	s.Lock()
 	for i := range inserts {
 		// If we are going to write to this entry then increment the
 		// writer count so it does not look empty immediately after
@@ -1495,7 +1494,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// i.e. we don't have a ref on provided entry, so we check if between the operation being
 		// enqueue in the shard insert queue, and this function executing, an entry was created
 		// for the same ID.
+		s.RLock()
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		s.RUnlock()
 		if entry != nil {
 			// Already exists so update the entry we're pointed at for this insert.
 			inserts[i].entry = entry
@@ -1516,7 +1517,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if err != errShardEntryNotFound {
 			// Shard is not taking inserts.
-			s.Unlock()
 			// FOLLOWUP(prateek): is this an existing bug? why don't we need to release any ref's we've inc'd
 			// on entries in the loop before this point, i.e. in range [0, i). Otherwise, how are those entries
 			// going to get cleaned up?
@@ -1526,9 +1526,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
+		s.Lock()
 		s.insertNewShardEntryWithLock(entry)
+		s.Unlock()
 	}
-	s.Unlock()
 
 	if !anyPendingAction {
 		return nil
