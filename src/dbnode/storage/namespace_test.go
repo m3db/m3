@@ -1588,7 +1588,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	mockOnColdFlushNs := NewMockOnColdFlushNamespace(ctrl)
 	mockOnColdFlushNs.EXPECT().Done().Return(nil)
 	mockOnColdFlush := NewMockOnColdFlush(ctrl)
-	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any(), false).Return(mockOnColdFlushNs, nil)
+	cfOpts := NewColdFlushNsOpts(false)
+	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any(), cfOpts).Return(mockOnColdFlushNs, nil)
 	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
 
 	targetShard0 := NewMockdatabaseShard(ctrl)
