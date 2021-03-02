@@ -221,6 +221,95 @@ func TestDownsamplerAggregationDownsamplesRawMetricWithRollupRule(t *testing.T) 
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationDoesNotDownsampleRawMetricWithRollupRulesWithoutRollup(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag:       "http_requests",
+			"app":         "nginx_edge",
+			"status_code": "500",
+			"endpoint":    "/foo/bar",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 42},
+			{value: 64, offset: 1 * time.Second},
+		},
+	}
+	res := 1 * time.Second
+	ret := 30 * 24 * time.Hour
+
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Aggregate: &AggregateOperationConfiguration{
+								Type: aggregation.Sum,
+							},
+						},
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.Add,
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				// mapped metric
+				{
+					tags: map[string]string{
+						nameTag:       "http_requests",
+						"app":         "nginx_edge",
+						"status_code": "500",
+						"endpoint":    "/foo/bar",
+					},
+					values: []expectedValue{{value: 42}, {value: 106, offset: 1 * time.Second}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Setup auto-mapping rules.
+	require.False(t, testDownsampler.downsampler.Enabled())
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	session := dbclient.NewMockSession(ctrl)
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("1s:30d"),
+		Resolution:  res,
+		Retention:   ret,
+		Session:     session,
+	})
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
+	require.True(t, testDownsampler.downsampler.Enabled())
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationToggleEnabled(t *testing.T) {
 	t.Parallel()
 

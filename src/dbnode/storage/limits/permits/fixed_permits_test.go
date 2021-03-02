@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package permits
 
 import (
-	"context"
-	"net/http/httptest"
+	stdctx "context"
 	"testing"
-	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
+	"github.com/stretchr/testify/require"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3/src/x/context"
 )
 
-func TestCloseWatcher(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	w := httptest.NewRecorder()
-	CloseWatcher(ctx, cancel, w, instrument.NewOptions())
-	assert.NoError(t, ctx.Err())
-	time.Sleep(100 * time.Millisecond)
-	assert.Error(t, ctx.Err())
+func TestFixedPermits(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(3).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
+
+	fp.Release(0)
+	require.NoError(t, fp.Acquire(ctx))
 }
 
-func TestResponseWriteCanceller(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	w := httptest.NewRecorder()
-	canceller := NewResponseWriterCanceller(w, instrument.NewOptions())
-	canceller.WatchForCancel(ctx, cancel)
-	assert.NoError(t, ctx.Err())
-	time.Sleep(100 * time.Millisecond)
-	assert.Error(t, ctx.Err())
+func TestFixedPermitsTimeouts(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(1).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
+
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
+
+	stdCtx, cancel := stdctx.WithCancel(stdctx.Background())
+	cancel()
+	ctx = context.NewWithGoContext(stdCtx)
+
+	fp.Release(0)
+
+	err = fp.Acquire(ctx)
+	require.Error(t, err)
+
+	_, err = fp.TryAcquire(ctx)
+	require.Error(t, err)
 }

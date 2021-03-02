@@ -25,6 +25,10 @@ import "github.com/m3db/m3/src/x/context"
 
 // Options is the permit options.
 type Options interface {
+	// IndexQueryPermitsManager returns the index query permits manager.
+	IndexQueryPermitsManager() Manager
+	// SetIndexQueryPermitsManager sets the index query permits manager.
+	SetIndexQueryPermitsManager(manager Manager) Options
 	// SeriesReadPermitsManager returns the series read permits manager.
 	SeriesReadPermitsManager() Manager
 	// SetSeriesReadPermitsManager sets the series read permits manager.
@@ -46,7 +50,8 @@ type Permits interface {
 	// true if an resource was acquired.
 	TryAcquire(ctx context.Context) (bool, error)
 
-	// Release gives back one acquired permit from the specific permits instance.
+	// Release gives back one acquired permit from the specific permits instance. The user can pass an optional quota
+	// indicating how much of quota was used while holding the permit.
 	// Cannot release more permits than have been acquired.
-	Release()
+	Release(quota int64)
 }

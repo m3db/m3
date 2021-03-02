@@ -1092,9 +1092,10 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 
 	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
 
-	for n := 0; n < i.batchesAcquired; n++ {
-		i.blockPermits.Release()
+	for n := 0; n < i.batchesAcquired-1; n++ {
+		i.blockPermits.Release(int64(i.blocksPerBatch))
 	}
+	i.blockPermits.Release(int64(i.blocksPerBatch - i.blocksAvailable))
 }
 
 // IDResult is the FetchTagged result for a series ID.
