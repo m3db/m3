@@ -125,8 +125,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
-	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
+	readResult, err := Read(ctx, req, fetchOpts, h.opts)
 	if err != nil {
 		h.promReadMetrics.incError(err)
 		logger.Error("remote read query error",
@@ -422,7 +421,6 @@ func parseRequest(
 // Read performs a remote read on the given engine.
 func Read(
 	ctx context.Context,
-	cancelWatcher handler.CancelWatcher,
 	r *prompb.ReadRequest,
 	fetchOpts *storage.FetchOptions,
 	opts options.HandlerOptions,
@@ -463,11 +461,6 @@ func Read(
 				multiErr = multiErr.Add(err)
 				mu.Unlock()
 				return
-			}
-
-			// Detect clients closing connections.
-			if cancelWatcher != nil {
-				cancelWatcher.WatchForCancel(ctx, cancel)
 			}
 
 			result, err := engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
