@@ -26,11 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
@@ -231,12 +230,15 @@ func makeTestWrite(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false,
-		bootstrapper.NoOpAllBootstrapperName)
+	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false)
 	now := nodes[0].NowFn()()
 
 	for _, node := range nodes {
 		node.SetOpts(node.Opts().SetNumShards(numShards))
+		for _, ns := range node.Namespaces() {
+			// write empty data files to disk so nodes could bootstrap
+			writeTestDataToDisk(ns, node, generate.SeriesBlocksByStart{}, 0)
+		}
 	}
 
 	clientopts := client.NewOptions().
