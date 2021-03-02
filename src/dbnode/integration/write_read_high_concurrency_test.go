@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
@@ -54,12 +55,14 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 		numShards   = defaultNumShards
 		minShard    = uint32(0)
 		maxShard    = uint32(numShards - 1)
+		instances   = []services.ServiceInstance{
+			node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
+			node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
+			node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		}
 	)
-	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
-		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
-		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
-	})
+	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true,
+		uninitialized.UninitializedTopologyBootstrapperName, instances)
 	clientopts = clientopts.
 		SetWriteConsistencyLevel(topology.ConsistencyLevelAll).
 		SetReadConsistencyLevel(topology.ReadConsistencyLevelAll)
@@ -76,9 +79,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 	require.NoError(t, err)
 	defer session.Close()
 
-	var (
-		insertWg sync.WaitGroup
-	)
+	var insertWg sync.WaitGroup
 	now := nodes[0].DB().Options().ClockOptions().NowFn()()
 	start := time.Now()
 	log.Info("starting data write")
@@ -125,9 +126,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 	insertWg.Wait()
 	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
-	var (
-		fetchWg sync.WaitGroup
-	)
+	var fetchWg sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		fetchWg.Add(2)
 		idx := i
@@ -144,7 +143,6 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 						return false
 					}
 					return true
-
 				}, 10*time.Second)
 				if !found {
 					panic(fmt.Sprintf("timed out waiting to fetch id: %s", id))
