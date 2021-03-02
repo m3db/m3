@@ -271,3 +271,14 @@ func (p *Pipeline) FromProto(pb pipelinepb.AppliedPipeline) error {
 	}
 	return nil
 }
+
+// IsMappingRule returns whether this is a mapping rule, determined by
+// if any rollup pipelines are included.
+func (p Pipeline) IsMappingRule() bool {
+	for _, op := range p.operations {
+		if op.Rollup.ID != nil {
+			return false
+		}
+	}
+	return true
+}

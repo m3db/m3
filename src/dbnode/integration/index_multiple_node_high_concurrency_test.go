@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -66,12 +67,14 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				minShard := uint32(0)
 				maxShard := uint32(numShards - 1)
 
-				// nodes = m3db nodes
-				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, []services.ServiceInstance{
+				instances := []services.ServiceInstance{
 					node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 					node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 					node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
-				})
+				}
+				// nodes = m3db nodes
+				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true,
+					uninitialized.UninitializedTopologyBootstrapperName, instances)
 				clientopts = clientopts.SetReadConsistencyLevel(lvl)
 
 				defer closeFn()
