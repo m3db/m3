@@ -54,7 +54,6 @@ type Stream struct {
 	insertCursor             *Sample     // insertion cursor
 	compressCursor           *Sample     // compression cursor
 	compressMinRank          int64       // compression min rank
-	sampleBuf                []*Sample   // sample buffer
 	closed                   bool        // whether the stream is closed
 	flushed                  bool        // whether the stream is flushed
 }
@@ -70,15 +69,6 @@ func NewStream(opts Options) *Stream {
 		eps:                    opts.Eps(),
 		capacity:               opts.Capacity(),
 		insertAndCompressEvery: opts.InsertAndCompressEvery(),
-		sampleBuf:              make([]*Sample, opts.Capacity()),
-	}
-
-	for i := 0; i < len(s.sampleBuf); i++ {
-		sample, ok := samplePool.Get().(*Sample)
-		if !ok {
-			sample = &Sample{}
-		}
-		s.sampleBuf[i] = sample
 	}
 
 	return s
@@ -207,17 +197,6 @@ func (s *Stream) Close() {
 	s.bufMore.Reset()
 	s.bufLess.Reset()
 
-	//for curr := s.samples.Front(); curr != nil; {
-	//	next := curr.next
-	//	s.releaseSample(curr)
-	//	curr = next
-	//}
-	//
-	//for i := 0; i < len(s.sampleBuf); i++ {
-	//	samplePool.Put(s.sampleBuf[i])
-	//	s.sampleBuf[i] = nil
-	//}
-	//s.sampleBuf = s.sampleBuf[:0]
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil

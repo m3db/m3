@@ -20,10 +20,6 @@
 
 package cm
 
-import (
-	"sync"
-)
-
 // Sample represents a sampled value.
 type Sample struct {
 	value    float64 // sampled value
@@ -32,10 +28,4 @@ type Sample struct {
 	prev     *Sample // previous sample
 	next     *Sample // next sample
 	idx      int32
-}
-
-var samplePool = &sync.Pool{
-	New: func() interface{} {
-		return &Sample{}
-	},
 }
