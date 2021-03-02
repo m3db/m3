@@ -663,7 +663,10 @@ func TestDownsampleAndWriteBatchDropTimestamp(t *testing.T) {
 	mockMetricsAppender.
 		EXPECT().
 		SamplesAppender(zeroDownsamplerAppenderOpts).
-		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender, ShouldDropTimestamp: true}, nil).Times(1)
+		Return(downsample.SamplesAppenderResult{
+			SamplesAppender:     mockSamplesAppender,
+			ShouldDropTimestamp: true,
+		}, nil).Times(1)
 	mockMetricsAppender.
 		EXPECT().
 		SamplesAppender(zeroDownsamplerAppenderOpts).

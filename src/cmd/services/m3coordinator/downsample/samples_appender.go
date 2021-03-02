@@ -37,7 +37,6 @@ type samplesAppender struct {
 	agg          aggregator.Aggregator
 	clientRemote client.Client
 
-	dropTS          bool
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
 }

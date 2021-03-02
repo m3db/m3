@@ -537,7 +537,7 @@ func (a *metricsAppender) processTags(
 	id aggregation.ID,
 ) *tags {
 	// Create the prefix tags if any.
-	var tags = a.tags()
+	tags := a.tags()
 	for i, path := range graphitePrefix {
 		// Add the graphite prefix as the initial graphite tags.
 		tags.append(graphite.TagName(i), path)
