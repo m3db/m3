@@ -823,8 +823,11 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 	return iter, err
 }
 
-func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest, instrumentClose func(error)) (
-	FetchTaggedResultsIter, error) {
+func (s *service) fetchTaggedIter(
+	ctx context.Context,
+	req *rpc.FetchTaggedRequest,
+	instrumentClose func(error),
+) (FetchTaggedResultsIter, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -844,6 +847,11 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		return nil, convert.ToRPCError(err)
 	}
 
+	permits, err := s.seriesReadPermits.NewPermits(ctx)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
 	tagEncoder := s.pools.tagEncoder.Get()
 	ctx.RegisterFinalizer(tagEncoder)
 
@@ -857,7 +865,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
-		blockPermits:    s.seriesReadPermits.NewPermits(ctx),
+		blockPermits:    permits,
 		totalDocsCount:  queryResult.Results.TotalDocsCount(),
 		nowFn:           s.nowFn,
 		fetchStart:      startTime,
@@ -1084,9 +1092,10 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 
 	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
 
-	for n := 0; n < i.batchesAcquired; n++ {
-		i.blockPermits.Release()
+	for n := 0; n < i.batchesAcquired-1; n++ {
+		i.blockPermits.Release(int64(i.blocksPerBatch))
 	}
+	i.blockPermits.Release(int64(i.blocksPerBatch - i.blocksAvailable))
 }
 
 // IDResult is the FetchTagged result for a series ID.

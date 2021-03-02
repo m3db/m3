@@ -120,23 +120,29 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				}
 
 				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(context.NewBackground(), indexQuery,
-					queryOpts, uncachedResults, emptyLogFields)
+				ctx := context.NewBackground()
+				queryIter, err := uncachedBlock.QueryIter(ctx, indexQuery)
 				if err != nil {
-					return false, fmt.Errorf("error querying uncached block: %v", err)
+					return false, err
 				}
-				if !exhaustive {
-					return false, errors.New("querying uncached block was not exhaustive")
+				require.NoError(t, err)
+				for !queryIter.Done() {
+					err = uncachedBlock.QueryWithIter(ctx,
+						queryOpts, queryIter, uncachedResults, time.Now().Add(time.Millisecond * 10), emptyLogFields)
+					if err != nil {
+						return false, fmt.Errorf("error querying uncached block: %v", err)
+					}
 				}
 
 				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(context.NewBackground(), indexQuery,
-					queryOpts, cachedResults, emptyLogFields)
-				if err != nil {
-					return false, fmt.Errorf("error querying cached block: %v", err)
-				}
-				if !exhaustive {
-					return false, errors.New("querying cached block was not exhaustive")
+				ctx = context.NewBackground()
+				queryIter, err = cachedBlock.QueryIter(ctx, indexQuery)
+				for !queryIter.Done() {
+					err = cachedBlock.QueryWithIter(ctx, queryOpts, queryIter, cachedResults,
+						time.Now().Add(time.Millisecond * 10), emptyLogFields)
+					if err != nil {
+						return false, fmt.Errorf("error querying cached block: %v", err)
+					}
 				}
 
 				uncachedMap := uncachedResults.Map()
@@ -362,17 +368,23 @@ func TestAggregateDocLimits(t *testing.T) {
 			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
-			exhaustive, err := b.Aggregate(
-				ctx,
-				QueryOptions{},
-				results,
-				emptyLogFields)
-
+			aggIter, err := b.AggregateIter(ctx, results.AggregateResultsOptions())
 			if err != nil {
 				return false, err
 			}
+			for !aggIter.Done() {
+				err = b.AggregateWithIter(
+					ctx,
+					aggIter,
+					QueryOptions{},
+					results,
+					time.Now().Add(time.Millisecond * 10),
+					emptyLogFields)
 
-			require.True(t, exhaustive, errors.New("not exhaustive"))
+				if err != nil {
+					return false, err
+				}
+			}
 			verifyResults(t, results, testSegment.segmentMap)
 			snap := scope.Snapshot()
 			tallytest.AssertCounterValue(t, testSegment.exCount, snap,

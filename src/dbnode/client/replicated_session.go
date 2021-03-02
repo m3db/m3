@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -362,6 +363,13 @@ func (s *replicatedSession) BorrowConnections(
 	opts BorrowConnectionOptions,
 ) (BorrowConnectionsResult, error) {
 	return s.session.BorrowConnections(shardID, fn, opts)
+}
+
+func (s *replicatedSession) DedicatedConnection(
+	shardID uint32,
+	opts DedicatedConnectionOptions,
+) (rpc.TChanNode, Channel, error) {
+	return s.session.DedicatedConnection(shardID, opts)
 }
 
 // Open the client session.

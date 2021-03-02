@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -223,14 +225,14 @@ func makeTestWrite(
 	numShards int,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testWriteFn) {
-
 	nsOpts := namespace.NewOptions()
 	md, err := namespace.NewMetadata(testNamespaces[0],
 		nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)))
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false)
+	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false,
+		bootstrapper.NoOpAllBootstrapperName)
 	now := nodes[0].NowFn()()
 
 	for _, node := range nodes {

@@ -201,7 +201,7 @@ func (p *fakePermits) TryAcquire(_ context.Context) (bool, error) {
 	return true, nil
 }
 
-func (p *fakePermits) Release() {
+func (p *fakePermits) Release(_ int64) {
 	p.released++
 	p.available++
 }

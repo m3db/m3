@@ -90,13 +90,12 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/m3dbx/vellum/levenshtein"
 	"github.com/m3dbx/vellum/levenshtein2"
 	"github.com/m3dbx/vellum/regexp"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
@@ -371,14 +370,6 @@ func Run(runOpts RunOptions) {
 
 	opentracing.SetGlobalTracer(tracer)
 
-	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
-		queryIDsWorkerPool.Init()
-		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
-	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
-	}
-
 	// Set global index options.
 	if n := cfg.Index.RegexpDFALimitOrDefault(); n > 0 {
 		regexp.SetStateLimit(n)
@@ -481,13 +472,14 @@ func Run(runOpts RunOptions) {
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	var permitOptions permits.Options
-	if permitOptions = runOpts.StorageOptions.PermitOptions; permitOptions != nil {
-		opts = opts.SetPermitsOptions(permitOptions)
+	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
+	if cfg.Index.MaxQueryIDsConcurrency != 0 {
+		permitOptions = permitOptions.SetIndexQueryPermitsManager(
+			permits.NewFixedPermitsManager(cfg.Index.MaxQueryIDsConcurrency))
 	} else {
-		opts = opts.SetPermitsOptions(opts.PermitsOptions().
-			SetSeriesReadPermitsManager(seriesReadPermits))
+		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
+	opts = opts.SetPermitsOptions(permitOptions)
 
 	// Setup postings list cache.
 	var (
@@ -529,6 +521,11 @@ func Run(runOpts RunOptions) {
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
+
+	if cfg.Index.MaxWorkerTime > 0 {
+		indexOpts = indexOpts.SetMaxWorkerTime(cfg.Index.MaxWorkerTime)
+	}
+
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {

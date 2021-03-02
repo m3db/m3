@@ -26,17 +26,73 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
+	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestPeersBootstrapSingleNode makes sure that we can include the peer bootstrapper
-// in a single-node topology without causing a bootstrap failure or infinite hang.
-func TestPeersBootstrapSingleNode(t *testing.T) {
+// TestPeersBootstrapSingleNodeUninitialized makes sure that we can include the peer bootstrapper
+// in a single-node topology of a non-initialized cluster without causing a bootstrap failure or infinite hang.
+func TestPeersBootstrapSingleNodeUninitialized(t *testing.T) {
+	opts := NewTestOptions(t)
+
+	// Define a topology with initializing shards
+	minShard := uint32(0)
+	maxShard := uint32(opts.NumShards()) - uint32(1)
+	instances := []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
+	}
+
+	hostShardSets := []topology.HostShardSet{}
+	for _, instance := range instances {
+		h, err := topology.NewHostShardSetFromServiceInstance(instance, sharding.DefaultHashFn(opts.NumShards()))
+		require.NoError(t, err)
+		hostShardSets = append(hostShardSets, h)
+	}
+
+	shards := testutil.ShardsRange(minShard, maxShard, shard.Initializing)
+	shardSet, err := sharding.NewShardSet(
+		shards,
+		sharding.DefaultHashFn(int(maxShard)),
+	)
+	require.NoError(t, err)
+
+	topoOpts := topology.NewStaticOptions().
+		SetReplicas(len(instances)).
+		SetHostShardSets(hostShardSets).
+		SetShardSet(shardSet)
+	topoInit := topology.NewStaticInitializer(topoOpts)
+
+	setupOpts := []BootstrappableTestSetupOptions{
+		{
+			DisablePeersBootstrapper: false,
+			TopologyInitializer:      topoInit,
+			// This will bootstrap w/ unfulfilled ranges.
+			FinalBootstrapper: uninitialized.UninitializedTopologyBootstrapperName,
+		},
+	}
+	testPeersBootstrapSingleNode(t, setupOpts)
+}
+
+// TestPeersBootstrapSingleNodeInitialized makes sure that we can include the peer bootstrapper
+// in a single-node topology of already initialized cluster without causing a bootstrap failure or infinite hang.
+func TestPeersBootstrapSingleNodeInitialized(t *testing.T) {
+	setupOpts := []BootstrappableTestSetupOptions{
+		{DisablePeersBootstrapper: false},
+	}
+	testPeersBootstrapSingleNode(t, setupOpts)
+}
+
+func testPeersBootstrapSingleNode(t *testing.T, setupOpts []BootstrappableTestSetupOptions) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -57,9 +113,6 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 		SetUseTChannelClientForWriting(true).
 		SetUseTChannelClientForReading(true)
 
-	setupOpts := []BootstrappableTestSetupOptions{
-		{DisablePeersBootstrapper: false},
-	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
