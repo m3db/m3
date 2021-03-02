@@ -1007,9 +1007,15 @@ type databaseMediator interface {
 	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
 }
 
+// ColdFlushNsOpts are options for OnColdFlush.ColdFlushNamespace.
+type ColdFlushNsOpts interface {
+	// ReuseResources enables reuse of per-namespace reusable resources.
+	ReuseResources() bool
+}
+
 // OnColdFlush can perform work each time a series is flushed.
 type OnColdFlush interface {
-	ColdFlushNamespace(ns Namespace, reuseResources bool) (OnColdFlushNamespace, error)
+	ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts) (OnColdFlushNamespace, error)
 }
 
 // OnColdFlushNamespace performs work on a per namespace level.
