@@ -18,38 +18,64 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package permits
+package index
 
-import "github.com/m3db/m3/src/x/context"
+import (
+	"time"
 
-type noOpPermits struct {
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/context"
+)
+
+type queryIter struct {
+	// immutable state
+	docIter doc.QueryDocIterator
+
+	// mutable state
+	seriesCount, docCount int
 }
 
-var _ Manager = (*noOpPermits)(nil)
+var _ QueryIterator = &queryIter{}
 
-var _ Permits = (*noOpPermits)(nil)
-
-// NewNoOpPermitsManager builds a new no-op permits manager.
-func NewNoOpPermitsManager() Manager {
-	return &noOpPermits{}
+// NewQueryIter wraps the provided QueryDocIterator as a QueryIterator
+func NewQueryIter(docIter doc.QueryDocIterator) QueryIterator {
+	return &queryIter{
+		docIter: docIter,
+	}
 }
 
-// NewNoOpPermits builds a new no-op permits.
-func NewNoOpPermits() Permits {
-	return &noOpPermits{}
+func (q *queryIter) Done() bool {
+	return q.docIter.Done()
 }
 
-func (p noOpPermits) NewPermits(context.Context) (Permits, error) {
-	return p, nil
+func (q *queryIter) Next(_ context.Context) bool {
+	return q.docIter.Next()
 }
 
-func (p noOpPermits) Acquire(context.Context) error {
-	return nil
+func (q *queryIter) Err() error {
+	return q.docIter.Err()
 }
 
-func (p noOpPermits) TryAcquire(context.Context) (bool, error) {
-	return true, nil
+func (q *queryIter) SearchDuration() time.Duration {
+	return q.docIter.SearchDuration()
 }
 
-func (p noOpPermits) Release(_ int64) {
+func (q *queryIter) Close() error {
+	return q.docIter.Close()
+}
+
+func (q *queryIter) AddSeries(count int) {
+	q.seriesCount += count
+}
+
+func (q *queryIter) AddDocs(count int) {
+	q.docCount += count
+}
+
+func (q *queryIter) Counts() (series, docs int) {
+	return q.seriesCount, q.docCount
+}
+
+func (q *queryIter) Current() doc.Document {
+	return q.docIter.Current()
 }

@@ -400,22 +400,29 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 	ctx := context.NewWithGoContext(stdCtx)
 	defer ctx.Close()
 
+	mockIter := index.NewMockQueryIterator(ctrl)
+	mockIter.EXPECT().Done().Return(false).Times(2)
+	mockIter.EXPECT().SearchDuration().Return(time.Minute * 1)
+	mockIter.EXPECT().Close().Return(nil)
+
 	mockBlock := index.NewMockBlock(ctrl)
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	blockTime := now.Add(-1 * test.indexBlockSize)
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
+	mockBlock.EXPECT().QueryIter(gomock.Any(), gomock.Any()).Return(mockIter, nil)
 	mockBlock.EXPECT().
-		Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		QueryWithIter(gomock.Any(), gomock.Any(), mockIter, gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			ctx context.Context,
-			q index.Query,
 			opts index.QueryOptions,
+			iter index.QueryIterator,
 			r index.QueryResults,
+			deadline time.Time,
 			logFields []opentracinglog.Field,
-		) (bool, error) {
+		) error {
 			<-ctx.GoContext().Done()
-			return false, ctx.GoContext().Err()
+			return ctx.GoContext().Err()
 		})
 	mockBlock.EXPECT().Close().Return(nil)
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock

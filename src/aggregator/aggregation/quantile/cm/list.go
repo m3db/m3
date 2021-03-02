@@ -26,16 +26,17 @@ var (
 
 // sampleList is a list of samples.
 type sampleList struct {
-	head *Sample
-	tail *Sample
-	len  int
+	head    *Sample
+	tail    *Sample
+	samples []Sample
+	free    []int32
 }
 
 // Empty returns true if the list is empty.
-func (l *sampleList) Empty() bool { return l.len == 0 }
+func (l *sampleList) Empty() bool { return len(l.samples) == 0 }
 
 // Len returns the number of samples in the list.
-func (l *sampleList) Len() int { return l.len }
+func (l *sampleList) Len() int { return len(l.samples) - len(l.free) }
 
 // Front returns the first sample in the list.
 func (l *sampleList) Front() *Sample { return l.head }
@@ -44,7 +45,14 @@ func (l *sampleList) Front() *Sample { return l.head }
 func (l *sampleList) Back() *Sample { return l.tail }
 
 // Reset resets the list.
-func (l *sampleList) Reset() { *l = emptySampleList }
+func (l *sampleList) Reset() {
+	for i := range l.samples {
+		l.samples[i].next, l.samples[i].prev = nil, nil
+	}
+	l.samples = l.samples[:0]
+	l.free = l.free[:0]
+	l.head, l.tail = nil, nil
+}
 
 // PushBack pushes a sample to the end of the list.
 func (l *sampleList) PushBack(sample *Sample) {
@@ -55,8 +63,8 @@ func (l *sampleList) PushBack(sample *Sample) {
 	} else {
 		l.tail.next = sample
 	}
+
 	l.tail = sample
-	l.len++
 }
 
 // InsertBefore inserts a sample before the mark.
@@ -73,13 +81,13 @@ func (l *sampleList) InsertBefore(sample *Sample, mark *Sample) {
 	mark.prev = sample
 	sample.next = mark
 	sample.prev = prev
-	l.len++
 }
 
 // Remove removes a sample from the list.
 func (l *sampleList) Remove(sample *Sample) {
 	prev := sample.prev
 	next := sample.next
+	l.release(sample)
 	if prev == nil {
 		l.head = next
 	} else {
@@ -90,5 +98,31 @@ func (l *sampleList) Remove(sample *Sample) {
 	} else {
 		next.prev = prev
 	}
-	l.len--
+}
+
+func (l *sampleList) Acquire() *Sample {
+	idx := 0
+
+	if len(l.free) > 0 {
+		idx = int(l.free[len(l.free)-1])
+		l.free = l.free[:len(l.free)-1]
+		return &l.samples[idx]
+	}
+
+	if len(l.samples) < cap(l.samples) {
+		l.samples = l.samples[:len(l.samples)+1]
+	} else {
+		l.samples = append(l.samples, Sample{})
+	}
+
+	idx = len(l.samples) - 1
+	s := &l.samples[idx]
+	s.idx = int32(idx)
+	return s
+}
+
+func (l *sampleList) release(sample *Sample) {
+	idx := sample.idx
+	sample.next, sample.prev = nil, nil
+	l.free = append(l.free, idx)
 }

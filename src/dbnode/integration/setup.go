@@ -131,10 +131,8 @@ type testSetup struct {
 	namespaces     []namespace.Metadata
 
 	// signals
-	doneCh chan struct {
-	}
-	closedCh chan struct {
-	}
+	doneCh   chan struct{}
+	closedCh chan struct{}
 }
 
 // TestSetup is a test setup.
@@ -1086,6 +1084,7 @@ func newNodes(
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
 	asyncInserts bool,
+	finalBootstrapperName string,
 ) (testSetups, topology.Initializer, closeFn) {
 	var (
 		log  = zap.L()
@@ -1111,7 +1110,7 @@ func newNodes(
 
 	nodeOpt := BootstrappableTestSetupOptions{
 		DisablePeersBootstrapper: true,
-		FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		FinalBootstrapper:        finalBootstrapperName,
 		TopologyInitializer:      topoInit,
 	}
 
