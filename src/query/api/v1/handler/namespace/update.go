@@ -64,7 +64,7 @@ var (
 		fieldNameRetentionOptions:   {},
 		fieldNameRuntimeOptions:     {},
 		fieldNameAggregationOptions: {},
-		fieldNameExtendedOptions: 	 {},
+		fieldNameExtendedOptions:    {},
 	}
 )
 
