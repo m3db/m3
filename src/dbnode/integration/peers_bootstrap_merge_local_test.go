@@ -79,9 +79,10 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 				UseTChannelClientForWriting: true,
 			},
 			{
-				DisablePeersBootstrapper:    false,
-				UseTChannelClientForWriting: true,
-				TestStatsReporter:           reporter,
+				DisableCommitLogBootstrapper: true,
+				DisablePeersBootstrapper:     false,
+				UseTChannelClientForWriting:  true,
+				TestStatsReporter:            reporter,
 			},
 		}
 	)

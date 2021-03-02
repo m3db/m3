@@ -20,14 +20,22 @@
 
 package permits
 
+import (
+	"math"
+	"runtime"
+)
+
 type options struct {
 	seriesReadManager Manager
+	indexQueryManager Manager
 }
 
 // NewOptions return a new set of default permit managers.
 func NewOptions() Options {
 	return &options{
 		seriesReadManager: NewNoOpPermitsManager(),
+		// Default to using half of the available cores for querying IDs
+		indexQueryManager: NewFixedPermitsManager(int(math.Ceil(float64(runtime.NumCPU()) / 2))),
 	}
 }
 
@@ -41,4 +49,14 @@ func (o *options) SetSeriesReadPermitsManager(value Manager) Options {
 // SeriesReadPermitsManager returns the series read permits manager.
 func (o *options) SeriesReadPermitsManager() Manager {
 	return o.seriesReadManager
+}
+
+func (o *options) IndexQueryPermitsManager() Manager {
+	return o.indexQueryManager
+}
+
+func (o *options) SetIndexQueryPermitsManager(value Manager) Options {
+	opts := *o
+	opts.indexQueryManager = value
+	return &opts
 }

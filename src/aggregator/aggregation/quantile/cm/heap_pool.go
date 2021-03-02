@@ -26,8 +26,8 @@ import (
 
 const (
 	// create buckets of 64, 256, 1024, 4096, 16484, 65536 floats
-	_initialHeapBucketSize      = 16
-	_heapSizeBuckets            = 7
+	_initialHeapBucketSize      = 64
+	_heapSizeBuckets            = 6
 	_heapSizeBucketGrowthFactor = 4
 )
 
@@ -85,21 +85,14 @@ makeNew:
 }
 
 func (p heapPool) Put(value minHeap) {
-	if value == nil {
-		return
-	}
 	size := cap(value)
-	if size == 0 {
-		return
-	}
-
-	for i := range p.sizes {
+	for i := 0; i < len(p.sizes); i++ {
 		if p.sizes[i] < size {
 			continue
 		}
-
+		pool := p.pools[i]
 		value = value[:0]
-		p.pools[i].Put(&value)
+		pool.Put(&value)
 		return
 	}
 }
