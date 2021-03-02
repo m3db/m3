@@ -346,7 +346,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		// Apply the customer tags first so that they apply even if mapping
+		// Apply the custom tags first so that they apply even if mapping
 		// rules drop the metric.
 		dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
 
