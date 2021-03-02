@@ -93,7 +93,7 @@ func (s *Stream) AddBatch(values []float64) {
 	}
 
 	if s.samples.Len() == 0 {
-		sample := s.tryAcquireSample()
+		sample := s.samples.Acquire()
 		sample.value = values[0]
 		sample.numRanks = 1
 		sample.delta = 0
@@ -207,17 +207,17 @@ func (s *Stream) Close() {
 	s.bufMore.Reset()
 	s.bufLess.Reset()
 
-	for curr := s.samples.Front(); curr != nil; {
-		next := curr.next
-		s.releaseSample(curr)
-		curr = next
-	}
-
-	for i := 0; i < len(s.sampleBuf); i++ {
-		samplePool.Put(s.sampleBuf[i])
-		s.sampleBuf[i] = nil
-	}
-	s.sampleBuf = s.sampleBuf[:0]
+	//for curr := s.samples.Front(); curr != nil; {
+	//	next := curr.next
+	//	s.releaseSample(curr)
+	//	curr = next
+	//}
+	//
+	//for i := 0; i < len(s.sampleBuf); i++ {
+	//	samplePool.Put(s.sampleBuf[i])
+	//	s.sampleBuf[i] = nil
+	//}
+	//s.sampleBuf = s.sampleBuf[:0]
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
@@ -320,7 +320,7 @@ func (s *Stream) insert() {
 		insertPointValue = curr.value
 
 		for s.bufMore.Len() > 0 && s.bufMore.Min() <= insertPointValue {
-			sample = s.tryAcquireSample()
+			sample = s.samples.Acquire()
 			val := s.bufMore.Pop()
 			sample.value = val
 			sample.numRanks = 1
@@ -342,7 +342,7 @@ func (s *Stream) insert() {
 	}
 
 	for s.bufMore.Len() > 0 && s.bufMore.Min() >= samples.Back().value {
-		sample = s.tryAcquireSample()
+		sample = s.samples.Acquire()
 		sample.value = s.bufMore.Pop()
 		sample.numRanks = 1
 		sample.delta = 0
@@ -381,8 +381,8 @@ func (s *Stream) compress() {
 			next.numRanks += s.compressCursor.numRanks
 
 			prev := s.compressCursor.prev
+			// no need to release sample here
 			s.samples.Remove(s.compressCursor)
-			s.releaseSample(s.compressCursor)
 			s.compressCursor = prev
 		} else {
 			s.compressCursor = s.compressCursor.prev
@@ -420,35 +420,4 @@ func (s *Stream) threshold(rank int64) int64 {
 func (s *Stream) resetInsertCursor() {
 	s.bufLess, s.bufMore = s.bufMore, s.bufLess
 	s.insertCursor = s.samples.Front()
-}
-
-func (s *Stream) tryAcquireSample() *Sample {
-	l := len(s.sampleBuf)
-
-	if l == 0 {
-		return s.acquireSample()
-	}
-
-	sample := s.sampleBuf[l-1]
-	s.sampleBuf = s.sampleBuf[:l-1]
-	return sample
-}
-
-func (s *Stream) acquireSample() *Sample {
-	capacity := s.capacity
-	s.sampleBuf = s.sampleBuf[:capacity]
-	for i := 0; i < capacity; i++ {
-		sample, ok := samplePool.Get().(*Sample)
-		if !ok {
-			return &Sample{}
-		}
-		s.sampleBuf[i] = sample
-	}
-
-	return samplePool.Get().(*Sample)
-}
-
-func (s *Stream) releaseSample(sample *Sample) {
-	(*sample) = Sample{}
-	s.sampleBuf = append(s.sampleBuf, sample)
 }

@@ -31,6 +31,7 @@ type Sample struct {
 	delta    int64   // delta between min rank and max rank
 	prev     *Sample // previous sample
 	next     *Sample // next sample
+	idx      int32
 }
 
 var samplePool = &sync.Pool{
