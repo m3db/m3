@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -481,18 +480,13 @@ type databaseNamespace interface {
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
-// must make sure to release
+// must make sure to release the read/write reference by calling
+// release on the resolver.
 type SeriesReadWriteRef struct {
-	// Series reference for read/writing.
-	Series bootstrap.SeriesRef
-	// UniqueIndex is the unique index of the series (as applicable).
-	UniqueIndex uint64
+	// Resolver resolves the reference for read/writing.
+	Resolver bootstrap.SeriesRefResolver
 	// Shard is the shard of the series.
 	Shard uint32
-	// ReleaseReadWriteRef must be called after using the series ref
-	// to release the reference count to the series so it can
-	// be expired by the owning shard eventually.
-	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
 }
 
 // Shard is a time series database shard.

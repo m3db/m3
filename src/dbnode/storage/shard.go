@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -1060,44 +1061,106 @@ func (s *dbShard) SeriesReadWriteRef(
 	if entry != nil {
 		// The read/write ref is already incremented.
 		return SeriesReadWriteRef{
-			Series:              entry,
-			Shard:               s.shard,
-			UniqueIndex:         entry.Index,
-			ReleaseReadWriteRef: entry,
+			Resolver: &seriesStaticResolver{
+				entry: entry,
+			},
+			Shard: s.shard,
 		}, nil
 	}
 
-	// NB(r): Insert synchronously so caller has access to the series
-	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
-	// may have no effect if a collision with the same series
-	// being put in the insert queue may cause a block to be loaded to a
-	// series which gets discarded.
-	// TODO(r): Probably can't insert series sync otherwise we stall a ton
-	// of writes... need a better solution for bootstrapping.
-	// This is what can cause writes to degrade during bootstrap if
-	// write lock is super contended.
-	// Having said that, now that writes are kept in a separate "bootstrap"
-	// buffer in the series itself to normal writes then merged at end of
-	// bootstrap it somewhat mitigates some lock contention since the shard
-	// lock is still contended but at least series writes due to commit log
-	// bootstrapping do not interrupt normal writes waiting for ability
-	// to write to an individual series.
-	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
-		insertType: insertSyncIncReaderWriterCount,
-		// NB(bodu): We transparently index in the series ref when
-		// bootstrapping now instead of when grabbing a ref.
-		hasPendingIndex: false,
+	result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
+		// skipRateLimit for true since this method is used by bootstrapping
+		// and should not be rate limited.
+		skipRateLimit:            true,
+		entryRefCountIncremented: true,
 	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
 
+	// Series will wait for the result to be batched together and inserted.
 	return SeriesReadWriteRef{
-		Series:              entry,
-		Shard:               s.shard,
-		UniqueIndex:         entry.Index,
-		ReleaseReadWriteRef: entry,
+		Resolver: &seriesResolver{
+			insertAsyncResult: result,
+			shard:             s,
+		},
+		Shard: s.shard,
 	}, nil
+}
+
+type seriesStaticResolver struct {
+	entry *lookup.Entry
+}
+
+func (r *seriesStaticResolver) SeriesRef() (bootstrap.SeriesRef, error) {
+	return r.entry.Series, nil
+}
+
+func (r *seriesStaticResolver) ReleaseRef() error {
+	r.entry.OnReleaseReadWriteRef()
+	return nil
+}
+
+type seriesResolver struct {
+	sync.RWMutex
+
+	insertAsyncResult insertAsyncResult
+	shard             *dbShard
+
+	resolved       bool
+	resolvedResult error
+	entry          *lookup.Entry
+}
+
+func (r *seriesResolver) resolve() error {
+	r.RLock()
+	alreadyResolved := r.resolved
+	resolvedResult := r.resolvedResult
+	r.RUnlock()
+
+	if alreadyResolved {
+		return resolvedResult
+	}
+
+	r.Lock()
+	defer r.Unlock()
+
+	if r.resolved {
+		return r.resolvedResult
+	}
+
+	r.resolved = true
+	r.insertAsyncResult.wg.Wait()
+
+	// Retrieve the inserted entry
+	id := r.insertAsyncResult.copiedID
+	entry, _, err := r.shard.tryRetrieveWritableSeries(id)
+	if err != nil {
+		r.resolvedResult = err
+		return r.resolvedResult
+	}
+	if entry == nil {
+		r.resolvedResult = fmt.Errorf("could not resolve: %s", id)
+		return r.resolvedResult
+	}
+
+	r.entry = entry
+	return nil
+}
+
+func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
+	if err := r.resolve(); err != nil {
+		return nil, err
+	}
+	return r.entry.Series, nil
+}
+
+func (r *seriesResolver) ReleaseRef() error {
+	if err := r.resolve(); err != nil {
+		return err
+	}
+	r.entry.OnReleaseReadWriteRef()
+	return nil
 }
 
 func (s *dbShard) ReadEncoded(
