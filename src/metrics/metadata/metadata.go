@@ -22,7 +22,6 @@ package metadata
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
@@ -269,11 +268,10 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 	return result, RemovedIneffectiveDropPoliciesResult
 }
 
-// ApplyCustomTags.applies custom M3 tags.
+// ApplyCustomTags applies custom M3 tags.
 func (metadatas PipelineMetadatas) ApplyCustomTags() (
 	dropTimestamp bool,
 ) {
-	fmt.Printf("applying custom tags\n")
 	// Go over metadatas and process M3 custom tags.
 	for i := range metadatas {
 		for j := range metadatas[i].Tags {
