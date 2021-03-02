@@ -21,9 +21,13 @@
 package metadata
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
@@ -263,6 +267,24 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 	}
 
 	return result, RemovedIneffectiveDropPoliciesResult
+}
+
+// ApplyCustomTags.applies custom M3 tags.
+func (metadatas PipelineMetadatas) ApplyCustomTags() (
+	dropTimestamp bool,
+) {
+	fmt.Printf("applying custom tags\n")
+	// Go over metadatas and process M3 custom tags.
+	for i := range metadatas {
+		for j := range metadatas[i].Tags {
+			// If any metadata has the drop timestamp tag, then return that we
+			// should send untimed metrics to the aggregator.
+			if bytes.Equal(metadatas[i].Tags[j].Name, metric.M3MetricsDropTimestamp) {
+				dropTimestamp = true
+			}
+		}
+	}
+	return
 }
 
 // Metadata represents the metadata associated with a metric.
