@@ -46,6 +46,9 @@ func (l *sampleList) Back() *Sample { return l.tail }
 
 // Reset resets the list.
 func (l *sampleList) Reset() {
+	for i := range l.samples {
+		l.samples[i].next, l.samples[i].prev = nil, nil
+	}
 	l.samples = l.samples[:0]
 	l.free = l.free[:0]
 	l.head, l.tail = nil, nil
