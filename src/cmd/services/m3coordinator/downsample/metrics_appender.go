@@ -346,11 +346,12 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
+		// Apply the customer tags first so that they apply even if mapping
+		// rules drop the metric.
+		dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
+
 		// Apply drop policies results
 		a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
-
-		// Apply the customer tags after applying drop policies.
-		dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
 
 		if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
 			// Send to downsampler if we have something in the pipeline.
