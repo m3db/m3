@@ -137,6 +137,32 @@ func TestFetchResultIterTestForceBlocksPerBatch(t *testing.T) {
 	require.Equal(t, 1, downcast.blocksPerBatch)
 }
 
+func TestFetchResultIterTestNoReleaseWithoutAcquire(t *testing.T) {
+	blockPermits := &fakePermits{available: 10}
+	emptyMap := index.NewQueryResults(ident.StringID("testNs"), index.QueryResultsOptions{}, testIndexOptions)
+	scope := tally.NewTestScope("", map[string]string{})
+	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
+		queryResult: index.QueryResult{
+			Results: emptyMap,
+		},
+		blockPermits:    blockPermits,
+		blocksPerBatch:  1000,
+		nowFn:           time.Now,
+		instrumentClose: func(err error) {},
+		dataReadMetrics: index.NewQueryMetrics("", scope),
+		totalMetrics:    index.NewQueryMetrics("", scope),
+		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
+	})
+	ctx := context.NewBackground()
+	for iter.Next(ctx) {
+	}
+	require.NoError(t, iter.Err())
+	iter.Close(nil)
+
+	require.Equal(t, 0, blockPermits.acquired)
+	require.Equal(t, 0, blockPermits.released)
+}
+
 func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
 	values, ok := scope.Snapshot().Histograms()["series-blocks+"]
 	require.True(t, ok)
