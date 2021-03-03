@@ -1544,9 +1544,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicy(t *testing
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicyAndDropTimestamp(t *testing.T) {Shreyas Srivatsan, 16 hours ago: • [coordinator] make drop timestamp apply to th…
+func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicyAndDropTimestamp(t *testing.T) {
 	t.Parallel()
-
 
 	gaugeMetrics := []testGaugeMetric{
 		{
@@ -1640,7 +1639,6 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicyAndDropTime
 			},
 		},
 	})
-
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
