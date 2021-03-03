@@ -920,7 +920,7 @@ func (o *options) TileAggregator() TileAggregator {
 
 type noOpColdFlush struct{}
 
-func (n *noOpColdFlush) ColdFlushNamespace(Namespace) (OnColdFlushNamespace, error) {
+func (n *noOpColdFlush) ColdFlushNamespace(Namespace, ColdFlushNsOpts) (OnColdFlushNamespace, error) {
 	return &persist.NoOpColdFlushNamespace{}, nil
 }
 

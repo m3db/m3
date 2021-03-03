@@ -189,7 +189,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// filter out augmented metrics tags
 	tags.filterPrefix(metric.M3MetricsPrefix)
 
-	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
+	var (
+		dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
+		dropTimestamp   bool
+	)
 	if opts.Override {
 		// Reuse a slice to keep the current staged metadatas we will apply.
 		a.curr.Pipelines = a.curr.Pipelines[:0]
@@ -343,6 +346,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
+		// Apply the custom tags first so that they apply even if mapping
+		// rules drop the metric.
+		dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
+
 		// Apply drop policies results
 		a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
 
@@ -375,6 +382,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
 		IsDropPolicyApplied: dropPolicyApplied,
+		ShouldDropTimestamp: dropTimestamp,
 	}, nil
 }
 
@@ -476,12 +484,12 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 			continue
 		}
 
-		tags, dropTS := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		tags := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm, dropTS)
+		appender, err := a.newSamplesAppender(tags, sm)
 		if err != nil {
 			return err
 		}
@@ -495,7 +503,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 
-	appender, err := a.newSamplesAppender(originalTags, sm, false)
+	appender, err := a.newSamplesAppender(originalTags, sm)
 	if err != nil {
 		return err
 	}
@@ -506,7 +514,6 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	sm metadata.StagedMetadata,
-	dropTS bool,
 ) (samplesAppender, error) {
 	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
@@ -519,7 +526,6 @@ func (a *metricsAppender) newSamplesAppender(
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		dropTS:          dropTS,
 		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
 	}, nil
@@ -530,12 +536,9 @@ func (a *metricsAppender) processTags(
 	graphitePrefix [][]byte,
 	t []models.Tag,
 	id aggregation.ID,
-) (*tags, bool) {
+) *tags {
 	// Create the prefix tags if any.
-	var (
-		tags   = a.tags()
-		dropTS bool
-	)
+	tags := a.tags()
 	for i, path := range graphitePrefix {
 		// Add the graphite prefix as the initial graphite tags.
 		tags.append(graphite.TagName(i), path)
@@ -584,11 +587,9 @@ func (a *metricsAppender) processTags(
 				value = types[0].Name()
 			)
 			tags.append(name, value)
-		} else if bytes.Equal(tag.Name, metric.M3MetricsDropTimestamp) {
-			dropTS = true
 		}
 	}
-	return tags, dropTS
+	return tags
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {

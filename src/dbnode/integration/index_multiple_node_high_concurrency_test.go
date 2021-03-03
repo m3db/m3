@@ -66,12 +66,13 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				minShard := uint32(0)
 				maxShard := uint32(numShards - 1)
 
-				// nodes = m3db nodes
-				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, []services.ServiceInstance{
+				instances := []services.ServiceInstance{
 					node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 					node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 					node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
-				})
+				}
+				// nodes = m3db nodes
+				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, instances)
 				clientopts = clientopts.SetReadConsistencyLevel(lvl)
 
 				defer closeFn()
