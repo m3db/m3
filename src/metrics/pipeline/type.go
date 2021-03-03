@@ -46,7 +46,7 @@ const (
 	templateMetricNameVar        = ".MetricName"
 	templateOpen                 = "{{"
 	templateClose                = "}}"
-	templateMetricNameExactMatch = templateOpen + " " + templateMetricNameVar + " " + templateOpen
+	templateMetricNameExactMatch = templateOpen + " " + templateMetricNameVar + " " + templateClose
 )
 
 var (
@@ -289,7 +289,7 @@ func (op RollupOp) NewName(currName []byte) []byte {
 
 	out = append(out, op.newName[0:idx]...)
 	out = append(out, currName...)
-	out = append(out, op.newName[idx+len(templateMetricNameExactMatchBytes)+1:]...)
+	out = append(out, op.newName[idx+len(templateMetricNameExactMatchBytes):]...)
 	return out
 }
 

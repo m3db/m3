@@ -1644,13 +1644,13 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicyAndDropTime
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeBySum(t *testing.T) {
+func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastMean(t *testing.T) {
 	t.Parallel()
 
 	gaugeMetrics := []testGaugeMetric{
 		{
 			tags: map[string]string{
-				nameTag:       "http_requests",
+				nameTag:       "http_request_latency_max_gauge",
 				"app":         "nginx_edge",
 				"status_code": "500",
 				"endpoint":    "/foo/bar",
@@ -1662,7 +1662,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeBySum(t *testing
 		},
 		{
 			tags: map[string]string{
-				nameTag:       "http_requests",
+				nameTag:       "http_request_latency_max_gauge",
 				"app":         "nginx_edge",
 				"status_code": "500",
 				"endpoint":    "/foo/bar",
@@ -1680,14 +1680,19 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeBySum(t *testing
 			RollupRules: []RollupRuleConfiguration{
 				{
 					Filter: fmt.Sprintf(
-						"%s:http_requests app:* status_code:* endpoint:*",
+						"%s:http_request_latency_max_gauge app:* status_code:* endpoint:*",
 						nameTag),
 					Transforms: []TransformConfiguration{
 						{
+							Aggregate: &AggregateOperationConfiguration{
+								Type: aggregation.Last,
+							},
+						},
+						{
 							Rollup: &RollupOperationConfiguration{
-								MetricName:   "http_requests_by_status_code",
+								MetricName:   "{{ .MetricName }}:mean_without_instance",
 								ExcludeBy:    []string{"instance"},
-								Aggregations: []aggregation.Type{aggregation.Sum},
+								Aggregations: []aggregation.Type{aggregation.Mean},
 							},
 						},
 					},
@@ -1707,14 +1712,14 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeBySum(t *testing
 			writes: []testExpectedWrite{
 				{
 					tags: map[string]string{
-						nameTag:               "http_requests_by_status_code",
+						nameTag:               "http_request_latency_max_gauge:mean_without_instance",
 						string(rollupTagName): string(rollupTagValue),
 						"app":                 "nginx_edge",
 						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
 					values: []expectedValue{
-						{value: 55},
+						{value: 27.5},
 					},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
@@ -1782,7 +1787,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 						},
 						{
 							Rollup: &RollupOperationConfiguration{
-								MetricName:   "http_requests_by_status_code",
+								MetricName:   "{{ .MetricName }}:sum_without_instance",
 								ExcludeBy:    []string{"instance"},
 								Aggregations: []aggregation.Type{aggregation.Sum},
 							},
@@ -1809,7 +1814,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 			writes: []testExpectedWrite{
 				{
 					tags: map[string]string{
-						nameTag:               "http_requests_by_status_code",
+						nameTag:               "http_requests:sum_without_instance",
 						string(rollupTagName): string(rollupTagValue),
 						"app":                 "nginx_edge",
 						"status_code":         "500",
