@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/m3db/m3/src/x/checked"
 	"sort"
 	"time"
 
@@ -36,10 +35,12 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -363,6 +364,24 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			a.debugLogMatch("downsampler using built mapping staged metadatas",
 				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
 
+			// Rebuild any rollup IDs to remove the special filter prefix
+			// for rollup IDs that appear in later stage rollups.
+			reuseableRollupTags := a.tags()
+			for i := range a.curr.Pipelines {
+				for j := 0; j < a.curr.Pipelines[i].Pipeline.Len(); j++ {
+					op := a.curr.Pipelines[i].Pipeline.At(j)
+					if op.Type == pipeline.RollupOpType {
+						id, err := a.rebuildRollupID(reuseableRollupTags, op.Rollup.ID)
+						if err != nil {
+							return SamplesAppenderResult{}, err
+						}
+						// Update the op with the rollup ID.
+						op.Rollup.ID = id
+						a.curr.Pipelines[i].Pipeline.Set(j, op)
+					}
+				}
+			}
+
 			if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 				return SamplesAppenderResult{}, err
 			}
@@ -385,28 +404,9 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			// })
 
 			// Rebuild the rollup ID to exclude any special tags used for matching.
-			tags.reuse()
-			data := a.checkedBytes()
-			data.Reset(rollup.ID)
-			decoder := a.tagDecoder()
-			decoder.Reset(data)
-			for decoder.Next() {
-				tag := decoder.Current()
-				tags.append(tag.Name.Bytes(), tag.Value.Bytes())
-			}
-			if err := decoder.Err(); err != nil {
+			if err := a.rebuildRollupIDToTags(tags, rollup.ID); err != nil {
 				return SamplesAppenderResult{}, err
 			}
-
-			// Filter out any special prefixed metrics used for matching.
-			tags.filterPrefix(metric.M3MetricsPrefix)
-
-			// fmt.Printf("rollup ID: ")
-			// for i := 0; i < len(tags.names); i++ {
-			// 	fmt.Printf("%s=%s ", tags.names[i], tags.values[i])
-			// }
-
-			// fmt.Printf("\n")
 
 			appender, err := a.newSamplesAppender(tags, rollup.Metadatas)
 			if err != nil {
@@ -429,6 +429,36 @@ type debugLogMatchOptions struct {
 	Meta          metadata.StagedMetadatas
 	StoragePolicy policy.StoragePolicy
 	RollupID      []byte
+}
+
+func (a *metricsAppender) rebuildRollupIDToTags(tags *tags, id []byte) error {
+	// Rebuild the rollup ID to exclude any special tags used for matching.
+	tags.reuse()
+	data := a.checkedBytes()
+	data.Reset(id)
+	decoder := a.tagDecoder()
+	decoder.Reset(data)
+	for decoder.Next() {
+		tag := decoder.Current()
+		tags.append(tag.Name.Bytes(), tag.Value.Bytes())
+	}
+	if err := decoder.Err(); err != nil {
+		return err
+	}
+	// Filter out any special prefixed metrics used for matching.
+	tags.filterPrefix(metric.M3MetricsPrefix)
+	return nil
+}
+
+func (a *metricsAppender) rebuildRollupID(tags *tags, id []byte) ([]byte, error) {
+	if err := a.rebuildRollupIDToTags(tags, id); err != nil {
+		return nil, err
+	}
+	result, err := a.tagsID(tags)
+	if err != nil {
+		return nil, err
+	}
+	return result.Bytes(), nil
 }
 
 func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
@@ -565,22 +595,30 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	return nil
 }
 
+func (a *metricsAppender) tagsID(tags *tags) (checked.Bytes, error) {
+	tagEncoder := a.tagEncoder()
+	if err := tagEncoder.Encode(tags); err != nil {
+		return nil, err
+	}
+	data, ok := tagEncoder.Data()
+	if !ok {
+		return nil, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
+	}
+	return data, nil
+}
+
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	metadatas []metadata.StagedMetadata,
 ) (samplesAppender, error) {
-	tagEncoder := a.tagEncoder()
-	if err := tagEncoder.Encode(tags); err != nil {
+	id, err := a.tagsID(tags)
+	if err != nil {
 		return samplesAppender{}, err
-	}
-	data, ok := tagEncoder.Data()
-	if !ok {
-		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		unownedID:       data.Bytes(),
+		unownedID:       id.Bytes(),
 		stagedMetadatas: metadatas,
 	}, nil
 }

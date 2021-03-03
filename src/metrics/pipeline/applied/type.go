@@ -185,6 +185,9 @@ func (p Pipeline) IsEmpty() bool { return len(p.operations) == 0 }
 // At returns the operation at a given step.
 func (p Pipeline) At(i int) OpUnion { return p.operations[i] }
 
+// Set sets the operation at a given step.
+func (p Pipeline) Set(i int, op OpUnion) { p.operations[i] = op }
+
 // Equal determines whether two pipelines are equal.
 func (p Pipeline) Equal(other Pipeline) bool {
 	// keep in sync with OpUnion.Equal as go is terrible at inlining anything with a loop
