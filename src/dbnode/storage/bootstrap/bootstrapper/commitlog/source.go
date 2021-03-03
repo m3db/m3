@@ -504,7 +504,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 				// Check out the series for writing, no need for concurrency
 				// as commit log bootstrapper does not perform parallel
 				// checking out of series.
-				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
+				series, owned, err := accumulator.CheckoutSeriesWithLock(
 					entry.Series.Shard,
 					entry.Series.ID,
 					tagIter)
@@ -856,7 +856,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// NB(r): No parallelization required to checkout the series.
-		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, id, tags)
 		if err != nil {
 			if !owned {
 				// Skip bootstrapping this series if we don't own it.

@@ -1141,11 +1141,6 @@ func (r *seriesResolver) resolve() error {
 	}
 
 	if entry == nil {
-		if r.insertAsyncResult.entry != nil {
-			r.entry = r.insertAsyncResult.entry
-			return nil
-		}
-
 		r.resolvedResult = fmt.Errorf("could not resolve: %s", id)
 		return r.resolvedResult
 	}
