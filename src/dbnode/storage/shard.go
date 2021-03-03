@@ -1072,7 +1072,7 @@ func (s *dbShard) SeriesReadWriteRef(
 		// skipRateLimit for true since this method is used by bootstrapping
 		// and should not be rate limited.
 		skipRateLimit:            true,
-		entryRefCountIncremented: true,
+		entryRefCountIncremented: false, // should be false because we weren't able to find entry
 	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
@@ -1130,21 +1130,22 @@ func (r *seriesResolver) resolve() error {
 	}
 
 	r.insertAsyncResult.wg.Wait()
-	r.resolved = true
-
-	// Retrieve the inserted entry
 	id := r.insertAsyncResult.copiedID
 	entry, _, err := r.shard.tryRetrieveWritableSeries(id)
+	// Retrieve the inserted entry
 	if err != nil {
 		r.resolvedResult = err
+		r.resolved = true
 		return r.resolvedResult
 	}
 
 	if entry == nil {
 		r.resolvedResult = fmt.Errorf("could not resolve: %s", id)
+		r.resolved = true
 		return r.resolvedResult
 	}
 	r.entry = entry
+	r.resolved = true
 	return nil
 }
 
