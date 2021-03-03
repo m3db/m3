@@ -162,11 +162,11 @@ type Options interface {
 	// ShardFn returns the sharding function.
 	ShardFn() sharding.ShardFn
 
-	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
-	SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) Options
+	// SetWatcherOptions sets the placement watcher options.
+	SetWatcherOptions(value placement.WatcherOptions) Options
 
-	// StagedPlacementWatcherOptions returns the staged placement watcher options.
-	StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions
+	// WatcherOptions returns the placement watcher options.
+	WatcherOptions() placement.WatcherOptions
 
 	// SetShardCutoverWarmupDuration sets the warm up duration for traffic cut over to a shard.
 	SetShardCutoverWarmupDuration(value time.Duration) Options
@@ -239,7 +239,7 @@ type options struct {
 	shardFn                    sharding.ShardFn
 	shardCutoverWarmupDuration time.Duration
 	shardCutoffLingerDuration  time.Duration
-	watcherOpts                placement.StagedPlacementWatcherOptions
+	watcherOpts                placement.WatcherOptions
 	connOpts                   ConnectionOptions
 	flushSize                  int
 	maxTimerBatchSize          int
@@ -260,7 +260,7 @@ func NewOptions() Options {
 		shardFn:                    sharding.DefaultHash.MustShardFn(),
 		shardCutoverWarmupDuration: defaultShardCutoverWarmupDuration,
 		shardCutoffLingerDuration:  defaultShardCutoffLingerDuration,
-		watcherOpts:                placement.NewStagedPlacementWatcherOptions(),
+		watcherOpts:                placement.NewWatcherOptions(),
 		connOpts:                   NewConnectionOptions(),
 		flushSize:                  defaultFlushSize,
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
@@ -375,13 +375,13 @@ func (o *options) ShardCutoffLingerDuration() time.Duration {
 	return o.shardCutoffLingerDuration
 }
 
-func (o *options) SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) Options {
+func (o *options) SetWatcherOptions(value placement.WatcherOptions) Options {
 	opts := *o
 	opts.watcherOpts = value
 	return &opts
 }
 
-func (o *options) StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions {
+func (o *options) WatcherOptions() placement.WatcherOptions {
 	return o.watcherOpts
 }
 

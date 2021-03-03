@@ -22,7 +22,6 @@ package client
 
 import (
 	"errors"
-	"io"
 	"math"
 	"runtime"
 	"time"
@@ -37,6 +36,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -323,7 +323,7 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 
 func defaultNewConnectionFn(
 	channelName string, address string, clientOpts Options,
-) (PooledChannel, rpc.TChanNode, error) {
+) (Channel, rpc.TChanNode, error) {
 	// NB(r): Keep ref to a local channel options since it's actually modified
 	// by TChannel itself to set defaults.
 	var opts *tchannel.ChannelOptions
@@ -473,16 +473,17 @@ func (o *options) Validate() error {
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	opts.readerIteratorAllocate = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	opts.isProtoEnabled = false
 	return &opts
 }
 
 func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(
+		r xio.Reader64,
+		descr namespace.SchemaDescr,
+	) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	}
 	opts.isProtoEnabled = true

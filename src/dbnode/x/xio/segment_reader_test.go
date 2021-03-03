@@ -21,6 +21,7 @@
 package xio
 
 import (
+	"encoding/binary"
 	"io"
 	"testing"
 
@@ -52,6 +53,10 @@ var (
 
 type byteFunc func(d []byte) checked.Bytes
 
+func checkedNoPool(d []byte) checked.Bytes {
+	return checked.NewBytes(d, nil)
+}
+
 func testSegmentReader(
 	t *testing.T,
 	checkd byteFunc,
@@ -60,15 +65,9 @@ func testSegmentReader(
 	checksum := uint32(10)
 	segment := ts.NewSegment(checkd(head), checkd(tail), checksum, ts.FinalizeNone)
 	r := NewSegmentReader(segment)
-	var b [100]byte
-	n, err := r.Read(b[:])
-	require.NoError(t, err)
-	require.Equal(t, len(expected), n)
-	require.Equal(t, expected, b[:n])
-
-	n, err = r.Read(b[:])
+	bytes, err := ToBytes(r)
 	require.Equal(t, io.EOF, err)
-	require.Equal(t, 0, n)
+	require.Equal(t, expected, bytes)
 
 	seg, err := r.Segment()
 	require.NoError(t, err)
@@ -92,13 +91,13 @@ func testSegmentReader(
 	cloned.Finalize()
 	segment.Finalize()
 }
+
 func TestSegmentReaderNoPool(t *testing.T) {
-	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
-	testSegmentReader(t, checkd, nil)
+	testSegmentReader(t, checkedNoPool, nil)
 }
 
 func TestSegmentReaderWithPool(t *testing.T) {
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: 1024,
 		Count:    10,
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {
@@ -114,4 +113,57 @@ func TestSegmentReaderWithPool(t *testing.T) {
 	}
 
 	testSegmentReader(t, checkd, bytesPool)
+}
+
+func TestSegmentReader64(t *testing.T) {
+	data := make([]byte, 32)
+	for i := range data {
+		data[i] = 100 + byte(i)
+	}
+
+	for headLen := 0; headLen < len(data); headLen++ {
+		for tailLen := 0; tailLen < len(data)-headLen; tailLen++ {
+			testSegmentReader64(t, data[:headLen], data[headLen:headLen+tailLen])
+		}
+	}
+}
+
+func testSegmentReader64(t *testing.T, head []byte, tail []byte) {
+	t.Helper()
+
+	var expected []byte
+	expected = append(expected, head...)
+	expected = append(expected, tail...)
+
+	var (
+		segment      = ts.NewSegment(checkedNoPool(head), checkedNoPool(tail), 0, ts.FinalizeNone)
+		r            = NewSegmentReader(segment)
+		peeked, read []byte
+		buf          [8]byte
+		word         uint64
+		n            byte
+		err          error
+	)
+
+	for {
+		word, n, err = r.Peek64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		peeked = append(peeked, buf[:n]...)
+
+		word, n, err = r.Read64()
+		require.NoError(t, err)
+
+		binary.BigEndian.PutUint64(buf[:], word)
+		read = append(read, buf[:n]...)
+	}
+
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, expected, peeked)
+	require.Equal(t, expected, read)
+
+	_, _, err = r.Read64()
+	require.Equal(t, io.EOF, err)
 }

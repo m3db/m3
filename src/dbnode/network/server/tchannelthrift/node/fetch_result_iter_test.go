@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -62,6 +63,7 @@ func TestFetchResultIterTest(t *testing.T) {
 		nowFn:           time.Now,
 		dataReadMetrics: index.NewQueryMetrics("", scope),
 		totalMetrics:    index.NewQueryMetrics("", scope),
+		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
 		instrumentClose: func(err error) {},
 	})
 	total := 0
@@ -76,6 +78,7 @@ func TestFetchResultIterTest(t *testing.T) {
 	require.Equal(t, 10, total)
 	require.Equal(t, 5, blockPermits.acquired)
 	require.Equal(t, 5, blockPermits.released)
+	requireSeriesBlockMetric(t, scope)
 }
 
 func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
@@ -100,6 +103,7 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 		nowFn:           time.Now,
 		dataReadMetrics: index.NewQueryMetrics("", scope),
 		totalMetrics:    index.NewQueryMetrics("", scope),
+		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
 		instrumentClose: func(err error) {},
 	})
 	total := 0
@@ -114,6 +118,34 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 	require.Equal(t, 10, total)
 	require.Equal(t, 10, blockPermits.acquired)
 	require.Equal(t, 10, blockPermits.released)
+	requireSeriesBlockMetric(t, scope)
+}
+
+func TestFetchResultIterTestForceBlocksPerBatch(t *testing.T) {
+	blockPermits := &permits.LookbackLimitPermit{}
+	resMap := index.NewQueryResults(ident.StringID("testNs"), index.QueryResultsOptions{}, testIndexOptions)
+	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
+		queryResult: index.QueryResult{
+			Results: resMap,
+		},
+		blockPermits:   blockPermits,
+		blocksPerBatch: 1000,
+		nowFn:          time.Now,
+	})
+	downcast, ok := iter.(*fetchTaggedResultsIter)
+	require.True(t, ok)
+	require.Equal(t, 1, downcast.blocksPerBatch)
+}
+
+func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
+	values, ok := scope.Snapshot().Histograms()["series-blocks+"]
+	require.True(t, ok)
+
+	sum := 0
+	for _, count := range values.Values() {
+		sum += int(count)
+	}
+	require.Equal(t, 1, sum)
 }
 
 func setup(mocks *gomock.Controller) (
@@ -169,7 +201,7 @@ func (p *fakePermits) TryAcquire(_ context.Context) (bool, error) {
 	return true, nil
 }
 
-func (p *fakePermits) Release() {
+func (p *fakePermits) Release(_ int64) {
 	p.released++
 	p.available++
 }

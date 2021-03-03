@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -36,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/ident/testutil"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -184,14 +184,6 @@ func waitUntilFileSetFilesExist(
 	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, true, timeout)
 }
 
-func waitUntilFileSetFilesNotExist(
-	filePathPrefix string,
-	files []fs.FileSetFileIdentifier,
-	timeout time.Duration,
-) error {
-	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, false, timeout)
-}
-
 func waitUntilFileSetFilesExistOrNot(
 	filePathPrefix string,
 	files []fs.FileSetFileIdentifier,
@@ -309,7 +301,7 @@ func checkForTime(
 
 			var datapoints []generate.TestValue
 			it := iteratorPool.Get()
-			it.Reset(bytes.NewBuffer(data.Bytes()), nsCtx.Schema)
+			it.Reset(xio.NewBytesReader64(data.Bytes()), nsCtx.Schema)
 			for it.Next() {
 				dp, _, ann := it.Current()
 				datapoints = append(datapoints, generate.TestValue{Datapoint: dp, Annotation: ann})

@@ -29,14 +29,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -62,11 +60,6 @@ var (
 	promReadTestMetrics     = newPromReadMetrics(tally.NewTestScope("", nil))
 	defaultLookbackDuration = time.Minute
 )
-
-type testVals struct {
-	start time.Time
-	query string
-}
 
 func buildBody(query string, start time.Time) io.Reader {
 	vals := url.Values{}
@@ -203,7 +196,6 @@ func TestPromReadParsingBad(t *testing.T) {
 
 func TestPromReadStorageWithFetchError(t *testing.T) {
 	ctrl := xtest.NewController(t)
-	watcher := &cancelWatcher{}
 	readRequest := &prompb.ReadRequest{
 		Queries: []*prompb.Query{
 			{},
@@ -219,15 +211,13 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 		Return(result, fmt.Errorf("expr err"))
 
 	opts := options.EmptyHandlerOptions().SetEngine(engine)
-	res, err := Read(context.TODO(), watcher, readRequest, fetchOpts, opts)
+	res, err := Read(context.TODO(), readRequest, fetchOpts, opts)
 	require.Error(t, err, "unable to read from storage")
 
 	meta := res.Meta
 	assert.True(t, meta.Exhaustive)
 	assert.True(t, meta.LocalOnly)
 	assert.Equal(t, 0, len(meta.Warnings))
-
-	assert.Equal(t, 1, watcher.count)
 }
 
 func TestQueryMatchMustBeEqual(t *testing.T) {
@@ -373,8 +363,7 @@ func TestMultipleRead(t *testing.T) {
 		})
 
 	fetchOpts := &storage.FetchOptions{}
-	watcher := &cancelWatcher{}
-	res, err := Read(context.TODO(), watcher, req, fetchOpts, handlerOpts)
+	res, err := Read(context.TODO(), req, fetchOpts, handlerOpts)
 	require.NoError(t, err)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
@@ -398,8 +387,6 @@ func TestMultipleRead(t *testing.T) {
 	assert.True(t, meta.LocalOnly)
 	require.Equal(t, 1, len(meta.Warnings))
 	assert.Equal(t, "foo_bar", meta.Warnings[0].Header())
-
-	assert.Equal(t, 2, watcher.count)
 }
 
 func TestReadWithOptions(t *testing.T) {
@@ -450,7 +437,7 @@ func TestReadWithOptions(t *testing.T) {
 			},
 		})
 
-	res, err := Read(context.TODO(), nil, req, fetchOpts, handlerOpts)
+	res, err := Read(context.TODO(), req, fetchOpts, handlerOpts)
 	require.NoError(t, err)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
@@ -463,17 +450,4 @@ func TestReadWithOptions(t *testing.T) {
 
 	result := res.Result
 	assert.Equal(t, expected.Timeseries[0], result[0].Timeseries[0])
-}
-
-type cancelWatcher struct {
-	sync.Mutex
-	count int
-}
-
-var _ handler.CancelWatcher = (*cancelWatcher)(nil)
-
-func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
-	c.Lock()
-	c.count++
-	c.Unlock()
 }

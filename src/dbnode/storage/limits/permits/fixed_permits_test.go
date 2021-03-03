@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cm
+package permits
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	stdctx "context"
+	"testing"
 
-type samplePool struct {
-	pool pool.ObjectPool
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/context"
+)
+
+func TestFixedPermits(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(3).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
+
+	fp.Release(0)
+	require.NoError(t, fp.Acquire(ctx))
 }
 
-// NewSamplePool creates a new pool for samples.
-func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
-	return &samplePool{pool: pool.NewObjectPool(opts)}
-}
+func TestFixedPermitsTimeouts(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(1).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
 
-func (p *samplePool) Init() {
-	p.pool.Init(func() interface{} {
-		return newSample()
-	})
-}
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
 
-func (p *samplePool) Get() *Sample {
-	return p.pool.Get().(*Sample)
-}
+	stdCtx, cancel := stdctx.WithCancel(stdctx.Background())
+	cancel()
+	ctx = context.NewWithGoContext(stdCtx)
 
-func (p *samplePool) Put(sample *Sample) {
-	// Reset sample to reduce GC sweep overhead.
-	sample.reset()
-	p.pool.Put(sample)
+	fp.Release(0)
+
+	err = fp.Acquire(ctx)
+	require.Error(t, err)
+
+	_, err = fp.TryAcquire(ctx)
+	require.Error(t, err)
 }

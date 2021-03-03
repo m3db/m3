@@ -343,6 +343,10 @@ type MappingRuleConfiguration struct {
 	// aggregation tag which is required for graphite. If a metric is of the
 	// form {__g0__:stats __g1__:metric __g2__:timer} and we have configured
 	// a P95 aggregation, this option will add __g3__:P95 to the metric.
+	// __m3_graphite_prefix__ as a tag will add the provided value as a prefix
+	// to graphite metrics.
+	// __m3_drop_timestamp__ as a tag will drop the timestamp from while
+	// writing the metric out. So effectively treat it as an untimed metric.
 	Tags []Tag `yaml:"tags"`
 
 	// Optional fields follow.
@@ -1092,13 +1096,12 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 		return nil, err
 	}
 
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKVKey).
 		SetStagedPlacementStore(localKVStore)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
@@ -1242,14 +1245,12 @@ type bufferPastLimit struct {
 	bufferPast time.Duration
 }
 
-var (
-	defaultBufferPastLimits = []bufferPastLimit{
-		{upperBound: 0, bufferPast: 15 * time.Second},
-		{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
-		{upperBound: time.Minute, bufferPast: time.Minute},
-		{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
-	}
-)
+var defaultBufferPastLimits = []bufferPastLimit{
+	{upperBound: 0, bufferPast: 15 * time.Second},
+	{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
+	{upperBound: time.Minute, bufferPast: time.Minute},
+	{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
+}
 
 func bufferForPastTimedMetric(
 	limits []bufferPastLimit,

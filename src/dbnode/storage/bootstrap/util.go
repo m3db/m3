@@ -240,6 +240,9 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	mockSeries.EXPECT().
 		LoadBlock(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(bl block.DatabaseBlock, _ series.WriteType) error {
+			a.Lock()
+			defer a.Unlock()
+
 			reader, err := bl.Stream(context.NewBackground())
 			if err != nil {
 				streamErr = err
@@ -316,12 +319,7 @@ type NamespacesTester struct {
 
 func buildDefaultIterPool() encoding.MultiReaderIteratorPool {
 	iterPool := encoding.NewMultiReaderIteratorPool(pool.NewObjectPoolOptions())
-	iterPool.Init(
-		func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-			return m3tsz.NewReaderIterator(r,
-				m3tsz.DefaultIntOptimizationEnabled,
-				encoding.NewOptions())
-		})
+	iterPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 	return iterPool
 }
 

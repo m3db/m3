@@ -34,7 +34,8 @@ enum ErrorType {
 
 enum ErrorFlags {
     NONE               = 0x00,
-    RESOURCE_EXHAUSTED = 0x01
+    RESOURCE_EXHAUSTED = 0x01,
+    SERVER_TIMEOUT     = 0x02
 }
 
 exception Error {

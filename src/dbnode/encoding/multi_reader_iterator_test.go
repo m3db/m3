@@ -22,7 +22,6 @@ package encoding
 
 import (
 	"fmt"
-	"io"
 	"testing"
 	"time"
 
@@ -287,7 +286,7 @@ func assertTestMultiReaderIterator(
 	test testMultiReader,
 ) {
 	type readerEntries struct {
-		reader  io.Reader
+		reader  xio.Reader64
 		entries *testMultiReaderEntries
 	}
 
@@ -315,8 +314,8 @@ func assertTestMultiReaderIterator(
 	}
 
 	var testIterators []*testIterator
-	var iteratorAlloc func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator
-	iteratorAlloc = func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator {
+	var iteratorAlloc func(xio.Reader64, namespace.SchemaDescr) ReaderIterator
+	iteratorAlloc = func(reader xio.Reader64, _ namespace.SchemaDescr) ReaderIterator {
 		for i := range entriesByReader {
 			if reader != entriesByReader[i].reader {
 				continue
@@ -331,7 +330,7 @@ func assertTestMultiReaderIterator(
 					}
 				}
 			}
-			it.onReset = func(r io.Reader, descr namespace.SchemaDescr) {
+			it.onReset = func(r xio.Reader64, descr namespace.SchemaDescr) {
 				newIt := iteratorAlloc(r, descr).(*testIterator)
 				*it = *newIt
 				// We close this here as we never actually use this iterator

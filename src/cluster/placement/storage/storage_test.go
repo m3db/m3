@@ -112,17 +112,17 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 		SetReplicaFactor(0).
 		SetCutoverNanos(100)
 
-	pGet1, err := ps.SetIfNotExist(p)
+	p1, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet1.Version())
+	assert.Equal(t, 1, p1.Version())
 
 	_, err = ps.SetIfNotExist(p)
 	require.Error(t, err)
 
-	pGet1, err = ps.Placement()
+	p1, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, pGet1.Version())
-	require.Equal(t, p.SetVersion(1), pGet1)
+	require.Equal(t, 1, p1.Version())
+	require.Equal(t, p.SetVersion(1), p1)
 
 	_, err = ps.PlacementForVersion(0)
 	require.Error(t, err)
@@ -132,33 +132,25 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 
 	h, err := ps.PlacementForVersion(1)
 	require.NoError(t, err)
-	require.Equal(t, pGet1, h)
+	require.Equal(t, p1, h)
 
-	_, err = ps.CheckAndSet(p, pGet1.Version())
-	require.Error(t, err)
-
-	p = p.SetCutoverNanos(p.CutoverNanos() + 1)
-	pGet2, err := ps.CheckAndSet(p, pGet1.Version())
-	require.NoError(t, err)
-	assert.Equal(t, 2, pGet2.Version())
-
-	_, err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), pGet1.Version()-1)
-	require.Error(t, err)
-	require.Equal(t, kv.ErrVersionMismatch, err)
-
-	pGet2, err = ps.Placement()
+	p2 := p1.Clone().
+		SetCutoverNanos(p1.CutoverNanos() + 100).
+		SetReplicaFactor(p1.ReplicaFactor() + 2)
+	pGet2, err := ps.CheckAndSet(p2, p1.Version())
 	require.NoError(t, err)
 	require.Equal(t, 2, pGet2.Version())
-	require.Equal(t, p.SetVersion(2), pGet2)
+	require.Equal(t, int64(0), pGet2.CutoverNanos())
+	require.Equal(t, p2.SetVersion(2), pGet2)
 
 	newProto, v, err := ps.Proto()
 	require.NoError(t, err)
 	require.Equal(t, 2, v)
 
+	// Only latest snapshot is retained.
 	newPs, err := placement.NewPlacementsFromProto(newProto.(*placementpb.PlacementSnapshots))
 	require.NoError(t, err)
-	require.Equal(t, pGet1.SetVersion(0), newPs[0])
-	require.Equal(t, pGet2.SetVersion(0), newPs[1])
+	require.Equal(t, pGet2.SetVersion(0), newPs.Latest())
 
 	err = ps.Delete()
 	require.NoError(t, err)
@@ -175,6 +167,67 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, pGet3.Version())
 	require.Equal(t, p.SetVersion(1), pGet3)
+}
+
+func TestStorageCompressesStagedPlacement(t *testing.T) {
+	expected := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			testInstance("i1"),
+			testInstance("i2"),
+		}).
+		SetShards([]uint32{}).
+		SetReplicaFactor(2).
+		SetCutoverNanos(100)
+
+	testCases := []struct {
+		name          string
+		storeActionFn func(s placement.Storage, p placement.Placement) error
+	}{
+		{
+			name: "set_if_not_exiss",
+			storeActionFn: func(s placement.Storage, p placement.Placement) error {
+				_, err := s.SetIfNotExist(p)
+				return err
+			},
+		},
+		{
+			name: "check_and_set",
+			storeActionFn: func(s placement.Storage, p placement.Placement) error {
+				_, err := s.CheckAndSet(p, 0)
+				return err
+			},
+		},
+		{
+			name: "set",
+			storeActionFn: func(s placement.Storage, p placement.Placement) error {
+				_, err := s.Set(p)
+				return err
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := placement.NewOptions().SetIsStaged(true).SetCompress(true)
+			storage := newTestPlacementStorage(mem.NewStore(), opts)
+
+			err := tc.storeActionFn(storage, expected.Clone()) // nolint: scopelint
+			require.NoError(t, err)
+
+			m, _, err := storage.Proto()
+			require.NoError(t, err)
+			proto := m.(*placementpb.PlacementSnapshots)
+			require.NotNil(t, proto)
+			require.Equal(t, placementpb.CompressMode_ZSTD, proto.CompressMode)
+			require.True(t, len(proto.CompressedPlacement) > 0)
+			require.Equal(t, 0, len(proto.Snapshots))
+
+			ps, err := placement.NewPlacementsFromProto(proto)
+			require.NoError(t, err)
+			actual := ps.Latest()
+			require.Equal(t, expected.String(), actual.String())
+		})
+	}
 }
 
 func TestCheckAndSetProto(t *testing.T) {
@@ -259,4 +312,13 @@ func TestDryrun(t *testing.T) {
 
 func newTestPlacementStorage(store kv.Store, pOpts placement.Options) placement.Storage {
 	return NewPlacementStorage(store, "key", pOpts)
+}
+
+func testInstance(id string) placement.Instance {
+	return placement.NewInstance().
+		SetID(id).
+		SetIsolationGroup("rack-" + id).
+		SetEndpoint("endpoint-" + id).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 80}).
+		SetWeight(1)
 }

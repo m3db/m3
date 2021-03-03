@@ -39,17 +39,17 @@ func NewNoOpPermits() Permits {
 	return &noOpPermits{}
 }
 
-func (p noOpPermits) NewPermits(_ context.Context) Permits {
-	return p
+func (p noOpPermits) NewPermits(context.Context) (Permits, error) {
+	return p, nil
 }
 
-func (p noOpPermits) Acquire(_ context.Context) error {
+func (p noOpPermits) Acquire(context.Context) error {
 	return nil
 }
 
-func (p noOpPermits) TryAcquire(_ context.Context) (bool, error) {
+func (p noOpPermits) TryAcquire(context.Context) (bool, error) {
 	return true, nil
 }
 
-func (p noOpPermits) Release() {
+func (p noOpPermits) Release(_ int64) {
 }

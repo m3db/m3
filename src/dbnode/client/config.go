@@ -23,7 +23,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -41,11 +40,6 @@ import (
 
 const (
 	asyncWriteWorkerPoolDefaultSize = 128
-)
-
-var (
-	errConfigurationMustSupplyConfig = errors.New(
-		"must supply config when no topology initializer parameter supplied")
 )
 
 // Configuration is a configuration that can be used to construct a client.
@@ -412,10 +406,7 @@ func (c Configuration) NewAdminClient(
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
-	})
+	v = v.SetReaderIteratorAllocate(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)

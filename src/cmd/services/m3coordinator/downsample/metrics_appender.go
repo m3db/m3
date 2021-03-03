@@ -194,7 +194,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// filter out augmented metrics tags
 	tags.filterPrefix(metric.M3MetricsPrefix)
 
-	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
+	var (
+		dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
+		dropTimestamp   bool
+	)
 	if opts.Override {
 		// Reuse a slice to keep the current staged metadatas we will apply.
 		a.curr.Pipelines = a.curr.Pipelines[:0]
@@ -348,6 +351,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
+		// Apply the custom tags first so that they apply even if mapping
+		// rules drop the metric.
+		dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
+
 		// Apply drop policies results
 		a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
 
@@ -405,6 +412,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
 		IsDropPolicyApplied: dropPolicyApplied,
+		ShouldDropTimestamp: dropTimestamp,
 	}, nil
 }
 
@@ -510,9 +518,7 @@ func (a *metricsAppender) resetTags() {
 }
 
 func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata metadata.StagedMetadata) error {
-	var (
-		pipelines []metadata.PipelineMetadata
-	)
+	var pipelines []metadata.PipelineMetadata
 	for _, pipeline := range stagedMetadata.Pipelines {
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
@@ -522,7 +528,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 			continue
 		}
 
-		tags := a.augmentTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		tags := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
@@ -569,7 +575,7 @@ func (a *metricsAppender) newSamplesAppender(
 	}, nil
 }
 
-func (a *metricsAppender) augmentTags(
+func (a *metricsAppender) processTags(
 	originalTags *tags,
 	graphitePrefix [][]byte,
 	t []models.Tag,

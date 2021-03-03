@@ -60,6 +60,7 @@ type MetricsAppender interface {
 type SamplesAppenderResult struct {
 	SamplesAppender     SamplesAppender
 	IsDropPolicyApplied bool
+	ShouldDropTimestamp bool
 }
 
 // SampleAppenderOptions defines the options being used when constructing
@@ -80,11 +81,12 @@ type SamplesAppenderOverrideRules struct {
 // SamplesAppender is a downsampling samples appender,
 // that can only be called by a single caller at a time.
 type SamplesAppender interface {
-	AppendCounterSample(value int64) error
-	AppendGaugeSample(value float64) error
-	AppendCounterTimedSample(t time.Time, value int64) error
-	AppendGaugeTimedSample(t time.Time, value float64) error
-	AppendTimerTimedSample(t time.Time, value float64) error
+	AppendUntimedCounterSample(value int64, annotation []byte) error
+	AppendUntimedGaugeSample(value float64, annotation []byte) error
+	AppendUntimedTimerSample(value float64, annotation []byte) error
+	AppendCounterSample(t time.Time, value int64, annotation []byte) error
+	AppendGaugeSample(t time.Time, value float64, annotation []byte) error
+	AppendTimerSample(t time.Time, value float64, annotation []byte) error
 }
 
 type downsampler struct {

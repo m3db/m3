@@ -25,5 +25,17 @@ package config
 type FetchTaggedConfiguration struct {
 	// SeriesBlocksPerBatch specifies how many series blocks are allowed to be retrieved
 	// per permit acquired. Defaults to 1 (i.e. a permit is acquired per series block).
-	SeriesBlocksPerBatch int `yaml:"seriesBlocksPerBatch" validate:"min=0"`
+	SeriesBlocksPerBatch *int `yaml:"seriesBlocksPerBatch"`
+}
+
+const defaultSeriesBlocksPerBatch = 1
+
+// SeriesBlocksPerBatchOrDefault returns the SeriesBlocksPerBatch value provided or
+// a sane default.
+func (f *FetchTaggedConfiguration) SeriesBlocksPerBatchOrDefault() int {
+	if f.SeriesBlocksPerBatch == nil || *f.SeriesBlocksPerBatch < 1 {
+		return defaultSeriesBlocksPerBatch
+	}
+
+	return *f.SeriesBlocksPerBatch
 }

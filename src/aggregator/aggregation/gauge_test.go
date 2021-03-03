@@ -36,7 +36,7 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 	g := NewGauge(NewOptions(instrument.NewOptions()))
 	require.False(t, g.HasExpensiveAggregations)
 	for i := 1.0; i <= 100.0; i++ {
-		g.Update(time.Now(), i)
+		g.Update(time.Now(), i, nil)
 	}
 	require.Equal(t, 100.0, g.Last())
 	require.Equal(t, 100.0, g.ValueOf(aggregation.Last))
@@ -56,6 +56,15 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 	require.True(t, math.IsNaN(g.ValueOf(aggregation.Min)))
 }
 
+func TestGaugeReturnsLastNonEmptyAnnotation(t *testing.T) {
+	g := NewGauge(NewOptions(instrument.NewOptions()))
+	g.Update(time.Now(), 1.1, []byte("first"))
+	g.Update(time.Now(), 2.1, []byte("second"))
+	g.Update(time.Now(), 3.1, nil)
+
+	require.Equal(t, []byte("second"), g.Annotation())
+}
+
 func TestGaugeCustomAggregationType(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.HasExpensiveAggregations = true
@@ -64,7 +73,7 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 	require.True(t, g.HasExpensiveAggregations)
 
 	for i := 1; i <= 100; i++ {
-		g.Update(time.Now(), float64(i))
+		g.Update(time.Now(), float64(i), nil)
 	}
 
 	require.Equal(t, 100.0, g.Last())
@@ -130,10 +139,10 @@ func TestGaugeLastOutOfOrderValues(t *testing.T) {
 	timePrePre := timeMid.Add(-1 * time.Second)
 	timeAfter := timeMid.Add(time.Second)
 
-	g.Update(timeMid, 42)
-	g.Update(timePre, 41)
-	g.Update(timeAfter, 43)
-	g.Update(timePrePre, 40)
+	g.Update(timeMid, 42, nil)
+	g.Update(timePre, 41, nil)
+	g.Update(timeAfter, 43, nil)
+	g.Update(timePrePre, 40, nil)
 
 	require.Equal(t, 43.0, g.Last())
 	snap := scope.Snapshot()

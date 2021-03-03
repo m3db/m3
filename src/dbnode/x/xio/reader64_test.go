@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package xio
 
 import (
-	"context"
-	"net/http/httptest"
+	"encoding/binary"
+	"io"
 	"testing"
-	"time"
-
-	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestCloseWatcher(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	w := httptest.NewRecorder()
-	CloseWatcher(ctx, cancel, w, instrument.NewOptions())
-	assert.NoError(t, ctx.Err())
-	time.Sleep(100 * time.Millisecond)
-	assert.Error(t, ctx.Err())
+func TestBytesReader64(t *testing.T) {
+	var (
+		data = []byte{4, 5, 6, 7, 8, 9, 1, 2, 3, 0, 10, 11, 12, 13, 14, 15, 16, 17}
+		r    = NewBytesReader64(nil)
+	)
+
+	for l := 0; l < len(data); l++ {
+		testBytesReader64(t, r, data[:l])
+	}
 }
 
-func TestResponseWriteCanceller(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	w := httptest.NewRecorder()
-	canceller := NewResponseWriterCanceller(w, instrument.NewOptions())
-	canceller.WatchForCancel(ctx, cancel)
-	assert.NoError(t, ctx.Err())
-	time.Sleep(100 * time.Millisecond)
-	assert.Error(t, ctx.Err())
+func testBytesReader64(t *testing.T, r *BytesReader64, data []byte) {
+	t.Helper()
+	r.Reset(data)
+
+	var (
+		peeked = []byte{}
+		read   = []byte{}
+		buf    [8]byte
+		word   uint64
+		n      byte
+		err    error
+	)
+
+	for {
+		word, n, err = r.Peek64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		peeked = append(peeked, buf[:n]...)
+
+		word, n, err = r.Read64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		read = append(read, buf[:n]...)
+	}
+
+	require.Equal(t, io.EOF, err)
+	assert.Equal(t, data, peeked)
+	assert.Equal(t, data, read)
 }
