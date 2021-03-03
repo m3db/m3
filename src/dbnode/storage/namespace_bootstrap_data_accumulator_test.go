@@ -33,18 +33,23 @@ import (
 )
 
 var (
-	id        = ident.StringID("foo")
-	idErr     = ident.StringID("bar")
-	tagIter   ident.TagIterator
-	uniqueIdx = uint64(10)
+	id      = ident.StringID("foo")
+	idErr   = ident.StringID("bar")
+	tagIter ident.TagIterator
 )
 
-type releaser struct {
-	calls int
+type seriesTestResolver struct {
+	series bootstrap.SeriesRef
+	calls  int
 }
 
-func (r *releaser) OnReleaseReadWriteRef() {
+func (r *seriesTestResolver) SeriesRef() (bootstrap.SeriesRef, error) {
+	return r.series, nil
+}
+
+func (r *seriesTestResolver) ReleaseRef() error {
 	r.calls++
+	return nil
 }
 
 type checkoutFn func(bootstrap.NamespaceDataAccumulator, uint32,
@@ -82,17 +87,14 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	var (
-		ns      = NewMockdatabaseNamespace(ctrl)
-		series  = series.NewMockDatabaseSeries(ctrl)
-		acc     = NewDatabaseNamespaceDataAccumulator(ns)
-		shardID = uint32(7)
-
-		release = &releaser{}
-		ref     = SeriesReadWriteRef{
-			UniqueIndex:         uniqueIdx,
-			Series:              series,
-			ReleaseReadWriteRef: release,
-			Shard:               shardID,
+		ns       = NewMockdatabaseNamespace(ctrl)
+		series   = series.NewMockDatabaseSeries(ctrl)
+		acc      = NewDatabaseNamespaceDataAccumulator(ns)
+		shardID  = uint32(7)
+		resolver = &seriesTestResolver{series: series}
+		ref      = SeriesReadWriteRef{
+			Resolver: resolver,
+			Shard:    shardID,
 		}
 	)
 
@@ -105,16 +107,17 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 
 	seriesResult, err := checkoutFn(acc, shardID, id, tagIter)
 	require.NoError(t, err)
-	require.Equal(t, series, seriesResult.Series)
-	require.Equal(t, uniqueIdx, seriesResult.UniqueIndex)
+	seriesRef, err := seriesResult.Resolver.SeriesRef()
+	require.NoError(t, err)
+	require.Equal(t, series, seriesRef)
 	require.Equal(t, shardID, seriesResult.Shard)
 
 	cast, ok := acc.(*namespaceDataAccumulator)
 	require.True(t, ok)
 	require.Equal(t, 1, len(cast.needsRelease))
-	require.Equal(t, release, cast.needsRelease[0])
+	require.Equal(t, resolver, cast.needsRelease[0])
 	// Ensure it hasn't been released.
-	require.Equal(t, 0, release.calls)
+	require.Equal(t, 0, resolver.calls)
 }
 
 func TestAccumulatorRelease(t *testing.T) {
@@ -130,16 +133,13 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 	defer ctrl.Finish()
 
 	var (
-		err     error
-		ns      = NewMockdatabaseNamespace(ctrl)
-		acc     = NewDatabaseNamespaceDataAccumulator(ns)
-		shardID = uint32(1337)
-
-		release = &releaser{}
-		ref     = SeriesReadWriteRef{
-			UniqueIndex:         uniqueIdx,
-			Series:              series.NewMockDatabaseSeries(ctrl),
-			ReleaseReadWriteRef: release,
+		err      error
+		ns       = NewMockdatabaseNamespace(ctrl)
+		acc      = NewDatabaseNamespaceDataAccumulator(ns)
+		shardID  = uint32(1337)
+		resolver = &seriesTestResolver{series: series.NewMockDatabaseSeries(ctrl)}
+		ref      = SeriesReadWriteRef{
+			Resolver: resolver,
 		}
 	)
 
@@ -150,12 +150,12 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 	cast, ok := acc.(*namespaceDataAccumulator)
 	require.True(t, ok)
 	require.Equal(t, 1, len(cast.needsRelease))
-	require.Equal(t, release, cast.needsRelease[0])
+	require.Equal(t, resolver, cast.needsRelease[0])
 
 	require.NoError(t, acc.Close())
 	require.Equal(t, 0, len(cast.needsRelease))
 	// ensure release has been called.
-	require.Equal(t, 1, release.calls)
+	require.Equal(t, 1, resolver.calls)
 	// ensure double-close errors.
 	require.Error(t, acc.Close())
 }

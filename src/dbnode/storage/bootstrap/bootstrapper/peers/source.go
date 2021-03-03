@@ -449,8 +449,13 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 					continue
 				}
 
+				seriesRef, err := ref.Resolver.SeriesRef()
+				if err != nil {
+					s.log.Error("could not resolve seriesRef", zap.Error(err))
+					continue
+				}
 				for _, block := range entry.Blocks.AllBlocks() {
-					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
+					if err := seriesRef.LoadBlock(block, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))
 					}

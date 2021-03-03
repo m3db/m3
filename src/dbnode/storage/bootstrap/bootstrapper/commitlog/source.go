@@ -866,7 +866,12 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// Load into series.
-		if err := ref.Series.LoadBlock(dbBlock, writeType); err != nil {
+		seriesRef, err := ref.Resolver.SeriesRef()
+		if err != nil {
+			return err
+		}
+
+		if err := seriesRef.LoadBlock(dbBlock, writeType); err != nil {
 			return err
 		}
 
@@ -949,7 +954,20 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 		)
 		worker.datapointsRead++
 
-		_, _, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
+		ref, err := entry.Resolver.SeriesRef()
+		if err != nil {
+			if worker.numErrors == 0 {
+				s.log.Error("failed to resolve series ref", zap.Error(err))
+			} else {
+				// Always write a debug log, most of these will go nowhere if debug
+				// logging not enabled however.
+				s.log.Debug("failed to resolve series ref", zap.Error(err))
+			}
+			worker.numErrors++
+			continue
+		}
+
+		_, _, err = ref.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc:         namespace.namespaceContext.Schema,
 				BootstrapWrite:     true,
