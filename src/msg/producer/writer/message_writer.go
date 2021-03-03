@@ -378,7 +378,7 @@ func (w *messageWriterImpl) scanMessageQueueUntilClose() {
 	var (
 		interval = w.opts.MessageQueueNewWritesScanInterval()
 		jitter   = time.Duration(
-			// up to 40 days of jitter at millisecond precision
+			// approx ~40 days of jitter at millisecond precision - more than enough
 			unsafe.Fastrandn(uint32(interval.Milliseconds())),
 		) * time.Millisecond
 	)
@@ -810,16 +810,14 @@ func nextRetryNanosFn(retryOpts retry.Options) func(int) int64 {
 			backoffFloat64 := initialBackoffFloat * math.Pow(backoffFactor, float64(writeTimes-1))
 			backoff = int64(backoffFloat64)
 		}
-		// Validate the value of backoff to make sure Int63n() does not panic.
-		if jitter && backoff >= 2 {
-			half := backoff / 2
-			backoff = half
-			if backoff < math.MaxUint32 {
-				// Jitter can be only up to 1 hour in microseconds
-				backoff += int64(
-					unsafe.Fastrandn(uint32(half/int64(time.Microsecond))),
-				) * int64(time.Microsecond)
-			}
+		// Validate the value of backoff to make sure Fastrandn() does not panic and
+		// check for overflow from the exponentiation op - unlikely, but prevents weird side effects.
+		if jitter && backoff >= 2 && backoff < math.MaxUint32 {
+			// Jitter can be only up to ~1 hour in microseconds, but it's not a limitation here
+			halfInMicros := (backoff / 2) / int64(time.Microsecond)
+			jitterInMicros := unsafe.Fastrandn(uint32(halfInMicros))
+			jitterInNanos := time.Duration(jitterInMicros) * time.Microsecond
+			backoff += int64(jitterInNanos)
 		}
 		// Clamp backoff to maxBackoff
 		if maxBackoff := maxBackoff.Nanoseconds(); backoff > maxBackoff {
