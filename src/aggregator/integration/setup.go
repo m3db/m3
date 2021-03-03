@@ -117,10 +117,9 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(opts.PlacementKVKey()).
 		SetStagedPlacementStore(opts.KVStore())
-	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(opts.InstanceID()).
-		SetWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
 	aggregatorOpts = aggregatorOpts.
 		SetShardFn(opts.ShardFn()).

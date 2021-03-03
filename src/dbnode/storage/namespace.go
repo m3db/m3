@@ -1060,6 +1060,15 @@ func (n *dbNamespace) Bootstrap(
 			continue
 		}
 
+		// Check if there are unfulfilled ranges
+		if ranges, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+			continue
+		} else if n.reverseIndex != nil {
+			if ranges, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+				continue
+			}
+		}
+
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
@@ -1279,7 +1288,8 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		}
 	}
 
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	cfOpts := NewColdFlushNsOpts(true)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
@@ -1734,7 +1744,8 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	// Cold flusher builds the reverse index for target (current) ns.
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	cfOpts := NewColdFlushNsOpts(false)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		return 0, err
 	}

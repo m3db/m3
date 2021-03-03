@@ -26,7 +26,6 @@ import (
 	"math"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -169,10 +168,9 @@ func parseRequest(
 
 // ParsedOptions are parsed options for the query.
 type ParsedOptions struct {
-	QueryOpts     *executor.QueryOptions
-	FetchOpts     *storage.FetchOptions
-	Params        models.RequestParams
-	CancelWatcher handler.CancelWatcher
+	QueryOpts *executor.QueryOptions
+	FetchOpts *storage.FetchOptions
+	Params    models.RequestParams
 }
 
 func read(
@@ -181,10 +179,9 @@ func read(
 	handlerOpts options.HandlerOptions,
 ) (ReadResult, error) {
 	var (
-		opts          = parsed.QueryOpts
-		fetchOpts     = parsed.FetchOpts
-		params        = parsed.Params
-		cancelWatcher = parsed.CancelWatcher
+		opts      = parsed.QueryOpts
+		fetchOpts = parsed.FetchOpts
+		params    = parsed.Params
 
 		tagOpts = handlerOpts.TagOptions()
 		engine  = handlerOpts.Engine()
@@ -208,14 +205,6 @@ func read(
 	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
 		return emptyResult, xerrors.NewInvalidParamsError(err)
-	}
-
-	// Detect clients closing connections.
-	if cancelWatcher != nil {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, parsed.Params.Timeout)
-		defer cancel()
-		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
 	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
@@ -291,6 +280,10 @@ type ReturnedDataLimited struct {
 	// and so this value is useful for indicating how many series would have
 	// been rendered without limiting either series or datapoints.
 	TotalSeries int
+
+	// Limited signals that the results returned were
+	// limited by either series or datapoint limits.
+	Limited bool
 }
 
 // WriteReturnedDataLimitedHeader writes a header to indicate the returned data

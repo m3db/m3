@@ -26,38 +26,37 @@ import (
 	"testing"
 	"time"
 
+	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xtest "github.com/m3db/m3/src/x/test"
-	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
-	testPeersBootstrapMergePeerBlocks(t, nil, nil)
-}
-
-func TestProtoPeersBootstrapMergePeerBlocks(t *testing.T) {
-	testPeersBootstrapMergePeerBlocks(t, setProtoTestOptions, setProtoTestInputConfig)
-}
-
-func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
+// This test simulates a case where node fails / reboots while fetching data from peers.
+// When restarting / retrying bootstrap process, there already will be some data on disk,
+// which can be fulfilled by filesystem bootstrapper.
+func TestPeersBootstrapPartialData(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	// Test setups
 	log := xtest.NewLogger(t)
-
+	blockSize := 2 * time.Hour
 	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(20 * time.Hour).
-		SetBlockSize(2 * time.Hour).
+		SetRetentionPeriod(5 * blockSize).
+		SetBlockSize(blockSize).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().
-		SetRetentionOptions(retentionOpts))
+	idxOpts := namespace.NewIndexOptions().
+		SetEnabled(true).
+		SetBlockSize(blockSize)
+	nsOpts := namespace.NewOptions().SetRetentionOptions(retentionOpts).SetIndexOptions(idxOpts)
+	namesp, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
@@ -65,12 +64,8 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 		// and not write/read all nodes in the cluster.
 		SetUseTChannelClientForWriting(true).
 		SetUseTChannelClientForReading(true)
-	if setTestOpts != nil {
-		opts = setTestOpts(t, opts)
-		namesp = opts.Namespaces()[0]
-	}
+
 	setupOpts := []BootstrappableTestSetupOptions{
-		{DisablePeersBootstrapper: true},
 		{DisablePeersBootstrapper: true},
 		{
 			DisableCommitLogBootstrapper: true,
@@ -80,55 +75,41 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
-	// Write test data alternating missing data for left/right nodes
+	// Write test data to first node
 	now := setups[0].NowFn()()
-	blockSize := retentionOpts.BlockSize()
-	// Make sure we have multiple blocks of data for multiple series to exercise
-	// the grouping and aggregating logic in the client peer bootstrapping process
 	inputData := []generate.BlockConfig{
+		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-5 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
 	}
-	if updateInputConfig != nil {
-		updateInputConfig(inputData)
-	}
 	seriesMaps := generate.BlocksByStart(inputData)
-	left := make(map[xtime.UnixNano]generate.SeriesBlock)
-	right := make(map[xtime.UnixNano]generate.SeriesBlock)
-	remainder := 0
-	appendSeries := func(target map[xtime.UnixNano]generate.SeriesBlock, start time.Time, s generate.Series) {
-		var dataWithMissing []generate.TestValue
-		for i := range s.Data {
-			if i%2 != remainder {
-				continue
-			}
-			dataWithMissing = append(dataWithMissing, s.Data[i])
-		}
-		target[xtime.ToUnixNano(start)] = append(
-			target[xtime.ToUnixNano(start)],
-			generate.Series{ID: s.ID, Data: dataWithMissing},
-		)
-		remainder = 1 - remainder
-	}
-	for start, data := range seriesMaps {
-		for _, series := range data {
-			appendSeries(left, start.ToTime(), series)
-			appendSeries(right, start.ToTime(), series)
-		}
-	}
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], left, 0))
-	require.NoError(t, writeTestDataToDisk(namesp, setups[1], right, 0))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
 
-	// Start the first two servers with filesystem bootstrappers
-	setups[:2].parallel(func(s TestSetup) {
-		require.NoError(t, s.StartServer())
-	})
+	// Write a subset of blocks to second node, simulating an incomplete peer bootstrap.
+	partialBlockStarts := map[xtime.UnixNano]struct{}{
+		xtime.ToUnixNano(inputData[0].Start): {},
+		xtime.ToUnixNano(inputData[1].Start): {},
+		xtime.ToUnixNano(inputData[2].Start): {},
+	}
+	partialSeriesMaps := make(generate.SeriesBlocksByStart)
+	for blockStart, series := range seriesMaps {
+		if _, ok := partialBlockStarts[blockStart]; ok {
+			partialSeriesMaps[blockStart] = series
+		}
+	}
+	require.NoError(t, writeTestDataToDisk(namesp, setups[1], partialSeriesMaps, 0,
+		func(gOpts generate.Options) generate.Options {
+			return gOpts.SetWriteEmptyShards(false)
+		}))
+
+	// Start the first server with filesystem bootstrapper
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[2].StartServer())
+	require.NoError(t, setups[1].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers
@@ -140,7 +121,7 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setups[0], namesp.ID(), left)
-	verifySeriesMaps(t, setups[1], namesp.ID(), right)
-	verifySeriesMaps(t, setups[2], namesp.ID(), seriesMaps)
+	for _, setup := range setups {
+		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
+	}
 }

@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -131,10 +132,8 @@ type testSetup struct {
 	namespaces     []namespace.Metadata
 
 	// signals
-	doneCh chan struct {
-	}
-	closedCh chan struct {
-	}
+	doneCh   chan struct{}
+	closedCh chan struct{}
 }
 
 // TestSetup is a test setup.
@@ -1111,7 +1110,7 @@ func newNodes(
 
 	nodeOpt := BootstrappableTestSetupOptions{
 		DisablePeersBootstrapper: true,
-		FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		FinalBootstrapper:        uninitialized.UninitializedTopologyBootstrapperName,
 		TopologyInitializer:      topoInit,
 	}
 
