@@ -331,7 +331,9 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 		}
 
 		for _, target := range snapshot.targets {
-			rollupTargets = append(rollupTargets, target.clone())
+			rollupTarget := target.clone()
+			rollupTarget.Tags = snapshot.tags
+			rollupTargets = append(rollupTargets, rollupTarget)
 		}
 	}
 	// NB: could log the matching error here if needed.
@@ -430,6 +432,7 @@ func (as *activeRuleSet) toRollupResults(
 			AggregationID:   aggregationID,
 			StoragePolicies: target.StoragePolicies,
 			Pipeline:        applied,
+			Tags:            target.Tags,
 		}
 		if rollupID == nil {
 			// The applied pipeline applies to the incoming ID.

@@ -500,6 +500,12 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 		return nil
 	}
 
+	if len(pipelines) == 1 &&
+		pipelines[0].IsDefault() &&
+		len(stagedMetadata.Pipelines) > 1 {
+		return nil
+	}
+
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 

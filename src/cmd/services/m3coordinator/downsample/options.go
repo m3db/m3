@@ -452,6 +452,11 @@ type RollupRuleConfiguration struct {
 	StoragePolicies []StoragePolicyConfiguration `yaml:"storagePolicies"`
 
 	// Optional fields follow.
+	// Tags are the tags to be added to the metric while applying the mapping
+	// rule. Users are free to add name/value combinations to the metric. The
+	// coordinator also supports certain first class tags which will enable
+	// specific behaviors based on the specific tag present.
+	Tags []Tag `yaml:"tags"`
 
 	// Name is optional.
 	Name string `yaml:"name"`
@@ -536,6 +541,14 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 
 	targetPipeline := pipeline.NewPipeline(ops)
 
+	tags := make([]models.Tag, 0, len(r.Tags))
+	for _, tag := range r.Tags {
+		tags = append(tags, models.Tag{
+			Name:  []byte(tag.Name),
+			Value: []byte(tag.Value),
+		})
+	}
+
 	targets := []view.RollupTarget{
 		{
 			Pipeline:        targetPipeline,
@@ -548,6 +561,7 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		Name:    name,
 		Filter:  filter,
 		Targets: targets,
+		Tags:    tags,
 	}, nil
 }
 
