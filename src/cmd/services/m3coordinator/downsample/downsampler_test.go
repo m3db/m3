@@ -1657,7 +1657,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeBySum(t *testing
 				"instance":    "not_rolled_up_instance_1",
 			},
 			timedSamples: []testGaugeMetricTimedSample{
-				{value: 42},
+				{value: 42, offset: time.Second},
+				// {value: 42},
 			},
 		},
 		{
@@ -1669,12 +1670,15 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeBySum(t *testing
 				"instance":    "not_rolled_up_instance_2",
 			},
 			timedSamples: []testGaugeMetricTimedSample{
-				{value: 13},
+				{value: 13, offset: time.Second},
+				// {value: 13},
 			},
 		},
 	}
+
 	res := 1 * time.Second
 	ret := 30 * 24 * time.Hour
+
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
 		rulesConfig: &RulesConfiguration{
 			RollupRules: []RollupRuleConfiguration{

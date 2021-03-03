@@ -25,6 +25,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sync"
@@ -160,6 +161,7 @@ func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 
 // AddValue adds a metric value at a given timestamp.
 func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []byte) error {
+	fmt.Printf("!! add value: id=%s, v=%v\n", e.elemBase.id, value)
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
@@ -244,6 +246,16 @@ func (e *GaugeElem) Consume(
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
+
+	if bytes.Contains(e.elemBase.id, []byte("http_requests_by_status_code")) {
+		fmt.Printf("\n\n!! TO CONSUME: id=%s, length=%v\n\n\n", e.elemBase.id, len(e.toConsume))
+		for idx := range e.values {
+			fmt.Printf("\n\n!! CURRENT LINED UP WINDOWS: id=%s, at=%v, target=%v\n\n\n",
+				e.elemBase.id,
+				time.Unix(0, e.values[idx].startAtNanos),
+				time.Unix(0, targetNanos))
+		}
+	}
 
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
@@ -468,6 +480,8 @@ func (e *GaugeElem) processValueWithAggregationLock(
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
+
+		fmt.Printf("\n\n!! FLUSHING VALUE: id=%s, v=%v\n\n\n", e.elemBase.id, value)
 
 		if !e.parsedPipeline.HasRollup {
 			toFlush := make([]transformation.Datapoint, 0, 2)
