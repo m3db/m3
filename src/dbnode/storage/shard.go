@@ -1129,8 +1129,8 @@ func (r *seriesResolver) resolve() error {
 		return r.resolvedResult
 	}
 
-	r.resolved = true
 	r.insertAsyncResult.wg.Wait()
+	r.resolved = true
 
 	// Retrieve the inserted entry
 	id := r.insertAsyncResult.copiedID
@@ -1139,11 +1139,16 @@ func (r *seriesResolver) resolve() error {
 		r.resolvedResult = err
 		return r.resolvedResult
 	}
+
 	if entry == nil {
+		if r.insertAsyncResult.entry != nil {
+			r.entry = r.insertAsyncResult.entry
+			return nil
+		}
+
 		r.resolvedResult = fmt.Errorf("could not resolve: %s", id)
 		return r.resolvedResult
 	}
-
 	r.entry = entry
 	return nil
 }

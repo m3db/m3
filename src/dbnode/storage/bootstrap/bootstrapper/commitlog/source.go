@@ -868,7 +868,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		// Load into series.
 		seriesRef, err := ref.Resolver.SeriesRef()
 		if err != nil {
-			return err
+			return fmt.Errorf("(commitlog) unable to resolve series ref: %v", err)
 		}
 
 		if err := seriesRef.LoadBlock(dbBlock, writeType); err != nil {
