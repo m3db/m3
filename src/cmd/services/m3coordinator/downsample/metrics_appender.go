@@ -35,12 +35,10 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -93,9 +91,6 @@ type metricsAppender struct {
 	originalTags *tags
 	cachedTags   []*tags
 	inuseTags    []*tags
-
-	cachedTagDecoder   serialize.TagDecoder
-	cachedCheckedBytes checked.Bytes
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -106,7 +101,6 @@ type metricsAppenderOptions struct {
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
-	tagDecoderPool               serialize.TagDecoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
 
 	clockOpts    clock.Options
@@ -366,24 +360,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			a.debugLogMatch("downsampler using built mapping staged metadatas",
 				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
 
-			// Rebuild any rollup IDs to remove the special filter prefix
-			// for rollup IDs that appear in later stage rollups.
-			reuseableRollupTags := a.tags()
-			for i := range a.curr.Pipelines {
-				for j := 0; j < a.curr.Pipelines[i].Pipeline.Len(); j++ {
-					op := a.curr.Pipelines[i].Pipeline.At(j)
-					if op.Type == pipeline.RollupOpType {
-						id, err := a.rebuildRollupID(reuseableRollupTags, op.Rollup.ID)
-						if err != nil {
-							return SamplesAppenderResult{}, err
-						}
-						// Update the op with the rollup ID.
-						op.Rollup.ID = id
-						a.curr.Pipelines[i].Pipeline.Set(j, op)
-					}
-				}
-			}
-
 			if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 				return SamplesAppenderResult{}, err
 			}
@@ -395,27 +371,12 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 			a.debugLogMatch("downsampler applying matched rollup rule",
 				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
-
-			// Note: this code likely won't remove the __m3_type__
-			// tag so might need to use the code below.
-			// a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			// 	agg:             a.agg,
-			// 	clientRemote:    a.clientRemote,
-			// 	unownedID:       rollup.ID,
-			// 	stagedMetadatas: rollup.Metadatas,
-			// })
-
-			// Rebuild the rollup ID to exclude any special tags used for matching.
-			if err := a.rebuildRollupIDToTags(tags, rollup.ID); err != nil {
-				return SamplesAppenderResult{}, err
-			}
-
-			appender, err := a.newSamplesAppender(tags, rollup.Metadatas)
-			if err != nil {
-				return SamplesAppenderResult{}, err
-			}
-
-			a.multiSamplesAppender.addSamplesAppender(appender)
+			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+				agg:             a.agg,
+				clientRemote:    a.clientRemote,
+				unownedID:       rollup.ID,
+				stagedMetadatas: rollup.Metadatas,
+			})
 		}
 	}
 
@@ -431,36 +392,6 @@ type debugLogMatchOptions struct {
 	Meta          metadata.StagedMetadatas
 	StoragePolicy policy.StoragePolicy
 	RollupID      []byte
-}
-
-func (a *metricsAppender) rebuildRollupIDToTags(tags *tags, id []byte) error {
-	// Rebuild the rollup ID to exclude any special tags used for matching.
-	tags.reuse()
-	data := a.checkedBytes()
-	data.Reset(id)
-	decoder := a.tagDecoder()
-	decoder.Reset(data)
-	for decoder.Next() {
-		tag := decoder.Current()
-		tags.append(tag.Name.Bytes(), tag.Value.Bytes())
-	}
-	if err := decoder.Err(); err != nil {
-		return err
-	}
-	// Filter out any special prefixed metrics used for matching.
-	tags.filterPrefix(metric.M3MetricsPrefix)
-	return nil
-}
-
-func (a *metricsAppender) rebuildRollupID(tags *tags, id []byte) ([]byte, error) {
-	if err := a.rebuildRollupIDToTags(tags, id); err != nil {
-		return nil, err
-	}
-	result, err := a.tagsID(tags)
-	if err != nil {
-		return nil, err
-	}
-	return result.Bytes(), nil
 }
 
 func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
@@ -509,23 +440,6 @@ func (a *metricsAppender) tagEncoder() serialize.TagEncoder {
 	return tagEncoder
 }
 
-func (a *metricsAppender) tagDecoder() serialize.TagDecoder {
-	if a.cachedTagDecoder != nil {
-		return a.cachedTagDecoder
-	}
-	a.cachedTagDecoder = a.tagDecoderPool.Get()
-	return a.cachedTagDecoder
-}
-
-func (a *metricsAppender) checkedBytes() checked.Bytes {
-	if a.cachedCheckedBytes != nil {
-		return a.cachedCheckedBytes
-	}
-	a.cachedCheckedBytes = checked.NewBytes(nil, nil)
-	a.cachedCheckedBytes.IncRef()
-	return a.cachedCheckedBytes
-}
-
 func (a *metricsAppender) tags() *tags {
 	// Take an encoder from the cached encoder list, if not present get one
 	// from the pool. Add the returned encoder to the used list.
@@ -538,7 +452,9 @@ func (a *metricsAppender) tags() *tags {
 		a.cachedTags = a.cachedTags[:l-1]
 	}
 	a.inuseTags = append(a.inuseTags, t)
-	t.reuse()
+	t.names = t.names[:0]
+	t.values = t.values[:0]
+	t.reset()
 	return t
 }
 
@@ -575,7 +491,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, []metadata.StagedMetadata{sm})
+		appender, err := a.newSamplesAppender(tags, sm)
 		if err != nil {
 			return err
 		}
@@ -589,7 +505,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 
-	appender, err := a.newSamplesAppender(originalTags, []metadata.StagedMetadata{sm})
+	appender, err := a.newSamplesAppender(originalTags, sm)
 	if err != nil {
 		return err
 	}
@@ -597,31 +513,23 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	return nil
 }
 
-func (a *metricsAppender) tagsID(tags *tags) (checked.Bytes, error) {
+func (a *metricsAppender) newSamplesAppender(
+	tags *tags,
+	sm metadata.StagedMetadata,
+) (samplesAppender, error) {
 	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
-		return nil, err
+		return samplesAppender{}, err
 	}
 	data, ok := tagEncoder.Data()
 	if !ok {
-		return nil, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
-	}
-	return data, nil
-}
-
-func (a *metricsAppender) newSamplesAppender(
-	tags *tags,
-	metadatas []metadata.StagedMetadata,
-) (samplesAppender, error) {
-	id, err := a.tagsID(tags)
-	if err != nil {
-		return samplesAppender{}, err
+		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		unownedID:       id.Bytes(),
-		stagedMetadatas: metadatas,
+		unownedID:       data.Bytes(),
+		stagedMetadatas: []metadata.StagedMetadata{sm},
 	}, nil
 }
 
