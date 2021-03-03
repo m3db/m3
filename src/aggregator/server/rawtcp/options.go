@@ -56,10 +56,10 @@ type Options interface {
 	// ServerOptiosn returns the server options.
 	ServerOptions() server.Options
 
-	// SetProtobufUnaggregatedIteratorOptions sets the protobuf unaggregated iterator options.
+	// SetProtobufUnaggregatedIteratorOptions is deprecated.
 	SetProtobufUnaggregatedIteratorOptions(value protobuf.UnaggregatedOptions) Options
 
-	// ProtobufUnaggregatedIteratorOptions returns the protobuf unaggregated iterator options.
+	// ProtobufUnaggregatedIteratorOptions is deprecated.
 	ProtobufUnaggregatedIteratorOptions() protobuf.UnaggregatedOptions
 
 	// SetReadBufferSize sets the read buffer size.
