@@ -192,8 +192,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	// filter out augmented metrics tags
-	tags.filterPrefix(metric.M3MetricsPrefix)
+	// Filter out augmented metrics tags we added for matching.
+	for _, filter := range defaultFilterOutTagPrefixes {
+		tags.filterPrefix(filter)
+	}
 
 	var (
 		dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult

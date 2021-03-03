@@ -21,6 +21,7 @@
 package downsample
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -91,8 +92,11 @@ const (
 )
 
 var (
-	numShards           = runtime.NumCPU()
-	defaultNamespaceTag = metric.M3MetricsPrefixString + "_namespace__"
+	numShards                   = runtime.NumCPU()
+	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
+	defaultFilterOutTagPrefixes = [][]byte{
+		metric.M3MetricsPrefix,
+	}
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
@@ -1039,8 +1043,23 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	newRollupIDProviderPool.Init()
 
 	newRollupIDFn := func(newName []byte, tagPairs []id.TagPair) []byte {
+		// First filter out any tags that have a prefix that
+		// are not included in output metric IDs (such as metric
+		// type tags that are just used for filtering like __m3_type__).
+		filtered := tagPairs[:0]
+	TagPairsFilterLoop:
+		for i := range tagPairs {
+			for _, filter := range defaultFilterOutTagPrefixes {
+				if bytes.HasPrefix(tagPairs[i].Name, filter) {
+					continue TagPairsFilterLoop
+				}
+			}
+			filtered = append(filtered, tagPairs[i])
+		}
+
+		// Create the rollup using filtered tag pairs.
 		rollupIDProvider := newRollupIDProviderPool.Get()
-		id, err := rollupIDProvider.provide(newName, tagPairs)
+		id, err := rollupIDProvider.provide(newName, filtered)
 		if err != nil {
 			panic(err) // Encoding should never fail
 		}
