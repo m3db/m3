@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
@@ -61,8 +60,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 			node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		}
 	)
-	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true,
-		uninitialized.UninitializedTopologyBootstrapperName, instances)
+	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, instances)
 	clientopts = clientopts.
 		SetWriteConsistencyLevel(topology.ConsistencyLevelAll).
 		SetReadConsistencyLevel(topology.ReadConsistencyLevelAll)
