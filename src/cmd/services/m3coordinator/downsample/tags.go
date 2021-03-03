@@ -96,6 +96,12 @@ func (t *tags) countPrefix(prefix []byte) int {
 	return count
 }
 
+func (t *tags) reuse() {
+	t.names = t.names[:0]
+	t.values = t.values[:0]
+	t.reset()
+}
+
 func (t *tags) reset() {
 	t.idx = -1
 }

@@ -480,10 +480,10 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 						"groupBy=%d, excludeBy=%d", len(cfg.GroupBy), len(cfg.ExcludeBy))
 			}
 
-			rollupType := pipelinepb.RollupOpType_GROUP_BY
+			rollupType := pipelinepb.RollupOp_GROUP_BY
 			tags := cfg.GroupBy
 			if len(cfg.ExcludeBy) > 0 {
-				rollupType = pipelinepb.RollupOpType_EXCLUDE_BY
+				rollupType = pipelinepb.RollupOp_EXCLUDE_BY
 				tags = cfg.ExcludeBy
 			}
 

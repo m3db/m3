@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/x/checked"
 	"sort"
 	"time"
 
@@ -91,6 +92,9 @@ type metricsAppender struct {
 	originalTags *tags
 	cachedTags   []*tags
 	inuseTags    []*tags
+
+	cachedTagDecoder   serialize.TagDecoder
+	cachedCheckedBytes checked.Bytes
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -101,6 +105,7 @@ type metricsAppenderOptions struct {
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
+	tagDecoderPool               serialize.TagDecoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
 
 	clockOpts    clock.Options
@@ -362,12 +367,37 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 			a.debugLogMatch("downsampler applying matched rollup rule",
 				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
-			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-				agg:             a.agg,
-				clientRemote:    a.clientRemote,
-				unownedID:       rollup.ID,
-				stagedMetadatas: rollup.Metadatas,
-			})
+
+			// Rebuild the rollup ID to exclude any special tags used for matching.
+			tags.reuse()
+			data := a.checkedBytes()
+			data.Reset(rollup.ID)
+			decoder := a.tagDecoder()
+			decoder.Reset(data)
+			for decoder.Next() {
+				tag := decoder.Current()
+				tags.append(tag.Name.Bytes(), tag.Value.Bytes())
+			}
+			if err := decoder.Err(); err != nil {
+				return SamplesAppenderResult{}, err
+			}
+
+			// Filter out any special prefixed metrics used for matching.
+			tags.filterPrefix(metric.M3MetricsPrefix)
+
+			// fmt.Printf("rollup ID: ")
+			// for i := 0; i < len(tags.names); i++ {
+			// 	fmt.Printf("%s=%s ", tags.names[i], tags.values[i])
+			// }
+
+			// fmt.Printf("\n")
+
+			appender, err := a.newSamplesAppender(tags, rollup.Metadatas)
+			if err != nil {
+				return SamplesAppenderResult{}, err
+			}
+
+			a.multiSamplesAppender.addSamplesAppender(appender)
 		}
 	}
 
@@ -430,6 +460,22 @@ func (a *metricsAppender) tagEncoder() serialize.TagEncoder {
 	return tagEncoder
 }
 
+func (a *metricsAppender) tagDecoder() serialize.TagDecoder {
+	if a.cachedTagDecoder != nil {
+		return a.cachedTagDecoder
+	}
+	a.cachedTagDecoder = a.tagDecoderPool.Get()
+	return a.cachedTagDecoder
+}
+
+func (a *metricsAppender) checkedBytes() checked.Bytes {
+	if a.cachedCheckedBytes != nil {
+		return a.cachedCheckedBytes
+	}
+	a.cachedCheckedBytes = checked.NewBytes(nil, nil)
+	return a.cachedCheckedBytes
+}
+
 func (a *metricsAppender) tags() *tags {
 	// Take an encoder from the cached encoder list, if not present get one
 	// from the pool. Add the returned encoder to the used list.
@@ -442,9 +488,7 @@ func (a *metricsAppender) tags() *tags {
 		a.cachedTags = a.cachedTags[:l-1]
 	}
 	a.inuseTags = append(a.inuseTags, t)
-	t.names = t.names[:0]
-	t.values = t.values[:0]
-	t.reset()
+	t.reuse()
 	return t
 }
 
@@ -483,7 +527,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm)
+		appender, err := a.newSamplesAppender(tags, []metadata.StagedMetadata{sm})
 		if err != nil {
 			return err
 		}
@@ -497,7 +541,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 
-	appender, err := a.newSamplesAppender(originalTags, sm)
+	appender, err := a.newSamplesAppender(originalTags, []metadata.StagedMetadata{sm})
 	if err != nil {
 		return err
 	}
@@ -507,7 +551,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
-	sm metadata.StagedMetadata,
+	metadatas []metadata.StagedMetadata,
 ) (samplesAppender, error) {
 	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
@@ -521,7 +565,7 @@ func (a *metricsAppender) newSamplesAppender(
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
 		unownedID:       data.Bytes(),
-		stagedMetadatas: []metadata.StagedMetadata{sm},
+		stagedMetadatas: metadatas,
 	}, nil
 }
 
