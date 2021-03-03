@@ -133,6 +133,7 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		clientRemote:           agg.clientRemote,
 		clockOpts:              agg.clockOpts,
 		tagEncoderPool:         agg.pools.tagEncoderPool,
+		tagDecoderPool:         agg.pools.tagDecoderPool,
 		matcher:                agg.matcher,
 		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
 		debugLogging:           debugLogging,

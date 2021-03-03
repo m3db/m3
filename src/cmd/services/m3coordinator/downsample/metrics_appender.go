@@ -375,6 +375,15 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			a.debugLogMatch("downsampler applying matched rollup rule",
 				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
 
+			// Note: this code likely won't remove the __m3_type__
+			// tag so might need to use the code below.
+			// a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+			// 	agg:             a.agg,
+			// 	clientRemote:    a.clientRemote,
+			// 	unownedID:       rollup.ID,
+			// 	stagedMetadatas: rollup.Metadatas,
+			// })
+
 			// Rebuild the rollup ID to exclude any special tags used for matching.
 			tags.reuse()
 			data := a.checkedBytes()
@@ -481,6 +490,7 @@ func (a *metricsAppender) checkedBytes() checked.Bytes {
 		return a.cachedCheckedBytes
 	}
 	a.cachedCheckedBytes = checked.NewBytes(nil, nil)
+	a.cachedCheckedBytes.IncRef()
 	return a.cachedCheckedBytes
 }
 
