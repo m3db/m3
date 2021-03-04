@@ -275,35 +275,35 @@ func TestRuleSetLatest(t *testing.T) {
 	latest, err := rs.Latest()
 	require.NoError(t, err)
 
-	rr1, err := pipeline.NewRollupOp(
+	r1, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName1",
 		[]string{"rtagName1", "rtagName2"},
 		aggregation.DefaultID,
 	)
 	require.NoError(t, err)
-	rr3, err := pipeline.NewRollupOp(
+	r3, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName3",
 		[]string{"rtagName1", "rtagName2"},
 		aggregation.DefaultID,
 	)
 	require.NoError(t, err)
-	rr4, err := pipeline.NewRollupOp(
+	r4, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName4",
 		[]string{"rtagName1", "rtagName2"},
 		aggregation.DefaultID,
 	)
 	require.NoError(t, err)
-	rr5, err := pipeline.NewRollupOp(
+	r5, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName5",
 		[]string{"rtagName1"},
 		aggregation.DefaultID,
 	)
 	require.NoError(t, err)
-	rr6, err := pipeline.NewRollupOp(
+	r6, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName6",
 		[]string{"rtagName1", "rtagName2"},
@@ -374,7 +374,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
 								Type:   pipeline.RollupOpType,
-								Rollup: rr1,
+								Rollup: r1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -393,7 +393,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
 								Type:   pipeline.RollupOpType,
-								Rollup: rr3,
+								Rollup: r3,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -413,7 +413,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
 								Type:   pipeline.RollupOpType,
-								Rollup: rr4,
+								Rollup: r4,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -432,7 +432,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
 								Type:   pipeline.RollupOpType,
-								Rollup: rr5,
+								Rollup: r5,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -451,7 +451,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
 								Type:   pipeline.RollupOpType,
-								Rollup: rr6,
+								Rollup: r6,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -754,7 +754,7 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 
 	_, err = rs.getRollupRuleByName("foo")
 	require.Equal(t, errRuleNotFound, err)
-	rr1, err := pipeline.NewRollupOp(
+	r1, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"blah",
 		[]string{"a"},
@@ -771,7 +771,7 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
 						Type:   pipeline.RollupOpType,
-						Rollup: rr1,
+						Rollup: r1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -803,7 +803,7 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
 						Type:   pipeline.RollupOpType,
-						Rollup: rr1,
+						Rollup: r1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -834,7 +834,7 @@ func TestRuleSetAddRollupRuleDuplicateRule(t *testing.T) {
 	r, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	rr1, err := pipeline.NewRollupOp(
+	r1, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"blah",
 		[]string{"a"},
@@ -849,7 +849,7 @@ func TestRuleSetAddRollupRuleDuplicateRule(t *testing.T) {
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
 						Type:   pipeline.RollupOpType,
-						Rollup: rr1,
+						Rollup: r1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{

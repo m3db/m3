@@ -374,12 +374,12 @@ func (v *validator) validateRollupOp(
 	newName := rollupOp.NewName([]byte(""))
 	// Validate that the rollup metric name is valid.
 	if err := v.validateRollupMetricName(newName); err != nil {
-		return fmt.Errorf("invalid rollup metric name '%s': %v", newName, err)
+		return fmt.Errorf("invalid rollup metric name '%s': %w", newName, err)
 	}
 
 	// Validate that the rollup tags are valid.
 	if err := v.validateRollupTags(rollupOp.Tags, previousRollupTags); err != nil {
-		return fmt.Errorf("invalid rollup tags %v: %v", rollupOp.Tags, err)
+		return fmt.Errorf("invalid rollup tags %v: %w", rollupOp.Tags, err)
 	}
 
 	// Validate that the aggregation ID is valid.
@@ -388,7 +388,7 @@ func (v *validator) validateRollupOp(
 		aggType = nonFirstLevelAggregationType
 	}
 	if err := v.validateAggregationID(rollupOp.AggregationID, aggType, types); err != nil {
-		return fmt.Errorf("invalid aggregation ID %v: %v", rollupOp.AggregationID, err)
+		return fmt.Errorf("invalid aggregation ID %v: %w", rollupOp.AggregationID, err)
 	}
 
 	return nil

@@ -474,8 +474,10 @@ func (as *activeRuleSet) matchRollupTarget(
 		nameTagValue  []byte
 	)
 	// switch rollupOp.
+matchTag:
 	for hasMoreTags := sortedTagIter.Next(); hasMoreTags; hasMoreTags = sortedTagIter.Next() {
 		tagName, tagVal := sortedTagIter.Current()
+		// nolint:gosimple
 		isNameTag := bytes.Compare(tagName, nameTagName) == 0
 		if isNameTag {
 			nameTagValue = tagVal
@@ -500,7 +502,7 @@ func (as *activeRuleSet) matchRollupTarget(
 			// If one of the target tags is not found in the ID, this is considered
 			// a non-match so bail immediately.
 			if res > 0 {
-				break
+				break matchTag
 			}
 		case mpipeline.ExcludeByRollupType:
 			if isNameTag {
@@ -530,11 +532,11 @@ func (as *activeRuleSet) matchRollupTarget(
 			// If one of the target tags is not found in the ID then does not
 			// need to be excluded.
 			if res > 0 {
-				break
+				break matchTag
 			}
 		}
-
 	}
+
 	sortedTagIter.Close()
 
 	// If not all the target tags are found, this is considered a no match.

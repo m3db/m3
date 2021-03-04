@@ -1362,6 +1362,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesAggregateTransformNoRol
 func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.T) {
 	t.Parallel()
 
+	// nolint:dupl
 	gaugeMetrics := []testGaugeMetric{
 		{
 			tags: map[string]string{
@@ -1738,6 +1739,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastMean(t *te
 func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd(t *testing.T) {
 	t.Parallel()
 
+	// nolint:dupl
 	gaugeMetrics := []testGaugeMetric{
 		{
 			tags: map[string]string{
