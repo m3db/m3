@@ -320,6 +320,9 @@ func (op RollupOp) Equal(other RollupOp) bool {
 	if !op.AggregationID.Equal(other.AggregationID) {
 		return false
 	}
+	if op.Type != other.Type {
+		return false
+	}
 	return op.SameTransform(other)
 }
 
