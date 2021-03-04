@@ -21,7 +21,11 @@
 package storage
 
 import (
+	"errors"
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -159,7 +163,15 @@ func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext 
 }
 
 func (i *bootstrapInstrumentation) bootstrapFailed(retry int, err error) {
-	i.numRetries.other.Inc(1)
+	numRetries := i.numRetries.other
+	for e := err; e != nil; e = xerrors.InnerError(e) {
+		if errors.Is(e, bootstrap.ErrFileSetSnapshotTypeRangeAdvanced) {
+			numRetries = i.numRetries.obsoleteRanges
+			break
+		}
+	}
+	numRetries.Inc(1)
+
 	i.log.Warn("retrying bootstrap after backoff",
 		zap.Duration("backoff", bootstrapRetryInterval),
 		zap.Int("numRetries", retry))
