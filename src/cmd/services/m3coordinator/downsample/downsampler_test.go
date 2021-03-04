@@ -1401,7 +1401,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 			RollupRules: []RollupRuleConfiguration{
 				{
 					Filter: fmt.Sprintf(
-						"%s:http_requests app:* status_code:* endpoint:*",
+						"%s:http_requests app:* status_code:* endpoint:* __m3_type__:counter",
 						nameTag),
 					Transforms: []TransformConfiguration{
 						{
@@ -1430,6 +1430,9 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 					},
 				},
 			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			MetricType: ts.M3MetricTypeCounter,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: gaugeMetrics,
