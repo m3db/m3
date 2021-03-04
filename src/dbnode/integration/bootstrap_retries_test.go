@@ -24,8 +24,13 @@ package integration
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/storage"
+
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -41,7 +46,7 @@ func TestBootstrapRetriesDueToError(t *testing.T) {
 	// Setup the test bootstrapper to only proceed when a signal is sent.
 	signalCh := make(chan bool)
 
-	setup := bootstrapRetryTestSetup(t, func(
+	setup, testScope := bootstrapRetryTestSetup(t, func(
 		ctx context.Context,
 		namespaces bootstrap.Namespaces,
 		cache bootstrap.Cache,
@@ -70,7 +75,7 @@ func TestBootstrapRetriesDueToError(t *testing.T) {
 		signalCh <- false
 		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
 
-		// Still boostrap retry. Bootstrapper completes in-memory range without errors. DB finishes bootstrapping.
+		// Still bootstrap retry. Bootstrapper completes in-memory range without errors. DB finishes bootstrapping.
 		signalCh <- false
 	}()
 
@@ -80,13 +85,64 @@ func TestBootstrapRetriesDueToError(t *testing.T) {
 	}()
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
+	retryCounter := getBootstrapRetriesCounter(testScope, "other")
+	require.NotNil(t, retryCounter)
+	assert.Equal(t, int64(1), retryCounter.Value())
+}
+
+func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
+	// Setup the test bootstrapper to only proceed when a signal is sent.
+	signalCh := make(chan struct{})
+
+	setup, testScope := bootstrapRetryTestSetup(t, func(
+		ctx context.Context,
+		namespaces bootstrap.Namespaces,
+		cache bootstrap.Cache,
+	) (bootstrap.NamespaceResults, error) {
+		<-signalCh
+		noopNone := bootstrapper.NewNoOpAllBootstrapperProvider()
+		bs, err := noopNone.Provide()
+		require.NoError(t, err)
+		return bs.Bootstrap(ctx, namespaces, cache)
+	})
+
+	go func() {
+		// Wait for server to start
+		setup.WaitUntilServerIsUp()
+
+		// First bootstrap pass, persist ranges. Check if DB is not marked bootstrapped.
+		signalCh <- struct{}{}
+		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+		// Still first bootstrap pass, in-memory ranges. Shift clock to make previously calculated
+		// ranges obsolete. Check if DB is not marked bootstrapped.
+		setup.SetNowFn(setup.NowFn()().Add(2 * time.Hour))
+		signalCh <- struct{}{}
+		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+
+		// Bootstrap retry, persist ranges. Check if DB isn't marked as bootstrapped on the second pass.
+		signalCh <- struct{}{}
+		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+
+		// Still bootstrap retry, in-memory ranges. DB finishes bootstrapping.
+		signalCh <- struct{}{}
+	}()
+
+	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
+	defer func() {
+		require.NoError(t, setup.StopServer())
+	}()
+
+	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
+	retryCounter := getBootstrapRetriesCounter(testScope, "obsolete-ranges")
+	require.NotNil(t, retryCounter)
+	assert.Equal(t, int64(1), retryCounter.Value())
 }
 
 func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
 	// Setup the test bootstrapper to only proceed when a signal is sent.
 	signalCh := make(chan bool)
 
-	setup := bootstrapRetryTestSetup(t, func(
+	setup, testScope := bootstrapRetryTestSetup(t, func(
 		ctx context.Context,
 		namespaces bootstrap.Namespaces,
 		cache bootstrap.Cache,
@@ -132,6 +188,10 @@ func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
 	}()
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
+
+	retryCounter := getBootstrapRetriesCounter(testScope, "other")
+	require.NotNil(t, retryCounter)
+	assert.Equal(t, int64(1), retryCounter.Value())
 }
 
 type bootstrapFn = func(
@@ -140,7 +200,9 @@ type bootstrapFn = func(
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error)
 
-func bootstrapRetryTestSetup(t *testing.T, bootstrapFn bootstrapFn) TestSetup {
+func bootstrapRetryTestSetup(t *testing.T, bootstrapFn bootstrapFn) (TestSetup, tally.TestScope) {
+	testScope := tally.NewTestScope("testScope", map[string]string{})
+
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(12 * time.Hour).
 		SetBufferPast(5 * time.Minute).
@@ -151,7 +213,9 @@ func bootstrapRetryTestSetup(t *testing.T, bootstrapFn bootstrapFn) TestSetup {
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
-	setup, err := NewTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil, func(storageOpts storage.Options) storage.Options {
+		return storageOpts.SetInstrumentOptions(storageOpts.InstrumentOptions().SetMetricsScope(testScope))
+	})
 	require.NoError(t, err)
 	defer setup.Close()
 
@@ -160,16 +224,26 @@ func bootstrapRetryTestSetup(t *testing.T, bootstrapFn bootstrapFn) TestSetup {
 
 		bootstrapOpts          = newDefaulTestResultOptions(setup.StorageOpts())
 		bootstrapperSourceOpts = testBootstrapperSourceOptions{read: bootstrapFn}
-		boostrapper            = newTestBootstrapperSource(bootstrapperSourceOpts, bootstrapOpts, nil)
-
-		processOpts = bootstrap.NewProcessOptions().
-				SetTopologyMapProvider(setup).
-				SetOrigin(setup.Origin())
+		processOpts            = bootstrap.NewProcessOptions().
+					SetTopologyMapProvider(setup).
+					SetOrigin(setup.Origin())
 	)
+	bootstrapOpts.SetInstrumentOptions(bootstrapOpts.InstrumentOptions().SetMetricsScope(testScope))
+	boostrapper := newTestBootstrapperSource(bootstrapperSourceOpts, bootstrapOpts, nil)
 
 	processProvider, err := bootstrap.NewProcessProvider(
 		boostrapper, processOpts, bootstrapOpts, fsOpts)
 	require.NoError(t, err)
 	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(processProvider))
-	return setup
+	return setup, testScope
+}
+
+func getBootstrapRetriesCounter(testScope tally.TestScope, reason string) tally.CounterSnapshot {
+	for _, snapshot := range testScope.Snapshot().Counters() {
+		if r, ok := snapshot.Tags()["reason"]; ok &&
+			strings.Contains(snapshot.Name(), "bootstrap-retries") && r == reason {
+			return snapshot
+		}
+	}
+	return nil
 }
