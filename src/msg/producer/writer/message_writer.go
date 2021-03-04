@@ -812,12 +812,13 @@ func nextRetryNanosFn(retryOpts retry.Options) func(int) int64 {
 		}
 		// Validate the value of backoff to make sure Fastrandn() does not panic and
 		// check for overflow from the exponentiation op - unlikely, but prevents weird side effects.
-		if jitter && backoff >= 2 && backoff < math.MaxUint32 {
+		halfInMicros := (backoff / 2) / int64(time.Microsecond)
+		if jitter && backoff >= 2 && halfInMicros < math.MaxUint32 {
 			// Jitter can be only up to ~1 hour in microseconds, but it's not a limitation here
-			halfInMicros := (backoff / 2) / int64(time.Microsecond)
 			jitterInMicros := unsafe.Fastrandn(uint32(halfInMicros))
 			jitterInNanos := time.Duration(jitterInMicros) * time.Microsecond
-			backoff += int64(jitterInNanos)
+			halfInNanos := time.Duration(halfInMicros) * time.Microsecond
+			backoff = int64(halfInNanos + jitterInNanos)
 		}
 		// Clamp backoff to maxBackoff
 		if maxBackoff := maxBackoff.Nanoseconds(); backoff > maxBackoff {
