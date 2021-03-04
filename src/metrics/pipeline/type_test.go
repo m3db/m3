@@ -223,6 +223,35 @@ func TestTransformationOpRoundTrip(t *testing.T) {
 	require.Equal(t, testTransformationOp, res)
 }
 
+func TestRollupOpEqual(t *testing.T) {
+	inputs := []struct {
+		a1       RollupOp
+		a2       RollupOp
+		expected bool
+	}{
+		{
+			a1:       RollupOp{Type: GroupByRollupType},
+			a2:       RollupOp{Type: GroupByRollupType},
+			expected: true,
+		},
+		{
+			a1:       RollupOp{Type: ExcludeByRollupType},
+			a2:       RollupOp{Type: ExcludeByRollupType},
+			expected: true,
+		},
+		{
+			a1:       RollupOp{Type: GroupByRollupType},
+			a2:       RollupOp{Type: ExcludeByRollupType},
+			expected: false,
+		},
+	}
+
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.a1.Equal(input.a2))
+		require.Equal(t, input.expected, input.a2.Equal(input.a1))
+	}
+}
+
 func TestRollupOpSameTransform(t *testing.T) {
 	rollupOp := RollupOp{
 		newName: b("foo"),
