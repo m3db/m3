@@ -473,7 +473,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		nameTagName   = as.tagsFilterOpts.NameTagKey
 		nameTagValue  []byte
 	)
-	// switch rollupOp.
+	// Iterate through each tag, looking to match it with corresponding filter tags on the rule
 matchTag:
 	for hasMoreTags := sortedTagIter.Next(); hasMoreTags; hasMoreTags = sortedTagIter.Next() {
 		tagName, tagVal := sortedTagIter.Current()
@@ -527,12 +527,6 @@ matchTag:
 
 			if opts.generateRollupID {
 				tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
-			}
-
-			// If one of the target tags is not found in the ID then does not
-			// need to be excluded.
-			if res > 0 {
-				break matchTag
 			}
 		}
 	}
