@@ -24,14 +24,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	xerrors "github.com/m3db/m3/src/x/errors"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
