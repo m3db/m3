@@ -360,8 +360,28 @@ db:
         # Default = false
         shardsLeavingCountTowardsConsistency: <bool>
   # Specifies the pooling policy
-  # TODO: Fill in ?
   pooling:
+    # Initial alloc size for a block
+    blockAllocSize: <int>
+    # Thrift bytes pool max bytes slice allocation for a single binary field
+    thriftBytesPoolAllocSize: <int>
+    # General pool type, valid options: [simple]
+    type: <string>
+    # Bucketized pool configuration
+    bytesPool:
+      # Configuration for buckets in a pool
+      buckets:
+        # Number of items in the bucket
+        count: <int>
+        # Capacity of each item in the bucket
+        capacity: <int>
+      watermark:
+        # The low watermark to start refilling the pool
+        # min=0.0, max=1.0
+        low: <float>
+        # The high watermark to start refilling the pool
+        # min=0.0, max=1.0
+        high: <float>
   hashing:
     # Murmur32 seed value
     seed: <int>
@@ -382,35 +402,112 @@ db:
     backend: <string>
     # If using Jaeger, options to send to tracing backend
     jaeger:
-      serviceName:
-      disabled:
-      rpc_metrics:
-      tags:
+      # Service name to use
+      serviceName: <string>
+      # Disable jaeger tracing
+      disabled: <bool>
+      # Enable RPC metrics
+      rpc_metrics: <bool>
+      # Tags to send to tracing backend as key/value pairs
+      tags: <array_of_strings>
+      # Jaeger sampling configuration
       sampler:
+        # Sampler type, valid options: [const, probabilistic, rateLimiting, remote]
+        type: <string>
+        # Value passed to sampler
+        # For "const" sampler, 0 or 1 for always false/true respectively
+        # For "probabilistic" sampler, a probability between 0 and 1
+        # For "rateLimiting" sampler, the number of spans per second
+        # For "remote" sampler, param is the same as for "probabilistic" and indicates the initial sampling rate before the actual rate
+        param: <float>
+        # URL of sampling manager that can provide sampling strategy to this service
+        samplingServerURL: <string>
+        # How often the remotely controlled sampler polls sampling manager for the appropriate sampling strategy
+        samplingRefreshInterval: <duration>
+        # Maximum number of operations that the PerOperationSampler keeps track of
+        maxOperations: <int>
+        # For applications that require late binding of span name via explicit call to SetOperationName when using PerOperationSampler
+        operationNameLateBinding: <bool>
+      # Jaeger sampling configuration
       reporter:
+        # How many spans the reporter can keep in memory before it starts dropping new spans
+        queueSize: <int>
+        # Enable LoggingReporter that runs in parallel with the main reporter and logs all submitted spans
+        logSpans: <bool>
+        # Instructs reporter to send spans to jaeger-agent at this address
+        localAgentHostPort: <string>
+        # Disables udp connection helper that periodically re-resolves the agent's hostname and reconnects if there was a change
+        disableAttemptReconnecting: <bool>
+        # Send spans to jaeger-collector at this URL
+        collectorEndpoint: <url>
+        # Include a user for basic http authentication when sending spans to jaeger-collector
+        user: <string>
+        # Include a password for basic http authentication when sending spans to jaeger collector
+        password: <string>
+        # Add these headers to the http request when reporting spans
+        http_headers: <array_of_strings>
+      # Values for the header keys that Jaeger uses
       headers:
+        # Forces the trace to be sampled as "debug" trace
+        jaegerDebugHeader: <string>
+        # Submit baggage in this header when a root span does not exist
+        jaegerBaggageHeader: <string>
+        # Use to propagate tracing context
+        TraceContextHeaderName: <string>
+        # Use to propagate baggage, must be lower-case
+        traceBaggageHeaderPrefix: <string>
+      # Baggage restrictions manager to whitelist certain baggage keys
       baggage_restrictions:
+        # Startup failure mode to deny or allow writing of baggage before restrictions are retreived from Jaeger agent
+        denyBaggageOnInitializationFailure: <bool>
+        # hostPort of jaeger-agent's baggage restrictions server
+        hostPort: <string>
+        # How often the baggage restriction manager polls jaeger-agent for the most recent baggage restrictions
+        refreshInterval: <duration>
+      # Configures the throttler for the rate at which the client may send debug requests
       throttler:
+        # Host port of jaeger-agent's credit server
+        hostPort: <string>
+        # How often the throttler polls jaeger-agent for more throttling credits
+        refreshInterval: <duration>
+        # Should throttler synchronously fetch credits from the agent when an operation is seen for the first time
+        synchronousInitialization: <bool>
     # If using Lightstep, options to send to tracing backend
     lightstep:
-      access_token:
-      collector:
-      tags:
-      lightstep_api:
-      max_buffered_spans:
-      max_log_key_lenmax_log_key_len:
-      max_log_value_len:
-      max_logs_per_span:
-      grpc_max_call_send_msg_size_bytes:
-      reporting_period:
-      min_reporting_period:
-      report_timeout:
-      drop_span_logs:
-      verbose:
-      use_http:
-      usegrpc:
-      reconnect_period:
-      meta_event_reporting_enabled:
+      # API key for your LightStep project
+      access_token: <string>
+      # Host, port, and plaintext option to use for the collector
+      collector: <url>
+      # Tags to send to tracing backend as key/value pairs
+      tags: <array_of_strings>
+      # Host, port, and plaintext option to use for the LightStep web API
+      lightstep_api: <url>
+      # Maximum number of spans buffered before sending them to a collector
+      max_buffered_spans: <int>
+      # Maximum allowable size (in characters) of an OpenTracing logging key
+      max_log_key_lenmax_log_key_len: <int>
+      # Maximum allowable size (in characters) of an OpenTracing logging value. Longer values are truncated. Only applies to ariable-length value types (strings, interface{}, etc)
+      max_log_value_len: <int>
+      # Limits the number of logs in a single span
+      max_logs_per_span: <int>
+      # Limits the size in bytes of grpc messages sent by a client
+      grpc_max_call_send_msg_size_bytes: <int>
+      # Maximum duration of time between sending spans to a collector
+      reporting_period: <duration>
+      # Minimum duration of time between sending spans to a collector
+      min_reporting_period: <duration>
+      # Timeout of sending spans to collector
+      report_timeout: <duration>
+      # Turn log events on all Spans into no-ops
+      drop_span_logs: <bool>
+      # Force use of HTTP connections
+      use_http: <bool>
+      # Force use of gRPC connection
+      usegrpc: <bool>
+      # Reconnect timeout for connections to collector
+      reconnect_period: <duration>
+      # Enable Lightstep meta event logging
+      meta_event_reporting_enabled: <bool>
   # Defines limits for wide operations which optimize for query completeness across arbitary query ranges rather than speed
   limits:
     # Upper limit on time series bytes read from disk within a given lookback period
@@ -460,38 +557,154 @@ db:
   discovery:
     # The type of discovery configuration being used, valid options: [config, m3db_single_node, m3db_cluster, m3aggregator_cluster]
     type: <string>
+    # Defines M3DB discovery via etcd
     m3dbCluster:
       env: <string>
       zone: <string>
       endpoints: <array_of_strings>
+    # Defines M3Aggregator discovery via etcd
     m3AggregatorCluster:
       env: <string>
       zone: <string>
-      endpoints: <array_of_strings>    
+      endpoints: <array_of_strings>
+    # A generic definition for service discovery via etcd
     config:
+      services:
+        # A single cluster with dynamic configuration
+        async: <bool>
+        # M3DB client overrides for a given cluster
+        clientOverrides:
+          hostQueueFlushInterval: <duration>
+          targetHostQueueFlushSize: <int>
         service:
-            # KV environment, zone, and service from which to write/read KV data (placement
-            # and configuration). Leave these as the default values unless you know what
-            # you're doing
-            env: default_env
-            zone: embedded
-            service: m3db
-            # Directory to store cached etcd data in
-            cacheDir: /var/lib/m3kv
-            # Configuration to identify the etcd hosts this node should connect to
-            etcdClusters:
-                - zone: embedded
-                  endpoints:
-                      - 127.0.0.1:2379
-        # Configuration for running M3 with static configs
+          # TODO: ?
+          env: default_env
+          # Availability zone, valid options: [user-defined, embedded]
+          zone: <string>
+          # TODO: ??
+          service: m3db
+          # Directory to store cached etcd data
+          cacheDir: <string>
+          # Identify the etcd hosts this node should connect to
+          # TODO: Fill this in
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - m3db_seed:2379
+          # M3 service discovery configuration
+          m3sd:
+            initTimeout: <duration>
+          # The revision that watch requests start from
+          watchWithRevision: <int>
+          # Changes permissions and mode of cache directory
+          newDirectoryMode: <string>
+          # Configuration for retrying connection operations
+          retry:
+            initialBackoff: <duration>
+            # Factor for exponential backoff
+            backoffFactor: <float>
+            # Maximum backoff time
+            maxBackoff: <duration>
+            # Maximum retry attempts
+            maxRetries: <int>
+            # Retry connection forever until the attempt succeeds, or the retry condition becomes false
+            forever: <bool>      
+            # Add randomness to wait intervals
+            jitter: <bool>
+          # The timeout for etcd requests
+          requestTimeout: <duration>
+          # The timeout for a watchChan initialization
+          watchChanInitTimeout: <duration>
+          # Frequency to check if a watch chan is no longer subscribed and should be closed
+          watchChanCheckInterval: <duration>
+          # The delay before resetting the etcd watch chan
+          watchChanResetInterval: <duration>
+        # Configuration for a cluster running M3 with static config
         statics:
-          async:
+          async: <bool>
+          # M3DB client overrides for a given cluster
           clientOverrides:
+            hostQueueFlushInterval: <duration>
+            targetHostQueueFlushSize: <int>
           namespaces:
+            id:
+            # If namespace requires bootstrapping
+            bootstrapEnabled: <bool>
+            # Whether the in-memory data for this namespace needs to be flushed
+            flushEnabled: <bool>
+            # Whether writes for series in this namespace need to go to commit log
+            writesToCommitLog: <bool>
+            # Whether this namespace requires cleaning up fileset/snapshot files
+            cleanupEnabled: <bool>
+            # Whether cold writes are enabled for this namespace
+            coldWritesEnabled: <bool>
+            # Whether to cache blocks from this namespace when retrieved
+            cacheBlocksOnRetrieve: <bool>
+            # Retention options for namespace
+            retention:
+              #  How ling to keep data in memory
+              retentionPeriod: <duration>
+              # How long to keep data in memory in the future if cold writes are enabled
+              futureRetentionPeriod: <duration>
+              # Block size
+              blockSize: <duration>
+              # Buffer future
+              # TODO: What does this mean?
+              bufferFuture: <duration>
+              # Buffer past
+              bufferPast: <duration>
+              # Block data expiry mode
+              blockDataExpiry: <bool>
+              # The period that blocks data should be expired after not being accessed for a given duration
+              blockDataExpiryAfterNotAccessedPeriod: <duration>
+            # Namespace index configuration
+            index:
+              enabled: <bool>
+              blockSize: <duration>
+          # Configuration for setting up M3 with a static placement
           topology:
-          listenAddress:
-        # Should only be present if running an M3DB cluster with embedded etcd.
+            shards: <int>
+            replicas: <int>
+            # Host information for fanout
+            hosts:
+              hostID: <string>
+              listenAddress: <string>
+          listenAddress: <url>
+        # Seed node configuration, mostly used for single node setups
         seedNodes:
-            initialCluster:
-                - hostID: m3db_local
-                  endpoint: http://127.0.0.1:2380
+          # Path to key-value store directory
+          rootDir: <string>
+          initialAdvertisePeerUrls: <array_of_strings>
+          advertiseClientUrls: <array_of_strings>
+          listenPeerUrls: <array_of_strings>
+          listenClientUrls: <array_of_strings>
+          # A seed node for the cluster
+          initialCluster:
+            # Identifier for node
+            - hostID: <string>
+              # URL of node
+              endpoint: <url>
+              # Specify that this is an existing cluster, or leave blank if it is now, valid options: [existing]
+              clusterState: <string>
+          # Seed node client security configuration
+          clientTransportSecurity:
+            # Certificiate authority path
+            caFile: <string>
+            # Certificate path
+            certFile: <string>
+            # Key store path
+            keyFile: <string>
+            trustedCaFile: <string>
+            clientCertAuth: <bool>
+            autoTls: <bool>
+          # Seed node peer security configuration
+          peerTransportSecurity:
+            # Certificiate authority path
+            caFile: <string>
+            # Certificate path
+            certFile: <string>
+            # Key store path
+            keyFile: <string>
+            trustedCaFile: <string>
+            clientCertAuth: <bool>
+            autoTls: <bool>

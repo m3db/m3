@@ -666,41 +666,6 @@ downsample:
           forever: <bool>
           # Add randomness to wait intervals
           jitter: <bool>                        
-  # Aggregation types
-  # NOTE: Aggregator
-  # TODO: Aggregator wait for a second pass
-  aggregationTypes:
-    # Default aggregation types for counter metrics
-    defaultCounterAggregationTypes:
-    # Default aggregation types for timer metrics
-    defaultTimerAggregationTypes:
-    # Default aggregation types for gauge metrics
-    defaultGaugeAggregationTypes:
-    # Configures the type string transformation function for counters, valid options: [noop, empty, suffix]
-    counterTransformFnType: 
-    # Configures the type string transformation function for timers, valid options: [noop, empty, suffix]
-    timerTransformFnType: 
-    # Configures the type string transformation function for gauges, valid options: [noop, empty, suffix]
-    gaugeTransformFnType: 
-    # Pool of aggregation types
-    aggregationTypesPool:
-      # Size of the pool
-      size: <int>
-      watermark:
-        # The low watermark to start refilling the pool
-        # min=0.0, max=1.0
-        low: <float>
-        # The high watermark to start refilling the pool
-        # min=0.0, max=1.0
-        high: <float>
-    # Pool of quantile slices.
-    quantilesPool:
-      # Configuration for buckets in a pool
-      buckets:
-        # Number of items in the bucket
-        count: <int>
-        # Capacity of each item in the bucket
-        capacity: <int> 
   # Pool of counter elements
   counterElemPool:
     # Size of the pool
