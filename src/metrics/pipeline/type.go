@@ -357,7 +357,7 @@ func (op RollupOp) Proto() (*pipelinepb.RollupOp, error) {
 func (op RollupOp) String() string {
 	var b bytes.Buffer
 	b.WriteString("{")
-	fmt.Fprintf(&b, "name: %s, ", op.NewName)
+	fmt.Fprintf(&b, "name: %s, ", op.newName)
 	b.WriteString("tags: [")
 	for i, t := range op.Tags {
 		fmt.Fprintf(&b, "%s", t)

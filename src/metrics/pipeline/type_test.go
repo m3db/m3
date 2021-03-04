@@ -165,7 +165,7 @@ func TestPipelineString(t *testing.T) {
 					{
 						Type: RollupOpType,
 						Rollup: RollupOp{
-							NewName:       b("foo"),
+							newName:       b("foo"),
 							Tags:          [][]byte{b("tag1"), b("tag2")},
 							AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 						},
@@ -225,7 +225,7 @@ func TestTransformationOpRoundTrip(t *testing.T) {
 
 func TestRollupOpSameTransform(t *testing.T) {
 	rollupOp := RollupOp{
-		NewName: b("foo"),
+		newName: b("foo"),
 		Tags:    bs("bar1", "bar2"),
 	}
 	inputs := []struct {
@@ -233,31 +233,31 @@ func TestRollupOpSameTransform(t *testing.T) {
 		result bool
 	}{
 		{
-			op:     RollupOp{NewName: b("foo"), Tags: bs("bar1", "bar2")},
+			op:     RollupOp{newName: b("foo"), Tags: bs("bar1", "bar2")},
 			result: true,
 		},
 		{
-			op:     RollupOp{NewName: b("foo"), Tags: bs("bar2", "bar1")},
+			op:     RollupOp{newName: b("foo"), Tags: bs("bar2", "bar1")},
 			result: true,
 		},
 		{
-			op:     RollupOp{NewName: b("foo"), Tags: bs("bar1")},
+			op:     RollupOp{newName: b("foo"), Tags: bs("bar1")},
 			result: false,
 		},
 		{
-			op:     RollupOp{NewName: b("foo"), Tags: bs("bar1", "bar2", "bar3")},
+			op:     RollupOp{newName: b("foo"), Tags: bs("bar1", "bar2", "bar3")},
 			result: false,
 		},
 		{
-			op:     RollupOp{NewName: b("foo"), Tags: bs("bar1", "bar3")},
+			op:     RollupOp{newName: b("foo"), Tags: bs("bar1", "bar3")},
 			result: false,
 		},
 		{
-			op:     RollupOp{NewName: b("baz"), Tags: bs("bar1", "bar2")},
+			op:     RollupOp{newName: b("baz"), Tags: bs("bar1", "bar2")},
 			result: false,
 		},
 		{
-			op:     RollupOp{NewName: b("baz"), Tags: bs("bar2", "bar1")},
+			op:     RollupOp{newName: b("baz"), Tags: bs("bar2", "bar1")},
 			result: false,
 		},
 	}
@@ -289,23 +289,23 @@ func TestOpUnionMarshalJSON(t *testing.T) {
 			op: OpUnion{
 				Type: RollupOpType,
 				Rollup: RollupOp{
-					NewName:       b("testRollup"),
+					newName:       b("testRollup"),
 					Tags:          bs("tag1", "tag2"),
 					AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 				},
 			},
-			expected: `{"rollup":{"newName":"testRollup","tags":["tag1","tag2"],"aggregation":["Min","Max"]}}`,
+			expected: `{"rollup":{"type":0,"newName":"testRollup","tags":["tag1","tag2"],"aggregation":["Min","Max"]}}`,
 		},
 		{
 			op: OpUnion{
 				Type: RollupOpType,
 				Rollup: RollupOp{
-					NewName:       b("testRollup"),
+					newName:       b("testRollup"),
 					Tags:          bs("tag1", "tag2"),
 					AggregationID: aggregation.DefaultID,
 				},
 			},
-			expected: `{"rollup":{"newName":"testRollup","tags":["tag1","tag2"],"aggregation":null}}`,
+			expected: `{"rollup":{"type":0,"newName":"testRollup","tags":["tag1","tag2"],"aggregation":null}}`,
 		},
 	}
 
@@ -335,7 +335,7 @@ func TestOpUnionMarshalRoundtrip(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup"),
+				newName:       b("testRollup"),
 				Tags:          bs("tag1", "tag2"),
 				AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 			},
@@ -343,7 +343,7 @@ func TestOpUnionMarshalRoundtrip(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup"),
+				newName:       b("testRollup"),
 				Tags:          bs("tag1", "tag2"),
 				AggregationID: aggregation.DefaultID,
 			},
@@ -366,7 +366,7 @@ func TestPipelineMarshalJSON(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup"),
+				newName:       b("testRollup"),
 				Tags:          bs("tag1", "tag2"),
 				AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 			},
@@ -374,7 +374,7 @@ func TestPipelineMarshalJSON(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup"),
+				newName:       b("testRollup"),
 				Tags:          bs("tag1", "tag2"),
 				AggregationID: aggregation.DefaultID,
 			},
@@ -385,8 +385,8 @@ func TestPipelineMarshalJSON(t *testing.T) {
 
 	expected := `[{"aggregation":"Sum"},` +
 		`{"transformation":"PerSecond"},` +
-		`{"rollup":{"newName":"testRollup","tags":["tag1","tag2"],"aggregation":["Min","Max"]}},` +
-		`{"rollup":{"newName":"testRollup","tags":["tag1","tag2"],"aggregation":null}}]`
+		`{"rollup":{"type":0,"newName":"testRollup","tags":["tag1","tag2"],"aggregation":["Min","Max"]}},` +
+		`{"rollup":{"type":0,"newName":"testRollup","tags":["tag1","tag2"],"aggregation":null}}]`
 	require.Equal(t, expected, string(b))
 }
 
@@ -403,7 +403,7 @@ func TestPipelineMarshalRoundtrip(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup"),
+				newName:       b("testRollup"),
 				Tags:          bs("tag1", "tag2"),
 				AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 			},
@@ -411,7 +411,7 @@ func TestPipelineMarshalRoundtrip(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup"),
+				newName:       b("testRollup"),
 				Tags:          bs("tag1", "tag2"),
 				AggregationID: aggregation.DefaultID,
 			},
@@ -455,7 +455,7 @@ func TestPipelineUnmarshalYAML(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup"),
+				newName:       b("testRollup"),
 				Tags:          bs("tag1", "tag2"),
 				AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 			},
@@ -463,7 +463,7 @@ func TestPipelineUnmarshalYAML(t *testing.T) {
 		{
 			Type: RollupOpType,
 			Rollup: RollupOp{
-				NewName:       b("testRollup2"),
+				newName:       b("testRollup2"),
 				Tags:          bs("tag3", "tag4"),
 				AggregationID: aggregation.DefaultID,
 			},

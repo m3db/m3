@@ -54,11 +54,11 @@ var (
 		Filter:             "tag1:value1 tag2:value2",
 		KeepOriginal:       false,
 		Targets: []*rulepb.RollupTarget{
-			&rulepb.RollupTarget{
+			{
 				Name: "rName1",
 				Tags: []string{"rtagName1", "rtagName2"},
 				Policies: []*policypb.Policy{
-					&policypb.Policy{
+					{
 						StoragePolicy: &policypb.StoragePolicy{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
@@ -82,11 +82,11 @@ var (
 		Filter:             "tag3:value3 tag4:value4",
 		KeepOriginal:       false,
 		Targets: []*rulepb.RollupTarget{
-			&rulepb.RollupTarget{
+			{
 				Name: "rName1",
 				Tags: []string{"rtagName1", "rtagName2"},
 				Policies: []*policypb.Policy{
-					&policypb.Policy{
+					{
 						StoragePolicy: &policypb.StoragePolicy{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(time.Minute),
@@ -100,7 +100,7 @@ var (
 							aggregationpb.AggregationType_MEAN,
 						},
 					},
-					&policypb.Policy{
+					{
 						StoragePolicy: &policypb.StoragePolicy{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(5 * time.Minute),
@@ -127,7 +127,7 @@ var (
 		Filter:             "tag1:value1 tag2:value2",
 		KeepOriginal:       false,
 		TargetsV2: []*rulepb.RollupTargetV2{
-			&rulepb.RollupTargetV2{
+			{
 				Pipeline: &pipelinepb.Pipeline{
 					Ops: []pipelinepb.PipelineOp{
 						{
@@ -156,7 +156,7 @@ var (
 					},
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
-					&policypb.StoragePolicy{
+					{
 						Resolution: policypb.Resolution{
 							WindowSize: 10 * time.Second.Nanoseconds(),
 							Precision:  time.Second.Nanoseconds(),
@@ -165,7 +165,7 @@ var (
 							Period: 24 * time.Hour.Nanoseconds(),
 						},
 					},
-					&policypb.StoragePolicy{
+					{
 						Resolution: policypb.Resolution{
 							WindowSize: time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
@@ -174,7 +174,7 @@ var (
 							Period: 720 * time.Hour.Nanoseconds(),
 						},
 					},
-					&policypb.StoragePolicy{
+					{
 						Resolution: policypb.Resolution{
 							WindowSize: time.Hour.Nanoseconds(),
 							Precision:  time.Hour.Nanoseconds(),
@@ -185,7 +185,7 @@ var (
 					},
 				},
 			},
-			&rulepb.RollupTargetV2{
+			{
 				Pipeline: &pipelinepb.Pipeline{
 					Ops: []pipelinepb.PipelineOp{
 						{
@@ -204,7 +204,7 @@ var (
 					},
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
-					&policypb.StoragePolicy{
+					{
 						Resolution: policypb.Resolution{
 							WindowSize: time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
@@ -226,7 +226,7 @@ var (
 		Filter:             "tag3:value3 tag4:value4",
 		KeepOriginal:       true,
 		TargetsV2: []*rulepb.RollupTargetV2{
-			&rulepb.RollupTargetV2{
+			{
 				Pipeline: &pipelinepb.Pipeline{
 					Ops: []pipelinepb.PipelineOp{
 						{
@@ -242,7 +242,7 @@ var (
 					},
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
-					&policypb.StoragePolicy{
+					{
 						Resolution: policypb.Resolution{
 							WindowSize: 10 * time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
@@ -269,6 +269,36 @@ var (
 			testRollupRuleSnapshot4V2Proto,
 		},
 	}
+	rr1, rr1err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	rr2, rr2err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Mean),
+	)
+	rr3, rr3err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp",
+		[]string{"testTag1", "testTag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	rr4, rr4err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp2",
+		[]string{"testTag3", "testTag4"},
+		aggregation.DefaultID,
+	)
+	rr5, rr5err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp2",
+		[]string{"testTag3", "testTag4"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
 	testRollupRuleSnapshot1 = &rollupRuleSnapshot{
 		name:         "foo",
 		tombstoned:   false,
@@ -279,12 +309,8 @@ var (
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("rName1"),
-							Tags:          bs("rtagName1", "rtagName2"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -305,12 +331,8 @@ var (
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("rName1"),
-							Tags:          bs("rtagName1", "rtagName2"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Mean),
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr2,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -344,12 +366,8 @@ var (
 						},
 					},
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("testRollupOp"),
-							Tags:          bs("testTag1", "testTag2"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr3,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -367,12 +385,8 @@ var (
 						},
 					},
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("testRollupOp2"),
-							Tags:          bs("testTag3", "testTag4"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr4,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -393,12 +407,8 @@ var (
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("testRollupOp2"),
-							Tags:          bs("testTag3", "testTag4"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Last),
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr5,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -434,6 +444,14 @@ var (
 	}
 )
 
+func TestErrCheck(t *testing.T) {
+	require.NoError(t, rr1err)
+	require.NoError(t, rr2err)
+	require.NoError(t, rr3err)
+	require.NoError(t, rr4err)
+	require.NoError(t, rr5err)
+}
+
 func TestNewRollupRuleSnapshotFromProtoNilProto(t *testing.T) {
 	_, err := newRollupRuleSnapshotFromProto(nil, testTagsFilterOptions())
 	require.Equal(t, errNilRollupRuleSnapshotProto, err)
@@ -442,11 +460,11 @@ func TestNewRollupRuleSnapshotFromProtoNilProto(t *testing.T) {
 func TestNewRollupRuleSnapshotFromV1ProtoInvalidProto(t *testing.T) {
 	proto := &rulepb.RollupRuleSnapshot{
 		Targets: []*rulepb.RollupTarget{
-			&rulepb.RollupTarget{
+			{
 				Name: "rName1",
 				Tags: []string{"rtagName1", "rtagName2"},
 				Policies: []*policypb.Policy{
-					&policypb.Policy{},
+					{},
 				},
 			},
 		},
@@ -477,7 +495,7 @@ func TestNewRollupRuleSnapshotFromV2ProtoInvalidProto(t *testing.T) {
 	filterOpts := testTagsFilterOptions()
 	proto := &rulepb.RollupRuleSnapshot{
 		TargetsV2: []*rulepb.RollupTargetV2{
-			&rulepb.RollupTargetV2{
+			{
 				Pipeline: &pipelinepb.Pipeline{
 					Ops: []pipelinepb.PipelineOp{
 						{
@@ -489,7 +507,7 @@ func TestNewRollupRuleSnapshotFromV2ProtoInvalidProto(t *testing.T) {
 					},
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
-					&policypb.StoragePolicy{
+					{
 						Resolution: policypb.Resolution{
 							WindowSize: 10 * time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
@@ -752,7 +770,13 @@ func TestRollupRuleMarkTombstonedAlreadyTombstoned(t *testing.T) {
 func TestRollupRuleRollupRuleView(t *testing.T) {
 	res, err := testRollupRule2.rollupRuleView(1)
 	require.NoError(t, err)
-
+	rr1, err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp2",
+		[]string{"testTag3", "testTag4"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
+	require.NoError(t, err)
 	expected := view.RollupRule{
 		ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
 		Name:          "bar",
@@ -764,12 +788,8 @@ func TestRollupRuleRollupRuleView(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("testRollupOp2"),
-							Tags:          bs("testTag3", "testTag4"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Last),
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -795,6 +815,28 @@ func TestNewRollupRuleHistory(t *testing.T) {
 	history, err := testRollupRule2.history()
 	require.NoError(t, err)
 
+	rr1, err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp2",
+		[]string{"testTag3", "testTag4"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
+	require.NoError(t, err)
+	rr2, err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp",
+		[]string{"testTag1", "testTag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	require.NoError(t, err)
+	rr3, err = pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp2",
+		[]string{"testTag3", "testTag4"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	expected := []view.RollupRule{
 		{
 			ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
@@ -807,12 +849,8 @@ func TestNewRollupRuleHistory(t *testing.T) {
 				{
 					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 						{
-							Type: pipeline.RollupOpType,
-							Rollup: pipeline.RollupOp{
-								NewName:       []byte("testRollupOp2"),
-								Tags:          bs("testTag3", "testTag4"),
-								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
-							},
+							Type:   pipeline.RollupOpType,
+							Rollup: rr1,
 						},
 					}),
 					StoragePolicies: policy.StoragePolicies{
@@ -845,12 +883,8 @@ func TestNewRollupRuleHistory(t *testing.T) {
 							},
 						},
 						{
-							Type: pipeline.RollupOpType,
-							Rollup: pipeline.RollupOp{
-								NewName:       []byte("testRollupOp"),
-								Tags:          bs("testTag1", "testTag2"),
-								AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-							},
+							Type:   pipeline.RollupOpType,
+							Rollup: rr2,
 						},
 					}),
 					StoragePolicies: policy.StoragePolicies{
@@ -868,12 +902,8 @@ func TestNewRollupRuleHistory(t *testing.T) {
 							},
 						},
 						{
-							Type: pipeline.RollupOpType,
-							Rollup: pipeline.RollupOp{
-								NewName:       []byte("testRollupOp2"),
-								Tags:          bs("testTag3", "testTag4"),
-								AggregationID: aggregation.DefaultID,
-							},
+							Type:   pipeline.RollupOpType,
+							Rollup: rr3,
 						},
 					}),
 					StoragePolicies: policy.StoragePolicies{
