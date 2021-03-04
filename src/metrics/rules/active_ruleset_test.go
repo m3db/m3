@@ -3783,6 +3783,13 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		aggregation.DefaultID,
 	)
 	require.NoError(t, err)
+	rr2_2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Sum),
+	)
+	require.NoError(t, err)
 	rr3, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName3",
@@ -3829,21 +3836,21 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		pipeline.GroupByRollupType,
 		"rName81",
 		[]string{"rtagName1", "rtagName2", "rtagName3"},
-		aggregation.DefaultID,
+		aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90),
 	)
 	require.NoError(t, err)
 	rr8_2, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName82",
 		[]string{"rtagName1", "rtagName2"},
-		aggregation.DefaultID,
+		aggregation.MustCompressTypes(aggregation.Count),
 	)
 	require.NoError(t, err)
 	rr8_3, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
 		"rName83",
 		[]string{"rtagName1"},
-		aggregation.DefaultID,
+		aggregation.MustCompressTypes(aggregation.Min),
 	)
 	require.NoError(t, err)
 
@@ -3969,7 +3976,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 							},
 							{
 								Type:   pipeline.RollupOpType,
-								Rollup: rr2,
+								Rollup: rr2_2,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
