@@ -1092,6 +1092,11 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 
 	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
 
+	// No need to release resources if we acquired no batches.
+	if i.batchesAcquired == 0 {
+		return
+	}
+
 	for n := 0; n < i.batchesAcquired-1; n++ {
 		i.blockPermits.Release(int64(i.blocksPerBatch))
 	}

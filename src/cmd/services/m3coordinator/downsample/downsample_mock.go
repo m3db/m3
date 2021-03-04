@@ -263,17 +263,3 @@ func (mr *MockSamplesAppenderMockRecorder) AppendUntimedTimerSample(arg0, arg1 i
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedTimerSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedTimerSample), arg0, arg1)
 }
-
-// DropTimestamp mocks base method
-func (m *MockSamplesAppender) DropTimestamp() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DropTimestamp")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// DropTimestamp indicates an expected call of DropTimestamp
-func (mr *MockSamplesAppenderMockRecorder) DropTimestamp() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DropTimestamp", reflect.TypeOf((*MockSamplesAppender)(nil).DropTimestamp))
-}

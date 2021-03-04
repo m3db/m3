@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -1084,7 +1085,6 @@ func newNodes(
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
 	asyncInserts bool,
-	finalBootstrapperName string,
 ) (testSetups, topology.Initializer, closeFn) {
 	var (
 		log  = zap.L()
@@ -1110,7 +1110,7 @@ func newNodes(
 
 	nodeOpt := BootstrappableTestSetupOptions{
 		DisablePeersBootstrapper: true,
-		FinalBootstrapper:        finalBootstrapperName,
+		FinalBootstrapper:        uninitialized.UninitializedTopologyBootstrapperName,
 		TopologyInitializer:      topoInit,
 	}
 

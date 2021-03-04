@@ -50,18 +50,18 @@ type PlacementManagerOptions interface {
 	// InstanceID returns the instance id.
 	InstanceID() string
 
-	// SetWatcher sets the placement watcher.
-	SetWatcher(value placement.Watcher) PlacementManagerOptions
+	// SetWatcherOptions sets the placement watcher options.
+	SetWatcherOptions(value placement.WatcherOptions) PlacementManagerOptions
 
-	// Watcher returns the placement watcher.
-	Watcher() placement.Watcher
+	// WatcherOptions returns the placement watcher options.
+	WatcherOptions() placement.WatcherOptions
 }
 
 type placementManagerOptions struct {
-	clockOpts        clock.Options
-	instrumentOpts   instrument.Options
-	instanceID       string
-	placementWatcher placement.Watcher
+	clockOpts            clock.Options
+	instrumentOpts       instrument.Options
+	instanceID           string
+	placementWatcherOpts placement.WatcherOptions
 }
 
 // NewPlacementManagerOptions creates a new set of placement manager options.
@@ -103,12 +103,12 @@ func (o *placementManagerOptions) InstanceID() string {
 	return o.instanceID
 }
 
-func (o *placementManagerOptions) SetWatcher(value placement.Watcher) PlacementManagerOptions {
+func (o *placementManagerOptions) SetWatcherOptions(value placement.WatcherOptions) PlacementManagerOptions {
 	opts := *o
-	opts.placementWatcher = value
+	opts.placementWatcherOpts = value
 	return &opts
 }
 
-func (o *placementManagerOptions) Watcher() placement.Watcher {
-	return o.placementWatcher
+func (o *placementManagerOptions) WatcherOptions() placement.WatcherOptions {
+	return o.placementWatcherOpts
 }

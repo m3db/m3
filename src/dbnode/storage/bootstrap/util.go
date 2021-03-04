@@ -240,6 +240,9 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	mockSeries.EXPECT().
 		LoadBlock(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(bl block.DatabaseBlock, _ series.WriteType) error {
+			a.Lock()
+			defer a.Unlock()
+
 			reader, err := bl.Stream(context.NewBackground())
 			if err != nil {
 				streamErr = err
