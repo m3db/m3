@@ -876,6 +876,8 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		series.Close()
 		s.list.Remove(elem)
 		s.lookup.Delete(id)
+		s.logger.Info("entry expired",
+			zap.String("seriesId", id.String()))
 	}
 	s.Unlock()
 }
@@ -1072,7 +1074,7 @@ func (s *dbShard) SeriesReadWriteRef(
 		// skipRateLimit for true since this method is used by bootstrapping
 		// and should not be rate limited.
 		skipRateLimit:            true,
-		entryRefCountIncremented: false, // should be false because we weren't able to find entry
+		entryRefCountIncremented: false, // should be false because we weren't able to find entry.
 	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
@@ -1114,13 +1116,12 @@ type seriesResolver struct {
 
 func (r *seriesResolver) resolve() error {
 	r.RLock()
-	alreadyResolved := r.resolved
-	resolvedResult := r.resolvedResult
-	r.RUnlock()
-
-	if alreadyResolved {
+	if r.resolved {
+		resolvedResult := r.resolvedResult
+		r.RUnlock()
 		return resolvedResult
 	}
+	r.RUnlock()
 
 	r.Lock()
 	defer r.Unlock()

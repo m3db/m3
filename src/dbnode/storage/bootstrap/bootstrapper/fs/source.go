@@ -704,7 +704,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 	seriesRef, err := ref.Resolver.SeriesRef()
 	if err != nil {
-		return fmt.Errorf("unable to resolve seriesRef: %v", err)
+		return fmt.Errorf("unable to resolve seriesRef: %w", err)
 	}
 	if err := seriesRef.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)

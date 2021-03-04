@@ -89,7 +89,7 @@ func (a *namespaceDataAccumulator) Close() error {
 
 	// Release all refs.
 	for _, elem := range a.needsRelease {
-		elem.ReleaseRef()
+		_ = elem.ReleaseRef()
 	}
 
 	// Memset optimization for reset.

@@ -856,7 +856,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// NB(r): No parallelization required to checkout the series.
-		ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, id, tags)
+		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
 		if err != nil {
 			if !owned {
 				// Skip bootstrapping this series if we don't own it.
@@ -868,7 +868,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		// Load into series.
 		seriesRef, err := ref.Resolver.SeriesRef()
 		if err != nil {
-			return fmt.Errorf("(commitlog) unable to resolve series ref: %v", err)
+			return fmt.Errorf("(commitlog) unable to resolve series ref: %w", err)
 		}
 
 		if err := seriesRef.LoadBlock(dbBlock, writeType); err != nil {
