@@ -1070,6 +1070,7 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
+	s.RLock()
 	result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
 		// skipRateLimit for true since this method is used by bootstrapping
 		// and should not be rate limited.
@@ -1077,9 +1078,11 @@ func (s *dbShard) SeriesReadWriteRef(
 		entryRefCountIncremented: false, // should be false because we weren't able to find entry.
 	})
 	if err != nil {
+		s.RUnlock()
 		return SeriesReadWriteRef{}, err
 	}
-
+	result.entry.IncrementReaderWriterCount()
+	s.RUnlock()
 	// Series will wait for the result to be batched together and inserted.
 	return SeriesReadWriteRef{
 		Resolver: &seriesResolver{
