@@ -29,7 +29,7 @@ For example, imagine a M3DB node that is responsible for shards 1, 5, 13, and 25
 
 ### Filesystem Bootstrapper
 
-The `filesystem` bootstrapper's responsibility is to determine which immutable [Fileset files](/docs/m3db/architecture/storage) exist on disk, and if so, mark them as fulfilled. The `filesystem` bootstrapper achieves this by scanning M3DB's directory structure and determining which Fileset files exist on disk. Unlike the other bootstrappers, the `filesystem` bootstrapper does not need to load any data into memory, it simply verifies the checksums of the data on disk and other components of the M3DB node will handle reading (and caching) the data dynamically once it begins to serve reads.
+The `filesystem` bootstrapper's responsibility is to determine which immutable [Fileset files](/docs/components/m3db/architecture/storage) exist on disk, and if so, mark them as fulfilled. The `filesystem` bootstrapper achieves this by scanning M3DB's directory structure and determining which Fileset files exist on disk. Unlike the other bootstrappers, the `filesystem` bootstrapper does not need to load any data into memory, it simply verifies the checksums of the data on disk and other components of the M3DB node will handle reading (and caching) the data dynamically once it begins to serve reads.
 
 ### Commitlog Bootstrapper
 

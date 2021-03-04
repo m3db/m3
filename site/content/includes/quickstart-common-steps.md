@@ -273,7 +273,7 @@ This quickstart focuses on Prometheus metrics which consist of a value, a timest
 
 You can write metrics using one of two endpoints:
 
--   _[{{% apiendpoint %}}prom/remote/write](/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
+-   _[{{% apiendpoint %}}prom/remote/write](/docs/components/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
 -   _{{% apiendpoint %}}json/write_ - Write a JSON payload of metrics data. This endpoint is quick for testing purposes but is not as performant for production usage.
 
 {{< tabs name="prom_http_write" >}}

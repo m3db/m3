@@ -15,7 +15,7 @@ other supporting infrastructure.
 
 M3 has several features, provided as discrete components, which make it an ideal platform for time series data at scale:
 
--   A distributed time series database, [M3DB](/docs/m3db/), that provides scalable storage for time series data and a reverse index.
+-   A distributed time series database, [M3DB](/docs/components/m3db/), that provides scalable storage for time series data and a reverse index.
 -   A sidecar process, [M3Coordinator](/docs/integrations/prometheus), that allows M3DB to act as the long-term storage for Prometheus.
 -   A distributed query engine, [M3Query](/docs/m3query), with native support for PromQL and Graphite (M3QL coming soon).
     <!-- Add M3Aggregator link -->
@@ -30,7 +30,7 @@ Getting started with M3 is as easy as following one of the How-To guides.
 -   [Single M3DB node deployment](/docs/quickstart)
 -   [Clustered M3DB deployment](/docs/cluster)
 -   [M3DB on Kubernetes](/docs/operator)
--   [Isolated M3Query on deployment](/docs/how_to/query)
+-   [Isolated M3Query on deployment](/docs/how_to/m3query)
 
 ## Support
 

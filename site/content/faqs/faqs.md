@@ -33,7 +33,7 @@ If you’re adding namespaces, the m3dbnode process will pickup the new namespac
 If you’re removing or modifying an existing namespace, you’ll need to restart the m3dbnode process in order to complete the namespace deletion/modification process. It is recommended to restart one node at a time and wait for a node to be completely bootstrapped before restarting another node.
 
 - **How do I set up aggregation in the coordinator?**
-Refer to the [Aggregation section](/docs/how_to/query) of the M3Query how-to guide.
+Refer to the [Aggregation section](/docs/how_to/m3query) of the M3Query how-to guide.
 
 - **How do I set up aggregation using a separate aggregation tier?**
 See this [WIP documentation](https://github.com/m3db/m3/pull/1741/files#diff-0a1009f86783ca8fd4499418e556c6f5).
