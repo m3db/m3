@@ -134,6 +134,8 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 		m3MetricType = ts.M3MetricTypeGauge
 		if promMetricType == ts.PromMetricTypeUnknown && series.Source == prompb.Source_GRAPHITE {
 			promMetricType = ts.PromMetricTypeGauge
+		} else if series.Type == prompb.MetricType_COUNTER && series.Source == prompb.Source_PROMETHEUS {
+			m3MetricType = ts.M3MetricTypeCounter
 		}
 	case prompb.M3Type_M3_TIMER:
 		m3MetricType = ts.M3MetricTypeTimer

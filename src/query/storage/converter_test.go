@@ -372,6 +372,35 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromGraphite(t *testing.
 	}
 }
 
+func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromPromType(t *testing.T) {
+	for _, test := range []struct {
+		m3Type   prompb.M3Type
+		promType prompb.MetricType
+		expected ts.M3MetricType
+	}{
+		{
+			m3Type:   prompb.M3Type_M3_COUNTER,
+			expected: ts.M3MetricTypeCounter,
+		},
+		{
+			m3Type:   prompb.M3Type_M3_GAUGE,
+			promType: prompb.MetricType_COUNTER,
+			expected: ts.M3MetricTypeCounter,
+		},
+		{
+			m3Type:   prompb.M3Type_M3_GAUGE,
+			promType: prompb.MetricType_SUMMARY,
+			expected: ts.M3MetricTypeGauge,
+		},
+	} {
+		t.Run(test.m3Type.String(), func(t *testing.T) {
+			attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: test.m3Type, Source: prompb.Source_PROMETHEUS, Type: test.promType})
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, attrs.M3Type)
+		})
+	}
+}
+
 func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
 	mapping := map[ts.PromMetricType]annotation.MetricType{
 		ts.PromMetricTypeUnknown:        annotation.MetricType_UNKNOWN,
