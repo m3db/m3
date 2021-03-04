@@ -143,10 +143,12 @@ type BatchTimerWithMetadatas struct {
 	Metadatas  StagedMetadatas `protobuf:"bytes,2,opt,name=metadatas" json:"metadatas"`
 }
 
-func (m *BatchTimerWithMetadatas) Reset()                    { *m = BatchTimerWithMetadatas{} }
-func (m *BatchTimerWithMetadatas) String() string            { return proto.CompactTextString(m) }
-func (*BatchTimerWithMetadatas) ProtoMessage()               {}
-func (*BatchTimerWithMetadatas) Descriptor() ([]byte, []int) { return fileDescriptorComposite, []int{1} }
+func (m *BatchTimerWithMetadatas) Reset()         { *m = BatchTimerWithMetadatas{} }
+func (m *BatchTimerWithMetadatas) String() string { return proto.CompactTextString(m) }
+func (*BatchTimerWithMetadatas) ProtoMessage()    {}
+func (*BatchTimerWithMetadatas) Descriptor() ([]byte, []int) {
+	return fileDescriptorComposite, []int{1}
+}
 
 func (m *BatchTimerWithMetadatas) GetBatchTimer() BatchTimer {
 	if m != nil {
@@ -217,10 +219,12 @@ type TimedMetricWithMetadata struct {
 	Metadata TimedMetadata `protobuf:"bytes,2,opt,name=metadata" json:"metadata"`
 }
 
-func (m *TimedMetricWithMetadata) Reset()                    { *m = TimedMetricWithMetadata{} }
-func (m *TimedMetricWithMetadata) String() string            { return proto.CompactTextString(m) }
-func (*TimedMetricWithMetadata) ProtoMessage()               {}
-func (*TimedMetricWithMetadata) Descriptor() ([]byte, []int) { return fileDescriptorComposite, []int{4} }
+func (m *TimedMetricWithMetadata) Reset()         { *m = TimedMetricWithMetadata{} }
+func (m *TimedMetricWithMetadata) String() string { return proto.CompactTextString(m) }
+func (*TimedMetricWithMetadata) ProtoMessage()    {}
+func (*TimedMetricWithMetadata) Descriptor() ([]byte, []int) {
+	return fileDescriptorComposite, []int{4}
+}
 
 func (m *TimedMetricWithMetadata) GetMetric() TimedMetric {
 	if m != nil {
