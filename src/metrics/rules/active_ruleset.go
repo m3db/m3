@@ -473,8 +473,10 @@ func (as *activeRuleSet) matchRollupTarget(
 		nameTagName   = as.tagsFilterOpts.NameTagKey
 		nameTagValue  []byte
 	)
+
+	defer sortedTagIter.Close()
+
 	// Iterate through each tag, looking to match it with corresponding filter tags on the rule
-matchTag:
 	for hasMoreTags := sortedTagIter.Next(); hasMoreTags; hasMoreTags = sortedTagIter.Next() {
 		tagName, tagVal := sortedTagIter.Current()
 		// nolint:gosimple
@@ -485,8 +487,10 @@ matchTag:
 
 		switch rollupOp.Type {
 		case mpipeline.GroupByRollupType:
+			// If we've matched all tags, no need to process.
+			// We don't break out of the for loop, because we may still need to find the name tag.
 			if matchTagIdx >= len(rollupTags) {
-				break
+				continue
 			}
 
 			res := bytes.Compare(tagName, rollupTags[matchTagIdx])
@@ -499,10 +503,9 @@ matchTag:
 				continue
 			}
 
-			// If one of the target tags is not found in the ID, this is considered
-			// a non-match so bail immediately.
+			// If one of the target tags is not found in the ID, this is considered  a non-match so return immediately.
 			if res > 0 {
-				break matchTag
+				return nil, false
 			}
 		case mpipeline.ExcludeByRollupType:
 			if isNameTag {
@@ -529,13 +532,6 @@ matchTag:
 				tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 			}
 		}
-	}
-
-	sortedTagIter.Close()
-
-	// If not all the target tags are found, this is considered a no match.
-	if rollupOp.Type == mpipeline.GroupByRollupType && matchTagIdx < len(rollupTags) {
-		return nil, false
 	}
 
 	if !opts.generateRollupID {
