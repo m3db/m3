@@ -428,6 +428,20 @@ func (m *MockPlacementManager) EXPECT() *MockPlacementManagerMockRecorder {
 	return m.recorder
 }
 
+// C mocks base method
+func (m *MockPlacementManager) C() <-chan struct{} {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "C")
+	ret0, _ := ret[0].(<-chan struct{})
+	return ret0
+}
+
+// C indicates an expected call of C
+func (mr *MockPlacementManagerMockRecorder) C() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "C", reflect.TypeOf((*MockPlacementManager)(nil).C))
+}
+
 // Close mocks base method
 func (m *MockPlacementManager) Close() error {
 	m.ctrl.T.Helper()

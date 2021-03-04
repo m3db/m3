@@ -37,9 +37,14 @@ message TransformationOp {
 }
 
 message RollupOp {
+  enum Type {
+    GROUP_BY = 0;
+    EXCLUDE_BY = 1;
+  }
   string new_name = 1;
   repeated string tags = 2;
   repeated aggregationpb.AggregationType aggregation_types = 3;
+  Type type = 4;
 }
 
 message PipelineOp {

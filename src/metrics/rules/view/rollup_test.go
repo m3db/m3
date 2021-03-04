@@ -34,6 +34,21 @@ import (
 )
 
 func TestRollupTargetEqual(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag1", "tag2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	target1 := RollupTarget{
 		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 			{
@@ -45,12 +60,8 @@ func TestRollupTargetEqual(t *testing.T) {
 				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 			},
 			{
-				Type: pipeline.RollupOpType,
-				Rollup: pipeline.RollupOp{
-					NewName:       []byte("name"),
-					Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
-					AggregationID: aggregation.DefaultID,
-				},
+				Type:   pipeline.RollupOpType,
+				Rollup: rr1,
 			},
 		}),
 		StoragePolicies: policy.StoragePolicies{
@@ -70,12 +81,8 @@ func TestRollupTargetEqual(t *testing.T) {
 				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 			},
 			{
-				Type: pipeline.RollupOpType,
-				Rollup: pipeline.RollupOp{
-					NewName:       []byte("name"),
-					Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-					AggregationID: aggregation.DefaultID,
-				},
+				Type:   pipeline.RollupOpType,
+				Rollup: rr2,
 			},
 		}),
 		StoragePolicies: policy.StoragePolicies{
@@ -88,6 +95,35 @@ func TestRollupTargetEqual(t *testing.T) {
 }
 
 func TestRollupTargetNotEqual(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.MustCompressTypes(aggregation.Sum),
+	)
+	require.NoError(t, err)
+	rr4, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.MustCompressTypes(aggregation.Sum),
+	)
+	require.NoError(t, err)
+
 	targets := []RollupTarget{
 		{
 			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -100,12 +136,8 @@ func TestRollupTargetNotEqual(t *testing.T) {
 					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 				},
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name"),
-						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-						AggregationID: aggregation.DefaultID,
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr1,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -121,12 +153,8 @@ func TestRollupTargetNotEqual(t *testing.T) {
 					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 				},
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name"),
-						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-						AggregationID: aggregation.DefaultID,
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr2,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -142,12 +170,8 @@ func TestRollupTargetNotEqual(t *testing.T) {
 					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 				},
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name"),
-						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr3,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -163,12 +187,8 @@ func TestRollupTargetNotEqual(t *testing.T) {
 					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 				},
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name"),
-						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr4,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -194,6 +214,21 @@ func TestRollupTargetEqualNilCases(t *testing.T) {
 }
 
 func TestRollupRuleEqual(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	rule1 := RollupRule{
 		ID:            "rr_id",
 		Name:          "rr_name",
@@ -211,12 +246,8 @@ func TestRollupRuleEqual(t *testing.T) {
 						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 					},
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("name"),
-							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -246,12 +277,8 @@ func TestRollupRuleEqual(t *testing.T) {
 						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 					},
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("name"),
-							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr2,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -268,6 +295,21 @@ func TestRollupRuleEqual(t *testing.T) {
 }
 
 func TestRollupRuleNotEqual(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	rules := []RollupRule{
 		{
 			ID:            "rr_id",
@@ -286,12 +328,8 @@ func TestRollupRuleNotEqual(t *testing.T) {
 							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 						},
 						{
-							Type: pipeline.RollupOpType,
-							Rollup: pipeline.RollupOp{
-								NewName:       []byte("name"),
-								Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-								AggregationID: aggregation.DefaultID,
-							},
+							Type:   pipeline.RollupOpType,
+							Rollup: rr1,
 						},
 					}),
 					StoragePolicies: policy.StoragePolicies{
@@ -321,12 +359,8 @@ func TestRollupRuleNotEqual(t *testing.T) {
 							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 						},
 						{
-							Type: pipeline.RollupOpType,
-							Rollup: pipeline.RollupOp{
-								NewName:       []byte("name"),
-								Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-								AggregationID: aggregation.DefaultID,
-							},
+							Type:   pipeline.RollupOpType,
+							Rollup: rr2,
 						},
 					}),
 					StoragePolicies: policy.StoragePolicies{
@@ -435,6 +469,35 @@ func TestRollupRuleEqualNilCases(t *testing.T) {
 }
 
 func TestRollupTargetsEqual(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name2",
+		[]string{"tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr4, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name2",
+		[]string{"tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	targets1 := rollupTargets{
 		{
 			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -447,12 +510,8 @@ func TestRollupTargetsEqual(t *testing.T) {
 					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 				},
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name"),
-						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-						AggregationID: aggregation.DefaultID,
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr1,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -464,12 +523,8 @@ func TestRollupTargetsEqual(t *testing.T) {
 		{
 			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name2"),
-						Tags:          [][]byte{[]byte("tag1")},
-						AggregationID: aggregation.DefaultID,
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr2,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -489,12 +544,8 @@ func TestRollupTargetsEqual(t *testing.T) {
 					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 				},
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name"),
-						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-						AggregationID: aggregation.DefaultID,
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr3,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -506,12 +557,8 @@ func TestRollupTargetsEqual(t *testing.T) {
 		{
 			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 				{
-					Type: pipeline.RollupOpType,
-					Rollup: pipeline.RollupOp{
-						NewName:       []byte("name2"),
-						Tags:          [][]byte{[]byte("tag1")},
-						AggregationID: aggregation.DefaultID,
-					},
+					Type:   pipeline.RollupOpType,
+					Rollup: rr4,
 				},
 			}),
 			StoragePolicies: policy.StoragePolicies{
@@ -523,6 +570,42 @@ func TestRollupTargetsEqual(t *testing.T) {
 }
 
 func TestRollupTargetsNotEqual(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name2",
+		[]string{"tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr4, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name2",
+		[]string{"tag2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr5, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	targetsList := []rollupTargets{
 		{
 			{
@@ -536,12 +619,8 @@ func TestRollupTargetsNotEqual(t *testing.T) {
 						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 					},
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("name"),
-							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -553,12 +632,8 @@ func TestRollupTargetsNotEqual(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("name2"),
-							Tags:          [][]byte{[]byte("tag1")},
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr2,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -578,12 +653,8 @@ func TestRollupTargetsNotEqual(t *testing.T) {
 						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 					},
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("name"),
-							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr3,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -595,12 +666,8 @@ func TestRollupTargetsNotEqual(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("name2"),
-							Tags:          [][]byte{[]byte("tag2")},
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr4,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -620,12 +687,8 @@ func TestRollupTargetsNotEqual(t *testing.T) {
 						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 					},
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       []byte("name"),
-							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr5,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{

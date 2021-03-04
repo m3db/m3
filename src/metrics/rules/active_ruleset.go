@@ -403,8 +403,7 @@ func (as *activeRuleSet) toRollupResults(
 			var matched bool
 			rollupID, matched = as.matchRollupTarget(
 				sortedTagPairBytes,
-				firstOp.Rollup.NewName,
-				firstOp.Rollup.Tags,
+				firstOp.Rollup,
 				tagPairs,
 				matchRollupTargetOptions{generateRollupID: true},
 			)
@@ -457,43 +456,89 @@ func (as *activeRuleSet) toRollupResults(
 // tags, and nil otherwise.
 func (as *activeRuleSet) matchRollupTarget(
 	sortedTagPairBytes []byte,
-	newName []byte,
-	rollupTags [][]byte,
+	rollupOp mpipeline.RollupOp,
 	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
 	opts matchRollupTargetOptions,
 ) ([]byte, bool) {
+	if rollupOp.Type == mpipeline.ExcludeByRollupType && !opts.generateRollupID {
+		// Exclude by tag always matches, if not generating rollup ID
+		// then immediately return.
+		return nil, true
+	}
+
 	var (
+		rollupTags    = rollupOp.Tags
 		sortedTagIter = as.tagsFilterOpts.SortedTagIteratorFn(sortedTagPairBytes)
-		hasMoreTags   = sortedTagIter.Next()
-		currTagIdx    = 0
+		matchTagIdx   = 0
+		nameTagName   = as.tagsFilterOpts.NameTagKey
+		nameTagValue  []byte
 	)
-	for hasMoreTags && currTagIdx < len(rollupTags) {
+
+	defer sortedTagIter.Close()
+
+	// Iterate through each tag, looking to match it with corresponding filter tags on the rule
+	for hasMoreTags := sortedTagIter.Next(); hasMoreTags; hasMoreTags = sortedTagIter.Next() {
 		tagName, tagVal := sortedTagIter.Current()
-		res := bytes.Compare(tagName, rollupTags[currTagIdx])
-		if res == 0 {
+		// nolint:gosimple
+		isNameTag := bytes.Compare(tagName, nameTagName) == 0
+		if isNameTag {
+			nameTagValue = tagVal
+		}
+
+		switch rollupOp.Type {
+		case mpipeline.GroupByRollupType:
+			// If we've matched all tags, no need to process.
+			// We don't break out of the for loop, because we may still need to find the name tag.
+			if matchTagIdx >= len(rollupTags) {
+				continue
+			}
+
+			res := bytes.Compare(tagName, rollupTags[matchTagIdx])
+			if res == 0 {
+				// Include grouped by tag.
+				if opts.generateRollupID {
+					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
+				}
+				matchTagIdx++
+				continue
+			}
+
+			// If one of the target tags is not found in the ID, this is considered  a non-match so return immediately.
+			if res > 0 {
+				return nil, false
+			}
+		case mpipeline.ExcludeByRollupType:
+			if isNameTag {
+				// Don't copy name tag since we'll add that using the new rollup ID fn.
+				continue
+			}
+
+			if matchTagIdx >= len(rollupTags) {
+				// Have matched all the tags to exclude, just blindly copy.
+				if opts.generateRollupID {
+					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
+				}
+				continue
+			}
+
+			res := bytes.Compare(tagName, rollupTags[matchTagIdx])
+			if res == 0 {
+				// Skip excluded tag.
+				matchTagIdx++
+				continue
+			}
+
 			if opts.generateRollupID {
 				tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 			}
-			currTagIdx++
-			hasMoreTags = sortedTagIter.Next()
-			continue
 		}
-		// If one of the target tags is not found in the ID, this is considered
-		// a non-match so bail immediately.
-		if res > 0 {
-			break
-		}
-		hasMoreTags = sortedTagIter.Next()
 	}
-	sortedTagIter.Close()
 
-	// If not all the target tags are found, this is considered a no match.
-	if currTagIdx < len(rollupTags) {
-		return nil, false
-	}
 	if !opts.generateRollupID {
 		return nil, true
 	}
+
+	newName := rollupOp.NewName(nameTagValue)
 	return as.newRollupIDFn(newName, tagPairs), true
 }
 
@@ -517,8 +562,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 			var matched bool
 			rollupID, matched := as.matchRollupTarget(
 				sortedTagPairBytes,
-				rollupOp.NewName,
-				rollupOp.Tags,
+				rollupOp,
 				tagPairs,
 				matchRollupTargetOptions{generateRollupID: true},
 			)
@@ -620,13 +664,12 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 					continue
 				}
 				rollupOp := pipelineOp.Rollup
-				if !bytes.Equal(rollupOp.NewName, name) {
+				if !bytes.Equal(rollupOp.NewName(name), name) {
 					continue
 				}
 				if _, matched := as.matchRollupTarget(
 					sortedTagPairBytes,
-					rollupOp.NewName,
-					rollupOp.Tags,
+					rollupOp,
 					nil,
 					matchRollupTargetOptions{generateRollupID: false},
 				); !matched {

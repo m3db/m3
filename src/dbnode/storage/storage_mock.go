@@ -3628,6 +3628,43 @@ func (mr *MockdatabaseMediatorMockRecorder) LastSuccessfulSnapshotStartTime() *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastSuccessfulSnapshotStartTime))
 }
 
+// MockColdFlushNsOpts is a mock of ColdFlushNsOpts interface
+type MockColdFlushNsOpts struct {
+	ctrl     *gomock.Controller
+	recorder *MockColdFlushNsOptsMockRecorder
+}
+
+// MockColdFlushNsOptsMockRecorder is the mock recorder for MockColdFlushNsOpts
+type MockColdFlushNsOptsMockRecorder struct {
+	mock *MockColdFlushNsOpts
+}
+
+// NewMockColdFlushNsOpts creates a new mock instance
+func NewMockColdFlushNsOpts(ctrl *gomock.Controller) *MockColdFlushNsOpts {
+	mock := &MockColdFlushNsOpts{ctrl: ctrl}
+	mock.recorder = &MockColdFlushNsOptsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockColdFlushNsOpts) EXPECT() *MockColdFlushNsOptsMockRecorder {
+	return m.recorder
+}
+
+// ReuseResources mocks base method
+func (m *MockColdFlushNsOpts) ReuseResources() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReuseResources")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ReuseResources indicates an expected call of ReuseResources
+func (mr *MockColdFlushNsOptsMockRecorder) ReuseResources() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReuseResources", reflect.TypeOf((*MockColdFlushNsOpts)(nil).ReuseResources))
+}
+
 // MockOnColdFlush is a mock of OnColdFlush interface
 type MockOnColdFlush struct {
 	ctrl     *gomock.Controller
@@ -3652,18 +3689,18 @@ func (m *MockOnColdFlush) EXPECT() *MockOnColdFlushMockRecorder {
 }
 
 // ColdFlushNamespace mocks base method
-func (m *MockOnColdFlush) ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error) {
+func (m *MockOnColdFlush) ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts) (OnColdFlushNamespace, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlushNamespace", ns)
+	ret := m.ctrl.Call(m, "ColdFlushNamespace", ns, opts)
 	ret0, _ := ret[0].(OnColdFlushNamespace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ColdFlushNamespace indicates an expected call of ColdFlushNamespace
-func (mr *MockOnColdFlushMockRecorder) ColdFlushNamespace(ns interface{}) *gomock.Call {
+func (mr *MockOnColdFlushMockRecorder) ColdFlushNamespace(ns, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushNamespace", reflect.TypeOf((*MockOnColdFlush)(nil).ColdFlushNamespace), ns)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushNamespace", reflect.TypeOf((*MockOnColdFlush)(nil).ColdFlushNamespace), ns, opts)
 }
 
 // MockOnColdFlushNamespace is a mock of OnColdFlushNamespace interface

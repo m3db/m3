@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -256,8 +256,14 @@ func makeTestWriteTagged(
 	numShards int,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testWriteFn) {
-	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false,
-		bootstrapper.NoOpAllBootstrapperName, instances)
+	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
+
+	for _, node := range nodes {
+		for _, ns := range node.Namespaces() {
+			// write empty data files to disk so nodes could bootstrap
+			writeTestDataToDisk(ns, node, generate.SeriesBlocksByStart{}, 0)
+		}
+	}
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)

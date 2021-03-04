@@ -21,6 +21,7 @@
 package downsample
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -91,8 +92,11 @@ const (
 )
 
 var (
-	numShards           = runtime.NumCPU()
-	defaultNamespaceTag = metric.M3MetricsPrefixString + "_namespace__"
+	numShards                   = runtime.NumCPU()
+	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
+	defaultFilterOutTagPrefixes = [][]byte{
+		metric.M3MetricsPrefix,
+	}
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
@@ -343,6 +347,10 @@ type MappingRuleConfiguration struct {
 	// aggregation tag which is required for graphite. If a metric is of the
 	// form {__g0__:stats __g1__:metric __g2__:timer} and we have configured
 	// a P95 aggregation, this option will add __g3__:P95 to the metric.
+	// __m3_graphite_prefix__ as a tag will add the provided value as a prefix
+	// to graphite metrics.
+	// __m3_drop_timestamp__ as a tag will drop the timestamp from while
+	// writing the metric out. So effectively treat it as an untimed metric.
 	Tags []Tag `yaml:"tags"`
 
 	// Optional fields follow.
@@ -474,15 +482,30 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		switch {
 		case elem.Rollup != nil:
 			cfg := elem.Rollup
+			if len(cfg.GroupBy) > 0 && len(cfg.ExcludeBy) > 0 {
+				return view.RollupRule{}, fmt.Errorf(
+					"must specify group by or exclude by tags for rollup operation not both: "+
+						"groupBy=%d, excludeBy=%d", len(cfg.GroupBy), len(cfg.ExcludeBy))
+			}
+
+			rollupType := pipelinepb.RollupOp_GROUP_BY
+			tags := cfg.GroupBy
+			if len(cfg.ExcludeBy) > 0 {
+				rollupType = pipelinepb.RollupOp_EXCLUDE_BY
+				tags = cfg.ExcludeBy
+			}
+
 			aggregationTypes, err := AggregationTypes(cfg.Aggregations).Proto()
 			if err != nil {
 				return view.RollupRule{}, err
 			}
+
 			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
 				Type: pipelinepb.PipelineOp_ROLLUP,
 				Rollup: &pipelinepb.RollupOp{
+					Type:             rollupType,
 					NewName:          cfg.MetricName,
-					Tags:             cfg.GroupBy,
+					Tags:             tags,
 					AggregationTypes: aggregationTypes,
 				},
 			})
@@ -563,7 +586,15 @@ type RollupOperationConfiguration struct {
 
 	// GroupBy is a set of labels to group by, only these remain on the
 	// new metric name produced by the rollup operation.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
 	GroupBy []string `yaml:"groupBy"`
+
+	// ExcludeBy is a set of labels to exclude by, only these tags are removed
+	// from the resulting rolled up metric.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
+	ExcludeBy []string `yaml:"excludeBy"`
 
 	// Aggregations is a set of aggregate operations to perform.
 	Aggregations []aggregation.Type `yaml:"aggregations"`
@@ -1012,8 +1043,23 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	newRollupIDProviderPool.Init()
 
 	newRollupIDFn := func(newName []byte, tagPairs []id.TagPair) []byte {
+		// First filter out any tags that have a prefix that
+		// are not included in output metric IDs (such as metric
+		// type tags that are just used for filtering like __m3_type__).
+		filtered := tagPairs[:0]
+	TagPairsFilterLoop:
+		for i := range tagPairs {
+			for _, filter := range defaultFilterOutTagPrefixes {
+				if bytes.HasPrefix(tagPairs[i].Name, filter) {
+					continue TagPairsFilterLoop
+				}
+			}
+			filtered = append(filtered, tagPairs[i])
+		}
+
+		// Create the rollup using filtered tag pairs.
 		rollupIDProvider := newRollupIDProviderPool.Get()
-		id, err := rollupIDProvider.provide(newName, tagPairs)
+		id, err := rollupIDProvider.provide(newName, filtered)
 		if err != nil {
 			panic(err) // Encoding should never fail
 		}
@@ -1072,10 +1118,9 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKVKey).
 		SetStagedPlacementStore(localKVStore)
-	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(instanceID).
-		SetWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }

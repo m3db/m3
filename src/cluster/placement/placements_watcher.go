@@ -148,11 +148,11 @@ func (t *placementsWatcher) process(newValue interface{}) error {
 		oldPlacement = old.placement
 	}
 
+	t.valuePayload.Store(payload{placement: newPlacement})
+
 	if t.onPlacementChanged != nil {
 		t.onPlacementChanged(oldPlacement, newPlacement)
 	}
-
-	t.valuePayload.Store(payload{placement: newPlacement})
 
 	return nil
 }

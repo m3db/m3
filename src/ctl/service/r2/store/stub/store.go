@@ -53,7 +53,107 @@ type stubData struct {
 var (
 	errNotImplemented = errors.New("not implemented")
 	cutoverMillis     = time.Now().UnixNano() / int64(time.Millisecond/time.Nanosecond)
-	dummyData         = stubData{
+)
+
+// Operator contains the data necessary to implement stubbed out implementations for various r2 operations.
+type store struct {
+	data  *stubData
+	iOpts instrument.Options
+}
+
+// NewStore creates a new stub
+func NewStore(iOpts instrument.Options) (r2store.Store, error) {
+	dummyData, err := buildDummyData()
+	if err != nil {
+		return nil, err
+	}
+
+	return &store{data: &dummyData, iOpts: iOpts}, err
+}
+
+func buildDummyData() (stubData, error) {
+	rollup1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup4, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.P999),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup5, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup6, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.P999),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup7, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup8, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	rollup9, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.P999),
+	)
+	if err != nil {
+		return stubData{}, err
+	}
+	return stubData{
 		ErrorNamespace:    "errNs",
 		ConflictNamespace: "conflictNs",
 		Namespaces: view.Namespaces{
@@ -107,12 +207,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup1,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -130,12 +226,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup2,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -161,12 +253,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup3,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -176,12 +264,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.P999),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup4,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -194,7 +278,7 @@ var (
 			},
 		},
 		MappingHistory: map[string]mappingRuleHistories{
-			"ns1": mappingRuleHistories{
+			"ns1": {
 				"mr_id1": []view.MappingRule{
 					{
 						ID:            "mr_id1",
@@ -223,7 +307,7 @@ var (
 			"ns2": nil,
 		},
 		RollupHistory: map[string]rollupRuleHistories{
-			"ns1": rollupRuleHistories{
+			"ns1": {
 				"rr_id1": []view.RollupRule{
 					{
 						ID:            "rr_id1",
@@ -234,12 +318,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup5,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -249,12 +329,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.P999),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup6,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -272,12 +348,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup7,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -288,7 +360,7 @@ var (
 					},
 				},
 			},
-			"ns2": rollupRuleHistories{
+			"ns2": {
 				"rr_id3": []view.RollupRule{
 					{
 						ID:            "rr_id1",
@@ -299,12 +371,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup8,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -314,12 +382,8 @@ var (
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.P999),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rollup9,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -331,18 +395,7 @@ var (
 				},
 			},
 		},
-	}
-)
-
-// Operator contains the data necessary to implement stubbed out implementations for various r2 operations.
-type store struct {
-	data  *stubData
-	iOpts instrument.Options
-}
-
-// NewStore creates a new stub
-func NewStore(iOpts instrument.Options) r2store.Store {
-	return &store{data: &dummyData, iOpts: iOpts}
+	}, nil
 }
 
 func (s *store) FetchNamespaces() (view.Namespaces, error) {

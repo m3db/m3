@@ -59,6 +59,7 @@ func TestPlacementService(t *testing.T) {
 
 		placementService, algo, err := ServiceWithAlgo(mockClient,
 			handleroptions.NewServiceOptions(svcDefaults, nil, nil),
+			placement.Configuration{},
 			time.Time{}, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, placementService)
@@ -69,6 +70,7 @@ func TestPlacementService(t *testing.T) {
 			Return(nil, errors.New("dummy service error"))
 		placementService, err = Service(mockClient,
 			handleroptions.NewServiceOptions(svcDefaults, nil, nil),
+			placement.Configuration{},
 			time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy service error")
@@ -80,6 +82,7 @@ func TestPlacementService(t *testing.T) {
 			Return(nil, errors.New("dummy placement error"))
 		placementService, err = Service(mockClient,
 			handleroptions.NewServiceOptions(svcDefaults, nil, nil),
+			placement.Configuration{},
 			time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy placement error")
@@ -123,7 +126,13 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 		opts.ServiceEnvironment = environmentValue
 		opts.ServiceZone = zoneValue
 
-		placementService, err := Service(mockClient, opts, time.Time{}, nil)
+		placementService, err := Service(
+			mockClient,
+			opts,
+			placement.Configuration{},
+			time.Time{},
+			nil,
+		)
 		require.NoError(t, err)
 		require.NotNil(t, placementService)
 
