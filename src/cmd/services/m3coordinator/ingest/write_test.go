@@ -564,12 +564,16 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeCounter}).
-		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
+		SamplesAppender(downsample.SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+		}).Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).
+		Times(1)
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeTimer}).
-		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
+		SamplesAppender(downsample.SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeTimer},
+		}).Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).
+		Times(1)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}

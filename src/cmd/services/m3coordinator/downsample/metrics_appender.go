@@ -151,13 +151,31 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// NB (@shreyas): Add the metric type tag. The tag has the prefix
 	// __m3_. All tags with that prefix are only used for the purpose of
 	// filter match and then stripped off before we actually send to the aggregator.
-	switch opts.MetricType {
+	switch opts.SeriesAttributes.M3Type {
 	case ts.M3MetricTypeCounter:
 		tags.append(metric.M3TypeTag, metric.M3CounterValue)
 	case ts.M3MetricTypeGauge:
 		tags.append(metric.M3TypeTag, metric.M3GaugeValue)
 	case ts.M3MetricTypeTimer:
 		tags.append(metric.M3TypeTag, metric.M3TimerValue)
+	}
+	switch opts.SeriesAttributes.PromType {
+	case ts.PromMetricTypeUnknown:
+		tags.append(metric.M3PromTypeTag, metric.PromUnknownValue)
+	case ts.PromMetricTypeCounter:
+		tags.append(metric.M3PromTypeTag, metric.PromCounterValue)
+	case ts.PromMetricTypeGauge:
+		tags.append(metric.M3PromTypeTag, metric.PromGaugeValue)
+	case ts.PromMetricTypeHistogram:
+		tags.append(metric.M3PromTypeTag, metric.PromHistogramValue)
+	case ts.PromMetricTypeGaugeHistogram:
+		tags.append(metric.M3PromTypeTag, metric.PromGaugeHistogramValue)
+	case ts.PromMetricTypeSummary:
+		tags.append(metric.M3PromTypeTag, metric.PromSummaryValue)
+	case ts.PromMetricTypeInfo:
+		tags.append(metric.M3PromTypeTag, metric.PromInfoValue)
+	case ts.PromMetricTypeStateSet:
+		tags.append(metric.M3PromTypeTag, metric.PromStateSetValue)
 	}
 
 	// Sort tags
