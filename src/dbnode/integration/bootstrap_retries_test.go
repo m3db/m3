@@ -95,6 +95,8 @@ func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		namespaces bootstrap.Namespaces,
 		cache bootstrap.Cache,
 	) (bootstrap.NamespaceResults, error) {
+		// read from signalCh twice so we could advance the clock exactly in between of those signals
+		<-signalCh
 		<-signalCh
 		noopNone := bootstrapper.NewNoOpAllBootstrapperProvider()
 		bs, err := noopNone.Provide()
@@ -109,17 +111,23 @@ func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		// First bootstrap pass, persist ranges. Check if DB is not marked bootstrapped.
 		signalCh <- struct{}{}
 		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
-		// Still first bootstrap pass, in-memory ranges. Shift clock to make previously calculated
-		// ranges obsolete. Check if DB is not marked bootstrapped.
 		setup.SetNowFn(setup.NowFn()().Add(2 * time.Hour))
 		signalCh <- struct{}{}
+
+		// Still first bootstrap pass, in-memory ranges. Due to advanced clock previously calculated
+		// ranges are obsolete. Check if DB is not marked bootstrapped.
+		signalCh <- struct{}{}
 		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+		signalCh <- struct{}{}
 
 		// Bootstrap retry, persist ranges. Check if DB isn't marked as bootstrapped on the second pass.
 		signalCh <- struct{}{}
 		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+		signalCh <- struct{}{}
 
 		// Still bootstrap retry, in-memory ranges. DB finishes bootstrapping.
+		signalCh <- struct{}{}
+		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
 		signalCh <- struct{}{}
 	}()
 
