@@ -83,9 +83,7 @@ func TestBootstrapRetriesDueToError(t *testing.T) {
 	}()
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
-	retryCounter := getBootstrapRetriesCounter(testScope, "other")
-	require.NotNil(t, retryCounter)
-	assert.Equal(t, int64(1), retryCounter.Value())
+	assertRetryMetric(t, testScope, "other")
 }
 
 func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
@@ -131,9 +129,7 @@ func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 	}()
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
-	retryCounter := getBootstrapRetriesCounter(testScope, "obsolete-ranges")
-	require.NotNil(t, retryCounter)
-	assert.Equal(t, int64(1), retryCounter.Value())
+	assertRetryMetric(t, testScope, "obsolete-ranges")
 }
 
 func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
@@ -187,9 +183,7 @@ func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
 
-	retryCounter := getBootstrapRetriesCounter(testScope, "other")
-	require.NotNil(t, retryCounter)
-	assert.Equal(t, int64(1), retryCounter.Value())
+	assertRetryMetric(t, testScope, "other")
 }
 
 type bootstrapFn = func(
@@ -236,12 +230,29 @@ func bootstrapRetryTestSetup(t *testing.T, bootstrapFn bootstrapFn) (TestSetup, 
 	return setup, testScope
 }
 
-func getBootstrapRetriesCounter(testScope tally.TestScope, reason string) tally.CounterSnapshot {
-	for _, snapshot := range testScope.Snapshot().Counters() {
-		if r, ok := snapshot.Tags()["reason"]; ok &&
-			strings.Contains(snapshot.Name(), "bootstrap-retries") && r == reason {
-			return snapshot
+func assertRetryMetric(t *testing.T, testScope tally.TestScope, expectedReason string) {
+	const (
+		metricName = "bootstrap-retries"
+		reasonTag  = "reason"
+	)
+	valuesByReason := make(map[string]int)
+	for _, counter := range testScope.Snapshot().Counters() {
+		if strings.Contains(counter.Name(), metricName) {
+			reason := ""
+			if r, ok := counter.Tags()[reasonTag]; ok {
+				reason = r
+			}
+			valuesByReason[reason] = int(counter.Value())
 		}
 	}
-	return nil
+
+	val, ok := valuesByReason[expectedReason]
+	if assert.True(t, ok, "missing metric for expected reason") {
+		assert.Equal(t, 1, val)
+	}
+	for r, val := range valuesByReason {
+		if r != expectedReason {
+			assert.Equal(t, 0, val)
+		}
+	}
 }
