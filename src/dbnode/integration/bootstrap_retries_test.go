@@ -61,7 +61,7 @@ func TestBootstrapRetriesDueToError(t *testing.T) {
 	})
 
 	go func() {
-		// Wait for server to start
+		// Wait for server to get started by the main test method.
 		setup.WaitUntilServerIsUp()
 
 		// First bootstrap pass. Bootstrapper produces an error. Check if DB is not marked bootstrapped.
@@ -105,7 +105,7 @@ func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 	})
 
 	go func() {
-		// Wait for server to start
+		// Wait for server to get started by the main test method.
 		setup.WaitUntilServerIsUp()
 
 		// First bootstrap pass, persist ranges. Check if DB is not marked bootstrapped.
@@ -158,7 +158,7 @@ func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
 	})
 
 	go func() {
-		// Wait for server to start
+		// Wait for server to get started by the main test method.
 		setup.WaitUntilServerIsUp()
 
 		// First bootstrap pass. Bootstrap produces unfulfilled ranges for persist range.

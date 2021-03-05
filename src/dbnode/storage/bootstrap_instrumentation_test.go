@@ -79,11 +79,11 @@ func getBootstrapRetryMetrics(testScope tally.TestScope) map[string]int {
 	valuesByReason := make(map[string]int)
 	for _, counter := range testScope.Snapshot().Counters() {
 		if strings.Contains(counter.Name(), metricName) {
+			reason := ""
 			if r, ok := counter.Tags()[reasonTag]; ok {
-				valuesByReason[r] = int(counter.Value())
-			} else {
-				valuesByReason[""] = int(counter.Value())
+				reason = r
 			}
+			valuesByReason[reason] = int(counter.Value())
 		}
 	}
 	return valuesByReason
