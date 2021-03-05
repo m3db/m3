@@ -48,7 +48,8 @@ func TestFollowerFlushManagerOpen(t *testing.T) {
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.Open()
 
-	watchable.Update(testFlushTimes)
+	require.NoError(t, watchable.Update(testFlushTimes))
+
 	for {
 		mgr.RLock()
 		state := mgr.flushTimesState
@@ -156,20 +157,17 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 
 	t.Run("opened_on_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Truncate(window10m)
-		expectedCanLead := false
-		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, expectedCanLead)
+		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, false)
 	})
 
 	t.Run("opened_after_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Truncate(window10m).Add(1 * time.Second)
-		expectedCanLead := false
-		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, expectedCanLead)
+		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, false)
 	})
 
 	t.Run("opened_before_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Truncate(window10m).Add(-1 * time.Second)
-		expectedCanLead := true
-		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, expectedCanLead)
+		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, true)
 	})
 
 	t.Run("standard_flushed_ok_and_unflushed_bad", func(t *testing.T) {
@@ -185,8 +183,7 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 		}
 
 		followerOpenedAt := now
-		expectedCanLead := false
-		testCanLeadNotFlushed(t, flushedAndUnflushedTimes, now, followerOpenedAt, 0, expectedCanLead)
+		testCanLeadNotFlushed(t, flushedAndUnflushedTimes, now, followerOpenedAt, 0, false)
 	})
 
 	t.Run("forwarded_flushed_ok_and_unflushed_bad", func(t *testing.T) {
@@ -210,8 +207,7 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 		}
 
 		followerOpenedAt := now
-		expectedCanLead := false
-		testCanLeadNotFlushed(t, flushedAndUnflushedTimes, now, followerOpenedAt, 0, expectedCanLead)
+		testCanLeadNotFlushed(t, flushedAndUnflushedTimes, now, followerOpenedAt, 0, false)
 	})
 }
 
@@ -222,7 +218,7 @@ func TestFollowerFlushManagerCanLeadTimedNotFlushed(t *testing.T) {
 		bufferPast = 3 * time.Minute
 	)
 
-	testFlushTimes := &schema.ShardSetFlushTimes{
+	flushTimes := &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
 			123: {
 				TimedByResolution: map[int64]int64{
@@ -234,17 +230,17 @@ func TestFollowerFlushManagerCanLeadTimedNotFlushed(t *testing.T) {
 
 	t.Run("opened_on_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Add(-bufferPast).Truncate(window10m)
-		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, bufferPast, false)
+		testCanLeadNotFlushed(t, flushTimes, now, followerOpenedAt, bufferPast, false)
 	})
 
 	t.Run("opened_after_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Add(-bufferPast).Truncate(window10m).Add(time.Second)
-		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, bufferPast, false)
+		testCanLeadNotFlushed(t, flushTimes, now, followerOpenedAt, bufferPast, false)
 	})
 
 	t.Run("opened_before_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Add(-bufferPast).Truncate(window10m).Add(-time.Second)
-		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, bufferPast, true)
+		testCanLeadNotFlushed(t, flushTimes, now, followerOpenedAt, bufferPast, true)
 	})
 }
 
@@ -256,6 +252,8 @@ func testCanLeadNotFlushed(
 	bufferPast time.Duration,
 	expectedCanLead bool,
 ) {
+	t.Helper()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
