@@ -851,9 +851,25 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		return nil
 	}
 
-	flushPreparer, err := s.persistManager.StartFlushPersist()
-	if err != nil {
-		return err
+	var flushPreparer persist.FlushPreparer
+	var prepareData persist.PreparedDataPersist
+	if writeType == series.WarmWrite {
+		flushPreparer, err = s.persistManager.StartFlushPersist()
+		if err != nil {
+			return err
+		}
+
+		prepareData, err = flushPreparer.PrepareData(persist.DataPrepareOptions{
+			NamespaceMetadata: ns,
+			BlockStart:        blockStart,
+			Shard:             shard,
+			VolumeIndex:       0,
+			FileSetType:       persist.FileSetSnapshotType,
+			DeleteIfExists:    false,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	for _, resolverBlocks := range seriesBlocks {
@@ -870,31 +886,21 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		if writeType == series.WarmWrite {
-			prepareData, err := flushPreparer.PrepareData(persist.DataPrepareOptions{
-				NamespaceMetadata: ns,
-				BlockStart:        blockStart,
-				Shard:             shard,
-				VolumeIndex:       mostRecentCompleteSnapshot.ID.VolumeIndex,
-				FileSetType:       persist.FileSetSnapshotType,
-				DeleteIfExists:    false,
-			})
-			if err != nil {
-				return err
-			}
-
 			if _, err = seriesRef.WarmFlush(ctx, blockStart, prepareData.Persist, nsCtx); err != nil {
-				return err
-			}
-
-			// todo close if flush fails as well.
-			if err = prepareData.Close(); err != nil {
 				return err
 			}
 		}
 	}
 
-	if err = flushPreparer.DoneFlush(); err != nil {
-		return err
+	if writeType == series.WarmWrite {
+		// todo close if flush fails as well.
+		if err = prepareData.Close(); err != nil {
+			return err
+		}
+
+		if err = flushPreparer.DoneFlush(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
