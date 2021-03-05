@@ -122,6 +122,12 @@ type FlushManagerOptions interface {
 
 	// ForcedFlushWindowSize returns the window size for a forced flush.
 	ForcedFlushWindowSize() time.Duration
+
+	// SetBufferForPastTimedMetric sets the size of the buffer for timed metrics in the past.
+	SetBufferForPastTimedMetric(value time.Duration) FlushManagerOptions
+
+	// BufferForPastTimedMetric returns the size of the buffer for timed metrics in the past.
+	BufferForPastTimedMetric() time.Duration
 }
 
 type flushManagerOptions struct {
@@ -137,6 +143,8 @@ type flushManagerOptions struct {
 	flushTimesPersistEvery time.Duration
 	maxBufferSize          time.Duration
 	forcedFlushWindowSize  time.Duration
+
+	bufferForPastTimedMetric time.Duration
 }
 
 // NewFlushManagerOptions create a new set of flush manager options.
@@ -152,6 +160,8 @@ func NewFlushManagerOptions() FlushManagerOptions {
 		flushTimesPersistEvery: defaultFlushTimesPersistEvery,
 		maxBufferSize:          defaultMaxBufferSize,
 		forcedFlushWindowSize:  defaultForcedFlushWindowSize,
+
+		bufferForPastTimedMetric: defaultTimedMetricBuffer,
 	}
 }
 
@@ -273,4 +283,14 @@ func (o *flushManagerOptions) SetForcedFlushWindowSize(value time.Duration) Flus
 
 func (o *flushManagerOptions) ForcedFlushWindowSize() time.Duration {
 	return o.forcedFlushWindowSize
+}
+
+func (o *flushManagerOptions) SetBufferForPastTimedMetric(value time.Duration) FlushManagerOptions {
+	opts := *o
+	opts.bufferForPastTimedMetric = value
+	return &opts
+}
+
+func (o *flushManagerOptions) BufferForPastTimedMetric() time.Duration {
+	return o.bufferForPastTimedMetric
 }

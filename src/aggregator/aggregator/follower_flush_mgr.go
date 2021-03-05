@@ -123,6 +123,8 @@ type followerFlushManager struct {
 	flushTask       *followerFlushTask
 	sleepFn         sleepFn
 	metrics         followerFlushManagerMetrics
+
+	bufferForPastTimedMetric time.Duration
 }
 
 func newFollowerFlushManager(
@@ -133,22 +135,23 @@ func newFollowerFlushManager(
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	mgr := &followerFlushManager{
-		nowFn:                 nowFn,
-		checkEvery:            opts.CheckEvery(),
-		workers:               opts.WorkerPool(),
-		placementManager:      opts.PlacementManager(),
-		electionManager:       opts.ElectionManager(),
-		flushTimesManager:     opts.FlushTimesManager(),
-		maxBufferSize:         opts.MaxBufferSize(),
-		forcedFlushWindowSize: opts.ForcedFlushWindowSize(),
-		logger:                instrumentOpts.Logger(),
-		scope:                 scope,
-		doneCh:                doneCh,
-		flushTimesState:       flushTimesUninitialized,
-		flushMode:             unknownFollowerFlush,
-		lastFlushed:           nowFn(),
-		sleepFn:               time.Sleep,
-		metrics:               newFollowerFlushManagerMetrics(scope),
+		nowFn:                    nowFn,
+		checkEvery:               opts.CheckEvery(),
+		workers:                  opts.WorkerPool(),
+		placementManager:         opts.PlacementManager(),
+		electionManager:          opts.ElectionManager(),
+		flushTimesManager:        opts.FlushTimesManager(),
+		maxBufferSize:            opts.MaxBufferSize(),
+		forcedFlushWindowSize:    opts.ForcedFlushWindowSize(),
+		bufferForPastTimedMetric: opts.BufferForPastTimedMetric(),
+		logger:                   instrumentOpts.Logger(),
+		scope:                    scope,
+		doneCh:                   doneCh,
+		flushTimesState:          flushTimesUninitialized,
+		flushMode:                unknownFollowerFlush,
+		lastFlushed:              nowFn(),
+		sleepFn:                  time.Sleep,
+		metrics:                  newFollowerFlushManagerMetrics(scope),
 	}
 	mgr.flushTask = &followerFlushTask{mgr: mgr}
 	return mgr
@@ -215,12 +218,7 @@ func (mgr *followerFlushManager) OnBucketAdded(int, *flushBucket) {}
 
 // NB(xichen): The follower flush manager flushes data based on the flush times
 // stored in kv and does not need to take extra actions when a new flusher is added.
-func (mgr *followerFlushManager) OnFlusherAdded(
-	bucketIdx int,
-	bucket *flushBucket,
-	flusher flushingMetricList,
-) {
-}
+func (mgr *followerFlushManager) OnFlusherAdded(int, *flushBucket, flushingMetricList) {}
 
 // The follower flush manager may only lead if and only if all the following conditions
 // are met:
@@ -271,7 +269,6 @@ func (mgr *followerFlushManager) CanLead() bool {
 			now,
 			int(shardID),
 			shardFlushTimes.ForwardedByResolution,
-			mgr.metrics.forwarded,
 		) {
 			return false
 		}
@@ -294,10 +291,10 @@ func (mgr *followerFlushManager) canLead(
 				zap.Time("now", now),
 				zap.Stringer("windowSize", windowSize),
 				zap.Stringer("flusherType", flusherType),
-				zap.Int("shardID", int(shardID)))
+				zap.Int("shardID", shardID))
 			mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
 
-			if mgr.canLeadNotFlushed(now, windowSize) {
+			if mgr.canLeadNotFlushed(now, windowSize, flusherType) {
 				continue
 			} else {
 				return false
@@ -320,7 +317,6 @@ func (mgr *followerFlushManager) canLeadForwarded(
 	now time.Time,
 	shardID int,
 	flushTimes map[int64]*schema.ForwardedFlushTimesForResolution,
-	metrics forwardedFollowerFlusherMetrics,
 ) bool {
 	// Check that the forwarded metrics have been flushed past the process start
 	// time, meaning the forwarded metrics that didn't make to the process have been
@@ -328,7 +324,7 @@ func (mgr *followerFlushManager) canLeadForwarded(
 	for windowNanos, fbr := range flushTimes {
 		if fbr == nil {
 			mgr.logger.Warn("ForwardedByResolution is nil",
-				zap.Int("shardID", int(shardID)))
+				zap.Int("shardID", shardID))
 			mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
 			return false
 		}
@@ -348,11 +344,11 @@ func (mgr *followerFlushManager) canLeadForwarded(
 					zap.Time("now", now),
 					zap.Stringer("windowSize", windowSize),
 					zap.Stringer("flusherType", forwardedMetricListType),
-					zap.Int("shardID", int(shardID)),
+					zap.Int("shardID", shardID),
 					zap.Int32("numForwardedTimes", numForwardedTimes))
 				mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
 
-				if mgr.canLeadNotFlushed(now, windowSize) {
+				if mgr.canLeadNotFlushed(now, windowSize, forwardedMetricListType) {
 					continue
 				} else {
 					return false
@@ -371,10 +367,20 @@ func (mgr *followerFlushManager) canLeadForwarded(
 
 // canLeadNotFlushed determines whether the follower can takeover leadership
 // for the window that was not (yet) flushed by leader.
-// This is case is possible when leader encounters a metric at some resolution
+// This case is possible when leader encounters a metric at some resolution
 // window for the first time in the shard it owns.
-func (mgr *followerFlushManager) canLeadNotFlushed(now time.Time, windowSize time.Duration) bool {
-	windowStartAt := now.Truncate(windowSize)
+func (mgr *followerFlushManager) canLeadNotFlushed(
+	now time.Time,
+	windowSize time.Duration,
+	flusherType metricListType,
+) bool {
+	adjustedNow := now
+	if flusherType == timedMetricListType {
+		adjustedNow = adjustedNow.Add(-mgr.bufferForPastTimedMetric)
+	}
+
+	windowStartAt := adjustedNow.Truncate(windowSize)
+
 	return mgr.openedAt.Before(windowStartAt)
 }
 
