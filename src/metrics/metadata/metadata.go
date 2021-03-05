@@ -533,14 +533,17 @@ func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
 				pipeline.Pipeline.Operations = make([]applied.OpUnion, numOps)
 			}
 
-			err = applied.OperationsFromProto(pipelinePb.Pipeline.Ops, pipeline.Pipeline.Operations)
-			if err != nil {
-				return err
+			if len(pipelinePb.Pipeline.Ops) > 0 {
+				err = applied.OperationsFromProto(pipelinePb.Pipeline.Ops, pipeline.Pipeline.Operations)
+				if err != nil {
+					return err
+				}
 			}
-
-			err = policy.StoragePoliciesFromProto(pipelinePb.StoragePolicies, pipeline.StoragePolicies)
-			if err != nil {
-				return err
+			if len(pipelinePb.StoragePolicies) > 0 {
+				err = policy.StoragePoliciesFromProto(pipelinePb.StoragePolicies, pipeline.StoragePolicies)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
