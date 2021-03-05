@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"github.com/m3db/m3/src/x/instrument"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -282,10 +283,12 @@ func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
-		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
-	assert.Error(t, err)
-	assert.NoError(t, session.Close())
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _, _ = session.Aggregate(testContext(), ident.StringID("namespace"),
+			testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
+	})
+
 }
 
 func TestSessionAggregateMergeTest(t *testing.T) {

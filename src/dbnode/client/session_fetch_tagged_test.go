@@ -588,6 +588,15 @@ func mockExtendedHostQueues(
 		require.Fail(t, "unable to find host idx: %v", host.ID())
 		return -1
 	}
+	expectClose := true
+	for _, hq := range opsByHost {
+		for _, e := range hq.enqueues {
+			if e.enqueueErr != nil {
+				expectClose = false
+				break
+			}
+		}
+	}
 	s.newHostQueueFn = func(
 		host topology.Host,
 		opts hostQueueOpts,
@@ -600,6 +609,7 @@ func mockExtendedHostQueues(
 		hostQueue.EXPECT().Open()
 		hostQueue.EXPECT().Host().Return(host).AnyTimes()
 		hostQueue.EXPECT().ConnectionCount().Return(opts.opts.MinConnectionCount()).AnyTimes()
+
 		var expectNextEnqueueFn func(fns []testEnqueue)
 		expectNextEnqueueFn = func(fns []testEnqueue) {
 			fn := fns[0]
@@ -619,7 +629,9 @@ func mockExtendedHostQueues(
 		if len(hostEnqueues.enqueues) > 0 {
 			expectNextEnqueueFn(hostEnqueues.enqueues)
 		}
-		hostQueue.EXPECT().Close()
+		if expectClose {
+			hostQueue.EXPECT().Close()
+		}
 		return hostQueue, nil
 	}
 }

@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"github.com/m3db/m3/src/x/instrument"
 	"testing"
 	"time"
 
@@ -86,9 +87,8 @@ func TestFileSystemManagerRun(t *testing.T) {
 	ts := time.Now()
 	gomock.InOrder(
 		cm.EXPECT().WarmFlushCleanup(ts, true).Return(errors.New("foo")),
-		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)
 
-	mgr.Run(ts, syncRun, noForce)
-	require.Equal(t, fileOpNotStarted, mgr.status)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { mgr.Run(ts, syncRun, noForce) })
 }
