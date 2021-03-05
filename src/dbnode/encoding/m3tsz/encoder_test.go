@@ -539,3 +539,83 @@ func testMultiplePasses(t *testing.T, test multiplePassesTest) {
 		}
 	}
 }
+
+func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
+	tests := []struct {
+		name           string
+		delta          time.Duration
+		units          xtime.Unit
+		expectedErrMsg string
+	}{
+		{
+			name:  "seconds, short gap",
+			delta: time.Hour,
+			units: xtime.Second,
+		},
+		{
+			name:  "seconds, huge gap",
+			delta: 25 * 24 * time.Hour,
+			units: xtime.Second,
+		},
+		{
+			name:  "milliseconds, short gap",
+			delta: time.Hour,
+			units: xtime.Millisecond,
+		},
+		{
+			name:  "milliseconds, almost too big gap",
+			delta: 24 * 24 * time.Hour, // slightly less than 2^31 ms
+			units: xtime.Millisecond,
+		},
+		{
+			name:           "milliseconds, too big gap",
+			delta:          25 * 24 * time.Hour, // more than 2^31 ms
+			units:          xtime.Millisecond,
+			expectedErrMsg: "deltaOfDelta value 2160000000 ms overflows 32 bits",
+		},
+		{
+			name:  "microseconds, short gap",
+			delta: time.Hour,
+			units: xtime.Microsecond,
+		},
+		{
+			name:  "microseconds, short gap",
+			delta: 25 * 24 * time.Hour,
+			units: xtime.Microsecond,
+		},
+		{
+			name:  "nanoseconds, short gap",
+			delta: time.Hour,
+			units: xtime.Nanosecond,
+		},
+		{
+			name:  "nanoseconds, short gap",
+			delta: 25 * 24 * time.Hour,
+			units: xtime.Nanosecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encoder := getTestEncoder(testStartTime)
+			value1 := ts.Datapoint{
+				Timestamp: testStartTime,
+				Value:     1,
+			}
+			value2 := ts.Datapoint{
+				Timestamp: testStartTime.Add(tt.delta),
+				Value:     2,
+			}
+
+			err := encoder.Encode(value1, tt.units, nil)
+			require.NoError(t, err)
+
+			err = encoder.Encode(value2, tt.units, nil)
+			if tt.expectedErrMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, tt.expectedErrMsg)
+			}
+		})
+	}
+}
