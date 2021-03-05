@@ -54,8 +54,7 @@ func TestBootstrapRetriesDueToError(t *testing.T) {
 			return bootstrap.NamespaceResults{}, errors.New("error in bootstrapper")
 		}
 		// Mark all as fulfilled
-		noopNone := bootstrapper.NewNoOpAllBootstrapperProvider()
-		bs, err := noopNone.Provide()
+		bs, err := bootstrapper.NewNoOpAllBootstrapperProvider().Provide()
 		require.NoError(t, err)
 		return bs.Bootstrap(ctx, namespaces, cache)
 	})
@@ -98,8 +97,7 @@ func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		// read from signalCh twice so we could advance the clock exactly in between of those signals
 		<-signalCh
 		<-signalCh
-		noopNone := bootstrapper.NewNoOpAllBootstrapperProvider()
-		bs, err := noopNone.Provide()
+		bs, err := bootstrapper.NewNoOpAllBootstrapperProvider().Provide()
 		require.NoError(t, err)
 		return bs.Bootstrap(ctx, namespaces, cache)
 	})
