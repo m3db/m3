@@ -8,5 +8,7 @@ ADD ./m3dbnode-local-etcd.yml /etc/m3dbnode/m3dbnode.yml
 
 EXPOSE 2379/tcp 2380/tcp 7201/tcp 7203/tcp 9000-9004/tcp
 
+ENV PANIC_ON_INVARIANT_VIOLATED=true
+
 ENTRYPOINT [ "/bin/m3dbnode" ]
 CMD [ "-f", "/etc/m3dbnode/m3dbnode.yml" ]
