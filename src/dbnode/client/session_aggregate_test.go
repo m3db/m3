@@ -22,7 +22,6 @@ package client
 
 import (
 	"fmt"
-	"github.com/m3db/m3/src/x/instrument"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -288,7 +288,6 @@ func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 		_, _, _ = session.Aggregate(testContext(), ident.StringID("namespace"),
 			testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	})
-
 }
 
 func TestSessionAggregateMergeTest(t *testing.T) {

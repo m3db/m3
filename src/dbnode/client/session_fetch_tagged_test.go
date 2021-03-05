@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -288,10 +289,11 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
-	assert.Error(t, err)
-	assert.NoError(t, session.Close())
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _, _ = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
+			testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	})
 }
 
 func TestSessionFetchTaggedMergeTest(t *testing.T) {

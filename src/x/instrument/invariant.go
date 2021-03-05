@@ -93,9 +93,9 @@ func InvariantErrorf(format string, a ...interface{}) error {
 // Useful for tests to use a defer statement when they need to test a specific value.
 func SetShouldPanicEnvironmentVariable(value bool) func() {
 	restoreValue := os.Getenv(ShouldPanicEnvironmentVariableName)
-	os.Setenv(ShouldPanicEnvironmentVariableName, strconv.FormatBool(value))
+	_ = os.Setenv(ShouldPanicEnvironmentVariableName, strconv.FormatBool(value))
 	return func() {
-		os.Setenv(ShouldPanicEnvironmentVariableName, restoreValue)
+		_ = os.Setenv(ShouldPanicEnvironmentVariableName, restoreValue)
 	}
 }
 
