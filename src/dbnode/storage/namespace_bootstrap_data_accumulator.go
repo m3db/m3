@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -88,8 +89,11 @@ func (a *namespaceDataAccumulator) Close() error {
 	a.closed = true
 
 	// Release all refs.
+	var errs []error
 	for _, elem := range a.needsRelease {
-		_ = elem.ReleaseRef()
+		if err := elem.ReleaseRef(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	// Memset optimization for reset.
@@ -98,5 +102,8 @@ func (a *namespaceDataAccumulator) Close() error {
 	}
 	a.needsRelease = a.needsRelease[:0]
 
+	if len(errs) > 0 {
+		return fmt.Errorf("got %d release ref errors", len(errs))
+	}
 	return nil
 }

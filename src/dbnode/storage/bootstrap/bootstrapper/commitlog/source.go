@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -89,8 +90,6 @@ type bootstrapNamespace struct {
 	accumulator             bootstrap.NamespaceDataAccumulator
 }
 
-type seriesMap map[seriesMapKey]*seriesMapEntry
-
 type seriesMapKey struct {
 	fileReadID  uint64
 	uniqueIndex uint64
@@ -117,6 +116,11 @@ type accumulateWorker struct {
 	inputCh        chan accumulateArg
 	datapointsRead int
 	numErrors      int
+}
+
+type seriesBlock struct {
+	resolver bootstrap.SeriesRefResolver
+	block    block.DatabaseBlock
 }
 
 func newCommitLogSource(
@@ -831,55 +835,23 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		zap.Time("blockStart", blockStart),
 		zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex))
 
-	for {
-		id, tags, data, expectedChecksum, err := reader.Read()
-		if err != nil && err != io.EOF {
-			return err
-		}
-		if err == io.EOF {
-			break
-		}
+	seriesBlocks, err := s.readSeriesBlocks(reader, shard, accumulator,
+		blocksPool, blockStart, blockSize, nsCtx)
+	if err != nil {
+		return err
+	}
 
-		dbBlock := blocksPool.Get()
-		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegment(data, nil, 0, ts.FinalizeHead), nsCtx)
-
-		// Resetting the block will trigger a checksum calculation, so use
-		// that instead of calculating it twice.
-		checksum, err := dbBlock.Checksum()
-		if err != nil {
-			return err
-		}
-		if checksum != expectedChecksum {
-			return fmt.Errorf("checksum for series: %s was %d but expected %d",
-				id, checksum, expectedChecksum)
-		}
-
-		// NB(r): No parallelization required to checkout the series.
-		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
-		if err != nil {
-			if !owned {
-				// Skip bootstrapping this series if we don't own it.
-				continue
-			}
-			return err
-		}
-
+	for _, seriesBlock := range seriesBlocks {
 		// Load into series.
-		seriesRef, err := ref.Resolver.SeriesRef()
+		seriesRef, err := seriesBlock.resolver.SeriesRef()
 		if err != nil {
 			return fmt.Errorf("(commitlog) unable to resolve series ref: %w", err)
 		}
 
-		if err := seriesRef.LoadBlock(dbBlock, writeType); err != nil {
+		if err := seriesRef.LoadBlock(seriesBlock.block, writeType); err != nil {
 			return err
 		}
-
-		// Always finalize both ID and tags after loading block.
-		id.Finalize()
-		tags.Close()
 	}
-
 	return nil
 }
 
@@ -913,6 +885,60 @@ func (s *commitLogSource) mostRecentSnapshotByBlockShard(
 	}
 
 	return mostRecentCompleteSnapshotByBlockShard, nil
+}
+
+func (s *commitLogSource) readSeriesBlocks(
+	reader fs.DataFileSetReader,
+	shard uint32,
+	accumulator bootstrap.NamespaceDataAccumulator,
+	blocksPool block.DatabaseBlockPool,
+	blockStart time.Time,
+	blockSize time.Duration,
+	nsCtx namespace.Context,
+) ([]seriesBlock, error) {
+	seriesBlocks := make([]seriesBlock, 0, 1024)
+	for {
+		id, tags, data, expectedChecksum, err := reader.Read()
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		if err == io.EOF {
+			break
+		}
+
+		dbBlock := blocksPool.Get()
+		dbBlock.Reset(blockStart, blockSize,
+			ts.NewSegment(data, nil, 0, ts.FinalizeHead), nsCtx)
+
+		// Resetting the block will trigger a checksum calculation, so use
+		// that instead of calculating it twice.
+		checksum, err := dbBlock.Checksum()
+		if err != nil {
+			return nil, err
+		}
+		if checksum != expectedChecksum {
+			return nil, fmt.Errorf("checksum for series: %s was %d but expected %d",
+				id, checksum, expectedChecksum)
+		}
+
+		res, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		if err != nil {
+			if !owned {
+				// Skip bootstrapping this series if we don't own it.
+				continue
+			}
+			return nil, err
+		}
+
+		seriesBlocks = append(seriesBlocks, seriesBlock{
+			resolver: res.Resolver,
+			block:    dbBlock,
+		})
+
+		id.Finalize()
+		tags.Close()
+	}
+	return seriesBlocks, nil
 }
 
 // TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
