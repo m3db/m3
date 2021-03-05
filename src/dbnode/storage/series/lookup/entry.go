@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -80,7 +79,7 @@ var _ OnReleaseReadWriteRef = &Entry{}
 var _ index.OnIndexSeries = &Entry{}
 
 // ensure Entry satisfies the `bootstrap.SeriesRef` interface.
-var _ bootstrap.SeriesRef = &Entry{}
+//var _ bootstrap.SeriesRef = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {

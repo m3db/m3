@@ -283,6 +283,8 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 				return true, series.WarmWrite, nil
 			}).AnyTimes()
 
+	mockSeries.EXPECT().WarmFlush(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+
 	result := CheckoutSeriesResult{
 		Shard:    shardID,
 		Resolver: &seriesStaticResolver{series: mockSeries},

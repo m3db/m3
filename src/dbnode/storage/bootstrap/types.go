@@ -493,6 +493,14 @@ type SeriesRef interface {
 		block block.DatabaseBlock,
 		writeType series.WriteType,
 	) error
+
+	// WarmFlush flushes data to disk.
+	WarmFlush(
+		ctx context.Context,
+		blockStart time.Time,
+		persistFn persist.DataFn,
+		nsCtx namespace.Context,
+	) (series.FlushOutcome, error)
 }
 
 // SeriesRefResolver is a series resolver for just in time resolving of
