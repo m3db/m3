@@ -32,7 +32,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-func TestBootstrapFailedMetricReason(t *testing.T) {
+func TestBootstrapRetryMetricReason(t *testing.T) {
 	tests := []struct {
 		name           string
 		err            error

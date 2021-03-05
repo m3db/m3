@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"errors"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -163,11 +162,8 @@ func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext 
 
 func (i *bootstrapInstrumentation) bootstrapFailed(retry int, err error) {
 	numRetries := i.numRetries.other
-	for e := err; e != nil; e = xerrors.InnerError(e) {
-		if errors.Is(e, bootstrap.ErrFileSetSnapshotTypeRangeAdvanced) {
-			numRetries = i.numRetries.obsoleteRanges
-			break
-		}
+	if xerrors.Is(err, bootstrap.ErrFileSetSnapshotTypeRangeAdvanced) {
+		numRetries = i.numRetries.obsoleteRanges
 	}
 	numRetries.Inc(1)
 
