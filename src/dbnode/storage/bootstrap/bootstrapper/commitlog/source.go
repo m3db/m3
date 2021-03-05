@@ -810,7 +810,8 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			Shard:       shard,
 			VolumeIndex: mostRecentCompleteSnapshot.ID.VolumeIndex,
 		},
-		FileSetType: persist.FileSetSnapshotType,
+		FileSetType:      persist.FileSetSnapshotType,
+		StreamingEnabled: true,
 	})
 	if err != nil {
 		return err
@@ -831,13 +832,29 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		zap.Time("blockStart", blockStart),
 		zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex))
 
+	tagDecoder := fsOpts.TagDecoderPool().Get()
+	defer tagDecoder.Close()
+
 	for {
-		id, tags, data, expectedChecksum, err := reader.Read()
-		if err != nil && err != io.EOF {
-			return err
-		}
+		streamedDataEntry, err := reader.StreamingRead()
 		if err == io.EOF {
 			break
+		} else if err != nil {
+			return err
+		}
+
+		var data checked.Bytes
+		dataLen := len(streamedDataEntry.Data)
+		if bytesPool != nil {
+			data = bytesPool.Get(dataLen)
+			data.IncRef()
+			data.AppendAll(streamedDataEntry.Data)
+			data.DecRef()
+		} else {
+			data = checked.NewBytes(make([]byte, dataLen), nil)
+			data.IncRef()
+			data.AppendAll(streamedDataEntry.Data)
+			data.DecRef()
 		}
 
 		dbBlock := blocksPool.Get()
@@ -850,13 +867,17 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		if err != nil {
 			return err
 		}
-		if checksum != expectedChecksum {
+		if checksum != streamedDataEntry.DataChecksum {
 			return fmt.Errorf("checksum for series: %s was %d but expected %d",
-				id, checksum, expectedChecksum)
+				streamedDataEntry.ID, checksum, streamedDataEntry.DataChecksum)
 		}
 
+		tagDecoder.Reset(checked.NewBytes(streamedDataEntry.EncodedTags, nil))
+
+		// Id and Tags get copied here, so it is OK to invalidate them
+		// on the next streaming iteration.
 		// NB(r): No parallelization required to checkout the series.
-		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, streamedDataEntry.ID, tagDecoder)
 		if err != nil {
 			if !owned {
 				// Skip bootstrapping this series if we don't own it.
@@ -869,10 +890,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		if err := ref.Series.LoadBlock(dbBlock, writeType); err != nil {
 			return err
 		}
-
-		// Always finalize both ID and tags after loading block.
-		id.Finalize()
-		tags.Close()
 	}
 
 	return nil
