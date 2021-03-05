@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -902,21 +901,6 @@ func (m *MockSeriesRef) LoadBlock(block block.DatabaseBlock, writeType series.Wr
 func (mr *MockSeriesRefMockRecorder) LoadBlock(block, writeType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockSeriesRef)(nil).LoadBlock), block, writeType)
-}
-
-// WarmFlush mocks base method
-func (m *MockSeriesRef) WarmFlush(ctx context.Context, blockStart time.Time, persistFn persist.DataFn, nsCtx namespace.Context) (series.FlushOutcome, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", ctx, blockStart, persistFn, nsCtx)
-	ret0, _ := ret[0].(series.FlushOutcome)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WarmFlush indicates an expected call of WarmFlush
-func (mr *MockSeriesRefMockRecorder) WarmFlush(ctx, blockStart, persistFn, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockSeriesRef)(nil).WarmFlush), ctx, blockStart, persistFn, nsCtx)
 }
 
 // MockSeriesRefResolver is a mock of SeriesRefResolver interface

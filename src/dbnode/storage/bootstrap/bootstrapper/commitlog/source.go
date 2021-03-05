@@ -78,7 +78,6 @@ type commitLogSource struct {
 	commitLogResult commitLogResult
 
 	instrumentation *instrumentation
-	persistManager  persist.Manager
 }
 
 type bootstrapNamespace struct {
@@ -119,11 +118,6 @@ type accumulateWorker struct {
 	numErrors      int
 }
 
-type seriesBlocks struct {
-	resolver bootstrap.SeriesRefResolver
-	blocks   []block.DatabaseBlock
-}
-
 func newCommitLogSource(
 	opts Options,
 	inspection fs.Inspection,
@@ -140,9 +134,6 @@ func newCommitLogSource(
 		Logger().
 		With(zap.String("bootstrapper", "commitlog"))
 
-	// todo handle error
-	persistManager, _ := fs.NewPersistManager(opts.CommitLogOptions().FilesystemOptions())
-
 	return &commitLogSource{
 		opts:  opts,
 		log:   log,
@@ -153,7 +144,7 @@ func newCommitLogSource(
 		newIteratorFn:   commitlog.NewIterator,
 		snapshotFilesFn: fs.SnapshotFiles,
 		newReaderFn:     fs.NewReader,
-		persistManager:  persistManager,
+
 		metrics:         newCommitLogSourceMetrics(scope),
 		instrumentation: newInstrumentation(opts, scope, log),
 	}
@@ -240,7 +231,6 @@ func (s *commitLogSource) Read(
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
-
 		}
 	}
 	instrCtx.bootstrapSnapshotsCompleted()
@@ -788,6 +778,11 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	return nil
 }
 
+type seriesBlock struct {
+	resolver bootstrap.SeriesRefResolver
+	block    block.DatabaseBlock
+}
+
 func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	ns namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
@@ -804,7 +799,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 		nsCtx      = namespace.NewContextFrom(ns)
-		ctx        = context.NewBackground()
 	)
 
 	// Bootstrap the snapshot file.
@@ -847,58 +841,14 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		return err
 	}
 
-	if len(seriesBlocks) < 1 {
-		return nil
-	}
-
-	var flushPreparer persist.FlushPreparer
-	var prepareData persist.PreparedDataPersist
-	if writeType == series.WarmWrite {
-		flushPreparer, err = s.persistManager.StartFlushPersist()
-		if err != nil {
-			return err
-		}
-
-		prepareData, err = flushPreparer.PrepareData(persist.DataPrepareOptions{
-			NamespaceMetadata: ns,
-			BlockStart:        blockStart,
-			Shard:             shard,
-			VolumeIndex:       0,
-			FileSetType:       persist.FileSetSnapshotType,
-			DeleteIfExists:    false,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, resolverBlocks := range seriesBlocks {
+	for _, seriesBlock := range seriesBlocks {
 		// Load into series.
-		seriesRef, err := resolverBlocks.resolver.SeriesRef()
+		seriesRef, err := seriesBlock.resolver.SeriesRef()
 		if err != nil {
 			return fmt.Errorf("(commitlog) unable to resolve series ref: %w", err)
 		}
 
-		for _, databaseBlock := range resolverBlocks.blocks {
-			if err := seriesRef.LoadBlock(databaseBlock, writeType); err != nil {
-				return err
-			}
-		}
-
-		if writeType == series.WarmWrite {
-			if _, err = seriesRef.WarmFlush(ctx, blockStart, prepareData.Persist, nsCtx); err != nil {
-				return err
-			}
-		}
-	}
-
-	if writeType == series.WarmWrite {
-		// todo close if flush fails as well.
-		if err = prepareData.Close(); err != nil {
-			return err
-		}
-
-		if err = flushPreparer.DoneFlush(); err != nil {
+		if err := seriesRef.LoadBlock(seriesBlock.block, writeType); err != nil {
 			return err
 		}
 	}
@@ -945,8 +895,8 @@ func (s *commitLogSource) readSeriesBlocks(
 	blockStart time.Time,
 	blockSize time.Duration,
 	nsCtx namespace.Context,
-) (map[string]*seriesBlocks, error) {
-	resultBlocks := map[string]*seriesBlocks{}
+) ([]seriesBlock, error) {
+	seriesBlocks := make([]seriesBlock, 0, reader.Entries())
 	for {
 		id, tags, data, expectedChecksum, err := reader.Read()
 		if err != nil && err != io.EOF {
@@ -971,30 +921,24 @@ func (s *commitLogSource) readSeriesBlocks(
 				id, checksum, expectedChecksum)
 		}
 
-		idString := id.String()
-		resolverBlocks, ok := resultBlocks[idString]
-		if !ok {
-			res, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
-			if err != nil {
-				if !owned {
-					// Skip bootstrapping this series if we don't own it.
-					continue
-				}
-				return nil, err
+		res, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		if err != nil {
+			if !owned {
+				// Skip bootstrapping this series if we don't own it.
+				continue
 			}
-
-			resultBlocks[idString] = &seriesBlocks{
-				resolver: res.Resolver,
-				blocks:   []block.DatabaseBlock{dbBlock},
-			}
-		} else {
-			resolverBlocks.blocks = append(resolverBlocks.blocks, dbBlock)
+			return nil, err
 		}
+
+		seriesBlocks = append(seriesBlocks, seriesBlock{
+			resolver: res.Resolver,
+			block:    dbBlock,
+		})
 
 		id.Finalize()
 		tags.Close()
 	}
-	return resultBlocks, nil
+	return seriesBlocks, nil
 }
 
 // TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
