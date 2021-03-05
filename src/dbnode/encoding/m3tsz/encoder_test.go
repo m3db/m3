@@ -597,25 +597,53 @@ func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encoder := getTestEncoder(testStartTime)
-			value1 := ts.Datapoint{
-				Timestamp: testStartTime,
-				Value:     1,
-			}
-			value2 := ts.Datapoint{
-				Timestamp: testStartTime.Add(tt.delta),
-				Value:     2,
-			}
+			ctx := context.NewBackground()
+			defer ctx.Close()
 
-			err := encoder.Encode(value1, tt.units, nil)
+			enc := getTestEncoder(testStartTime)
+
+			dp1 := dp(testStartTime, 1)
+			dp2 := dp(testStartTime.Add(tt.delta), 2)
+
+			err := enc.Encode(dp1, tt.units, nil)
 			require.NoError(t, err)
 
-			err = encoder.Encode(value2, tt.units, nil)
-			if tt.expectedErrMsg == "" {
-				require.NoError(t, err)
-			} else {
+			err = enc.Encode(dp2, tt.units, nil)
+			if tt.expectedErrMsg != "" {
 				require.EqualError(t, err, tt.expectedErrMsg)
+				return
 			}
+			require.NoError(t, err)
+
+			dec := NewDecoder(enc.intOptimized, enc.opts)
+			stream, ok := enc.Stream(ctx)
+			require.True(t, ok)
+
+			it := dec.Decode(stream)
+			defer it.Close()
+
+			decodeAndCheck(t, it, dp1, tt.units)
+			decodeAndCheck(t, it, dp2, tt.units)
+
+			require.False(t, it.Next())
+			require.NoError(t, it.Err())
 		})
 	}
+}
+
+func dp(timestamp time.Time, value float64) ts.Datapoint {
+	return ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+}
+
+func decodeAndCheck(t *testing.T, it encoding.ReaderIterator, dp ts.Datapoint, units xtime.Unit) {
+	t.Helper()
+
+	require.True(t, it.Next())
+	decodedDP, decodedUnits, _ := it.Current()
+	assert.Equal(t, dp, decodedDP)
+	assert.Equal(t, units, decodedUnits)
 }
