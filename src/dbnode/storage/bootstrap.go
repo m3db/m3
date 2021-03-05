@@ -164,7 +164,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 			// NB(r): Last bootstrap failed, since this could be due to transient
 			// failure we retry the bootstrap again. This is to avoid operators
 			// needing to manually intervene for cases where failures are transient.
-			m.instrumentation.bootstrapFailed(i + 1)
+			m.instrumentation.bootstrapFailed(i+1, bootstrapErr)
 			m.sleepFn(bootstrapRetryInterval)
 			continue
 		}
