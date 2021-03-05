@@ -108,7 +108,7 @@ func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		// Wait for server to get started by the main test method.
 		setup.WaitUntilServerIsUp()
 
-		// First bootstrap pass, persist ranges. Check if DB is not marked bootstrapped.
+		// First bootstrap pass, persist ranges. Check if DB is not marked bootstrapped and advance clock.
 		signalCh <- struct{}{}
 		assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
 		setup.SetNowFn(setup.NowFn()().Add(2 * time.Hour))
