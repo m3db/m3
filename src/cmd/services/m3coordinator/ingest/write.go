@@ -259,6 +259,8 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 			downsample.GraphiteIDSchemeTagValue)
 	}
 
+	// NB: we don't set series attributes on the sample appender options here.
+	// In practice this isn't needed because only the carbon ingest path comes through here.
 	var appenderOpts downsample.SampleAppenderOptions
 	if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 		appenderOpts = downsample.SampleAppenderOptions{
@@ -478,7 +480,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		opts := downsample.SampleAppenderOptions{
-			MetricType: value.Attributes.M3Type,
+			SeriesAttributes: value.Attributes,
 		}
 		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 			opts = downsample.SampleAppenderOptions{
