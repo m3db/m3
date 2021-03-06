@@ -63,6 +63,10 @@ const (
 	// - GC pause times
 	DetailedExtendedMetrics
 
+	// DetailedGoRuntimeMetrics reports all detailed metrics, sans FD metrics to save CPU
+	// if in-use file descriptors are measured by an external system, like cAdvisor.
+	DetailedGoRuntimeMetrics
+
 	// DefaultExtendedMetricsType is the default extended metrics level.
 	DefaultExtendedMetricsType = SimpleExtendedMetrics
 )
@@ -73,6 +77,7 @@ var (
 		SimpleExtendedMetrics,
 		ModerateExtendedMetrics,
 		DetailedExtendedMetrics,
+		DetailedGoRuntimeMetrics,
 	}
 )
 
@@ -86,6 +91,8 @@ func (t ExtendedMetricsType) String() string {
 		return "moderate"
 	case DetailedExtendedMetrics:
 		return "detailed"
+	case DetailedGoRuntimeMetrics:
+		return "runtime"
 	}
 	return "unknown"
 }
@@ -196,7 +203,7 @@ func NewExtendedMetricsReporter(
 	r.init(reportInterval, func() {
 		r.runtime.report(r.metricsType)
 	})
-	if r.metricsType >= ModerateExtendedMetrics {
+	if r.metricsType >= ModerateExtendedMetrics && r.metricsType != DetailedGoRuntimeMetrics {
 		// ProcessReporter can be quite slow in some situations (specifically
 		// counting FDs for processes that have many of them) so it runs on
 		// its own report loop.
