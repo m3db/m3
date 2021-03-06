@@ -1746,7 +1746,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicyAndDropTime
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastMean(t *testing.T) {
+func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastLast(t *testing.T) {
 	t.Parallel()
 
 	gaugeMetrics := []testGaugeMetric{
@@ -1761,6 +1761,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastMean(t *te
 			timedSamples: []testGaugeMetricTimedSample{
 				{value: 42},
 			},
+			expectDropPolicyApplied: true,
 		},
 		{
 			tags: map[string]string{
@@ -1773,12 +1774,31 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastMean(t *te
 			timedSamples: []testGaugeMetricTimedSample{
 				{value: 13},
 			},
+			expectDropPolicyApplied: true,
 		},
 	}
 	res := 1 * time.Second
 	ret := 30 * 24 * time.Hour
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []m3.ClusterNamespaceOptions{
+			m3.NewClusterNamespaceOptions(
+				storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   24 * time.Hour,
+					Resolution:  4 * time.Second,
+				},
+				nil,
+			),
+		},
 		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_request_latency_max_gauge app:* status_code:* endpoint:*",
+						nameTag),
+					Drop: true,
+				},
+			},
 			RollupRules: []RollupRuleConfiguration{
 				{
 					Filter: fmt.Sprintf(
@@ -1792,9 +1812,9 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastMean(t *te
 						},
 						{
 							Rollup: &RollupOperationConfiguration{
-								MetricName:   "{{ .MetricName }}:mean_without_instance",
+								MetricName:   "{{ .MetricName }}:last_without_instance",
 								ExcludeBy:    []string{"instance"},
-								Aggregations: []aggregation.Type{aggregation.Mean},
+								Aggregations: []aggregation.Type{aggregation.Last},
 							},
 						},
 					},
@@ -1814,7 +1834,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByLastMean(t *te
 			writes: []testExpectedWrite{
 				{
 					tags: map[string]string{
-						nameTag:               "http_request_latency_max_gauge:mean_without_instance",
+						nameTag:               "other",
 						string(rollupTagName): string(rollupTagValue),
 						"app":                 "nginx_edge",
 						"status_code":         "500",
@@ -1856,6 +1876,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 				{value: 12, offset: 2 * time.Second}, // +12 - simulate a reset (should not be accounted)
 				{value: 33, offset: 3 * time.Second}, // +21
 			},
+			expectDropPolicyApplied: true,
 		},
 		{
 			tags: map[string]string{
@@ -1871,12 +1892,31 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 				// Explicit no value.
 				{value: 42, offset: 3 * time.Second}, // +15
 			},
+			expectDropPolicyApplied: true,
 		},
 	}
 	res := 1 * time.Second
 	ret := 30 * 24 * time.Hour
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []m3.ClusterNamespaceOptions{
+			m3.NewClusterNamespaceOptions(
+				storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   24 * time.Hour,
+					Resolution:  4 * time.Second,
+				},
+				nil,
+			),
+		},
 		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Drop: true,
+				},
+			},
 			RollupRules: []RollupRuleConfiguration{
 				{
 					Filter: fmt.Sprintf(
@@ -1917,7 +1957,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 			writes: []testExpectedWrite{
 				{
 					tags: map[string]string{
-						nameTag:               "http_requests:sum_without_instance",
+						nameTag:               "other",
 						string(rollupTagName): string(rollupTagValue),
 						"app":                 "nginx_edge",
 						"status_code":         "500",
@@ -2618,7 +2658,7 @@ type testDownsamplerOptions struct {
 	identTag       string
 
 	// Options for the test
-	autoMappingRules   []AutoMappingRule
+	autoMappingRules   []m3.ClusterNamespaceOptions
 	sampleAppenderOpts *SampleAppenderOptions
 	remoteClientMock   *client.MockClient
 	rulesConfig        *RulesConfiguration
@@ -2718,6 +2758,23 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		TagOptions:                 models.NewTagOptions(),
 	})
 	require.NoError(t, err)
+
+	if len(opts.autoMappingRules) > 0 {
+		// Simulate the automapping rules being injected into the downsampler.
+		ctrl := gomock.NewController(t)
+
+		var mockNamespaces m3.ClusterNamespaces
+		for _, r := range opts.autoMappingRules {
+			n := m3.NewMockClusterNamespace(ctrl)
+			n.EXPECT().
+				Options().
+				Return(r).
+				AnyTimes()
+			mockNamespaces = append(mockNamespaces, n)
+		}
+
+		instance.(*downsampler).OnUpdate(mockNamespaces)
+	}
 
 	downcast, ok := instance.(*downsampler)
 	require.True(t, ok)

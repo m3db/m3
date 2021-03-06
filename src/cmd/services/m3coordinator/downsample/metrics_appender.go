@@ -381,6 +381,9 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 				return SamplesAppenderResult{}, err
 			}
+		} else {
+			a.debugLogMatch("downsampler skipping sending sample",
+				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
 		}
 
 		numRollups := matchResult.NumNewRollupIDs()
