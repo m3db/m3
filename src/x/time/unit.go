@@ -56,7 +56,7 @@ func (tu Unit) Value() (time.Duration, error) {
 	if tu < 1 || int(tu) >= unitCount {
 		return 0, errUnrecognizedTimeUnit
 	}
-	return time.Duration(unitsToDuration[tu]), nil
+	return unitsToDuration[tu], nil
 }
 
 // Count returns the number of units contained within the duration.
