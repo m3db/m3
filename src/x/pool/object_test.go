@@ -193,6 +193,7 @@ func BenchmarkObjectPoolParallelGetMultiPutContended(b *testing.B) {
 				o := bufs[i]
 				buf := *o
 				buf = strconv.AppendInt(buf[:0], 12344321, 10)
+				runtime.KeepAlive(buf)
 				p.Put(o)
 			}
 		}
