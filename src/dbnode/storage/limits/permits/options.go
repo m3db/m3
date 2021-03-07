@@ -21,8 +21,9 @@
 package permits
 
 import (
-	"math"
-	"runtime"
+	"time"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type options struct {
@@ -35,7 +36,10 @@ func NewOptions() Options {
 	return &options{
 		seriesReadManager: NewNoOpPermitsManager(),
 		// Default to using half of the available cores for querying IDs
-		indexQueryManager: NewFixedPermitsManager(int(math.Ceil(float64(runtime.NumCPU()) / 2))),
+		indexQueryManager: NewFixedPermitsManager(
+			1,
+			int64(time.Second),
+			instrument.NewOptions()),
 	}
 }
 

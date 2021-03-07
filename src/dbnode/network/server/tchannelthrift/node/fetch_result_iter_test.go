@@ -46,48 +46,7 @@ func TestFetchResultIterTest(t *testing.T) {
 
 	scope, ctx, nsID, resMap, start, end, db := setup(mocks)
 
-	blockPermits := &fakePermits{available: 5}
-	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
-		queryResult: index.QueryResult{
-			Results: resMap,
-		},
-		queryOpts: index.QueryOptions{
-			StartInclusive: start,
-			EndExclusive:   end,
-		},
-		fetchData:       true,
-		db:              db,
-		nsID:            nsID,
-		blockPermits:    blockPermits,
-		blocksPerBatch:  5,
-		nowFn:           time.Now,
-		dataReadMetrics: index.NewQueryMetrics("", scope),
-		totalMetrics:    index.NewQueryMetrics("", scope),
-		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
-		instrumentClose: func(err error) {},
-	})
-	total := 0
-	for iter.Next(ctx) {
-		total++
-		require.NotNil(t, iter.Current())
-		require.Len(t, iter.Current().(*idResult).blockReaders, 10)
-	}
-	require.NoError(t, iter.Err())
-	iter.Close(nil)
-
-	require.Equal(t, 10, total)
-	require.Equal(t, 5, blockPermits.acquired)
-	require.Equal(t, 5, blockPermits.released)
-	requireSeriesBlockMetric(t, scope)
-}
-
-func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
-	mocks := gomock.NewController(t)
-	defer mocks.Finish()
-
-	scope, ctx, nsID, resMap, start, end, db := setup(mocks)
-
-	blockPermits := &fakePermits{available: 10}
+	blockPermits := &fakePermits{available: 5, quotaPerPermit: 5}
 	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
 		queryResult: index.QueryResult{
 			Results: resMap,
@@ -116,29 +75,15 @@ func TestFetchResultIterTestUnsetBlocksPerBatch(t *testing.T) {
 	iter.Close(nil)
 
 	require.Equal(t, 10, total)
-	require.Equal(t, 10, blockPermits.acquired)
-	require.Equal(t, 10, blockPermits.released)
+	// 20 permits are not acquired because the accounting is not 100% accurate. permits are not acquired until
+	// after the block is processed, so a block might be eagerly processed and then permit acquisition fails.
+	require.Equal(t, 19, blockPermits.acquired)
+	require.Equal(t, 19, blockPermits.released)
 	requireSeriesBlockMetric(t, scope)
-}
-
-func TestFetchResultIterTestForceBlocksPerBatch(t *testing.T) {
-	blockPermits := &permits.LookbackLimitPermit{}
-	resMap := index.NewQueryResults(ident.StringID("testNs"), index.QueryResultsOptions{}, testIndexOptions)
-	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
-		queryResult: index.QueryResult{
-			Results: resMap,
-		},
-		blockPermits:   blockPermits,
-		blocksPerBatch: 1000,
-		nowFn:          time.Now,
-	})
-	downcast, ok := iter.(*fetchTaggedResultsIter)
-	require.True(t, ok)
-	require.Equal(t, 1, downcast.blocksPerBatch)
 }
 
 func TestFetchResultIterTestNoReleaseWithoutAcquire(t *testing.T) {
-	blockPermits := &fakePermits{available: 10}
+	blockPermits := &fakePermits{available: 10, quotaPerPermit: 1000}
 	emptyMap := index.NewQueryResults(ident.StringID("testNs"), index.QueryResultsOptions{}, testIndexOptions)
 	scope := tally.NewTestScope("", map[string]string{})
 	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
@@ -146,7 +91,6 @@ func TestFetchResultIterTestNoReleaseWithoutAcquire(t *testing.T) {
 			Results: emptyMap,
 		},
 		blockPermits:    blockPermits,
-		blocksPerBatch:  1000,
 		nowFn:           time.Now,
 		instrumentClose: func(err error) {},
 		dataReadMetrics: index.NewQueryMetrics("", scope),
@@ -204,30 +148,31 @@ func setup(mocks *gomock.Controller) (
 }
 
 type fakePermits struct {
-	acquired  int
-	released  int
-	available int
+	acquired       int
+	released       int
+	available      int
+	quotaPerPermit int64
 }
 
-func (p *fakePermits) Acquire(_ context.Context) error {
+func (p *fakePermits) Acquire(_ context.Context) (*permits.Permit, error) {
 	if p.available == 0 {
-		return errors.New("available should never be 0")
+		return nil, errors.New("available should never be 0")
 	}
 	p.available--
 	p.acquired++
-	return nil
+	return &permits.Permit{Quota: p.quotaPerPermit}, nil
 }
 
-func (p *fakePermits) TryAcquire(_ context.Context) (bool, error) {
+func (p *fakePermits) TryAcquire(_ context.Context) (*permits.Permit, error) {
 	if p.available == 0 {
-		return false, nil
+		return nil, nil
 	}
 	p.available--
 	p.acquired++
-	return true, nil
+	return &permits.Permit{Quota: p.quotaPerPermit}, nil
 }
 
-func (p *fakePermits) Release(_ int64) {
+func (p *fakePermits) Release(_ *permits.Permit) {
 	p.released++
 	p.available++
 }

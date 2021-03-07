@@ -871,7 +871,6 @@ func (s *service) fetchTaggedIter(
 		fetchStart:      startTime,
 		dataReadMetrics: s.metrics.queryTimingDataRead,
 		totalMetrics:    s.metrics.queryTimingFetchTagged,
-		blocksPerBatch:  s.opts.FetchTaggedSeriesBlocksPerBatch(),
 		seriesBlocks:    s.metrics.fetchTaggedSeriesBlocks,
 	}), nil
 }
@@ -912,8 +911,8 @@ type fetchTaggedResultsIter struct {
 	blockReadIdx      int
 	cur               IDResult
 	err               error
-	batchesAcquired   int
-	blocksAvailable   int
+	permits           []*permits.Permit
+	unreleasedQuota   int64
 	dataReadStart     time.Time
 	totalSeriesBlocks int
 }
@@ -929,7 +928,6 @@ type fetchTaggedResultsIterOpts struct {
 	iOpts           instrument.Options
 	instrumentClose func(error)
 	blockPermits    permits.Permits
-	blocksPerBatch  int
 	nowFn           clock.NowFn
 	fetchStart      time.Time
 	totalDocsCount  int
@@ -939,17 +937,11 @@ type fetchTaggedResultsIterOpts struct {
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
-	_, limitBased := opts.blockPermits.(*permits.LookbackLimitPermit)
-	if opts.blocksPerBatch == 0 || limitBased {
-		// NB(nate): if blocksPerBatch is unset, set blocksPerBatch to 1 (i.e. acquire a permit
-		// for each block as opposed to acquiring in bulk). Additionally, limit-based permits
-		// are required to use a blocksPerBatch size of 1 so as to not throw off limit accounting.
-		opts.blocksPerBatch = 1
-	}
 	return &fetchTaggedResultsIter{
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
 		dataReadStart:              opts.nowFn(),
+		permits:                    make([]*permits.Permit, 0),
 	}
 }
 
@@ -993,7 +985,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 		}
 	} else {
 		// release the permits and memory from the previous block readers.
-		i.releaseAll(i.idx - 1)
+		i.releaseQuotaUsed(i.idx - 1)
 		i.idResults[i.idx-1].blockReaders = nil
 	}
 
@@ -1038,37 +1030,45 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 
 // acquire a block permit for a series ID. returns true if a permit is available.
 func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, error) {
-	if i.blocksAvailable > 0 {
-		i.blocksAvailable--
-	} else {
+	var curPermit *permits.Permit
+	if len(i.permits) > 0 {
+		curPermit = i.permits[len(i.permits)-1]
+	}
+	if curPermit == nil || curPermit.QuotaRemaining() <= 0 {
 		if i.idx == idx {
 			// block acquiring if we need the block readers to fulfill the current fetch.
-			if err := i.blockPermits.Acquire(ctx); err != nil {
-				return false, err
-			}
-		} else {
-			// don't block if we are prefetching for a future seriesID.
-			acquired, err := i.blockPermits.TryAcquire(ctx)
+			permit, err := i.blockPermits.Acquire(ctx)
 			if err != nil {
 				return false, err
 			}
-			if !acquired {
+			i.permits = append(i.permits, permit)
+			curPermit = permit
+		} else {
+			// don't block if we are prefetching for a future seriesID.
+			permit, err := i.blockPermits.TryAcquire(ctx)
+			if err != nil {
+				return false, err
+			}
+			if permit == nil {
 				return false, nil
 			}
+			i.permits = append(i.permits, permit)
+			curPermit = permit
 		}
-		i.batchesAcquired++
-		i.blocksAvailable = i.blocksPerBatch - 1
 	}
-	i.idResults[idx].blocksAcquired++
+	curPermit.Use(1)
+	i.idResults[idx].quotaUsed++
 	return true, nil
 }
 
 // release all the block permits acquired by a series ID that has been processed.
-func (i *fetchTaggedResultsIter) releaseAll(idx int) {
-	// Note: the actual batch permits are not released until the query completely finishes and the iterator
-	// closes.
-	for n := 0; n < i.idResults[idx].blocksAcquired; n++ {
-		i.blocksAvailable++
+func (i *fetchTaggedResultsIter) releaseQuotaUsed(idx int) {
+	i.unreleasedQuota += i.idResults[idx].quotaUsed
+	for i.unreleasedQuota > 0 && i.unreleasedQuota >= i.permits[0].AllowedQuota() {
+		p := i.permits[0]
+		i.blockPermits.Release(p)
+		i.unreleasedQuota -= p.AllowedQuota()
+		i.permits = i.permits[1:]
 	}
 }
 
@@ -1092,15 +1092,9 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 
 	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
 
-	// No need to release resources if we acquired no batches.
-	if i.batchesAcquired == 0 {
-		return
+	for _, p := range i.permits {
+		i.blockPermits.Release(p)
 	}
-
-	for n := 0; n < i.batchesAcquired-1; n++ {
-		i.blockPermits.Release(int64(i.blocksPerBatch))
-	}
-	i.blockPermits.Release(int64(i.blocksPerBatch - i.blocksAvailable))
 }
 
 // IDResult is the FetchTagged result for a series ID.
@@ -1124,7 +1118,7 @@ type idResult struct {
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
-	blocksAcquired   int
+	quotaUsed        int64
 	iOpts            instrument.Options
 }
 

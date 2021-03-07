@@ -21,7 +21,11 @@
 // Package permits contains logic for granting permits to resources.
 package permits
 
-import "github.com/m3db/m3/src/x/context"
+import (
+	"go.uber.org/atomic"
+
+	"github.com/m3db/m3/src/x/context"
+)
 
 // Options is the permit options.
 type Options interface {
@@ -43,15 +47,37 @@ type Manager interface {
 
 // Permits are the set of permits that individual codepaths will utilize.
 type Permits interface {
-	// Acquire blocks until an available resource is made available for the request permit
-	Acquire(ctx context.Context) error
+	// Acquire blocks until a Permit is available. The returned Permit is guaranteed to be non-nil if error is
+	// non-nil.
+	Acquire(ctx context.Context) (*Permit, error)
 
 	// TryAcquire attempts to acquire an available resource without blocking, returning
-	// true if an resource was acquired.
-	TryAcquire(ctx context.Context) (bool, error)
+	// a non-nil a Permit if one is available. Returns nil if no Permit is currently available.
+	TryAcquire(ctx context.Context) (*Permit, error)
 
-	// Release gives back one acquired permit from the specific permits instance. The user can pass an optional quota
-	// indicating how much of quota was used while holding the permit.
+	// Release gives back one acquired permit from the specific permits instance.
 	// Cannot release more permits than have been acquired.
-	Release(quota int64)
+	Release(permit *Permit)
+}
+
+// Permit is granted to a caller which is allowed to consume some amount of quota.
+type Permit struct {
+	refCount  atomic.Int32
+	Quota     int64
+	quotaUsed int64
+}
+
+// AllowedQuota is the amount of quota the caller can use with this Permit.
+func (p *Permit) AllowedQuota() int64 {
+	return p.Quota
+}
+
+// QuotaRemaining is the amount of remaining quota for this Permit.
+func (p *Permit) QuotaRemaining() int64 {
+	return p.Quota - p.quotaUsed
+}
+
+// Use adds the quota to the total used quota.
+func (p *Permit) Use(quota int64) {
+	p.quotaUsed += quota
 }

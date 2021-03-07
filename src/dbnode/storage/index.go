@@ -123,7 +123,6 @@ type nsIndex struct {
 	aggregateResultsPool index.AggregateResultsPool
 
 	permitsManager permits.Manager
-	maxWorkerTime  time.Duration
 
 	// queriesWg tracks outstanding queries to ensure
 	// we wait for all queries to complete before actually closing
@@ -209,6 +208,7 @@ type newNamespaceIndexOpts struct {
 type execBlockQueryFn func(
 	ctx context.Context,
 	block index.Block,
+	permit *permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
@@ -369,7 +369,6 @@ func newNamespaceIndexWithOptions(
 
 		doNotIndexWithFields: doNotIndexWithFields,
 		shardSet:             shardSet,
-		maxWorkerTime:        indexOpts.MaxWorkerTime(),
 	}
 
 	// Assign shard set upfront.
@@ -1594,7 +1593,7 @@ func (i *nsIndex) queryWithSpan(
 		state = &asyncQueryExecState{}
 		wg    sync.WaitGroup
 	)
-	permits, err := i.permitsManager.NewPermits(ctx)
+	perms, err := i.permitsManager.NewPermits(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -1623,25 +1622,25 @@ func (i *nsIndex) queryWithSpan(
 	queryCanceled := func() bool {
 		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
 	}
-	// waitForPermit waits for a permit. returns true if the permit was acquired and the wait time.
-	waitForPermit := func() (bool, time.Duration) {
+	// waitForPermit waits for a permit. returns non-nil if the permit was acquired and the wait time.
+	waitForPermit := func() (*permits.Permit, time.Duration) {
 		// make sure the query hasn't been canceled before waiting for a permit.
 		if queryCanceled() {
-			return false, 0
+			return nil, 0
 		}
 		startWait := time.Now()
-		err := permits.Acquire(ctx)
+		permit, err := perms.Acquire(ctx)
 		waitTime := time.Since(startWait)
 		if err != nil {
 			state.addErr(err)
-			return false, waitTime
+			return nil, waitTime
 		}
 		// make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
-			permits.Release(0)
-			return false, waitTime
+			perms.Release(permit)
+			return nil, waitTime
 		}
-		return true, waitTime
+		return permit, waitTime
 	}
 
 	// We're looping through all the blocks that we need to query and kicking
@@ -1655,9 +1654,9 @@ func (i *nsIndex) queryWithSpan(
 
 		// acquire a permit before kicking off the goroutine to process the iterator. this limits the number of
 		// concurrent goroutines to # of permits + large queries that needed multiple iterations to finish.
-		acq, waitTime := waitForPermit()
+		permit, waitTime := waitForPermit()
 		blockIter.waitTime += waitTime
-		if !acq {
+		if permit == nil {
 			break
 		}
 
@@ -1669,23 +1668,24 @@ func (i *nsIndex) queryWithSpan(
 			for !blockIter.iter.Done() {
 				// if this is not the first iteration of the iterator, need to acquire another permit.
 				if !first {
-					acq, waitTime := waitForPermit()
+					permit, waitTime = waitForPermit()
 					blockIter.waitTime += waitTime
-					if !acq {
+					if permit == nil {
 						break
 					}
 				}
 				first = false
 				startProcessing := time.Now()
-				execBlockFn(ctx, blockIter.block, blockIter.iter, opts, state, results, logFields)
+				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, logFields)
 				processingTime := time.Since(startProcessing)
 				queryMetrics.blockProcessingTime.RecordDuration(processingTime)
 				blockIter.processingTime += processingTime
-				permits.Release(int64(processingTime))
+				permit.Use(int64(processingTime))
+				perms.Release(permit)
 			}
 			if first {
 				// this should never happen since a new iter cannot be Done, but just to be safe.
-				permits.Release(0)
+				perms.Release(permit)
 			}
 			blockIter.searchTime += blockIter.iter.SearchDuration()
 
@@ -1749,6 +1749,7 @@ func (i *nsIndex) newBlockQueryIterFn(
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
 	block index.Block,
+	permit *permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
@@ -1775,7 +1776,8 @@ func (i *nsIndex) execBlockQueryFn(
 		return
 	}
 
-	err := block.QueryWithIter(ctx, opts, queryIter, docResults, time.Now().Add(i.maxWorkerTime), logFields)
+	deadline := time.Now().Add(time.Duration(permit.AllowedQuota()))
+	err := block.QueryWithIter(ctx, opts, queryIter, docResults, deadline, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1793,6 +1795,7 @@ func (i *nsIndex) execBlockQueryFn(
 func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
 	block index.Block,
+	permit *permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
@@ -1819,7 +1822,8 @@ func (i *nsIndex) execBlockWideQueryFn(
 		return
 	}
 
-	err := block.QueryWithIter(ctx, opts, queryIter, docResults, time.Now().Add(i.maxWorkerTime), logFields)
+	deadline := time.Now().Add(time.Duration(permit.AllowedQuota()))
+	err := block.QueryWithIter(ctx, opts, queryIter, docResults, deadline, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1854,6 +1858,7 @@ func (i *nsIndex) newBlockAggregatorIterFn(
 func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
 	block index.Block,
+	permit *permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
@@ -1880,7 +1885,8 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		return
 	}
 
-	err := block.AggregateWithIter(ctx, aggIter, opts, aggResults, time.Now().Add(i.maxWorkerTime), logFields)
+	deadline := time.Now().Add(time.Duration(permit.AllowedQuota()))
+	err := block.AggregateWithIter(ctx, aggIter, opts, aggResults, deadline, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
