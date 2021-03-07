@@ -34,7 +34,10 @@ type options struct {
 // NewOptions return a new set of default permit managers.
 func NewOptions() Options {
 	return &options{
-		seriesReadManager: NewNoOpPermitsManager(),
+		seriesReadManager: NewFixedPermitsManager(
+			100000,
+			100,
+			instrument.NewOptions()),
 		// Default to using half of the available cores for querying IDs
 		indexQueryManager: NewFixedPermitsManager(
 			1,
