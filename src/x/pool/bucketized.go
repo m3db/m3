@@ -21,8 +21,8 @@
 package pool
 
 import (
-	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/uber-go/tally"
 )
@@ -77,13 +77,19 @@ func (p *bucketizedObjectPool) Init(alloc BucketizedAllocator) {
 			opts = perBucketOpts
 		}
 
-		opts = opts.SetSize(size)
+		if !opts.Dynamic() {
+			opts = opts.SetSize(size)
+		}
 		iopts := opts.InstrumentOptions()
 
 		if iopts.MetricsScope() != nil {
+			sz := strconv.Itoa(capacity)
+			if capacity <= 0 {
+				sz = "dynamic"
+			}
 			opts = opts.SetInstrumentOptions(iopts.SetMetricsScope(
 				iopts.MetricsScope().Tagged(map[string]string{
-					"bucket-capacity": fmt.Sprintf("%d", capacity),
+					"bucket-capacity": sz,
 				})))
 		}
 

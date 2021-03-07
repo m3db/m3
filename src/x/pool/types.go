@@ -53,6 +53,12 @@ type ObjectPoolOptions interface {
 	// Size returns the size of the object pool.
 	Size() int
 
+	// SetDynamic creates a dynamically-sized, non-preallocated pool.
+	SetDynamic(value bool) ObjectPoolOptions
+
+	// Dynamic returns if the pool is dynamic.
+	Dynamic() bool
+
 	// SetRefillLowWatermark sets the refill low watermark value between [0, 1),
 	// if zero then no refills occur.
 	SetRefillLowWatermark(value float64) ObjectPoolOptions

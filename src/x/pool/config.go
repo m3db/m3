@@ -20,12 +20,17 @@
 
 package pool
 
-import "github.com/m3db/m3/src/x/instrument"
+import (
+	"errors"
+	"strconv"
+
+	"github.com/m3db/m3/src/x/instrument"
+)
 
 // ObjectPoolConfiguration contains configuration for object pools.
 type ObjectPoolConfiguration struct {
 	// The size of the pool.
-	Size int `yaml:"size"`
+	Size Size `yaml:"size"`
 
 	// The watermark configuration.
 	Watermark WatermarkConfiguration `yaml:"watermark"`
@@ -35,13 +40,22 @@ type ObjectPoolConfiguration struct {
 func (c *ObjectPoolConfiguration) NewObjectPoolOptions(
 	instrumentOpts instrument.Options,
 ) ObjectPoolOptions {
-	size := defaultSize
-	if c.Size != 0 {
-		size = c.Size
+	var (
+		size    = _defaultSize
+		dynamic bool
+	)
+
+	switch {
+	case c.Size > 0:
+		size = int(c.Size)
+	case c.Size == _dynamicPoolSize:
+		dynamic = true
 	}
+
 	return NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetSize(size).
+		SetDynamic(dynamic).
 		SetRefillLowWatermark(c.Watermark.RefillLowWatermark).
 		SetRefillHighWatermark(c.Watermark.RefillHighWatermark)
 }
@@ -99,4 +113,28 @@ type WatermarkConfiguration struct {
 
 	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWatermark float64 `yaml:"high" validate:"min=0.0,max=1.0"`
+}
+
+// Size stores pool capacity for pools that can be either dynamic or pre-allocated
+type Size int
+
+// UnmarshalText unmarshals Size.
+func (s *Size) UnmarshalText(b []byte) error {
+	if string(b) == "dynamic" {
+		*s = _dynamicPoolSize
+		return nil
+	}
+
+	i, err := strconv.ParseInt(string(b), 10, 64)
+	if err != nil {
+		return err
+	}
+
+	if i < 0 {
+		return errors.New("pool capacity cannot be negative")
+	}
+
+	*s = Size(i)
+
+	return nil
 }
