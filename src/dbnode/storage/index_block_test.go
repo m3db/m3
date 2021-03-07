@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -196,11 +197,13 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 	) (index.Block, error) {
 		return nil, fmt.Errorf("randomerr")
 	}
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	_, err := newNamespaceIndexWithNewBlockFn(md,
-		namespace.NewRuntimeOptionsManager(md.ID().String()),
-		testShardSet, newBlockFn, opts)
-	require.Error(t, err)
+	require.Panics(t, func() {
+		_, _ = newNamespaceIndexWithNewBlockFn(md,
+			namespace.NewRuntimeOptionsManager(md.ID().String()),
+			testShardSet, newBlockFn, opts)
+	})
 }
 
 func TestNamespaceIndexWrite(t *testing.T) {

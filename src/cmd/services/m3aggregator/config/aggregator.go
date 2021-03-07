@@ -332,7 +332,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		opts = opts.SetBufferDurationAfterShardCutoff(c.BufferDurationAfterShardCutoff)
 	}
 	if c.BufferDurationForPastTimedMetric != 0 {
-		opts = opts.SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
+		opts = opts.SetBufferForPastTimedMetric(c.BufferDurationForPastTimedMetric).
+			SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
 	}
 	if c.BufferDurationForFutureTimedMetric != 0 {
 		opts = opts.SetBufferForFutureTimedMetric(c.BufferDurationForFutureTimedMetric)
@@ -374,6 +375,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		electionManager,
 		flushTimesManager,
 		iOpts,
+		opts.BufferForPastTimedMetric(),
 	)
 	if err != nil {
 		return nil, err
@@ -779,12 +781,14 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 	electionManager aggregator.ElectionManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
+	bufferForPastTimedMetric time.Duration,
 ) (aggregator.FlushManagerOptions, error) {
 	opts := aggregator.NewFlushManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetPlacementManager(placementManager).
 		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesManager)
+		SetFlushTimesManager(flushTimesManager).
+		SetBufferForPastTimedMetric(bufferForPastTimedMetric)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}
