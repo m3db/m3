@@ -41,7 +41,7 @@ func NewOptions() Options {
 			instrument.NewOptions()),
 		indexQueryManager: NewFixedPermitsManager(
 			8,
-			int64(time.Millisecond * 10),
+			int64(time.Millisecond*10),
 			instrument.NewOptions()),
 	}
 }
