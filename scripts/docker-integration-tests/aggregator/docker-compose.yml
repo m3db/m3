@@ -46,5 +46,15 @@ services:
     image: "m3aggregator_integration:${REVISION}"
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+  prometheus01:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
 networks:
   backend:

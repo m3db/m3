@@ -26,7 +26,26 @@ clusters:
 
 downsample:
   rules:
+    mappingRules:
+    - name: "drop coordinator handler latency all"
+      filter: __name__:coordinator_http_handler_http_handler_latency_count
+      drop: true
+      dropType: all
     rollupRules:
+      - name: "coordinator handler latency without instance"
+        filter: "__name__:coordinator_http_handler_http_handler_latency_count"
+        transforms:
+          - transform:
+              type: "Increase"
+          - rollup:
+              metricName: "{{ .MetricName }}:without_instance"
+              excludeBy: ["instance"]
+              aggregations: ["Sum"]
+          - transform:
+              type: "Add"
+        storagePolicies:
+          - resolution: 10s
+            retention: 6h
       - name: "requests per second by status code"
         filter: "__name__:http_requests app:* status_code:* endpoint:*"
         transforms:

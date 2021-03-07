@@ -339,6 +339,13 @@ type MappingRuleConfiguration struct {
 	// keeping them with a storage policy.
 	Drop bool `yaml:"drop"`
 
+	// DropType the type of drop effect to have when drop is enabled.
+	// - OnlyRaw will drop just raw metrics from being ingested but
+	//   will be ingested into aggregated namespaces.
+	// - All will drop both raw metrics and also will drop metrics
+	//   from being ingested into aggregated namespaces.
+	DropType DropType `yaml:"dropType"`
+
 	// Tags are the tags to be added to the metric while applying the mapping
 	// rule. Users are free to add name/value combinations to the metric. The
 	// coordinator also supports certain first class tags which will augment
@@ -357,6 +364,54 @@ type MappingRuleConfiguration struct {
 
 	// Name is optional.
 	Name string `yaml:"name"`
+}
+
+// DropType defines the type of drop.
+type DropType int
+
+// Supported aggregation types.
+const (
+	DropOnlyRaw DropType = iota
+	DropAll
+
+	defaultDropType = DropOnlyRaw
+)
+
+var (
+	validDropTypes = []DropType{
+		DropOnlyRaw,
+		DropAll,
+	}
+)
+
+func (t DropType) String() string {
+	switch t {
+	case DropOnlyRaw:
+		return "only_raw"
+	case DropAll:
+		return "all"
+	}
+	return "unknown"
+}
+
+// UnmarshalYAML unmarshals a DropType into a valid type from string.
+func (t *DropType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = defaultDropType
+		return nil
+	}
+	for _, valid := range validDropTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid AggregatorClientType: value=%s, valid=%v",
+		str, validDropTypes)
 }
 
 // Tag is structure describing tags as used by mapping rule configuration.
@@ -388,7 +443,14 @@ func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
 
 	var drop policy.DropPolicy
 	if r.Drop {
-		drop = policy.DropMust
+		switch r.DropType {
+		case DropOnlyRaw:
+			drop = policy.DropIfOnlyMatch
+		case DropAll:
+			drop = policy.DropMust
+		default:
+			return view.MappingRule{}, fmt.Errorf("unknown drop type: %v", r.DropType)
+		}
 	}
 
 	tags := make([]models.Tag, 0, len(r.Tags))

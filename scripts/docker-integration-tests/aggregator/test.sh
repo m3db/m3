@@ -17,10 +17,13 @@ docker pull $JQ_IMAGE
 echo "Run m3dbnode"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
 
+echo "Run prometheus"
+docker-compose -f ${COMPOSE_FILE} up -d prometheus01
+
 # Stop containers on exit
 METRIC_EMIT_PID="-1"
 function defer {
-  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  # docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
   if [ "$METRIC_EMIT_PID" != "-1" ]; then
     echo "Kill metric emit process"
     kill $METRIC_EMIT_PID
