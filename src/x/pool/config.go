@@ -92,7 +92,7 @@ func (c *BucketizedPoolConfiguration) NewBuckets() []Bucket {
 // BucketConfiguration contains configuration for a pool bucket.
 type BucketConfiguration struct {
 	// The count of the items in the bucket.
-	Count int `yaml:"count"`
+	Count Size `yaml:"count"`
 
 	// The capacity of each item in the bucket.
 	Capacity int `yaml:"capacity"`
