@@ -46,7 +46,7 @@ var _ Manager = (*LookbackLimitPermitManager)(nil)
 
 var (
 	_           Permits = (*LookbackLimitPermit)(nil)
-	limitPermit         = &Permit{Quota: 1}
+	limitPermit         = NewPermit(1, nil)
 )
 
 // NewLookbackLimitPermitsManager builds a new lookback limit permits manager.

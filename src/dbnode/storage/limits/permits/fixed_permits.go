@@ -45,7 +45,7 @@ var (
 func NewFixedPermitsManager(size int, quotaPerPermit int64, iOpts instrument.Options) Manager {
 	fp := fixedPermits{permits: make(chan *Permit, size), iOpts: iOpts}
 	for i := 0; i < size; i++ {
-		fp.permits <- &Permit{Quota: quotaPerPermit}
+		fp.permits <- NewPermit(quotaPerPermit, iOpts)
 	}
 	return &fixedPermitsManager{fp: fp}
 }
@@ -66,7 +66,7 @@ func (f *fixedPermits) Acquire(ctx context.Context) (*Permit, error) {
 	case <-ctx.GoContext().Done():
 		return nil, ctx.GoContext().Err()
 	case p := <-f.permits:
-		f.acquire(p)
+		p.Acquire()
 		return p, nil
 	}
 }
@@ -81,27 +81,15 @@ func (f *fixedPermits) TryAcquire(ctx context.Context) (*Permit, error) {
 
 	select {
 	case p := <-f.permits:
-		f.acquire(p)
+		p.Acquire()
 		return p, nil
 	default:
 		return nil, nil
 	}
 }
 
-func (f *fixedPermits) acquire(permit *Permit) {
-	if permit.refCount.Inc() != 1 {
-		instrument.EmitAndLogInvariantViolation(f.iOpts, func(l *zap.Logger) {
-			l.Error("permit acquired more than once")
-		})
-	}
-}
-
 func (f *fixedPermits) Release(permit *Permit) {
-	if permit.refCount.Dec() != 0 {
-		instrument.EmitAndLogInvariantViolation(f.iOpts, func(l *zap.Logger) {
-			l.Error("permit released more than once")
-		})
-	}
+	permit.Release()
 
 	select {
 	case f.permits <- permit:

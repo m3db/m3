@@ -23,8 +23,10 @@ package permits
 
 import (
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Options is the permit options.
@@ -61,20 +63,53 @@ type Permits interface {
 }
 
 // Permit is granted to a caller which is allowed to consume some amount of quota.
+// This type is not thread safe and intended to be used by a single process at a time.
 type Permit struct {
-	refCount  atomic.Int32
-	Quota     int64
+	// immutable state
+	quota int64
+	iOpts instrument.Options
+
+	// mutable state
 	quotaUsed int64
+	refCount  atomic.Int32
+}
+
+// NewPermit constructs a new Permit with the provided quota.
+func NewPermit(quota int64, iOpts instrument.Options) *Permit {
+	return &Permit{
+		quota: quota,
+		iOpts: iOpts,
+	}
+}
+
+// Release the permit.
+func (p *Permit) Release() {
+	if p.iOpts != nil && p.refCount.Dec() != 0 {
+		instrument.EmitAndLogInvariantViolation(p.iOpts, func(l *zap.Logger) {
+			l.Error("permit released more than once")
+		})
+	}
+}
+
+// Acquire the permit.
+func (p *Permit) Acquire() {
+	if p.iOpts != nil && p.refCount.Inc() != 1 {
+		instrument.EmitAndLogInvariantViolation(p.iOpts, func(l *zap.Logger) {
+			l.Error("permit acquired more than once")
+		})
+	}
+	p.quotaUsed = 0
 }
 
 // AllowedQuota is the amount of quota the caller can use with this Permit.
 func (p *Permit) AllowedQuota() int64 {
-	return p.Quota
+	return p.quota
 }
 
-// QuotaRemaining is the amount of remaining quota for this Permit.
+// QuotaRemaining is the amount of remaining quota for this Permit. Can be negative if the caller used more quota
+// than they were allowed.
 func (p *Permit) QuotaRemaining() int64 {
-	return p.Quota - p.quotaUsed
+	return p.quota - p.quotaUsed
 }
 
 // Use adds the quota to the total used quota.

@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestFetchResultIterTest(t *testing.T) {
@@ -160,7 +161,7 @@ func (p *fakePermits) Acquire(_ context.Context) (*permits.Permit, error) {
 	}
 	p.available--
 	p.acquired++
-	return &permits.Permit{Quota: p.quotaPerPermit}, nil
+	return permits.NewPermit(p.quotaPerPermit, instrument.NewOptions()), nil
 }
 
 func (p *fakePermits) TryAcquire(_ context.Context) (*permits.Permit, error) {
@@ -169,7 +170,7 @@ func (p *fakePermits) TryAcquire(_ context.Context) (*permits.Permit, error) {
 	}
 	p.available--
 	p.acquired++
-	return &permits.Permit{Quota: p.quotaPerPermit}, nil
+	return permits.NewPermit(p.quotaPerPermit, instrument.NewOptions()), nil
 }
 
 func (p *fakePermits) Release(_ *permits.Permit) {

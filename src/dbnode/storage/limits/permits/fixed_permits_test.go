@@ -35,17 +35,17 @@ func TestFixedPermits(t *testing.T) {
 	iOpts := instrument.NewOptions()
 	fp, err := NewFixedPermitsManager(3, 1, iOpts).NewPermits(ctx)
 	require.NoError(t, err)
-	expectedP := Permit{Quota: 1}
+	expectedP := NewPermit(1, iOpts)
 	expectedP.refCount.Inc()
 	p, err := fp.Acquire(ctx)
 	require.NoError(t, err)
-	require.Equal(t, expectedP, *p)
+	require.Equal(t, *expectedP, *p)
 	p, err = fp.Acquire(ctx)
 	require.NoError(t, err)
-	require.Equal(t, expectedP, *p)
+	require.Equal(t, *expectedP, *p)
 	p, err = fp.Acquire(ctx)
 	require.NoError(t, err)
-	require.Equal(t, expectedP, *p)
+	require.Equal(t, *expectedP, *p)
 
 	tryP, err := fp.TryAcquire(ctx)
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestFixedPermits(t *testing.T) {
 	fp.Release(p)
 	p, err = fp.Acquire(ctx)
 	require.NoError(t, err)
-	require.Equal(t, expectedP, *p)
+	require.Equal(t, *expectedP, *p)
 }
 
 func TestPanics(t *testing.T) {
@@ -74,12 +74,12 @@ func TestFixedPermitsTimeouts(t *testing.T) {
 	ctx := context.NewBackground()
 	iOpts := instrument.NewOptions()
 	fp, err := NewFixedPermitsManager(1, 1, iOpts).NewPermits(ctx)
-	expectedP := Permit{Quota: 1}
+	expectedP := NewPermit(1, iOpts)
 	expectedP.refCount.Inc()
 	require.NoError(t, err)
 	p, err := fp.Acquire(ctx)
 	require.NoError(t, err)
-	require.Equal(t, expectedP, *p)
+	require.Equal(t, *expectedP, *p)
 
 	tryP, err := fp.TryAcquire(ctx)
 	require.NoError(t, err)
