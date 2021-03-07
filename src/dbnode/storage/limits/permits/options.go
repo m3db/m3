@@ -33,15 +33,15 @@ type options struct {
 
 // NewOptions return a new set of default permit managers.
 func NewOptions() Options {
+	// provide some defaults to exercise parallel processing in tests.
 	return &options{
 		seriesReadManager: NewFixedPermitsManager(
 			100000,
 			100,
 			instrument.NewOptions()),
-		// Default to using half of the available cores for querying IDs
 		indexQueryManager: NewFixedPermitsManager(
-			1,
-			int64(time.Second),
+			8,
+			int64(time.Millisecond * 10),
 			instrument.NewOptions()),
 	}
 }
