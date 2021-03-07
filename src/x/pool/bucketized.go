@@ -79,9 +79,9 @@ func (p *bucketizedObjectPool) Init(alloc BucketizedAllocator) {
 
 		if size > 0 {
 			opts = opts.SetSize(int(size))
-		} else if size == _dynamicPoolSize {
-			opts.SetDynamic(true)
 		}
+		opts = opts.SetDynamic(size.IsDynamic())
+
 		iopts := opts.InstrumentOptions()
 
 		if iopts.MetricsScope() != nil {

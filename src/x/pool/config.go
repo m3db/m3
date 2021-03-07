@@ -40,22 +40,15 @@ type ObjectPoolConfiguration struct {
 func (c *ObjectPoolConfiguration) NewObjectPoolOptions(
 	instrumentOpts instrument.Options,
 ) ObjectPoolOptions {
-	var (
-		size    = _defaultSize
-		dynamic bool
-	)
-
-	switch {
-	case c.Size > 0:
+	size := _defaultSize
+	if c.Size > 0 {
 		size = int(c.Size)
-	case c.Size == _dynamicPoolSize:
-		dynamic = true
 	}
 
 	return NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetSize(size).
-		SetDynamic(dynamic).
+		SetDynamic(c.Size.IsDynamic()).
 		SetRefillLowWatermark(c.Watermark.RefillLowWatermark).
 		SetRefillHighWatermark(c.Watermark.RefillHighWatermark)
 }
@@ -137,4 +130,9 @@ func (s *Size) UnmarshalText(b []byte) error {
 	*s = Size(i)
 
 	return nil
+}
+
+// IsDynamic returns whether the pool should be fixed size or not.
+func (s Size) IsDynamic() bool {
+	return s == _dynamicPoolSize
 }
