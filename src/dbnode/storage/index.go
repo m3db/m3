@@ -655,17 +655,15 @@ func (i *nsIndex) WritePending(
 	pending []writes.PendingIndexInsert,
 ) error {
 	// Filter anything with a pending index out before acquiring lock.
-	for j := 0; j < len(pending); j++ {
-		t := xtime.ToUnixNano(pending[j].Entry.Timestamp.Truncate(i.blockSize))
-		if !pending[j].Entry.OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(t) {
+	incoming := pending
+	pending = pending[:0]
+	for j := range incoming {
+		t := xtime.ToUnixNano(incoming[j].Entry.Timestamp.Truncate(i.blockSize))
+		if incoming[j].Entry.OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(t) {
 			continue
 		}
-		// Remove this elem by moving tail here and shrinking by one.
-		n := len(pending)
-		pending[j] = pending[n-1]
-		pending = pending[:n-1]
-		// Reprocess element.
-		j--
+		// Continue to add this element.
+		pending = append(pending, incoming[j])
 	}
 	if len(pending) == 0 {
 		return nil

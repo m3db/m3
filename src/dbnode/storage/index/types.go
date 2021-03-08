@@ -355,6 +355,8 @@ type OnIndexSeries interface {
 	) RemoveIndexedForBlockStartsResult
 }
 
+// RemoveIndexedForBlockStartsResult is the result from calling
+// RemoveIndexedForBlockStarts.
 type RemoveIndexedForBlockStartsResult struct {
 	IndexedBlockStartsRemoved   int
 	IndexedBlockStartsRemaining int
@@ -714,13 +716,9 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	}
 }
 
+// PendingAny returns whether there are any pending documents to be inserted.
 func (b *WriteBatch) PendingAny() bool {
-	for i := range b.entries {
-		if !b.entries[i].result.Done {
-			return true
-		}
-	}
-	return false
+	return len(b.PendingDocs()) > 0
 }
 
 func (b *WriteBatch) numPending() int {
