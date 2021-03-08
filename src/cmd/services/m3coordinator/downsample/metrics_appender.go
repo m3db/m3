@@ -209,14 +209,11 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		tags.filterPrefix(filter)
 	}
 
-	var (
-		dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
-		dropTimestamp   bool
-	)
-	if opts.Override {
-		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.curr.Pipelines = a.curr.Pipelines[:0]
+	// Reuse a slice to keep the current staged metadatas we will apply.
+	a.curr.Pipelines = a.curr.Pipelines[:0]
 
+	if opts.Override {
+		// Process an override explicitly provided as part of request.
 		for _, rule := range opts.OverrideRules.MappingRules {
 			stagedMetadatas, err := rule.StagedMetadatas()
 			if err != nil {
@@ -234,56 +231,68 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 			return SamplesAppenderResult{}, err
 		}
-	} else {
-		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.curr.Pipelines = a.curr.Pipelines[:0]
 
-		// NB(r): First apply mapping rules to see which storage policies
-		// have been applied, any that have been applied as part of
-		// mapping rules that exact match a default storage policy will be
-		// skipped when applying default rules, so as to avoid storing
-		// the same metrics in the same namespace with the same metric
-		// name and tags (i.e. overwriting each other).
-		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
+		return SamplesAppenderResult{
+			SamplesAppender:     a.multiSamplesAppender,
+			IsDropPolicyApplied: false,
+			ShouldDropTimestamp: false,
+		}, nil
+	}
 
-		ruleStagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
-		if !ruleStagedMetadatas.IsDefault() && len(ruleStagedMetadatas) != 0 {
-			a.debugLogMatch("downsampler applying matched rule",
-				debugLogMatchOptions{Meta: ruleStagedMetadatas})
+	// NB(r): First apply mapping rules to see which storage policies
+	// have been applied, any that have been applied as part of
+	// mapping rules that exact match a default storage policy will be
+	// skipped when applying default rules, so as to avoid storing
+	// the same metrics in the same namespace with the same metric
+	// name and tags (i.e. overwriting each other).
+	var (
+		ruleStagedMetadatas = matchResult.ForExistingIDAt(nowNanos)
+		dropApplyResult     metadata.ApplyOrRemoveDropPoliciesResult
+		dropTimestamp       bool
+	)
+	a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
+	if !ruleStagedMetadatas.IsDefault() && len(ruleStagedMetadatas) != 0 {
+		a.debugLogMatch("downsampler applying matched rule",
+			debugLogMatchOptions{Meta: ruleStagedMetadatas})
 
-			// Collect storage policies for all the current active mapping rules.
-			// TODO: we should convert this to iterate over pointers
-			// nolint:gocritic
-			for _, stagedMetadata := range ruleStagedMetadatas {
-				for _, pipe := range stagedMetadata.Pipelines {
-					// Skip rollup rules unless configured otherwise.
-					// We only want to consider mapping rules here,
-					// as we still want to apply default mapping rules to
-					// metrics that are rolled up to ensure the underlying metric
-					// gets written to aggregated namespaces.
-					if pipe.IsMappingRule() {
-						for _, sp := range pipe.StoragePolicies {
-							a.mappingRuleStoragePolicies =
-								append(a.mappingRuleStoragePolicies, sp)
-						}
-					} else {
-						a.debugLogMatch(
-							"skipping rollup rule in populating active mapping rule policies",
-							debugLogMatchOptions{},
-						)
+		// Collect storage policies for all the current active mapping rules.
+		// TODO: we should convert this to iterate over pointers
+		// nolint:gocritic
+		for _, stagedMetadata := range ruleStagedMetadatas {
+			for _, pipe := range stagedMetadata.Pipelines {
+				// Skip rollup rules unless configured otherwise.
+				// We only want to consider mapping rules here,
+				// as we still want to apply default mapping rules to
+				// metrics that are rolled up to ensure the underlying metric
+				// gets written to aggregated namespaces.
+				if pipe.IsMappingRule() {
+					for _, sp := range pipe.StoragePolicies {
+						a.mappingRuleStoragePolicies =
+							append(a.mappingRuleStoragePolicies, sp)
 					}
+				} else {
+					a.debugLogMatch(
+						"skipping rollup rule in populating active mapping rule policies",
+						debugLogMatchOptions{},
+					)
 				}
 			}
-
-			// Only sample if going to actually aggregate
-			pipelines := ruleStagedMetadatas[len(ruleStagedMetadatas)-1]
-			a.curr.Pipelines =
-				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		// Always aggregate any default staged metadatas (unless
-		// mapping rule has provided an override for a storage policy,
-		// if so then skip aggregating for that storage policy).
+		// Only sample if going to actually aggregate
+		pipelines := ruleStagedMetadatas[len(ruleStagedMetadatas)-1]
+		a.curr.Pipelines = append(a.curr.Pipelines, pipelines.Pipelines...)
+	}
+
+	// Always aggregate any default staged metadatas with a few exceptions.
+	// Exceptions are:
+	// 1. A mapping rule has provided an override for a storage policy,
+	//    if so then skip aggregating for that storage policy).
+	// 2. Any type of drop rule has been applied, since they should only
+	//    impact mapping rules not default staged metadatas provided for
+	//    auto-mapping rules (i.e. default namespace aggregation).
+	if !a.curr.Pipelines.IsDropPolicySet() {
+		// No drop rule has been applied as part of rule matching.
 		for idx, stagedMetadatasProto := range a.defaultStagedMetadatasProtos {
 			// NB(r): Need to take copy of default staged metadatas as we
 			// sometimes mutate it.
@@ -362,40 +371,39 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			pipelines := stagedMetadatas[len(stagedMetadatas)-1]
-			a.curr.Pipelines =
-				append(a.curr.Pipelines, pipelines.Pipelines...)
+			a.curr.Pipelines = append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
+	}
 
-		// Apply the custom tags first so that they apply even if mapping
-		// rules drop the metric.
-		dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
+	// Apply the custom tags first so that they apply even if mapping
+	// rules drop the metric.
+	dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
 
-		// Apply drop policies results
-		a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
+	// Apply drop policies results
+	a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
 
-		if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
-			// Send to downsampler if we have something in the pipeline.
-			a.debugLogMatch("downsampler using built mapping staged metadatas",
-				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
+	if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
+		// Send to downsampler if we have something in the pipeline.
+		a.debugLogMatch("downsampler using built mapping staged metadatas",
+			debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
 
-			if err := a.addSamplesAppenders(tags, a.curr); err != nil {
-				return SamplesAppenderResult{}, err
-			}
+		if err := a.addSamplesAppenders(tags, a.curr); err != nil {
+			return SamplesAppenderResult{}, err
 		}
+	}
 
-		numRollups := matchResult.NumNewRollupIDs()
-		for i := 0; i < numRollups; i++ {
-			rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
+	numRollups := matchResult.NumNewRollupIDs()
+	for i := 0; i < numRollups; i++ {
+		rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
 
-			a.debugLogMatch("downsampler applying matched rollup rule",
-				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
-			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-				agg:             a.agg,
-				clientRemote:    a.clientRemote,
-				unownedID:       rollup.ID,
-				stagedMetadatas: rollup.Metadatas,
-			})
-		}
+		a.debugLogMatch("downsampler applying matched rollup rule",
+			debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
+		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+			agg:             a.agg,
+			clientRemote:    a.clientRemote,
+			unownedID:       rollup.ID,
+			stagedMetadatas: rollup.Metadatas,
+		})
 	}
 
 	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
