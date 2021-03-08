@@ -89,7 +89,7 @@ func getBytesPool(bucketSizes int, bucketCaps []int) *bytesPool {
 	buckets := make([]Bucket, len(bucketCaps))
 	for i, cap := range bucketCaps {
 		buckets[i] = Bucket{
-			Count:    bucketSizes,
+			Count:    Size(bucketSizes),
 			Capacity: cap,
 		}
 	}
