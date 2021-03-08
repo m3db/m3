@@ -44,6 +44,36 @@ services:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
     environment:
       - M3DB_HOST_ID=m3db_data02
+  m3aggregator01:
+    expose:
+      - "6001"
+    ports:
+      - "0.0.0.0:6001:6001"
+    networks:
+      - backend
+    build:
+      context: ../../../bin
+      dockerfile: ./docker/m3aggregator/development.Dockerfile
+    image: m3aggregator:dev
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator01
+  m3aggregator02:
+    expose:
+      - "6002"
+    ports:
+      - "0.0.0.0:6002:6001"
+    networks:
+      - backend
+    build:
+      context: ../../../bin
+      dockerfile: ./docker/m3aggregator/development.Dockerfile
+    image: m3aggregator:dev
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator02
   m3coordinator01:
     expose:
       - "7201"
@@ -66,6 +96,21 @@ services:
       # Note: Use ".tmp" suffix is git ignored.
       - "./m3coordinator.yml.tmp:/etc/m3coordinator/m3coordinator.yml"
       - "./schema.proto:/etc/m3coordinator/schema.proto"
+  m3collector01:
+    expose:
+      - "7206"
+      - "7207"
+    ports:
+      - "0.0.0.0:7206:7206"
+      - "0.0.0.0:7207:7207"
+    networks:
+      - backend
+    build:
+      context: ../../../bin
+      dockerfile: ./docker/m3collector/development.Dockerfile
+    image: m3collector:dev
+    volumes:
+      - "./m3collector.yml:/etc/m3collector/m3collector.yml"
   prometheus01:
     expose:
       - "9090"
@@ -97,5 +142,20 @@ services:
     networks:
       - backend
     image: m3grafana:latest
+  jaeger:
+    networks:
+      - backend
+    image: jaegertracing/all-in-one:1.9
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
+    ports:
+      - "0.0.0.0:5775:5775/udp"
+      - "0.0.0.0:6831:6831/udp"
+      - "0.0.0.0:6832:6832/udp"
+      - "0.0.0.0:5778:5778"
+      - "0.0.0.0:16686:16686"
+      - "0.0.0.0:14268:14268"
+      - "0.0.0.0:14269:14269"
+      - "0.0.0.0:9411:9411"
 networks:
   backend:
