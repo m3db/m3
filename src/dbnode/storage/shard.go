@@ -1070,20 +1070,32 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
-	result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
-		// skipRateLimit for true since this method is used by bootstrapping
-		// and should not be rate limited.
-		skipRateLimit:            true,
-		entryRefCountIncremented: false, // should be false because we weren't able to find entry.
-	})
+	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
+	entry.IncrementReaderWriterCount()
+
+	wg, err := s.insertQueue.Insert(dbShardInsert{
+		entry: entry,
+		opts: dbShardInsertAsyncOptions{
+			// skipRateLimit for true since this method is used by bootstrapping
+			// and should not be rate limited.
+			skipRateLimit:            true,
+			entryRefCountIncremented: false, // should be false because otherwise entry won't be inserted.
+		},
+	})
+
 	// Series will wait for the result to be batched together and inserted.
 	return SeriesReadWriteRef{
 		Resolver: &seriesResolver{
-			insertAsyncResult: result,
-			shard:             s,
+			insertAsyncResult: insertAsyncResult{
+				wg: wg,
+				// Make sure to return the copied ID from the new series.
+				copiedID: entry.Series.ID(),
+				entry:    entry,
+			},
+			shard: s,
 		},
 		Shard: s.shard,
 	}, nil
