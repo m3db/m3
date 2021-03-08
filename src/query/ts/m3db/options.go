@@ -74,7 +74,7 @@ type encodedBlockOptions struct {
 func NewOptions() Options {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: defaultCapacity,
-		Count:    defaultCount,
+		Count:    pool.Size(defaultCount),
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})

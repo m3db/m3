@@ -1365,7 +1365,7 @@ func withEncodingAndPoolingOptions(
 
 		logger.Info("bytes pool configured",
 			zap.Int("capacity", bucket.CapacityOrDefault()),
-			zap.Int("size", bucket.SizeOrDefault()),
+			zap.Int("size", int(bucket.SizeOrDefault())),
 			zap.Float64("refillLowWaterMark", bucket.RefillLowWaterMarkOrDefault()),
 			zap.Float64("refillHighWaterMark", bucket.RefillHighWaterMarkOrDefault()))
 	}
@@ -1752,7 +1752,7 @@ func poolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1761,6 +1761,8 @@ func poolOptions(
 				SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1780,7 +1782,7 @@ func capacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1788,6 +1790,8 @@ func capacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1807,7 +1811,7 @@ func maxCapacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1815,6 +1819,8 @@ func maxCapacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
