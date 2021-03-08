@@ -21,6 +21,8 @@
 package cm
 
 import (
+	"math/rand"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,6 +35,7 @@ func TestMinHeapPushInDecreasingOrder(t *testing.T) {
 		h.Push(float64(i))
 		require.Equal(t, iter-i, h.Len())
 	}
+	validateSort(t, *h)
 	for i := 0; i < iter; i++ {
 		require.Equal(t, float64(i), h.Min())
 		require.Equal(t, float64(i), h.Pop())
@@ -47,11 +50,35 @@ func TestMinHeapPushInIncreasingOrder(t *testing.T) {
 		h.Push(float64(i))
 		require.Equal(t, i+1, h.Len())
 	}
+	validateSort(t, *h)
 	for i := 0; i < iter; i++ {
 		require.Equal(t, float64(i), h.Min())
 		require.Equal(t, float64(i), h.Pop())
 		validateInvariant(t, *h, 0)
 	}
+}
+
+func TestMinHeapPushInRandomOrderAndSort(t *testing.T) {
+	h := &minHeap{}
+	iter := 42
+	for i := 0; i < iter; i++ {
+		h.Push(rand.ExpFloat64())
+	}
+	validateSort(t, *h)
+}
+
+func validateSort(t *testing.T, h minHeap) {
+	t.Helper()
+	// copy heap before applying reference sort and minheap-sort
+	a := make([]float64, h.Len())
+	b := make([]float64, h.Len())
+	for i := 0; i < len(h); i++ {
+		a[i], b[i] = h[i], h[i]
+	}
+	sort.Sort(sort.Reverse(sort.Float64Slice(a)))
+	heap := (*minHeap)(&b)
+	heap.SortDesc()
+	require.Equal(t, a, b)
 }
 
 func validateInvariant(t *testing.T, h minHeap, i int) {
