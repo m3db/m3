@@ -198,19 +198,34 @@ func NewExtendedMetricsReporter(
 	reportInterval time.Duration,
 	metricsType ExtendedMetricsType,
 ) Reporter {
-	r := new(extendedMetricsReporter)
+	var (
+		r                     = new(extendedMetricsReporter)
+		enableProcessReporter bool
+	)
+
 	r.metricsType = metricsType
 	r.init(reportInterval, func() {
 		r.runtime.report(r.metricsType)
 	})
-	if r.metricsType >= ModerateExtendedMetrics && r.metricsType != DetailedGoRuntimeMetrics {
+
+	if r.metricsType == NoExtendedMetrics {
+		return r
+	}
+
+	switch r.metricsType {
+	case ModerateExtendedMetrics:
+		enableProcessReporter = true
+	case DetailedExtendedMetrics:
+		enableProcessReporter = true
+	default:
+		enableProcessReporter = false
+	}
+
+	if enableProcessReporter {
 		// ProcessReporter can be quite slow in some situations (specifically
 		// counting FDs for processes that have many of them) so it runs on
 		// its own report loop.
 		r.processReporter = NewProcessReporter(scope, reportInterval)
-	}
-	if r.metricsType == NoExtendedMetrics {
-		return r
 	}
 
 	runtimeScope := scope.SubScope("runtime")
