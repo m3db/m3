@@ -68,7 +68,6 @@ type dbSeries struct {
 	id          ident.ID
 	metadata    doc.Metadata
 	uniqueIndex uint64
-	closed      bool
 
 	bootstrap dbSeriesBootstrap
 
@@ -593,10 +592,9 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 	defer s.Unlock()
 
-	// If the series is closed, the ID will be nil, causing the ID equality
-	// check to panic. Further, closing the series resets the internal
-	// cached blocks, so we don't need to continue with the logic below.
-	if s.closed || !id.Equal(s.id) {
+	// id can be nil at this point if this dbSeries gets closed just before it
+	// gets evicted from the wiredlist.
+	if id == nil || s.id == nil || !id.Equal(s.id) {
 		return
 	}
 
@@ -710,8 +708,6 @@ func (s *dbSeries) Close() {
 	s.buffer.Reset(databaseBufferResetOptions{Options: s.opts})
 	s.cachedBlocks.Reset()
 
-	s.closed = true
-
 	if s.pool != nil {
 		s.pool.Put(s)
 	}
@@ -748,6 +744,5 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	s.blockRetriever = opts.BlockRetriever
 	s.onRetrieveBlock = opts.OnRetrieveBlock
 	s.blockOnEvictedFromWiredList = opts.OnEvictedFromWiredList
-	s.closed = false
 	s.Unlock()
 }

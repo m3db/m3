@@ -872,7 +872,6 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		// NB(xichen): if we get here, we are guaranteed that there can be
 		// no more reads/writes to this series while the lock is held, so it's
 		// safe to remove it.
-
 		series.Close()
 		s.list.Remove(elem)
 		s.lookup.Delete(id)

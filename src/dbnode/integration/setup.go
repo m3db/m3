@@ -421,8 +421,7 @@ func NewTestSetup(
 			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 				func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {
 					retrieverOpts := fs.NewBlockRetrieverOptions().
-						SetBlockLeaseManager(blockLeaseManager).
-						SetCacheBlocksOnRetrieve(true)
+						SetBlockLeaseManager(blockLeaseManager)
 					retriever, err := fs.NewBlockRetriever(retrieverOpts, fsOpts)
 					if err != nil {
 						return nil, err

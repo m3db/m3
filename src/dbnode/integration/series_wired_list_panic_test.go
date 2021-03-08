@@ -31,7 +31,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -73,8 +75,30 @@ func TestWiredListPanic(t *testing.T) {
 		SetMaxWiredBlocks(1)
 
 	testSetup, err := NewTestSetup(t, testOpts, nil,
-		func(opt storage.Options) storage.Options {
-			return opt.SetMediatorTickInterval(tickInterval)
+		func(opts storage.Options) storage.Options {
+			return opts.SetMediatorTickInterval(tickInterval)
+		},
+		func(opts storage.Options) storage.Options {
+			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
+				func(
+					md namespace.Metadata,
+					shardSet sharding.ShardSet,
+				) (block.DatabaseBlockRetriever, error) {
+					retrieverOpts := fs.NewBlockRetrieverOptions().
+						SetBlockLeaseManager(opts.BlockLeaseManager()).
+						SetCacheBlocksOnRetrieve(true)
+					retriever, err := fs.NewBlockRetriever(retrieverOpts,
+						opts.CommitLogOptions().FilesystemOptions())
+					if err != nil {
+						return nil, err
+					}
+
+					if err := retriever.Open(md, shardSet); err != nil {
+						return nil, err
+					}
+					return retriever, nil
+				})
+			return opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 		},
 	)
 
