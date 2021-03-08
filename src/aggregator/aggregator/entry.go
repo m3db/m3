@@ -58,10 +58,13 @@ var (
 	errEmptyMetadatas              = errors.New("empty metadata list")
 	errNoApplicableMetadata        = errors.New("no applicable metadata")
 	errNoPipelinesInMetadata       = errors.New("no pipelines in metadata")
-	errTooFarInTheFuture           = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
-	errTooFarInThePast             = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
-	errArrivedTooLate              = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
-	errTimestampFormat             = time.RFC822Z
+	errOnlyDefaultStagedMetadata   = xerrors.NewInvalidParamsError(
+		errors.New("only default staged metadata provided"),
+	)
+	errTooFarInTheFuture = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
+	errTooFarInThePast   = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
+	errArrivedTooLate    = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
+	errTimestampFormat   = time.RFC822Z
 )
 
 type rateLimitEntryMetrics struct {
@@ -284,6 +287,10 @@ func (e *Entry) AddTimedWithStagedMetadatas(
 ) error {
 	if err := e.applyValueRateLimit(1, e.metrics.timed.rateLimit); err != nil {
 		return err
+	}
+	// Must have at least one metadata. addTimed further confirms that this metadata isn't the default metadata.
+	if len(metas) == 0 {
+		return errEmptyMetadatas
 	}
 	return e.addTimed(metric, metadata.TimedMetadata{}, metas)
 }
@@ -687,9 +694,16 @@ func (e *Entry) addTimed(
 	}
 
 	// Only apply processing of staged metadatas if has sent staged metadatas
-	// that isn't the default staged metadatas.
+	// that isn't the default staged metadatas. The default staged metadata
+	// would not produce a meaningful aggregation, so we error out in that case.
 	hasDefaultMetadatas := stagedMetadatas.IsDefault()
-	if len(stagedMetadatas) > 0 && !hasDefaultMetadatas {
+	if len(stagedMetadatas) > 0 {
+		if hasDefaultMetadatas {
+			e.RUnlock()
+			timeLock.RUnlock()
+			return errOnlyDefaultStagedMetadata
+		}
+
 		sm, err := e.activeStagedMetadataWithLock(currTime, stagedMetadatas)
 		if err != nil {
 			e.RUnlock()
@@ -780,7 +794,7 @@ func (e *Entry) addTimed(
 		return err
 	}
 
-	// Update metatadata if not exists, and add metric.
+	// Update metadata if not exists, and add metric.
 	if err := e.updateTimedMetadataWithLock(metric, metadata); err != nil {
 		e.Unlock()
 		timeLock.RUnlock()
