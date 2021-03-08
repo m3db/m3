@@ -581,7 +581,7 @@ func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
 			units: xtime.Microsecond,
 		},
 		{
-			name:  "microseconds, short gap",
+			name:  "microseconds, huge gap",
 			delta: 25 * 24 * time.Hour,
 			units: xtime.Microsecond,
 		},
@@ -591,7 +591,7 @@ func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
 			units: xtime.Nanosecond,
 		},
 		{
-			name:  "nanoseconds, short gap",
+			name:  "nanoseconds, huge gap",
 			delta: 25 * 24 * time.Hour,
 			units: xtime.Nanosecond,
 		},
