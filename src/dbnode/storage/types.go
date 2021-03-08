@@ -459,14 +459,14 @@ type databaseNamespace interface {
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (result SeriesReadWriteRef, owned bool, err error)
+	) (result bootstrap.SeriesRefResolver, owned bool, err error)
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
@@ -485,8 +485,6 @@ type databaseNamespace interface {
 type SeriesReadWriteRef struct {
 	// Resolver resolves the reference for read/writing.
 	Resolver bootstrap.SeriesRefResolver
-	// Shard is the shard of the series.
-	Shard uint32
 }
 
 // Shard is a time series database shard.
@@ -651,13 +649,13 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (bootstrap.SeriesRefResolver, error)
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Metadata, bool, error)

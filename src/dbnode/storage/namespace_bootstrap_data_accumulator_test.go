@@ -92,22 +92,18 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	var (
-		ns        = NewMockdatabaseNamespace(ctrl)
-		series    = series.NewMockDatabaseSeries(ctrl)
-		acc       = NewDatabaseNamespaceDataAccumulator(ns)
-		uniqueIdx = uint64(10)
-		shardID   = uint32(7)
-		resolver  = &seriesTestResolver{series: series, uniqueIndex: uniqueIdx}
-		ref       = SeriesReadWriteRef{
-			Resolver: resolver,
-			Shard:    shardID,
-		}
+		ns         = NewMockdatabaseNamespace(ctrl)
+		mockSeries = series.NewMockDatabaseSeries(ctrl)
+		acc        = NewDatabaseNamespaceDataAccumulator(ns)
+		uniqueIdx  = uint64(10)
+		shardID    = uint32(7)
+		resolver   = &seriesTestResolver{series: mockSeries, uniqueIndex: uniqueIdx}
 	)
 
-	series.EXPECT().UniqueIndex().Return(uniqueIdx).AnyTimes()
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, true, nil)
-	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter).
-		Return(SeriesReadWriteRef{}, false, errors.New("err"))
+	mockSeries.EXPECT().UniqueIndex().Return(uniqueIdx).AnyTimes()
+	ns.EXPECT().SeriesRefResolver(shardID, id, tagIter).Return(resolver, true, nil)
+	ns.EXPECT().SeriesRefResolver(shardID, idErr, tagIter).
+		Return(nil, false, errors.New("err"))
 
 	_, err := checkoutFn(acc, shardID, idErr, tagIter)
 	require.Error(t, err)
@@ -116,7 +112,7 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	require.NoError(t, err)
 	seriesRef, err := seriesResult.Resolver.SeriesRef()
 	require.NoError(t, err)
-	require.Equal(t, series, seriesRef)
+	require.Equal(t, mockSeries, seriesRef)
 	require.Equal(t, uniqueIdx, seriesRef.UniqueIndex())
 	require.Equal(t, shardID, seriesResult.Shard)
 
@@ -146,12 +142,9 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 		acc      = NewDatabaseNamespaceDataAccumulator(ns)
 		shardID  = uint32(1337)
 		resolver = &seriesTestResolver{series: series.NewMockDatabaseSeries(ctrl)}
-		ref      = SeriesReadWriteRef{
-			Resolver: resolver,
-		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, true, nil)
+	ns.EXPECT().SeriesRefResolver(shardID, id, tagIter).Return(resolver, true, nil)
 	_, err = checkoutFn(acc, shardID, id, tagIter)
 	require.NoError(t, err)
 

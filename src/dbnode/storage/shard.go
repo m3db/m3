@@ -1050,32 +1050,26 @@ func (s *dbShard) writeAndIndex(
 	}, nil
 }
 
-func (s *dbShard) SeriesReadWriteRef(
+func (s *dbShard) SeriesRefResolver(
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, error) {
+) (bootstrap.SeriesRefResolver, error) {
 	// Try retrieve existing series.
 	entry, _, err := s.tryRetrieveWritableSeries(id)
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return nil, err
 	}
 
 	if entry != nil {
 		// The read/write ref is already incremented.
-		return SeriesReadWriteRef{
-			Resolver: &seriesStaticResolver{
-				entry: entry,
-			},
-			Shard: s.shard,
-		}, nil
+		return entry, nil
 	}
 
 	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return nil, err
 	}
 	entry.IncrementReaderWriterCount()
-
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
@@ -1086,42 +1080,24 @@ func (s *dbShard) SeriesReadWriteRef(
 		},
 	})
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return nil, err
 	}
 
 	// Series will wait for the result to be batched together and inserted.
-	return SeriesReadWriteRef{
-		Resolver: &seriesResolver{
-			insertAsyncResult: insertAsyncResult{
-				wg: wg,
-				// Make sure to return the copied ID from the new series.
-				copiedID: entry.Series.ID(),
-				entry:    entry,
-			},
-			shard: s,
-		},
-		Shard: s.shard,
+	return &seriesResolver{
+		wg: wg,
+		// Make sure to return the copied ID from the new series.
+		copiedID: entry.Series.ID(),
+		shard:    s,
 	}, nil
-}
-
-type seriesStaticResolver struct {
-	entry *lookup.Entry
-}
-
-func (r *seriesStaticResolver) SeriesRef() (bootstrap.SeriesRef, error) {
-	return r.entry, nil
-}
-
-func (r *seriesStaticResolver) ReleaseRef() error {
-	r.entry.OnReleaseReadWriteRef()
-	return nil
 }
 
 type seriesResolver struct {
 	sync.RWMutex
 
-	insertAsyncResult insertAsyncResult
-	shard             *dbShard
+	wg       *sync.WaitGroup
+	copiedID ident.ID
+	shard    *dbShard
 
 	resolved       bool
 	resolvedResult error
@@ -1144,8 +1120,8 @@ func (r *seriesResolver) resolve() error {
 		return r.resolvedResult
 	}
 
-	r.insertAsyncResult.wg.Wait()
-	id := r.insertAsyncResult.copiedID
+	r.wg.Wait()
+	id := r.copiedID
 	entry, _, err := r.shard.tryRetrieveWritableSeries(id)
 	// Retrieve the inserted entry
 	if err != nil {

@@ -82,6 +82,9 @@ var _ index.OnIndexSeries = &Entry{}
 // ensure Entry satisfies the `bootstrap.SeriesRef` interface.
 var _ bootstrap.SeriesRef = &Entry{}
 
+// // ensure Entry satisfies the `bootstrap.SeriesRefResolver` interface.
+var _ bootstrap.SeriesRefResolver = &Entry{}
+
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
 	Series      series.DatabaseSeries
@@ -260,6 +263,19 @@ func (entry *Entry) maybeIndex(timestamp time.Time) error {
 	}
 	entry.OnIndexPrepare()
 	return idx.WritePending(entry.pendingIndexBatchSizeOne)
+}
+
+// SeriesRef returns the series read write ref.
+func (entry *Entry) SeriesRef() (bootstrap.SeriesRef, error) {
+	return entry, nil
+}
+
+// ReleaseRef must be called after using the series ref
+// to release the reference count to the series so it can
+// be expired by the owning shard eventually.
+func (entry *Entry) ReleaseRef() error {
+	entry.OnReleaseReadWriteRef()
+	return nil
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard

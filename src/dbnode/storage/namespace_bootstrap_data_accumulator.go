@@ -55,15 +55,15 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, bool, error) {
-	ref, owned, err := a.namespace.SeriesReadWriteRef(shardID, id, tags)
+	resolver, owned, err := a.namespace.SeriesRefResolver(shardID, id, tags)
 	if err != nil {
 		return bootstrap.CheckoutSeriesResult{}, owned, err
 	}
 
-	a.needsRelease = append(a.needsRelease, ref.Resolver)
+	a.needsRelease = append(a.needsRelease, resolver)
 	return bootstrap.CheckoutSeriesResult{
-		Resolver: ref.Resolver,
-		Shard:    ref.Shard,
+		Resolver: resolver,
+		Shard:    shardID,
 	}, true, nil
 }
 

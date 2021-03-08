@@ -903,6 +903,20 @@ func (mr *MockSeriesRefMockRecorder) LoadBlock(block, writeType interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockSeriesRef)(nil).LoadBlock), block, writeType)
 }
 
+// UniqueIndex mocks base method
+func (m *MockSeriesRef) UniqueIndex() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UniqueIndex")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// UniqueIndex indicates an expected call of UniqueIndex
+func (mr *MockSeriesRefMockRecorder) UniqueIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UniqueIndex", reflect.TypeOf((*MockSeriesRef)(nil).UniqueIndex))
+}
+
 // MockSeriesRefResolver is a mock of SeriesRefResolver interface
 type MockSeriesRefResolver struct {
 	ctrl     *gomock.Controller
