@@ -1085,6 +1085,9 @@ func (s *dbShard) SeriesReadWriteRef(
 			entryRefCountIncremented: false, // should be false because otherwise entry won't be inserted.
 		},
 	})
+	if err != nil {
+		return SeriesReadWriteRef{}, err
+	}
 
 	// Series will wait for the result to be batched together and inserted.
 	return SeriesReadWriteRef{

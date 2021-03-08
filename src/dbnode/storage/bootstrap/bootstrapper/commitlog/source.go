@@ -899,10 +899,10 @@ func (s *commitLogSource) readSeriesBlocks(
 	seriesBlocks := make([]seriesBlock, 0, reader.Entries())
 	for {
 		id, tags, data, expectedChecksum, err := reader.Read()
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, err
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
