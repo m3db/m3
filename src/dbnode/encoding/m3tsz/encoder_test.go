@@ -545,7 +545,8 @@ func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
 		name           string
 		delta          time.Duration
 		units          xtime.Unit
-		expectedErrMsg string
+		positiveErrMsg string
+		negativeErrMsg string
 	}{
 		{
 			name:  "seconds, short gap",
@@ -571,7 +572,8 @@ func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
 			name:           "milliseconds, too big gap",
 			delta:          25 * 24 * time.Hour, // more than 2^31 ms
 			units:          xtime.Millisecond,
-			expectedErrMsg: "deltaOfDelta value 2160000000 ms overflows 32 bits",
+			positiveErrMsg: "deltaOfDelta value 2160000000 ms overflows 32 bits",
+			negativeErrMsg: "deltaOfDelta value -2159999999 ms overflows 32 bits",
 		},
 		{
 			name:  "microseconds, short gap",
@@ -597,38 +599,87 @@ func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.NewBackground()
-			defer ctx.Close()
-
-			enc := getTestEncoder(testStartTime)
-
-			dp1 := dp(testStartTime, 1)
-			dp2 := dp(testStartTime.Add(tt.delta), 2)
-
-			err := enc.Encode(dp1, tt.units, nil)
-			require.NoError(t, err)
-
-			err = enc.Encode(dp2, tt.units, nil)
-			if tt.expectedErrMsg != "" {
-				require.EqualError(t, err, tt.expectedErrMsg)
-				return
-			}
-			require.NoError(t, err)
-
-			dec := NewDecoder(enc.intOptimized, enc.opts)
-			stream, ok := enc.Stream(ctx)
-			require.True(t, ok)
-
-			it := dec.Decode(stream)
-			defer it.Close()
-
-			decodeAndCheck(t, it, dp1, tt.units)
-			decodeAndCheck(t, it, dp2, tt.units)
-
-			require.False(t, it.Next())
-			require.NoError(t, it.Err())
+			testPositiveDeltaOfDelta(t, tt.delta, tt.units, tt.positiveErrMsg)
+			testNegativeDeltaOfDelta(t, tt.delta, tt.units, tt.negativeErrMsg)
 		})
 	}
+}
+
+func testPositiveDeltaOfDelta(t *testing.T, delta time.Duration, units xtime.Unit, expectedErrMsg string) {
+	t.Helper()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	enc := getTestEncoder(testStartTime)
+
+	dp1 := dp(testStartTime, 1)
+	dp2 := dp(testStartTime.Add(delta), 2)
+
+	err := enc.Encode(dp1, units, nil)
+	require.NoError(t, err)
+
+	err = enc.Encode(dp2, units, nil)
+	if expectedErrMsg != "" {
+		require.EqualError(t, err, expectedErrMsg)
+		return
+	}
+	require.NoError(t, err)
+
+	dec := NewDecoder(enc.intOptimized, enc.opts)
+	stream, ok := enc.Stream(ctx)
+	require.True(t, ok)
+
+	it := dec.Decode(stream)
+	defer it.Close()
+
+	decodeAndCheck(t, it, dp1, units)
+	decodeAndCheck(t, it, dp2, units)
+
+	require.False(t, it.Next())
+	require.NoError(t, it.Err())
+}
+
+func testNegativeDeltaOfDelta(t *testing.T, delta time.Duration, units xtime.Unit, expectedErrMsg string) {
+	t.Helper()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	oneUnit, err := units.Value()
+	require.NoError(t, err)
+
+	enc := getTestEncoder(testStartTime)
+
+	dps := []ts.Datapoint{
+		dp(testStartTime, 1),
+		dp(testStartTime.Add(delta/2), 2),
+		dp(testStartTime.Add(delta/2+delta), 3),
+		dp(testStartTime.Add(delta/2+delta+oneUnit), 4), // DoD = oneUnit - delta
+	}
+
+	for i, dp := range dps {
+		err = enc.Encode(dp, units, nil)
+		if i == 3 && expectedErrMsg != "" {
+			require.EqualError(t, err, expectedErrMsg)
+			return
+		}
+		require.NoError(t, err)
+	}
+
+	dec := NewDecoder(enc.intOptimized, enc.opts)
+	stream, ok := enc.Stream(ctx)
+	require.True(t, ok)
+
+	it := dec.Decode(stream)
+	defer it.Close()
+
+	for _, dp := range dps {
+		decodeAndCheck(t, it, dp, units)
+	}
+
+	require.False(t, it.Next())
+	require.NoError(t, it.Err())
 }
 
 func dp(timestamp time.Time, value float64) ts.Datapoint {
