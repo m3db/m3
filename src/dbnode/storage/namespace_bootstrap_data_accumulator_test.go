@@ -39,8 +39,9 @@ var (
 )
 
 type seriesTestResolver struct {
-	series bootstrap.SeriesRef
-	calls  int
+	series      bootstrap.SeriesRef
+	calls       int
+	uniqueIndex uint64
 }
 
 func (r *seriesTestResolver) SeriesRef() (bootstrap.SeriesRef, error) {
@@ -50,6 +51,10 @@ func (r *seriesTestResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 func (r *seriesTestResolver) ReleaseRef() error {
 	r.calls++
 	return nil
+}
+
+func (r *seriesTestResolver) UniqueIndex() uint64 {
+	return r.uniqueIndex
 }
 
 type checkoutFn func(bootstrap.NamespaceDataAccumulator, uint32,
@@ -87,17 +92,19 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	var (
-		ns       = NewMockdatabaseNamespace(ctrl)
-		series   = series.NewMockDatabaseSeries(ctrl)
-		acc      = NewDatabaseNamespaceDataAccumulator(ns)
-		shardID  = uint32(7)
-		resolver = &seriesTestResolver{series: series}
-		ref      = SeriesReadWriteRef{
+		ns        = NewMockdatabaseNamespace(ctrl)
+		series    = series.NewMockDatabaseSeries(ctrl)
+		acc       = NewDatabaseNamespaceDataAccumulator(ns)
+		uniqueIdx = uint64(10)
+		shardID   = uint32(7)
+		resolver  = &seriesTestResolver{series: series, uniqueIndex: uniqueIdx}
+		ref       = SeriesReadWriteRef{
 			Resolver: resolver,
 			Shard:    shardID,
 		}
 	)
 
+	series.EXPECT().UniqueIndex().Return(uniqueIdx).AnyTimes()
 	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, true, nil)
 	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter).
 		Return(SeriesReadWriteRef{}, false, errors.New("err"))
@@ -110,6 +117,7 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	seriesRef, err := seriesResult.Resolver.SeriesRef()
 	require.NoError(t, err)
 	require.Equal(t, series, seriesRef)
+	require.Equal(t, uniqueIdx, seriesRef.UniqueIndex())
 	require.Equal(t, shardID, seriesResult.Shard)
 
 	cast, ok := acc.(*namespaceDataAccumulator)

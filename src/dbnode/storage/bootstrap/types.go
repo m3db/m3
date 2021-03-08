@@ -493,6 +493,9 @@ type SeriesRef interface {
 		block block.DatabaseBlock,
 		writeType series.WriteType,
 	) error
+
+	// UniqueIndex is the unique index for the series.
+	UniqueIndex() uint64
 }
 
 // SeriesRefResolver is a series resolver for just in time resolving of

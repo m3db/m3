@@ -237,6 +237,11 @@ func (entry *Entry) LoadBlock(
 	return entry.Series.LoadBlock(block, writeType)
 }
 
+// UniqueIndex is the unique index for the series.
+func (entry *Entry) UniqueIndex() uint64 {
+	return entry.Series.UniqueIndex()
+}
+
 func (entry *Entry) maybeIndex(timestamp time.Time) error {
 	idx := entry.indexWriter
 	if idx == nil {
