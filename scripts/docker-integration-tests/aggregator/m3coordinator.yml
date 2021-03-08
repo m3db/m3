@@ -28,12 +28,12 @@ downsample:
   rules:
     mappingRules:
     - name: "drop coordinator handler latency all"
-      filter: __name__:coordinator_http_handler_http_handler_latency_count
+      filter: __name__:coordinator_http_handler_http_handler_latency_bucket
       drop: true
       dropType: all
     rollupRules:
       - name: "coordinator handler latency without instance"
-        filter: "__name__:coordinator_http_handler_http_handler_latency_count"
+        filter: "__name__:coordinator_http_handler_http_handler_latency_bucket"
         transforms:
           - transform:
               type: "Increase"
