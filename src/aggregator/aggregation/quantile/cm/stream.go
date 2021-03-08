@@ -357,13 +357,13 @@ func (s *Stream) compress() {
 	)
 
 	for s.compressCursor != s.samples.Front() {
-		curr := s.compressCursor
-		next := curr.next
-		prev := curr.prev
-
-		maxRank := s.compressMinRank + curr.numRanks + curr.delta
-
 		var (
+			curr = s.compressCursor
+			next = curr.next
+			prev = curr.prev
+
+			maxRank = s.compressMinRank + curr.numRanks + curr.delta
+
 			threshold   = int64(math.MaxInt64)
 			quantileMin int64
 		)

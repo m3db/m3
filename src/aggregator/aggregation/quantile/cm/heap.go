@@ -121,9 +121,11 @@ func (h minHeap) SortDesc() {
 }
 
 func (h *minHeap) ensureSize() {
-	heap := *h
-	targetCap := cap(heap) * 2
-	newHeap := sharedHeapPool.Get(targetCap)
+	var (
+		heap      = *h
+		targetCap = cap(heap) * 2
+		newHeap   = sharedHeapPool.Get(targetCap)
+	)
 	(*newHeap) = append(*newHeap, heap...)
 	if cap(heap) >= _initialHeapBucketSize {
 		sharedHeapPool.Put(heap)
