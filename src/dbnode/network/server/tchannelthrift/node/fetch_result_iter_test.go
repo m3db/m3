@@ -155,7 +155,7 @@ type fakePermits struct {
 	quotaPerPermit int64
 }
 
-func (p *fakePermits) Acquire(_ context.Context) (*permits.Permit, error) {
+func (p *fakePermits) Acquire(_ context.Context) (permits.Permit, error) {
 	if p.available == 0 {
 		return nil, errors.New("available should never be 0")
 	}
@@ -164,7 +164,7 @@ func (p *fakePermits) Acquire(_ context.Context) (*permits.Permit, error) {
 	return permits.NewPermit(p.quotaPerPermit, instrument.NewOptions()), nil
 }
 
-func (p *fakePermits) TryAcquire(_ context.Context) (*permits.Permit, error) {
+func (p *fakePermits) TryAcquire(_ context.Context) (permits.Permit, error) {
 	if p.available == 0 {
 		return nil, nil
 	}
@@ -173,7 +173,7 @@ func (p *fakePermits) TryAcquire(_ context.Context) (*permits.Permit, error) {
 	return permits.NewPermit(p.quotaPerPermit, instrument.NewOptions()), nil
 }
 
-func (p *fakePermits) Release(_ *permits.Permit) {
+func (p *fakePermits) Release(_ permits.Permit) {
 	p.released++
 	p.available++
 }

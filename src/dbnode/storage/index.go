@@ -208,7 +208,7 @@ type newNamespaceIndexOpts struct {
 type execBlockQueryFn func(
 	ctx context.Context,
 	block index.Block,
-	permit *permits.Permit,
+	permit permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
@@ -1623,7 +1623,7 @@ func (i *nsIndex) queryWithSpan(
 		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
 	}
 	// waitForPermit waits for a permit. returns non-nil if the permit was acquired and the wait time.
-	waitForPermit := func() (*permits.Permit, time.Duration) {
+	waitForPermit := func() (permits.Permit, time.Duration) {
 		// make sure the query hasn't been canceled before waiting for a permit.
 		if queryCanceled() {
 			return nil, 0
@@ -1749,7 +1749,7 @@ func (i *nsIndex) newBlockQueryIterFn(
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
 	block index.Block,
-	permit *permits.Permit,
+	permit permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
@@ -1795,7 +1795,7 @@ func (i *nsIndex) execBlockQueryFn(
 func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
 	block index.Block,
-	permit *permits.Permit,
+	permit permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
@@ -1858,7 +1858,7 @@ func (i *nsIndex) newBlockAggregatorIterFn(
 func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
 	block index.Block,
-	permit *permits.Permit,
+	permit permits.Permit,
 	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,

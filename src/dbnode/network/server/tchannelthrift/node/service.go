@@ -911,7 +911,7 @@ type fetchTaggedResultsIter struct {
 	blockReadIdx      int
 	cur               IDResult
 	err               error
-	permits           []*permits.Permit
+	permits           []permits.Permit
 	unreleasedQuota   int64
 	dataReadStart     time.Time
 	totalSeriesBlocks int
@@ -941,7 +941,7 @@ func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResul
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
 		dataReadStart:              opts.nowFn(),
-		permits:                    make([]*permits.Permit, 0),
+		permits:                    make([]permits.Permit, 0),
 	}
 }
 
@@ -1030,7 +1030,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 
 // acquire a block permit for a series ID. returns true if a permit is available.
 func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, error) {
-	var curPermit *permits.Permit
+	var curPermit permits.Permit
 	if len(i.permits) > 0 {
 		curPermit = i.permits[len(i.permits)-1]
 	}

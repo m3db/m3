@@ -28,7 +28,7 @@ import (
 )
 
 type fixedPermits struct {
-	permits chan *Permit
+	permits chan Permit
 	iOpts   instrument.Options
 }
 
@@ -43,7 +43,7 @@ var (
 
 // NewFixedPermitsManager returns a permits manager that uses a fixed size of permits.
 func NewFixedPermitsManager(size int, quotaPerPermit int64, iOpts instrument.Options) Manager {
-	fp := fixedPermits{permits: make(chan *Permit, size), iOpts: iOpts}
+	fp := fixedPermits{permits: make(chan Permit, size), iOpts: iOpts}
 	for i := 0; i < size; i++ {
 		fp.permits <- NewPermit(quotaPerPermit, iOpts)
 	}
@@ -54,7 +54,7 @@ func (f *fixedPermitsManager) NewPermits(_ context.Context) (Permits, error) {
 	return &f.fp, nil
 }
 
-func (f *fixedPermits) Acquire(ctx context.Context) (*Permit, error) {
+func (f *fixedPermits) Acquire(ctx context.Context) (Permit, error) {
 	// don't acquire a permit if ctx is already done.
 	select {
 	case <-ctx.GoContext().Done():
@@ -71,7 +71,7 @@ func (f *fixedPermits) Acquire(ctx context.Context) (*Permit, error) {
 	}
 }
 
-func (f *fixedPermits) TryAcquire(ctx context.Context) (*Permit, error) {
+func (f *fixedPermits) TryAcquire(ctx context.Context) (Permit, error) {
 	// don't acquire a permit if ctx is already done.
 	select {
 	case <-ctx.GoContext().Done():
@@ -88,7 +88,7 @@ func (f *fixedPermits) TryAcquire(ctx context.Context) (*Permit, error) {
 	}
 }
 
-func (f *fixedPermits) Release(permit *Permit) {
+func (f *fixedPermits) Release(permit Permit) {
 	permit.Release()
 
 	select {

@@ -22,11 +22,7 @@
 package permits
 
 import (
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Options is the permit options.
@@ -51,68 +47,33 @@ type Manager interface {
 type Permits interface {
 	// Acquire blocks until a Permit is available. The returned Permit is guaranteed to be non-nil if error is
 	// non-nil.
-	Acquire(ctx context.Context) (*Permit, error)
+	Acquire(ctx context.Context) (Permit, error)
 
 	// TryAcquire attempts to acquire an available resource without blocking, returning
 	// a non-nil a Permit if one is available. Returns nil if no Permit is currently available.
-	TryAcquire(ctx context.Context) (*Permit, error)
+	TryAcquire(ctx context.Context) (Permit, error)
 
 	// Release gives back one acquired permit from the specific permits instance.
 	// Cannot release more permits than have been acquired.
-	Release(permit *Permit)
+	Release(permit Permit)
 }
 
 // Permit is granted to a caller which is allowed to consume some amount of quota.
-// This type is not thread safe and intended to be used by a single process at a time.
-type Permit struct {
-	// immutable state
-	quota int64
-	iOpts instrument.Options
+type Permit interface {
 
-	// mutable state
-	quotaUsed int64
-	refCount  atomic.Int32
-}
+	// Release is called when a caller releases the permit back to the permit manager.
+	Release()
 
-// NewPermit constructs a new Permit with the provided quota.
-func NewPermit(quota int64, iOpts instrument.Options) *Permit {
-	return &Permit{
-		quota: quota,
-		iOpts: iOpts,
-	}
-}
+	// Acquire is called before the permit manager gives the permit to the caller.
+	Acquire()
 
-// Release the permit.
-func (p *Permit) Release() {
-	if p.iOpts != nil && p.refCount.Dec() != 0 {
-		instrument.EmitAndLogInvariantViolation(p.iOpts, func(l *zap.Logger) {
-			l.Error("permit released more than once")
-		})
-	}
-}
+	// AllowedQuota is the amount of quota the caller can use with this Permit.
+	AllowedQuota() int64
 
-// Acquire the permit.
-func (p *Permit) Acquire() {
-	if p.iOpts != nil && p.refCount.Inc() != 1 {
-		instrument.EmitAndLogInvariantViolation(p.iOpts, func(l *zap.Logger) {
-			l.Error("permit acquired more than once")
-		})
-	}
-	p.quotaUsed = 0
-}
+	// QuotaRemaining is the amount of remaining quota for this Permit. Can be negative if the caller used more quota
+	// than they were allowed.
+	QuotaRemaining() int64
 
-// AllowedQuota is the amount of quota the caller can use with this Permit.
-func (p *Permit) AllowedQuota() int64 {
-	return p.quota
-}
-
-// QuotaRemaining is the amount of remaining quota for this Permit. Can be negative if the caller used more quota
-// than they were allowed.
-func (p *Permit) QuotaRemaining() int64 {
-	return p.quota - p.quotaUsed
-}
-
-// Use adds the quota to the total used quota.
-func (p *Permit) Use(quota int64) {
-	p.quotaUsed += quota
+	// Use adds the quota to the total used quota.
+	Use(quota int64)
 }
