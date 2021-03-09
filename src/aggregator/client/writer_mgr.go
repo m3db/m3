@@ -210,7 +210,6 @@ func (mgr *writerManager) Flush() error {
 	close(errCh)
 
 	for err := range errCh {
-		fmt.Println(err)
 		multiErr = multiErr.Add(err)
 	}
 
