@@ -21,11 +21,15 @@
 package permits
 
 import (
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type fixedPermits struct {
-	permits chan struct{}
+	permits chan Permit
+	iOpts   instrument.Options
 }
 
 type fixedPermitsManager struct {
@@ -38,54 +42,60 @@ var (
 )
 
 // NewFixedPermitsManager returns a permits manager that uses a fixed size of permits.
-func NewFixedPermitsManager(size int) Manager {
-	fp := fixedPermits{permits: make(chan struct{}, size)}
+func NewFixedPermitsManager(size int, quotaPerPermit int64, iOpts instrument.Options) Manager {
+	fp := fixedPermits{permits: make(chan Permit, size), iOpts: iOpts}
 	for i := 0; i < size; i++ {
-		fp.permits <- struct{}{}
+		fp.permits <- NewPermit(quotaPerPermit, iOpts)
 	}
-	return &fixedPermitsManager{fp}
+	return &fixedPermitsManager{fp: fp}
 }
 
 func (f *fixedPermitsManager) NewPermits(_ context.Context) (Permits, error) {
 	return &f.fp, nil
 }
 
-func (f *fixedPermits) Acquire(ctx context.Context) error {
+func (f *fixedPermits) Acquire(ctx context.Context) (Permit, error) {
 	// don't acquire a permit if ctx is already done.
 	select {
 	case <-ctx.GoContext().Done():
-		return ctx.GoContext().Err()
+		return nil, ctx.GoContext().Err()
 	default:
 	}
 
 	select {
 	case <-ctx.GoContext().Done():
-		return ctx.GoContext().Err()
-	case <-f.permits:
-		return nil
+		return nil, ctx.GoContext().Err()
+	case p := <-f.permits:
+		p.PreAcquire()
+		return p, nil
 	}
 }
 
-func (f *fixedPermits) TryAcquire(ctx context.Context) (bool, error) {
+func (f *fixedPermits) TryAcquire(ctx context.Context) (Permit, error) {
 	// don't acquire a permit if ctx is already done.
 	select {
 	case <-ctx.GoContext().Done():
-		return false, ctx.GoContext().Err()
+		return nil, ctx.GoContext().Err()
 	default:
 	}
 
 	select {
-	case <-f.permits:
-		return true, nil
+	case p := <-f.permits:
+		p.PreAcquire()
+		return p, nil
 	default:
-		return false, nil
+		return nil, nil
 	}
 }
 
-func (f *fixedPermits) Release(_ int64) {
+func (f *fixedPermits) Release(permit Permit) {
+	permit.PostRelease()
+
 	select {
-	case f.permits <- struct{}{}:
+	case f.permits <- permit:
 	default:
-		panic("more permits released than acquired")
+		instrument.EmitAndLogInvariantViolation(f.iOpts, func(l *zap.Logger) {
+			l.Error("more permits released than acquired")
+		})
 	}
 }

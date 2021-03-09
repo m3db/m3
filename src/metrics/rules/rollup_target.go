@@ -22,13 +22,11 @@ package rules
 
 import (
 	"errors"
-	"sort"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
-	"github.com/m3db/m3/src/metrics/x/bytes"
 )
 
 var (
@@ -56,16 +54,16 @@ func newRollupTargetFromV1Proto(pb *rulepb.RollupTarget) (rollupTarget, error) {
 	if err != nil {
 		return emptyRollupTarget, err
 	}
-	tags := make([]string, len(pb.Tags))
-	copy(tags, pb.Tags)
-	sort.Strings(tags)
+
+	rollup, err := pipeline.NewRollupOp(pipeline.GroupByRollupType, pb.Name,
+		pb.Tags, aggregationID)
+	if err != nil {
+		return emptyRollupTarget, err
+	}
+
 	rollupOp := pipeline.OpUnion{
-		Type: pipeline.RollupOpType,
-		Rollup: pipeline.RollupOp{
-			NewName:       []byte(pb.Name),
-			Tags:          bytes.ArraysFromStringArray(tags),
-			AggregationID: aggregationID,
-		},
+		Type:   pipeline.RollupOpType,
+		Rollup: rollup,
 	}
 	pipeline := pipeline.NewPipeline([]pipeline.OpUnion{rollupOp})
 	return rollupTarget{
