@@ -1925,6 +1925,60 @@ func TestOpenStreamingReader(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSeriesRefResolver(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	shard := testDatabaseShard(t, DefaultTestOptions())
+	ctx := context.NewBackground()
+	defer func() {
+		ctrl.Finish()
+		_ = shard.Close()
+		ctx.Close()
+	}()
+
+	seriesID := ident.StringID("foo+bar=baz")
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
+
+	iter := ident.NewMockTagIterator(ctrl)
+	// Ensure duplicate called but no close, etc
+	iter.EXPECT().
+		Duplicate().
+		Times(1).
+		Return(ident.NewTagsIterator(seriesTags))
+
+	now := time.Now()
+
+	resolver, err := shard.SeriesRefResolver(seriesID, iter)
+	require.NoError(t, err)
+	seriesRef, err := resolver.SeriesRef()
+	require.NoError(t, err)
+	write, writeType, err := seriesRef.Write(ctx, now, 1.0, xtime.Second,
+		[]byte("annotation1"), series.WriteOptions{})
+	require.NoError(t, err)
+	require.Equal(t, series.WarmWrite, writeType)
+	require.True(t, write)
+
+	// should return already inserted entry as series.
+	resolverEntry, err := shard.SeriesRefResolver(seriesID, iter)
+	require.NoError(t, err)
+	require.IsType(t, &lookup.Entry{}, resolverEntry)
+	refEntry, err := resolverEntry.SeriesRef()
+	require.NoError(t, err)
+	require.Equal(t, seriesRef, refEntry)
+
+	databaseBlock := block.NewMockDatabaseBlock(ctrl)
+	databaseBlock.EXPECT().StartTime().Return(now).AnyTimes()
+	err = seriesRef.LoadBlock(databaseBlock, series.ColdWrite)
+	require.NoError(t, err)
+
+	err = resolver.ReleaseRef()
+	require.NoError(t, err)
+	err = resolverEntry.ReleaseRef()
+	require.NoError(t, err)
+}
+
 func getMockReader(
 	ctrl *gomock.Controller,
 	t *testing.T,
