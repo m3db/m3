@@ -121,7 +121,12 @@ func (m PipelineMetadata) IsDropPolicyApplied() bool {
 	return m.AggregationID.IsDefault() &&
 		m.StoragePolicies.IsDefault() &&
 		m.Pipeline.IsEmpty() &&
-		!m.DropPolicy.IsDefault()
+		m.IsDropPolicySet()
+}
+
+// IsDropPolicySet returns whether a drop policy is set.
+func (m PipelineMetadata) IsDropPolicySet() bool {
+	return !m.DropPolicy.IsDefault()
 }
 
 // Clone clones the pipeline metadata.
@@ -198,6 +203,17 @@ func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 		cloned = append(cloned, metadatas[i].Clone())
 	}
 	return cloned
+}
+
+// IsDropPolicySet returns whether any drop policies are set (but
+// does not discriminate if they have been applied or not).
+func (metadatas PipelineMetadatas) IsDropPolicySet() bool {
+	for i := range metadatas {
+		if metadatas[i].IsDropPolicySet() {
+			return true
+		}
+	}
+	return false
 }
 
 // ApplyOrRemoveDropPoliciesResult is the result of applying or removing
@@ -295,6 +311,17 @@ func (m Metadata) IsDefault() bool {
 // but with the drop policy applied.
 func (m Metadata) IsDropPolicyApplied() bool {
 	return len(m.Pipelines) == 1 && m.Pipelines[0].IsDropPolicyApplied()
+}
+
+// IsDropPolicySet returns whether any drop policies are set (but
+// does not discriminate if they have been applied or not).
+func (m Metadata) IsDropPolicySet() bool {
+	for i := range m.Pipelines {
+		if m.Pipelines[i].IsDropPolicySet() {
+			return true
+		}
+	}
+	return false
 }
 
 // Equal returns true if two metadatas are considered equal.
