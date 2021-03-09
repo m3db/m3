@@ -1097,10 +1097,4 @@ type Options interface {
 
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
-
-	// MaxWorkerTime returns the max time a query can hold an index worker.
-	MaxWorkerTime() time.Duration
-
-	// SetMaxWorkerTime sets MaxWorkerTime.
-	SetMaxWorkerTime(value time.Duration) Options
 }

@@ -174,6 +174,14 @@ type Options interface {
 	// ClientWriteConsistencyLevel returns the client write consistency level
 	// used when fetching data from peers for coordinated writes
 	ClientWriteConsistencyLevel() topology.ConsistencyLevel
+
+	// SetTickCancellationCheckInterval sets the interval to check whether the tick
+	// has been canceled. This duration also affects the minimum tick duration.
+	SetTickCancellationCheckInterval(value time.Duration) Options
+
+	// TickCancellationCheckInterval is the interval to check whether the tick
+	// has been canceled. This duration also affects the minimum tick duration.
+	TickCancellationCheckInterval() time.Duration
 }
 
 // OptionsManager updates and supplies runtime options.

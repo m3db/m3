@@ -90,10 +90,12 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
+	var namespaces m3.ClusterNamespaces
+	if h.clusters != nil {
 		namespaces = h.clusters.ClusterNamespaces()
-		result     = &readyResult{}
-	)
+	}
+
+	result := &readyResult{}
 	for _, ns := range namespaces {
 		attrs := ns.Options().Attributes()
 		nsResult := readyResultNamespace{
