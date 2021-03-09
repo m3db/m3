@@ -240,6 +240,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 
 	writer1 := NewMockinstanceWriter(ctrl)
 	writer1.EXPECT().QueueSize().AnyTimes()
+	writer1.EXPECT().Write(gomock.Any(), gomock.Any())
 	writer1.EXPECT().
 		Flush().
 		DoAndReturn(func() error {
@@ -249,6 +250,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 	errTestFlush := errors.New("test flush error")
 	writer2 := NewMockinstanceWriter(ctrl)
 	writer2.EXPECT().QueueSize().AnyTimes()
+	writer2.EXPECT().Write(gomock.Any(), gomock.Any())
 	writer2.EXPECT().
 		Flush().
 		DoAndReturn(func() error {
@@ -265,6 +267,8 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 		instanceWriter: writer2,
 	}
 	mgr.Unlock()
+	mgr.Write(instances[0], 0, payloadUnion{}) //nolint:errcheck
+	mgr.Write(instances[1], 0, payloadUnion{}) //nolint:errcheck
 	err := mgr.Flush()
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), errTestFlush.Error()))

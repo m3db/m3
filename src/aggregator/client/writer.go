@@ -35,6 +35,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -413,6 +414,7 @@ func newLockedEncoder(encoderOpts protobuf.UnaggregatedOptions) *lockedEncoder {
 }
 
 type refCountedWriter struct {
+	dirty atomic.Bool
 	instanceWriter
 	refCount
 }

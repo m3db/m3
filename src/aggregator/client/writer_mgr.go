@@ -67,15 +67,21 @@ type instanceWriterManager interface {
 }
 
 type writerManagerMetrics struct {
-	instancesAdded   tally.Counter
-	instancesRemoved tally.Counter
-	queueLen         tally.Histogram
+	instancesAdded      tally.Counter
+	instancesRemoved    tally.Counter
+	queueLen            tally.Histogram
+	dirtyWritersPercent tally.Histogram
 }
 
 func newWriterManagerMetrics(scope tally.Scope) writerManagerMetrics {
 	buckets := append(
 		tally.ValueBuckets{0},
 		tally.MustMakeExponentialValueBuckets(_queueMetricBucketStart, 2, _queueMetricBuckets)...,
+	)
+
+	percentBuckets := append(
+		tally.ValueBuckets{0},
+		tally.MustMakeLinearValueBuckets(5, 5, 20)...,
 	)
 
 	return writerManagerMetrics{
@@ -85,7 +91,8 @@ func newWriterManagerMetrics(scope tally.Scope) writerManagerMetrics {
 		instancesRemoved: scope.Tagged(map[string]string{
 			"action": "remove",
 		}).Counter("instances"),
-		queueLen: scope.Histogram("queue-length", buckets),
+		queueLen:            scope.Histogram("queue-length", buckets),
+		dirtyWritersPercent: scope.Histogram("dirty-writers-percent", percentBuckets),
 	}
 }
 
@@ -193,8 +200,10 @@ func (mgr *writerManager) Write(
 		mgr.RUnlock()
 		return fmt.Errorf("writer for instance %s is not found", id)
 	}
+	writer.dirty.Store(true)
 	err := writer.Write(shardID, payload)
 	mgr.RUnlock()
+
 	return err
 }
 
@@ -212,16 +221,29 @@ func (mgr *writerManager) Flush() error {
 		wg     sync.WaitGroup
 	)
 
-	wg.Add(len(mgr.writers))
+	numDirty := 0
 	for _, w := range mgr.writers {
+		if !w.dirty.Load() {
+			continue
+		}
+		numDirty++
 		w := w
+		wg.Add(1)
 		mgr.pool.Go(func() {
 			defer wg.Done()
+
+			w.dirty.CAS(true, false)
 			if err := w.Flush(); err != nil {
 				errCh <- err
 			}
 		})
 	}
+
+	percentInUse := 0.0
+	if numDirty > 0 && len(mgr.writers) > 0 {
+		percentInUse = 100.0 * (float64(numDirty) / float64(len(mgr.writers)))
+	}
+	mgr.metrics.dirtyWritersPercent.RecordValue(percentInUse)
 
 	go func() {
 		multiErr := xerrors.NewMultiError()
