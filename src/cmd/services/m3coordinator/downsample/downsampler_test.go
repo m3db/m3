@@ -1813,7 +1813,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicyAndDropTime
 						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
-					values: []expectedValue{{value: 55}, {value: 39}},
+					values: []expectedValue{{value: 94}},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  res,
@@ -1844,6 +1844,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollups(t *testin
 				{value: 42},
 				{value: 12, offset: 2 * time.Second},
 			},
+			expectDropTimestamp: true,
 		},
 		{
 			tags: map[string]string{
@@ -1857,6 +1858,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollups(t *testin
 				{value: 13},
 				{value: 27, offset: 2 * time.Second},
 			},
+			expectDropTimestamp: true,
 		},
 	}
 	res := 1 * time.Second
@@ -1942,6 +1944,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollupsWaitForOff
 				{value: 42},
 			},
 			expectDropPolicyApplied: true,
+			expectDropTimestamp:     true,
 		},
 		{
 			tags: map[string]string{
@@ -1955,6 +1958,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollupsWaitForOff
 				{value: 12, offset: 2 * time.Second},
 			},
 			expectDropPolicyApplied: true,
+			expectDropTimestamp:     true,
 		},
 		{
 			tags: map[string]string{
@@ -1968,6 +1972,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollupsWaitForOff
 				{value: 13},
 			},
 			expectDropPolicyApplied: true,
+			expectDropTimestamp:     true,
 		},
 	}
 	res := 1 * time.Second
@@ -2018,6 +2023,111 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollupsWaitForOff
 						"endpoint":            "/foo/bar",
 					},
 					values: []expectedValue{{value: 42}, {value: 25}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigRollupRuleRollupLaterUntimedRollups(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetrics := []testGaugeMetric{
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_1",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 42},
+				{value: 12, offset: 2 * time.Second},
+			},
+			expectDropTimestamp: true,
+		},
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_2",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 13},
+				{value: 27, offset: 2 * time.Second},
+			},
+			expectDropTimestamp: true,
+		},
+	}
+	res := 1 * time.Second
+	ret := 30 * 24 * time.Hour
+	filter := fmt.Sprintf("%s:http_requests app:* status_code:* endpoint:*", nameTag)
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		untimedRollups: true,
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: filter,
+					Transforms: []TransformConfiguration{
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.Add,
+							},
+						},
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: gaugeMetrics,
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 39}},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  res,
@@ -2851,7 +2961,11 @@ func testDownsamplerAggregationIngest(
 			if testOpts.waitForOffset {
 				time.Sleep(sample.offset)
 			}
-			err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
+			if samplesAppenderResult.ShouldDropTimestamp {
+				err = samplesAppender.AppendUntimedCounterSample(sample.value, nil)
+			} else {
+				err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
+			}
 			require.NoError(t, err)
 		}
 	}
@@ -2884,7 +2998,11 @@ func testDownsamplerAggregationIngest(
 			if testOpts.waitForOffset {
 				time.Sleep(sample.offset)
 			}
-			err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
+			if samplesAppenderResult.ShouldDropTimestamp {
+				err = samplesAppender.AppendUntimedGaugeSample(sample.value, nil)
+			} else {
+				err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
+			}
 			require.NoError(t, err)
 		}
 	}

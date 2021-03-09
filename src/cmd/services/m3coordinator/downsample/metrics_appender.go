@@ -378,7 +378,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 	// Apply the custom tags first so that they apply even if mapping
 	// rules drop the metric.
-	dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
+	dropTimestamp = a.curr.Pipelines.ShouldDropTimestamp(a.untimedRollups)
 
 	// Apply drop policies results
 	a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
@@ -404,8 +404,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			clientRemote:    a.clientRemote,
 			unownedID:       rollup.ID,
 			stagedMetadatas: rollup.Metadatas,
-			dropTS:          a.untimedRollups,
 		})
+		if a.untimedRollups {
+			dropTimestamp = true
+		}
 	}
 
 	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult

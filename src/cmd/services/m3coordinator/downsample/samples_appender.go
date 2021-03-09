@@ -36,7 +36,6 @@ import (
 type samplesAppender struct {
 	agg          aggregator.Aggregator
 	clientRemote client.Client
-	dropTS       bool
 
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
@@ -106,9 +105,6 @@ func (a samplesAppender) AppendUntimedTimerSample(value float64, annotation []by
 }
 
 func (a *samplesAppender) AppendCounterSample(t time.Time, value int64, annotation []byte) error {
-	if a.dropTS {
-		return a.AppendUntimedCounterSample(value, annotation)
-	}
 	return a.appendTimedSample(aggregated.Metric{
 		Type:       metric.CounterType,
 		ID:         a.unownedID,
@@ -119,9 +115,6 @@ func (a *samplesAppender) AppendCounterSample(t time.Time, value int64, annotati
 }
 
 func (a *samplesAppender) AppendGaugeSample(t time.Time, value float64, annotation []byte) error {
-	if a.dropTS {
-		return a.AppendUntimedGaugeSample(value, annotation)
-	}
 	return a.appendTimedSample(aggregated.Metric{
 		Type:       metric.GaugeType,
 		ID:         a.unownedID,
@@ -132,9 +125,6 @@ func (a *samplesAppender) AppendGaugeSample(t time.Time, value float64, annotati
 }
 
 func (a *samplesAppender) AppendTimerSample(t time.Time, value float64, annotation []byte) error {
-	if a.dropTS {
-		return a.AppendUntimedTimerSample(value, annotation)
-	}
 	return a.appendTimedSample(aggregated.Metric{
 		Type:       metric.TimerType,
 		ID:         a.unownedID,
