@@ -27,41 +27,71 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestFixedPermits(t *testing.T) {
 	ctx := context.NewBackground()
-	fp, err := NewFixedPermitsManager(3).NewPermits(ctx)
+	iOpts := instrument.NewOptions()
+	fp, err := NewFixedPermitsManager(3, 1, iOpts).NewPermits(ctx)
 	require.NoError(t, err)
-	require.NoError(t, fp.Acquire(ctx))
-	require.NoError(t, fp.Acquire(ctx))
-	require.NoError(t, fp.Acquire(ctx))
-
-	acq, err := fp.TryAcquire(ctx)
+	expectedP := NewPermit(1, iOpts)
+	expectedP.(*permit).refCount.Inc()
+	p, err := fp.Acquire(ctx)
 	require.NoError(t, err)
-	require.False(t, acq)
+	require.Equal(t, expectedP, p)
+	p, err = fp.Acquire(ctx)
+	require.NoError(t, err)
+	require.Equal(t, expectedP, p)
+	p, err = fp.Acquire(ctx)
+	require.NoError(t, err)
+	require.Equal(t, expectedP, p)
 
-	fp.Release(0)
-	require.NoError(t, fp.Acquire(ctx))
+	tryP, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.Nil(t, tryP)
+
+	fp.Release(p)
+	p, err = fp.Acquire(ctx)
+	require.NoError(t, err)
+	require.Equal(t, expectedP, p)
+}
+
+func TestPanics(t *testing.T) {
+	ctx := context.NewBackground()
+	iOpts := instrument.NewOptions()
+	fp, err := NewFixedPermitsManager(3, 1, iOpts).NewPermits(ctx)
+	require.NoError(t, err)
+	p, err := fp.Acquire(ctx)
+	require.NoError(t, err)
+	fp.Release(p)
+
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { fp.Release(p) })
 }
 
 func TestFixedPermitsTimeouts(t *testing.T) {
 	ctx := context.NewBackground()
-	fp, err := NewFixedPermitsManager(1).NewPermits(ctx)
+	iOpts := instrument.NewOptions()
+	fp, err := NewFixedPermitsManager(1, 1, iOpts).NewPermits(ctx)
+	expectedP := NewPermit(1, iOpts)
+	expectedP.(*permit).refCount.Inc()
 	require.NoError(t, err)
-	require.NoError(t, fp.Acquire(ctx))
+	p, err := fp.Acquire(ctx)
+	require.NoError(t, err)
+	require.Equal(t, expectedP, p)
 
-	acq, err := fp.TryAcquire(ctx)
+	tryP, err := fp.TryAcquire(ctx)
 	require.NoError(t, err)
-	require.False(t, acq)
+	require.Nil(t, tryP)
 
 	stdCtx, cancel := stdctx.WithCancel(stdctx.Background())
 	cancel()
 	ctx = context.NewWithGoContext(stdCtx)
 
-	fp.Release(0)
+	fp.Release(p)
 
-	err = fp.Acquire(ctx)
+	_, err = fp.Acquire(ctx)
 	require.Error(t, err)
 
 	_, err = fp.TryAcquire(ctx)

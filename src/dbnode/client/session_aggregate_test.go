@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -282,10 +283,11 @@ func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
-		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
-	assert.Error(t, err)
-	assert.NoError(t, session.Close())
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _, _ = session.Aggregate(testContext(), ident.StringID("namespace"),
+			testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
+	})
 }
 
 func TestSessionAggregateMergeTest(t *testing.T) {

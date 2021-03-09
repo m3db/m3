@@ -250,10 +250,16 @@ type Options interface {
 	// delay for given metric resolution and number of times the metric has been forwarded.
 	MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn
 
-	// SetBufferForPastTimedMetricFn sets the size of the buffer for timed metrics in the past.
+	// SetBufferForPastTimedMetric sets the size of the buffer for timed metrics in the past.
+	SetBufferForPastTimedMetric(value time.Duration) Options
+
+	// BufferForPastTimedMetric returns the size of the buffer for timed metrics in the past.
+	BufferForPastTimedMetric() time.Duration
+
+	// SetBufferForPastTimedMetricFn sets the size fn of the buffer for timed metrics in the past.
 	SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options
 
-	// BufferForPastTimedMetricFn returns the size of the buffer for timed metrics in the past.
+	// BufferForPastTimedMetricFn returns the size fn of the buffer for timed metrics in the past.
 	BufferForPastTimedMetricFn() BufferForPastTimedMetricFn
 
 	// SetBufferForFutureTimedMetric sets the size of the buffer for timed metrics in the future.
@@ -353,6 +359,7 @@ type options struct {
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
 	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
+	bufferForPastTimedMetric         time.Duration
 	bufferForPastTimedMetricFn       BufferForPastTimedMetricFn
 	bufferForFutureTimedMetric       time.Duration
 	maxNumCachedSourceSets           int
@@ -399,6 +406,7 @@ func NewOptions() Options {
 		defaultStoragePolicies:           defaultDefaultStoragePolicies,
 		resignTimeout:                    defaultResignTimeout,
 		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
+		bufferForPastTimedMetric:         defaultTimedMetricBuffer,
 		bufferForPastTimedMetricFn:       defaultBufferForPastTimedMetricFn,
 		bufferForFutureTimedMetric:       defaultTimedMetricBuffer,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
@@ -687,6 +695,16 @@ func (o *options) SetMaxAllowedForwardingDelayFn(value MaxAllowedForwardingDelay
 
 func (o *options) MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn {
 	return o.maxAllowedForwardingDelayFn
+}
+
+func (o *options) SetBufferForPastTimedMetric(value time.Duration) Options {
+	opts := *o
+	opts.bufferForPastTimedMetric = value
+	return &opts
+}
+
+func (o *options) BufferForPastTimedMetric() time.Duration {
+	return o.bufferForPastTimedMetric
 }
 
 func (o *options) SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options {

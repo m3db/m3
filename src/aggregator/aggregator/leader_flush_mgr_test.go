@@ -37,18 +37,18 @@ import (
 var (
 	testFlushTimes = &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
-			0: &schema.ShardFlushTimes{
+			0: {
 				StandardByResolution: map[int64]int64{
 					1000000000:  3663000000000,
 					60000000000: 3660000000000,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					1000000000: &schema.ForwardedFlushTimesForResolution{
+					1000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							1: 3663000000000,
 						},
 					},
-					60000000000: &schema.ForwardedFlushTimesForResolution{
+					60000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							2: 3660000000000,
 							3: 3600000000000,
@@ -56,19 +56,19 @@ var (
 					},
 				},
 			},
-			1: &schema.ShardFlushTimes{
+			1: {
 				StandardByResolution: map[int64]int64{
 					1000000000: 3658000000000,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					1000000000: &schema.ForwardedFlushTimesForResolution{
+					1000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							1: 3658000000000,
 						},
 					},
 				},
 			},
-			2: &schema.ShardFlushTimes{
+			2: {
 				StandardByResolution: map[int64]int64{
 					3600000000000: 3600000000000,
 				},
@@ -78,7 +78,7 @@ var (
 
 	testFlushTimes2 = &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
-			0: &schema.ShardFlushTimes{
+			0: {
 				StandardByResolution: map[int64]int64{
 					1000000000:  3669000000000,
 					60000000000: 3660000000000,
@@ -87,12 +87,12 @@ var (
 					1000000000: 3600000000000,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					1000000000: &schema.ForwardedFlushTimesForResolution{
+					1000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							1: 3681000000000,
 						},
 					},
-					60000000000: &schema.ForwardedFlushTimesForResolution{
+					60000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							2: 3660000000000,
 							3: 3600000000000,
@@ -101,12 +101,12 @@ var (
 				},
 				Tombstoned: false,
 			},
-			1: &schema.ShardFlushTimes{
+			1: {
 				StandardByResolution: map[int64]int64{
 					1000000000: 3658000000000,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					1000000000: &schema.ForwardedFlushTimesForResolution{
+					1000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							1: 3658000000000,
 						},
@@ -114,21 +114,21 @@ var (
 				},
 				Tombstoned: true,
 			},
-			2: &schema.ShardFlushTimes{
+			2: {
 				StandardByResolution: map[int64]int64{
 					3600000000000: 3600000000000,
 				},
 				Tombstoned: true,
 			},
-			3: &schema.ShardFlushTimes{
+			3: {
 				StandardByResolution: map[int64]int64{
 					3600000000000: 7200000000000,
 				},
 				Tombstoned: false,
 			},
-			4: &schema.ShardFlushTimes{
+			4: {
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					60000000000: &schema.ForwardedFlushTimesForResolution{
+					60000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							2: 3658000000000,
 						},
@@ -655,38 +655,38 @@ func testFlushBuckets(ctrl *gomock.Controller) []*flushBucket {
 
 	return []*flushBucket{
 		// Standard flushing metric lists.
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
 			offset:   250 * time.Millisecond,
 			flushers: []flushingMetricList{standardFlusher1, standardFlusher2},
 		},
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Minute}.toMetricListID(),
 			interval: time.Minute,
 			offset:   12 * time.Second,
 			flushers: []flushingMetricList{standardFlusher3},
 		},
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
 			interval: time.Hour,
 			offset:   time.Minute,
 			flushers: []flushingMetricList{standardFlusher4},
 		},
 		// Forwarded flushing metric lists.
-		&flushBucket{
+		{
 			bucketID: forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
 			interval: time.Second,
 			offset:   100 * time.Millisecond,
 			flushers: []flushingMetricList{forwardedFlusher1, forwardedFlusher2},
 		},
-		&flushBucket{
+		{
 			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
 			interval: time.Minute,
 			offset:   time.Second,
 			flushers: []flushingMetricList{forwardedFlusher3},
 		},
-		&flushBucket{
+		{
 			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 3}.toMetricListID(),
 			interval: time.Minute,
 			offset:   0,
@@ -722,31 +722,31 @@ func testFlushBuckets2(ctrl *gomock.Controller) []*flushBucket {
 	forwardedFlusher2.EXPECT().LastFlushedNanos().Return(int64(3658000000000)).AnyTimes()
 
 	return []*flushBucket{
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
 			offset:   250 * time.Millisecond,
 			flushers: []flushingMetricList{standardFlusher1},
 		},
-		&flushBucket{
+		{
 			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
 			interval: time.Hour,
 			offset:   time.Minute,
 			flushers: []flushingMetricList{standardFlusher2},
 		},
-		&flushBucket{
+		{
 			bucketID: timedMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
 			offset:   250 * time.Millisecond,
 			flushers: []flushingMetricList{timedFlusher1},
 		},
-		&flushBucket{
+		{
 			bucketID: forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
 			interval: time.Second,
 			offset:   100 * time.Millisecond,
 			flushers: []flushingMetricList{forwardedFlusher1},
 		},
-		&flushBucket{
+		{
 			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
 			interval: time.Minute,
 			offset:   time.Second,

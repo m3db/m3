@@ -592,8 +592,9 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 	defer s.Unlock()
 
-	// Should never happen
-	if !id.Equal(s.id) {
+	// id can be nil at this point if this dbSeries gets closed just before it
+	// gets evicted from the wiredlist.
+	if id == nil || s.id == nil || !id.Equal(s.id) {
 		return
 	}
 

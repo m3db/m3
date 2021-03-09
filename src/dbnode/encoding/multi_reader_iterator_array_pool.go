@@ -66,7 +66,7 @@ func (p *multiReaderIteratorArrayPool) Init() {
 	for i := range p.sizesAsc {
 		buckets[i].capacity = p.sizesAsc[i].Capacity
 		buckets[i].values = make(chan []MultiReaderIterator, p.sizesAsc[i].Count)
-		for j := 0; j < p.sizesAsc[i].Count; j++ {
+		for j := 0; pool.Size(j) < p.sizesAsc[i].Count; j++ {
 			buckets[i].values <- p.alloc(p.sizesAsc[i].Capacity)
 		}
 	}

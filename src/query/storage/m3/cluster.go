@@ -100,6 +100,17 @@ type ClusterNamespaceOptions struct {
 	downsample *ClusterNamespaceDownsampleOptions
 }
 
+// NewClusterNamespaceOptions creates new cluster namespace options.
+func NewClusterNamespaceOptions(
+	attributes storagemetadata.Attributes,
+	downsample *ClusterNamespaceDownsampleOptions,
+) ClusterNamespaceOptions {
+	return ClusterNamespaceOptions{
+		attributes: attributes,
+		downsample: downsample,
+	}
+}
+
 // Attributes returns the storage attributes of the cluster namespace.
 func (o ClusterNamespaceOptions) Attributes() storagemetadata.Attributes {
 	return o.attributes

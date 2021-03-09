@@ -197,9 +197,6 @@ type DBConfiguration struct {
 	// of applying back-pressure or protecting the db nodes.
 	Limits LimitsConfiguration `yaml:"limits"`
 
-	// FetchTagged contains configuration related to the FetchTagged API endpoint.
-	FetchTagged FetchTaggedConfiguration `yaml:"fetchTagged"`
-
 	// WideConfig contains some limits for wide operations. These operations
 	// differ from regular paths by optimizing for query completeness across
 	// arbitary query ranges rather than speed.
