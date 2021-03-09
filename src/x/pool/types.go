@@ -53,6 +53,12 @@ type ObjectPoolOptions interface {
 	// Size returns the size of the object pool.
 	Size() int
 
+	// SetDynamic creates a dynamically-sized, non-preallocated pool.
+	SetDynamic(value bool) ObjectPoolOptions
+
+	// Dynamic returns if the pool is dynamic.
+	Dynamic() bool
+
 	// SetRefillLowWatermark sets the refill low watermark value between [0, 1),
 	// if zero then no refills occur.
 	SetRefillLowWatermark(value float64) ObjectPoolOptions
@@ -90,7 +96,7 @@ type Bucket struct {
 	Capacity int
 
 	// Count is the number of fixed elements in the bucket.
-	Count int
+	Count Size
 
 	// Options is an optional override to specify options to use for a bucket,
 	// specify nil to use the options specified to the bucketized pool

@@ -18,52 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package permits
+package writer
 
 import (
-	"time"
+	"testing"
 
+	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-type options struct {
-	seriesReadManager Manager
-	indexQueryManager Manager
+func BenchmarkScanMessageQueue(b *testing.B) {
+	opts := testOptions().
+		SetMessageQueueScanBatchSize(128).
+		SetInstrumentOptions(
+			instrument.NewOptions().SetTimerOptions(
+				instrument.TimerOptions{
+					Type:               instrument.StandardTimerType,
+					StandardSampleRate: 0.05,
+				},
+			),
+		)
+
+	b.RunParallel(func(pb *testing.PB) {
+		w := newMessageWriter(
+			200,
+			testMessagePool(opts),
+			opts,
+			testMessageWriterMetrics(),
+		).(*messageWriterImpl)
+
+		w.consumerWriters = append(w.consumerWriters, noopWriter{})
+
+		for i := 0; i < 1024; i++ {
+			w.Write(producer.NewRefCountedMessage(emptyMessage{}, nil))
+		}
+		b.ResetTimer()
+
+		for pb.Next() {
+			w.scanMessageQueue()
+			if w.QueueSize() != 1024 {
+				b.Fatalf("expected queue len to be 1024, got %v", w.QueueSize())
+			}
+		}
+	})
 }
 
-// NewOptions return a new set of default permit managers.
-func NewOptions() Options {
-	// provide some defaults to exercise parallel processing in tests.
-	return &options{
-		seriesReadManager: NewFixedPermitsManager(
-			100000,
-			100,
-			instrument.NewOptions()),
-		indexQueryManager: NewFixedPermitsManager(
-			8,
-			int64(time.Millisecond*10),
-			instrument.NewOptions()),
-	}
-}
+type noopWriter struct{}
 
-// SetSeriesReadPermitsManager sets the series read permits manager.
-func (o *options) SetSeriesReadPermitsManager(value Manager) Options {
-	opts := *o
-	opts.seriesReadManager = value
-	return &opts
-}
-
-// SeriesReadPermitsManager returns the series read permits manager.
-func (o *options) SeriesReadPermitsManager() Manager {
-	return o.seriesReadManager
-}
-
-func (o *options) IndexQueryPermitsManager() Manager {
-	return o.indexQueryManager
-}
-
-func (o *options) SetIndexQueryPermitsManager(value Manager) Options {
-	opts := *o
-	opts.indexQueryManager = value
-	return &opts
-}
+func (noopWriter) Address() string         { return "" }
+func (noopWriter) Write(int, []byte) error { return nil }
+func (noopWriter) Init()                   {}
+func (noopWriter) Close()                  {}

@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
@@ -123,7 +124,7 @@ func testNamespaceIndexHighConcurrentQueries(
 	nsIdx := test.index.(*nsIndex)
 	nsIdx.state.Lock()
 	// Make the query pool really high to improve concurrency likelihood
-	nsIdx.permitsManager = permits.NewFixedPermitsManager(1000)
+	nsIdx.permitsManager = permits.NewFixedPermitsManager(1000, int64(time.Millisecond), instrument.NewOptions())
 
 	currNow := min
 	nowLock := &sync.Mutex{}

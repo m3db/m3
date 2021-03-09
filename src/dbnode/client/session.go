@@ -1005,7 +1005,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
 			{
 				Capacity: replicas,
-				Count:    s.opts.SeriesIteratorPoolSize(),
+				Count:    pool.Size(s.opts.SeriesIteratorPoolSize()),
 			},
 		})
 		s.pools.multiReaderIteratorArray.Init()

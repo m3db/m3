@@ -8,5 +8,7 @@ ADD ./m3aggregator.yml /etc/m3aggregator/m3aggregator.yml
 
 EXPOSE 6000-6001/tcp
 
+ENV PANIC_ON_INVARIANT_VIOLATED=true
+
 ENTRYPOINT [ "/bin/m3aggregator" ]
 CMD [ "-f", "/etc/m3aggregator/m3aggregator.yml" ]
