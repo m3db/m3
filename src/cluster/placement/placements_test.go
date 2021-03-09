@@ -29,7 +29,25 @@ import (
 )
 
 var (
-	testLastPlacementProto = &placementpb.Placement{
+	testEarliestPlacementProto = &placementpb.Placement{
+		NumShards:   10,
+		CutoverTime: 0,
+		Instances: map[string]*placementpb.Instance{
+			"i1": testInstanceProto("i1", 1),
+			"i2": testInstanceProto("i2", 1),
+		},
+	}
+	testMiddlePlacementProto = &placementpb.Placement{
+		NumShards:   20,
+		CutoverTime: 456,
+		Instances: map[string]*placementpb.Instance{
+			"i1": testInstanceProto("i1", 1),
+			"i2": testInstanceProto("i2", 1),
+			"i3": testInstanceProto("i3", 2),
+			"i4": testInstanceProto("i4", 2),
+		},
+	}
+	testLatestPlacementProto = &placementpb.Placement{
 		NumShards:   30,
 		CutoverTime: 789,
 		Instances: map[string]*placementpb.Instance{
@@ -41,28 +59,11 @@ var (
 			"i6": testInstanceProto("i6", 3),
 		},
 	}
-
 	// Snapshots listed intentionally out of sorted order by CutoverTime
 	testPlacementsProto = []*placementpb.Placement{
-		{
-			NumShards:   20,
-			CutoverTime: 456,
-			Instances: map[string]*placementpb.Instance{
-				"i1": testInstanceProto("i1", 1),
-				"i2": testInstanceProto("i2", 1),
-				"i3": testInstanceProto("i3", 2),
-				"i4": testInstanceProto("i4", 2),
-			},
-		},
-		testLastPlacementProto,
-		{
-			NumShards:   10,
-			CutoverTime: 123,
-			Instances: map[string]*placementpb.Instance{
-				"i1": testInstanceProto("i1", 1),
-				"i2": testInstanceProto("i2", 1),
-			},
-		},
+		testMiddlePlacementProto,
+		testLatestPlacementProto,
+		testEarliestPlacementProto,
 	}
 	testStagedPlacementProto = &placementpb.PlacementSnapshots{
 		Snapshots: testPlacementsProto,
@@ -79,7 +80,15 @@ func TestPlacements(t *testing.T) {
 		_, err := NewPlacementsFromProto(emptyProto)
 		require.Equal(t, errEmptyPlacementSnapshots, err)
 	})
-	t.Run("new_keeps_only_latest_by_cutover_time", func(t *testing.T) {
+	t.Run("new_falls_back_to_snapshots_field", func(t *testing.T) {
+		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
+		require.NoError(t, err)
+
+		expected, err := NewPlacementFromProto(testLatestPlacementProto)
+		require.NoError(t, err)
+		require.Equal(t, expected, ps.Latest())
+	})
+	t.Run("proto_returns_latest_by_cutover_time", func(t *testing.T) {
 		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
 		require.NotNil(t, ps)
@@ -87,34 +96,91 @@ func TestPlacements(t *testing.T) {
 		actual, err := ps.Proto()
 		require.NoError(t, err)
 		require.Equal(t, 1, len(actual.Snapshots))
-		require.Equal(t, testLastPlacementProto, actual.Snapshots[0])
+		require.Equal(t, testLatestPlacementProto, actual.Snapshots[0])
 	})
 	t.Run("backward_compatible_latest_returns_latest_by_cutover_time", func(t *testing.T) {
 		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
 		require.NoError(t, err)
 
-		expected, err := NewPlacementFromProto(testLastPlacementProto)
+		expected, err := NewPlacementFromProto(testLatestPlacementProto)
 		require.NoError(t, err)
 		require.Equal(t, expected, ps.Latest())
 	})
-	t.Run("compatible_with_single_snapshot_in_the_proto", func(t *testing.T) {
+	t.Run("compatible_with_single_snapshot_in_the_snapshots_field", func(t *testing.T) {
 		singleSnapshotProto := &placementpb.PlacementSnapshots{
 			Snapshots: []*placementpb.Placement{
-				testLastPlacementProto,
+				testLatestPlacementProto,
 			},
 		}
 		ps, err := NewPlacementsFromProto(singleSnapshotProto)
 		require.NoError(t, err)
 
-		expected, err := NewPlacementFromProto(testLastPlacementProto)
+		expected, err := NewPlacementFromProto(testLatestPlacementProto)
 		require.NoError(t, err)
 		require.Equal(t, expected, ps.Latest())
 	})
+	t.Run("new_decompresses_compressed_placement", func(t *testing.T) {
+		compressed, err := compressPlacementProto(testLatestPlacementProto)
+		require.NoError(t, err)
+		compressedProto := &placementpb.PlacementSnapshots{
+			CompressMode:        placementpb.CompressMode_ZSTD,
+			CompressedPlacement: compressed,
+		}
+
+		ps, err := NewPlacementsFromProto(compressedProto)
+		require.NoError(t, err)
+		require.NotNil(t, ps)
+		actual := ps.Latest()
+		require.NotNil(t, actual)
+
+		expected, err := NewPlacementFromProto(testLatestPlacementProto)
+		require.NoError(t, err)
+
+		require.Equal(t, expected, actual)
+	})
+	t.Run("new_fails_to_decompress_invalid_proto", func(t *testing.T) {
+		invalidProto := &placementpb.PlacementSnapshots{
+			CompressMode:        placementpb.CompressMode_ZSTD,
+			CompressedPlacement: nil,
+		}
+
+		_, err := NewPlacementsFromProto(invalidProto)
+		require.Equal(t, errNilValue, err)
+	})
+	t.Run("new_fails_to_decompress_corrupt_proto", func(t *testing.T) {
+		compressed, err := compressPlacementProto(testLatestPlacementProto)
+		require.NoError(t, err)
+
+		i := len(compressed) / 2
+		compressed[i] = (compressed[i] + 1) % 255 // corrupt
+		corruptProto := &placementpb.PlacementSnapshots{
+			CompressMode:        placementpb.CompressMode_ZSTD,
+			CompressedPlacement: compressed,
+		}
+
+		_, err = NewPlacementsFromProto(corruptProto)
+		require.Error(t, err)
+	})
+	t.Run("proto_compressed_compresses_placement", func(t *testing.T) {
+		ps, err := NewPlacementsFromProto(testStagedPlacementProto)
+		require.NoError(t, err)
+		require.NotNil(t, ps)
+
+		compressedProto, err := ps.ProtoCompressed()
+		require.NoError(t, err)
+		require.Equal(t, placementpb.CompressMode_ZSTD, compressedProto.CompressMode)
+		require.Equal(t, 0, len(compressedProto.Snapshots))
+
+		decompressedProto, err := decompressPlacementProto(compressedProto.CompressedPlacement)
+		require.NoError(t, err)
+
+		require.Equal(t, testLatestPlacementProto.String(), decompressedProto.String())
+	})
 }
 
-func testLastPlacement(t *testing.T) Placement {
+func testLatestPlacement(t *testing.T) Placement {
 	t.Helper()
-	p, err := NewPlacementFromProto(testLastPlacementProto)
+	p, err := NewPlacementFromProto(testLatestPlacementProto)
 	require.NoError(t, err)
 
 	return p

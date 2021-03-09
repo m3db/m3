@@ -27,7 +27,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -111,6 +113,25 @@ func (i *instrumentationContext) emitAndLogInvariantViolation(err error, msg str
 	})
 }
 
+type bootstrapRetriesMetrics struct {
+	obsoleteRanges tally.Counter
+	other          tally.Counter
+}
+
+func newBootstrapRetriesMetrics(scope tally.Scope) bootstrapRetriesMetrics {
+	const metricName = "bootstrap-retries"
+
+	reason := func(reason string) map[string]string {
+		return map[string]string{
+			"reason": reason,
+		}
+	}
+	return bootstrapRetriesMetrics{
+		obsoleteRanges: scope.Tagged(reason("obsolete-ranges")).Counter(metricName),
+		other:          scope.Tagged(reason("other")).Counter(metricName),
+	}
+}
+
 type bootstrapInstrumentation struct {
 	opts          Options
 	scope         tally.Scope
@@ -118,7 +139,7 @@ type bootstrapInstrumentation struct {
 	nowFn         clock.NowFn
 	status        tally.Gauge
 	durableStatus tally.Gauge
-	numRetries    tally.Counter
+	numRetries    bootstrapRetriesMetrics
 }
 
 func newBootstrapInstrumentation(opts Options) *bootstrapInstrumentation {
@@ -130,7 +151,7 @@ func newBootstrapInstrumentation(opts Options) *bootstrapInstrumentation {
 		nowFn:         opts.ClockOptions().NowFn(),
 		status:        scope.Gauge("bootstrapped"),
 		durableStatus: scope.Gauge("bootstrapped-durable"),
-		numRetries:    scope.Counter("bootstrap-retries"),
+		numRetries:    newBootstrapRetriesMetrics(scope),
 	}
 }
 
@@ -139,8 +160,13 @@ func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext 
 	return newInstrumentationContext(i.nowFn, i.log, i.scope, i.opts)
 }
 
-func (i *bootstrapInstrumentation) bootstrapFailed(retry int) {
-	i.numRetries.Inc(1)
+func (i *bootstrapInstrumentation) bootstrapFailed(retry int, err error) {
+	numRetries := i.numRetries.other
+	if xerrors.Is(err, bootstrap.ErrFileSetSnapshotTypeRangeAdvanced) {
+		numRetries = i.numRetries.obsoleteRanges
+	}
+	numRetries.Inc(1)
+
 	i.log.Warn("retrying bootstrap after backoff",
 		zap.Duration("backoff", bootstrapRetryInterval),
 		zap.Int("numRetries", retry))

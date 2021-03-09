@@ -39,13 +39,13 @@ var (
 
 func TestIDToProto(t *testing.T) {
 	var pb aggregationpb.AggregationID
-	require.NoError(t, testID.ToProto(&pb))
+	testID.ToProto(&pb)
 	require.Equal(t, testIDProto, pb)
 }
 
 func TestIDFromProto(t *testing.T) {
 	var res ID
-	require.NoError(t, res.FromProto(testIDProto))
+	res.FromProto(testIDProto)
 	require.Equal(t, testID, res)
 }
 
@@ -54,8 +54,8 @@ func TestIDRoundTrip(t *testing.T) {
 		pb  aggregationpb.AggregationID
 		res ID
 	)
-	require.NoError(t, testID.ToProto(&pb))
-	require.NoError(t, res.FromProto(pb))
+	testID.ToProto(&pb)
+	res.FromProto(pb)
 	require.Equal(t, testID, res)
 }
 

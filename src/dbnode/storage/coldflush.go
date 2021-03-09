@@ -197,3 +197,16 @@ func (m *coldFlushManager) Report() {
 func (m *coldFlushManager) shouldRunWithLock() bool {
 	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
 }
+
+type coldFlushNsOpts struct {
+	reuseResources bool
+}
+
+// NewColdFlushNsOpts returns a new ColdFlushNsOpts.
+func NewColdFlushNsOpts(reuseResources bool) ColdFlushNsOpts {
+	return &coldFlushNsOpts{reuseResources: reuseResources}
+}
+
+func (o *coldFlushNsOpts) ReuseResources() bool {
+	return o.reuseResources
+}

@@ -62,6 +62,12 @@ const (
 						}
 					}
 				]
+			},
+			"extendedOptions": {
+				"type": "testExtendedOptions",
+				"options": {
+					"value": "bar"
+				}
 			}
 		}
 }
@@ -196,7 +202,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
-						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("foo"),
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("bar"),
 					},
 				},
 			},

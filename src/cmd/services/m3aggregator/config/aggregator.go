@@ -332,7 +332,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		opts = opts.SetBufferDurationAfterShardCutoff(c.BufferDurationAfterShardCutoff)
 	}
 	if c.BufferDurationForPastTimedMetric != 0 {
-		opts = opts.SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
+		opts = opts.SetBufferForPastTimedMetric(c.BufferDurationForPastTimedMetric).
+			SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
 	}
 	if c.BufferDurationForFutureTimedMetric != 0 {
 		opts = opts.SetBufferForFutureTimedMetric(c.BufferDurationForFutureTimedMetric)
@@ -374,6 +375,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		electionManager,
 		flushTimesManager,
 		iOpts,
+		opts.BufferForPastTimedMetric(),
 	)
 	if err != nil {
 		return nil, err
@@ -572,11 +574,10 @@ func (c placementManagerConfiguration) NewPlacementManager(
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
 	placementWatcherOpts := c.Watcher.NewOptions(store, iOpts)
-	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetInstanceID(instanceID).
-		SetWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
 
@@ -780,12 +781,14 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 	electionManager aggregator.ElectionManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
+	bufferForPastTimedMetric time.Duration,
 ) (aggregator.FlushManagerOptions, error) {
 	opts := aggregator.NewFlushManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetPlacementManager(placementManager).
 		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesManager)
+		SetFlushTimesManager(flushTimesManager).
+		SetBufferForPastTimedMetric(bufferForPastTimedMetric)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}

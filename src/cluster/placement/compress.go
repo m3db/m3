@@ -18,38 +18,53 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package permits
+package placement
 
-import "github.com/m3db/m3/src/x/context"
+import (
+	"bytes"
 
-type noOpPermits struct {
+	"github.com/gogo/protobuf/proto"
+	"github.com/klauspost/compress/zstd"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+)
+
+func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
+	if p == nil {
+		return nil, errNilPlacementSnapshotsProto
+	}
+
+	uncompressed, _ := p.Marshal()
+	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
+	w, err := zstd.NewWriter(nil, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer w.Close() //nolint:errcheck
+	compressed := w.EncodeAll(uncompressed, nil)
+
+	return compressed, nil
 }
 
-var _ Manager = (*noOpPermits)(nil)
+func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error) {
+	if compressed == nil {
+		return nil, errNilValue
+	}
 
-var _ Permits = (*noOpPermits)(nil)
+	r, err := zstd.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	decompressed, err := r.DecodeAll(compressed, nil)
+	if err != nil {
+		return nil, err
+	}
 
-// NewNoOpPermitsManager builds a new no-op permits manager.
-func NewNoOpPermitsManager() Manager {
-	return &noOpPermits{}
-}
+	result := &placementpb.Placement{}
+	if err := proto.Unmarshal(decompressed, result); err != nil {
+		return nil, err
+	}
 
-// NewNoOpPermits builds a new no-op permits.
-func NewNoOpPermits() Permits {
-	return &noOpPermits{}
-}
-
-func (p noOpPermits) NewPermits(context.Context) (Permits, error) {
-	return p, nil
-}
-
-func (p noOpPermits) Acquire(context.Context) error {
-	return nil
-}
-
-func (p noOpPermits) TryAcquire(context.Context) (bool, error) {
-	return true, nil
-}
-
-func (p noOpPermits) Release() {
+	return result, nil
 }

@@ -21,10 +21,16 @@
 // Package permits contains logic for granting permits to resources.
 package permits
 
-import "github.com/m3db/m3/src/x/context"
+import (
+	"github.com/m3db/m3/src/x/context"
+)
 
 // Options is the permit options.
 type Options interface {
+	// IndexQueryPermitsManager returns the index query permits manager.
+	IndexQueryPermitsManager() Manager
+	// SetIndexQueryPermitsManager sets the index query permits manager.
+	SetIndexQueryPermitsManager(manager Manager) Options
 	// SeriesReadPermitsManager returns the series read permits manager.
 	SeriesReadPermitsManager() Manager
 	// SetSeriesReadPermitsManager sets the series read permits manager.
@@ -39,14 +45,37 @@ type Manager interface {
 
 // Permits are the set of permits that individual codepaths will utilize.
 type Permits interface {
-	// Acquire blocks until an available resource is made available for the request permit
-	Acquire(ctx context.Context) error
+	// Acquire blocks until a Permit is available. The returned Permit is guaranteed to be non-nil if error is
+	// non-nil.
+	Acquire(ctx context.Context) (Permit, error)
 
 	// TryAcquire attempts to acquire an available resource without blocking, returning
-	// true if an resource was acquired.
-	TryAcquire(ctx context.Context) (bool, error)
+	// a non-nil a Permit if one is available. Returns nil if no Permit is currently available.
+	TryAcquire(ctx context.Context) (Permit, error)
 
 	// Release gives back one acquired permit from the specific permits instance.
 	// Cannot release more permits than have been acquired.
-	Release()
+	Release(permit Permit)
+}
+
+// Permit is granted to a caller which is allowed to consume some amount of quota.
+type Permit interface {
+
+	// AllowedQuota is the amount of quota the caller can use with this Permit.
+	AllowedQuota() int64
+
+	// QuotaRemaining is the amount of remaining quota for this Permit. Can be negative if the caller used more quota
+	// than they were allowed.
+	QuotaRemaining() int64
+
+	// Use adds the quota to the total used quota.
+	Use(quota int64)
+
+	// PostRelease is called by the Manager after a caller releases the permit back.
+	// Provides a hook for the Manager. Clients should not call this method.
+	PostRelease()
+
+	// PreAcquire is called by the Manager before giving the permit to the caller.
+	// Provides a hook for the Manager. Clients should not call this method.
+	PreAcquire()
 }

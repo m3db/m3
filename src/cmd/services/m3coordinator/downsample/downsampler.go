@@ -60,14 +60,15 @@ type MetricsAppender interface {
 type SamplesAppenderResult struct {
 	SamplesAppender     SamplesAppender
 	IsDropPolicyApplied bool
+	ShouldDropTimestamp bool
 }
 
 // SampleAppenderOptions defines the options being used when constructing
 // the samples appender for a metric.
 type SampleAppenderOptions struct {
-	Override      bool
-	OverrideRules SamplesAppenderOverrideRules
-	MetricType    ts.M3MetricType
+	Override         bool
+	OverrideRules    SamplesAppenderOverrideRules
+	SeriesAttributes ts.SeriesAttributes
 }
 
 // SamplesAppenderOverrideRules provides override rules to
@@ -86,7 +87,6 @@ type SamplesAppender interface {
 	AppendCounterSample(t time.Time, value int64, annotation []byte) error
 	AppendGaugeSample(t time.Time, value float64, annotation []byte) error
 	AppendTimerSample(t time.Time, value float64, annotation []byte) error
-	DropTimestamp() bool
 }
 
 type downsampler struct {

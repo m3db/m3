@@ -151,13 +151,31 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// NB (@shreyas): Add the metric type tag. The tag has the prefix
 	// __m3_. All tags with that prefix are only used for the purpose of
 	// filter match and then stripped off before we actually send to the aggregator.
-	switch opts.MetricType {
+	switch opts.SeriesAttributes.M3Type {
 	case ts.M3MetricTypeCounter:
 		tags.append(metric.M3TypeTag, metric.M3CounterValue)
 	case ts.M3MetricTypeGauge:
 		tags.append(metric.M3TypeTag, metric.M3GaugeValue)
 	case ts.M3MetricTypeTimer:
 		tags.append(metric.M3TypeTag, metric.M3TimerValue)
+	}
+	switch opts.SeriesAttributes.PromType {
+	case ts.PromMetricTypeUnknown:
+		tags.append(metric.M3PromTypeTag, metric.PromUnknownValue)
+	case ts.PromMetricTypeCounter:
+		tags.append(metric.M3PromTypeTag, metric.PromCounterValue)
+	case ts.PromMetricTypeGauge:
+		tags.append(metric.M3PromTypeTag, metric.PromGaugeValue)
+	case ts.PromMetricTypeHistogram:
+		tags.append(metric.M3PromTypeTag, metric.PromHistogramValue)
+	case ts.PromMetricTypeGaugeHistogram:
+		tags.append(metric.M3PromTypeTag, metric.PromGaugeHistogramValue)
+	case ts.PromMetricTypeSummary:
+		tags.append(metric.M3PromTypeTag, metric.PromSummaryValue)
+	case ts.PromMetricTypeInfo:
+		tags.append(metric.M3PromTypeTag, metric.PromInfoValue)
+	case ts.PromMetricTypeStateSet:
+		tags.append(metric.M3PromTypeTag, metric.PromStateSetValue)
 	}
 
 	// Sort tags
@@ -186,14 +204,16 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	// filter out augmented metrics tags
-	tags.filterPrefix(metric.M3MetricsPrefix)
+	// Filter out augmented metrics tags we added for matching.
+	for _, filter := range defaultFilterOutTagPrefixes {
+		tags.filterPrefix(filter)
+	}
 
-	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
+	// Reuse a slice to keep the current staged metadatas we will apply.
+	a.curr.Pipelines = a.curr.Pipelines[:0]
+
 	if opts.Override {
-		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.curr.Pipelines = a.curr.Pipelines[:0]
-
+		// Process an override explicitly provided as part of request.
 		for _, rule := range opts.OverrideRules.MappingRules {
 			stagedMetadatas, err := rule.StagedMetadatas()
 			if err != nil {
@@ -211,56 +231,68 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 			return SamplesAppenderResult{}, err
 		}
-	} else {
-		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.curr.Pipelines = a.curr.Pipelines[:0]
 
-		// NB(r): First apply mapping rules to see which storage policies
-		// have been applied, any that have been applied as part of
-		// mapping rules that exact match a default storage policy will be
-		// skipped when applying default rules, so as to avoid storing
-		// the same metrics in the same namespace with the same metric
-		// name and tags (i.e. overwriting each other).
-		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
+		return SamplesAppenderResult{
+			SamplesAppender:     a.multiSamplesAppender,
+			IsDropPolicyApplied: false,
+			ShouldDropTimestamp: false,
+		}, nil
+	}
 
-		ruleStagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
-		if !ruleStagedMetadatas.IsDefault() && len(ruleStagedMetadatas) != 0 {
-			a.debugLogMatch("downsampler applying matched rule",
-				debugLogMatchOptions{Meta: ruleStagedMetadatas})
+	// NB(r): First apply mapping rules to see which storage policies
+	// have been applied, any that have been applied as part of
+	// mapping rules that exact match a default storage policy will be
+	// skipped when applying default rules, so as to avoid storing
+	// the same metrics in the same namespace with the same metric
+	// name and tags (i.e. overwriting each other).
+	var (
+		ruleStagedMetadatas = matchResult.ForExistingIDAt(nowNanos)
+		dropApplyResult     metadata.ApplyOrRemoveDropPoliciesResult
+		dropTimestamp       bool
+	)
+	a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
+	if !ruleStagedMetadatas.IsDefault() && len(ruleStagedMetadatas) != 0 {
+		a.debugLogMatch("downsampler applying matched rule",
+			debugLogMatchOptions{Meta: ruleStagedMetadatas})
 
-			// Collect storage policies for all the current active mapping rules.
-			// TODO: we should convert this to iterate over pointers
-			// nolint:gocritic
-			for _, stagedMetadata := range ruleStagedMetadatas {
-				for _, pipe := range stagedMetadata.Pipelines {
-					// Skip rollup rules unless configured otherwise.
-					// We only want to consider mapping rules here,
-					// as we still want to apply default mapping rules to
-					// metrics that are rolled up to ensure the underlying metric
-					// gets written to aggregated namespaces.
-					if pipe.IsMappingRule() {
-						for _, sp := range pipe.StoragePolicies {
-							a.mappingRuleStoragePolicies =
-								append(a.mappingRuleStoragePolicies, sp)
-						}
-					} else {
-						a.debugLogMatch(
-							"skipping rollup rule in populating active mapping rule policies",
-							debugLogMatchOptions{},
-						)
+		// Collect storage policies for all the current active mapping rules.
+		// TODO: we should convert this to iterate over pointers
+		// nolint:gocritic
+		for _, stagedMetadata := range ruleStagedMetadatas {
+			for _, pipe := range stagedMetadata.Pipelines {
+				// Skip rollup rules unless configured otherwise.
+				// We only want to consider mapping rules here,
+				// as we still want to apply default mapping rules to
+				// metrics that are rolled up to ensure the underlying metric
+				// gets written to aggregated namespaces.
+				if pipe.IsMappingRule() {
+					for _, sp := range pipe.StoragePolicies {
+						a.mappingRuleStoragePolicies =
+							append(a.mappingRuleStoragePolicies, sp)
 					}
+				} else {
+					a.debugLogMatch(
+						"skipping rollup rule in populating active mapping rule policies",
+						debugLogMatchOptions{},
+					)
 				}
 			}
-
-			// Only sample if going to actually aggregate
-			pipelines := ruleStagedMetadatas[len(ruleStagedMetadatas)-1]
-			a.curr.Pipelines =
-				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		// Always aggregate any default staged metadatas (unless
-		// mapping rule has provided an override for a storage policy,
-		// if so then skip aggregating for that storage policy).
+		// Only sample if going to actually aggregate
+		pipelines := ruleStagedMetadatas[len(ruleStagedMetadatas)-1]
+		a.curr.Pipelines = append(a.curr.Pipelines, pipelines.Pipelines...)
+	}
+
+	// Always aggregate any default staged metadatas with a few exceptions.
+	// Exceptions are:
+	// 1. A mapping rule has provided an override for a storage policy,
+	//    if so then skip aggregating for that storage policy).
+	// 2. Any type of drop rule has been set, since they should only
+	//    impact mapping rules, not default staged metadatas provided from
+	//    auto-mapping rules (i.e. default namespace aggregation).
+	if !a.curr.Pipelines.IsDropPolicySet() {
+		// No drop rule has been set as part of rule matching.
 		for idx, stagedMetadatasProto := range a.defaultStagedMetadatasProtos {
 			// NB(r): Need to take copy of default staged metadatas as we
 			// sometimes mutate it.
@@ -339,42 +371,46 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			pipelines := stagedMetadatas[len(stagedMetadatas)-1]
-			a.curr.Pipelines =
-				append(a.curr.Pipelines, pipelines.Pipelines...)
+			a.curr.Pipelines = append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
+	}
 
-		// Apply drop policies results
-		a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
+	// Apply the custom tags first so that they apply even if mapping
+	// rules drop the metric.
+	dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
 
-		if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
-			// Send to downsampler if we have something in the pipeline.
-			a.debugLogMatch("downsampler using built mapping staged metadatas",
-				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
+	// Apply drop policies results
+	a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
 
-			if err := a.addSamplesAppenders(tags, a.curr); err != nil {
-				return SamplesAppenderResult{}, err
-			}
+	if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
+		// Send to downsampler if we have something in the pipeline.
+		a.debugLogMatch("downsampler using built mapping staged metadatas",
+			debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
+
+		if err := a.addSamplesAppenders(tags, a.curr); err != nil {
+			return SamplesAppenderResult{}, err
 		}
+	}
 
-		numRollups := matchResult.NumNewRollupIDs()
-		for i := 0; i < numRollups; i++ {
-			rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
+	numRollups := matchResult.NumNewRollupIDs()
+	for i := 0; i < numRollups; i++ {
+		rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
 
-			a.debugLogMatch("downsampler applying matched rollup rule",
-				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
-			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-				agg:             a.agg,
-				clientRemote:    a.clientRemote,
-				unownedID:       rollup.ID,
-				stagedMetadatas: rollup.Metadatas,
-			})
-		}
+		a.debugLogMatch("downsampler applying matched rollup rule",
+			debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
+		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+			agg:             a.agg,
+			clientRemote:    a.clientRemote,
+			unownedID:       rollup.ID,
+			stagedMetadatas: rollup.Metadatas,
+		})
 	}
 
 	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
 		IsDropPolicyApplied: dropPolicyApplied,
+		ShouldDropTimestamp: dropTimestamp,
 	}, nil
 }
 
@@ -476,12 +512,12 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 			continue
 		}
 
-		tags, dropTS := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		tags := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm, dropTS)
+		appender, err := a.newSamplesAppender(tags, sm)
 		if err != nil {
 			return err
 		}
@@ -495,7 +531,7 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 
-	appender, err := a.newSamplesAppender(originalTags, sm, false)
+	appender, err := a.newSamplesAppender(originalTags, sm)
 	if err != nil {
 		return err
 	}
@@ -506,7 +542,6 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	sm metadata.StagedMetadata,
-	dropTS bool,
 ) (samplesAppender, error) {
 	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
@@ -519,7 +554,6 @@ func (a *metricsAppender) newSamplesAppender(
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		dropTS:          dropTS,
 		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
 	}, nil
@@ -530,12 +564,9 @@ func (a *metricsAppender) processTags(
 	graphitePrefix [][]byte,
 	t []models.Tag,
 	id aggregation.ID,
-) (*tags, bool) {
+) *tags {
 	// Create the prefix tags if any.
-	var (
-		tags   = a.tags()
-		dropTS bool
-	)
+	tags := a.tags()
 	for i, path := range graphitePrefix {
 		// Add the graphite prefix as the initial graphite tags.
 		tags.append(graphite.TagName(i), path)
@@ -584,11 +615,9 @@ func (a *metricsAppender) processTags(
 				value = types[0].Name()
 			)
 			tags.append(name, value)
-		} else if bytes.Equal(tag.Name, metric.M3MetricsDropTimestamp) {
-			dropTS = true
 		}
 	}
-	return tags, dropTS
+	return tags
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {

@@ -1341,6 +1341,34 @@ func (mr *MockOptionsMockRecorder) SetIsStaged(v interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsStaged", reflect.TypeOf((*MockOptions)(nil).SetIsStaged), v)
 }
 
+// Compress mocks base method
+func (m *MockOptions) Compress() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Compress")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Compress indicates an expected call of Compress
+func (mr *MockOptionsMockRecorder) Compress() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Compress", reflect.TypeOf((*MockOptions)(nil).Compress))
+}
+
+// SetCompress mocks base method
+func (m *MockOptions) SetCompress(v bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCompress", v)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCompress indicates an expected call of SetCompress
+func (mr *MockOptionsMockRecorder) SetCompress(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCompress", reflect.TypeOf((*MockOptions)(nil).SetCompress), v)
+}
+
 // InstrumentOptions mocks base method
 func (m *MockOptions) InstrumentOptions() instrument.Options {
 	m.ctrl.T.Helper()

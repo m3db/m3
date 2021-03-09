@@ -490,6 +490,8 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
+	// do not panic for invariant violation to test some shards are still bootstrapped.
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	require.Error(t, ns.Bootstrap(ctx, nsResult))
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
@@ -1588,7 +1590,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	mockOnColdFlushNs := NewMockOnColdFlushNamespace(ctrl)
 	mockOnColdFlushNs.EXPECT().Done().Return(nil)
 	mockOnColdFlush := NewMockOnColdFlush(ctrl)
-	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any()).Return(mockOnColdFlushNs, nil)
+	cfOpts := NewColdFlushNsOpts(false)
+	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any(), cfOpts).Return(mockOnColdFlushNs, nil)
 	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
 
 	targetShard0 := NewMockdatabaseShard(ctrl)

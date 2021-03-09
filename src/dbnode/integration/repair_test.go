@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -203,17 +202,14 @@ func testRepair(
 		{
 			DisablePeersBootstrapper: true,
 			EnableRepairs:            true,
-			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		},
 		{
 			DisablePeersBootstrapper: true,
 			EnableRepairs:            true,
-			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		},
 		{
 			DisablePeersBootstrapper: true,
 			EnableRepairs:            true,
-			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)

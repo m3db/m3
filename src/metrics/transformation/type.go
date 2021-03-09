@@ -22,13 +22,16 @@
 package transformation
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 )
 
 // Type defines a transformation function.
-type Type int
+type Type int32
+
+var errUnknownTransformationType = errors.New("unknown transformation type")
 
 // Supported transformation types.
 const (
@@ -38,6 +41,11 @@ const (
 	Increase
 	Add
 	Reset
+)
+
+const (
+	_minValidTransformationType = Absolute
+	_maxValidTransformationType = Reset
 )
 
 // IsValid checks if the transformation type is valid.
@@ -79,7 +87,7 @@ func (t Type) NewOp() (Op, error) {
 	case t.IsUnaryMultiOutputTransform():
 		unaryMulti, err = t.UnaryMultiOutputTransform()
 	default:
-		err = fmt.Errorf("unknown transformation type: %v", t)
+		err = errUnknownTransformationType
 	}
 	if err != nil {
 		return Op{}, err
@@ -154,38 +162,18 @@ func (t Type) MustUnaryMultiOutputTransform() UnaryMultiOutputTransform {
 
 // ToProto converts the transformation type to a protobuf message in place.
 func (t Type) ToProto(pb *transformationpb.TransformationType) error {
-	switch t {
-	case Absolute:
-		*pb = transformationpb.TransformationType_ABSOLUTE
-	case PerSecond:
-		*pb = transformationpb.TransformationType_PERSECOND
-	case Increase:
-		*pb = transformationpb.TransformationType_INCREASE
-	case Add:
-		*pb = transformationpb.TransformationType_ADD
-	case Reset:
-		*pb = transformationpb.TransformationType_RESET
-	default:
-		return fmt.Errorf("unknown transformation type: %v", t)
+	if t < _minValidTransformationType || t > _maxValidTransformationType {
+		return errUnknownTransformationType
 	}
+	*pb = transformationpb.TransformationType(t)
 	return nil
 }
 
 // FromProto converts the protobuf message to a transformation type in place.
 func (t *Type) FromProto(pb transformationpb.TransformationType) error {
-	switch pb {
-	case transformationpb.TransformationType_ABSOLUTE:
-		*t = Absolute
-	case transformationpb.TransformationType_PERSECOND:
-		*t = PerSecond
-	case transformationpb.TransformationType_INCREASE:
-		*t = Increase
-	case transformationpb.TransformationType_ADD:
-		*t = Add
-	case transformationpb.TransformationType_RESET:
-		*t = Reset
-	default:
-		return fmt.Errorf("unknown transformation type in proto: %v", pb)
+	*t = Type(pb)
+	if *t < _minValidTransformationType || *t > _maxValidTransformationType {
+		return errUnknownTransformationType
 	}
 	return nil
 }

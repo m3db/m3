@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -103,10 +104,11 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 	setupHelper := func(proto proto.Message) helper {
 		key := "key"
 		store := mem.NewStore()
+		compressFlag := false
 		_, err := store.Set(key, proto)
 		require.NoError(t, err)
 
-		return newStagedPlacementHelper(store, key)
+		return newStagedPlacementHelper(store, key, compressFlag)
 	}
 
 	t.Run("version_is_respected", func(t *testing.T) {
@@ -180,6 +182,31 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 		_, err = helper.PlacementForVersion(1)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "placement snapshots is empty")
+	})
+
+	t.Run("generates_compressed_proto", func(t *testing.T) {
+		expected, err := placement.NewPlacementFromProto(proto1)
+		require.NoError(t, err)
+
+		key := "key"
+		store := mem.NewStore()
+		compressFlag := true
+		helper := newStagedPlacementHelper(store, key, compressFlag)
+
+		m, err := helper.GenerateProto(expected)
+		require.NoError(t, err)
+		require.NoError(t, helper.ValidateProto(m))
+
+		proto := m.(*placementpb.PlacementSnapshots)
+		require.NotNil(t, proto)
+
+		require.Equal(t, placementpb.CompressMode_ZSTD, proto.CompressMode)
+		require.Equal(t, 0, len(proto.Snapshots))
+
+		ps, err := placement.NewPlacementsFromProto(proto)
+		require.NoError(t, err)
+		actual := ps.Latest()
+		require.Equal(t, expected.String(), actual.String())
 	})
 }
 

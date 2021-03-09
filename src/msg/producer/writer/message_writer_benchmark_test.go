@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package writer
 
 import (
-	"context"
-	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/assert"
 )
 
-func TestCloseWatcher(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	w := httptest.NewRecorder()
-	CloseWatcher(ctx, cancel, w, instrument.NewOptions())
-	assert.NoError(t, ctx.Err())
-	time.Sleep(100 * time.Millisecond)
-	assert.Error(t, ctx.Err())
+func BenchmarkScanMessageQueue(b *testing.B) {
+	opts := testOptions().
+		SetMessageQueueScanBatchSize(128).
+		SetInstrumentOptions(
+			instrument.NewOptions().SetTimerOptions(
+				instrument.TimerOptions{
+					Type:               instrument.StandardTimerType,
+					StandardSampleRate: 0.05,
+				},
+			),
+		)
+
+	b.RunParallel(func(pb *testing.PB) {
+		w := newMessageWriter(
+			200,
+			testMessagePool(opts),
+			opts,
+			testMessageWriterMetrics(),
+		).(*messageWriterImpl)
+
+		w.consumerWriters = append(w.consumerWriters, noopWriter{})
+
+		for i := 0; i < 1024; i++ {
+			w.Write(producer.NewRefCountedMessage(emptyMessage{}, nil))
+		}
+		b.ResetTimer()
+
+		for pb.Next() {
+			w.scanMessageQueue()
+			if w.QueueSize() != 1024 {
+				b.Fatalf("expected queue len to be 1024, got %v", w.QueueSize())
+			}
+		}
+	})
 }
 
-func TestResponseWriteCanceller(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	w := httptest.NewRecorder()
-	canceller := NewResponseWriterCanceller(w, instrument.NewOptions())
-	canceller.WatchForCancel(ctx, cancel)
-	assert.NoError(t, ctx.Err())
-	time.Sleep(100 * time.Millisecond)
-	assert.Error(t, ctx.Err())
-}
+type noopWriter struct{}
+
+func (noopWriter) Address() string         { return "" }
+func (noopWriter) Write(int, []byte) error { return nil }
+func (noopWriter) Init()                   {}
+func (noopWriter) Close()                  {}

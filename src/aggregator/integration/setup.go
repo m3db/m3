@@ -117,10 +117,9 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(opts.PlacementKVKey()).
 		SetStagedPlacementStore(opts.KVStore())
-	placementWatcher := placement.NewPlacementsWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(opts.InstanceID()).
-		SetWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
 	aggregatorOpts = aggregatorOpts.
 		SetShardFn(opts.ShardFn()).
@@ -162,7 +161,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
 		SetJitterEnabled(opts.JitterEnabled()).
-		SetMaxJitterFn(opts.MaxJitterFn())
+		SetMaxJitterFn(opts.MaxJitterFn()).
+		SetBufferForPastTimedMetric(aggregatorOpts.BufferForPastTimedMetric())
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 

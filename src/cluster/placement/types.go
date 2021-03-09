@@ -333,6 +333,12 @@ type Options interface {
 	// SetIsStaged sets whether the placement should keep all the snapshots.
 	SetIsStaged(v bool) Options
 
+	// Compress returns whether the placement is compressed when written to storage.
+	Compress() bool
+
+	// SetCompress sets whether the placement is compressed when written to storage.
+	SetCompress(v bool) Options
+
 	// InstrumentOptions is the options for instrument.
 	InstrumentOptions() instrument.Options
 
