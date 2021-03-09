@@ -117,10 +117,10 @@ func sourceFromContext(ctx context.Context) []byte {
 
 type limitPermit struct{}
 
-func (l limitPermit) Release() {
+func (l limitPermit) PostRelease() {
 }
 
-func (l limitPermit) Acquire() {
+func (l limitPermit) PreAcquire() {
 }
 
 func (l limitPermit) AllowedQuota() int64 {

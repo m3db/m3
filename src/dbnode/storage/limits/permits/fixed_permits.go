@@ -66,7 +66,7 @@ func (f *fixedPermits) Acquire(ctx context.Context) (Permit, error) {
 	case <-ctx.GoContext().Done():
 		return nil, ctx.GoContext().Err()
 	case p := <-f.permits:
-		p.Acquire()
+		p.PreAcquire()
 		return p, nil
 	}
 }
@@ -81,7 +81,7 @@ func (f *fixedPermits) TryAcquire(ctx context.Context) (Permit, error) {
 
 	select {
 	case p := <-f.permits:
-		p.Acquire()
+		p.PreAcquire()
 		return p, nil
 	default:
 		return nil, nil
@@ -89,7 +89,7 @@ func (f *fixedPermits) TryAcquire(ctx context.Context) (Permit, error) {
 }
 
 func (f *fixedPermits) Release(permit Permit) {
-	permit.Release()
+	permit.PostRelease()
 
 	select {
 	case f.permits <- permit:

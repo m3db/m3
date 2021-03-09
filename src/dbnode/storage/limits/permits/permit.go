@@ -36,7 +36,9 @@ type permit struct {
 
 	// mutable state
 	quotaUsed int64
-	refCount  atomic.Int32
+	// refCount is used to check if a caller incorrectly double releases/acquires a permit. the value should
+	// always be 0 (nobody holds the permit) or 1 (somebody holds the permit).
+	refCount atomic.Int32
 }
 
 // NewPermit constructs a new Permit with the provided quota.
@@ -47,7 +49,7 @@ func NewPermit(quota int64, iOpts instrument.Options) Permit {
 	}
 }
 
-func (p *permit) Release() {
+func (p *permit) PostRelease() {
 	if p.iOpts != nil && p.refCount.Dec() != 0 {
 		instrument.EmitAndLogInvariantViolation(p.iOpts, func(l *zap.Logger) {
 			l.Error("permit released more than once")
@@ -55,7 +57,7 @@ func (p *permit) Release() {
 	}
 }
 
-func (p *permit) Acquire() {
+func (p *permit) PreAcquire() {
 	if p.iOpts != nil && p.refCount.Inc() != 1 {
 		instrument.EmitAndLogInvariantViolation(p.iOpts, func(l *zap.Logger) {
 			l.Error("permit acquired more than once")

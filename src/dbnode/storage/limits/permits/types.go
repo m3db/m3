@@ -61,12 +61,6 @@ type Permits interface {
 // Permit is granted to a caller which is allowed to consume some amount of quota.
 type Permit interface {
 
-	// Release is called when a caller releases the permit back to the permit manager.
-	Release()
-
-	// Acquire is called before the permit manager gives the permit to the caller.
-	Acquire()
-
 	// AllowedQuota is the amount of quota the caller can use with this Permit.
 	AllowedQuota() int64
 
@@ -76,4 +70,12 @@ type Permit interface {
 
 	// Use adds the quota to the total used quota.
 	Use(quota int64)
+
+	// PostRelease is called by the Manager after a caller releases the permit back.
+	// Provides a hook for the Manager. Clients should not call this method.
+	PostRelease()
+
+	// PreAcquire is called by the Manager before giving the permit to the caller.
+	// Provides a hook for the Manager. Clients should not call this method.
+	PreAcquire()
 }
