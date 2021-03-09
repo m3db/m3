@@ -51,34 +51,13 @@ import (
 )
 
 const (
-	workerChannelSize = 256
+	workerChannelSize                 = 256
+	readSeriesBlocksWorkerChannelSize = 512
 )
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (
 	iter commitlog.Iterator, corruptFiles []commitlog.ErrorWithPath, err error)
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
-
-type commitLogSource struct {
-	opts  Options
-	log   *zap.Logger
-	nowFn func() time.Time
-
-	// Filesystem inspection capture before node was started.
-	inspection fs.Inspection
-
-	newIteratorFn   newIteratorFn
-	snapshotFilesFn snapshotFilesFn
-	newReaderFn     fs.NewReaderFn
-
-	metrics commitLogSourceMetrics
-	// Cache the results of reading the commit log between passes. The commit log is not sharded by time range, so the
-	// entire log needs to be read irrespective of the configured time ranges for the pass. The commit log only needs
-	// to be read once (during the first pass) and the results can be subsequently cached and returned on future passes.
-	// Since the bootstrapper is single threaded this does not need to be guarded with a mutex.
-	commitLogResult commitLogResult
-
-	instrumentation *instrumentation
-}
 
 type bootstrapNamespace struct {
 	namespaceID             []byte
@@ -116,6 +95,135 @@ type accumulateWorker struct {
 	inputCh        chan accumulateArg
 	datapointsRead int
 	numErrors      int
+}
+
+type seriesBlock struct {
+	resolver bootstrap.SeriesRefResolver
+	block    block.DatabaseBlock
+}
+
+type readSeriesBlocksWorker struct {
+	dataCh      chan seriesBlock
+	reader      fs.DataFileSetReader
+	shard       uint32
+	accumulator bootstrap.NamespaceDataAccumulator
+	blocksPool  block.DatabaseBlockPool
+	blockStart  time.Time
+	blockSize   time.Duration
+	nsCtx       namespace.Context
+}
+
+func (w *readSeriesBlocksWorker) readSeriesBlocks() error {
+	defer close(w.dataCh)
+	for {
+		id, tags, data, expectedChecksum, err := w.reader.Read()
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		dbBlock := w.blocksPool.Get()
+		dbBlock.Reset(w.blockStart, w.blockSize,
+			ts.NewSegment(data, nil, 0, ts.FinalizeHead), w.nsCtx)
+
+		// Resetting the block will trigger a checksum calculation, so use
+		// that instead of calculating it twice.
+		checksum, err := dbBlock.Checksum()
+		if err != nil {
+			return err
+		}
+		if checksum != expectedChecksum {
+			return fmt.Errorf("checksum for series: %s was %d but expected %d",
+				id, checksum, expectedChecksum)
+		}
+
+		res, owned, err := w.accumulator.CheckoutSeriesWithoutLock(w.shard, id, tags)
+		if err != nil {
+			if !owned {
+				// Skip bootstrapping this series if we don't own it.
+				continue
+			}
+			return err
+		}
+
+		w.dataCh <- seriesBlock{
+			resolver: res.Resolver,
+			block:    dbBlock,
+		}
+
+		id.Finalize()
+		tags.Close()
+	}
+	return nil
+}
+
+type readNamespaceResult struct {
+	namespace               bootstrap.Namespace
+	dataAndIndexShardRanges result.ShardTimeRanges
+}
+
+type commitLogResult struct {
+	shouldReturnUnfulfilled bool
+	// ensures we only read the commit log once
+	read bool
+}
+
+type commitLogSourceMetrics struct {
+	corruptCommitlogFile tally.Counter
+	bootstrapping        tally.Gauge
+	commitLogEntriesRead tally.Counter
+}
+
+func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
+	return commitLogSourceMetrics{
+		corruptCommitlogFile: scope.SubScope("commitlog").Counter("corrupt"),
+		bootstrapping:        scope.SubScope("status").Gauge("bootstrapping"),
+		commitLogEntriesRead: scope.SubScope("commitlog").Counter("entries-read"),
+	}
+}
+
+type gaugeLoopCloserFn func()
+
+func (m commitLogSourceMetrics) emitBootstrapping() gaugeLoopCloserFn {
+	doneCh := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				m.bootstrapping.Update(0)
+				return
+			default:
+				m.bootstrapping.Update(1)
+				time.Sleep(time.Second)
+			}
+		}
+	}()
+
+	return func() { close(doneCh) }
+}
+
+type commitLogSource struct {
+	opts  Options
+	log   *zap.Logger
+	nowFn func() time.Time
+
+	// Filesystem inspection capture before node was started.
+	inspection fs.Inspection
+
+	newIteratorFn   newIteratorFn
+	snapshotFilesFn snapshotFilesFn
+	newReaderFn     fs.NewReaderFn
+
+	metrics commitLogSourceMetrics
+	// Cache the results of reading the commit log between passes. The commit log is not sharded by time range, so the
+	// entire log needs to be read irrespective of the configured time ranges for the pass. The commit log only needs
+	// to be read once (during the first pass) and the results can be subsequently cached and returned on future passes.
+	// Since the bootstrapper is single threaded this does not need to be guarded with a mutex.
+	commitLogResult commitLogResult
+
+	instrumentation *instrumentation
 }
 
 func newCommitLogSource(
@@ -166,11 +274,6 @@ func (s *commitLogSource) AvailableIndex(
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
-}
-
-type readNamespaceResult struct {
-	namespace               bootstrap.Namespace
-	dataAndIndexShardRanges result.ShardTimeRanges
 }
 
 // Read will read all commitlog files on disk, as well as as the latest snapshot for
@@ -274,12 +377,6 @@ func (s *commitLogSource) Read(
 	}
 	instrCtx.readCommitLogCompleted()
 	return bootstrapResult, nil
-}
-
-type commitLogResult struct {
-	shouldReturnUnfulfilled bool
-	// ensures we only read the commit log once
-	read bool
 }
 
 func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span opentracing.Span) (commitLogResult, error) {
@@ -503,7 +600,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 				// Check out the series for writing, no need for concurrency
 				// as commit log bootstrapper does not perform parallel
 				// checking out of series.
-				series, owned, err := accumulator.CheckoutSeriesWithLock(
+				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
 					entry.Series.Shard,
 					entry.Series.ID,
 					tagIter)
@@ -778,11 +875,6 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	return nil
 }
 
-type seriesBlock struct {
-	resolver bootstrap.SeriesRefResolver
-	block    block.DatabaseBlock
-}
-
 func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	ns namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
@@ -835,13 +927,25 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		zap.Time("blockStart", blockStart),
 		zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex))
 
-	seriesBlocks, err := s.readSeriesBlocks(reader, shard, accumulator,
-		blocksPool, blockStart, blockSize, nsCtx)
-	if err != nil {
-		return err
+	var workerErr error
+	worker := &readSeriesBlocksWorker{
+		dataCh:      make(chan seriesBlock, readSeriesBlocksWorkerChannelSize),
+		reader:      reader,
+		shard:       shard,
+		accumulator: accumulator,
+		blocksPool:  blocksPool,
+		blockStart:  blockStart,
+		blockSize:   blockSize,
+		nsCtx:       nsCtx,
 	}
 
-	for _, seriesBlock := range seriesBlocks {
+	go func() {
+		if workerErr = worker.readSeriesBlocks(); workerErr != nil {
+			s.log.Error("series read blocks error", zap.Error(workerErr))
+		}
+	}()
+
+	for seriesBlock := range worker.dataCh {
 		// Load into series.
 		seriesRef, err := seriesBlock.resolver.SeriesRef()
 		if err != nil {
@@ -852,7 +956,8 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			return err
 		}
 	}
-	return nil
+
+	return workerErr
 }
 
 func (s *commitLogSource) mostRecentSnapshotByBlockShard(
@@ -885,60 +990,6 @@ func (s *commitLogSource) mostRecentSnapshotByBlockShard(
 	}
 
 	return mostRecentCompleteSnapshotByBlockShard, nil
-}
-
-func (s *commitLogSource) readSeriesBlocks(
-	reader fs.DataFileSetReader,
-	shard uint32,
-	accumulator bootstrap.NamespaceDataAccumulator,
-	blocksPool block.DatabaseBlockPool,
-	blockStart time.Time,
-	blockSize time.Duration,
-	nsCtx namespace.Context,
-) ([]seriesBlock, error) {
-	seriesBlocks := make([]seriesBlock, 0, reader.Entries())
-	for {
-		id, tags, data, expectedChecksum, err := reader.Read()
-		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, err
-		}
-		if errors.Is(err, io.EOF) {
-			break
-		}
-
-		dbBlock := blocksPool.Get()
-		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegment(data, nil, 0, ts.FinalizeHead), nsCtx)
-
-		// Resetting the block will trigger a checksum calculation, so use
-		// that instead of calculating it twice.
-		checksum, err := dbBlock.Checksum()
-		if err != nil {
-			return nil, err
-		}
-		if checksum != expectedChecksum {
-			return nil, fmt.Errorf("checksum for series: %s was %d but expected %d",
-				id, checksum, expectedChecksum)
-		}
-
-		res, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
-		if err != nil {
-			if !owned {
-				// Skip bootstrapping this series if we don't own it.
-				continue
-			}
-			return nil, err
-		}
-
-		seriesBlocks = append(seriesBlocks, seriesBlock{
-			resolver: res.Resolver,
-			block:    dbBlock,
-		})
-
-		id.Finalize()
-		tags.Close()
-	}
-	return seriesBlocks, nil
 }
 
 // TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
@@ -1154,38 +1205,4 @@ func (s *commitLogSource) shardsReplicated(
 	// have majority replica values of 2.
 	majorityReplicas := initialTopologyState.MajorityReplicas
 	return majorityReplicas > 1
-}
-
-type commitLogSourceMetrics struct {
-	corruptCommitlogFile tally.Counter
-	bootstrapping        tally.Gauge
-	commitLogEntriesRead tally.Counter
-}
-
-func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
-	return commitLogSourceMetrics{
-		corruptCommitlogFile: scope.SubScope("commitlog").Counter("corrupt"),
-		bootstrapping:        scope.SubScope("status").Gauge("bootstrapping"),
-		commitLogEntriesRead: scope.SubScope("commitlog").Counter("entries-read"),
-	}
-}
-
-type gaugeLoopCloserFn func()
-
-func (m commitLogSourceMetrics) emitBootstrapping() gaugeLoopCloserFn {
-	doneCh := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-doneCh:
-				m.bootstrapping.Update(0)
-				return
-			default:
-				m.bootstrapping.Update(1)
-				time.Sleep(time.Second)
-			}
-		}
-	}()
-
-	return func() { close(doneCh) }
 }

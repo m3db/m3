@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -56,6 +57,8 @@ import (
 )
 
 var errNamespaceNotFound = errors.New("namespace not found")
+
+const readSeriesBlocksWorkerChannelSize = 512
 
 type peersSource struct {
 	opts              Options
@@ -381,6 +384,11 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 	}
 }
 
+type seriesBlocks struct {
+	resolver bootstrap.SeriesRefResolver
+	block    block.DatabaseSeriesBlocks
+}
+
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
 // fetches all the bootstrap blocks from the appropriate peers.
 // 		Persistence enabled case: Immediately add the results to the bootstrap result
@@ -433,37 +441,49 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			// If not waiting to flush, add straight away to bootstrap result.
-			for _, elem := range shardResult.AllSeries().Iter() {
-				entry := elem.Value()
-				tagsIter.Reset(entry.Tags)
-				ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
-				if err != nil {
-					if !owned {
-						// Only if we own this shard do we care consider this an
-						// error in bootstrapping.
+			dataCh := make(chan seriesBlocks, readSeriesBlocksWorkerChannelSize)
+			go func() {
+				defer close(dataCh)
+				for _, elem := range shardResult.AllSeries().Iter() {
+					entry := elem.Value()
+					tagsIter.Reset(entry.Tags)
+					ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
+					if err != nil {
+						if !owned {
+							// Only if we own this shard do we care consider this an
+							// error in bootstrapping.
+							continue
+						}
+						unfulfill(currRange)
+						s.log.Error("could not checkout series", zap.Error(err))
 						continue
 					}
+
+					dataCh <- seriesBlocks{
+						resolver: ref.Resolver,
+						block:    entry.Blocks,
+					}
+
+					// Safe to finalize these IDs and Tags, shard result no longer used.
+					entry.ID.Finalize()
+					entry.Tags.Finalize()
+				}
+			}()
+
+			for seriesBlocks := range dataCh {
+				seriesRef, err := seriesBlocks.resolver.SeriesRef()
+				if err != nil {
+					s.log.Error("could not resolve seriesRef", zap.Error(err))
 					unfulfill(currRange)
-					s.log.Error("could not checkout series", zap.Error(err))
 					continue
 				}
 
-				seriesRef, err := ref.Resolver.SeriesRef()
-				if err != nil {
-					s.log.Error("could not resolve seriesRef", zap.Error(err))
-					continue
-				}
-				for _, block := range entry.Blocks.AllBlocks() {
-					if err := seriesRef.LoadBlock(block, series.WarmWrite); err != nil {
+				for _, bl := range seriesBlocks.block.AllBlocks() {
+					if err := seriesRef.LoadBlock(bl, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))
 					}
 				}
-
-				// Safe to finalize these IDs and Tags, shard result no longer used.
-				entry.ID.Finalize()
-				entry.Tags.Finalize()
 			}
 		}
 	}
