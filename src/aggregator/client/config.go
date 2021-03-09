@@ -53,6 +53,7 @@ type Configuration struct {
 	ShardCutoffLingerDuration  *time.Duration                  `yaml:"shardCutoffLingerDuration"`
 	Encoder                    EncoderConfiguration            `yaml:"encoder"`
 	FlushWorkerCount           int                             `yaml:"flushWorkerCount"`
+	ForceFlushEvery            time.Duration                   `yaml:"forceFlushEvery"`
 	MaxBatchSize               int                             `yaml:"maxBatchSize"`
 	MaxTimerBatchSize          int                             `yaml:"maxTimerBatchSize"`
 	QueueSize                  int                             `yaml:"queueSize"`
@@ -176,6 +177,9 @@ func (c *Configuration) newClientOptions(
 		}
 		if c.FlushWorkerCount != 0 {
 			opts = opts.SetFlushWorkerCount(c.FlushWorkerCount)
+		}
+		if c.ForceFlushEvery != 0 {
+			opts = opts.SetForceFlushEvery(c.ForceFlushEvery)
 		}
 		if c.MaxBatchSize != 0 {
 			opts = opts.SetMaxBatchSize(c.MaxBatchSize)

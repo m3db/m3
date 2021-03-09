@@ -35,8 +35,10 @@ downsample:
         initWatchTimeout: 10s
       hashType: murmur32
       shardCutoffLingerDuration: 1m
+      forceFlushEvery: 1s
+      flushWorkerCount: 4
       maxTimerBatchSize: 1120
-      queueSize: 10000
+      queueSize: 100
       queueDropType: oldest
       encoder:
         initBufferSize: 2048
@@ -55,7 +57,7 @@ downsample:
 
 ingest:
   ingester:
-    workerPoolSize: 10000
+    workerPoolSize: 100
     opPool:
       size: 10000
     retry:

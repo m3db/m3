@@ -123,6 +123,13 @@ func newInstanceWriterManager(opts Options) (instanceWriterManager, error) {
 	wm.wg.Add(1)
 	go wm.reportMetricsLoop()
 
+	if opts.ForceFlushEvery() > 0 {
+		wm.wg.Add(1)
+		go func() {
+			wm.flushLoop(opts.ForceFlushEvery())
+		}()
+	}
+
 	return wm, nil
 }
 
@@ -266,5 +273,21 @@ func (mgr *writerManager) reportMetrics() {
 
 	for _, writer := range mgr.writers {
 		mgr.metrics.queueLen.RecordValue(float64(writer.QueueSize()))
+	}
+}
+
+func (mgr *writerManager) flushLoop(d time.Duration) {
+	defer mgr.wg.Done()
+
+	ticker := time.NewTicker(d)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-mgr.doneCh:
+			return
+		case <-ticker.C:
+			mgr.Flush() //nolint:errcheck
+		}
 	}
 }

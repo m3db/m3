@@ -189,6 +189,12 @@ type Options interface {
 	// FlushWorkerCount returns the max number of workers used for flushing.
 	FlushWorkerCount() int
 
+	// SetForceFlushEvery sets the duration between forced flushes.
+	SetForceFlushEvery(value time.Duration) Options
+
+	// ForceFlushEvery returns the duration, if any, between forced flushes.
+	ForceFlushEvery() time.Duration
+
 	// SetMaxTimerBatchSize sets the maximum timer batch size.
 	SetMaxTimerBatchSize(value int) Options
 
@@ -233,6 +239,7 @@ type options struct {
 	watcherOpts                placement.WatcherOptions
 	connOpts                   ConnectionOptions
 	flushWorkerCount           int
+	forceFlushEvery            time.Duration
 	maxTimerBatchSize          int
 	instanceQueueSize          int
 	dropType                   DropType
@@ -392,6 +399,16 @@ func (o *options) SetFlushWorkerCount(value int) Options {
 
 func (o *options) FlushWorkerCount() int {
 	return o.flushWorkerCount
+}
+
+func (o *options) SetForceFlushEvery(value time.Duration) Options {
+	opts := *o
+	opts.forceFlushEvery = value
+	return &opts
+}
+
+func (o *options) ForceFlushEvery() time.Duration {
+	return o.forceFlushEvery
 }
 
 func (o *options) SetMaxTimerBatchSize(value int) Options {
