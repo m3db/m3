@@ -251,7 +251,7 @@ func (q *queue) Flush() {
 	}
 
 	// Check buffer capacity, not length, to make sure we're not pooling slices that are too large.
-	// Otherwise, it could in multi-megabyte slices hanging around, in case we get a spike in writes.
+	// Otherwise, it could result in multi-megabyte slices hanging around, in case we get a spike in writes.
 	if cap(*buf) > _queueMaxWriteBufSize {
 		return
 	}
