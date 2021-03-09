@@ -288,11 +288,11 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// Exceptions are:
 	// 1. A mapping rule has provided an override for a storage policy,
 	//    if so then skip aggregating for that storage policy).
-	// 2. Any type of drop rule has been applied, since they should only
-	//    impact mapping rules not default staged metadatas provided for
+	// 2. Any type of drop rule has been set, since they should only
+	//    impact mapping rules, not default staged metadatas provided from
 	//    auto-mapping rules (i.e. default namespace aggregation).
 	if !a.curr.Pipelines.IsDropPolicySet() {
-		// No drop rule has been applied as part of rule matching.
+		// No drop rule has been set as part of rule matching.
 		for idx, stagedMetadatasProto := range a.defaultStagedMetadatasProtos {
 			// NB(r): Need to take copy of default staged metadatas as we
 			// sometimes mutate it.
