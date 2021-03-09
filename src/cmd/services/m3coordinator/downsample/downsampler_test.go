@@ -1844,7 +1844,6 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollups(t *testin
 				{value: 42},
 				{value: 12, offset: 2 * time.Second},
 			},
-			expectDropPolicyApplied: true,
 		},
 		{
 			tags: map[string]string{
@@ -1858,7 +1857,6 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollups(t *testin
 				{value: 13},
 				{value: 27, offset: 2 * time.Second},
 			},
-			expectDropPolicyApplied: true,
 		},
 	}
 	res := 1 * time.Second
@@ -1869,8 +1867,14 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollups(t *testin
 		rulesConfig: &RulesConfiguration{
 			MappingRules: []MappingRuleConfiguration{
 				{
-					Filter: filter,
-					Drop:   true,
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
 				},
 			},
 			RollupRules: []RollupRuleConfiguration{
