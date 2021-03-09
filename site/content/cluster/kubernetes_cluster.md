@@ -32,9 +32,6 @@ M3 stores its cluster placements and runtime metadata in [etcd](https://etcd.io)
 We have example services and stateful sets you can use, but feel free to use your own configuration and change any later instructions accordingly.
 
 
-{{% apiendpoint %}}
-
-
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operator-version %}}/example/etcd/etcd-basic.yaml
 ```
