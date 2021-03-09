@@ -43,8 +43,6 @@ const (
 	_queueMetricReportInterval = 10 * time.Second
 	_queueMetricBuckets        = 8
 	_queueMetricBucketStart    = 64
-
-	_maxFlushWorkers = 128
 )
 
 // instanceWriterManager manages instance writers.
@@ -101,21 +99,33 @@ type writerManager struct {
 	closed  bool
 	metrics writerManagerMetrics
 	_       cpu.CacheLinePad
-	pool    xsync.WorkerPool
+	pool    xsync.PooledWorkerPool
 }
 
-func newInstanceWriterManager(opts Options) instanceWriterManager {
+func newInstanceWriterManager(opts Options) (instanceWriterManager, error) {
 	wm := &writerManager{
 		opts:    opts,
 		writers: make(map[string]*refCountedWriter),
 		metrics: newWriterManagerMetrics(opts.InstrumentOptions().MetricsScope()),
 		doneCh:  make(chan struct{}),
-		pool:    xsync.NewWorkerPool(_maxFlushWorkers),
 	}
+
+	pool, err := xsync.NewPooledWorkerPool(
+		opts.FlushWorkerCount(),
+		xsync.NewPooledWorkerPoolOptions().SetKillWorkerProbability(0.05),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	wm.pool = pool
 	wm.pool.Init()
+
 	wm.wg.Add(1)
 	go wm.reportMetricsLoop()
-	return wm
+
+	return wm, nil
 }
 
 func (mgr *writerManager) AddInstances(instances []placement.Instance) error {

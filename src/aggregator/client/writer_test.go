@@ -778,20 +778,20 @@ func TestWriterConcurrentWriteStress(t *testing.T) {
 	params := []struct {
 		maxInputBatchSize int
 		maxTimerBatchSize int
-		flushSize         int
+		maxBatchSize      int
 	}{
 		// High likelihood of counter/gauge encoding triggering a flush in between
 		// releasing and re-acquiring locks when encoding large timer batches.
 		{
 			maxInputBatchSize: 150,
 			maxTimerBatchSize: 150,
-			flushSize:         1000,
+			maxBatchSize:      1000,
 		},
 		// Large timer batches.
 		{
 			maxInputBatchSize: 1000,
 			maxTimerBatchSize: 140,
-			flushSize:         1440,
+			maxBatchSize:      1440,
 		},
 	}
 
@@ -800,7 +800,7 @@ func TestWriterConcurrentWriteStress(t *testing.T) {
 			t,
 			param.maxInputBatchSize,
 			param.maxTimerBatchSize,
-			param.flushSize,
+			param.maxBatchSize,
 		)
 	}
 }
@@ -809,7 +809,7 @@ func testWriterConcurrentWriteStress(
 	t *testing.T,
 	maxInputBatchSize int,
 	maxTimerBatchSize int,
-	flushSize int,
+	maxBatchSize int,
 ) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -879,7 +879,7 @@ func testWriterConcurrentWriteStress(
 	queue.EXPECT().Flush().MinTimes(1)
 	opts := testOptions().
 		SetMaxTimerBatchSize(maxTimerBatchSize).
-		SetMaxBatchSize(flushSize)
+		SetMaxBatchSize(maxBatchSize)
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.queue = queue
 

@@ -50,8 +50,8 @@ func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
 		result = payload
 		return nil
 	}
-	queue.Enqueue(testNewBuffer([]byte{42, 43, 44}))
-	queue.Enqueue(testNewBuffer([]byte{45, 46, 47}))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
 	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42})))
 	queue.Flush()
 	require.EqualValues(t, []byte{42, 43, 44, 45, 46, 47}, result)
@@ -68,10 +68,10 @@ func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 		return nil
 	}
 
-	queue.Enqueue(testNewBuffer([]byte{42}))
-	queue.Enqueue(testNewBuffer([]byte{42, 43, 44}))
-	queue.Enqueue(testNewBuffer([]byte{45, 46, 47}))
-	queue.Enqueue(testNewBuffer([]byte{1, 2, 3}))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3})))
 	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1})))
 
 	queue.Flush()
@@ -79,12 +79,12 @@ func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 		42, 43, 44, 45, 46, 47, 1, 2, 3, 1,
 	}, result)
 
-	queue.Enqueue(testNewBuffer([]byte{}))
-	queue.Enqueue(testNewBuffer([]byte{1, 2, 3}))
-	queue.Enqueue(testNewBuffer([]byte{42}))
-	queue.Enqueue(testNewBuffer([]byte{}))
-	queue.Enqueue(testNewBuffer([]byte{42, 43, 44}))
-	queue.Enqueue(testNewBuffer([]byte{45, 46, 47}))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
 	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1})))
 
 	queue.Flush()

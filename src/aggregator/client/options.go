@@ -48,15 +48,15 @@ const (
 
 	defaultAggregatorClient = LegacyAggregatorClient
 
-	defaultFlushSize = 1440
+	defaultFlushWorkerCount = 64
 
 	// defaultMaxTimerBatchSize is the default maximum timer batch size.
 	// By default there is no limit on the timer batch size.
 	defaultMaxTimerBatchSize = 0
 
-	// defaultInstanceQueueSize determines how many metrics can be buffered
+	// defaultInstanceQueueSize determines how many protobuf payloads can be buffered
 	// before it must wait for an existing batch to be flushed to an instance.
-	defaultInstanceQueueSize = 2 << 15 // ~65k
+	defaultInstanceQueueSize = 128
 
 	// By default traffic is cut over to shards 10 minutes before the designated
 	// cutover time in case there are issues with the instances owning the shards.
@@ -72,9 +72,6 @@ const (
 
 	// By default set maximum batch size to 8mb.
 	defaultMaxBatchSize = 2 << 22
-
-	// By default write at least every 100ms.
-	defaultBatchFlushDeadline = 100 * time.Millisecond
 )
 
 var (
@@ -186,11 +183,11 @@ type Options interface {
 	// ConnectionOptions returns the connection options.
 	ConnectionOptions() ConnectionOptions
 
-	// SetFlushSize sets the buffer size to trigger a flush.
-	SetFlushSize(value int) Options
+	// SetFlushWorkerCount sets the max number of workers used for flushing.
+	SetFlushWorkerCount(value int) Options
 
-	// FlushSize returns the buffer size to trigger a flush.
-	FlushSize() int
+	// FlushWorkerCount returns the max number of workers used for flushing.
+	FlushWorkerCount() int
 
 	// SetMaxTimerBatchSize sets the maximum timer batch size.
 	SetMaxTimerBatchSize(value int) Options
@@ -218,12 +215,6 @@ type Options interface {
 	// MaxBatchSize returns the maximum buffer size that triggers a queue drain.
 	MaxBatchSize() int
 
-	// SetBatchFlushDeadline sets the deadline that triggers a write of queued buffers.
-	SetBatchFlushDeadline(value time.Duration) Options
-
-	// BatchFlushDeadline returns the deadline that triggers a write of queued buffers.
-	BatchFlushDeadline() time.Duration
-
 	// SetRWOptions sets RW options.
 	SetRWOptions(value xio.Options) Options
 
@@ -241,12 +232,11 @@ type options struct {
 	shardCutoffLingerDuration  time.Duration
 	watcherOpts                placement.WatcherOptions
 	connOpts                   ConnectionOptions
-	flushSize                  int
+	flushWorkerCount           int
 	maxTimerBatchSize          int
 	instanceQueueSize          int
 	dropType                   DropType
 	maxBatchSize               int
-	batchFlushDeadline         time.Duration
 	m3msgOptions               M3MsgOptions
 	rwOpts                     xio.Options
 }
@@ -262,12 +252,11 @@ func NewOptions() Options {
 		shardCutoffLingerDuration:  defaultShardCutoffLingerDuration,
 		watcherOpts:                placement.NewWatcherOptions(),
 		connOpts:                   NewConnectionOptions(),
-		flushSize:                  defaultFlushSize,
+		flushWorkerCount:           defaultFlushWorkerCount,
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
 		instanceQueueSize:          defaultInstanceQueueSize,
 		dropType:                   defaultDropType,
 		maxBatchSize:               defaultMaxBatchSize,
-		batchFlushDeadline:         defaultBatchFlushDeadline,
 		rwOpts:                     xio.NewOptions(),
 	}
 }
@@ -395,14 +384,14 @@ func (o *options) ConnectionOptions() ConnectionOptions {
 	return o.connOpts
 }
 
-func (o *options) SetFlushSize(value int) Options {
+func (o *options) SetFlushWorkerCount(value int) Options {
 	opts := *o
-	opts.flushSize = value
+	opts.flushWorkerCount = value
 	return &opts
 }
 
-func (o *options) FlushSize() int {
-	return o.flushSize
+func (o *options) FlushWorkerCount() int {
+	return o.flushWorkerCount
 }
 
 func (o *options) SetMaxTimerBatchSize(value int) Options {
@@ -447,19 +436,6 @@ func (o *options) SetMaxBatchSize(value int) Options {
 
 func (o *options) MaxBatchSize() int {
 	return o.maxBatchSize
-}
-
-func (o *options) SetBatchFlushDeadline(value time.Duration) Options {
-	opts := *o
-	if value < 0 {
-		value = defaultBatchFlushDeadline
-	}
-	opts.batchFlushDeadline = value
-	return &opts
-}
-
-func (o *options) BatchFlushDeadline() time.Duration {
-	return o.batchFlushDeadline
 }
 
 func (o *options) SetRWOptions(value xio.Options) Options {

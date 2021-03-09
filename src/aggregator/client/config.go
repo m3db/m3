@@ -52,10 +52,9 @@ type Configuration struct {
 	ShardCutoverWarmupDuration *time.Duration                  `yaml:"shardCutoverWarmupDuration"`
 	ShardCutoffLingerDuration  *time.Duration                  `yaml:"shardCutoffLingerDuration"`
 	Encoder                    EncoderConfiguration            `yaml:"encoder"`
-	FlushSize                  int                             `yaml:"flushSize"`
+	FlushWorkerCount           int                             `yaml:"flushWorkerCount"`
 	MaxBatchSize               int                             `yaml:"maxBatchSize"`
 	MaxTimerBatchSize          int                             `yaml:"maxTimerBatchSize"`
-	BatchFlushDeadline         time.Duration                   `yaml:"batchFlushDeadline"`
 	QueueSize                  int                             `yaml:"queueSize"`
 	QueueDropType              *DropType                       `yaml:"queueDropType"`
 	Connection                 ConnectionConfiguration         `yaml:"connection"`
@@ -175,17 +174,14 @@ func (c *Configuration) newClientOptions(
 		if c.ShardCutoffLingerDuration != nil {
 			opts = opts.SetShardCutoffLingerDuration(*c.ShardCutoffLingerDuration)
 		}
-		if c.FlushSize != 0 {
-			opts = opts.SetFlushSize(c.FlushSize)
+		if c.FlushWorkerCount != 0 {
+			opts = opts.SetFlushWorkerCount(c.FlushWorkerCount)
 		}
 		if c.MaxBatchSize != 0 {
 			opts = opts.SetMaxBatchSize(c.MaxBatchSize)
 		}
 		if c.MaxTimerBatchSize != 0 {
 			opts = opts.SetMaxTimerBatchSize(c.MaxTimerBatchSize)
-		}
-		if c.BatchFlushDeadline != 0 {
-			opts = opts.SetBatchFlushDeadline(c.BatchFlushDeadline)
 		}
 		if c.QueueSize != 0 {
 			opts = opts.SetInstanceQueueSize(c.QueueSize)

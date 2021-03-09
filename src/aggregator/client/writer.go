@@ -196,14 +196,12 @@ func (w *writer) encodeWithLock(
 			zap.Error(err),
 		)
 		// Rewind buffer and clear out the encoder error.
-		encoder.Truncate(sizeBefore)
+		encoder.Truncate(sizeBefore) //nolint:errcheck
 		encoder.Unlock()
 		return err
 	}
 
-	payloadSize := encoder.Len()
-
-	if payloadSize < w.maxBatchSize {
+	if encoder.Len() < w.maxBatchSize {
 		encoder.Unlock()
 		return nil
 	}

@@ -27,12 +27,11 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/atomic"
-
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +43,7 @@ const (
 var (
 	errInstanceQueueClosed = errors.New("instance queue is closed")
 	errWriterQueueFull     = errors.New("writer queue is full")
+	errInvalidDropType     = errors.New("invalid queue drop type")
 
 	_queueConnWriteBufPool = sync.Pool{New: func() interface{} {
 		b := make([]byte, 0, _queueMinWriteBufSize)
@@ -189,6 +189,8 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 			oldest := q.buf.shift()
 			oldest.Close()
 			q.metrics.enqueueOldestDropped.Inc(1)
+		default:
+			return errInvalidDropType
 		}
 	}
 
@@ -299,13 +301,10 @@ func (q *qbuf) full() bool {
 	return q.size() == uint32(cap(q.b))
 }
 
-func (q *qbuf) empty() bool {
-	return q.r == q.w
-}
-
 func (q *qbuf) mask(idx uint32) uint32 {
 	return idx & (uint32(cap(q.b)) - 1)
 }
+
 func (q *qbuf) push(buf protobuf.Buffer) {
 	q.w++
 	idx := q.mask(q.w)

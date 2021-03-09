@@ -71,7 +71,10 @@ func NewTCPClient(opts Options) (*TCPClient, error) {
 
 	writerMgrScope := instrumentOpts.MetricsScope().SubScope("writer-manager")
 	writerMgrOpts := opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
-	writerMgr = newInstanceWriterManager(writerMgrOpts)
+	writerMgr, err := newInstanceWriterManager(writerMgrOpts)
+	if err != nil {
+		return nil, err
+	}
 
 	onPlacementChangedFn := func(prev, curr placement.Placement) {
 		writerMgr.AddInstances(curr.Instances()) // nolint: errcheck

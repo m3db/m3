@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
@@ -42,44 +43,55 @@ var (
 )
 
 func TestWriterManagerAddInstancesClosed(t *testing.T) {
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
+	mgr.Lock()
 	mgr.closed = true
+	mgr.Unlock()
 	require.Equal(t, errInstanceWriterManagerClosed, mgr.AddInstances(nil))
 }
 
 func TestWriterManagerAddInstancesSingleRef(t *testing.T) {
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
 
 	// Add instance lists twice and assert the writer refcount matches expectation.
 	for i := 0; i < 2; i++ {
 		require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	}
+	mgr.Lock()
 	require.Equal(t, 1, len(mgr.writers))
 	w, exists := mgr.writers[testPlacementInstance.ID()]
+	mgr.Unlock()
 	require.True(t, exists)
 	require.Equal(t, int32(2), w.refCount.n)
 }
 
 func TestWriterManagerRemoveInstancesClosed(t *testing.T) {
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
+	mgr.Lock()
 	mgr.closed = true
+	mgr.Unlock()
 	require.Equal(t, errInstanceWriterManagerClosed, mgr.RemoveInstances(nil))
 }
 
 func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
 
 	// Add instance lists twice.
 	for i := 0; i < 2; i++ {
 		require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	}
+	mgr.Lock()
 	require.Equal(t, 1, len(mgr.writers))
+	mgr.Unlock()
 
 	// Remove the instance list once and assert they are not closed.
 	require.NoError(t, mgr.RemoveInstances([]placement.Instance{testPlacementInstance}))
+
+	mgr.Lock()
 	require.Equal(t, 1, len(mgr.writers))
 	w := mgr.writers[testPlacementInstance.ID()].instanceWriter.(*writer)
 	require.False(t, w.closed)
+	mgr.Unlock()
 
 	// Remove the instance list again and assert the writer is now removed.
 	nonexistent := placement.NewInstance().
@@ -98,9 +110,11 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 func TestWriterManagerRemoveInstancesNonBlocking(t *testing.T) {
 	var (
 		opts = testOptions().SetInstanceQueueSize(200)
-		mgr  = newInstanceWriterManager(opts).(*writerManager)
+		mgr  = mustMakeInstanceWriterManager(opts)
 	)
 	require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
+
+	mgr.Lock()
 	require.Equal(t, 1, len(mgr.writers))
 	w := mgr.writers[testPlacementInstance.ID()].instanceWriter.(*writer)
 
@@ -108,6 +122,8 @@ func TestWriterManagerRemoveInstancesNonBlocking(t *testing.T) {
 		time.Sleep(time.Second)
 		return nil
 	}
+	mgr.Unlock()
+
 	data := []byte("foo")
 	for i := 0; i < opts.InstanceQueueSize(); i++ {
 		require.NoError(t, w.queue.Enqueue(testNewBuffer(data)))
@@ -129,8 +145,10 @@ func TestWriterManagerWriteUntimedClosed(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
+	mgr.Lock()
 	mgr.closed = true
+	mgr.Unlock()
 	err := mgr.Write(testPlacementInstance, 0, payload)
 	require.Equal(t, errInstanceWriterManagerClosed, err)
 }
@@ -143,8 +161,7 @@ func TestWriterManagerWriteUntimedNoInstances(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
-	mgr.closed = false
+	mgr := mustMakeInstanceWriterManager(testOptions())
 	err := mgr.Write(testPlacementInstance, 0, payload)
 	require.Error(t, err)
 	require.NoError(t, mgr.Close())
@@ -176,11 +193,13 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 			payloadRes = payload
 			return nil
 		})
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
+	mgr.Lock()
 	mgr.writers[instances[0].ID()] = &refCountedWriter{
 		refCount:       refCount{n: 1},
 		instanceWriter: writer,
 	}
+	mgr.Unlock()
 
 	payload := payloadUnion{
 		payloadType: untimedType,
@@ -190,7 +209,9 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 		},
 	}
 	require.NoError(t, mgr.Write(testPlacementInstance, 0, payload))
-	require.Equal(t, 1, len(mgr.writers))
+	mgr.Lock()
+	assert.Equal(t, 1, len(mgr.writers))
+	mgr.Unlock()
 	require.Equal(t, uint32(0), shardRes)
 	require.Equal(t, untimedType, payloadRes.payloadType)
 	require.Equal(t, testCounter, payloadRes.untimed.metric)
@@ -198,7 +219,7 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 }
 
 func TestWriterManagerFlushClosed(t *testing.T) {
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
 	mgr.closed = true
 	require.Equal(t, errInstanceWriterManagerClosed, mgr.Flush())
 }
@@ -233,7 +254,8 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 		DoAndReturn(func() error {
 			return errTestFlush
 		})
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
+	mgr.Lock()
 	mgr.writers[instances[0].ID()] = &refCountedWriter{
 		refCount:       refCount{n: 1},
 		instanceWriter: writer1,
@@ -242,6 +264,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 		refCount:       refCount{n: 1},
 		instanceWriter: writer2,
 	}
+	mgr.Unlock()
 	err := mgr.Flush()
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), errTestFlush.Error()))
@@ -249,22 +272,27 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 }
 
 func TestWriterManagerCloseAlreadyClosed(t *testing.T) {
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
 	mgr.closed = true
 	require.Equal(t, errInstanceWriterManagerClosed, mgr.Close())
 }
 
 func TestWriterManagerCloseSuccess(t *testing.T) {
-	opts := goleak.IgnoreCurrent() // TODO: other tests don't clean up properly
-	defer goleak.VerifyNone(t, opts)
+	// TODO: other tests don't clean up properly, and pool has no Shutdown method
+	defer goleak.VerifyNone(
+		t,
+		goleak.IgnoreCurrent(),
+		goleak.IgnoreTopFunction("github.com/m3db/m3/src/x/sync.(*pooledWorkerPool).spawnWorker.func1"),
+	)
 
-	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
+	mgr := mustMakeInstanceWriterManager(testOptions())
 
 	// Add instance list and close.
 	require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	require.NoError(t, mgr.Close())
 	require.True(t, mgr.closed)
 	require.True(t, clock.WaitUntil(func() bool {
+		mgr.Lock()
 		for _, w := range mgr.writers {
 			wr := w.instanceWriter.(*writer)
 			wr.Lock()
@@ -275,6 +303,16 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 				return false
 			}
 		}
+		mgr.Unlock()
 		return true
 	}, 3*time.Second))
+}
+
+func mustMakeInstanceWriterManager(opts Options) *writerManager {
+	wm, err := newInstanceWriterManager(opts)
+	if err != nil {
+		panic(err)
+	}
+
+	return wm.(*writerManager)
 }
