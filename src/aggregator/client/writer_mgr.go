@@ -114,7 +114,6 @@ func newInstanceWriterManager(opts Options) (instanceWriterManager, error) {
 		opts.FlushWorkerCount(),
 		xsync.NewPooledWorkerPoolOptions().SetKillWorkerProbability(0.05),
 	)
-
 	if err != nil {
 		return nil, err
 	}
