@@ -28,6 +28,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 
 	"github.com/m3db/m3/src/cluster/placement"
@@ -207,7 +208,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		numFlushes int
+		numFlushes atomic.Int64
 		instances  = []placement.Instance{
 			testPlacementInstance,
 			placement.NewInstance().
@@ -221,7 +222,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 	writer1.EXPECT().
 		Flush().
 		DoAndReturn(func() error {
-			numFlushes++
+			numFlushes.Inc()
 			return nil
 		})
 	errTestFlush := errors.New("test flush error")
@@ -244,7 +245,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 	err := mgr.Flush()
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), errTestFlush.Error()))
-	require.Equal(t, 1, numFlushes)
+	require.Equal(t, int64(1), numFlushes.Load())
 }
 
 func TestWriterManagerCloseAlreadyClosed(t *testing.T) {

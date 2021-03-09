@@ -22,7 +22,6 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/cluster/placement"
@@ -40,8 +39,9 @@ import (
 )
 
 var (
-	errInstanceWriterClosed   = errors.New("instance writer is closed")
-	errUnrecognizedMetricType = errors.New("unrecognized metric type")
+	errInstanceWriterClosed    = errors.New("instance writer is closed")
+	errUnrecognizedMetricType  = errors.New("unrecognized metric type")
+	errUnrecognizedPayloadType = errors.New("unrecognized payload type")
 )
 
 type instanceWriter interface {
@@ -67,7 +67,7 @@ type writer struct {
 	metrics           writerMetrics
 	encoderOpts       protobuf.UnaggregatedOptions
 	queue             instanceQueue
-	flushSize         int
+	maxBatchSize      int
 	maxTimerBatchSize int
 
 	encodersByShard    map[uint32]*lockedEncoder
@@ -84,7 +84,7 @@ func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter
 	w := &writer{
 		log:               iOpts.Logger(),
 		metrics:           newWriterMetrics(scope),
-		flushSize:         opts.FlushSize(),
+		maxBatchSize:      opts.MaxBatchSize(),
 		maxTimerBatchSize: opts.MaxTimerBatchSize(),
 		encoderOpts:       opts.EncoderOptions(),
 		queue:             newInstanceQueue(instance, queueOpts),
@@ -165,21 +165,53 @@ func (w *writer) encodeWithLock(
 	encoder *lockedEncoder,
 	payload payloadUnion,
 ) error {
+	encoder.Lock()
+
+	var (
+		sizeBefore = encoder.Len()
+		err        error
+	)
+
 	switch payload.payloadType {
 	case untimedType:
-		return w.encodeUntimedWithLock(encoder, payload.untimed.metric, payload.untimed.metadatas)
+		err = w.encodeUntimedWithLock(encoder, payload.untimed.metric, payload.untimed.metadatas)
 	case forwardedType:
-		return w.encodeForwardedWithLock(encoder, payload.forwarded.metric, payload.forwarded.metadata)
+		err = w.encodeForwardedWithLock(encoder, payload.forwarded.metric, payload.forwarded.metadata)
 	case timedType:
-		return w.encodeTimedWithLock(encoder, payload.timed.metric, payload.timed.metadata)
+		err = w.encodeTimedWithLock(encoder, payload.timed.metric, payload.timed.metadata)
 	case timedWithStagedMetadatasType:
 		elem := payload.timedWithStagedMetadatas
-		return w.encodeTimedWithStagedMetadatasWithLock(encoder, elem.metric, elem.metadatas)
+		err = w.encodeTimedWithStagedMetadatasWithLock(encoder, elem.metric, elem.metadatas)
 	case passthroughType:
-		return w.encodePassthroughWithLock(encoder, payload.passthrough.metric, payload.passthrough.storagePolicy)
+		err = w.encodePassthroughWithLock(encoder, payload.passthrough.metric, payload.passthrough.storagePolicy)
 	default:
-		return fmt.Errorf("unknown payload type: %v", payload.payloadType)
+		err = errUnrecognizedPayloadType
 	}
+
+	if err != nil {
+		w.metrics.encodeErrors.Inc(1)
+		w.log.Error("encode untimed metric error",
+			zap.Any("payload", payload),
+			zap.Int("payloadType", int(payload.payloadType)),
+			zap.Error(err),
+		)
+		// Rewind buffer and clear out the encoder error.
+		encoder.Truncate(sizeBefore)
+		encoder.Unlock()
+		return err
+	}
+
+	payloadSize := encoder.Len()
+
+	if payloadSize < w.maxBatchSize {
+		encoder.Unlock()
+		return nil
+	}
+
+	buffer := encoder.Relinquish()
+	encoder.Unlock()
+
+	return w.enqueueBuffer(buffer)
 }
 
 func (w *writer) encodeUntimedWithLock(
@@ -187,13 +219,6 @@ func (w *writer) encodeUntimedWithLock(
 	metricUnion unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	encoder.Lock()
-
-	var (
-		sizeBefore = encoder.Len()
-		encodeErr  error
-		enqueueErr error
-	)
 	switch metricUnion.Type {
 	case metric.CounterType:
 		msg := encoding.UnaggregatedMessageUnion{
@@ -202,7 +227,8 @@ func (w *writer) encodeUntimedWithLock(
 				Counter:         metricUnion.Counter(),
 				StagedMetadatas: metadatas,
 			}}
-		encodeErr = encoder.EncodeMessage(msg)
+
+		return encoder.EncodeMessage(msg)
 	case metric.TimerType:
 		// If there is no limit on the timer batch size, write the full batch.
 		if w.maxTimerBatchSize == 0 {
@@ -212,8 +238,8 @@ func (w *writer) encodeUntimedWithLock(
 					BatchTimer:      metricUnion.BatchTimer(),
 					StagedMetadatas: metadatas,
 				}}
-			encodeErr = encoder.EncodeMessage(msg)
-			break
+
+			return encoder.EncodeMessage(msg)
 		}
 
 		// Otherwise, honor maximum timer batch size.
@@ -223,6 +249,7 @@ func (w *writer) encodeUntimedWithLock(
 			numTimerValues = len(timerValues)
 			start, end     int
 		)
+
 		for start = 0; start < numTimerValues; start = end {
 			end = start + w.maxTimerBatchSize
 			if end > numTimerValues {
@@ -239,35 +266,20 @@ func (w *writer) encodeUntimedWithLock(
 					BatchTimer:      singleBatchTimer,
 					StagedMetadatas: metadatas,
 				}}
-			encodeErr = encoder.EncodeMessage(msg)
-			if encodeErr != nil {
-				break
+			if err := encoder.EncodeMessage(msg); err != nil {
+				return err
 			}
 
-			// If the buffer isn't big enough continue to the next iteration.
-			if sizeAfter := encoder.Len(); sizeAfter < w.flushSize {
-				continue
-			}
-
-			// Otherwise we enqueue the current buffer.
-			buffer := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
-
-			// Unlock the encoder before we enqueue the old buffer to ensure other
-			// goroutines have an oppurtunity to encode metrics while larger timer
+			// Unlock the encoder before we encode another metric to ensure other
+			// goroutines have an opportunity to encode metrics while larger timer
 			// batches are being encoded.
-			encoder.Unlock()
-
-			enqueueErr = w.enqueueBuffer(buffer)
-
-			// Re-lock the encoder and update variables since the encoder's buffer
-			// may have been updated.
-			encoder.Lock()
-			sizeBefore = encoder.Len()
-
-			if enqueueErr != nil {
-				break
+			if end < numTimerValues {
+				encoder.Unlock()
+				encoder.Lock()
 			}
 		}
+
+		return nil
 	case metric.GaugeType:
 		msg := encoding.UnaggregatedMessageUnion{
 			Type: encoding.GaugeWithMetadatasType,
@@ -275,39 +287,11 @@ func (w *writer) encodeUntimedWithLock(
 				Gauge:           metricUnion.Gauge(),
 				StagedMetadatas: metadatas,
 			}}
-		encodeErr = encoder.EncodeMessage(msg)
+		return encoder.EncodeMessage(msg)
 	default:
-		encodeErr = errUnrecognizedMetricType
 	}
 
-	if encodeErr != nil {
-		w.log.Error("encode untimed metric error",
-			zap.Any("metric", metricUnion),
-			zap.Any("metadatas", metadatas),
-			zap.Error(encodeErr),
-		)
-		// Rewind buffer and clear out the encoder error.
-		encoder.Truncate(sizeBefore)
-		encoder.Unlock()
-		w.metrics.encodeErrors.Inc(1)
-		return encodeErr
-	}
-
-	if enqueueErr != nil {
-		encoder.Unlock()
-		return enqueueErr
-	}
-
-	// If the buffer size is not big enough, do nothing.
-	if sizeAfter := encoder.Len(); sizeAfter < w.flushSize {
-		encoder.Unlock()
-		return nil
-	}
-
-	// Otherwise we enqueue the current buffer.
-	buffer := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
-	encoder.Unlock()
-	return w.enqueueBuffer(buffer)
+	return errUnrecognizedMetricType
 }
 
 func (w *writer) encodeForwardedWithLock(
@@ -315,38 +299,14 @@ func (w *writer) encodeForwardedWithLock(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
-	encoder.Lock()
-
-	sizeBefore := encoder.Len()
 	msg := encoding.UnaggregatedMessageUnion{
 		Type: encoding.ForwardedMetricWithMetadataType,
 		ForwardedMetricWithMetadata: aggregated.ForwardedMetricWithMetadata{
 			ForwardedMetric: metric,
 			ForwardMetadata: metadata,
 		}}
-	if err := encoder.EncodeMessage(msg); err != nil {
-		w.log.Error("encode forwarded metric error",
-			zap.Any("metric", metric),
-			zap.Any("metadata", metadata),
-			zap.Error(err),
-		)
-		// Rewind buffer and clear out the encoder error.
-		encoder.Truncate(sizeBefore)
-		encoder.Unlock()
-		w.metrics.encodeErrors.Inc(1)
-		return err
-	}
 
-	// If the buffer size is not big enough, do nothing.
-	if sizeAfter := encoder.Len(); sizeAfter < w.flushSize {
-		encoder.Unlock()
-		return nil
-	}
-
-	// Otherwise we enqueue the current buffer.
-	buffer := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
-	encoder.Unlock()
-	return w.enqueueBuffer(buffer)
+	return encoder.EncodeMessage(msg)
 }
 
 func (w *writer) encodeTimedWithLock(
@@ -354,38 +314,14 @@ func (w *writer) encodeTimedWithLock(
 	metric aggregated.Metric,
 	metadata metadata.TimedMetadata,
 ) error {
-	encoder.Lock()
-
-	sizeBefore := encoder.Len()
 	msg := encoding.UnaggregatedMessageUnion{
 		Type: encoding.TimedMetricWithMetadataType,
 		TimedMetricWithMetadata: aggregated.TimedMetricWithMetadata{
 			Metric:        metric,
 			TimedMetadata: metadata,
 		}}
-	if err := encoder.EncodeMessage(msg); err != nil {
-		w.log.Error("encode timed metric error",
-			zap.Any("metric", metric),
-			zap.Any("metadata", metadata),
-			zap.Error(err),
-		)
-		// Rewind buffer and clear out the encoder error.
-		encoder.Truncate(sizeBefore)
-		encoder.Unlock()
-		w.metrics.encodeErrors.Inc(1)
-		return err
-	}
 
-	// If the buffer size is not big enough, do nothing.
-	if sizeAfter := encoder.Len(); sizeAfter < w.flushSize {
-		encoder.Unlock()
-		return nil
-	}
-
-	// Otherwise we enqueue the current buffer.
-	buffer := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
-	encoder.Unlock()
-	return w.enqueueBuffer(buffer)
+	return encoder.EncodeMessage(msg)
 }
 
 func (w *writer) encodeTimedWithStagedMetadatasWithLock(
@@ -393,38 +329,14 @@ func (w *writer) encodeTimedWithStagedMetadatasWithLock(
 	metric aggregated.Metric,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	encoder.Lock()
-
-	sizeBefore := encoder.Len()
 	msg := encoding.UnaggregatedMessageUnion{
 		Type: encoding.TimedMetricWithMetadatasType,
 		TimedMetricWithMetadatas: aggregated.TimedMetricWithMetadatas{
 			Metric:          metric,
 			StagedMetadatas: metadatas,
 		}}
-	if err := encoder.EncodeMessage(msg); err != nil {
-		w.log.Error("encode timed metric error",
-			zap.Any("metric", metric),
-			zap.Any("metadatas", metadatas),
-			zap.Error(err),
-		)
-		// Rewind buffer and clear out the encoder error.
-		encoder.Truncate(sizeBefore)
-		encoder.Unlock()
-		w.metrics.encodeErrors.Inc(1)
-		return err
-	}
 
-	// If the buffer size is not big enough, do nothing.
-	if sizeAfter := encoder.Len(); sizeAfter < w.flushSize {
-		encoder.Unlock()
-		return nil
-	}
-
-	// Otherwise we enqueue the current buffer.
-	buffer := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
-	encoder.Unlock()
-	return w.enqueueBuffer(buffer)
+	return encoder.EncodeMessage(msg)
 }
 
 func (w *writer) encodePassthroughWithLock(
@@ -432,59 +344,14 @@ func (w *writer) encodePassthroughWithLock(
 	metric aggregated.Metric,
 	storagePolicy policy.StoragePolicy,
 ) error {
-	encoder.Lock()
-
-	sizeBefore := encoder.Len()
 	msg := encoding.UnaggregatedMessageUnion{
 		Type: encoding.PassthroughMetricWithMetadataType,
 		PassthroughMetricWithMetadata: aggregated.PassthroughMetricWithMetadata{
 			Metric:        metric,
 			StoragePolicy: storagePolicy,
 		}}
-	if err := encoder.EncodeMessage(msg); err != nil {
-		w.log.Error("encode passthrough metric error",
-			zap.Any("metric", metric),
-			zap.Any("storagepolicy", storagePolicy),
-			zap.Error(err),
-		)
-		// Rewind buffer and clear out the encoder error.
-		encoder.Truncate(sizeBefore)
-		encoder.Unlock()
-		w.metrics.encodeErrors.Inc(1)
-		return err
-	}
 
-	// If the buffer size is not big enough, do nothing.
-	if sizeAfter := encoder.Len(); sizeAfter < w.flushSize {
-		encoder.Unlock()
-		return nil
-	}
-
-	// Otherwise we enqueue the current buffer.
-	buffer := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
-	encoder.Unlock()
-	return w.enqueueBuffer(buffer)
-}
-
-// prepareEnqueueBufferWithLock prepares the writer to enqueue a
-// buffer onto its instance queue. It gets a new buffer from pool,
-// copies the bytes exceeding sizeBefore to it, resets the encoder
-// with the new buffer, and returns the old buffer.
-func (w *writer) prepareEnqueueBufferWithLock(
-	encoder *lockedEncoder,
-	sizeBefore int,
-) protobuf.Buffer {
-	buf := encoder.Relinquish()
-	if sizeBefore == 0 {
-		// If a single write causes the buffer to exceed the flush size,
-		// reset and send the buffer as is.
-		return buf
-	}
-	// Otherwise we reset the buffer and copy the bytes exceeding sizeBefore,
-	// and return the old buffer.
-	encoder.Reset(buf.Bytes()[sizeBefore:])
-	buf.Truncate(sizeBefore)
-	return buf
+	return encoder.EncodeMessage(msg)
 }
 
 func (w *writer) flushWithLock() error {
@@ -501,6 +368,9 @@ func (w *writer) flushWithLock() error {
 			multiErr = multiErr.Add(err)
 		}
 	}
+
+	w.queue.Flush()
+
 	return multiErr.FinalError()
 }
 

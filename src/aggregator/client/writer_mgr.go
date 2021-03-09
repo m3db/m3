@@ -26,8 +26,11 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/cpu"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
 )
@@ -40,6 +43,8 @@ const (
 	_queueMetricReportInterval = 10 * time.Second
 	_queueMetricBuckets        = 8
 	_queueMetricBucketStart    = 64
+
+	_maxFlushWorkers = 128
 )
 
 // instanceWriterManager manages instance writers.
@@ -95,6 +100,8 @@ type writerManager struct {
 	writers map[string]*refCountedWriter
 	closed  bool
 	metrics writerManagerMetrics
+	_       cpu.CacheLinePad
+	pool    xsync.WorkerPool
 }
 
 func newInstanceWriterManager(opts Options) instanceWriterManager {
@@ -103,7 +110,9 @@ func newInstanceWriterManager(opts Options) instanceWriterManager {
 		writers: make(map[string]*refCountedWriter),
 		metrics: newWriterManagerMetrics(opts.InstrumentOptions().MetricsScope()),
 		doneCh:  make(chan struct{}),
+		pool:    xsync.NewWorkerPool(_maxFlushWorkers),
 	}
+	wm.pool.Init()
 	wm.wg.Add(1)
 	go wm.reportMetricsLoop()
 	return wm
@@ -176,17 +185,35 @@ func (mgr *writerManager) Write(
 
 func (mgr *writerManager) Flush() error {
 	mgr.RLock()
+	defer mgr.RUnlock()
+
 	if mgr.closed {
-		mgr.RUnlock()
 		return errInstanceWriterManagerClosed
 	}
-	multiErr := xerrors.NewMultiError()
+
+	var (
+		multiErr = xerrors.NewMultiError()
+		errCh    = make(chan error, len(mgr.writers))
+		wg       sync.WaitGroup
+	)
+
+	wg.Add(len(mgr.writers))
 	for _, w := range mgr.writers {
-		if err := w.Flush(); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+		w := w
+		mgr.pool.Go(func() {
+			defer wg.Done()
+			errCh <- w.Flush()
+		})
 	}
-	mgr.RUnlock()
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		fmt.Println(err)
+		multiErr = multiErr.Add(err)
+	}
+
 	return multiErr.FinalError()
 }
 

@@ -255,7 +255,8 @@ func (c *TCPClient) Flush() error {
 
 // Close closes the client.
 func (c *TCPClient) Close() error {
-	c.placementWatcher.Unwatch() // nolint: errcheck
+	c.writerMgr.Flush()          //nolint:errcheck
+	c.placementWatcher.Unwatch() //nolint:errcheck
 	// writerMgr errors out if trying to close twice
 	return c.writerMgr.Close()
 }
