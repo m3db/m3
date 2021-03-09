@@ -351,7 +351,7 @@ func (c *coordinator) UpdateNamespace(
 
 	resp, err := makeRequest(logger, url, http.MethodPut, &req)
 	if err != nil {
-		logger.Error("failed post", zap.Error(err))
+		logger.Error("failed to update namespace", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
 	}
 
