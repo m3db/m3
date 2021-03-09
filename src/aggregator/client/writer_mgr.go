@@ -207,9 +207,9 @@ func (mgr *writerManager) Flush() error {
 	}
 
 	var (
-		multiErr = xerrors.NewMultiError()
-		errCh    = make(chan error, 1)
-		wg       sync.WaitGroup
+		errCh  = make(chan error, 1)
+		mErrCh = make(chan xerrors.MultiError, 1)
+		wg     sync.WaitGroup
 	)
 
 	wg.Add(len(mgr.writers))
@@ -217,18 +217,23 @@ func (mgr *writerManager) Flush() error {
 		w := w
 		mgr.pool.Go(func() {
 			defer wg.Done()
-			errCh <- w.Flush()
+			if err := w.Flush(); err != nil {
+				errCh <- err
+			}
 		})
 	}
 
 	go func() {
+		multiErr := xerrors.NewMultiError()
 		for err := range errCh {
 			multiErr = multiErr.Add(err)
 		}
+		mErrCh <- multiErr
 	}()
 	wg.Wait()
 	close(errCh)
 
+	multiErr := <-mErrCh
 	return multiErr.FinalError()
 }
 

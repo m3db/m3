@@ -273,7 +273,9 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 
 func TestWriterManagerCloseAlreadyClosed(t *testing.T) {
 	mgr := mustMakeInstanceWriterManager(testOptions())
+	mgr.Lock()
 	mgr.closed = true
+	mgr.Unlock()
 	require.Equal(t, errInstanceWriterManagerClosed, mgr.Close())
 }
 
@@ -290,9 +292,11 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	// Add instance list and close.
 	require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	require.NoError(t, mgr.Close())
+	mgr.Lock()
 	require.True(t, mgr.closed)
+	mgr.Unlock()
+
 	require.True(t, clock.WaitUntil(func() bool {
-		mgr.Lock()
 		for _, w := range mgr.writers {
 			wr := w.instanceWriter.(*writer)
 			wr.Lock()
@@ -303,7 +307,6 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 				return false
 			}
 		}
-		mgr.Unlock()
 		return true
 	}, 3*time.Second))
 }
