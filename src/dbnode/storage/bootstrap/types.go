@@ -279,7 +279,7 @@ type NamespaceDataAccumulator interface {
 
 // CheckoutSeriesResult is the result of a checkout series operation.
 type CheckoutSeriesResult struct {
-	// Resolver is the series for the checkout operation.
+	// Resolver is the series read write ref resolver.
 	Resolver SeriesRefResolver
 	// Shard is the shard for the series.
 	Shard uint32
