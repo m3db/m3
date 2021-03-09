@@ -1425,6 +1425,32 @@ func TestEntryAddTimed(t *testing.T) {
 	require.Equal(t, testTimedMetric.ID, counterElem.ID())
 }
 
+func TestEntryAddTimedWithStagedMetadatasEmptyList(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
+
+	require.Equal(t, errEmptyMetadatas, e.AddTimedWithStagedMetadatas(testTimedMetric, nil))
+}
+
+func TestEntryAddTimedWithStagedMetadatasDefaultMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
+
+	require.Equal(
+		t,
+		errOnlyDefaultStagedMetadata,
+		e.AddTimedWithStagedMetadatas(testTimedMetric, metadata.DefaultStagedMetadatas),
+	)
+}
+
 func TestEntryForwardedRateLimiting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
