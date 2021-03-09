@@ -473,13 +473,18 @@ func Run(runOpts RunOptions) {
 	defer seriesReadPermits.Stop()
 
 	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
-	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		permitOptions = permitOptions.SetIndexQueryPermitsManager(
-			permits.NewFixedPermitsManager(cfg.Index.MaxQueryIDsConcurrency))
+	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
+	if cfg.Index.MaxQueryIDsConcurrency > 0 {
+		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
 	} else {
 		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
-	opts = opts.SetPermitsOptions(permitOptions)
+	maxWorkerTime := time.Second
+	if cfg.Index.MaxWorkerTime > 0 {
+		maxWorkerTime = cfg.Index.MaxWorkerTime
+	}
+	opts = opts.SetPermitsOptions(permitOptions.SetIndexQueryPermitsManager(
+		permits.NewFixedPermitsManager(maxIdxConcurrency, int64(maxWorkerTime), iOpts)))
 
 	// Setup postings list cache.
 	var (
@@ -521,10 +526,6 @@ func Run(runOpts RunOptions) {
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
-
-	if cfg.Index.MaxWorkerTime > 0 {
-		indexOpts = indexOpts.SetMaxWorkerTime(cfg.Index.MaxWorkerTime)
-	}
 
 	opts = opts.SetIndexOptions(indexOpts)
 
@@ -747,7 +748,6 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
 		SetQueryLimits(queryLimits).
-		SetFetchTaggedSeriesBlocksPerBatch(cfg.FetchTagged.SeriesBlocksPerBatchOrDefault()).
 		SetPermitsOptions(opts.PermitsOptions())
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
