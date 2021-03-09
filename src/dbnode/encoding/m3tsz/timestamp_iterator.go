@@ -141,7 +141,7 @@ func (it *TimestampIterator) readNextTimestamp(stream *encoding.IStream) error {
 	}
 
 	it.PrevTimeDelta += dod
-	it.PrevTime = it.PrevTime + xtime.UnixNano(it.PrevTimeDelta)
+	it.PrevTime += xtime.UnixNano(it.PrevTimeDelta)
 	return nil
 }
 
