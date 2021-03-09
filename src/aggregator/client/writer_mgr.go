@@ -95,6 +95,7 @@ type writerManager struct {
 	doneCh  chan struct{}
 	opts    Options
 	writers map[string]*refCountedWriter
+	writers map[string]*refCountedWriter
 	closed  bool
 	metrics writerManagerMetrics
 	_       cpu.CacheLinePad
