@@ -490,6 +490,8 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
+	// do not panic for invariant violation to test some shards are still bootstrapped.
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	require.Error(t, ns.Bootstrap(ctx, nsResult))
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }

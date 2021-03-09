@@ -23,6 +23,7 @@ package instrument
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -86,6 +87,16 @@ func InvariantErrorf(format string, a ...interface{}) error {
 
 	panicIfEnvSetWithMessage(err.Error())
 	return err
+}
+
+// SetShouldPanicEnvironmentVariable sets the env variable and returns a func to reset to the previous value.
+// Useful for tests to use a defer statement when they need to test a specific value.
+func SetShouldPanicEnvironmentVariable(value bool) func() {
+	restoreValue := os.Getenv(ShouldPanicEnvironmentVariableName)
+	_ = os.Setenv(ShouldPanicEnvironmentVariableName, strconv.FormatBool(value))
+	return func() {
+		_ = os.Setenv(ShouldPanicEnvironmentVariableName, restoreValue)
+	}
 }
 
 func panicIfEnvSet() {

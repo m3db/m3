@@ -23,9 +23,11 @@ package pool
 import "github.com/m3db/m3/src/x/instrument"
 
 const (
-	defaultSize                = 4096
-	defaultRefillLowWatermark  = 0.0
-	defaultRefillHighWatermark = 0.0
+	_defaultSize                = 4096
+	_defaultRefillLowWatermark  = 0.0
+	_defaultRefillHighWatermark = 0.0
+
+	_dynamicPoolSize = -1
 )
 
 type objectPoolOptions struct {
@@ -34,14 +36,16 @@ type objectPoolOptions struct {
 	refillHighWatermark float64
 	instrumentOpts      instrument.Options
 	onPoolAccessErrorFn OnPoolAccessErrorFn
+	dynamic             bool
 }
 
 // NewObjectPoolOptions creates a new set of object pool options
 func NewObjectPoolOptions() ObjectPoolOptions {
 	return &objectPoolOptions{
-		size:                defaultSize,
-		refillLowWatermark:  defaultRefillLowWatermark,
-		refillHighWatermark: defaultRefillHighWatermark,
+		size:                _defaultSize,
+		dynamic:             false,
+		refillLowWatermark:  _defaultRefillLowWatermark,
+		refillHighWatermark: _defaultRefillHighWatermark,
 		instrumentOpts:      instrument.NewOptions(),
 		onPoolAccessErrorFn: func(err error) { panic(err) },
 	}
@@ -54,7 +58,20 @@ func (o *objectPoolOptions) SetSize(value int) ObjectPoolOptions {
 }
 
 func (o *objectPoolOptions) Size() int {
+	if o.dynamic {
+		return _dynamicPoolSize
+	}
 	return o.size
+}
+
+func (o *objectPoolOptions) SetDynamic(dynamic bool) ObjectPoolOptions {
+	opts := *o
+	opts.dynamic = dynamic
+	return &opts
+}
+
+func (o *objectPoolOptions) Dynamic() bool {
+	return o.dynamic
 }
 
 func (o *objectPoolOptions) SetRefillLowWatermark(value float64) ObjectPoolOptions {

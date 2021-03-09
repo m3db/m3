@@ -447,6 +447,88 @@ func TestDownsamplerAggregationWithRulesConfigMappingRules(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithAutoMappingRulesAndRulesConfigMappingRulesAndDropRule(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+			"env":   "staging",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+		expectDropPolicyApplied: true,
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []m3.ClusterNamespaceOptions{
+			m3.NewClusterNamespaceOptions(
+				storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   2 * time.Hour,
+					Resolution:  1 * time.Second,
+				},
+				nil,
+			),
+			m3.NewClusterNamespaceOptions(
+				storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   12 * time.Hour,
+					Resolution:  5 * time.Second,
+				},
+				nil,
+			),
+		},
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter: "env:staging",
+					Drop:   true,
+				},
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 10 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			allowFilter: &testDownsamplerOptionsExpectAllowFilter{
+				attributes: []storagemetadata.Attributes{
+					{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  10 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+			writes: []testExpectedWrite{
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  10 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMappingRuleFromNamespacesWatcher(t *testing.T) {
 	t.Parallel()
 
@@ -2270,12 +2352,14 @@ func testDownsamplerAggregation(
 	expectedWrites := append(counterMetricsExpect, gaugeMetricsExpect...)
 
 	// Allow overrides
+	var allowFilter *testDownsamplerOptionsExpectAllowFilter
 	if ingest := testOpts.ingest; ingest != nil {
 		counterMetrics = ingest.counterMetrics
 		gaugeMetrics = ingest.gaugeMetrics
 	}
 	if expect := testOpts.expect; expect != nil {
 		expectedWrites = expect.writes
+		allowFilter = expect.allowFilter
 	}
 
 	// Ingest points
@@ -2392,6 +2476,24 @@ CheckAllWritesArrivedLoop:
 				assert.Equal(t, *attrs, write.Attributes())
 			}
 		}
+	}
+
+	if allowFilter == nil {
+		return // No allow filter checking required.
+	}
+
+	for _, write := range testDownsampler.storage.Writes() {
+		attrs := write.Attributes()
+		foundMatchingAttribute := false
+		for _, allowed := range allowFilter.attributes {
+			if allowed == attrs {
+				foundMatchingAttribute = true
+				break
+			}
+		}
+		assert.True(t, foundMatchingAttribute,
+			fmt.Sprintf("attribute not allowed: allowed=%v, actual=%v",
+				allowFilter.attributes, attrs))
 	}
 }
 
@@ -2618,7 +2720,7 @@ type testDownsamplerOptions struct {
 	identTag       string
 
 	// Options for the test
-	autoMappingRules   []AutoMappingRule
+	autoMappingRules   []m3.ClusterNamespaceOptions
 	sampleAppenderOpts *SampleAppenderOptions
 	remoteClientMock   *client.MockClient
 	rulesConfig        *RulesConfiguration
@@ -2635,7 +2737,12 @@ type testDownsamplerOptionsIngest struct {
 }
 
 type testDownsamplerOptionsExpect struct {
-	writes []testExpectedWrite
+	writes      []testExpectedWrite
+	allowFilter *testDownsamplerOptionsExpectAllowFilter
+}
+
+type testDownsamplerOptionsExpectAllowFilter struct {
+	attributes []storagemetadata.Attributes
 }
 
 func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampler {
@@ -2718,6 +2825,23 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		TagOptions:                 models.NewTagOptions(),
 	})
 	require.NoError(t, err)
+
+	if len(opts.autoMappingRules) > 0 {
+		// Simulate the automapping rules being injected into the downsampler.
+		ctrl := gomock.NewController(t)
+
+		var mockNamespaces m3.ClusterNamespaces
+		for _, r := range opts.autoMappingRules {
+			n := m3.NewMockClusterNamespace(ctrl)
+			n.EXPECT().
+				Options().
+				Return(r).
+				AnyTimes()
+			mockNamespaces = append(mockNamespaces, n)
+		}
+
+		instance.(*downsampler).OnUpdate(mockNamespaces)
+	}
 
 	downcast, ok := instance.(*downsampler)
 	require.True(t, ok)

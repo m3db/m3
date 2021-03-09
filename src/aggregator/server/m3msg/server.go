@@ -71,9 +71,11 @@ func (s *server) Consume(c consumer.Consumer) {
 			break
 		}
 
+		// Reset and reuse the protobuf message for unpacking.
+		protobuf.ReuseMetricWithMetadatasProto(pb)
 		err := s.handleMessage(pb, union, msg)
 		if err != nil {
-			s.logger.Error("could not process message", zap.Error(err))
+			s.logger.Error("could not process message", zap.Error(err), zap.String("proto", pb.String()))
 		}
 	}
 	if msgErr != nil && msgErr != io.EOF {
@@ -88,9 +90,6 @@ func (s *server) handleMessage(
 	msg consumer.Message,
 ) error {
 	defer msg.Ack()
-
-	// Reset and reuse the protobuf message for unpacking.
-	protobuf.ReuseMetricWithMetadatasProto(pb)
 
 	// Unmarshal the message.
 	if err := pb.Unmarshal(msg.Bytes()); err != nil {

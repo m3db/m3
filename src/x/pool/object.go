@@ -23,6 +23,7 @@ package pool
 import (
 	"errors"
 	"math"
+	"sync"
 	"sync/atomic"
 
 	"github.com/m3db/m3/src/x/unsafe"
@@ -65,6 +66,21 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 		opts = NewObjectPoolOptions()
 	}
 
+	uninitializedAllocatorFn := func() interface{} {
+		fn := opts.OnPoolAccessErrorFn()
+		fn(errPoolAccessBeforeInitialized)
+		return nil
+	}
+
+	if opts.Dynamic() {
+		return &dynamicPool{
+			pool: sync.Pool{
+				New: uninitializedAllocatorFn,
+			},
+			onPoolAccessErrorFn: opts.OnPoolAccessErrorFn(),
+		}
+	}
+
 	m := opts.InstrumentOptions().MetricsScope()
 
 	p := &objectPool{
@@ -80,11 +96,7 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 			putOnFull:  m.Counter("put-on-full"),
 		},
 		onPoolAccessErrorFn: opts.OnPoolAccessErrorFn(),
-		alloc: func() interface{} {
-			fn := opts.OnPoolAccessErrorFn()
-			fn(errPoolAccessBeforeInitialized)
-			return nil
-		},
+		alloc:               uninitializedAllocatorFn,
 	}
 
 	p.setGauges()
@@ -166,4 +178,29 @@ func (p *objectPool) tryFill() {
 			}
 		}
 	}()
+}
+
+var _ ObjectPool = (*dynamicPool)(nil)
+
+type dynamicPool struct {
+	pool                sync.Pool
+	onPoolAccessErrorFn OnPoolAccessErrorFn
+	initialized         int32
+}
+
+func (d *dynamicPool) Init(alloc Allocator) {
+	if !atomic.CompareAndSwapInt32(&d.initialized, 0, 1) {
+		d.onPoolAccessErrorFn(errPoolAlreadyInitialized)
+		return
+	}
+
+	d.pool.New = alloc
+}
+
+func (d *dynamicPool) Get() interface{} {
+	return d.pool.Get()
+}
+
+func (d *dynamicPool) Put(x interface{}) {
+	d.pool.Put(x)
 }
