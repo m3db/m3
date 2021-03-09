@@ -559,6 +559,13 @@ func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
 			units: xtime.Second,
 		},
 		{
+			name:           "seconds, too big gap",
+			delta:          1000 * 25 * 24 * time.Hour, // more than 2^31 s
+			units:          xtime.Second,
+			positiveErrMsg: "deltaOfDelta value 2160000000 s overflows 32 bits",
+			negativeErrMsg: "deltaOfDelta value -2159999999 s overflows 32 bits",
+		},
+		{
 			name:  "milliseconds, short gap",
 			delta: time.Hour,
 			units: xtime.Millisecond,

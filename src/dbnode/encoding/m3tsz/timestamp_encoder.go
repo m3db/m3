@@ -187,7 +187,7 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	}
 
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
-	if timeUnit == xtime.Millisecond {
+	if timeUnit == xtime.Millisecond || timeUnit == xtime.Second {
 		dod32 := int32(deltaOfDelta)
 		if int64(dod32) != deltaOfDelta {
 			return fmt.Errorf(
