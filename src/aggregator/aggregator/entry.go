@@ -61,6 +61,9 @@ var (
 	errOnlyDefaultStagedMetadata   = xerrors.NewInvalidParamsError(
 		errors.New("only default staged metadata provided"),
 	)
+	errOnlyDropPolicyStagedMetadata = xerrors.NewInvalidParamsError(
+		errors.New("only drop policy staged metadata provided"),
+	)
 	errTooFarInTheFuture = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
 	errTooFarInThePast   = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
 	errArrivedTooLate    = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
@@ -702,6 +705,10 @@ func (e *Entry) addTimed(
 			e.RUnlock()
 			timeLock.RUnlock()
 			return errOnlyDefaultStagedMetadata
+		} else if stagedMetadatas.IsDropPolicySet() {
+			e.RUnlock()
+			timeLock.RUnlock()
+			return errOnlyDropPolicyStagedMetadata
 		}
 
 		sm, err := e.activeStagedMetadataWithLock(currTime, stagedMetadatas)
@@ -823,9 +830,9 @@ func (e *Entry) checkTimestampForTimedMetric(
 		timestamp := time.Unix(0, metricTimeNanos)
 		futureLimit := time.Unix(0, currNanos+timedBufferFuture.Nanoseconds())
 		err := fmt.Errorf("datapoint for aggregation too far in future: "+
-			"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
+			"off_by=%s, timestamp=%s, future_limit=%s, "+
 			"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
-			metric.ID, timestamp.Sub(futureLimit).String(),
+			timestamp.Sub(futureLimit).String(),
 			timestamp.Format(errTimestampFormat),
 			futureLimit.Format(errTimestampFormat),
 			timestamp.UnixNano(), futureLimit.UnixNano())
@@ -842,9 +849,9 @@ func (e *Entry) checkTimestampForTimedMetric(
 		timestamp := time.Unix(0, metricTimeNanos)
 		pastLimit := time.Unix(0, currNanos-timedBufferPast.Nanoseconds())
 		err := fmt.Errorf("datapoint for aggregation too far in past: "+
-			"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
+			"off_by=%s, timestamp=%s, past_limit=%s, "+
 			"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
-			metric.ID, pastLimit.Sub(timestamp).String(),
+			pastLimit.Sub(timestamp).String(),
 			timestamp.Format(errTimestampFormat),
 			pastLimit.Format(errTimestampFormat),
 			timestamp.UnixNano(), pastLimit.UnixNano())

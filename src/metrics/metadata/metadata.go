@@ -436,6 +436,11 @@ func (sm StagedMetadata) IsDropPolicyApplied() bool {
 	return !sm.Tombstoned && sm.Metadata.IsDropPolicyApplied()
 }
 
+// IsDropPolicySet returns whether a drop policy is set.
+func (sm StagedMetadata) IsDropPolicySet() bool {
+	return sm.Pipelines.IsDropPolicySet()
+}
+
 // ToProto converts the staged metadata to a protobuf message in place.
 func (sm StagedMetadata) ToProto(pb *metricpb.StagedMetadata) error {
 	if err := sm.Metadata.ToProto(&pb.Metadata); err != nil {
@@ -487,6 +492,11 @@ func (sms StagedMetadatas) IsDefault() bool {
 // default list but with the drop policy applied.
 func (sms StagedMetadatas) IsDropPolicyApplied() bool {
 	return len(sms) == 1 && sms[0].IsDropPolicyApplied()
+}
+
+// IsDropPolicySet returns if the active staged metadata has a drop policy set.
+func (sms StagedMetadatas) IsDropPolicySet() bool {
+	return len(sms) > 0 && sms[len(sms)-1].IsDropPolicySet()
 }
 
 // ToProto converts the staged metadatas to a protobuf message in place.
