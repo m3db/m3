@@ -102,6 +102,7 @@ type metricsAppenderOptions struct {
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
+	untimedRollups               bool
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -403,6 +404,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			clientRemote:    a.clientRemote,
 			unownedID:       rollup.ID,
 			stagedMetadatas: rollup.Metadatas,
+			dropTs:          a.untimedRollups,
 		})
 	}
 

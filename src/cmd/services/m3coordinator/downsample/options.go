@@ -234,9 +234,10 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	clockOpts clock.Options
-	matcher   matcher.Matcher
-	pools     aggPools
+	clockOpts      clock.Options
+	matcher        matcher.Matcher
+	pools          aggPools
+	untimedRollups bool
 }
 
 // Configuration configurates a downsampler.
@@ -268,8 +269,12 @@ type Configuration struct {
 	// BufferPastLimits specifies the buffer past limits.
 	BufferPastLimits []BufferPastLimitConfiguration `yaml:"bufferPastLimits"`
 
-	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
+	// EntryTTL determines how long an entry remains alive before it may be
+	// expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
+
+	// UntimedRollups indicates rollup rules should be untimed.
+	UntimedRollups bool `yaml:"untimedRollups"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
@@ -808,9 +813,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote: client,
-			matcher:      matcher,
-			pools:        pools,
+			clientRemote:   client,
+			matcher:        matcher,
+			pools:          pools,
+			untimedRollups: cfg.UntimedRollups,
 		}, nil
 	}
 
@@ -972,9 +978,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator: aggregatorInstance,
-		matcher:    matcher,
-		pools:      pools,
+		aggregator:     aggregatorInstance,
+		matcher:        matcher,
+		pools:          pools,
+		untimedRollups: cfg.UntimedRollups,
 	}, nil
 }
 
