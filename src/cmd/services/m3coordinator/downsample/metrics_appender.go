@@ -404,7 +404,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			clientRemote:    a.clientRemote,
 			unownedID:       rollup.ID,
 			stagedMetadatas: rollup.Metadatas,
-			dropTs:          a.untimedRollups,
+			dropTS:          a.untimedRollups,
 		})
 	}
 

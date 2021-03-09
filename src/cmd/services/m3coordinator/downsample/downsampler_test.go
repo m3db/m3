@@ -2844,6 +2844,9 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
+			if testOpts.waitForOffset {
+				time.Sleep(sample.offset)
+			}
 			err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
 			require.NoError(t, err)
 		}
