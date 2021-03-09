@@ -52,6 +52,7 @@ type Configuration struct {
 	ShardCutoverWarmupDuration *time.Duration                  `yaml:"shardCutoverWarmupDuration"`
 	ShardCutoffLingerDuration  *time.Duration                  `yaml:"shardCutoffLingerDuration"`
 	Encoder                    EncoderConfiguration            `yaml:"encoder"`
+	FlushSize                  int                             `yaml:"flushSize,omitempty"` // FlushSize is deprecated
 	FlushWorkerCount           int                             `yaml:"flushWorkerCount"`
 	ForceFlushEvery            time.Duration                   `yaml:"forceFlushEvery"`
 	MaxBatchSize               int                             `yaml:"maxBatchSize"`

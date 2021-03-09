@@ -213,4 +213,21 @@ func TestDropTypeUnmarshalYAML(t *testing.T) {
 	}
 }
 
+func TestRoundUpToPowerOfTwo(t *testing.T) {
+	for _, tt := range []struct {
+		in, out int
+	}{
+		{1, 1},
+		{2, 2},
+		{3, 4},
+		{4, 4},
+		{5, 8},
+		{7, 8},
+		{33, 64},
+		{42, 64},
+	} {
+		assert.Equal(t, tt.out, roundUpToPowerOfTwo(tt.in))
+	}
+}
+
 func testNewBuffer(data []byte) protobuf.Buffer { return protobuf.NewBuffer(data, nil) }

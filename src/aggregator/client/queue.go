@@ -147,7 +147,7 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 	// Round up queue size to power of 2.
 	// buf is a ring buffer of byte buffers, so it should definitely be many orders of magnitude
 	// below max uint32.
-	qsize := uint32(math.Pow(2, math.Ceil(math.Log2(float64(queueSize)))))
+	qsize := uint32(roundUpToPowerOfTwo(queueSize))
 
 	q := &queue{
 		dropType: opts.QueueDropType(),
@@ -221,7 +221,7 @@ func (q *queue) Flush() {
 		b := q.buf.shift()
 
 		bytes := b.Bytes()
-		if bytes == nil {
+		if len(bytes) == 0 {
 			continue
 		}
 
@@ -250,10 +250,14 @@ func (q *queue) Flush() {
 		q.metrics.connWriteSuccesses.Inc(1)
 	}
 
-	if cap(*buf) < _queueMaxWriteBufSize {
-		(*buf) = (*buf)[:0]
-		_queueConnWriteBufPool.Put(buf)
+	// Check buffer capacity, not length, to make sure we're not pooling slices that are too large.
+	// Otherwise, it could in multi-megabyte slices hanging around, in case we get a spike in writes.
+	if cap(*buf) > _queueMaxWriteBufSize {
+		return
 	}
+
+	(*buf) = (*buf)[:0]
+	_queueConnWriteBufPool.Put(buf)
 }
 
 func (q *queue) Size() int {
@@ -318,4 +322,8 @@ func (q *qbuf) shift() protobuf.Buffer {
 	val := q.b[idx]
 	q.b[idx] = protobuf.Buffer{}
 	return val
+}
+
+func roundUpToPowerOfTwo(val int) int {
+	return int(math.Pow(2, math.Ceil(math.Log2(float64(val)))))
 }

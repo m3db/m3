@@ -208,7 +208,7 @@ func (mgr *writerManager) Flush() error {
 
 	var (
 		multiErr = xerrors.NewMultiError()
-		errCh    = make(chan error, len(mgr.writers))
+		errCh    = make(chan error, 1)
 		wg       sync.WaitGroup
 	)
 
@@ -221,12 +221,13 @@ func (mgr *writerManager) Flush() error {
 		})
 	}
 
+	go func() {
+		for err := range errCh {
+			multiErr = multiErr.Add(err)
+		}
+	}()
 	wg.Wait()
 	close(errCh)
-
-	for err := range errCh {
-		multiErr = multiErr.Add(err)
-	}
 
 	return multiErr.FinalError()
 }
