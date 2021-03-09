@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -49,9 +50,8 @@ func TestIndexClaimsManagerSingleGlobalManager(t *testing.T) {
 	require.NoError(t, err)
 
 	// Second should cause an error.
-	_, err = NewIndexClaimsManager(testDefaultOpts)
-	require.Error(t, err)
-	require.Equal(t, errMustUseSingleClaimsManager, err)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { _, _ = NewIndexClaimsManager(testDefaultOpts) })
 }
 
 func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {

@@ -21,6 +21,7 @@
 package convert
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"time"
@@ -209,6 +210,10 @@ func ToRPCError(err error) *rpc.Error {
 	if xerrors.IsInvalidParams(err) {
 		return tterrors.NewBadRequestError(err)
 	}
+	if xerrors.Is(err, stdctx.Canceled) || xerrors.Is(err, stdctx.DeadlineExceeded) {
+		return tterrors.NewTimeoutError(err)
+	}
+
 	return tterrors.NewInternalError(err)
 }
 

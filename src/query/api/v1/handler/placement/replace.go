@@ -129,7 +129,7 @@ func (h *ReplaceHandler) Replace(
 	serviceOpts := handleroptions.NewServiceOptions(svc,
 		httpReq.Header, h.m3AggServiceOptions)
 	service, algo, err := ServiceWithAlgo(h.clusterClient,
-		serviceOpts, h.nowFn(), nil)
+		serviceOpts, h.config.ClusterManagement.Placement, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

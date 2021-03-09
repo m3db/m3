@@ -41,11 +41,12 @@ type aggregateIter struct {
 	searchDuration time.Duration
 
 	// mutable state
-	idx                 int
-	err                 error
-	done                bool
-	currField, currTerm []byte
-	nextField, nextTerm []byte
+	idx                    int
+	err                    error
+	done                   bool
+	currField, currTerm    []byte
+	nextField, nextTerm    []byte
+	docsCount, seriesCount int
 }
 
 func (it *aggregateIter) Next(ctx context.Context) bool {
@@ -143,4 +144,16 @@ func (it *aggregateIter) Close() error {
 
 func (it *aggregateIter) SearchDuration() time.Duration {
 	return it.searchDuration
+}
+
+func (it *aggregateIter) AddSeries(count int) {
+	it.seriesCount += count
+}
+
+func (it *aggregateIter) AddDocs(count int) {
+	it.docsCount += count
+}
+
+func (it *aggregateIter) Counts() (series, docs int) {
+	return it.seriesCount, it.docsCount
 }

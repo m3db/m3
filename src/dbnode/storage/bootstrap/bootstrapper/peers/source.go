@@ -55,6 +55,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var errNamespaceNotFound = errors.New("namespace not found")
+
 type peersSource struct {
 	opts              Options
 	newPersistManager func() (persist.Manager, error)
@@ -180,14 +182,31 @@ func (s *peersSource) Read(
 			continue
 		}
 
-		r, err := s.readIndex(md,
-			namespace.IndexRunOptions.ShardTimeRanges,
-			instrCtx.span,
-			cache,
-			namespace.IndexRunOptions.RunOptions,
+		var (
+			opts = namespace.IndexRunOptions.RunOptions
+			r    result.IndexBootstrapResult
+			err  error
 		)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
+		if s.shouldPersist(opts) {
+			// Only attempt to bootstrap index if we've persisted tsdb data.
+			r, err = s.readIndex(md,
+				namespace.IndexRunOptions.ShardTimeRanges,
+				instrCtx.span,
+				cache,
+				opts,
+			)
+			if err != nil {
+				return bootstrap.NamespaceResults{}, err
+			}
+		} else {
+			// Copy data unfulfilled ranges over to index results
+			// we did not persist any tsdb data (e.g. snapshot data).
+			dataNsResult, ok := results.Results.Get(md.ID())
+			if !ok {
+				return bootstrap.NamespaceResults{}, errNamespaceNotFound
+			}
+			r = result.NewIndexBootstrapResult()
+			r.SetUnfulfilled(dataNsResult.DataResult.Unfulfilled().Copy())
 		}
 
 		result, ok := results.Results.Get(md.ID())
@@ -220,19 +239,7 @@ func (s *peersSource) readData(
 		return result.NewDataBootstrapResult(), nil
 	}
 
-	var (
-		shouldPersist = false
-		// TODO(bodu): We should migrate to series.CacheLRU only.
-		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		persistConfig     = opts.PersistConfig()
-	)
-
-	if persistConfig.Enabled &&
-		seriesCachePolicy != series.CacheAll &&
-		persistConfig.FileSetType == persist.FileSetFlushType {
-		shouldPersist = true
-	}
-
+	shouldPersist := s.shouldPersist(opts)
 	result := result.NewDataBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
@@ -1159,4 +1166,13 @@ func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
 	}
 
 	return nil
+}
+
+func (s *peersSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
+	persistConfig := runOpts.PersistConfig()
+
+	return persistConfig.Enabled &&
+		persistConfig.FileSetType == persist.FileSetFlushType &&
+		// TODO(bodu): We should migrate to series.CacheLRU only.
+		s.opts.ResultOptions().SeriesCachePolicy() != series.CacheAll
 }

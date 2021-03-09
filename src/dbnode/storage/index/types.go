@@ -154,15 +154,6 @@ type BaseResults interface {
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
 
-	// TotalDuration is the total ResultDurations for the query.
-	TotalDuration() ResultDurations
-
-	// AddBlockProcessingDuration adds the processing duration for a single block to the TotalDuration.
-	AddBlockProcessingDuration(duration time.Duration)
-
-	// AddBlockSearchDuration adds the search duration for a single block to the TotalDuration.
-	AddBlockSearchDuration(duration time.Duration)
-
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
@@ -410,36 +401,18 @@ type Block interface {
 	// WriteBatch writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
-	// Query resolves the given query into known IDs.
-	Query(
-		ctx context.Context,
-		query Query,
-		opts QueryOptions,
-		results DocumentResults,
-		logFields []opentracinglog.Field,
-	) (bool, error)
-
 	// QueryWithIter processes n docs from the iterator into known IDs.
 	QueryWithIter(
 		ctx context.Context,
 		opts QueryOptions,
-		docIter doc.Iterator,
+		iter QueryIterator,
 		results DocumentResults,
-		limit int,
+		deadline time.Time,
+		logFields []opentracinglog.Field,
 	) error
 
-	// QueryIter returns a new QueryDocIterator for the query.
-	QueryIter(ctx context.Context, query Query) (doc.QueryDocIterator, error)
-
-	// Aggregate aggregates known tag names/values.
-	// NB(prateek): different from aggregating by means of Query, as we can
-	// avoid going to documents, relying purely on the indexed FSTs.
-	Aggregate(
-		ctx context.Context,
-		opts QueryOptions,
-		results AggregateResults,
-		logFields []opentracinglog.Field,
-	) (bool, error)
+	// QueryIter returns a new QueryIterator for the query.
+	QueryIter(ctx context.Context, query Query) (QueryIterator, error)
 
 	// AggregateWithIter aggregates N known tag names/values from the iterator.
 	AggregateWithIter(
@@ -447,7 +420,8 @@ type Block interface {
 		iter AggregateIterator,
 		opts QueryOptions,
 		results AggregateResults,
-		limit int,
+		deadline time.Time,
+		logFields []opentracinglog.Field,
 	) error
 
 	// AggregateIter returns a new AggregatorIterator.
@@ -922,31 +896,49 @@ func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return *e.result
 }
 
+// QueryIterator iterates through the documents for a block.
+type QueryIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() doc.Document
+}
+
 // AggregateIterator iterates through the (field,term)s for a block.
 type AggregateIterator interface {
-	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
-	// Callers need to check Err after this returns false to check if an error occurred while iterating.
-	Next(ctx context.Context) bool
-
-	// Done returns true if the iterator is exhausted. This non-standard iterating method allows any index query to
-	// check if there is more work to be done before waiting for a worker from the pool.
-	// If this method returns true, Next is guaranteed to return false. However, on the first iteration this will always
-	// return false and Next may return false for an empty iterator.
-	Done() bool
-
-	// Err returns an non-nil error if an error occurred calling Next.
-	Err() error
+	ResultIterator
 
 	// Current returns the current (field, term).
 	Current() (field, term []byte)
 
-	// Close the iterator and underlying resources.
-	Close() error
+	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+}
 
-	// SearchDuration is how long it took to search the segments in the block.
+// ResultIterator is a common interface for query and aggregate result iterators.
+type ResultIterator interface {
+	// Done returns true if there are no more elements in the iterator. Allows checking if the query should acquire
+	// a permit, which might block, before calling Next().
+	Done() bool
+
+	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
+	// Callers need to check Err after this returns false to check if an error occurred while iterating.
+	Next(ctx context.Context) bool
+
+	// Err returns an non-nil error if an error occurred calling Next.
+	Err() error
+
+	// SearchDuration is how long it took search the FSTs for the results returned by the iterator.
 	SearchDuration() time.Duration
 
-	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+	// Close the iterator.
+	Close() error
+
+	AddSeries(count int)
+
+	AddDocs(count int)
+
+	// Counts returns the number of series and documents processed by the iterator.
+	Counts() (series, docs int)
 }
 
 // fieldsAndTermsIterator iterates over all known fields and terms for a segment.

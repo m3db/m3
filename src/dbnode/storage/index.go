@@ -22,8 +22,10 @@ package storage
 
 import (
 	"bytes"
+	gocontext "context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	goruntime "runtime"
 	"sort"
@@ -44,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -53,6 +56,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -60,7 +64,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xresource "github.com/m3db/m3/src/x/resource"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/bitset"
@@ -88,9 +91,7 @@ const (
 	defaultFlushDocsBatchSize = 8192
 )
 
-var (
-	allQuery = idx.NewAllQuery()
-)
+var allQuery = idx.NewAllQuery()
 
 // nolint: maligned
 type nsIndex struct {
@@ -121,9 +122,7 @@ type nsIndex struct {
 	resultsPool          index.QueryResultsPool
 	aggregateResultsPool index.AggregateResultsPool
 
-	// NB(r): Use a pooled goroutine worker once pooled goroutine workers
-	// support timeouts for query workers pool.
-	queryWorkersPool xsync.WorkerPool
+	permitsManager permits.Manager
 
 	// queriesWg tracks outstanding queries to ensure
 	// we wait for all queries to complete before actually closing
@@ -209,18 +208,38 @@ type newNamespaceIndexOpts struct {
 type execBlockQueryFn func(
 	ctx context.Context,
 	block index.Block,
-	query index.Query,
+	permit permits.Permit,
+	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
 	logFields []opentracinglog.Field,
 )
 
-// asyncQueryExecState tracks the async execution errors and results for a query.
+// newBlockIterFn returns a new ResultIterator for the query.
+type newBlockIterFn func(
+	ctx context.Context,
+	block index.Block,
+	query index.Query,
+	results index.BaseResults,
+) (index.ResultIterator, error)
+
+// asyncQueryExecState tracks the async execution errors for a query.
 type asyncQueryExecState struct {
-	sync.Mutex
-	multiErr   xerrors.MultiError
-	exhaustive bool
+	sync.RWMutex
+	multiErr xerrors.MultiError
+}
+
+func (s *asyncQueryExecState) hasErr() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.multiErr.NumErrors() > 0
+}
+
+func (s *asyncQueryExecState) addErr(err error) {
+	s.Lock()
+	s.multiErr = s.multiErr.Add(err)
+	s.Unlock()
 }
 
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
@@ -345,8 +364,8 @@ func newNamespaceIndexWithOptions(
 		resultsPool:          indexOpts.QueryResultsPool(),
 		aggregateResultsPool: indexOpts.AggregateResultsPool(),
 
-		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
-		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+		permitsManager: newIndexOpts.opts.PermitsOptions().IndexQueryPermitsManager(),
+		metrics:        newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
 		doNotIndexWithFields: doNotIndexWithFields,
 		shardSet:             shardSet,
@@ -1344,7 +1363,8 @@ func (i *nsIndex) Query(
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
-	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields, i.metrics.queryMetrics)
+	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, i.newBlockQueryIterFn,
+		logFields, i.metrics.queryMetrics)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return index.QueryResult{}, err
@@ -1386,7 +1406,8 @@ func (i *nsIndex) WideQuery(
 	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()
 
-	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields, i.metrics.wideQueryMetrics)
+	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, i.newBlockQueryIterFn, logFields,
+		i.metrics.wideQueryMetrics)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return err
@@ -1442,7 +1463,9 @@ func (i *nsIndex) AggregateQuery(
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(id, aopts)
-	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn, logFields, i.metrics.aggQueryMetrics)
+	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn,
+		i.newBlockAggregatorIterFn,
+		logFields, i.metrics.aggQueryMetrics)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
@@ -1458,6 +1481,7 @@ func (i *nsIndex) query(
 	results index.BaseResults,
 	opts index.QueryOptions,
 	execBlockFn execBlockQueryFn,
+	newBlockIterFn newBlockIterFn,
 	logFields []opentracinglog.Field,
 	queryMetrics queryMetrics, //nolint: gocritic
 ) (bool, error) {
@@ -1465,7 +1489,8 @@ func (i *nsIndex) query(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp, logFields, queryMetrics)
+	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, newBlockIterFn, sp, logFields,
+		queryMetrics)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 
@@ -1510,12 +1535,23 @@ func (i *nsIndex) query(
 	return exhaustive, nil
 }
 
+// blockIter is a composite type to hold various state about a block while iterating over the results.
+type blockIter struct {
+	iter           index.ResultIterator
+	iterCloser     io.Closer
+	block          index.Block
+	waitTime       time.Duration
+	searchTime     time.Duration
+	processingTime time.Duration
+}
+
 func (i *nsIndex) queryWithSpan(
 	ctx context.Context,
 	query index.Query,
 	results index.BaseResults,
 	opts index.QueryOptions,
 	execBlockFn execBlockQueryFn,
+	newBlockIterFn newBlockIterFn,
 	span opentracing.Span,
 	logFields []opentracinglog.Field,
 	queryMetrics queryMetrics, //nolint: gocritic
@@ -1554,52 +1590,111 @@ func (i *nsIndex) queryWithSpan(
 
 	var (
 		// State contains concurrent mutable state for async execution below.
-		state = asyncQueryExecState{
-			exhaustive: true,
-		}
-		wg            sync.WaitGroup
-		totalWaitTime time.Duration
+		state = &asyncQueryExecState{}
+		wg    sync.WaitGroup
 	)
+	perms, err := i.permitsManager.NewPermits(ctx)
+	if err != nil {
+		return false, err
+	}
 
+	blockIters := make([]*blockIter, 0, len(blocks))
 	for _, block := range blocks {
-		// Capture block for async query execution below.
-		block := block
-
-		// We're looping through all the blocks that we need to query and kicking
-		// off parallel queries which are bounded by the queryWorkersPool's maximum
-		// concurrency. This means that it's possible at this point that we've
-		// completed querying one or more blocks and already exhausted the maximum
-		// number of results that we're allowed to return. If thats the case, there
-		// is no value in kicking off more parallel queries, so we break out of
-		// the loop.
-		seriesCount := results.Size()
-		docsCount := results.TotalDocsCount()
-		alreadyExceededLimit := opts.SeriesLimitExceeded(seriesCount) || opts.DocsLimitExceeded(docsCount)
-		if alreadyExceededLimit {
-			state.Lock()
-			state.exhaustive = false
-			state.Unlock()
-			// Break out if already not exhaustive.
-			break
+		iter, err := newBlockIterFn(ctx, block, query, results)
+		if err != nil {
+			return false, err
 		}
-
-		// Calculate time spent waiting for a worker
-		wg.Add(1)
-		scheduleResult := i.queryWorkersPool.GoWithContext(ctx, func() {
-			startProcessing := time.Now()
-			execBlockFn(ctx, block, query, opts, &state, results, logFields)
-			i.metrics.queryMetrics.blockProcessingTime.RecordDuration(time.Since(startProcessing))
-			wg.Done()
+		blockIters = append(blockIters, &blockIter{
+			iter:       iter,
+			iterCloser: x.NewSafeCloser(iter),
+			block:      block,
 		})
-		totalWaitTime += scheduleResult.WaitTime
-		if !scheduleResult.Available {
-			state.Lock()
-			state.multiErr = state.multiErr.Add(index.ErrCancelledQuery)
-			state.Unlock()
-			// Did not launch task, need to ensure don't wait for it
-			wg.Done()
+	}
+
+	defer func() {
+		for _, iter := range blockIters {
+			// safe to call Close multiple times, so it's fine to eagerly close in the loop below and here.
+			_ = iter.iterCloser.Close()
+		}
+	}()
+
+	// queryCanceled returns true if the query has been canceled and the current iteration should terminate.
+	queryCanceled := func() bool {
+		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
+	}
+	// waitForPermit waits for a permit. returns non-nil if the permit was acquired and the wait time.
+	waitForPermit := func() (permits.Permit, time.Duration) {
+		// make sure the query hasn't been canceled before waiting for a permit.
+		if queryCanceled() {
+			return nil, 0
+		}
+		startWait := time.Now()
+		permit, err := perms.Acquire(ctx)
+		waitTime := time.Since(startWait)
+		if err != nil {
+			state.addErr(err)
+			return nil, waitTime
+		}
+		// make sure the query hasn't been canceled while waiting for a permit.
+		if queryCanceled() {
+			perms.Release(permit)
+			return nil, waitTime
+		}
+		return permit, waitTime
+	}
+
+	// We're looping through all the blocks that we need to query and kicking
+	// off parallel queries which are bounded by the permits maximum
+	// concurrency. It's possible at this point that we've completed querying one or more blocks and already exhausted
+	// the maximum number of results that we're allowed to return. If thats the case, there is no value in kicking off
+	// more parallel queries, so we break out of the loop.
+	for _, blockIter := range blockIters {
+		// Capture for async query execution below.
+		blockIter := blockIter
+
+		// acquire a permit before kicking off the goroutine to process the iterator. this limits the number of
+		// concurrent goroutines to # of permits + large queries that needed multiple iterations to finish.
+		permit, waitTime := waitForPermit()
+		blockIter.waitTime += waitTime
+		if permit == nil {
 			break
 		}
+
+		wg.Add(1)
+		// kick off a go routine to process the entire iterator.
+		go func() {
+			defer wg.Done()
+			first := true
+			for !blockIter.iter.Done() {
+				// if this is not the first iteration of the iterator, need to acquire another permit.
+				if !first {
+					permit, waitTime = waitForPermit()
+					blockIter.waitTime += waitTime
+					if permit == nil {
+						break
+					}
+				}
+				first = false
+				startProcessing := time.Now()
+				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, logFields)
+				processingTime := time.Since(startProcessing)
+				queryMetrics.blockProcessingTime.RecordDuration(processingTime)
+				blockIter.processingTime += processingTime
+				permit.Use(int64(processingTime))
+				perms.Release(permit)
+			}
+			if first {
+				// this should never happen since a new iter cannot be Done, but just to be safe.
+				perms.Release(permit)
+			}
+			blockIter.searchTime += blockIter.iter.SearchDuration()
+
+			// close the iterator since it's no longer needed. it's safe to call Close multiple times, here and in the
+			// defer when the function returns.
+			if err := blockIter.iterCloser.Close(); err != nil {
+				state.addErr(err)
+			}
+		}()
 	}
 
 	// wait for all workers to finish. if the caller cancels the call, the workers will be interrupted and eventually
@@ -1608,14 +1703,12 @@ func (i *nsIndex) queryWithSpan(
 
 	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.TotalDocsCount()))
 
-	state.Lock()
-	// Take reference to vars to return while locked.
-	exhaustive := state.exhaustive
+	exhaustive := opts.Exhaustive(results.Size(), results.TotalDocsCount())
+	// ok to read state without lock since all parallel queries are done.
 	multiErr := state.multiErr
-	state.Unlock()
 	err = multiErr.FinalError()
 
-	if err != nil && !multiErr.Contains(index.ErrCancelledQuery) {
+	if err != nil && !multiErr.Contains(gocontext.DeadlineExceeded) && !multiErr.Contains(gocontext.Canceled) {
 		// an unexpected error occurred processing the query, bail without updating timing metrics.
 		return false, err
 	}
@@ -1623,18 +1716,41 @@ func (i *nsIndex) queryWithSpan(
 	// update timing metrics even if the query was canceled due to a timeout
 	queryRuntime := time.Since(start)
 
+	var (
+		totalWaitTime       time.Duration
+		totalProcessingTime time.Duration
+		totalSearchTime     time.Duration
+	)
+
+	for _, blockIter := range blockIters {
+		totalWaitTime += blockIter.waitTime
+		totalProcessingTime += blockIter.processingTime
+		totalSearchTime += blockIter.searchTime
+	}
+
 	queryMetrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
 	queryMetrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
-	queryMetrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
-	queryMetrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
+	queryMetrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), totalProcessingTime)
+	queryMetrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), totalSearchTime)
 
 	return exhaustive, err
 }
 
-func (i *nsIndex) execBlockQueryFn(
+func (i *nsIndex) newBlockQueryIterFn(
 	ctx context.Context,
 	block index.Block,
 	query index.Query,
+	_ index.BaseResults,
+) (index.ResultIterator, error) {
+	return block.QueryIter(ctx, query)
+}
+
+//nolint: dupl
+func (i *nsIndex) execBlockQueryFn(
+	ctx context.Context,
+	block index.Block,
+	permit permits.Permit,
+	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
@@ -1651,14 +1767,17 @@ func (i *nsIndex) execBlockQueryFn(
 
 	docResults, ok := results.(index.DocumentResults)
 	if !ok { // should never happen
-		state.Lock()
-		err := fmt.Errorf("unknown results type [%T] received during query", results)
-		state.multiErr = state.multiErr.Add(err)
-		state.Unlock()
+		state.addErr(fmt.Errorf("unknown results type [%T] received during query", results))
+		return
+	}
+	queryIter, ok := iter.(index.QueryIterator)
+	if !ok { // should never happen
+		state.addErr(fmt.Errorf("unknown results type [%T] received during query", iter))
 		return
 	}
 
-	blockExhaustive, err := block.Query(ctx, query, opts, docResults, logFields)
+	deadline := time.Now().Add(time.Duration(permit.AllowedQuota()))
+	err := block.QueryWithIter(ctx, opts, queryIter, docResults, deadline, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1667,20 +1786,17 @@ func (i *nsIndex) execBlockQueryFn(
 		err = nil
 	}
 
-	state.Lock()
-	defer state.Unlock()
-
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
-		state.multiErr = state.multiErr.Add(err)
+		state.addErr(err)
 	}
-	state.exhaustive = state.exhaustive && blockExhaustive
 }
 
 func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
 	block index.Block,
-	query index.Query,
+	permit permits.Permit,
+	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
@@ -1697,14 +1813,17 @@ func (i *nsIndex) execBlockWideQueryFn(
 
 	docResults, ok := results.(index.DocumentResults)
 	if !ok { // should never happen
-		state.Lock()
-		err := fmt.Errorf("unknown results type [%T] received during wide query", results)
-		state.multiErr = state.multiErr.Add(err)
-		state.Unlock()
+		state.addErr(fmt.Errorf("unknown results type [%T] received during wide query", results))
+		return
+	}
+	queryIter, ok := iter.(index.QueryIterator)
+	if !ok { // should never happen
+		state.addErr(fmt.Errorf("unknown results type [%T] received during query", iter))
 		return
 	}
 
-	_, err := block.Query(ctx, query, opts, docResults, logFields)
+	deadline := time.Now().Add(time.Duration(permit.AllowedQuota()))
+	err := block.QueryWithIter(ctx, opts, queryIter, docResults, deadline, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1717,22 +1836,30 @@ func (i *nsIndex) execBlockWideQueryFn(
 		err = nil
 	}
 
-	state.Lock()
-	defer state.Unlock()
-
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
-		state.multiErr = state.multiErr.Add(err)
+		state.addErr(err)
 	}
+}
 
-	// NB: wide queries are always exhaustive.
-	state.exhaustive = true
+func (i *nsIndex) newBlockAggregatorIterFn(
+	ctx context.Context,
+	block index.Block,
+	_ index.Query,
+	results index.BaseResults,
+) (index.ResultIterator, error) {
+	aggResults, ok := results.(index.AggregateResults)
+	if !ok { // should never happen
+		return nil, fmt.Errorf("unknown results type [%T] received during aggregation", results)
+	}
+	return block.AggregateIter(ctx, aggResults.AggregateResultsOptions())
 }
 
 func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
 	block index.Block,
-	_ index.Query,
+	permit permits.Permit,
+	iter index.ResultIterator,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
@@ -1749,14 +1876,17 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 
 	aggResults, ok := results.(index.AggregateResults)
 	if !ok { // should never happen
-		state.Lock()
-		err := fmt.Errorf("unknown results type [%T] received during aggregation", results)
-		state.multiErr = state.multiErr.Add(err)
-		state.Unlock()
+		state.addErr(fmt.Errorf("unknown results type [%T] received during aggregation", results))
+		return
+	}
+	aggIter, ok := iter.(index.AggregateIterator)
+	if !ok { // should never happen
+		state.addErr(fmt.Errorf("unknown results type [%T] received during query", iter))
 		return
 	}
 
-	blockExhaustive, err := block.Aggregate(ctx, opts, aggResults, logFields)
+	deadline := time.Now().Add(time.Duration(permit.AllowedQuota()))
+	err := block.AggregateWithIter(ctx, aggIter, opts, aggResults, deadline, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1765,13 +1895,10 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		err = nil
 	}
 
-	state.Lock()
-	defer state.Unlock()
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
-		state.multiErr = state.multiErr.Add(err)
+		state.addErr(err)
 	}
-	state.exhaustive = state.exhaustive && blockExhaustive
 }
 
 func (i *nsIndex) overriddenOptsForQueryWithRLock(

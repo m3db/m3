@@ -280,6 +280,32 @@ function test_query_limits_applied {
     '[[ $(curl -s -H "M3-Limit-Max-Returned-Series: 2" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 2 ]]'
 }
 
+function test_query_timeouts {
+  echo "Test query timeouts"
+
+  # Exercise APIs with different minimal timeouts to trigger timeouts in varying parts of the stack
+
+  # Confirms that timeouts at the coordinator layer return a 504
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "504" ]]'
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "504" ]]'
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/labels) = "504" ]]'
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/label/__name__/values) = "504" ]]'
+
+  # Confirms that timeouts from coordinator -> m3db return a 504
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "504" ]]'
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "504" ]]'
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/labels) = "504" ]]'
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/label/__name__/values) = "504" ]]'
+}
+
 function prometheus_query_native {
   local endpoint=${endpoint:-}
   local query=${query:-}
@@ -510,6 +536,7 @@ test_prometheus_remote_write_restrict_metrics_type
 test_query_lookback_applied
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_query_timeouts
 test_prometheus_query_native_timeout
 test_query_restrict_tags
 test_prometheus_remote_write_map_tags

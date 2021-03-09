@@ -167,6 +167,7 @@ type ErrorFlags int64
 const (
 	ErrorFlags_NONE               ErrorFlags = 0
 	ErrorFlags_RESOURCE_EXHAUSTED ErrorFlags = 1
+	ErrorFlags_SERVER_TIMEOUT     ErrorFlags = 2
 )
 
 func (p ErrorFlags) String() string {
@@ -175,6 +176,8 @@ func (p ErrorFlags) String() string {
 		return "NONE"
 	case ErrorFlags_RESOURCE_EXHAUSTED:
 		return "RESOURCE_EXHAUSTED"
+	case ErrorFlags_SERVER_TIMEOUT:
+		return "SERVER_TIMEOUT"
 	}
 	return "<UNSET>"
 }
@@ -185,6 +188,8 @@ func ErrorFlagsFromString(s string) (ErrorFlags, error) {
 		return ErrorFlags_NONE, nil
 	case "RESOURCE_EXHAUSTED":
 		return ErrorFlags_RESOURCE_EXHAUSTED, nil
+	case "SERVER_TIMEOUT":
+		return ErrorFlags_SERVER_TIMEOUT, nil
 	}
 	return ErrorFlags(0), fmt.Errorf("not a valid ErrorFlags string")
 }

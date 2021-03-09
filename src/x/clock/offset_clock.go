@@ -1,4 +1,4 @@
-// Copyright (c) 2021  Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package config contains static configuration for the dbnode service.
-package config
+package clock
 
-// FetchTaggedConfiguration contains configuration related to the FetchTagged API endpoint.
-type FetchTaggedConfiguration struct {
-	// SeriesBlocksPerBatch specifies how many series blocks are allowed to be retrieved
-	// per permit acquired. Defaults to 1 (i.e. a permit is acquired per series block).
-	SeriesBlocksPerBatch *int `yaml:"seriesBlocksPerBatch"`
+import (
+	"time"
+)
+
+// OffsetClock represents offset clock which returns current time from the initial seed time value.
+type OffsetClock struct {
+	timeDelta time.Duration
+	nowFn     NowFn
 }
 
-const defaultSeriesBlocksPerBatch = 1
+// NewOffsetClock returns new offset clock.
+func NewOffsetClock(offsetTime time.Time, nowFn NowFn) OffsetClock {
+	return OffsetClock{nowFn: nowFn, timeDelta: offsetTime.Sub(nowFn())}
+}
 
-// SeriesBlocksPerBatchOrDefault returns the SeriesBlocksPerBatch value provided or
-// a sane default.
-func (f *FetchTaggedConfiguration) SeriesBlocksPerBatchOrDefault() int {
-	if f.SeriesBlocksPerBatch == nil || *f.SeriesBlocksPerBatch < 1 {
-		return defaultSeriesBlocksPerBatch
-	}
-
-	return *f.SeriesBlocksPerBatch
+// Now returns current time from the initial seed time value.
+func (c OffsetClock) Now() time.Time {
+	now := c.nowFn()
+	return now.Add(c.timeDelta)
 }

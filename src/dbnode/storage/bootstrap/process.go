@@ -21,6 +21,7 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -57,6 +58,11 @@ const (
 	bootstrapDataRunType  = bootstrapRunType("bootstrap-data")
 	bootstrapIndexRunType = bootstrapRunType("bootstrap-index")
 )
+
+// ErrFileSetSnapshotTypeRangeAdvanced is an error of bootstrap time ranges for snapshot-type
+// blocks advancing during the bootstrap
+var ErrFileSetSnapshotTypeRangeAdvanced = errors.New("the time ranges of snapshot-type blocks " +
+	"have advanced since they were calculated at the beginning of bootstrap")
 
 // NewProcessProvider creates a new bootstrap process provider.
 func NewProcessProvider(
@@ -236,6 +242,32 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
+		for _, entry := range namespaces.Namespaces.Iter() {
+			ns := entry.Value()
+			// Check if snapshot-type ranges have advanced while bootstrapping previous ranges.
+			// If yes, return an error to force a retry
+			if persistConf := ns.DataRunOptions.RunOptions.PersistConfig(); persistConf.Enabled &&
+				persistConf.FileSetType == persist.FileSetSnapshotType {
+				var (
+					now                = b.nowFn()
+					nsOptions          = ns.Metadata.Options()
+					upToDateDataRanges = b.targetRangesForData(now, nsOptions.RetentionOptions())
+				)
+				// Only checking data ranges. Since index blocks can only be a multiple of
+				// data block size, the ranges for index could advance only if data ranges
+				// have advanced, too (while opposite is not necessarily true)
+				if !upToDateDataRanges.secondRangeWithPersistFalse.Range.Equal(ns.DataTargetRange.Range) {
+					upToDateIndexRanges := b.targetRangesForIndex(now, nsOptions.RetentionOptions(),
+						nsOptions.IndexOptions())
+					fields := b.logFields(ns.Metadata, ns.Shards,
+						upToDateDataRanges.secondRangeWithPersistFalse.Range,
+						upToDateIndexRanges.secondRangeWithPersistFalse.Range)
+					b.log.Error("time ranges of snapshot-type blocks advanced", fields...)
+					return NamespaceResults{}, ErrFileSetSnapshotTypeRangeAdvanced
+				}
+			}
+		}
+
 		res, err := b.runPass(ctx, namespaces, cache)
 		if err != nil {
 			return NamespaceResults{}, err

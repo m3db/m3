@@ -43,9 +43,9 @@ func (h *minHeap) Push(value float64) {
 	heap := *h
 	n := len(heap)
 	i := n - 1
-	for {
+	for i < n && i >= 0 {
 		parent := (i - 1) / 2
-		if parent == i || heap[parent] <= heap[i] {
+		if parent == i || parent >= n || parent < 0 || heap[parent] <= heap[i] {
 			break
 		}
 		heap[parent], heap[i] = heap[i], heap[parent]
@@ -53,19 +53,10 @@ func (h *minHeap) Push(value float64) {
 	}
 }
 
-func (h *minHeap) ensureSize() {
-	heap := *h
-	targetCap := cap(heap) * 2
-
-	newHeap := sharedHeapPool.Get(targetCap)
-	(*newHeap) = append(*newHeap, heap...)
-	sharedHeapPool.Put(heap)
-	*h = *newHeap
-}
-
 func (h *minHeap) Reset() {
-	heap := *h
-	sharedHeapPool.Put(heap)
+	if heap := *h; cap(heap) >= _initialHeapBucketSize {
+		sharedHeapPool.Put(heap)
+	}
 	(*h) = nil
 }
 
@@ -96,4 +87,48 @@ func (h *minHeap) Pop() float64 {
 	}
 	*h = old[0:n]
 	return val
+}
+
+func (h minHeap) SortDesc() {
+	heap := h
+	// this is equivalent to Pop() in a loop (heapsort)
+	// all the redundant-looking conditions are there to eliminate bounds-checks
+	for n := len(heap) - 1; n > 0 && n < len(heap); n = len(heap) - 1 {
+		var (
+			i        int
+			smallest int
+		)
+		heap[0], heap[n] = heap[n], heap[0]
+		for smallest >= 0 && smallest <= n {
+			var (
+				left  = smallest*2 + 1
+				right = left + 1
+			)
+			if left < n && left >= 0 && heap[left] < heap[smallest] {
+				smallest = left
+			}
+			if right < n && right >= 0 && heap[right] < heap[smallest] {
+				smallest = right
+			}
+			if smallest == i {
+				break
+			}
+			heap[i], heap[smallest] = heap[smallest], heap[i]
+			i = smallest
+		}
+		heap = heap[0:n]
+	}
+}
+
+func (h *minHeap) ensureSize() {
+	var (
+		heap      = *h
+		targetCap = cap(heap) * 2
+		newHeap   = sharedHeapPool.Get(targetCap)
+	)
+	(*newHeap) = append(*newHeap, heap...)
+	if cap(heap) >= _initialHeapBucketSize {
+		sharedHeapPool.Put(heap)
+	}
+	(*h) = *newHeap
 }

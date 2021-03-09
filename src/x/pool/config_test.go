@@ -23,9 +23,10 @@ package pool
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestObjectPoolConfiguration(t *testing.T) {
@@ -38,8 +39,37 @@ func TestObjectPoolConfiguration(t *testing.T) {
 	}
 	opts := cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
 	require.Equal(t, 1, opts.size)
+	require.False(t, opts.Dynamic())
 	require.Equal(t, 0.1, opts.refillLowWatermark)
 	require.Equal(t, 0.5, opts.refillHighWatermark)
+}
+
+func TestDynamicObjectPoolConfiguration(t *testing.T) {
+	cfg := ObjectPoolConfiguration{
+		Size: _dynamicPoolSize,
+	}
+	opts := cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
+	require.Equal(t, _dynamicPoolSize, opts.Size())
+	require.True(t, opts.Dynamic())
+
+	cfg, err := cfgFromStr(`
+size: dynamic
+`)
+	require.NoError(t, err)
+
+	opts = cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
+	require.Equal(t, _dynamicPoolSize, opts.Size())
+	require.True(t, opts.Dynamic())
+
+	_, err = cfgFromStr(`
+size: invalid
+`)
+	require.Error(t, err)
+
+	_, err = cfgFromStr(`
+size: -10
+`)
+	require.Error(t, err)
 }
 
 func TestBucketizedPoolConfiguration(t *testing.T) {
@@ -61,4 +91,10 @@ func TestBucketizedPoolConfiguration(t *testing.T) {
 	opts := cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
 	require.Equal(t, 0.1, opts.refillLowWatermark)
 	require.Equal(t, 0.5, opts.refillHighWatermark)
+}
+
+func cfgFromStr(config string) (ObjectPoolConfiguration, error) {
+	cfg := ObjectPoolConfiguration{}
+	err := yaml.Unmarshal([]byte(config), &cfg)
+	return cfg, err
 }

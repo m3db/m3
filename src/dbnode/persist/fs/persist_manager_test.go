@@ -36,6 +36,7 @@ import (
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	m3test "github.com/m3db/m3/src/x/test"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -72,10 +73,9 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.PrepareData(prepareOpts)
-	require.Equal(t, errPersistManagerFileSetAlreadyExists, err)
-	require.Nil(t, prepared.Persist)
-	require.Nil(t, prepared.Close)
+
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { _, _ = flush.PrepareData(prepareOpts) })
 }
 
 func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {

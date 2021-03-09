@@ -22,6 +22,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -30,13 +31,16 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	xerror "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -283,6 +287,55 @@ func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {
 	}
 }
 
+func TestDedicatedConnection(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		shardID = uint32(32)
+
+		topoMap = topology.NewMockMap(ctrl)
+
+		local   = mockHost(ctrl, "h0", "local")
+		remote1 = mockHost(ctrl, "h1", "remote1")
+		remote2 = mockHost(ctrl, "h2", "remote2")
+
+		availableShard    = shard.NewShard(shardID).SetState(shard.Available)
+		initializingShard = shard.NewShard(shardID).SetState(shard.Initializing)
+	)
+
+	topoMap.EXPECT().RouteShardForEach(shardID, gomock.Any()).DoAndReturn(
+		func(shardID uint32, callback func(int, shard.Shard, topology.Host)) error {
+			callback(0, availableShard, local)
+			callback(1, initializingShard, remote1)
+			callback(2, availableShard, remote2)
+			return nil
+		}).Times(3)
+
+	s := session{origin: local}
+	s.opts = NewOptions().SetNewConnectionFn(noopNewConnection)
+	s.healthCheckNewConnFn = testHealthCheck(nil)
+	s.state.status = statusOpen
+	s.state.topoMap = topoMap
+
+	_, ch, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, &noopPooledChannel{"remote1"}, ch)
+
+	_, ch2, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{ShardStateFilter: shard.Available})
+	require.NoError(t, err)
+	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
+
+	healthErr := errors.New("unhealthy")
+	s.healthCheckNewConnFn = testHealthCheck(healthErr)
+
+	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
+	require.NotNil(t, err)
+	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
+	assert.True(t, ok, "expecting MultiError")
+	assert.True(t, multiErr.Contains(healthErr))
+}
+
 func testSessionClusterConnectConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
@@ -371,4 +424,25 @@ func mockHostQueues(
 		return hostQueue, nil
 	}
 	return &enqueueWg
+}
+
+func mockHost(ctrl *gomock.Controller, id, address string) topology.Host {
+	host := topology.NewMockHost(ctrl)
+	host.EXPECT().ID().Return(id).AnyTimes()
+	host.EXPECT().Address().Return(address).AnyTimes()
+	return host
+}
+
+func testHealthCheck(err error) func(rpc.TChanNode, Options) error {
+	return func(rpc.TChanNode, Options) error {
+		return err
+	}
+}
+
+func noopNewConnection(
+	channelName string,
+	addr string,
+	opts Options,
+) (Channel, rpc.TChanNode, error) {
+	return &noopPooledChannel{addr}, nil, nil
 }

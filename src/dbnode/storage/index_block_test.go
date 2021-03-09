@@ -40,11 +40,13 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	opentracing "github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/require"
 )
@@ -195,11 +197,13 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 	) (index.Block, error) {
 		return nil, fmt.Errorf("randomerr")
 	}
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	_, err := newNamespaceIndexWithNewBlockFn(md,
-		namespace.NewRuntimeOptionsManager(md.ID().String()),
-		testShardSet, newBlockFn, opts)
-	require.Error(t, err)
+	require.Panics(t, func() {
+		_, _ = newNamespaceIndexWithNewBlockFn(md,
+			namespace.NewRuntimeOptionsManager(md.ID().String()),
+			testShardSet, newBlockFn, opts)
+	})
 }
 
 func TestNamespaceIndexWrite(t *testing.T) {
@@ -642,7 +646,12 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			sp := mtr.StartSpan("root")
 			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-			b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			mockIter0 := index.NewMockQueryIterator(ctrl)
+			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
+			mockIter0.EXPECT().Done().Return(true)
+			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
+			mockIter0.EXPECT().Close().Return(nil)
+
 			result, err := idx.Query(ctx, q, qOpts)
 			require.NoError(t, err)
 			require.True(t, result.Exhaustive)
@@ -653,8 +662,17 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 				EndExclusive:      t2.Add(time.Minute),
 				RequireExhaustive: test.requireExhaustive,
 			}
-			b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-			b1.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
+			mockIter0.EXPECT().Done().Return(true)
+			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
+			mockIter0.EXPECT().Close().Return(nil)
+
+			mockIter1 := index.NewMockQueryIterator(ctrl)
+			b1.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter1, nil)
+			mockIter1.EXPECT().Done().Return(true)
+			mockIter1.EXPECT().SearchDuration().Return(time.Minute)
+			mockIter1.EXPECT().Close().Return(nil)
+
 			result, err = idx.Query(ctx, q, qOpts)
 			require.NoError(t, err)
 			require.True(t, result.Exhaustive)
@@ -664,8 +682,32 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 				StartInclusive:    t0,
 				EndExclusive:      t0.Add(time.Minute),
 				RequireExhaustive: test.requireExhaustive,
+				SeriesLimit:       1,
 			}
-			b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
+			b0.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter0, gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(
+					ctx context.Context,
+					opts index.QueryOptions,
+					iter index.QueryIterator,
+					r index.QueryResults,
+					deadline time.Time,
+					logFields []opentracinglog.Field,
+				) error {
+					_, _, err = r.AddDocuments([]doc.Document{
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("B")}),
+					})
+					require.NoError(t, err)
+					return nil
+				})
+			gomock.InOrder(
+				mockIter0.EXPECT().Done().Return(false),
+				mockIter0.EXPECT().Done().Return(true),
+				mockIter0.EXPECT().SearchDuration().Return(time.Minute),
+				mockIter0.EXPECT().Close().Return(nil),
+			)
+
 			result, err = idx.Query(ctx, q, qOpts)
 			if test.requireExhaustive {
 				require.Error(t, err)
@@ -677,7 +719,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 15)
+			require.Len(t, spans, 8)
 		})
 	}
 }
@@ -776,15 +818,6 @@ func TestLimits(t *testing.T) {
 			expectedErr:       "",
 		},
 		{
-			name:              "no limits",
-			seriesLimit:       0,
-			docsLimit:         0,
-			requireExhaustive: true,
-			expectedErr: "query exceeded limit: require_exhaustive=true, " +
-				"series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
-			expectedQueryLimitExceededError: true,
-		},
-		{
 			name:              "series limit only",
 			seriesLimit:       1,
 			docsLimit:         0,
@@ -829,12 +862,22 @@ func TestLimits(t *testing.T) {
 			sp := mtr.StartSpan("root")
 			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-			b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).
+			mockIter := index.NewMockQueryIterator(ctrl)
+			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter, nil)
+			gomock.InOrder(
+				mockIter.EXPECT().Done().Return(false),
+				mockIter.EXPECT().Done().Return(true),
+				mockIter.EXPECT().SearchDuration().Return(time.Minute),
+				mockIter.EXPECT().Close().Return(err),
+			)
+
+			b0.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter, gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(ctx context.Context,
-					query interface{},
 					opts interface{},
+					iter interface{},
 					results index.DocumentResults,
-					logFields interface{}) (bool, error) {
+					deadline interface{},
+					logFields interface{}) error {
 					_, _, err = results.AddDocuments([]doc.Document{
 						// Results in size=1 and docs=2.
 						// Byte array represents ID encoded as bytes.
@@ -844,11 +887,16 @@ func TestLimits(t *testing.T) {
 						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
 					})
 					require.NoError(t, err)
-					return false, nil
+					return nil
 				})
 
 			result, err := idx.Query(ctx, q, qOpts)
-			require.False(t, result.Exhaustive)
+			if test.seriesLimit == 0 && test.docsLimit == 0 {
+				require.True(t, result.Exhaustive)
+			} else {
+				require.False(t, result.Exhaustive)
+			}
+
 			if test.requireExhaustive {
 				require.Error(t, err)
 				require.Equal(t, test.expectedErr, err.Error())
@@ -951,9 +999,13 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
+	mockIter := index.NewMockQueryIterator(ctrl)
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
-		b0.EXPECT().Query(ctx, q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil),
+		b0.EXPECT().QueryIter(ctx, q).Return(mockIter, nil),
+		mockIter.EXPECT().Done().Return(true),
+		mockIter.EXPECT().SearchDuration().Return(time.Minute),
+		mockIter.EXPECT().Close().Return(nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
 	_, err = idx.Query(ctx, q, qOpts)
@@ -1062,7 +1114,11 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 			}
 			aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
-			b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			mockIter0 := index.NewMockAggregateIterator(ctrl)
+			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
+			mockIter0.EXPECT().Done().Return(true)
+			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
+			mockIter0.EXPECT().Close().Return(nil)
 			result, err := idx.AggregateQuery(ctx, q, aggOpts)
 			require.NoError(t, err)
 			require.True(t, result.Exhaustive)
@@ -1074,8 +1130,16 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 				RequireExhaustive: test.requireExhaustive,
 			}
 			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-			b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-			b1.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
+			mockIter0.EXPECT().Done().Return(true)
+			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
+			mockIter0.EXPECT().Close().Return(nil)
+
+			mockIter1 := index.NewMockAggregateIterator(ctrl)
+			b1.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter1, nil)
+			mockIter1.EXPECT().Done().Return(true)
+			mockIter1.EXPECT().SearchDuration().Return(time.Minute)
+			mockIter1.EXPECT().Close().Return(nil)
 			result, err = idx.AggregateQuery(ctx, q, aggOpts)
 			require.NoError(t, err)
 			require.True(t, result.Exhaustive)
@@ -1085,8 +1149,35 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 				StartInclusive:    t0,
 				EndExclusive:      t0.Add(time.Minute),
 				RequireExhaustive: test.requireExhaustive,
+				DocsLimit:         1,
 			}
-			b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
+			//nolint: dupl
+			b0.EXPECT().
+				AggregateWithIter(gomock.Any(), mockIter0, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(
+					ctx context.Context,
+					iter index.AggregateIterator,
+					opts index.QueryOptions,
+					results index.AggregateResults,
+					deadline time.Time,
+					logFields []opentracinglog.Field,
+				) error {
+					_, _ = results.AddFields([]index.AggregateResultsEntry{{
+						Field: ident.StringID("A"),
+						Terms: []ident.ID{ident.StringID("foo")},
+					}, {
+						Field: ident.StringID("B"),
+						Terms: []ident.ID{ident.StringID("bar")},
+					}})
+					return nil
+				})
+			gomock.InOrder(
+				mockIter0.EXPECT().Done().Return(false),
+				mockIter0.EXPECT().Done().Return(true),
+				mockIter0.EXPECT().SearchDuration().Return(time.Minute),
+				mockIter0.EXPECT().Close().Return(nil),
+			)
 			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 			result, err = idx.AggregateQuery(ctx, q, aggOpts)
 			if test.requireExhaustive {
@@ -1099,7 +1190,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 15)
+			require.Len(t, spans, 8)
 		})
 	}
 }
@@ -1201,9 +1292,13 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	}
 	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
+	mockIter := index.NewMockAggregateIterator(ctrl)
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
-		b0.EXPECT().Aggregate(ctx, qOpts, gomock.Any(), gomock.Any()).Return(true, nil),
+		b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter, nil),
+		mockIter.EXPECT().Done().Return(true),
+		mockIter.EXPECT().SearchDuration().Return(time.Minute),
+		mockIter.EXPECT().Close().Return(nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
@@ -1307,7 +1402,11 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 				q := index.Query{
 					Query: query,
 				}
-				b0.EXPECT().Aggregate(ctx, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+				mockIter0 := index.NewMockAggregateIterator(ctrl)
+				mockIter0.EXPECT().Done().Return(true)
+				mockIter0.EXPECT().SearchDuration().Return(time.Second)
+				mockIter0.EXPECT().Close().Return(nil)
+				b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter0, nil)
 				result, err := idx.AggregateQuery(ctx, q, aggOpts)
 				require.NoError(t, err)
 				require.True(t, result.Exhaustive)
@@ -1319,8 +1418,17 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 					RequireExhaustive: test.requireExhaustive,
 				}
 				aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-				b0.EXPECT().Aggregate(ctx, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-				b1.EXPECT().Aggregate(ctx, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+
+				mockIter0.EXPECT().Done().Return(true)
+				mockIter0.EXPECT().SearchDuration().Return(time.Second)
+				mockIter0.EXPECT().Close().Return(nil)
+				b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter0, nil)
+
+				mockIter1 := index.NewMockAggregateIterator(ctrl)
+				mockIter1.EXPECT().Done().Return(true)
+				mockIter1.EXPECT().SearchDuration().Return(time.Second)
+				mockIter1.EXPECT().Close().Return(nil)
+				b1.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter1, nil)
 				result, err = idx.AggregateQuery(ctx, q, aggOpts)
 				require.NoError(t, err)
 				require.True(t, result.Exhaustive)
@@ -1330,8 +1438,35 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 					StartInclusive:    t0,
 					EndExclusive:      t0.Add(time.Minute),
 					RequireExhaustive: test.requireExhaustive,
+					DocsLimit:         1,
 				}
-				b0.EXPECT().Aggregate(ctx, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+				b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
+				//nolint: dupl
+				b0.EXPECT().
+					AggregateWithIter(gomock.Any(), mockIter0, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						ctx context.Context,
+						iter index.AggregateIterator,
+						opts index.QueryOptions,
+						results index.AggregateResults,
+						deadline time.Time,
+						logFields []opentracinglog.Field,
+					) error {
+						_, _ = results.AddFields([]index.AggregateResultsEntry{{
+							Field: ident.StringID("A"),
+							Terms: []ident.ID{ident.StringID("foo")},
+						}, {
+							Field: ident.StringID("B"),
+							Terms: []ident.ID{ident.StringID("bar")},
+						}})
+						return nil
+					})
+				gomock.InOrder(
+					mockIter0.EXPECT().Done().Return(false),
+					mockIter0.EXPECT().Done().Return(true),
+					mockIter0.EXPECT().SearchDuration().Return(time.Minute),
+					mockIter0.EXPECT().Close().Return(nil),
+				)
 				aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 				result, err = idx.AggregateQuery(ctx, q, aggOpts)
 				if test.requireExhaustive {

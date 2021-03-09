@@ -22,12 +22,10 @@ package server
 
 import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 )
 
 // StorageOptions are options to apply to the database storage options.
 type StorageOptions struct {
 	TChanChannelFn    node.NewTChanChannelFn
 	TChanNodeServerFn node.NewTChanNodeServerFn
-	PermitOptions     permits.Options
 }

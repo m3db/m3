@@ -197,9 +197,6 @@ type DBConfiguration struct {
 	// of applying back-pressure or protecting the db nodes.
 	Limits LimitsConfiguration `yaml:"limits"`
 
-	// FetchTagged contains configuration related to the FetchTagged API endpoint.
-	FetchTagged FetchTaggedConfiguration `yaml:"fetchTagged"`
-
 	// WideConfig contains some limits for wide operations. These operations
 	// differ from regular paths by optimizing for query completeness across
 	// arbitary query ranges rather than speed.
@@ -386,6 +383,13 @@ type IndexConfiguration struct {
 	// important to prevent index queries from overloading the database entirely
 	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
+
+	// MaxWorkerTime is the maximum time a query can hold an index worker at once. If a query does not finish in this
+	// time it yields the worker and must wait again for another worker to resume. The number of workers available to
+	// all queries is defined by MaxQueryIDsConcurrency.
+	// Capping the maximum time per worker ensures a few large queries don't hold all the concurrent workers and lock
+	// out many small queries from running.
+	MaxWorkerTime time.Duration `yaml:"maxWorkerTime"`
 
 	// RegexpDFALimit is the limit on the max number of states used by a
 	// regexp deterministic finite automaton. Default is 10,000 states.

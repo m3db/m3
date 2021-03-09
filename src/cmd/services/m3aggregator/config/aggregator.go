@@ -60,9 +60,7 @@ var (
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
 
-var (
-	defaultNumPassthroughWriters = 8
-)
+var defaultNumPassthroughWriters = 8
 
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
@@ -214,12 +212,10 @@ func (t InstanceIDType) String() string {
 	return "unknown"
 }
 
-var (
-	validInstanceIDTypes = []InstanceIDType{
-		HostIDInstanceIDType,
-		HostIDPortInstanceIDType,
-	}
-)
+var validInstanceIDTypes = []InstanceIDType{
+	HostIDInstanceIDType,
+	HostIDPortInstanceIDType,
+}
 
 // UnmarshalYAML unmarshals a InstanceIDType into a valid type from string.
 func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -336,7 +332,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		opts = opts.SetBufferDurationAfterShardCutoff(c.BufferDurationAfterShardCutoff)
 	}
 	if c.BufferDurationForPastTimedMetric != 0 {
-		opts = opts.SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
+		opts = opts.SetBufferForPastTimedMetric(c.BufferDurationForPastTimedMetric).
+			SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
 	}
 	if c.BufferDurationForFutureTimedMetric != 0 {
 		opts = opts.SetBufferForFutureTimedMetric(c.BufferDurationForFutureTimedMetric)
@@ -378,6 +375,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		electionManager,
 		flushTimesManager,
 		iOpts,
+		opts.BufferForPastTimedMetric(),
 	)
 	if err != nil {
 		return nil, err
@@ -556,8 +554,8 @@ func (c *streamConfiguration) NewStreamOptions(_ instrument.Options) (cm.Options
 }
 
 type placementManagerConfiguration struct {
-	KVConfig         kv.OverrideConfiguration       `yaml:"kvConfig"`
-	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
+	KVConfig kv.OverrideConfiguration       `yaml:"kvConfig"`
+	Watcher  placement.WatcherConfiguration `yaml:"placementWatcher"`
 }
 
 func (c placementManagerConfiguration) NewPlacementManager(
@@ -575,12 +573,11 @@ func (c placementManagerConfiguration) NewPlacementManager(
 	}
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	placementWatcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	placementWatcherOpts := c.Watcher.NewOptions(store, iOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
 
@@ -784,12 +781,14 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 	electionManager aggregator.ElectionManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
+	bufferForPastTimedMetric time.Duration,
 ) (aggregator.FlushManagerOptions, error) {
 	opts := aggregator.NewFlushManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetPlacementManager(placementManager).
 		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesManager)
+		SetFlushTimesManager(flushTimesManager).
+		SetBufferForPastTimedMetric(bufferForPastTimedMetric)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}

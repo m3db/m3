@@ -389,13 +389,13 @@ func Run(runOpts RunOptions) {
 
 	case config.NoopEtcdStorageType:
 		backendStorage = storage.NewNoopStorage()
-		mgmt := cfg.ClusterManagement
+		etcd := cfg.ClusterManagement.Etcd
 
-		if mgmt == nil || len(mgmt.Etcd.ETCDClusters) == 0 {
+		if etcd == nil || len(etcd.ETCDClusters) == 0 {
 			logger.Fatal("must specify cluster management config and at least one etcd cluster")
 		}
 
-		opts := mgmt.Etcd.NewOptions()
+		opts := etcd.NewOptions()
 		clusterClient, err = etcdclient.NewConfigServiceClient(opts)
 		if err != nil {
 			logger.Fatal("error constructing etcd client", zap.Error(err))
@@ -628,8 +628,8 @@ func newM3DBStorage(
 	} else {
 		var etcdCfg *etcdclient.Configuration
 		switch {
-		case cfg.ClusterManagement != nil:
-			etcdCfg = &cfg.ClusterManagement.Etcd
+		case cfg.ClusterManagement.Etcd != nil:
+			etcdCfg = cfg.ClusterManagement.Etcd
 		case len(cfg.Clusters) == 1 &&
 			cfg.Clusters[0].Client.EnvironmentConfig != nil:
 			syncCfg, err := cfg.Clusters[0].Client.EnvironmentConfig.Services.SyncCluster()
@@ -943,7 +943,6 @@ func newStorages(
 	if remoteOpts.ListenEnabled() {
 		remoteStorages, enabled, err := remoteClient(poolWrapper, remoteOpts,
 			opts, instrumentOpts)
-
 		if err != nil {
 			return nil, nil, err
 		}

@@ -38,8 +38,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-var (
-	testClientConfig = `
+var testClientConfig = `
 placementKV:
   zone: testZone
   environment: testEnvironment
@@ -82,7 +81,6 @@ connection:
     maxRetries: 2
     jitter: true
 `
-)
 
 func TestConfigUnmarshal(t *testing.T) {
 	var cfg Configuration
@@ -91,8 +89,8 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, "testZone", cfg.PlacementKV.Zone)
 	require.Equal(t, "testEnvironment", cfg.PlacementKV.Environment)
 	require.Equal(t, "testNamespace", cfg.PlacementKV.Namespace)
-	require.Equal(t, "testWatchKey", cfg.PlacementWatcher.Key)
-	require.Equal(t, 15*time.Second, cfg.PlacementWatcher.InitWatchTimeout)
+	require.Equal(t, "testWatchKey", cfg.Watcher.Key)
+	require.Equal(t, 15*time.Second, cfg.Watcher.InitWatchTimeout)
 	require.Equal(t, sharding.Murmur32Hash, *cfg.HashType)
 	require.Equal(t, 10*time.Minute, *cfg.ShardCutoverWarmupDuration)
 	require.Equal(t, time.Minute, *cfg.ShardCutoffLingerDuration)
@@ -151,8 +149,8 @@ func TestNewClientOptions(t *testing.T) {
 	require.Equal(t, 50000000, opts.EncoderOptions().MaxMessageSize())
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
 	require.NotNil(t, opts.ShardFn())
-	require.Equal(t, "testWatchKey", opts.StagedPlacementWatcherOptions().StagedPlacementKey())
-	require.True(t, store == opts.StagedPlacementWatcherOptions().StagedPlacementStore())
+	require.Equal(t, "testWatchKey", opts.WatcherOptions().StagedPlacementKey())
+	require.True(t, store == opts.WatcherOptions().StagedPlacementStore())
 	require.Equal(t, 10*time.Minute, opts.ShardCutoverWarmupDuration())
 	require.Equal(t, time.Minute, opts.ShardCutoffLingerDuration())
 	require.Equal(t, 1440, opts.FlushSize())

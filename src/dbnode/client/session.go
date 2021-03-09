@@ -152,6 +152,7 @@ type session struct {
 	newPeerBlocksQueueFn                 newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn     reattemptStreamBlocksFromPeersFn
 	pickBestPeerFn                       pickBestPeerFn
+	healthCheckNewConnFn                 healthCheckFn
 	origin                               topology.Host
 	streamBlocksMaxBlockRetries          int
 	streamBlocksWorkers                  xsync.WorkerPool
@@ -283,6 +284,7 @@ func newSession(opts Options) (clientSession, error) {
 		newHostQueueFn:       newHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
+		healthCheckNewConnFn: healthCheck,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{
@@ -667,7 +669,7 @@ func (s *session) BorrowConnections(
 		)
 		borrowErr := s.BorrowConnection(host.ID(), func(
 			client rpc.TChanNode,
-			channel PooledChannel,
+			channel Channel,
 		) {
 			userResult, userErr = fn(shard, host, client, channel)
 		})
@@ -708,7 +710,7 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 		s.state.RUnlock()
 		return errSessionHasNoHostQueueForHost
 	}
-	err := queue.BorrowConnection(func(client rpc.TChanNode, ch PooledChannel) {
+	err := queue.BorrowConnection(func(client rpc.TChanNode, ch Channel) {
 		// Unlock early on success
 		s.state.RUnlock()
 		unlocked = true
@@ -720,6 +722,65 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 		s.state.RUnlock()
 	}
 	return err
+}
+
+func (s *session) DedicatedConnection(
+	shardID uint32,
+	opts DedicatedConnectionOptions,
+) (rpc.TChanNode, Channel, error) {
+	s.state.RLock()
+	topoMap, err := s.topologyMapWithStateRLock()
+	s.state.RUnlock()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		client    rpc.TChanNode
+		channel   Channel
+		succeeded bool
+		multiErr  = xerrors.NewMultiError()
+	)
+	err = topoMap.RouteShardForEach(shardID, func(
+		_ int,
+		targetShard shard.Shard,
+		host topology.Host,
+	) {
+		stateFilter := opts.ShardStateFilter
+		if succeeded || !(stateFilter == shard.Unknown || targetShard.State() == stateFilter) {
+			return
+		}
+
+		if s.origin != nil && s.origin.ID() == host.ID() {
+			// Skip origin host.
+			return
+		}
+
+		newConnFn := s.opts.NewConnectionFn()
+		channel, client, err = newConnFn(channelName, host.Address(), s.opts)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			return
+		}
+
+		if err := s.healthCheckNewConnFn(client, s.opts); err != nil {
+			multiErr = multiErr.Add(err)
+			return
+		}
+
+		succeeded = true
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !succeeded {
+		multiErr = multiErr.Add(
+			fmt.Errorf("failed to create a dedicated connection for shard %d", shardID))
+		return nil, nil, multiErr.FinalError()
+	}
+
+	return client, channel, nil
 }
 
 func (s *session) hostQueues(
@@ -944,7 +1005,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
 			{
 				Capacity: replicas,
-				Count:    s.opts.SeriesIteratorPoolSize(),
+				Count:    pool.Size(s.opts.SeriesIteratorPoolSize()),
 			},
 		})
 		s.pools.multiReaderIteratorArray.Init()
@@ -2650,7 +2711,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	var attemptErr error
-	checkedAttemptFn := func(client rpc.TChanNode, _ PooledChannel) {
+	checkedAttemptFn := func(client rpc.TChanNode, _ Channel) {
 		attemptErr = attemptFn(client)
 	}
 
@@ -3167,7 +3228,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Attempt request
 	if err := retrier.Attempt(func() error {
 		var attemptErr error
-		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ PooledChannel) {
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ Channel) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})

@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/policy"
 )
 
@@ -52,5 +53,87 @@ func BenchmarkMetadata_IsDefault(b *testing.B) {
 			b.Fail()
 		}
 	}
+	runtime.KeepAlive(m)
+}
+
+func BenchmarkMetadata_FromProto(b *testing.B) {
+	var (
+		testAllPayload metricpb.StagedMetadatas
+		m              StagedMetadatas
+	)
+
+	testAllPayload.Metadatas = append(testAllPayload.Metadatas,
+		testSmallStagedMetadatasProto.Metadatas...)
+	testAllPayload.Metadatas = append(testAllPayload.Metadatas,
+		testLargeStagedMetadatasProto.Metadatas...)
+	testAllPayload.Metadatas = append(testAllPayload.Metadatas,
+		testSmallStagedMetadatasWithLargeStoragePoliciesProto.Metadatas...)
+
+	b.Run("large metadatas", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.FromProto(testLargeStagedMetadatasProto); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("small metadatas", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.FromProto(testSmallStagedMetadatasProto); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("storage policies", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.FromProto(
+				testSmallStagedMetadatasWithLargeStoragePoliciesProto,
+			); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("all", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.FromProto(testAllPayload); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("reference, large metadatas", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.fromProto(testLargeStagedMetadatasProto); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("reference, small metadatas", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.fromProto(testSmallStagedMetadatasProto); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("reference, storage policies", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.fromProto(testSmallStagedMetadatasWithLargeStoragePoliciesProto); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
+	b.Run("reference, all", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := m.fromProto(testAllPayload); err != nil {
+				b.Fail()
+			}
+		}
+	})
+
 	runtime.KeepAlive(m)
 }

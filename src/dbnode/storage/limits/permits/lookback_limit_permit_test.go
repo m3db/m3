@@ -35,14 +35,16 @@ func TestLookbackLimitPermit(t *testing.T) {
 	manager := newManager(t, lookbackLimit)
 
 	ctx := context.NewBackground()
-	permits := manager.NewPermits(ctx)
+	permits, err := manager.NewPermits(ctx)
+	require.NoError(t, err)
 
 	require.Equal(t, 0, lookbackLimit.count)
 
-	require.NoError(t, permits.Acquire(ctx))
+	_, err = permits.Acquire(ctx)
+	require.NoError(t, err)
 	require.Equal(t, 1, lookbackLimit.count)
 
-	_, err := permits.TryAcquire(ctx)
+	_, err = permits.TryAcquire(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 2, lookbackLimit.count)
 }

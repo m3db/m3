@@ -413,6 +413,68 @@ var (
 			},
 		},
 	}
+	testSmallStagedMetadatasWithLargeStoragePoliciesProto = metricpb.StagedMetadatas{
+		Metadatas: []metricpb.StagedMetadata{
+			{
+				CutoverNanos: 4567,
+				Tombstoned:   true,
+				Metadata: metricpb.Metadata{
+					Pipelines: []metricpb.PipelineMetadata{
+						{
+							AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
+							StoragePolicies: []policypb.StoragePolicy{
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: time.Second.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: 10 * time.Second.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Second.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Hour.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Minute.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Minute.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Minute.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Second.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Hour.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Second.Nanoseconds(),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 	testLargeStagedMetadatasProto = metricpb.StagedMetadatas{
 		Metadatas: []metricpb.StagedMetadata{
 			{
@@ -1013,10 +1075,13 @@ func TestStagedMetadatasFromProto(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		var res StagedMetadatas
+		var resOpt, resReference StagedMetadatas
 		for i, pb := range input.sequence {
-			require.NoError(t, res.FromProto(pb))
-			require.Equal(t, input.expected[i], res)
+			require.NoError(t, resReference.fromProto(pb))
+			require.NoError(t, resOpt.FromProto(pb))
+			require.Equal(t, input.expected[i], resOpt)
+			require.Equal(t, input.expected[i], resReference)
+			require.Equal(t, resOpt, resReference)
 		}
 	}
 }

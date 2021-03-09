@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -74,8 +73,8 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	setupOpts := []BootstrappableTestSetupOptions{
 		{DisablePeersBootstrapper: true},
 		{
-			DisablePeersBootstrapper: false,
-			FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+			DisableCommitLogBootstrapper: true,
+			DisablePeersBootstrapper:     false,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
