@@ -900,6 +900,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 		nsCtx      = namespace.NewContextFrom(ns)
+		numWorkers = s.opts.AccumulateConcurrency()
 	)
 
 	// Bootstrap the snapshot file.
@@ -947,14 +948,15 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		nsCtx:       nsCtx,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	errs, _ := errgroup.WithContext(ctx)
+	errs, ctx := errgroup.WithContext(context.Background())
 	errs.Go(func() error {
 		return worker.readSeriesBlocks(ctx)
 	})
-	if err := s.loadBlocks(worker.dataCh, writeType); err != nil {
-		return err
+
+	for i := 0; i < numWorkers; i++ {
+		errs.Go(func() error {
+			return s.loadBlocks(worker.dataCh, writeType)
+		})
 	}
 
 	return errs.Wait()
