@@ -131,11 +131,11 @@ var (
 
 func processSortOp(t *testing.T, op parser.Params, instant bool) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(sortOp).Node(c, transform.Options{})
 	queryContext := models.NoopQueryContext()
 	queryContext.Options.Instantaneous = instant
-	err := node.Process(queryContext, parser.NodeID(0), bl)
+	err := node.Process(queryContext, parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 	return sink
 }
