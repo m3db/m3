@@ -1945,7 +1945,6 @@ func TestSeriesRefResolver(t *testing.T) {
 	// Ensure duplicate called but no close, etc
 	iter.EXPECT().
 		Duplicate().
-		Times(1).
 		Return(ident.NewTagsIterator(seriesTags))
 
 	now := time.Now()

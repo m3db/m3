@@ -295,7 +295,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 var _ SeriesRefResolver = (*seriesStaticResolver)(nil)
 
 type seriesStaticResolver struct {
-	series *series.MockDatabaseSeries
+	series SeriesRef
 }
 
 func (r *seriesStaticResolver) SeriesRef() (SeriesRef, error) {

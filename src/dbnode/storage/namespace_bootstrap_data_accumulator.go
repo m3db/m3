@@ -89,9 +89,7 @@ func (a *namespaceDataAccumulator) Close() error {
 	// Release all refs.
 	multiError := xerrors.NewMultiError()
 	for _, elem := range a.needsRelease {
-		if err := elem.ReleaseRef(); err != nil {
-			multiError = multiError.Add(err)
-		}
+		multiError = multiError.Add(elem.ReleaseRef())
 	}
 
 	if !multiError.Empty() {

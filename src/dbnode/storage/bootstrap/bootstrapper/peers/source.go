@@ -386,7 +386,7 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 
 type seriesBlocks struct {
 	resolver bootstrap.SeriesRefResolver
-	block    block.DatabaseSeriesBlocks
+	blocks   block.DatabaseSeriesBlocks
 }
 
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
@@ -461,7 +461,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 
 					dataCh <- seriesBlocks{
 						resolver: ref.Resolver,
-						block:    entry.Blocks,
+						blocks:   entry.Blocks,
 					}
 
 					// Safe to finalize these IDs and Tags, shard result no longer used.
@@ -478,7 +478,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 					continue
 				}
 
-				for _, bl := range seriesBlocks.block.AllBlocks() {
+				for _, bl := range seriesBlocks.blocks.AllBlocks() {
 					if err := seriesRef.LoadBlock(bl, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))

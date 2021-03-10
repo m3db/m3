@@ -39,9 +39,9 @@ var (
 )
 
 type seriesTestResolver struct {
-	series      bootstrap.SeriesRef
-	calls       int
-	uniqueIndex uint64
+	series       bootstrap.SeriesRef
+	releaseCalls int
+	uniqueIndex  uint64
 }
 
 func (r *seriesTestResolver) SeriesRef() (bootstrap.SeriesRef, error) {
@@ -49,7 +49,7 @@ func (r *seriesTestResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 }
 
 func (r *seriesTestResolver) ReleaseRef() error {
-	r.calls++
+	r.releaseCalls++
 	return nil
 }
 
@@ -121,7 +121,7 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	require.Equal(t, 1, len(cast.needsRelease))
 	require.Equal(t, resolver, cast.needsRelease[0])
 	// Ensure it hasn't been released.
-	require.Equal(t, 0, resolver.calls)
+	require.Zero(t, resolver.releaseCalls)
 }
 
 func TestAccumulatorRelease(t *testing.T) {
@@ -154,9 +154,9 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 	require.Equal(t, resolver, cast.needsRelease[0])
 
 	require.NoError(t, acc.Close())
-	require.Equal(t, 0, len(cast.needsRelease))
+	require.Zero(t, len(cast.needsRelease))
 	// ensure release has been called.
-	require.Equal(t, 1, resolver.calls)
+	require.Equal(t, 1, resolver.releaseCalls)
 	// ensure double-close errors.
 	require.Error(t, acc.Close())
 }

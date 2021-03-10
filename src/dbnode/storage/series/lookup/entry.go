@@ -67,15 +67,6 @@ type Entry struct {
 	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
-// OnReleaseReadWriteRef is a callback that can release
-// a strongly held series read/write ref.
-type OnReleaseReadWriteRef interface {
-	OnReleaseReadWriteRef()
-}
-
-// ensure Entry satifies the `OnReleaseReadWriteRef` interface.
-var _ OnReleaseReadWriteRef = &Entry{}
-
 // ensure Entry satisfies the `index.OnIndexSeries` interface.
 var _ index.OnIndexSeries = &Entry{}
 
@@ -123,15 +114,6 @@ func (entry *Entry) IncrementReaderWriterCount() {
 // DecrementReaderWriterCount decrements the ref count on the Entry.
 func (entry *Entry) DecrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
-}
-
-// OnReleaseReadWriteRef decrements a read/write ref, it's named
-// differently to decouple the concrete task needed when a ref
-// is released and the intent to release the ref (simpler for
-// caller readability/reasoning).
-func (entry *Entry) OnReleaseReadWriteRef() {
-	// All we do when we release a read/write ref is decrement.
-	entry.DecrementReaderWriterCount()
 }
 
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
@@ -274,7 +256,7 @@ func (entry *Entry) SeriesRef() (bootstrap.SeriesRef, error) {
 // to release the reference count to the series so it can
 // be expired by the owning shard eventually.
 func (entry *Entry) ReleaseRef() error {
-	entry.OnReleaseReadWriteRef()
+	entry.DecrementReaderWriterCount()
 	return nil
 }
 

@@ -479,14 +479,6 @@ type databaseNamespace interface {
 	) (int64, error)
 }
 
-// SeriesReadWriteRef is a read/write reference for a series,
-// must make sure to release the read/write reference by calling
-// release on the resolver.
-type SeriesReadWriteRef struct {
-	// Resolver resolves the reference for read/writing.
-	Resolver bootstrap.SeriesRefResolver
-}
-
 // Shard is a time series database shard.
 type Shard interface {
 	// ID returns the ID of the shard.
