@@ -1067,14 +1067,17 @@ func (s *dbShard) SeriesRefResolver(
 	if err != nil {
 		return nil, err
 	}
+	// increment ref count to avoid expiration of the new entry just after adding it to the queue.
 	entry.IncrementReaderWriterCount()
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			// skipRateLimit for true since this method is used by bootstrapping
 			// and should not be rate limited.
-			skipRateLimit:            true,
-			entryRefCountIncremented: false, // should be false because otherwise entry won't be inserted.
+			skipRateLimit: true,
+			// should be false despite entry.IncrementReaderWriterCount()
+			// because otherwise entry will be skipped during background insert loop.
+			entryRefCountIncremented: false,
 		},
 	})
 	if err != nil {
