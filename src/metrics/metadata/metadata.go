@@ -115,6 +115,11 @@ func (m PipelineMetadata) IsMappingRule() bool {
 	return m.Pipeline.IsMappingRule()
 }
 
+// IsAnyRollupRules returns whether any of the rules have rollups.
+func (m PipelineMetadata) IsAnyRollupRules() bool {
+	return !m.Pipeline.IsMappingRule()
+}
+
 // IsDropPolicyApplied returns whether this is the default standard pipeline
 // but with the drop policy applied.
 func (m PipelineMetadata) IsDropPolicyApplied() bool {
@@ -280,12 +285,17 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 	return result, RemovedIneffectiveDropPoliciesResult
 }
 
+// ShouldDropTimestampOptions are options for the should drop timestamp method.
+type ShouldDropTimestampOptions struct {
+	UntimedRollups bool
+}
+
 // ShouldDropTimestamp applies custom M3 tags.
-func (metadatas PipelineMetadatas) ShouldDropTimestamp(untimedRollups bool) bool {
+func (metadatas PipelineMetadatas) ShouldDropTimestamp(opts ShouldDropTimestampOptions) bool {
 	// Go over metadatas and and look for drop timestamp tag.
 	for i := range metadatas {
-		if untimedRollups {
-			if !metadatas[i].IsMappingRule() {
+		if opts.UntimedRollups {
+			if metadatas[i].IsAnyRollupRules() {
 				return true
 			}
 		}
