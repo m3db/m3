@@ -22,13 +22,12 @@ package commitlog
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -42,7 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -50,6 +49,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -115,7 +115,7 @@ type readSeriesBlocksWorker struct {
 	nsCtx       namespace.Context
 }
 
-func (w *readSeriesBlocksWorker) readSeriesBlocks() error {
+func (w *readSeriesBlocksWorker) readSeriesBlocks(ctx context.Context) error {
 	defer close(w.dataCh)
 	for {
 		id, tags, data, expectedChecksum, err := w.reader.Read()
@@ -157,6 +157,13 @@ func (w *readSeriesBlocksWorker) readSeriesBlocks() error {
 
 		id.Finalize()
 		tags.Close()
+
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			// do not block.
+		}
 	}
 	return nil
 }
@@ -283,7 +290,7 @@ func (s *commitLogSource) AvailableIndex(
 // TODO(rartoul): Make this take the SnapshotMetadata files into account to reduce the
 // number of commitlogs / snapshots that we need to read.
 func (s *commitLogSource) Read(
-	ctx context.Context,
+	ctx xcontext.Context,
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
@@ -940,11 +947,13 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		nsCtx:       nsCtx,
 	}
 
-	ctx := context.NewBackground()
-	errs, _ := errgroup.WithContext(ctx.GoContext())
-	errs.Go(worker.readSeriesBlocks)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errs, _ := errgroup.WithContext(ctx)
+	errs.Go(func() error {
+		return worker.readSeriesBlocks(ctx)
+	})
 	if err := s.loadBlocks(worker.dataCh, writeType); err != nil {
-		close(worker.dataCh)
 		return err
 	}
 
@@ -1024,7 +1033,7 @@ func (s *commitLogSource) readCommitLogFilePredicate(f commitlog.FileFilterInfo)
 }
 
 func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
-	ctx := context.NewBackground()
+	ctx := xcontext.NewBackground()
 	defer ctx.Close()
 
 	for input := range worker.inputCh {
