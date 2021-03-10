@@ -2387,31 +2387,3 @@ func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
 }
-
-// MaxWorkerTime mocks base method
-func (m *MockOptions) MaxWorkerTime() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MaxWorkerTime")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// MaxWorkerTime indicates an expected call of MaxWorkerTime
-func (mr *MockOptionsMockRecorder) MaxWorkerTime() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxWorkerTime", reflect.TypeOf((*MockOptions)(nil).MaxWorkerTime))
-}
-
-// SetMaxWorkerTime mocks base method
-func (m *MockOptions) SetMaxWorkerTime(value time.Duration) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetMaxWorkerTime", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMaxWorkerTime indicates an expected call of SetMaxWorkerTime
-func (mr *MockOptionsMockRecorder) SetMaxWorkerTime(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxWorkerTime", reflect.TypeOf((*MockOptions)(nil).SetMaxWorkerTime), value)
-}

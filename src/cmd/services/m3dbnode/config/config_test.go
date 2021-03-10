@@ -312,8 +312,6 @@ db:
   writeNewSeriesBackoffDuration: 2ms
   tracing:
     backend: jaeger
-  fetchTagged:
-    seriesBlocksPerBatch: 100
 `
 
 func TestConfiguration(t *testing.T) {
@@ -741,8 +739,6 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
     writeNewSeriesPerSecond: 0
-  fetchTagged:
-    seriesBlocksPerBatch: 100
   wide: null
   tchannel: null
   debug:

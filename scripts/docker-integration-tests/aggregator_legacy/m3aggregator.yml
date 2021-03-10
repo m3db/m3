@@ -128,7 +128,6 @@ aggregator:
         watermark:
           low: 0.001
           high: 0.01
-    flushSize: 1440
     maxTimerBatchSize: 140
     queueSize: 1000
     queueDropType: oldest

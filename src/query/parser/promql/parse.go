@@ -91,7 +91,7 @@ type parseState struct {
 
 func (p *parseState) lastTransformID() parser.NodeID {
 	if len(p.transforms) == 0 {
-		return parser.NodeID(-1)
+		return parser.NodeID(rune(-1))
 	}
 
 	return p.transforms[len(p.transforms)-1].ID

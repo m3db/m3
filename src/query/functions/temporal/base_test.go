@@ -121,7 +121,7 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 					StepSize: bounds.StepSize,
 				}, seriesMetas, resultMeta, values, runBatched)
 
-				c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+				c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 				baseOp := opGen(t, tt)
 				node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 					TimeSpec: transform.TimeSpec{
@@ -131,7 +131,7 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 					},
 				}))
 
-				err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+				err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 				require.NoError(t, err)
 
 				test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
@@ -239,7 +239,7 @@ func testParallelProcess(t *testing.T, warning bool) {
 	defer ctrl.Finish()
 
 	tagName := "tag"
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	aggProcess := aggProcessor{
 		aggFunc: func(fs []float64) float64 {
 			require.Equal(t, 1, len(fs))
@@ -323,7 +323,7 @@ func testParallelProcess(t *testing.T, warning bool) {
 	bl.EXPECT().MultiSeriesIter(gomock.Any()).Return(batches, nil).MaxTimes(1)
 	bl.EXPECT().Close().Times(1)
 
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 
 	expected := []float64{

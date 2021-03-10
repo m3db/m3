@@ -103,20 +103,20 @@ func TestScalars(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					ReturnBool:           true,
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 
 			err = node.Process(
 				models.NoopQueryContext(),
-				parser.NodeID(0),
+				parser.NodeID(rune(0)),
 				block.NewScalar(tt.lVal, block.Metadata{
 					Bounds: bounds,
 					Tags:   models.EmptyTags(),
@@ -126,7 +126,7 @@ func TestScalars(t *testing.T) {
 			require.NoError(t, err)
 			err = node.Process(
 				models.NoopQueryContext(),
-				parser.NodeID(1),
+				parser.NodeID(rune(1)),
 				block.NewScalar(tt.rVal, block.Metadata{
 					Bounds: bounds,
 					Tags:   models.EmptyTags(),
@@ -158,20 +158,20 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					ReturnBool:           false,
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 
 			err = node.Process(
 				models.NoopQueryContext(),
-				parser.NodeID(0),
+				parser.NodeID(rune(0)),
 				block.NewScalar(tt.lVal, block.Metadata{
 					Bounds: bounds,
 					Tags:   models.EmptyTags(),
@@ -181,7 +181,7 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			require.NoError(t, err)
 			err = node.Process(
 				models.NoopQueryContext(),
-				parser.NodeID(1),
+				parser.NodeID(rune(1)),
 				block.NewScalar(tt.rVal, block.Metadata{
 					Bounds: bounds,
 					Tags:   models.EmptyTags(),
@@ -546,15 +546,15 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					ReturnBool:           true,
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 
 			seriesValues := tt.seriesValues
@@ -568,12 +568,12 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
 			// Set the series and scalar blocks on the correct sides
 			if tt.seriesLeft {
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), series)
 				require.NoError(t, err)
 
 				err = node.Process(
 					models.NoopQueryContext(),
-					parser.NodeID(1),
+					parser.NodeID(rune(1)),
 					block.NewScalar(tt.scalarVal, block.Metadata{
 						Bounds: bounds,
 						Tags:   models.EmptyTags(),
@@ -584,7 +584,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 			} else {
 				err = node.Process(
 					models.NoopQueryContext(),
-					parser.NodeID(0),
+					parser.NodeID(rune(0)),
 					block.NewScalar(tt.scalarVal, block.Metadata{
 						Bounds: bounds,
 						Tags:   models.EmptyTags(),
@@ -592,7 +592,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 				)
 
 				require.NoError(t, err)
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), series)
 				require.NoError(t, err)
 			}
 
@@ -614,15 +614,15 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					ReturnBool:           false,
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 
 			require.NoError(t, err)
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 
 			seriesValues := tt.seriesValues
@@ -636,12 +636,12 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
 			// Set the series and scalar blocks on the correct sides
 			if tt.seriesLeft {
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), series)
 				require.NoError(t, err)
 
 				err = node.Process(
 					models.NoopQueryContext(),
-					parser.NodeID(1),
+					parser.NodeID(rune(1)),
 					block.NewScalar(tt.scalarVal, block.Metadata{
 						Bounds: bounds,
 						Tags:   models.EmptyTags(),
@@ -652,7 +652,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 			} else {
 				err = node.Process(
 					models.NoopQueryContext(),
-					parser.NodeID(0),
+					parser.NodeID(rune(0)),
 					block.NewScalar(tt.scalarVal, block.Metadata{
 						Bounds: bounds,
 						Tags:   models.EmptyTags(),
@@ -660,7 +660,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 				)
 
 				require.NoError(t, err)
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), series)
 				require.NoError(t, err)
 			}
 
@@ -895,15 +895,15 @@ func TestBothSeries(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					ReturnBool:           tt.returnBool,
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 			bounds := models.Bounds{
 				Start:    now,
@@ -911,11 +911,11 @@ func TestBothSeries(t *testing.T) {
 				StepSize: time.Minute,
 			}
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0),
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)),
 				test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs))
 			require.NoError(t, err)
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1),
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)),
 				test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs))
 			require.NoError(t, err)
 
@@ -986,20 +986,20 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	op, err := NewOp(
 		PlusType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), left)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), left)
 	require.NoError(t, err)
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), right)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), right)
 	require.NoError(t, err)
 
 	test.EqualsWithNans(t, expected, sink.Values)
@@ -1078,20 +1078,20 @@ func TestOneToOneMatcher(t *testing.T) {
 	op, err := NewOp(
 		PlusType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: oneToOneVectorMatchingBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), left)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), left)
 	require.NoError(t, err)
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), right)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), right)
 	require.NoError(t, err)
 
 	test.EqualsWithNans(t, expected, sink.Values)

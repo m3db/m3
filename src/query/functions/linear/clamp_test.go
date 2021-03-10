@@ -54,7 +54,7 @@ func TestClampMin(t *testing.T) {
 	values[0][0] = math.NaN()
 
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	clampOp, err := NewClampOp([]interface{}{3.0}, ClampMinType)
 	require.NoError(t, err)
 
@@ -62,7 +62,7 @@ func TestClampMin(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Max)
 	assert.Len(t, sink.Values, 2)
@@ -74,7 +74,7 @@ func TestClampMax(t *testing.T) {
 	values[0][0] = math.NaN()
 
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	clampOp, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
 	require.NoError(t, err)
 
@@ -82,7 +82,7 @@ func TestClampMax(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Min)
 	assert.Len(t, sink.Values, 2)
@@ -103,7 +103,7 @@ func runClamp(t *testing.T, args []interface{},
 
 	v := [][]float64{vals}
 	block := test.NewBlockFromValues(bounds, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	roundOp, err := NewClampOp(args, opType)
 	require.NoError(t, err)
 
@@ -111,7 +111,7 @@ func runClamp(t *testing.T, args []interface{},
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	require.Len(t, sink.Values, 1)
 

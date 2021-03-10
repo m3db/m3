@@ -141,21 +141,13 @@ func (id *ID) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // ToProto converts the aggregation id to a protobuf message in place.
-func (id ID) ToProto(pb *aggregationpb.AggregationID) error {
-	if IDLen != 1 {
-		return fmt.Errorf("id length %d cannot be represented by a single integer", IDLen)
-	}
+func (id ID) ToProto(pb *aggregationpb.AggregationID) {
 	pb.Id = id[0]
-	return nil
 }
 
 // FromProto converts the protobuf message to an aggregation id in place.
-func (id *ID) FromProto(pb aggregationpb.AggregationID) error {
-	if IDLen != 1 {
-		return fmt.Errorf("id length %d cannot be represented by a single integer", IDLen)
-	}
+func (id *ID) FromProto(pb aggregationpb.AggregationID) {
 	(*id)[0] = pb.Id
-	return nil
 }
 
 // CompressTypes compresses a list of aggregation types to an ID.
@@ -171,4 +163,11 @@ func MustCompressTypes(aggTypes ...Type) ID {
 		panic(err)
 	}
 	return res
+}
+
+func init() {
+	if IDLen != 1 {
+		// changing this const requires extensive surgery
+		panic(fmt.Sprintf("id length %d cannot be represented by a single integer", IDLen))
+	}
 }

@@ -851,6 +851,6 @@ func TestInvalidBlockTypes(t *testing.T) {
 
 	query := &storage.FetchQuery{}
 	fetchOpts := &storage.FetchOptions{BlockType: models.TypeMultiBlock}
-	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
-	assert.Error(t, err)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { _, _ = s.FetchBlocks(context.TODO(), query, fetchOpts) })
 }
