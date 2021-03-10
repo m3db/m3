@@ -137,6 +137,7 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
 		debugLogging:           debugLogging,
 		logger:                 logger,
+		untimedRollups:         agg.untimedRollups,
 	}
 }
 

@@ -126,13 +126,13 @@ func TestAbsent(t *testing.T) {
 				tt.vals,
 			)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 			absentOp := NewAbsentOp()
 			op, ok := absentOp.(transform.Params)
 			require.True(t, ok)
 
 			node := op.Node(c, transform.Options{})
-			err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+			err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 			require.NoError(t, err)
 
 			if tt.expectedVals == nil {

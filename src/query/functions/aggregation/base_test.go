@@ -65,9 +65,9 @@ var (
 
 func processAggregationOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(baseOp).Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 	return sink
 }

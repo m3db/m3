@@ -842,5 +842,7 @@ func testTCPClientOptions() Options {
 		SetShardCutoverWarmupDuration(time.Minute).
 		SetShardCutoffLingerDuration(10 * time.Minute).
 		SetAggregatorClientType(TCPAggregatorClient).
-		SetWatcherOptions(plOpts)
+		SetWatcherOptions(plOpts).
+		SetForceFlushEvery(0).
+		SetFlushWorkerCount(8)
 }
