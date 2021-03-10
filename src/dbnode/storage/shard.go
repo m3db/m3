@@ -1075,9 +1075,9 @@ func (s *dbShard) SeriesRefResolver(
 			// skipRateLimit for true since this method is used by bootstrapping
 			// and should not be rate limited.
 			skipRateLimit: true,
-			// should be false despite entry.IncrementReaderWriterCount()
-			// because otherwise entry will be skipped during background insert loop.
-			entryRefCountIncremented: false,
+			// do not release entry ref during async write, because entry ref will be released when
+			// ReleaseRef() is called on bootstrap.SeriesRefResolver.
+			releaseEntryRef: false,
 		},
 	})
 	if err != nil {
@@ -1376,7 +1376,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 			},
 			// indicate we already have inc'd the entry's ref count, so we can correctly
 			// handle the ref counting semantics in `insertSeriesBatch`.
-			entryRefCountIncremented: true,
+			releaseEntryRef: true,
 		},
 	})
 
@@ -1541,7 +1541,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// we don't need to inc the entry ref count if we already have a ref on the entry. check if
 		// that's the case.
-		if inserts[i].opts.entryRefCountIncremented {
+		if inserts[i].opts.releaseEntryRef {
 			// don't need to inc a ref on the entry, we were given as writable entry as input.
 			continue
 		}
@@ -1560,7 +1560,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// visible before we release the lookup write lock.
 			inserts[i].entry.IncrementReaderWriterCount()
 			// also indicate that we have a ref count on this entry for this operation.
-			inserts[i].opts.entryRefCountIncremented = true
+			inserts[i].opts.releaseEntryRef = true
 		}
 
 		if err == nil {
@@ -1599,7 +1599,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	for i := range inserts {
 		var (
 			entry           = inserts[i].entry
-			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
+			releaseEntryRef = inserts[i].opts.releaseEntryRef
 			err             error
 		)
 
@@ -1636,7 +1636,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if inserts[i].opts.hasPendingIndexing {
 			pendingIndex := inserts[i].opts.pendingIndex
 			// increment the ref on the entry, as the original one was transferred to the
-			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
+			// this method (insertSeriesBatch) via `releaseEntryRef` mechanism.
 			entry.OnIndexPrepare()
 
 			writeBatchEntry := index.WriteBatchEntry{
@@ -1655,7 +1655,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Entries in the shard insert queue are either of:
 		// - new entries
-		// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
+		// - existing entries that we've taken a ref on (marked as releaseEntryRef)
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}
