@@ -102,6 +102,7 @@ type metricsAppenderOptions struct {
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
+	untimedRollups               bool
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -377,7 +378,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 	// Apply the custom tags first so that they apply even if mapping
 	// rules drop the metric.
-	dropTimestamp = a.curr.Pipelines.ApplyCustomTags()
+	dropTimestamp = a.curr.Pipelines.ShouldDropTimestamp(
+		metadata.ShouldDropTimestampOptions{
+			UntimedRollups: a.untimedRollups,
+		})
 
 	// Apply drop policies results
 	a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
@@ -404,6 +408,9 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			unownedID:       rollup.ID,
 			stagedMetadatas: rollup.Metadatas,
 		})
+		if a.untimedRollups {
+			dropTimestamp = true
+		}
 	}
 
 	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
