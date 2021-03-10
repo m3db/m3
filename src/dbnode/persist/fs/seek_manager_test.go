@@ -22,6 +22,7 @@ package fs
 
 import (
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -41,15 +42,13 @@ const (
 	defaultTestingFetchConcurrency = 2
 )
 
-var (
-	defaultTestBlockRetrieverOptions = NewBlockRetrieverOptions().
-		SetBlockLeaseManager(&block.NoopLeaseManager{}).
-		// Test with caching enabled.
-		SetCacheBlocksOnRetrieve(true).
-		// Default value is determined by available CPUs, but for testing
-		// we want to have this been consistent across hardware.
-		SetFetchConcurrency(defaultTestingFetchConcurrency)
-)
+var defaultTestBlockRetrieverOptions = NewBlockRetrieverOptions().
+	SetBlockLeaseManager(&block.NoopLeaseManager{}).
+	// Test with caching enabled.
+	SetCacheBlocksOnRetrieve(true).
+	// Default value is determined by available CPUs, but for testing
+	// we want to have this been consistent across hardware.
+	SetFetchConcurrency(defaultTestingFetchConcurrency)
 
 func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
@@ -650,6 +649,35 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, m.Return(shard, blockStart, seeker))
 	}
+
+	require.NoError(t, m.Close())
+}
+
+// TestSeekerManagerCacheShardIndicesSkipNotFound tests that expired (not found) index filesets
+// do not return an error.
+func TestSeekerManagerCacheShardIndicesSkipNotFound(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+
+	m.newOpenSeekerFn = func(
+		shard uint32,
+		blockStart time.Time,
+		volume int,
+	) (DataFileSetSeeker, error) {
+		return nil, syscall.ENOENT
+	}
+
+	shards := []uint32{2, 5, 9, 478, 1023}
+	metadata := testNs1Metadata(t)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+	require.NoError(t, m.Open(metadata, shardSet))
+
+	require.NoError(t, m.CacheShardIndices(shards))
 
 	require.NoError(t, m.Close())
 }

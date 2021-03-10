@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -270,12 +271,18 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 
 		wg.Add(1)
 		m.cacheShardIndicesWorkers.Go(func() {
+			defer wg.Done()
 			if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
+				// This is expected is the cleanup manager may have
+				// removed out of retention index filesets.
+				if xerrors.Is(err, syscall.ENOENT) {
+					m.logger.Debug("skipping expired index fileset")
+					return
+				}
 				resultsLock.Lock()
 				multiErr = multiErr.Add(err)
 				resultsLock.Unlock()
 			}
-			wg.Done()
 		})
 	}
 
