@@ -123,9 +123,9 @@ func TestTakeFn(t *testing.T) {
 
 func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(takeOp).Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 	return sink
 }
@@ -210,4 +210,3 @@ func TestTakeOpParamIsNaN(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, op.(takeOp).k < 0)
 }
-

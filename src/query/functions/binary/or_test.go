@@ -45,19 +45,19 @@ func TestOrWithExactValues(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block2)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), block2)
 	require.NoError(t, err)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block1)
 	require.NoError(t, err)
 	assert.Equal(t, values, sink.Values)
 }
@@ -76,19 +76,19 @@ func TestOrWithSomeValues(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block2)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), block2)
 	require.NoError(t, err)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block1)
 	require.NoError(t, err)
 	// NAN values should be filled
 	expected := values1
@@ -262,14 +262,14 @@ func TestOrs(t *testing.T) {
 			op, err := NewOp(
 				OrType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 			bounds := models.Bounds{
 				Start:    now,
@@ -278,7 +278,7 @@ func TestOrs(t *testing.T) {
 			}
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 			require.NoError(t, err)
 
 			bounds = models.Bounds{
@@ -288,7 +288,7 @@ func TestOrs(t *testing.T) {
 			}
 
 			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 				return
@@ -312,18 +312,18 @@ func TestOrsBoundsError(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
+	c, _ := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
 	lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 	require.NoError(t, err)
 
 	differentBounds := models.Bounds{
@@ -333,7 +333,7 @@ func TestOrsBoundsError(t *testing.T) {
 	}
 	rhs := test.NewBlockFromValuesWithSeriesMeta(
 		differentBounds, tt.rhsMeta, tt.rhs)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 	require.EqualError(t, err, errMismatchedBounds.Error())
 }
 
@@ -352,14 +352,14 @@ func TestOrCombinedMetadata(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
 	bounds := models.Bounds{
@@ -382,7 +382,7 @@ func TestOrCombinedMetadata(t *testing.T) {
 		lSeriesMeta,
 		[][]float64{{1, 2}, {10, 20}})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 	require.NoError(t, err)
 
 	strTags = test.StringTags{
@@ -402,7 +402,7 @@ func TestOrCombinedMetadata(t *testing.T) {
 		rSeriesMeta,
 		[][]float64{{3, 4}, {30, 40}})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 	require.NoError(t, err)
 
 	test.EqualsWithNans(t, [][]float64{

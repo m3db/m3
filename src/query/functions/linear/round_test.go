@@ -70,7 +70,7 @@ func TestRoundWithArgs(t *testing.T) {
 
 			v := [][]float64{tt.v}
 			block := test.NewBlockFromValues(bounds, v)
-			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 			roundOp, err := NewRoundOp(tt.args)
 			require.NoError(t, err)
 
@@ -78,7 +78,7 @@ func TestRoundWithArgs(t *testing.T) {
 			require.True(t, ok)
 
 			node := op.Node(c, transform.Options{})
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 			require.NoError(t, err)
 			require.Len(t, sink.Values, 1)
 			test.EqualsWithNans(t, tt.expected, sink.Values[0])
