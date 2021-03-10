@@ -876,8 +876,6 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		series.Close()
 		s.list.Remove(elem)
 		s.lookup.Delete(id)
-		s.logger.Info("entry expired",
-			zap.String("seriesId", id.String()))
 	}
 	s.Unlock()
 }
