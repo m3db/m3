@@ -23,8 +23,6 @@ package metadata
 import (
 	"bytes"
 
-	"github.com/m3db/m3/src/metrics/pipeline"
-
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
@@ -287,10 +285,8 @@ func (metadatas PipelineMetadatas) ShouldDropTimestamp(untimedRollups bool) bool
 	// Go over metadatas and and look for drop timestamp tag.
 	for i := range metadatas {
 		if untimedRollups {
-			for j := range metadatas[i].Pipeline.Operations {
-				if metadatas[i].Pipeline.Operations[j].Type == pipeline.RollupOpType {
-					return true
-				}
+			if !metadatas[i].IsMappingRule() {
+				return true
 			}
 		}
 		for j := range metadatas[i].Tags {
