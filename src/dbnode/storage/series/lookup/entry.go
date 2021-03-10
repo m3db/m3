@@ -218,8 +218,10 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 		entry.reverseIndex.setAttemptWithWLock(blockStart, false)
 	}
 	entry.reverseIndex.Unlock()
-	// indicate the index has released held reference for provided write
-	entry.DecrementReaderWriterCount()
+	if successAlready {
+		// indicate the index has released held reference for provided write
+		entry.DecrementReaderWriterCount()
+	}
 	return successAlready
 }
 
