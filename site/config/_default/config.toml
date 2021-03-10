@@ -1,6 +1,5 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
-  replacements = "github.com/chronosphereio/victor -> ../../../victor"
 
   [[module.imports]]
     path = "github.com/chronosphereio/victor"

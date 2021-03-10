@@ -14,10 +14,10 @@ sed -i.bak "s#spec-url='.*'#spec-url='spec.yml'#g" site/static/openapi/index.htm
 rm -f site/static/openapi/index.html.bak
 # Now run hugo
 if [[ -n "${HUGO_DOCKER:-}" ]]; then
-        docker run --rm -it -v "$PWD"/site:/src "${HUGO_DOCKER_IMAGE}"
+        docker run -e HUGO_ENV=production -it -v "$PWD"/site:/src "${HUGO_DOCKER_IMAGE}"
 else
         cd site
-        hugo -v
+        hugo -e production -v
         cd ..
 fi
 
@@ -35,7 +35,12 @@ do
         # sed -i.bak "s#spec-url='.*'#spec-url='spec.yml'#g" site/static/openapi/index.html
         # rm -f site/static/openapi/index.html.bak
         # echo "public/${docVersion//docs\/}"
+
         # Now run hugo
-        cd "site/${version[1]}"
-        hugo -v -d "../public/${version[1]}"   
+        if [[ -n "${HUGO_DOCKER:-}" ]]; then
+                docker run -e HUGO_ENV=production -e HUGO_DESTINATION="public/${version[1]}" -it -v "$PWD/site/${version[1]}":/src "${HUGO_DOCKER_IMAGE}"
+        else
+                cd "site/${version[1]}"
+                hugo -e production -v -d "../public/${version[1]}"   
+        fi        
 done
