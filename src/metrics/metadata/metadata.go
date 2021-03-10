@@ -115,6 +115,11 @@ func (m PipelineMetadata) IsMappingRule() bool {
 	return m.Pipeline.IsMappingRule()
 }
 
+// IsAnyRollupRules returns whether any of the rules have rollups.
+func (m PipelineMetadata) IsAnyRollupRules() bool {
+	return !m.Pipeline.IsMappingRule()
+}
+
 // IsDropPolicyApplied returns whether this is the default standard pipeline
 // but with the drop policy applied.
 func (m PipelineMetadata) IsDropPolicyApplied() bool {
@@ -280,21 +285,29 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 	return result, RemovedIneffectiveDropPoliciesResult
 }
 
-// ApplyCustomTags applies custom M3 tags.
-func (metadatas PipelineMetadatas) ApplyCustomTags() (
-	dropTimestamp bool,
-) {
-	// Go over metadatas and process M3 custom tags.
+// ShouldDropTimestampOptions are options for the should drop timestamp method.
+type ShouldDropTimestampOptions struct {
+	UntimedRollups bool
+}
+
+// ShouldDropTimestamp applies custom M3 tags.
+func (metadatas PipelineMetadatas) ShouldDropTimestamp(opts ShouldDropTimestampOptions) bool {
+	// Go over metadatas and and look for drop timestamp tag.
 	for i := range metadatas {
+		if opts.UntimedRollups {
+			if metadatas[i].IsAnyRollupRules() {
+				return true
+			}
+		}
 		for j := range metadatas[i].Tags {
 			// If any metadata has the drop timestamp tag, then return that we
 			// should send untimed metrics to the aggregator.
 			if bytes.Equal(metadatas[i].Tags[j].Name, metric.M3MetricsDropTimestamp) {
-				dropTimestamp = true
+				return true
 			}
 		}
 	}
-	return
+	return false
 }
 
 // Metadata represents the metadata associated with a metric.

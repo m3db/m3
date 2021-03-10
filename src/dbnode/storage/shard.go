@@ -2902,8 +2902,3 @@ func (r *dbShardFlushResult) update(u series.FlushOutcome) {
 		r.numBlockDoesNotExist++
 	}
 }
-
-type shardBlockVolume struct {
-	blockStart   time.Time
-	latestVolume int
-}

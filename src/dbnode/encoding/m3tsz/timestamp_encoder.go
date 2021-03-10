@@ -187,6 +187,16 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	}
 
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
+	if timeUnit == xtime.Millisecond || timeUnit == xtime.Second {
+		// Only milliseconds and seconds are encoded using
+		// up to 32 bits (see defaultTimeEncodingSchemes).
+		dod32 := int32(deltaOfDelta)
+		if int64(dod32) != deltaOfDelta {
+			return fmt.Errorf(
+				"deltaOfDelta value %d %s overflows 32 bits", deltaOfDelta, timeUnit)
+		}
+	}
+
 	tes, exists := enc.Options.TimeEncodingSchemes().SchemeForUnit(timeUnit)
 	if !exists {
 		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", timeUnit)
