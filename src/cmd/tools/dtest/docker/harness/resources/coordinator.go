@@ -385,12 +385,13 @@ func (c *coordinator) DeleteNamespace(namespaceID string) error {
 	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace/"+namespaceID)
 	logger := c.resource.logger.With(zapMethod("deleteNamespace"), zap.String("url", url))
 
-	if _, err := makeRequest(logger, url, http.MethodDelete, nil); err != nil {
+	if _, err := makeRequest(logger, url, http.MethodDelete, nil); err != nil { // nolint: bodyclose
 		logger.Error("failed to delete namespace", zap.Error(err))
 		return err
 	}
 	return nil
 }
+
 func (c *coordinator) WriteCarbon(
 	port int, metric string, v float64, t time.Time,
 ) error {
