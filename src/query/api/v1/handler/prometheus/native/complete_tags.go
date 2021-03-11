@@ -21,6 +21,7 @@
 package native
 
 import (
+	"io/ioutil"
 	"net/http"
 	"sync"
 
@@ -123,9 +124,33 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	handleroptions.AddResponseHeaders(w, meta, opts)
-	result := resultBuilder.Build()
-	if err := prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
-		logger.Error("unable to render results", zap.Error(err))
+	var (
+		noopWriter = ioutil.Discard
+		renderOpts = prometheus.RenderSeriesMetadataOptions{
+			ReturnedSeriesMetadataLimit: opts.ReturnedSeriesMetadataLimit,
+		}
+		result = resultBuilder.Build()
+	)
+	renderResult, err := prometheus.RenderTagCompletionResultsJSON(noopWriter, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render complete tags results", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	limited := &handleroptions.ReturnedMetadataLimited{
+		Results:      renderResult.Results,
+		TotalResults: renderResult.TotalResults,
+		Limited:      renderResult.LimitedMaxReturnedData,
+	}
+	if err := handleroptions.AddResponseHeaders(w, meta, opts, nil, limited); err != nil {
+		logger.Error("unable to render complete tags headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	_, err = prometheus.RenderTagCompletionResultsJSON(w, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render complete tags results", zap.Error(err))
 	}
 }

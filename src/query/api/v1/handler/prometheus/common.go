@@ -21,7 +21,6 @@
 package prometheus
 
 import (
-	"bytes"
 	goerrors "errors"
 	"fmt"
 	"io"
@@ -312,23 +311,46 @@ func parseMatch(
 func renderNameOnlyTagCompletionResultsJSON(
 	w io.Writer,
 	results []consolidators.CompletedTag,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
+	var (
+		total    = len(results)
+		rendered = 0
+		limited  bool
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 
 	for _, tag := range results {
+		if rendered >= opts.ReturnedSeriesMetadataLimit {
+			limited = true
+			break
+		}
+		rendered++
 		jw.WriteString(string(tag.Name))
 	}
 
 	jw.EndArray()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 func renderDefaultTagCompletionResultsJSON(
 	w io.Writer,
 	results []consolidators.CompletedTag,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
+	var (
+		total    = 0
+		rendered = 0
+		limited  bool
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
@@ -339,6 +361,12 @@ func renderDefaultTagCompletionResultsJSON(
 	jw.BeginArray()
 
 	for _, tag := range results {
+		total += len(tag.Values)
+		if rendered >= opts.ReturnedSeriesMetadataLimit {
+			limited = true
+			continue
+		}
+
 		jw.BeginObject()
 
 		jw.BeginObjectField("key")
@@ -347,6 +375,12 @@ func renderDefaultTagCompletionResultsJSON(
 		jw.BeginObjectField("values")
 		jw.BeginArray()
 		for _, value := range tag.Values {
+			if rendered >= opts.ReturnedSeriesMetadataLimit {
+				limited = true
+				break
+			}
+			rendered++
+
 			jw.WriteString(string(value))
 		}
 		jw.EndArray()
@@ -357,17 +391,46 @@ func renderDefaultTagCompletionResultsJSON(
 
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
+}
+
+// RenderSeriesMetadataOptions is a set of options for rendering
+// series metadata.
+type RenderSeriesMetadataOptions struct {
+	ReturnedSeriesMetadataLimit int
+}
+
+// RenderSeriesMetadataResult returns results about a series metadata rendering.
+type RenderSeriesMetadataResult struct {
+	// Results is how many results were rendered.
+	Results int
+	// TotalResults is how many results in total there were regardless
+	// of rendering.
+	TotalResults int
+	// LimitedMaxReturnedData indicates if results rendering
+	// was truncated by a limit.
+	LimitedMaxReturnedData bool
 }
 
 // RenderListTagResultsJSON renders list tag results to json format.
 func RenderListTagResultsJSON(
 	w io.Writer,
 	result *consolidators.CompleteTagsResult,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
 	if !result.CompleteNameOnly {
-		return errors.ErrWithNames
+		return RenderSeriesMetadataResult{}, errors.ErrWithNames
 	}
+
+	var (
+		total    = len(result.CompletedTags)
+		rendered = 0
+		limited  bool
+	)
 
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -379,41 +442,58 @@ func RenderListTagResultsJSON(
 	jw.BeginArray()
 
 	for _, t := range result.CompletedTags {
+		if rendered >= opts.ReturnedSeriesMetadataLimit {
+			limited = true
+			break
+		}
+		rendered++
 		jw.WriteString(string(t.Name))
 	}
 
 	jw.EndArray()
-
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 // RenderTagCompletionResultsJSON renders tag completion results to json format.
 func RenderTagCompletionResultsJSON(
-	w io.Writer, result consolidators.CompleteTagsResult) error {
+	w io.Writer,
+	result consolidators.CompleteTagsResult,
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
 	results := result.CompletedTags
 	if result.CompleteNameOnly {
-		return renderNameOnlyTagCompletionResultsJSON(w, results)
+		return renderNameOnlyTagCompletionResultsJSON(w, results, opts)
 	}
 
-	return renderDefaultTagCompletionResultsJSON(w, results)
+	return renderDefaultTagCompletionResultsJSON(w, results, opts)
 }
 
 // RenderTagValuesResultsJSON renders tag values results to json format.
 func RenderTagValuesResultsJSON(
 	w io.Writer,
 	result *consolidators.CompleteTagsResult,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
 	if result.CompleteNameOnly {
-		return errors.ErrNamesOnly
+		return RenderSeriesMetadataResult{}, errors.ErrNamesOnly
 	}
 
 	tagCount := len(result.CompletedTags)
-
 	if tagCount > 1 {
-		return errors.ErrMultipleResults
+		return RenderSeriesMetadataResult{}, errors.ErrMultipleResults
 	}
+
+	var (
+		total    = 0
+		rendered = 0
+		limited  bool
+	)
 
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -424,33 +504,43 @@ func RenderTagValuesResultsJSON(
 	jw.BeginObjectField("data")
 	jw.BeginArray()
 
-	// if no tags found, return empty array
-	if tagCount == 0 {
-		jw.EndArray()
-
-		jw.EndObject()
-
-		return jw.Close()
-	}
-
-	values := result.CompletedTags[0].Values
-	for _, value := range values {
-		jw.WriteString(string(value))
+	if tagCount > 0 {
+		// We have our single expected result.
+		values := result.CompletedTags[0].Values
+		total += len(values)
+		for _, value := range values {
+			if rendered >= opts.ReturnedSeriesMetadataLimit {
+				limited = true
+				break
+			}
+			rendered++
+			jw.WriteString(string(value))
+		}
 	}
 
 	jw.EndArray()
 
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 // RenderSeriesMatchResultsJSON renders series match results to json format.
 func RenderSeriesMatchResultsJSON(
 	w io.Writer,
 	results []models.Metrics,
-	dropRole bool,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
+	var (
+		total    = 0
+		rendered = 0
+		limited  bool
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
@@ -462,14 +552,20 @@ func RenderSeriesMatchResultsJSON(
 
 	for _, result := range results {
 		for _, tags := range result {
+			total += len(tags.Tags.Tags)
+			if rendered >= opts.ReturnedSeriesMetadataLimit {
+				limited = true
+				continue
+			}
+
 			jw.BeginObject()
 			for _, tag := range tags.Tags.Tags {
-				if bytes.Equal(tag.Name, roleName) && dropRole {
-					// NB: When data is written from Prometheus remote write, additional
-					// `"role":"remote"` tag is added, which should not be included in the
-					// results.
-					continue
+				if rendered >= opts.ReturnedSeriesMetadataLimit {
+					limited = true
+					break
 				}
+				rendered++
+
 				jw.BeginObjectField(string(tag.Name))
 				jw.WriteString(string(tag.Value))
 			}
@@ -481,7 +577,11 @@ func RenderSeriesMatchResultsJSON(
 	jw.EndArray()
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 // FilterSeriesByOptions removes series tags based on options.

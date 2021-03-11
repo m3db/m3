@@ -91,57 +91,6 @@ func toTags(name string, tags ...tag) models.Metric {
 	return models.Metric{Tags: ts}
 }
 
-func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
-	w := &writer{value: ""}
-	tests := []struct {
-		dropRole   bool
-		additional string
-	}{
-		{
-			dropRole:   true,
-			additional: "",
-		},
-		{
-			dropRole:   false,
-			additional: `,"role":"appears"`,
-		},
-	}
-
-	seriesMatchResult := []models.Metrics{
-		{
-			toTags("name", tag{name: "a", value: "b"}, tag{name: "role", value: "appears"}),
-			toTags("name2", tag{name: "c", value: "d"}, tag{name: "e", value: "f"}),
-		},
-	}
-
-	for _, tt := range tests {
-		expectedWhitespace := fmt.Sprintf(`{
-		"status":"success",
-		"data":[
-			{
-				"__name__":"name",
-				"a":"b"%s
-			},
-			{
-				"__name__":"name2",
-				"c":"d",
-				"e":"f"
-			}
-		]
-	}`, tt.additional)
-
-		err := RenderSeriesMatchResultsJSON(w, seriesMatchResult, tt.dropRole)
-		assert.NoError(t, err)
-		fields := strings.Fields(expectedWhitespace)
-		expected := ""
-		for _, field := range fields {
-			expected = expected + field
-		}
-
-		assert.Equal(t, expected, w.value)
-	}
-}
-
 func TestParseStartAndEnd(t *testing.T) {
 	endTime := time.Now().Truncate(time.Hour)
 	opts := promql.NewParseOptions().SetNowFn(func() time.Time { return endTime })
