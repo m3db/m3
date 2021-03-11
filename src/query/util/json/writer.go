@@ -39,8 +39,10 @@ var (
 	errContainerStillOpen = errors.New("container still open")
 )
 
-type writeState int
-type containerType int
+type (
+	writeState    int
+	containerType int
+)
 
 const (
 	object containerType = iota
@@ -57,14 +59,12 @@ const (
 	writeEnd
 )
 
-var (
-	writeValueAllowed = map[writeState]struct{}{
-		writeStart:                   {},
-		writeBeforeFieldValue:        {},
-		writeBeforeFirstArrayElement: {},
-		writeBeforeNthArrayElement:   {},
-	}
-)
+var writeValueAllowed = map[writeState]struct{}{
+	writeStart:                   {},
+	writeBeforeFieldValue:        {},
+	writeBeforeFirstArrayElement: {},
+	writeBeforeNthArrayElement:   {},
+}
 
 func (s writeState) isValueAllowed() bool {
 	_, allowed := writeValueAllowed[s]
@@ -324,7 +324,7 @@ func (w *writer) writeBytesString(s []byte) {
 
 	for {
 		c, _, err := w.buff.ReadRune()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

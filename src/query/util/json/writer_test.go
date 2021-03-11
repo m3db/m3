@@ -51,6 +51,7 @@ func TestWriteValues(t *testing.T) {
 		utf8FnTest(func(w Writer, s string) { w.WriteString(s) }),
 		utf8FnTest(func(w Writer, s string) { w.WriteBytesString([]byte(s)) }),
 	} {
+		fn := fn // Capture for lambdas.
 		for i := 0; i <= maxTestUTF8Value; i++ {
 			i := i
 			switch {
@@ -71,7 +72,6 @@ func TestWriteValues(t *testing.T) {
 			}
 		}
 	}
-
 }
 
 func TestWriteObject(t *testing.T) {
@@ -131,7 +131,6 @@ func TestWriteComplexObject(t *testing.T) {
 			w.EndObject()
 			w.EndObject()
 		})
-
 }
 
 func TestWriteErrors(t *testing.T) {
