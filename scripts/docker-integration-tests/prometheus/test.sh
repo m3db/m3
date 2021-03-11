@@ -32,7 +32,7 @@ function defer {
     docker-compose -f ${COMPOSE_FILE} logs
   fi
 
-  # docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
 
