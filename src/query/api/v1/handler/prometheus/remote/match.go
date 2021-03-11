@@ -106,6 +106,8 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		meta = meta.CombineMetadata(result.Metadata)
 	}
 
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
 	var (
 		noopWriter = ioutil.Discard
 		renderOpts = prometheus.RenderSeriesMetadataOptions{

@@ -124,6 +124,8 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
 	var (
 		noopWriter = ioutil.Discard
 		renderOpts = prometheus.RenderSeriesMetadataOptions{
