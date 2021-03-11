@@ -23,6 +23,7 @@ package remote
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -106,12 +107,37 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handleroptions.AddResponseHeaders(w, result.Metadata, opts)
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
+	var (
+		noopWriter = ioutil.Discard
+		renderOpts = prometheus.RenderSeriesMetadataOptions{
+			ReturnedSeriesMetadataLimit: opts.ReturnedSeriesMetadataLimit,
+		}
+	)
+	renderResult, err := prometheus.RenderTagValuesResultsJSON(noopWriter, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render tag values results", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	meta := result.Metadata
+	limited := &handleroptions.ReturnedMetadataLimited{
+		Results:      renderResult.Results,
+		TotalResults: renderResult.TotalResults,
+		Limited:      renderResult.LimitedMaxReturnedData,
+	}
+	if err := handleroptions.AddResponseHeaders(w, meta, opts, nil, limited); err != nil {
+		logger.Error("unable to render tag values headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	// TODO: Support multiple result types
-	err = prometheus.RenderTagValuesResultsJSON(w, result)
+	_, err = prometheus.RenderTagValuesResultsJSON(w, result, renderOpts)
 	if err != nil {
 		logger.Error("unable to render tag values", zap.Error(err))
-		xhttp.WriteError(w, err)
 	}
 }
 
