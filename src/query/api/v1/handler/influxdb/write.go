@@ -285,6 +285,11 @@ func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {
 }
 
 func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Body == http.NoBody {
+		xhttp.WriteError(w, xhttp.NewError(errors.New("empty request body"), http.StatusBadRequest))
+		return
+	}
+
 	var bytes []byte
 	var err error
 	var reader io.ReadCloser
