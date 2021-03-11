@@ -323,7 +323,7 @@ func renderNameOnlyTagCompletionResultsJSON(
 	jw.BeginArray()
 
 	for _, tag := range results {
-		if rendered >= opts.ReturnedSeriesMetadataLimit {
+		if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
 			limited = true
 			break
 		}
@@ -362,7 +362,7 @@ func renderDefaultTagCompletionResultsJSON(
 
 	for _, tag := range results {
 		total += len(tag.Values)
-		if rendered >= opts.ReturnedSeriesMetadataLimit {
+		if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
 			limited = true
 			continue
 		}
@@ -375,7 +375,7 @@ func renderDefaultTagCompletionResultsJSON(
 		jw.BeginObjectField("values")
 		jw.BeginArray()
 		for _, value := range tag.Values {
-			if rendered >= opts.ReturnedSeriesMetadataLimit {
+			if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
 				limited = true
 				break
 			}
@@ -442,7 +442,7 @@ func RenderListTagResultsJSON(
 	jw.BeginArray()
 
 	for _, t := range result.CompletedTags {
-		if rendered >= opts.ReturnedSeriesMetadataLimit {
+		if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
 			limited = true
 			break
 		}
@@ -509,7 +509,7 @@ func RenderTagValuesResultsJSON(
 		values := result.CompletedTags[0].Values
 		total += len(values)
 		for _, value := range values {
-			if rendered >= opts.ReturnedSeriesMetadataLimit {
+			if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
 				limited = true
 				break
 			}
@@ -553,14 +553,14 @@ func RenderSeriesMatchResultsJSON(
 	for _, result := range results {
 		for _, tags := range result {
 			total += len(tags.Tags.Tags)
-			if rendered >= opts.ReturnedSeriesMetadataLimit {
+			if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
 				limited = true
 				continue
 			}
 
 			jw.BeginObject()
 			for _, tag := range tags.Tags.Tags {
-				if rendered >= opts.ReturnedSeriesMetadataLimit {
+				if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
 					limited = true
 					break
 				}

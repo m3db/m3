@@ -278,6 +278,39 @@ function test_query_limits_applied {
   echo "Test query returned-series limit - below limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Returned-Series: 2" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=$(expr $(date "+%s") - 6000)&end=$(date "+%s")" | jq -r ".data.result | length") -eq 2 ]]'
+
+  # Test returned series metadata limits
+  TAG_NAME_0="metadata_test_label" TAG_VALUE_0="series_label_0" \
+    prometheus_remote_write \
+    metadata_test_series now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+  TAG_NAME_0="metadata_test_label" TAG_VALUE_0="series_label_1" \
+    prometheus_remote_write \
+    metadata_test_series now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+  TAG_NAME_0="metadata_test_label" TAG_VALUE_0="series_label_2" \
+    prometheus_remote_write \
+    metadata_test_series now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
+  echo "Test query returned-series limit - zero limit disabled"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 0" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 3 ]]'
+
+  echo "Test query returned-series limit - above limit"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 4" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 3 ]]'
+
+  echo "Test query returned-series limit - at limit"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 3" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 3 ]]'
+
+  echo "Test query returned-series limit - below limit"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 2" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 2 ]]'
 }
 
 function test_query_timeouts {
