@@ -23,6 +23,7 @@ package json
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -58,10 +59,10 @@ const (
 
 var (
 	writeValueAllowed = map[writeState]struct{}{
-		writeStart:                   struct{}{},
-		writeBeforeFieldValue:        struct{}{},
-		writeBeforeFirstArrayElement: struct{}{},
-		writeBeforeNthArrayElement:   struct{}{},
+		writeStart:                   {},
+		writeBeforeFieldValue:        {},
+		writeBeforeFirstArrayElement: {},
+		writeBeforeNthArrayElement:   {},
 	}
 )
 
@@ -75,6 +76,7 @@ func (s writeState) isValueAllowed() bool {
 type Writer interface {
 	BeginObject()
 	BeginObjectField(name string)
+	BeginObjectBytesField(name []byte)
 	EndObject()
 	BeginArray()
 	EndArray()
@@ -83,12 +85,14 @@ type Writer interface {
 	WriteFloat64(n float64)
 	WriteInt(n int)
 	WriteString(s string)
+	WriteBytesString(s []byte)
 	Flush() error
 	Close() error
 }
 
 type writer struct {
 	w          *bufio.Writer
+	buff       *bytes.Reader
 	state      writeState
 	containers []containerType
 	err        error
@@ -98,6 +102,7 @@ type writer struct {
 func NewWriter(w io.Writer) Writer {
 	return &writer{
 		w:          bufio.NewWriter(w),
+		buff:       bytes.NewReader(nil),
 		containers: make([]containerType, 0, 5),
 	}
 }
@@ -115,19 +120,9 @@ func (w *writer) BeginObject() {
 
 // BeginObjectField begins a new object field with the given name
 func (w *writer) BeginObjectField(name string) {
+	w.err = w.beginObjectFieldStart()
 	if w.err != nil {
 		return
-	}
-
-	if w.state != writeBeforeFirstField && w.state != writeBeforeNthField {
-		w.err = errFieldNotAllowed
-		return
-	}
-
-	if w.state == writeBeforeNthField {
-		if _, w.err = w.w.WriteRune(','); w.err != nil {
-			return
-		}
 	}
 
 	w.writeString(name)
@@ -135,12 +130,47 @@ func (w *writer) BeginObjectField(name string) {
 		return
 	}
 
-	_, w.err = w.w.WriteRune(':')
+	w.err = w.beginObjectFieldEnd()
+}
+
+func (w *writer) beginObjectFieldStart() error {
+	if w.err != nil {
+		return w.err
+	}
+
+	if w.state != writeBeforeFirstField && w.state != writeBeforeNthField {
+		return errFieldNotAllowed
+	}
+
+	if w.state == writeBeforeNthField {
+		if _, err := w.w.WriteRune(','); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *writer) beginObjectFieldEnd() error {
+	if _, err := w.w.WriteRune(':'); err != nil {
+		return err
+	}
+	w.state = writeBeforeFieldValue
+	return nil
+}
+
+func (w *writer) BeginObjectBytesField(name []byte) {
+	w.err = w.beginObjectFieldStart()
 	if w.err != nil {
 		return
 	}
 
-	w.state = writeBeforeFieldValue
+	w.writeBytesString(name)
+	if w.err != nil {
+		return
+	}
+
+	w.err = w.beginObjectFieldEnd()
 }
 
 // EndObject finishes an open object
@@ -269,6 +299,39 @@ func (w *writer) writeString(s string) {
 		if w.err != nil {
 			return
 		}
+	}
+
+	_, w.err = w.w.WriteRune('"')
+}
+
+func (w *writer) WriteBytesString(s []byte) {
+	if !w.beginValue() {
+		return
+	}
+
+	w.writeBytesString(s)
+
+	w.endValue()
+}
+
+func (w *writer) writeBytesString(s []byte) {
+	if _, w.err = w.w.WriteRune('"'); w.err != nil {
+		return
+	}
+
+	w.buff.Reset(s)
+	defer w.buff.Reset(nil) // Free holding onto byte slice.
+
+	for {
+		c, _, err := w.buff.ReadRune()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			w.err = err
+			return
+		}
+		w.writeRune(c)
 	}
 
 	_, w.err = w.w.WriteRune('"')

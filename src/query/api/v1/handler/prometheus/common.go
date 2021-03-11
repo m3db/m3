@@ -328,7 +328,7 @@ func renderNameOnlyTagCompletionResultsJSON(
 			break
 		}
 		rendered++
-		jw.WriteString(string(tag.Name))
+		jw.WriteBytesString(tag.Name)
 	}
 
 	jw.EndArray()
@@ -370,7 +370,7 @@ func renderDefaultTagCompletionResultsJSON(
 		jw.BeginObject()
 
 		jw.BeginObjectField("key")
-		jw.WriteString(string(tag.Name))
+		jw.WriteBytesString(tag.Name)
 
 		jw.BeginObjectField("values")
 		jw.BeginArray()
@@ -381,7 +381,7 @@ func renderDefaultTagCompletionResultsJSON(
 			}
 			rendered++
 
-			jw.WriteString(string(value))
+			jw.WriteBytesString(value)
 		}
 		jw.EndArray()
 
@@ -447,7 +447,7 @@ func RenderListTagResultsJSON(
 			break
 		}
 		rendered++
-		jw.WriteString(string(t.Name))
+		jw.WriteBytesString(t.Name)
 	}
 
 	jw.EndArray()
@@ -514,7 +514,7 @@ func RenderTagValuesResultsJSON(
 				break
 			}
 			rendered++
-			jw.WriteString(string(value))
+			jw.WriteBytesString(value)
 		}
 	}
 
@@ -566,8 +566,8 @@ func RenderSeriesMatchResultsJSON(
 				}
 				rendered++
 
-				jw.BeginObjectField(string(tag.Name))
-				jw.WriteString(string(tag.Value))
+				jw.BeginObjectBytesField(tag.Name)
+				jw.WriteBytesString(tag.Value)
 			}
 
 			jw.EndObject()

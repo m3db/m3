@@ -298,19 +298,19 @@ function test_query_limits_applied {
 
   echo "Test query returned-series limit - zero limit disabled"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 0" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 0" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data | length") -eq 3 ]]'
 
   echo "Test query returned-series limit - above limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 4" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 4" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data | length") -eq 3 ]]'
 
   echo "Test query returned-series limit - at limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 3" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 3" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data | length") -eq 3 ]]'
 
   echo "Test query returned-series limit - below limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 2" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data.result | length") -eq 2 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 2" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data | length") -eq 2 ]]'
 }
 
 function test_query_timeouts {
