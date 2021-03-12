@@ -21,13 +21,13 @@
 package storage
 
 import (
+	"context"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
@@ -111,7 +111,7 @@ func toPromConcurrently(
 		}
 
 		wg.Add(1)
-		readWorkerPool.GoWithContext(ctx.GoContext(), func() {
+		readWorkerPool.GoWithContext(ctx, func() {
 			defer wg.Done()
 			series, err := iteratorToPromResult(iter, tags, tagOptions)
 			if err != nil {

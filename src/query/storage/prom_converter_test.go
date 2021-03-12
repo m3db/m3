@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -33,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -81,7 +81,7 @@ func verifyExpandPromSeries(
 		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
 	}
 
-	results, err := SeriesIteratorsToPromResult(context.NewBackground(), fetchResult, pools, nil)
+	results, err := SeriesIteratorsToPromResult(context.Background(), fetchResult, pools, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -303,7 +303,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	}
 
 	opts := models.NewTagOptions()
-	res, err := SeriesIteratorsToPromResult(context.NewBackground(), buildIters(), nil, opts)
+	res, err := SeriesIteratorsToPromResult(context.Background(), buildIters(), nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -311,7 +311,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 
-	res, err = SeriesIteratorsToPromResult(context.NewBackground(), buildIters(), pool, opts)
+	res, err = SeriesIteratorsToPromResult(context.Background(), buildIters(), pool, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 }
