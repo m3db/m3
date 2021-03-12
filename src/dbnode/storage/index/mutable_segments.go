@@ -23,7 +23,6 @@ package index
 import (
 	"errors"
 	"fmt"
-	"github.com/m3db/m3/src/m3ninx/doc"
 	"math"
 	"runtime"
 	"sync"
@@ -32,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -682,14 +682,24 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				})
 				return true
 			}
-			onIndexSeries, ok := d.Ref.(OnIndexSeries)
+
+			entry, ok := d.Ref.(OnIndexSeries)
 			if !ok {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 					l.Error("unexpected type for document ref for background compact")
 				})
 				return true
 			}
-			result := onIndexSeries.RemoveIndexedForBlockStarts(sealedBlocks)
+
+			latestEntry, ok := entry.RelookupAndIncrementReaderWriterCount()
+			if !ok {
+				// Entry nolonger valid in shard.
+				return false
+			}
+
+			result := latestEntry.RemoveIndexedForBlockStarts(sealedBlocks)
+			latestEntry.DecrementReaderWriterCount()
+
 			// Keep the series if and only if there are remaining
 			// index block starts outside of the sealed blocks starts.
 			return result.IndexedBlockStartsRemaining > 0

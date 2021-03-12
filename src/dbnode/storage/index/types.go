@@ -353,6 +353,10 @@ type OnIndexSeries interface {
 	RemoveIndexedForBlockStarts(
 		blockStarts map[xtime.UnixNano]struct{},
 	) RemoveIndexedForBlockStartsResult
+
+	RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool)
+
+	DecrementReaderWriterCount()
 }
 
 // RemoveIndexedForBlockStartsResult is the result from calling

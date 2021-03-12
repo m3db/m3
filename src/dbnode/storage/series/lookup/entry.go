@@ -58,13 +58,14 @@ type IndexWriter interface {
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
-	Series                   series.DatabaseSeries
-	Index                    uint64
-	indexWriter              IndexWriter
-	curReadWriters           int32
-	reverseIndex             entryIndexState
-	nowFn                    clock.NowFn
-	pendingIndexBatchSizeOne []writes.PendingIndexInsert
+	relookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
+	Series                                series.DatabaseSeries
+	Index                                 uint64
+	indexWriter                           IndexWriter
+	curReadWriters                        int32
+	reverseIndex                          entryIndexState
+	nowFn                                 clock.NowFn
+	pendingIndexBatchSizeOne              []writes.PendingIndexInsert
 }
 
 // OnReleaseReadWriteRef is a callback that can release
@@ -84,10 +85,11 @@ var _ bootstrap.SeriesRef = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
-	Series      series.DatabaseSeries
-	Index       uint64
-	IndexWriter IndexWriter
-	NowFn       clock.NowFn
+	RelookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
+	Series                                series.DatabaseSeries
+	Index                                 uint64
+	IndexWriter                           IndexWriter
+	NowFn                                 clock.NowFn
 }
 
 // NewEntry returns a new Entry.
@@ -97,14 +99,20 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn = opts.NowFn
 	}
 	entry := &Entry{
-		Series:                   opts.Series,
-		Index:                    opts.Index,
-		indexWriter:              opts.IndexWriter,
-		nowFn:                    nowFn,
-		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
-		reverseIndex:             newEntryIndexState(),
+		relookupAndIncrementReaderWriterCount: opts.RelookupAndIncrementReaderWriterCount,
+		Series:                                opts.Series,
+		Index:                                 opts.Index,
+		indexWriter:                           opts.IndexWriter,
+		nowFn:                                 nowFn,
+		pendingIndexBatchSizeOne:              make([]writes.PendingIndexInsert, 1),
+		reverseIndex:                          newEntryIndexState(),
 	}
 	return entry
+}
+
+// RelookupAndIncrementReaderWriterCount will relookup the entry.
+func (entry *Entry) RelookupAndIncrementReaderWriterCount() (index.OnIndexSeries, bool) {
+	return entry.relookupAndIncrementReaderWriterCount()
 }
 
 // ReaderWriterCount returns the current ref count on the Entry.
