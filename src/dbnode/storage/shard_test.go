@@ -1924,35 +1924,3 @@ func TestOpenStreamingReader(t *testing.T) {
 	_, err = shard.OpenStreamingReader(blockStart)
 	require.NoError(t, err)
 }
-
-func getMockReader(
-	ctrl *gomock.Controller,
-	t *testing.T,
-	shard *dbShard,
-	blockStart time.Time,
-	openError error,
-) (*fs.MockDataFileSetReader, int) {
-	latestSourceVolume, err := shard.LatestVolume(blockStart)
-	require.NoError(t, err)
-
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   shard.namespace.ID(),
-			Shard:       shard.ID(),
-			BlockStart:  blockStart,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType:      persist.FileSetFlushType,
-		StreamingEnabled: true,
-	}
-
-	reader := fs.NewMockDataFileSetReader(ctrl)
-	if openError == nil {
-		reader.EXPECT().Open(openOpts).Return(nil)
-		reader.EXPECT().Close()
-	} else {
-		reader.EXPECT().Open(openOpts).Return(openError)
-	}
-
-	return reader, latestSourceVolume
-}
