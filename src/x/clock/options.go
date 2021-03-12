@@ -21,7 +21,13 @@
 package clock
 
 import (
+	"fmt"
+	"os"
 	"time"
+)
+
+const (
+	panicOnDefaultClockEnvVar = "PANIC_ON_DEFAULT_CLOCK"
 )
 
 type options struct {
@@ -32,6 +38,14 @@ type options struct {
 
 // NewOptions creates new clock options.
 func NewOptions() Options {
+	if os.Getenv(panicOnDefaultClockEnvVar) == "true" {
+		return &options{
+			nowFn: func() time.Time {
+				panic(fmt.Sprintf("default clock used with %s=true", panicOnDefaultClockEnvVar))
+			},
+		}
+	}
+
 	return &options{
 		nowFn: time.Now,
 	}
