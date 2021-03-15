@@ -160,7 +160,7 @@ func (w *readSeriesBlocksWorker) readSeriesBlocks(ctx context.Context) error {
 		id.Finalize()
 		tags.Close()
 
-		// check if context was not cancelled on a regular basis.
+		// check if context was not canceled on a regular basis.
 		if numSeriesRead%1024 == 0 {
 			select {
 			case <-ctx.Done():
