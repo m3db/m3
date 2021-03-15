@@ -35,7 +35,12 @@ func NewOffsetClock(offsetTime time.Time, nowFn NowFn) OffsetClock {
 	return OffsetClock{nowFn: nowFn, timeDelta: offsetTime.Sub(nowFn())}
 }
 
-// Now returns current time from the initial seed time value.
+// NewOffsetClock returns new offset clock that has time shifted by timeDelta duration.
+func NewOffsetClockFromTimeDelta(timeDelta time.Duration, nowFn NowFn) OffsetClock {
+	return OffsetClock{nowFn: nowFn, timeDelta: timeDelta}
+}
+
+// Now returns current time with time offset taken into account.
 func (c OffsetClock) Now() time.Time {
 	now := c.nowFn()
 	return now.Add(c.timeDelta)
