@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -1047,57 +1048,48 @@ func (s *dbShard) writeAndIndex(
 	}, nil
 }
 
-func (s *dbShard) SeriesReadWriteRef(
+func (s *dbShard) SeriesRefResolver(
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, error) {
+) (bootstrap.SeriesRefResolver, error) {
 	// Try retrieve existing series.
-	entry, _, err := s.tryRetrieveWritableSeries(id)
+	entry, err := s.retrieveWritableSeries(id)
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return nil, err
 	}
 
 	if entry != nil {
 		// The read/write ref is already incremented.
-		return SeriesReadWriteRef{
-			Series:              entry,
-			Shard:               s.shard,
-			UniqueIndex:         entry.Index,
-			ReleaseReadWriteRef: entry,
-		}, nil
+		return entry, nil
 	}
 
-	// NB(r): Insert synchronously so caller has access to the series
-	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
-	// may have no effect if a collision with the same series
-	// being put in the insert queue may cause a block to be loaded to a
-	// series which gets discarded.
-	// TODO(r): Probably can't insert series sync otherwise we stall a ton
-	// of writes... need a better solution for bootstrapping.
-	// This is what can cause writes to degrade during bootstrap if
-	// write lock is super contended.
-	// Having said that, now that writes are kept in a separate "bootstrap"
-	// buffer in the series itself to normal writes then merged at end of
-	// bootstrap it somewhat mitigates some lock contention since the shard
-	// lock is still contended but at least series writes due to commit log
-	// bootstrapping do not interrupt normal writes waiting for ability
-	// to write to an individual series.
-	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
-		insertType: insertSyncIncReaderWriterCount,
-		// NB(bodu): We transparently index in the series ref when
-		// bootstrapping now instead of when grabbing a ref.
-		hasPendingIndex: false,
+	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
+	if err != nil {
+		return nil, err
+	}
+	// increment ref count to avoid expiration of the new entry just after adding it to the queue.
+	entry.IncrementReaderWriterCount()
+	wg, err := s.insertQueue.Insert(dbShardInsert{
+		entry: entry,
+		opts: dbShardInsertAsyncOptions{
+			// skipRateLimit for true since this method is used by bootstrapping
+			// and should not be rate limited.
+			skipRateLimit: true,
+			// do not release entry ref during async write, because entry ref will be released when
+			// ReleaseRef() is called on bootstrap.SeriesRefResolver.
+			releaseEntryRef: false,
+		},
 	})
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return nil, err
 	}
 
-	return SeriesReadWriteRef{
-		Series:              entry,
-		Shard:               s.shard,
-		UniqueIndex:         entry.Index,
-		ReleaseReadWriteRef: entry,
-	}, nil
+	// Series will wait for the result to be batched together and inserted.
+	return NewSeriesResolver(
+		wg,
+		// ID was already copied in newShardEntry so we can set it here safely.
+		entry.Series.ID(),
+		s.retrieveWritableSeries), nil
 }
 
 func (s *dbShard) ReadEncoded(
@@ -1167,7 +1159,7 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element
 
 func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.Entry, error) {
 	for {
-		entry, _, err := s.tryRetrieveWritableSeries(id)
+		entry, err := s.retrieveWritableSeries(id)
 		if entry != nil {
 			return entry, nil
 		}
@@ -1209,6 +1201,11 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 	}
 	s.RUnlock()
 	return nil, opts, nil
+}
+
+func (s *dbShard) retrieveWritableSeries(id ident.ID) (*lookup.Entry, error) {
+	entry, _, err := s.tryRetrieveWritableSeries(id)
+	return entry, err
 }
 
 func (s *dbShard) newShardEntry(
@@ -1322,7 +1319,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 			},
 			// indicate we already have inc'd the entry's ref count, so we can correctly
 			// handle the ref counting semantics in `insertSeriesBatch`.
-			entryRefCountIncremented: true,
+			releaseEntryRef: true,
 		},
 	})
 
@@ -1487,7 +1484,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// we don't need to inc the entry ref count if we already have a ref on the entry. check if
 		// that's the case.
-		if inserts[i].opts.entryRefCountIncremented {
+		if inserts[i].opts.releaseEntryRef {
 			// don't need to inc a ref on the entry, we were given as writable entry as input.
 			continue
 		}
@@ -1506,7 +1503,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// visible before we release the lookup write lock.
 			inserts[i].entry.IncrementReaderWriterCount()
 			// also indicate that we have a ref count on this entry for this operation.
-			inserts[i].opts.entryRefCountIncremented = true
+			inserts[i].opts.releaseEntryRef = true
 		}
 
 		if err == nil {
@@ -1545,7 +1542,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	for i := range inserts {
 		var (
 			entry           = inserts[i].entry
-			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
+			releaseEntryRef = inserts[i].opts.releaseEntryRef
 			err             error
 		)
 
@@ -1582,7 +1579,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if inserts[i].opts.hasPendingIndexing {
 			pendingIndex := inserts[i].opts.pendingIndex
 			// increment the ref on the entry, as the original one was transferred to the
-			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
+			// this method (insertSeriesBatch) via `releaseEntryRef` mechanism.
 			entry.OnIndexPrepare()
 
 			writeBatchEntry := index.WriteBatchEntry{
@@ -1601,7 +1598,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Entries in the shard insert queue are either of:
 		// - new entries
-		// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
+		// - existing entries that we've taken a ref on (marked as releaseEntryRef)
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}
