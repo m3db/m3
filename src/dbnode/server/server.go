@@ -884,6 +884,7 @@ func Run(runOpts RunOptions) {
 	documentsBuilderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
