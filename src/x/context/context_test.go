@@ -22,6 +22,8 @@ package context
 
 import (
 	stdctx "context"
+	"fmt"
+	"github.com/m3db/m3/vendor/github.com/opentracing/opentracing-go"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -289,4 +291,49 @@ func TestGoContext(t *testing.T) {
 	xCtx.Reset()
 	returnCtx = xCtx.GoContext()
 	assert.Equal(t, stdctx.Background(), returnCtx)
+}
+
+// Test that too deep span tree created is prevented
+// Span is signalled as error in that case that which is well defined
+func TestTooDeepSpanTreeIsPreventedAndMarked(t *testing.T) {
+	// use a mock tracer to ensure sampling rate is set to 1.
+	tracer := mocktracer.New()
+
+	span := tracer.StartSpan("root-span")
+	defer span.Finish()
+
+	context := NewContext()
+	context.SetGoContext(opentracing.ContextWithSpan(stdctx.Background(), span))
+
+	var (
+		lastChildSpanCreated    opentracing.Span = nil
+		lastChildContextCreated                  = context
+	)
+	for i := 1; i <= maxDistanceFromRootContext; i++ {
+		lastChildContextCreated, lastChildSpanCreated, _ =
+			lastChildContextCreated.StartSampledTraceSpan(fmt.Sprintf("test-action-depth-%d", i))
+	}
+
+	mockSpan := lastChildSpanCreated.(*mocktracer.MockSpan)
+
+	errorTagValue := mockSpan.Tag("error")
+	assert.NotNil(t, errorTagValue)
+	assert.Equal(t, true, errorTagValue)
+	spanLogs := mockSpan.Logs()
+	assert.Len(t, spanLogs, 1)
+	spanLog := spanLogs[0]
+	assert.True(t, fieldsContains(spanLog.Fields, "event", "error") &&
+		fieldsContains(spanLog.Fields, "error.object", errSpanTooDeep.Error()))
+
+	childContext, span, _ := lastChildContextCreated.StartSampledTraceSpan("another-span-beyond-max-depth")
+	assert.Equal(t, lastChildContextCreated, childContext)
+}
+
+func fieldsContains(fields []mocktracer.MockKeyValue, key string, value string) bool {
+	for _, field := range fields {
+		if field.Key == key && field.ValueString == value {
+			return true
+		}
+	}
+	return false
 }

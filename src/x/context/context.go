@@ -22,6 +22,8 @@ package context
 
 import (
 	stdctx "context"
+	"fmt"
+	"github.com/opentracing/opentracing-go/ext"
 	"sync"
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -33,8 +35,14 @@ import (
 	"github.com/uber/jaeger-client-go"
 )
 
+const (
+	maxDistanceFromRootContext = 100
+)
+
 var (
 	noopTracer opentracing.NoopTracer
+
+	errSpanTooDeep = fmt.Errorf("span created exceeds maximum depth allowed (%d)", maxDistanceFromRootContext)
 )
 
 // NB(r): using golang.org/x/net/context is too GC expensive.
@@ -48,6 +56,7 @@ type ctx struct {
 	wg                   sync.WaitGroup
 	finalizeables        *finalizeableList
 	parent               Context
+	distanceFromRoot     uint16
 	checkedAndNotSampled bool
 }
 
@@ -282,7 +291,7 @@ func (c *ctx) Reset() {
 	}
 
 	c.Lock()
-	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, stdctx.Background(), false
+	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled, c.distanceFromRoot = false, nil, stdctx.Background(), false, 0
 	c.Unlock()
 }
 
@@ -315,6 +324,7 @@ func (c *ctx) newChildContext() Context {
 func (c *ctx) setParentCtx(parentCtx Context) {
 	c.Lock()
 	c.parent = parentCtx
+	c.distanceFromRoot = parentCtx.DistanceFromRootContext() + 1
 	c.Unlock()
 }
 
@@ -326,8 +336,16 @@ func (c *ctx) parentCtx() Context {
 	return parent
 }
 
+func (c *ctx) DistanceFromRootContext() uint16 {
+	c.RLock()
+	distanceFromRootContext := c.distanceFromRoot
+	c.RUnlock()
+
+	return distanceFromRootContext
+}
+
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	if c.checkedAndNotSampled {
+	if c.checkedAndNotSampled || c.DistanceFromRootContext() >= maxDistanceFromRootContext {
 		return c, noopTracer.StartSpan(name), false
 	}
 	goCtx := c.GoContext()
@@ -340,6 +358,9 @@ func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, boo
 
 	child := c.newChildContext()
 	child.SetGoContext(childGoCtx)
+	if child.DistanceFromRootContext() == maxDistanceFromRootContext {
+		ext.LogError(span, errSpanTooDeep)
+	}
 	return child, span, true
 }
 
