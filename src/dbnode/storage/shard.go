@@ -1085,73 +1085,14 @@ func (s *dbShard) SeriesRefResolver(
 	}
 
 	// Series will wait for the result to be batched together and inserted.
-	return &seriesResolver{
-		wg: wg,
+	return NewSeriesResolver(
+		wg,
 		// ID was already copied in newShardEntry so we can set it here safely.
-		copiedID: entry.Series.ID(),
-		shard:    s,
-	}, nil
-}
-
-type seriesResolver struct {
-	sync.RWMutex
-
-	wg       *sync.WaitGroup
-	copiedID ident.ID
-	shard    *dbShard
-
-	resolved    bool
-	resolvedErr error
-	entry       *lookup.Entry
-}
-
-func (r *seriesResolver) resolve() error {
-	r.RLock()
-	if r.resolved {
-		resolvedResult := r.resolvedErr
-		r.RUnlock()
-		return resolvedResult
-	}
-	r.RUnlock()
-
-	r.Lock()
-	defer r.Unlock()
-
-	// fast path: if we already resolved the result, just return it.
-	if r.resolved {
-		return r.resolvedErr
-	}
-
-	r.wg.Wait()
-	id := r.copiedID
-	entry, _, err := r.shard.tryRetrieveWritableSeries(id)
-	r.resolved = true
-	// Retrieve the inserted entry
-	if err != nil {
-		r.resolvedErr = err
-		return r.resolvedErr
-	}
-
-	if entry == nil {
-		r.resolvedErr = fmt.Errorf("could not resolve: %s", id)
-		return r.resolvedErr
-	}
-	r.entry = entry
-	return nil
-}
-
-func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
-	if err := r.resolve(); err != nil {
-		return nil, err
-	}
-	return r.entry, nil
-}
-
-func (r *seriesResolver) ReleaseRef() error {
-	if err := r.resolve(); err != nil {
-		return err
-	}
-	return r.entry.ReleaseRef()
+		entry.Series.ID(),
+		func(id ident.ID) (*lookup.Entry, error) {
+			entry, _, err := s.tryRetrieveWritableSeries(id)
+			return entry, err
+		}), nil
 }
 
 func (s *dbShard) ReadEncoded(

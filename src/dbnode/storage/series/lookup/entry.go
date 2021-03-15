@@ -73,7 +73,7 @@ var _ index.OnIndexSeries = &Entry{}
 // ensure Entry satisfies the `bootstrap.SeriesRef` interface.
 var _ bootstrap.SeriesRef = &Entry{}
 
-// // ensure Entry satisfies the `bootstrap.SeriesRefResolver` interface.
+// ensure Entry satisfies the `bootstrap.SeriesRefResolver` interface.
 var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
