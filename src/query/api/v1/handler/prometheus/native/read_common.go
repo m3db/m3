@@ -128,11 +128,12 @@ func parseRequest(
 
 	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries:         fetchOpts.SeriesLimit,
-			LimitMaxDocs:               fetchOpts.DocsLimit,
-			LimitMaxReturnedSeries:     fetchOpts.ReturnedSeriesLimit,
-			LimitMaxReturnedDatapoints: fetchOpts.ReturnedDatapointsLimit,
-			Instantaneous:              instantaneous,
+			LimitMaxTimeseries:             fetchOpts.SeriesLimit,
+			LimitMaxDocs:                   fetchOpts.DocsLimit,
+			LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
+			LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
+			LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
+			Instantaneous:                  instantaneous,
 		},
 	}
 

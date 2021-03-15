@@ -320,8 +320,8 @@ func RenderResultsJSON(
 				jw.BeginObjectField("metric")
 				jw.BeginObject()
 				for _, t := range s.Tags.Tags {
-					jw.BeginObjectField(string(t.Name))
-					jw.WriteString(string(t.Value))
+					jw.BeginObjectBytesField(t.Name)
+					jw.WriteBytesString(t.Value)
 				}
 				jw.EndObject()
 
@@ -440,8 +440,8 @@ func renderResultsInstantaneousJSON(
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
 		for _, t := range s.Tags.Tags {
-			jw.BeginObjectField(string(t.Name))
-			jw.WriteString(string(t.Value))
+			jw.BeginObjectBytesField(t.Name)
+			jw.WriteBytesString(t.Value)
 		}
 		jw.EndObject()
 

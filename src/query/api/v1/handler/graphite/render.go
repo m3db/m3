@@ -214,7 +214,9 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	handleroptions.AddResponseHeaders(w, meta, fetchOpts)
+	if err := handleroptions.AddResponseHeaders(w, meta, fetchOpts, nil, nil); err != nil {
+		return err
+	}
 
 	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,

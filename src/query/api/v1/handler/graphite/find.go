@@ -149,7 +149,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 	wg.Wait()
 
 	if err := xerrors.FirstError(tErr, cErr); err != nil {
-		logger.Error("unable to complete tags", zap.Error(err))
+		logger.Error("unable to find search", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -158,7 +158,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 	// NB: merge results from both queries to specify which series have children
 	seenMap, err := mergeTags(terminatedResult, childResult)
 	if err != nil {
-		logger.Error("unable to complete tags", zap.Error(err))
+		logger.Error("unable to find merge", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -168,10 +168,16 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
-	handleroptions.AddResponseHeaders(w, meta, opts)
-	// TODO: Support multiple result types
-	if err = findResultsJSON(w, prefix, seenMap); err != nil {
-		logger.Error("unable to print find results", zap.Error(err))
+	err = handleroptions.AddResponseHeaders(w, meta, opts, nil, nil)
+	if err != nil {
+		logger.Error("unable to render find header", zap.Error(err))
 		xhttp.WriteError(w, err)
+		return
+	}
+
+	// TODO: Support multiple result types
+	err = findResultsJSON(w, prefix, seenMap)
+	if err != nil {
+		logger.Error("unable to render find results", zap.Error(err))
 	}
 }

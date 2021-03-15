@@ -148,20 +148,25 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Bool("instant", h.opts.instant))
 	}
 
-	limited, data := h.limitReturnedData(query, res, fetchOptions)
+	returnedDataLimited := h.limitReturnedData(query, res, fetchOptions)
+	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(returnedDataLimited.Datapoints))
+	h.returnedDataMetrics.FetchSeries.RecordValue(float64(returnedDataLimited.Series))
 
-	if limited {
-		if err := native.WriteReturnedDataLimitedHeader(w, data); err != nil {
-			h.logger.Error("error writing returned data limited header",
-				zap.Error(err), zap.String("query", query),
-				zap.Bool("instant", h.opts.instant))
-		}
+	limited := &handleroptions.ReturnedDataLimited{
+		Limited:     returnedDataLimited.Limited,
+		Series:      returnedDataLimited.Series,
+		TotalSeries: returnedDataLimited.TotalSeries,
+		Datapoints:  returnedDataLimited.Datapoints,
+	}
+	err = handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions, limited, nil)
+	if err != nil {
+		h.logger.Error("error writing response headers",
+			zap.Error(err), zap.String("query", query),
+			zap.Bool("instant", h.opts.instant))
+		xhttp.WriteError(w, err)
+		return
 	}
 
-	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(data.Datapoints))
-	h.returnedDataMetrics.FetchSeries.RecordValue(float64(data.Series))
-
-	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 	err = Respond(w, &QueryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
@@ -176,7 +181,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *readHandler) limitReturnedData(query string,
 	res *promql.Result,
 	fetchOpts *storage.FetchOptions,
-) (bool, native.ReturnedDataLimited) {
+) native.ReturnedDataLimited {
 	var (
 		seriesLimit     = fetchOpts.ReturnedSeriesLimit
 		datapointsLimit = fetchOpts.ReturnedDatapointsLimit
@@ -254,7 +259,8 @@ func (h *readHandler) limitReturnedData(query string,
 		}
 	}
 
-	return limited, native.ReturnedDataLimited{
+	return native.ReturnedDataLimited{
+		Limited:     limited,
 		Series:      series,
 		Datapoints:  datapoints,
 		TotalSeries: seriesTotal,

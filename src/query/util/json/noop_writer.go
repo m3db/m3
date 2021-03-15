@@ -35,6 +35,10 @@ func (w *noopWriter) BeginObject() {
 func (w *noopWriter) BeginObjectField(name string) {
 }
 
+// BeginObjectBytesField begins a new object field with the given bytes name
+func (w *noopWriter) BeginObjectBytesField(name []byte) {
+}
+
 // EndObject finishes an open object
 func (w *noopWriter) EndObject() {
 }
@@ -65,6 +69,10 @@ func (w *noopWriter) WriteInt(n int) {
 
 // WriteString writes a string value
 func (w *noopWriter) WriteString(s string) {
+}
+
+// WriteBytesString writes a bytes string value
+func (w *noopWriter) WriteBytesString(s []byte) {
 }
 
 // Flush flushes the writer
