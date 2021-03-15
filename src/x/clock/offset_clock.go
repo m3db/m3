@@ -35,7 +35,7 @@ func NewOffsetClock(offsetTime time.Time, nowFn NowFn) OffsetClock {
 	return OffsetClock{nowFn: nowFn, timeDelta: offsetTime.Sub(nowFn())}
 }
 
-// NewOffsetClock returns new offset clock that has time shifted by timeDelta duration.
+// NewOffsetClockFromTimeDelta returns new offset clock that has time shifted by timeDelta duration.
 func NewOffsetClockFromTimeDelta(timeDelta time.Duration, nowFn NowFn) OffsetClock {
 	return OffsetClock{nowFn: nowFn, timeDelta: timeDelta}
 }
