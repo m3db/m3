@@ -30,6 +30,13 @@ import (
 func TestOffsetClockNow(t *testing.T) {
 	OneYearFromNow := time.Now().Add(365 * 24 * time.Hour).Truncate(time.Nanosecond)
 
+	initialSeedTime := time.Now()
+
+	advanceByOneSec := func() time.Time {
+		initialSeedTime = initialSeedTime.Add(1 * time.Second)
+		return initialSeedTime
+	}
+
 	tests := []struct {
 		name       string
 		offsetTime time.Time
@@ -74,9 +81,31 @@ func TestOffsetClockNow(t *testing.T) {
 	}
 }
 
-var initialSeedTime = time.Now()
+func TestNewOffsetClockFromTimeDelta(t *testing.T) {
+	nowFn := func() time.Time {
+		return time.Date(2021, 1, 1, 0, 0, 0, 0, time.Local)
+	}
 
-func advanceByOneSec() time.Time {
-	initialSeedTime = initialSeedTime.Add(1 * time.Second)
-	return initialSeedTime
+	tests := []struct {
+		name      string
+		timeDelta time.Duration
+		expected  time.Time
+	}{
+		{
+			name:      "positive offset",
+			timeDelta: time.Hour,
+			expected:  time.Date(2021, 1, 1, 1, 0, 0, 0, time.Local),
+		},
+		{
+			name:      "negative offset",
+			timeDelta: -24 * time.Hour,
+			expected:  time.Date(2020, 12, 31, 0, 0, 0, 0, time.Local),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, NewOffsetClockFromTimeDelta(tt.timeDelta, nowFn).Now())
+		})
+	}
 }
