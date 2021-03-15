@@ -67,23 +67,30 @@ func (is *IStream) ReadBit() (Bit, error) {
 
 // ReadBits reads the next Bits.
 func (is *IStream) ReadBits(numBits uint8) (uint64, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
-	if numBits <= is.remaining {
+	res := is.current >> (64 - numBits)
+	remaining := is.remaining
+	if numBits <= remaining {
 		// Have enough bits buffered.
-		return is.consumeBuffer(numBits), nil
+		is.current <<= numBits
+		is.remaining -= numBits
+		return res, nil
 	}
-	res := readBitsInWord(is.current, numBits)
+
 	// Not enough bits buffered, read next word from the stream.
-	bitsNeeded := numBits - is.remaining
-	if err := is.readWordFromStream(); err != nil {
+	bitsNeeded := numBits - remaining
+
+	current, n, err := is.r.Read64()
+	if err != nil {
 		return 0, err
 	}
-	if is.remaining < bitsNeeded {
+	n *= 8
+	if n < bitsNeeded {
 		return 0, io.EOF
 	}
-	return res | is.consumeBuffer(bitsNeeded), nil
+
+	is.current = current << bitsNeeded
+	is.remaining = n - bitsNeeded
+	return res | current>>(64-bitsNeeded), nil
 }
 
 // PeekBits looks at the next Bits, but doesn't move the pos.
@@ -121,18 +128,8 @@ func (is *IStream) consumeBuffer(numBits uint8) uint64 {
 	return res
 }
 
-func (is *IStream) readWordFromStream() error {
-	current, bytes, err := is.r.Read64()
-	is.current = current
-	is.remaining = 8 * bytes
-	is.err = err
-
-	return err
-}
-
 // Reset resets the IStream.
 func (is *IStream) Reset(reader xio.Reader64) {
-	is.err = nil
 	is.current = 0
 	is.remaining = 0
 	is.index = 0

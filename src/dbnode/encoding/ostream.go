@@ -188,6 +188,17 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 	}
 
 	v <<= uint(64 - numBits)
+
+	for numBits >= 32 {
+		os.WriteByte(byte(v >> 56))
+		os.WriteByte(byte(v >> 48))
+		os.WriteByte(byte(v >> 40))
+		os.WriteByte(byte(v >> 32))
+
+		v <<= 32
+		numBits -= 32
+	}
+
 	for numBits >= 8 {
 		os.WriteByte(byte(v >> 56))
 		v <<= 8
@@ -195,7 +206,15 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 	}
 
 	for numBits > 0 {
-		os.WriteBit(Bit((v >> 63) & 1))
+		// inlined WriteBit
+		val := (v >> 63) & 1
+		val <<= 7
+		if !os.hasUnusedBits() {
+			os.grow(byte(val), 1)
+		} else {
+			os.fillUnused(byte(val))
+			os.pos++
+		}
 		v <<= 1
 		numBits--
 	}
