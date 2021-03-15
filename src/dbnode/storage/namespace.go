@@ -741,19 +741,19 @@ func (n *dbNamespace) WritePendingIndexInserts(
 	return n.reverseIndex.WritePending(pending)
 }
 
-func (n *dbNamespace) SeriesReadWriteRef(
+func (n *dbNamespace) SeriesRefResolver(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, bool, error) {
+) (bootstrap.SeriesRefResolver, bool, error) {
 	n.RLock()
 	shard, owned, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	if err != nil {
-		return SeriesReadWriteRef{}, owned, err
+		return nil, owned, err
 	}
-	res, err := shard.SeriesReadWriteRef(id, tags)
-	return res, true, err
+	resolver, err := shard.SeriesRefResolver(id, tags)
+	return resolver, true, err
 }
 
 func (n *dbNamespace) QueryIDs(
