@@ -1053,7 +1053,7 @@ func (s *dbShard) SeriesRefResolver(
 	tags ident.TagIterator,
 ) (bootstrap.SeriesRefResolver, error) {
 	// Try retrieve existing series.
-	entry, _, err := s.tryRetrieveWritableSeries(id)
+	entry, err := s.retrieveWritableSeries(id)
 	if err != nil {
 		return nil, err
 	}
@@ -1089,10 +1089,7 @@ func (s *dbShard) SeriesRefResolver(
 		wg,
 		// ID was already copied in newShardEntry so we can set it here safely.
 		entry.Series.ID(),
-		func(id ident.ID) (*lookup.Entry, error) {
-			entry, _, err := s.tryRetrieveWritableSeries(id)
-			return entry, err
-		}), nil
+		s.retrieveWritableSeries), nil
 }
 
 func (s *dbShard) ReadEncoded(
@@ -1162,7 +1159,7 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element
 
 func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.Entry, error) {
 	for {
-		entry, _, err := s.tryRetrieveWritableSeries(id)
+		entry, err := s.retrieveWritableSeries(id)
 		if entry != nil {
 			return entry, nil
 		}
@@ -1204,6 +1201,11 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 	}
 	s.RUnlock()
 	return nil, opts, nil
+}
+
+func (s *dbShard) retrieveWritableSeries(id ident.ID) (*lookup.Entry, error) {
+	entry, _, err := s.tryRetrieveWritableSeries(id)
+	return entry, err
 }
 
 func (s *dbShard) newShardEntry(

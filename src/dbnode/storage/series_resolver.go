@@ -29,15 +29,15 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-// RetrieveWritableSeriesFn represents the function to retrieve series entry.
-type RetrieveWritableSeriesFn func(id ident.ID) (*lookup.Entry, error)
+// retrieveWritableSeriesFn represents the function to retrieve series entry.
+type retrieveWritableSeriesFn func(id ident.ID) (*lookup.Entry, error)
 
 type seriesResolver struct {
 	sync.RWMutex
 
 	wg                       *sync.WaitGroup
 	copiedID                 ident.ID
-	retrieveWritableSeriesFn RetrieveWritableSeriesFn
+	retrieveWritableSeriesFn retrieveWritableSeriesFn
 
 	resolved    bool
 	resolvedErr error
@@ -48,7 +48,7 @@ type seriesResolver struct {
 func NewSeriesResolver(
 	wg *sync.WaitGroup,
 	copiedID ident.ID,
-	retrieveWritableSeriesFn RetrieveWritableSeriesFn,
+	retrieveWritableSeriesFn retrieveWritableSeriesFn,
 ) bootstrap.SeriesRefResolver {
 	return &seriesResolver{
 		wg:                       wg,
