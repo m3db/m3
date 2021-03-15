@@ -117,6 +117,7 @@ type readSeriesBlocksWorker struct {
 
 func (w *readSeriesBlocksWorker) readSeriesBlocks(ctx context.Context) error {
 	defer close(w.dataCh)
+	numSeriesRead := 0
 	for {
 		id, tags, data, expectedChecksum, err := w.reader.Read()
 		if err != nil && !errors.Is(err, io.EOF) {
@@ -125,6 +126,7 @@ func (w *readSeriesBlocksWorker) readSeriesBlocks(ctx context.Context) error {
 		if errors.Is(err, io.EOF) {
 			break
 		}
+		numSeriesRead++
 
 		dbBlock := w.blocksPool.Get()
 		dbBlock.Reset(w.blockStart, w.blockSize,
@@ -158,11 +160,14 @@ func (w *readSeriesBlocksWorker) readSeriesBlocks(ctx context.Context) error {
 		id.Finalize()
 		tags.Close()
 
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			// do not block.
+		// check if context was not cancelled on a regular basis.
+		if numSeriesRead%1024 == 0 {
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+				// do not block.
+			}
 		}
 	}
 	return nil
