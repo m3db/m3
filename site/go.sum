@@ -12,3 +12,5 @@ github.com/chronosphereio/victor v0.0.0-20210310111851-8e62a02aa2e0 h1:spqjQ2NeN
 github.com/chronosphereio/victor v0.0.0-20210310111851-8e62a02aa2e0/go.mod h1:wz1ngMsk+1D1ug2ObnI3zXs+/ZdBPrWLb6R1WQW3XNM=
 github.com/chronosphereio/victor v0.0.0-20210310140400-34da0aff36eb h1:/Ma6/rLQKhNEq+XyycT8mEayTPfZI1rBcDOofkRxwQo=
 github.com/chronosphereio/victor v0.0.0-20210310140400-34da0aff36eb/go.mod h1:wz1ngMsk+1D1ug2ObnI3zXs+/ZdBPrWLb6R1WQW3XNM=
+github.com/chronosphereio/victor v0.0.0-20210315105857-52efb9dcf1d6 h1:GNE68isDm4Qw/pGjkKx7l1ybSP6mKw8feVAIVhZnQlA=
+github.com/chronosphereio/victor v0.0.0-20210315105857-52efb9dcf1d6/go.mod h1:wz1ngMsk+1D1ug2ObnI3zXs+/ZdBPrWLb6R1WQW3XNM=
