@@ -120,14 +120,6 @@ func readBitsInWord(w uint64, numBits uint8) uint64 {
 	return w >> (64 - numBits)
 }
 
-// consumeBuffer consumes numBits in is.current.
-func (is *IStream) consumeBuffer(numBits uint8) uint64 {
-	res := readBitsInWord(is.current, numBits)
-	is.current <<= numBits
-	is.remaining -= numBits
-	return res
-}
-
 // Reset resets the IStream.
 func (is *IStream) Reset(reader xio.Reader64) {
 	is.current = 0
