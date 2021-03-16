@@ -76,12 +76,13 @@ func main() {
 			logger.Fatalf("err reading commitlog: %v", err)
 		}
 
-		id := entry.Series.ID
-		if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
+		series := entry.Series
+		if *idFilter != "" && !strings.Contains(series.ID.String(), *idFilter) {
 			continue
 		}
 
-		fmt.Printf("{id: %s, dp: %+v", id, entry.Datapoint) // nolint: forbidigo
+		fmt.Printf("{id: %s, dp: %+v, ns: %s, shard: %d",
+			series.ID, entry.Datapoint, entry.Series.Namespace, entry.Series.Shard) // nolint: forbidigo
 		if len(entry.Annotation) > 0 {
 			fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(entry.Annotation)) // nolint: forbidigo
 		}
