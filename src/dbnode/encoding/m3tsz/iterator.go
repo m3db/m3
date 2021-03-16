@@ -199,10 +199,9 @@ func (it *readerIterator) readBits(numBits uint8) (res uint64) {
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
 func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	tsi := &it.tsIterator
 	dp := ts.Datapoint{
-		Timestamp:      tsi.PrevTime.ToTime(),
-		TimestampNanos: tsi.PrevTime,
+		Timestamp:      it.tsIterator.PrevTime.ToTime(),
+		TimestampNanos: it.tsIterator.PrevTime,
 	}
 
 	if !it.intOptimized || it.isFloat {
@@ -211,7 +210,7 @@ func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		dp.Value = convertFromIntFloat(it.intVal, it.mult)
 	}
 
-	return dp, tsi.TimeUnit, tsi.PrevAnt
+	return dp, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 }
 
 // Err returns the error encountered
