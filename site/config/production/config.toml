@@ -52,6 +52,7 @@ ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 languageCode = "en-US"
 defaultContentLanguage = "en"
 # staticDir = ["static"]
+enableRobotsTXT = true
 
 metaDataFormat = "yaml"
 defaultContentLanguageInSubdir= true
@@ -101,11 +102,7 @@ offlineSearch = false
   # Prefix URL to edit current page. Will display an "Edit this page" button on top right hand corner of every page. 
   # Useful to give opportunity to people to create merge request for your doc.
   # See the config.toml file from this documentation site to have an example.
-  # TODO: pattern to branch?
-  # TODO: bring back
-  # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
-  # Shows a checkmark for visited pages on the menu
-  showVisitedLinks = false
+
   # Disable search function. It will hide search bar
   disableSearch = false
   # Javascript and CSS cache are automatically busted when new version of site is generated. 
@@ -124,7 +121,7 @@ offlineSearch = false
   # Order sections in menu by "weight" or "title". Default to "weight"
   ordersectionsby = "weight"
   # Change default color scheme with a variant one. Can be "red", "blue", "green".
-  themeVariant = "blue"
+  # themeVariant = "blue"
   twitter = "m3db_io"
   disableHomeIcon = true
 
@@ -132,15 +129,18 @@ offlineSearch = false
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
 
-  # TODO: Might need to refactor some of the K8s shortcodes later
-# Add your release versions here
-# TODO: Enable when ready
-# [[params.versions]]
-#   version = "1.0"
-#   url = "https://master.kubeflow.org"
-#   [[params.versions]]
-#   version = "0.9"
-#   url = "https://master.kubeflow.org"
+# TODO: Can all the below be consolidated?
+  [[params.versions]]
+    version = "1.1"
+    url = "/docs"
+  [[params.versions]]
+    version = "1.0"
+    url = "/v1.0/docs"
+  [[params.versions]]
+    version = "0.15.17"
+    url = "/v0.15.17/docs"    
+  [params.releases]
+    docker = "v1.0.0"
 
 # version_menu = "Versions"
 
@@ -165,23 +165,6 @@ offlineSearch = false
       table = true
       taskList = true
       typographer = true
-
-[[menu.shortcuts]]
-pre = "<h3>More</h3>"
-name = "<i class='fa fa-github'></i> <label>Github repo</label>"
-identifier = "ds"
-url = "https://github.com/m3db/m3"
-weight = 10
-
-[[menu.shortcuts]]
-name = "<i class='fa fa-slack'></i> <label>Slack</label>"
-url = "https://bit.ly/m3slack"
-weight = 11
-
-[[menu.shortcuts]]
-name = "<i class='fa fa-inbox'></i> <label>Mailing list</label>"
-url = "https://groups.google.com/forum/#!forum/m3db"
-weight = 12
 
 [outputs]
 home = [ "HTML", "RSS", "JSON"]
