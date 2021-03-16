@@ -189,7 +189,7 @@ func main() {
 
 	if benchMode != benchmarkNone {
 		runTime := time.Since(start)
-		fmt.Printf("Running time: %s\n", runTime) // nolint: forbidigo
+		fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
 		fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
 		if runTime > 0 {
 			fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
