@@ -770,6 +770,7 @@ func testSnapshotWithShardSnapshotErrs(
 		shard := NewMockdatabaseShard(ctrl)
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+		shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 		if tc.expectSnapshot {
 			shard.EXPECT().
 				Snapshot(blockStart, now, gomock.Any(), gomock.Any()).
