@@ -1300,6 +1300,12 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	multiErr := xerrors.NewMultiError()
 	shardColdFlushes := make([]ShardColdFlush, 0, len(shards))
 	for _, shard := range shards {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping cold flush due to shard not bootstrapped yet")
+			continue
+		}
 		shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
@@ -1385,6 +1391,12 @@ func (n *dbNamespace) Snapshot(
 		multiErr      xerrors.MultiError
 	)
 	for _, shard := range n.OwnedShards() {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping snapshot due to shard not bootstrapped yet")
+			continue
+		}
 		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
