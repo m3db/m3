@@ -22,6 +22,7 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -58,8 +59,8 @@ func main() {
 
 	entryCount := 0
 
-	opts := commitlog.NewCommitLogReaderOptions(commitlog.NewOptions(), false)
-	reader := commitlog.NewCommitLogReader(opts)
+	opts := commitlog.NewReaderOptions(commitlog.NewOptions(), false)
+	reader := commitlog.NewReader(opts)
 
 	_, err = reader.Open(*path)
 	if err != nil {
@@ -68,26 +69,26 @@ func main() {
 
 	for {
 		entry, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			logger.Fatalf("err reading commitlog: %v", err)
 		}
 
-		var id = entry.Series.ID
+		id := entry.Series.ID
 		if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
 			continue
 		}
 
-		fmt.Printf("{id: %s, dp: %+v", id, entry.Datapoint)
+		fmt.Printf("{id: %s, dp: %+v", id, entry.Datapoint) // nolint: forbidigo
 		if len(entry.Annotation) > 0 {
-			fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(entry.Annotation))
+			fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(entry.Annotation)) // nolint: forbidigo
 		}
-		fmt.Println("}")
+		fmt.Println("}") // nolint: forbidigo
 
 		entryCount++
 	}
 
-	fmt.Printf("\n%d entries read\n", entryCount)
+	fmt.Printf("\n%d entries read\n", entryCount) // nolint: forbidigo
 }

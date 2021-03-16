@@ -47,7 +47,7 @@ type iterator struct {
 	metrics  iteratorMetrics
 	log      *zap.Logger
 	files    []persist.CommitLogFile
-	reader   CommitLogReader
+	reader   Reader
 	read     LogEntry
 	err      error
 	setRead  bool
@@ -163,7 +163,7 @@ func (i *iterator) nextReader() bool {
 	file := i.files[0]
 	i.files = i.files[1:]
 
-	reader := NewCommitLogReader(CommitLogReaderOptions{
+	reader := NewReader(ReaderOptions{
 		commitLogOptions:    i.opts,
 		returnMetadataAsRef: i.iterOpts.ReturnMetadataAsRef,
 	})
