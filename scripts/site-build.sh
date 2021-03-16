@@ -39,4 +39,5 @@ do
                 hugo -e production -v -d "../public/${version[1]}"
                 cd ../../
         fi        
+        cd ../..
 done
