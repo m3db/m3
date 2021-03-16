@@ -316,6 +316,7 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockBlock.EXPECT().Close().Return(nil)
 
 	mockShard := NewMockdatabaseShard(ctrl)
+	mockShard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpFailed}, nil).AnyTimes()
 	shards := []databaseShard{mockShard}
@@ -522,6 +523,7 @@ func verifyFlushForShards(
 		expectedDocs = append(expectedDocs, doc2)
 
 		for _, mockShard := range mockShards {
+			mockShard.EXPECT().IsBootstrapped().Return(true)
 			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
