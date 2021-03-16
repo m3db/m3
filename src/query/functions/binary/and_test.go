@@ -48,19 +48,19 @@ func TestAndWithExactValues(t *testing.T) {
 	op, err := NewOp(
 		AndType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block2)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), block2)
 	require.NoError(t, err)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block1)
 	require.NoError(t, err)
 	assert.Equal(t, values, sink.Values)
 }
@@ -80,19 +80,19 @@ func TestAndWithSomeValues(t *testing.T) {
 	op, err := NewOp(
 		AndType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block2)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), block2)
 	require.NoError(t, err)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block1)
 	require.NoError(t, err)
 	// Most values same as lhs
 	expected := values1
@@ -200,14 +200,14 @@ func TestAnd(t *testing.T) {
 			op, err := NewOp(
 				AndType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 			bounds := models.Bounds{
 				Start:    now,
@@ -216,7 +216,7 @@ func TestAnd(t *testing.T) {
 			}
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 			require.NoError(t, err)
 			bounds = models.Bounds{
 				Start:    now,
@@ -225,7 +225,7 @@ func TestAnd(t *testing.T) {
 			}
 
 			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 				return

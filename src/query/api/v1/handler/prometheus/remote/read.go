@@ -137,7 +137,16 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write headers before response.
-	handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
+	err = handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts, nil, nil)
+	if err != nil {
+		h.promReadMetrics.incError(err)
+		logger.Error("remote read query write response header error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Any("fetchOpts", fetchOpts))
+		xhttp.WriteError(w, err)
+		return
+	}
 
 	// NB: if this errors, all relevant headers and information should already
 	// be sent to the writer; so it is not necessary to do anything here other
@@ -432,9 +441,11 @@ func Read(
 		meta         = block.NewResultMetadata()
 		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
-				LimitMaxTimeseries:         fetchOpts.SeriesLimit,
-				LimitMaxDocs:               fetchOpts.DocsLimit,
-				LimitMaxReturnedDatapoints: fetchOpts.ReturnedDatapointsLimit,
+				LimitMaxTimeseries:             fetchOpts.SeriesLimit,
+				LimitMaxDocs:                   fetchOpts.DocsLimit,
+				LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
+				LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
+				LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
 			}}
 
 		engine = opts.Engine()

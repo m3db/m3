@@ -51,7 +51,6 @@ reporter:
       initWatchTimeout: 10s
     hashType: murmur32
     shardCutoffLingerDuration: 1m
-    flushSize: 1440
     maxTimerBatchSize: 1120
     queueSize: 10000
     queueDropType: oldest
