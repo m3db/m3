@@ -1,3 +1,4 @@
+@@ -0,0 +1,85 @@
 {{- $currentNode := . }}
 {{- $showvisitedlinks := .Site.Params.showVisitedLinks -}}
 
@@ -28,7 +29,7 @@
         {{- if gt $numberOfSections 0 }} topsection{{end}}
         ">
         <!-- collapsed font-size-22 font-weight-bold d-inline-block w-100 position-relative -->
-      <a href="/v1.0{{ .RelPermalink}}" class="font-size-15 ">
+      <a href="/v0.15.17{{ .RelPermalink}}" class="font-size-15 ">
         {{safeHTML .Params.Pre}}{{or .Params.menuTitle .LinkTitle .Title}}{{safeHTML .Params.Post}}
         {{- if ne $numberOfPages 0 }}
         {{- if or (.IsAncestor $currentNode) (.Params.alwaysopen) }}
@@ -38,6 +39,7 @@
         {{- end}}
       {{- end}}
       </a>
+
 
         {{- if $showvisitedlinks}}<i class="fa fa-circle-thin read-icon"></i>{{end}}
 
@@ -73,7 +75,7 @@
       <li data-nav-id="{{.Permalink}}" class="hugo-sidebar__body-link c-mt-3 dd-item
      {{- if eq .Permalink $currentNode.Permalink}} active{{end -}}
       ">
-        <a href="/v1.0{{ .RelPermalink}}" class="font-size-15">
+        <a href="/v0.15.17{{ .RelPermalink}}" class="font-size-15">
             {{safeHTML .Params.Pre}}{{.LinkTitle}}{{safeHTML .Params.Post}}
           </a>
           {{- if $showvisitedlinks}}<i class="fa fa-circle-thin read-icon"></i>{{end}}
@@ -82,3 +84,4 @@
   {{- end}}
  {{- end}}
 {{- end}}
+No newline at end of file
