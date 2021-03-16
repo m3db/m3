@@ -36,6 +36,7 @@ do
                 docker run -e HUGO_ENV=production -e HUGO_DESTINATION="public/${version[1]}" -it -v "$PWD/site/${version[1]}":/src "${HUGO_DOCKER_IMAGE}"
         else
                 cd "site/${version[1]}"
-                hugo -e production -v -d "../public/${version[1]}"   
+                hugo -e production -v -d "../public/${version[1]}"
+                cd ../../
         fi        
 done
