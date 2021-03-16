@@ -28,6 +28,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
@@ -57,8 +58,6 @@ func main() {
 	bytesPool := tools.NewCheckedBytesPool()
 	bytesPool.Init()
 
-	entryCount := 0
-
 	opts := commitlog.NewReaderOptions(commitlog.NewOptions(), false)
 	reader := commitlog.NewReader(opts)
 
@@ -66,6 +65,12 @@ func main() {
 	if err != nil {
 		logger.Fatalf("unable to open reader: %v", err)
 	}
+
+	var (
+		entryCount          uint32
+		annotationSizeTotal uint64
+		start               = time.Now()
+	)
 
 	for {
 		entry, err := reader.Read()
@@ -81,15 +86,19 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("{id: %s, dp: %+v, ns: %s, shard: %d",
-			series.ID, entry.Datapoint, entry.Series.Namespace, entry.Series.Shard) // nolint: forbidigo
+		fmt.Printf("{id: %s, dp: %+v, ns: %s, shard: %d", // nolint: forbidigo
+			series.ID, entry.Datapoint, entry.Series.Namespace, entry.Series.Shard)
 		if len(entry.Annotation) > 0 {
 			fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(entry.Annotation)) // nolint: forbidigo
+			annotationSizeTotal += uint64(len(entry.Annotation))
 		}
 		fmt.Println("}") // nolint: forbidigo
 
 		entryCount++
 	}
 
-	fmt.Printf("\n%d entries read\n", entryCount) // nolint: forbidigo
+	runTime := time.Since(start)
+	fmt.Printf("\nRunning time: %s\n", runTime)                          // nolint: forbidigo
+	fmt.Printf("%d entries read\n", entryCount)                          // nolint: forbidigo
+	fmt.Printf("Total annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
 }
