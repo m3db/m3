@@ -36,3 +36,15 @@ The _site/layouts_ folder adds a several changes and additional files to the Vic
 ### Documentation
 
 The _site/content_ folder contains the documentation files, organized by folders that match the paths for URLs. The _includes_ folder is a special folder not served as part of the documentation and contains files used by other files.
+
+#### Theme
+
+The M3 docuemntation uses our own (open source) theme, Victor. You can read all the features that theme provides in [the repository for Victor](https://github.com/chronosphereio/victor).
+
+#### Shortcodes
+
+The M3 documentation adds the following additional shortcodes:
+
+-   `{{% apiendpoint %}}` - Combines the values of `Params.api.localCordinator` + `Params.api.apiEndpoint` as defined in the site configuration to output the base API endpoint for M3 running on a localhost.
+-   `{{% docker-version %}}` - Outputs the value of `Params.releases.docker` as defined in the site configuration to output the consistent current Docker release.
+-   `{{% now %}}` - Outputs the current Unix timestamp to allow for up to date timestamps in code examples.
