@@ -259,6 +259,22 @@ func TestStandardMetricListID(t *testing.T) {
 	require.Equal(t, expectedListID, l.ID())
 }
 
+func TestStandardMetricListFlushOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	resolution := 10 * time.Second
+	opts := testOptions(ctrl)
+	listID := standardMetricListID{resolution: resolution}
+
+	l, err := newStandardMetricList(testShard, listID, opts)
+	require.NoError(t, err)
+
+	offset, ok := l.FixedFlushOffset()
+	require.False(t, ok)
+	require.Zero(t, offset)
+}
+
 func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -467,6 +483,25 @@ func TestTimedMetricListID(t *testing.T) {
 		timed:    listID,
 	}
 	require.Equal(t, expectedListID, l.ID())
+}
+
+func TestTimedMetricListFlushOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	resolution := 10 * time.Second
+	bufferForPastTimedMetricFn := func(resolution time.Duration) time.Duration {
+		return resolution + 3*time.Second
+	}
+	opts := testOptions(ctrl).SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn)
+	listID := timedMetricListID{resolution: resolution}
+
+	l, err := newTimedMetricList(testShard, listID, opts)
+	require.NoError(t, err)
+
+	offset, ok := l.FixedFlushOffset()
+	require.True(t, ok)
+	require.Equal(t, 3*time.Second, offset)
 }
 
 func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
@@ -733,10 +768,13 @@ func TestForwardedMetricListFlushOffset(t *testing.T) {
 	resolution := 10 * time.Second
 	opts := testOptions(ctrl).SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn)
 	listID := forwardedMetricListID{resolution: resolution, numForwardedTimes: 2}
+
 	l, err := newForwardedMetricList(testShard, listID, opts)
 	require.NoError(t, err)
 
-	require.Equal(t, 2*time.Second, l.FlushOffset())
+	offset, ok := l.FixedFlushOffset()
+	require.True(t, ok)
+	require.Equal(t, 2*time.Second, offset)
 }
 
 func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testing.T) {
