@@ -38,4 +38,5 @@ do
                 cd "site/${version[1]}"
                 hugo -e production -v -d "../public/${version[1]}"   
         fi        
+        cd ../..
 done
