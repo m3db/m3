@@ -123,6 +123,10 @@ func (it *TimestampIterator) ReadTimeUnit(stream *encoding.IStream) error {
 	tu := xtime.Unit(tuBits)
 	if tu.IsValid() && tu != it.TimeUnit {
 		it.TimeUnitChanged = true
+		tes, ok := it.timeEncodingSchemes.SchemeForUnit(tu)
+		if ok {
+			it.timeEncodingScheme = tes
+		}
 	}
 	it.TimeUnit = tu
 
@@ -142,10 +146,9 @@ func (it *TimestampIterator) readFirstTimestamp(stream *encoding.IStream) error 
 	}
 
 	tes, ok := it.timeEncodingSchemes.SchemeForUnit(it.TimeUnit)
-	if !ok {
-		return errNoTimeSchemaForUnit
+	if ok {
+		it.timeEncodingScheme = tes
 	}
-	it.timeEncodingScheme = tes
 
 	err = it.readNextTimestamp(stream)
 	if err != nil {
@@ -248,6 +251,8 @@ func (it *TimestampIterator) readDeltaOfDelta(
 ) (time.Duration, error) {
 	if it.TimeUnitChanged {
 		return it.readFullTimestamp(stream)
+	} else if it.timeEncodingScheme == nil {
+		return 0, errNoTimeSchemaForUnit
 	}
 
 	cb, err := stream.ReadBits(1)
