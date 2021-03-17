@@ -102,7 +102,7 @@ func testSortImpl(ctx context.Context, t *testing.T, tests []testSortData, sr Se
 
 func TestSortSeries(t *testing.T) {
 	ctx := context.New()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	testInput := []testSeries{
 		{"foo", []float64{0, 601, 3, 4}},
@@ -136,7 +136,7 @@ func TestSortSeries(t *testing.T) {
 
 func TestSortSeriesStable(t *testing.T) {
 	ctx := context.New()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	constValues := newTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
 	series := []*Series{
@@ -177,7 +177,7 @@ func TestSortSeriesStable(t *testing.T) {
 
 func TestSortSeriesByNameAndNaturalNumbers(t *testing.T) {
 	ctx := context.New()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	constValues := newTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
 	series := []*Series{

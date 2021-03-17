@@ -837,17 +837,17 @@ func TestWeightedAverage(t *testing.T) {
 	defer ctx.Close()
 
 	means := []common.TestSeries{
-		{"web.host-1.avg-response.mean", []float64{70.0, 20.0, 30.0, 0.0, 50.0}},
-		{"web.host-2.avg-response.mean", []float64{20.0, 30.0, 40.0, 50.0, 60.0}},
-		{"web.host-3.avg-response.mean", []float64{20.0, 30.0, 40.0, 50.0, 60.0}}, // no match
+		{Name: "web.host-1.avg-response.mean", Data: []float64{70.0, 20.0, 30.0, 0.0, 50.0}},
+		{Name: "web.host-2.avg-response.mean", Data: []float64{20.0, 30.0, 40.0, 50.0, 60.0}},
+		{Name: "web.host-3.avg-response.mean", Data: []float64{20.0, 30.0, 40.0, 50.0, 60.0}}, // no match
 	}
 	counts := []common.TestSeries{
-		{"web.host-1.avg-response.count", []float64{1, 2, 3, 4, 5}},
-		{"web.host-2.avg-response.count", []float64{10, 20, 30, 40, 50}},
-		{"web.host-4.avg-response.count", []float64{10, 20, 30, 40, 50}}, // no match
+		{Name: "web.host-1.avg-response.count", Data: []float64{1, 2, 3, 4, 5}},
+		{Name: "web.host-2.avg-response.count", Data: []float64{10, 20, 30, 40, 50}},
+		{Name: "web.host-4.avg-response.count", Data: []float64{10, 20, 30, 40, 50}}, // no match
 	}
 	expected := []common.TestSeries{
-		{"weightedAverage", []float64{24.5454, 29.0909, 39.0909, 45.4545, 59.0909}},
+		{Name: "weightedAverage", Data: []float64{24.5454, 29.0909, 39.0909, 45.4545, 59.0909}},
 	}
 
 	// normal series
@@ -866,7 +866,7 @@ func TestWeightedAverage(t *testing.T) {
 	output, err = weightedAverage(ctx, singlePathSpec(values), singlePathSpec(weights), 1)
 	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, step, start,
-		[]common.TestSeries{{"weightedAverage", means[0].Data}}, output.Values)
+		[]common.TestSeries{{Name: "weightedAverage", Data: means[0].Data}}, output.Values)
 
 	// different steps should lead to error -- not supported yet
 	values = ts.SeriesList{Values: generateSeriesList(ctx, start, means, step)}
