@@ -27,6 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	atomic2 "go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -48,6 +50,8 @@ var (
 	errCommitLogClosed = errors.New("commit log is closed")
 
 	zeroFile = persist.CommitLogFile{}
+
+	PauseWritesForMillis atomic2.Int64
 )
 
 type newCommitLogWriterFn func(
@@ -512,6 +516,11 @@ func (l *commitLog) write() {
 			batch = write.write.writeBatch.Iter()
 		}
 		numDequeued = len(batch)
+
+		pause := PauseWritesForMillis.Swap(0)
+		if pause > 0 {
+			time.Sleep(time.Duration(pause) * time.Millisecond)
+		}
 
 		for _, writeBatch := range batch {
 			if writeBatch.Err != nil {

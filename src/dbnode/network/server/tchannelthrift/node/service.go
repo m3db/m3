@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -2523,6 +2524,15 @@ func (s *service) DebugIndexMemorySegments(
 	}
 
 	return &rpc.DebugIndexMemorySegmentsResult_{}, nil
+}
+
+func (s *service) PauseWritesToCommitLog(ctx thrift.Context, req *rpc.PauseWritesToCommitLogRequest) error {
+	pause, err := time.ParseDuration(req.Duration)
+	if err != nil {
+		return err
+	}
+	commitlog.PauseWritesForMillis.Store(pause.Milliseconds())
+	return nil
 }
 
 func (s *service) SetDatabase(db storage.Database) error {

@@ -595,6 +595,105 @@ func (p *WriteBatchRawErrors) Error() string {
 }
 
 // Attributes:
+//  - Duration
+type PauseWritesToCommitLogRequest struct {
+	Duration string `thrift:"duration,1,required" db:"duration" json:"duration"`
+}
+
+func NewPauseWritesToCommitLogRequest() *PauseWritesToCommitLogRequest {
+	return &PauseWritesToCommitLogRequest{}
+}
+
+func (p *PauseWritesToCommitLogRequest) GetDuration() string {
+	return p.Duration
+}
+func (p *PauseWritesToCommitLogRequest) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetDuration bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetDuration = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetDuration {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Duration is not set"))
+	}
+	return nil
+}
+
+func (p *PauseWritesToCommitLogRequest) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadString(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Duration = v
+	}
+	return nil
+}
+
+func (p *PauseWritesToCommitLogRequest) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("PauseWritesToCommitLogRequest"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *PauseWritesToCommitLogRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("duration", thrift.STRING, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:duration: ", p), err)
+	}
+	if err := oprot.WriteString(string(p.Duration)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.duration (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:duration: ", p), err)
+	}
+	return err
+}
+
+func (p *PauseWritesToCommitLogRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PauseWritesToCommitLogRequest(%+v)", *p)
+}
+
+// Attributes:
 //  - RangeStart
 //  - RangeEnd
 //  - NameSpace
@@ -14805,6 +14904,9 @@ type Node interface {
 	// Parameters:
 	//  - Req
 	DebugIndexMemorySegments(req *DebugIndexMemorySegmentsRequest) (r *DebugIndexMemorySegmentsResult_, err error)
+	// Parameters:
+	//  - Req
+	PauseWritesToCommitLog(req *PauseWritesToCommitLogRequest) (err error)
 }
 
 type NodeClient struct {
@@ -17386,6 +17488,86 @@ func (p *NodeClient) recvDebugIndexMemorySegments() (value *DebugIndexMemorySegm
 	return
 }
 
+// Parameters:
+//  - Req
+func (p *NodeClient) PauseWritesToCommitLog(req *PauseWritesToCommitLogRequest) (err error) {
+	if err = p.sendPauseWritesToCommitLog(req); err != nil {
+		return
+	}
+	return p.recvPauseWritesToCommitLog()
+}
+
+func (p *NodeClient) sendPauseWritesToCommitLog(req *PauseWritesToCommitLogRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("pauseWritesToCommitLog", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodePauseWritesToCommitLogArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvPauseWritesToCommitLog() (err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "pauseWritesToCommitLog" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "pauseWritesToCommitLog failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "pauseWritesToCommitLog failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error99 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error100 error
+		error100, err = error99.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error100
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "pauseWritesToCommitLog failed: invalid message type")
+		return
+	}
+	result := NodePauseWritesToCommitLogResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	return
+}
+
 type NodeProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
 	handler      Node
@@ -17406,40 +17588,41 @@ func (p *NodeProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewNodeProcessor(handler Node) *NodeProcessor {
 
-	self99 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self99.processorMap["query"] = &nodeProcessorQuery{handler: handler}
-	self99.processorMap["aggregate"] = &nodeProcessorAggregate{handler: handler}
-	self99.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
-	self99.processorMap["write"] = &nodeProcessorWrite{handler: handler}
-	self99.processorMap["writeTagged"] = &nodeProcessorWriteTagged{handler: handler}
-	self99.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
-	self99.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
-	self99.processorMap["fetchBatchRawV2"] = &nodeProcessorFetchBatchRawV2{handler: handler}
-	self99.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
-	self99.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
-	self99.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
-	self99.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
-	self99.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
-	self99.processorMap["writeTaggedBatchRaw"] = &nodeProcessorWriteTaggedBatchRaw{handler: handler}
-	self99.processorMap["writeTaggedBatchRawV2"] = &nodeProcessorWriteTaggedBatchRawV2{handler: handler}
-	self99.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
-	self99.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
-	self99.processorMap["aggregateTiles"] = &nodeProcessorAggregateTiles{handler: handler}
-	self99.processorMap["health"] = &nodeProcessorHealth{handler: handler}
-	self99.processorMap["bootstrapped"] = &nodeProcessorBootstrapped{handler: handler}
-	self99.processorMap["bootstrappedInPlacementOrNoPlacement"] = &nodeProcessorBootstrappedInPlacementOrNoPlacement{handler: handler}
-	self99.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
-	self99.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
-	self99.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
-	self99.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
-	self99.processorMap["getWriteNewSeriesBackoffDuration"] = &nodeProcessorGetWriteNewSeriesBackoffDuration{handler: handler}
-	self99.processorMap["setWriteNewSeriesBackoffDuration"] = &nodeProcessorSetWriteNewSeriesBackoffDuration{handler: handler}
-	self99.processorMap["getWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
-	self99.processorMap["setWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
-	self99.processorMap["debugProfileStart"] = &nodeProcessorDebugProfileStart{handler: handler}
-	self99.processorMap["debugProfileStop"] = &nodeProcessorDebugProfileStop{handler: handler}
-	self99.processorMap["debugIndexMemorySegments"] = &nodeProcessorDebugIndexMemorySegments{handler: handler}
-	return self99
+	self101 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self101.processorMap["query"] = &nodeProcessorQuery{handler: handler}
+	self101.processorMap["aggregate"] = &nodeProcessorAggregate{handler: handler}
+	self101.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
+	self101.processorMap["write"] = &nodeProcessorWrite{handler: handler}
+	self101.processorMap["writeTagged"] = &nodeProcessorWriteTagged{handler: handler}
+	self101.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
+	self101.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
+	self101.processorMap["fetchBatchRawV2"] = &nodeProcessorFetchBatchRawV2{handler: handler}
+	self101.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
+	self101.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
+	self101.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
+	self101.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
+	self101.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
+	self101.processorMap["writeTaggedBatchRaw"] = &nodeProcessorWriteTaggedBatchRaw{handler: handler}
+	self101.processorMap["writeTaggedBatchRawV2"] = &nodeProcessorWriteTaggedBatchRawV2{handler: handler}
+	self101.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
+	self101.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
+	self101.processorMap["aggregateTiles"] = &nodeProcessorAggregateTiles{handler: handler}
+	self101.processorMap["health"] = &nodeProcessorHealth{handler: handler}
+	self101.processorMap["bootstrapped"] = &nodeProcessorBootstrapped{handler: handler}
+	self101.processorMap["bootstrappedInPlacementOrNoPlacement"] = &nodeProcessorBootstrappedInPlacementOrNoPlacement{handler: handler}
+	self101.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
+	self101.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
+	self101.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
+	self101.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
+	self101.processorMap["getWriteNewSeriesBackoffDuration"] = &nodeProcessorGetWriteNewSeriesBackoffDuration{handler: handler}
+	self101.processorMap["setWriteNewSeriesBackoffDuration"] = &nodeProcessorSetWriteNewSeriesBackoffDuration{handler: handler}
+	self101.processorMap["getWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	self101.processorMap["setWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	self101.processorMap["debugProfileStart"] = &nodeProcessorDebugProfileStart{handler: handler}
+	self101.processorMap["debugProfileStop"] = &nodeProcessorDebugProfileStop{handler: handler}
+	self101.processorMap["debugIndexMemorySegments"] = &nodeProcessorDebugIndexMemorySegments{handler: handler}
+	self101.processorMap["pauseWritesToCommitLog"] = &nodeProcessorPauseWritesToCommitLog{handler: handler}
+	return self101
 }
 
 func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -17452,12 +17635,12 @@ func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, er
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x100 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x102 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x100.Write(oprot)
+	x102.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x100
+	return false, x102
 
 }
 
@@ -19119,6 +19302,56 @@ func (p *nodeProcessorDebugIndexMemorySegments) Process(seqId int32, iprot, opro
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("debugIndexMemorySegments", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorPauseWritesToCommitLog struct {
+	handler Node
+}
+
+func (p *nodeProcessorPauseWritesToCommitLog) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodePauseWritesToCommitLogArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("pauseWritesToCommitLog", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodePauseWritesToCommitLogResult{}
+	var err2 error
+	if err2 = p.handler.PauseWritesToCommitLog(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing pauseWritesToCommitLog: "+err2.Error())
+			oprot.WriteMessageBegin("pauseWritesToCommitLog", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	}
+	if err2 = oprot.WriteMessageBegin("pauseWritesToCommitLog", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -26505,6 +26738,212 @@ func (p *NodeDebugIndexMemorySegmentsResult) String() string {
 	return fmt.Sprintf("NodeDebugIndexMemorySegmentsResult(%+v)", *p)
 }
 
+// Attributes:
+//  - Req
+type NodePauseWritesToCommitLogArgs struct {
+	Req *PauseWritesToCommitLogRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodePauseWritesToCommitLogArgs() *NodePauseWritesToCommitLogArgs {
+	return &NodePauseWritesToCommitLogArgs{}
+}
+
+var NodePauseWritesToCommitLogArgs_Req_DEFAULT *PauseWritesToCommitLogRequest
+
+func (p *NodePauseWritesToCommitLogArgs) GetReq() *PauseWritesToCommitLogRequest {
+	if !p.IsSetReq() {
+		return NodePauseWritesToCommitLogArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodePauseWritesToCommitLogArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodePauseWritesToCommitLogArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodePauseWritesToCommitLogArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &PauseWritesToCommitLogRequest{}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodePauseWritesToCommitLogArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("pauseWritesToCommitLog_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodePauseWritesToCommitLogArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodePauseWritesToCommitLogArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodePauseWritesToCommitLogArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Err
+type NodePauseWritesToCommitLogResult struct {
+	Err *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodePauseWritesToCommitLogResult() *NodePauseWritesToCommitLogResult {
+	return &NodePauseWritesToCommitLogResult{}
+}
+
+var NodePauseWritesToCommitLogResult_Err_DEFAULT *Error
+
+func (p *NodePauseWritesToCommitLogResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodePauseWritesToCommitLogResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodePauseWritesToCommitLogResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodePauseWritesToCommitLogResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodePauseWritesToCommitLogResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodePauseWritesToCommitLogResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("pauseWritesToCommitLog_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodePauseWritesToCommitLogResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodePauseWritesToCommitLogResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodePauseWritesToCommitLogResult(%+v)", *p)
+}
+
 type Cluster interface {
 	Health() (r *HealthResult_, err error)
 	// Parameters:
@@ -26599,16 +27038,16 @@ func (p *ClusterClient) recvHealth() (value *HealthResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error245 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error246 error
-		error246, err = error245.Read(iprot)
+		error253 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error254 error
+		error254, err = error253.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error246
+		err = error254
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26680,16 +27119,16 @@ func (p *ClusterClient) recvWrite() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error247 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error248 error
-		error248, err = error247.Read(iprot)
+		error255 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error256 error
+		error256, err = error255.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error248
+		err = error256
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26760,16 +27199,16 @@ func (p *ClusterClient) recvWriteTagged() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error249 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error250 error
-		error250, err = error249.Read(iprot)
+		error257 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error258 error
+		error258, err = error257.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error250
+		err = error258
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26840,16 +27279,16 @@ func (p *ClusterClient) recvQuery() (value *QueryResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error251 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error252 error
-		error252, err = error251.Read(iprot)
+		error259 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error260 error
+		error260, err = error259.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error252
+		err = error260
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26921,16 +27360,16 @@ func (p *ClusterClient) recvAggregate() (value *AggregateQueryResult_, err error
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error253 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error254 error
-		error254, err = error253.Read(iprot)
+		error261 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error262 error
+		error262, err = error261.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error254
+		err = error262
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -27002,16 +27441,16 @@ func (p *ClusterClient) recvFetch() (value *FetchResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error255 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error256 error
-		error256, err = error255.Read(iprot)
+		error263 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error264 error
+		error264, err = error263.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error256
+		err = error264
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -27083,16 +27522,16 @@ func (p *ClusterClient) recvTruncate() (value *TruncateResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error257 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error258 error
-		error258, err = error257.Read(iprot)
+		error265 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error266 error
+		error266, err = error265.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error258
+		err = error266
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -27134,15 +27573,15 @@ func (p *ClusterProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewClusterProcessor(handler Cluster) *ClusterProcessor {
 
-	self259 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self259.processorMap["health"] = &clusterProcessorHealth{handler: handler}
-	self259.processorMap["write"] = &clusterProcessorWrite{handler: handler}
-	self259.processorMap["writeTagged"] = &clusterProcessorWriteTagged{handler: handler}
-	self259.processorMap["query"] = &clusterProcessorQuery{handler: handler}
-	self259.processorMap["aggregate"] = &clusterProcessorAggregate{handler: handler}
-	self259.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
-	self259.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
-	return self259
+	self267 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self267.processorMap["health"] = &clusterProcessorHealth{handler: handler}
+	self267.processorMap["write"] = &clusterProcessorWrite{handler: handler}
+	self267.processorMap["writeTagged"] = &clusterProcessorWriteTagged{handler: handler}
+	self267.processorMap["query"] = &clusterProcessorQuery{handler: handler}
+	self267.processorMap["aggregate"] = &clusterProcessorAggregate{handler: handler}
+	self267.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
+	self267.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
+	return self267
 }
 
 func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -27155,12 +27594,12 @@ func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool,
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x260 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x268 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x260.Write(oprot)
+	x268.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x260
+	return false, x268
 
 }
 

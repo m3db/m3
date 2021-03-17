@@ -91,6 +91,11 @@ service Node {
 	DebugProfileStartResult        debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
 	DebugProfileStopResult         debugProfileStop(1: DebugProfileStopRequest req) throws (1: Error err)
 	DebugIndexMemorySegmentsResult debugIndexMemorySegments(1: DebugIndexMemorySegmentsRequest req) throws (1: Error err)
+	void pauseWritesToCommitLog(1: PauseWritesToCommitLogRequest req) throws (1: Error err)
+}
+
+struct PauseWritesToCommitLogRequest {
+    1: required string duration
 }
 
 struct FetchRequest {
