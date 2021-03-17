@@ -185,7 +185,7 @@ func TestNamespaceTickError(t *testing.T) {
 }
 
 func TestNamespaceWriteShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -202,7 +202,7 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 }
 
 func TestNamespaceReadOnlyRejectWrites(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -226,7 +226,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	id := ident.StringID("foo")
@@ -261,7 +261,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 }
 
 func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -278,7 +278,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	id := ident.StringID("foo")
@@ -304,7 +304,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 }
 
 func TestNamespaceFetchWideEntryShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -321,7 +321,7 @@ func TestNamespaceFetchWideEntryShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	id := ident.StringID("foo")
@@ -346,7 +346,7 @@ func TestNamespaceFetchWideEntryShardOwned(t *testing.T) {
 }
 
 func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -364,7 +364,7 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -391,7 +391,7 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 
 	ns.bootstrapState = Bootstrapping
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	err := ns.Bootstrap(ctx, bootstrap.NamespaceResult{})
@@ -403,7 +403,7 @@ func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	require.NoError(t, ns.Bootstrap(ctx, bootstrap.NamespaceResult{}))
@@ -434,7 +434,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		Shards:     shardIDs,
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	require.Equal(t, "foo", ns.Bootstrap(ctx, nsResult).Error())
@@ -487,11 +487,119 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		Shards:     shardIDs,
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
+	// do not panic for invariant violation to test some shards are still bootstrapped.
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	require.Error(t, ns.Bootstrap(ctx, nsResult))
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
+}
+
+func TestNamespaceBootstrapUnfulfilledShards(t *testing.T) {
+	unfulfilledRangeForShards := func(ids ...uint32) result.IndexBootstrapResult {
+		var (
+			unfulfilledRange = result.NewIndexBootstrapResult()
+			unfulfilledTo    = time.Now().Truncate(time.Hour)
+			unfulfilledFrom  = unfulfilledTo.Add(-time.Hour)
+		)
+		unfulfilledRange.SetUnfulfilled(result.NewShardTimeRangesFromRange(
+			unfulfilledFrom, unfulfilledTo, ids...))
+		return unfulfilledRange
+	}
+
+	shardIDs := []uint32{0, 1}
+	tests := []struct {
+		name                string
+		withIndex           bool
+		unfulfilledShardIDs []uint32
+		nsResult            bootstrap.NamespaceResult
+	}{
+		{
+			name:                "no index, unfulfilled data",
+			withIndex:           false,
+			unfulfilledShardIDs: []uint32{0},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult: unfulfilledRangeForShards(0),
+				Shards:     shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled data",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{0, 1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(0, 1),
+				IndexResult: unfulfilledRangeForShards(),
+				Shards:      shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled index",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(),
+				IndexResult: unfulfilledRangeForShards(1),
+				Shards:      shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled data and index",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{0, 1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(0),
+				IndexResult: unfulfilledRangeForShards(1),
+				Shards:      shardIDs,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testNamespaceBootstrapUnfulfilledShards(t, shardIDs, tt.unfulfilledShardIDs,
+				tt.withIndex, tt.nsResult)
+		})
+	}
+}
+
+// nolint:thelper
+func testNamespaceBootstrapUnfulfilledShards(
+	t *testing.T,
+	shardIDs, unfulfilledShardIDs []uint32,
+	withIndex bool,
+	nsResult bootstrap.NamespaceResult,
+) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	var (
+		ns     *dbNamespace
+		closer func()
+	)
+	if withIndex {
+		idx := NewMockNamespaceIndex(ctrl)
+		idx.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+		ns, closer = newTestNamespaceWithIndex(t, idx)
+	} else {
+		ns, closer = newTestNamespace(t)
+	}
+	defer closer()
+
+	for _, id := range shardIDs {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(id)
+		shard.EXPECT().IsBootstrapped().Return(false)
+		if !contains(unfulfilledShardIDs, id) {
+			shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
+		}
+		ns.shards[id] = shard
+	}
+
+	require.Error(t, ns.Bootstrap(ctx, nsResult))
 }
 
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
@@ -525,7 +633,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -555,7 +663,7 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespace(t)
@@ -584,7 +692,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, close := newTestNamespace(t)
@@ -640,7 +748,7 @@ func testSnapshotWithShardSnapshotErrs(
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
@@ -1127,7 +1235,7 @@ func TestNamespaceCloseWillCloseShard(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// mock namespace + 1 shard
@@ -1157,7 +1265,7 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// new namespace
@@ -1188,7 +1296,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 		ns.reverseIndex = idx
 		defer closer()
 
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		now := time.Now()
 
 		shard := NewMockdatabaseShard(ctrl)
@@ -1233,7 +1341,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
@@ -1267,7 +1375,7 @@ func TestNamespaceIndexWideQuery(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
@@ -1306,7 +1414,7 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	query := index.Query{
 		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
 	}
@@ -1332,7 +1440,7 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	nsCtx := ns.nsContextWithRLock()
 	ns.RUnlock()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	for _, s := range ns.shards {
@@ -1351,7 +1459,7 @@ func TestNamespaceIndexDisabledQuery(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	query := index.Query{
 		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
 	}
@@ -1419,14 +1527,15 @@ func TestNamespaceFlushState(t *testing.T) {
 }
 
 func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		start      = time.Now().Truncate(time.Hour)
-		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+		insOpts    = instrument.NewOptions()
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), InsOptions: insOpts}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1445,22 +1554,21 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 }
 
 func TestNamespaceAggregateTiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (
-		sourceNsID                    = ident.StringID("source")
-		targetNsID                    = ident.StringID("target")
-		sourceBlockSize               = time.Hour
-		targetBlockSize               = 2 * time.Hour
-		start                         = time.Now().Truncate(targetBlockSize)
-		secondSourceBlockStart        = start.Add(sourceBlockSize)
-		shard0ID               uint32 = 10
-		shard1ID               uint32 = 20
-		insOpts                       = instrument.NewOptions()
+		sourceNsID      = ident.StringID("source")
+		targetNsID      = ident.StringID("target")
+		sourceBlockSize = time.Hour
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		shard0ID        = uint32(10)
+		shard1ID        = uint32(20)
+		insOpts         = instrument.NewOptions()
 	)
 
 	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
@@ -1482,45 +1590,24 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	mockOnColdFlushNs := NewMockOnColdFlushNamespace(ctrl)
 	mockOnColdFlushNs.EXPECT().Done().Return(nil)
 	mockOnColdFlush := NewMockOnColdFlush(ctrl)
-	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any()).Return(mockOnColdFlushNs, nil)
+	cfOpts := NewColdFlushNsOpts(false)
+	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any(), cfOpts).Return(mockOnColdFlushNs, nil)
 	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
-
-	sourceShard0 := NewMockdatabaseShard(ctrl)
-	sourceShard1 := NewMockdatabaseShard(ctrl)
-	sourceNs.shards[0] = sourceShard0
-	sourceNs.shards[1] = sourceShard1
-
-	sourceShard0.EXPECT().ID().Return(shard0ID)
-	sourceShard0.EXPECT().IsBootstrapped().Return(true)
-	sourceShard0.EXPECT().LatestVolume(start).Return(5, nil)
-	sourceShard0.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(15, nil)
-
-	sourceShard1.EXPECT().ID().Return(shard1ID)
-	sourceShard1.EXPECT().IsBootstrapped().Return(true)
-	sourceShard1.EXPECT().LatestVolume(start).Return(7, nil)
-	sourceShard1.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(17, nil)
 
 	targetShard0 := NewMockdatabaseShard(ctrl)
 	targetShard1 := NewMockdatabaseShard(ctrl)
 	targetNs.shards[0] = targetShard0
 	targetNs.shards[1] = targetShard1
 
-	targetShard0.EXPECT().ID().Return(uint32(0))
-	targetShard1.EXPECT().ID().Return(uint32(1))
-
-	sourceBlockVolumes0 := []shardBlockVolume{{start, 5}, {secondSourceBlockStart, 15}}
-	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
+	targetShard0.EXPECT().ID().Return(shard0ID)
+	targetShard1.EXPECT().ID().Return(shard1ID)
 
 	targetShard0.EXPECT().
-		AggregateTiles(
-			ctx, sourceNs, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
-			sourceBlockVolumes0, gomock.Any(), opts).
+		AggregateTiles(ctx, sourceNs, targetNs, shard0ID, mockOnColdFlushNs, opts).
 		Return(int64(3), nil)
 
 	targetShard1.EXPECT().
-		AggregateTiles(
-			ctx, sourceNs, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
-			sourceBlockVolumes1, gomock.Any(), opts).
+		AggregateTiles(ctx, sourceNs, targetNs, shard1ID, mockOnColdFlushNs, opts).
 		Return(int64(2), nil)
 
 	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
@@ -1549,4 +1636,13 @@ func assertNeedsFlush(t *testing.T, ns *dbNamespace, t0, t1 time.Time, assertTru
 	needsFlush, err := ns.NeedsFlush(t0, t1)
 	require.NoError(t, err)
 	require.Equal(t, assertTrue, needsFlush)
+}
+
+func contains(c []uint32, x uint32) bool {
+	for _, y := range c {
+		if x == y {
+			return true
+		}
+	}
+	return false
 }

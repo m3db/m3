@@ -278,7 +278,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		}
 
 		var (
-			ctx   = context.NewContext()
+			ctx   = context.NewBackground()
 			nsCtx = namespace.Context{ID: namespaceID}
 		)
 		require.NoError(t, err)
@@ -507,7 +507,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	repairer := databaseShardRepairer.(shardRepairer)
 
 	var (
-		ctx   = context.NewContext()
+		ctx   = context.NewBackground()
 		nsCtx = namespace.Context{ID: namespaceID}
 	)
 	resDiff, err := repairer.Repair(ctx, nsCtx, nsMeta, repairTimeRange, shard)

@@ -75,9 +75,7 @@ func init() {
 	srPool = xio.NewSegmentReaderPool(poolOpts)
 	srPool.Init()
 	multiIterPool = encoding.NewMultiReaderIteratorPool(poolOpts)
-	multiIterPool.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	multiIterPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, poolOpts)
 	})
@@ -613,16 +611,15 @@ func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
 		encoder.Encode(dp, xtime.Second, nil)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	r, ok := encoder.Stream(ctx)
 	require.True(t, ok)
-	var b [1000]byte
-	n, err := r.Read(b[:])
-	require.NoError(t, err)
+	bytes, err := xio.ToBytes(r)
+	require.Equal(t, io.EOF, err)
 
-	copied := append([]byte(nil), b[:n]...)
+	copied := append([]byte(nil), bytes...)
 	cb := checked.NewBytes(copied, nil)
 	return cb
 }

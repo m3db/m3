@@ -287,6 +287,11 @@ func (s *readThroughSegmentReader) Fields() (segment.FieldsIterator, error) {
 	return s.reader.Fields()
 }
 
+// FieldsPostingsList is a pass through call.
+func (s *readThroughSegmentReader) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
+	return s.reader.FieldsPostingsList()
+}
+
 // ContainsField is a pass through call.
 func (s *readThroughSegmentReader) ContainsField(field []byte) (bool, error) {
 	return s.reader.ContainsField(field)

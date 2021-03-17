@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -167,7 +168,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	res, err := src.Read(ctx, tester.Namespaces, tester.Cache)
@@ -432,7 +433,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		encoder.Encode(dp, value.u, value.a)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := encoder.Stream(ctx)
@@ -441,9 +442,9 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	seg, err := reader.Segment()
 	require.NoError(t, err)
 
-	bytes := make([]byte, seg.Len())
-	_, err = reader.Read(bytes)
-	require.NoError(t, err)
+	bytes, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, seg.Len(), len(bytes))
 
 	mockReader.EXPECT().Read().Return(
 		foo.ID,

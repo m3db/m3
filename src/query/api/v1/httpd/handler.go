@@ -404,7 +404,8 @@ func (h *Handler) RegisterRoutes() error {
 	if clusterClient != nil {
 		err = database.RegisterRoutes(h.registry, clusterClient,
 			h.options.Config(), h.options.EmbeddedDbCfg(),
-			serviceOptionDefaults, instrumentOpts, h.options.NamespaceValidator())
+			serviceOptionDefaults, instrumentOpts,
+			h.options.NamespaceValidator(), h.options.KVStoreProtoParser())
 		if err != nil {
 			return err
 		}

@@ -250,10 +250,16 @@ type Options interface {
 	// delay for given metric resolution and number of times the metric has been forwarded.
 	MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn
 
-	// SetBufferForPastTimedMetricFn sets the size of the buffer for timed metrics in the past.
+	// SetBufferForPastTimedMetric sets the size of the buffer for timed metrics in the past.
+	SetBufferForPastTimedMetric(value time.Duration) Options
+
+	// BufferForPastTimedMetric returns the size of the buffer for timed metrics in the past.
+	BufferForPastTimedMetric() time.Duration
+
+	// SetBufferForPastTimedMetricFn sets the size fn of the buffer for timed metrics in the past.
 	SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options
 
-	// BufferForPastTimedMetricFn returns the size of the buffer for timed metrics in the past.
+	// BufferForPastTimedMetricFn returns the size fn of the buffer for timed metrics in the past.
 	BufferForPastTimedMetricFn() BufferForPastTimedMetricFn
 
 	// SetBufferForFutureTimedMetric sets the size of the buffer for timed metrics in the future.
@@ -322,6 +328,12 @@ type Options interface {
 	// This is a temporary option to help with the seamless rollout of changing Add transforms to Reset transforms for
 	// resetting aggregate counters. Once rollup rules have changed to use Reset explicitly, this can be removed.
 	AddToReset() bool
+
+	// TimedMetricsFlushOffsetEnabled returns true if using of FlushOffset for timed metrics is enabled.
+	TimedMetricsFlushOffsetEnabled() bool
+
+	// SetTimedMetricsFlushOffsetEnabled controls using of FlushOffset for timed metrics.
+	SetTimedMetricsFlushOffsetEnabled(bool) Options
 }
 
 type options struct {
@@ -353,6 +365,7 @@ type options struct {
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
 	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
+	bufferForPastTimedMetric         time.Duration
 	bufferForPastTimedMetricFn       BufferForPastTimedMetricFn
 	bufferForFutureTimedMetric       time.Duration
 	maxNumCachedSourceSets           int
@@ -363,6 +376,7 @@ type options struct {
 	gaugeElemPool                    GaugeElemPool
 	verboseErrors                    bool
 	addToReset                       bool
+	timedMetricsFlushOffsetEnabled   bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -399,6 +413,7 @@ func NewOptions() Options {
 		defaultStoragePolicies:           defaultDefaultStoragePolicies,
 		resignTimeout:                    defaultResignTimeout,
 		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
+		bufferForPastTimedMetric:         defaultTimedMetricBuffer,
 		bufferForPastTimedMetricFn:       defaultBufferForPastTimedMetricFn,
 		bufferForFutureTimedMetric:       defaultTimedMetricBuffer,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
@@ -689,6 +704,16 @@ func (o *options) MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn {
 	return o.maxAllowedForwardingDelayFn
 }
 
+func (o *options) SetBufferForPastTimedMetric(value time.Duration) Options {
+	opts := *o
+	opts.bufferForPastTimedMetric = value
+	return &opts
+}
+
+func (o *options) BufferForPastTimedMetric() time.Duration {
+	return o.bufferForPastTimedMetric
+}
+
 func (o *options) SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options {
 	opts := *o
 	opts.bufferForPastTimedMetricFn = value
@@ -796,10 +821,11 @@ func (o *options) TimerQuantiles() []float64 {
 }
 
 func (o *options) initPools() {
+	metrics := NewEntryMetrics(o.InstrumentOptions().MetricsScope())
 	defaultRuntimeOpts := runtime.NewOptions()
 	o.entryPool = NewEntryPool(nil)
 	o.entryPool.Init(func() *Entry {
-		return NewEntry(nil, defaultRuntimeOpts, o)
+		return NewEntryWithMetrics(nil, metrics, defaultRuntimeOpts, o)
 	})
 
 	o.counterElemPool = NewCounterElemPool(nil)
@@ -856,6 +882,16 @@ func (o *options) AddToReset() bool {
 func (o *options) SetAddToReset(value bool) Options {
 	opts := *o
 	opts.addToReset = value
+	return &opts
+}
+
+func (o *options) TimedMetricsFlushOffsetEnabled() bool {
+	return o.timedMetricsFlushOffsetEnabled
+}
+
+func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
+	opts := *o
+	opts.timedMetricsFlushOffsetEnabled = value
 	return &opts
 }
 

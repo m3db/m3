@@ -21,6 +21,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -31,6 +33,7 @@ var (
 
 type aggregateOp struct {
 	refCounter
+	context      context.Context
 	request      rpc.AggregateQueryRawRequest
 	completionFn completionFn
 
@@ -40,7 +43,12 @@ type aggregateOp struct {
 func (f *aggregateOp) Size() int                  { return 1 }
 func (f *aggregateOp) CompletionFn() completionFn { return f.completionFn }
 
-func (f *aggregateOp) update(req rpc.AggregateQueryRawRequest, fn completionFn) {
+func (f *aggregateOp) update(
+	ctx context.Context,
+	req rpc.AggregateQueryRawRequest,
+	fn completionFn,
+) {
+	f.context = ctx
 	f.request = req
 	f.completionFn = fn
 }

@@ -22,7 +22,6 @@ package client
 
 import (
 	"errors"
-	"io"
 	"math"
 	"runtime"
 	"time"
@@ -37,6 +36,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -174,6 +174,10 @@ const (
 	// defaultUseV2BatchAPIs is the default setting for whether the v2 version of the batch APIs should
 	// be used.
 	defaultUseV2BatchAPIs = false
+
+	// defaultHostQueueWorkerPoolKillProbability is the default host queue worker pool
+	// kill probability.
+	defaultHostQueueWorkerPoolKillProbability = 0.01
 )
 
 var (
@@ -267,6 +271,7 @@ type options struct {
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
+	hostQueueNewPooledWorkerFn              xsync.NewPooledWorkerFn
 	hostQueueEmitsHealthStatus              bool
 	seriesIteratorPoolSize                  int
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
@@ -318,7 +323,7 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 
 func defaultNewConnectionFn(
 	channelName string, address string, clientOpts Options,
-) (PooledChannel, rpc.TChanNode, error) {
+) (Channel, rpc.TChanNode, error) {
 	// NB(r): Keep ref to a local channel options since it's actually modified
 	// by TChannel itself to set defaults.
 	var opts *tchannel.ChannelOptions
@@ -356,6 +361,22 @@ func newOptions() *options {
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(poolOpts).
 		SetFinalizerPoolOptions(poolOpts))
+
+	hostQueueNewPooledWorkerFn := func(
+		opts xsync.NewPooledWorkerOptions,
+	) (xsync.PooledWorkerPool, error) {
+		if opts.InstrumentOptions == nil {
+			return nil, errors.New("instrument options required for new pooled worker fn")
+		}
+
+		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true).
+			SetKillWorkerProbability(defaultHostQueueWorkerPoolKillProbability).
+			SetInstrumentOptions(opts.InstrumentOptions)
+		return xsync.NewPooledWorkerPool(
+			int(workerPoolOpts.NumShards()),
+			workerPoolOpts)
+	}
 
 	opts := &options{
 		clockOpts:                               clock.NewOptions(),
@@ -397,6 +418,7 @@ func newOptions() *options {
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
+		hostQueueNewPooledWorkerFn:              hostQueueNewPooledWorkerFn,
 		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
@@ -451,16 +473,17 @@ func (o *options) Validate() error {
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	opts.readerIteratorAllocate = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	opts.isProtoEnabled = false
 	return &opts
 }
 
 func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(
+		r xio.Reader64,
+		descr namespace.SchemaDescr,
+	) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	}
 	opts.isProtoEnabled = true
@@ -909,6 +932,16 @@ func (o *options) SetHostQueueOpsArrayPoolSize(value int) Options {
 
 func (o *options) HostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
+}
+
+func (o *options) SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options {
+	opts := *o
+	opts.hostQueueNewPooledWorkerFn = value
+	return &opts
+}
+
+func (o *options) HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn {
+	return o.hostQueueNewPooledWorkerFn
 }
 
 func (o *options) SetHostQueueEmitsHealthStatus(value bool) Options {

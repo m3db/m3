@@ -21,7 +21,6 @@
 package m3tsz
 
 import (
-	"bytes"
 	"encoding/base64"
 	"math/rand"
 	"testing"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -75,7 +75,7 @@ func prepareSampleSeriesEncRun(b *testing.B) [][]ts.Datapoint {
 		sampleSeries = make([][]byte, 0, len(sampleSeriesBase64))
 		seriesRun    = make([][]ts.Datapoint, b.N)
 		encodingOpts = encoding.NewOptions()
-		reader       = bytes.NewReader(nil)
+		reader       = xio.NewBytesReader64(nil)
 	)
 
 	for _, b64 := range sampleSeriesBase64 {

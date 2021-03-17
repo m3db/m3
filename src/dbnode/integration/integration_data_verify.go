@@ -141,7 +141,7 @@ func verifySeriesMapForRange(
 	}
 
 	// Now check the metadata of all the series match
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	for _, shard := range ts.DB().ShardSet().AllIDs() {
 		var (

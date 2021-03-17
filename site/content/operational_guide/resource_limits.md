@@ -103,6 +103,17 @@ limits:
     # and read until the lookback period resets.
     lookback: 15s
 
+  # If set, will enforce a maximum number of fields and terms matched for
+  # metadata queries, e.g. label/<foo>/values
+  maxRecentlyQueriedMetadataRead:
+    # Value sets the maximum number of fields and terms matched.
+    value: 0
+    # Lookback sets the time window that this limit is enforced over, every 
+    # lookback period the global count is reset to zero and when the limit 
+    # is reached it will reject any further time series blocks being matched 
+    # and read until the lookback period resets.
+    lookback: 15s
+
   # If set then will limit the number of parallel write batch requests to the 
   # database and return errors if hit.
   maxOutstandingWriteRequests: 0
@@ -134,6 +145,11 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
       "forceExceeded":false
     },
     "maxRecentlyQueriedSeriesDiskRead": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
+    },
+    "maxRecentlyQueriedMetadataRead": {
       "limit":0,
       "lookbackSeconds":15,
       "forceExceeded":false

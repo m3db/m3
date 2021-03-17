@@ -1,5 +1,34 @@
 # Changelog
 
+# 1.1.0
+
+## Features
+
+- **M3Coordinator**: Add /ready endpoint for readiness probe which checks current write/read consistency level achievability ([#2976](https://github.com/m3db/m3/pull/2976))
+- **M3Coordinator**: Add per endpoint status code response codes and latency metrics ([#2880](https://github.com/m3db/m3/pull/2880))
+- **M3Coordinator**: Add Graphite carbon ingest latency metrics ([#3045](https://github.com/m3db/m3/pull/3045))
+- **M3Coordinator**: Add Graphite carbon ingest rule matcher contains to compliment regexp for faster matching ([#3046](https://github.com/m3db/m3/pull/3046))
+- **M3Coordinator**: Return 504 errors on timeout to downstream M3DB nodes or other cross-region coordinators ([#2886](https://github.com/m3db/m3/pull/2886))
+- **M3Coordinator**: Validate placements when using the raw placement upsert endpoint unless force set is specified ([#2922](https://github.com/m3db/m3/pull/2922))
+- **M3Query**: Add Graphite powSeries function ([#3038](https://github.com/m3db/m3/pull/3038))
+- **M3Query**: Add Graphite support for ** with metric path selectors ([#3020](https://github.com/m3db/m3/pull/3020))
+- **M3DB**: Add ability to configure regexp DFA and FSA limits ([#2926](https://github.com/m3db/m3/pull/2926))
+- **M3DB**: Add Alibaba Cloud storage class Kubernetes manifest for disk provisioning in Aliyun ([#2908](https://github.com/m3db/m3/pull/2908))
+
+## Bug Fixes
+
+- **M3Coordinator**: Always set content type JSON for error responses ([#2917](https://github.com/m3db/m3/pull/2917))
+- **M3Query**: Fix invalid query resulting in 500 instead of 400 ([#2910](https://github.com/m3db/m3/pull/2910))
+- **M3Query**: Allow Graphite variadic functions to omit variadic args ([#2882](https://github.com/m3db/m3/pull/2882))
+
+## Performance
+
+- **M3DB**: Skip out of retention index segments during bootstrap ([#2992](https://github.com/m3db/m3/pull/2992))
+
+## Documentation
+
+- **All**: Add clustering getting started guides for both Kubernetes operator and binaries deployment ([#2795](https://github.com/m3db/m3/pull/2795))
+
 # 1.0.0
 
 ## Overview

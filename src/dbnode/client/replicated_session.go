@@ -21,6 +21,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -235,19 +237,32 @@ func (s replicatedSession) FetchIDs(namespace ident.ID, ids ident.Iterator, star
 
 // Aggregate aggregates values from the database for the given set of constraints.
 func (s replicatedSession) Aggregate(
-	ns ident.ID, q index.Query, opts index.AggregationOptions,
+	ctx context.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
 ) (AggregatedTagsIterator, FetchResponseMetadata, error) {
-	return s.session.Aggregate(ns, q, opts)
+	return s.session.Aggregate(ctx, ns, q, opts)
 }
 
 // FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-func (s replicatedSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error) {
-	return s.session.FetchTagged(namespace, q, opts)
+func (s replicatedSession) FetchTagged(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
+	return s.session.FetchTagged(ctx, namespace, q, opts)
 }
 
 // FetchTaggedIDs resolves the provided query to known IDs.
-func (s replicatedSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error) {
-	return s.session.FetchTaggedIDs(namespace, q, opts)
+func (s replicatedSession) FetchTaggedIDs(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
+	return s.session.FetchTaggedIDs(ctx, namespace, q, opts)
 }
 
 // ShardID returns the given shard for an ID for callers
@@ -348,6 +363,13 @@ func (s *replicatedSession) BorrowConnections(
 	opts BorrowConnectionOptions,
 ) (BorrowConnectionsResult, error) {
 	return s.session.BorrowConnections(shardID, fn, opts)
+}
+
+func (s *replicatedSession) DedicatedConnection(
+	shardID uint32,
+	opts DedicatedConnectionOptions,
+) (rpc.TChanNode, Channel, error) {
+	return s.session.DedicatedConnection(shardID, opts)
 }
 
 // Open the client session.

@@ -22,6 +22,7 @@ package client
 
 import (
 	"bytes"
+	gocontext "context"
 	"errors"
 	"fmt"
 	"math"
@@ -151,6 +152,7 @@ type session struct {
 	newPeerBlocksQueueFn                 newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn     reattemptStreamBlocksFromPeersFn
 	pickBestPeerFn                       pickBestPeerFn
+	healthCheckNewConnFn                 healthCheckFn
 	origin                               topology.Host
 	streamBlocksMaxBlockRetries          int
 	streamBlocksWorkers                  xsync.WorkerPool
@@ -282,6 +284,7 @@ func newSession(opts Options) (clientSession, error) {
 		newHostQueueFn:       newHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
+		healthCheckNewConnFn: healthCheck,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{
@@ -666,7 +669,7 @@ func (s *session) BorrowConnections(
 		)
 		borrowErr := s.BorrowConnection(host.ID(), func(
 			client rpc.TChanNode,
-			channel PooledChannel,
+			channel Channel,
 		) {
 			userResult, userErr = fn(shard, host, client, channel)
 		})
@@ -707,7 +710,7 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 		s.state.RUnlock()
 		return errSessionHasNoHostQueueForHost
 	}
-	err := queue.BorrowConnection(func(client rpc.TChanNode, ch PooledChannel) {
+	err := queue.BorrowConnection(func(client rpc.TChanNode, ch Channel) {
 		// Unlock early on success
 		s.state.RUnlock()
 		unlocked = true
@@ -719,6 +722,65 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 		s.state.RUnlock()
 	}
 	return err
+}
+
+func (s *session) DedicatedConnection(
+	shardID uint32,
+	opts DedicatedConnectionOptions,
+) (rpc.TChanNode, Channel, error) {
+	s.state.RLock()
+	topoMap, err := s.topologyMapWithStateRLock()
+	s.state.RUnlock()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		client    rpc.TChanNode
+		channel   Channel
+		succeeded bool
+		multiErr  = xerrors.NewMultiError()
+	)
+	err = topoMap.RouteShardForEach(shardID, func(
+		_ int,
+		targetShard shard.Shard,
+		host topology.Host,
+	) {
+		stateFilter := opts.ShardStateFilter
+		if succeeded || !(stateFilter == shard.Unknown || targetShard.State() == stateFilter) {
+			return
+		}
+
+		if s.origin != nil && s.origin.ID() == host.ID() {
+			// Skip origin host.
+			return
+		}
+
+		newConnFn := s.opts.NewConnectionFn()
+		channel, client, err = newConnFn(channelName, host.Address(), s.opts)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			return
+		}
+
+		if err := s.healthCheckNewConnFn(client, s.opts); err != nil {
+			multiErr = multiErr.Add(err)
+			return
+		}
+
+		succeeded = true
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !succeeded {
+		multiErr = multiErr.Add(
+			fmt.Errorf("failed to create a dedicated connection for shard %d", shardID))
+		return nil, nil, multiErr.FinalError()
+	}
+
+	return client, channel, nil
 }
 
 func (s *session) hostQueues(
@@ -943,7 +1005,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
 			{
 				Capacity: replicas,
-				Count:    s.opts.SeriesIteratorPoolSize(),
+				Count:    pool.Size(s.opts.SeriesIteratorPoolSize()),
 			},
 		})
 		s.pools.multiReaderIteratorArray.Init()
@@ -1359,9 +1421,13 @@ func (s *session) FetchIDs(
 }
 
 func (s *session) Aggregate(
-	ns ident.ID, q index.Query, opts index.AggregationOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
 ) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	f := s.pools.aggregateAttempt.Get()
+	f.args.ctx = ctx
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
@@ -1372,7 +1438,10 @@ func (s *session) Aggregate(
 }
 
 func (s *session) aggregateAttempt(
-	ns ident.ID, q index.Query, opts index.AggregationOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
 ) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
@@ -1391,7 +1460,7 @@ func (s *session) aggregateAttempt(
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
-	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
+	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:        aggregateFetchState,
 		aggregateRequest: req,
 		startInclusive:   opts.StartInclusive,
@@ -1420,9 +1489,13 @@ func (s *session) aggregateAttempt(
 }
 
 func (s *session) FetchTagged(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ctx = ctx
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
@@ -1433,9 +1506,13 @@ func (s *session) FetchTagged(
 }
 
 func (s *session) FetchTaggedIDs(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ctx = ctx
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
@@ -1446,7 +1523,10 @@ func (s *session) FetchTaggedIDs(
 }
 
 func (s *session) fetchTaggedAttempt(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	nsCtx, err := s.nsCtxFor(ns)
 	if err != nil {
@@ -1474,7 +1554,7 @@ func (s *session) fetchTaggedAttempt(
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
-	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
+	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:          fetchTaggedFetchState,
 		fetchTaggedRequest: req,
 		startInclusive:     opts.StartInclusive,
@@ -1504,7 +1584,10 @@ func (s *session) fetchTaggedAttempt(
 }
 
 func (s *session) fetchTaggedIDsAttempt(
-	ns ident.ID, q index.Query, opts index.QueryOptions,
+	ctx gocontext.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
 ) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
@@ -1528,7 +1611,7 @@ func (s *session) fetchTaggedIDsAttempt(
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
-	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
+	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:          fetchTaggedFetchState,
 		fetchTaggedRequest: req,
 		startInclusive:     opts.StartInclusive,
@@ -1573,6 +1656,7 @@ type newFetchStateOpts struct {
 // of the object (including releasing the lock/decRef'ing it).
 // NB: ownership of ns is transferred to the returned fetchState object.
 func (s *session) newFetchStateWithRLock(
+	ctx gocontext.Context,
 	ns ident.ID,
 	opts newFetchStateOpts,
 ) (*fetchState, error) {
@@ -1593,7 +1677,7 @@ func (s *session) newFetchStateWithRLock(
 		fetchOp := s.pools.fetchTaggedOp.Get()
 		fetchOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = fetchOp.decRef // release the ref for the current go-routine
-		fetchOp.update(opts.fetchTaggedRequest, fetchState.completionFn)
+		fetchOp.update(ctx, opts.fetchTaggedRequest, fetchState.completionFn)
 		fetchState.ResetFetchTagged(opts.startInclusive, opts.endExclusive,
 			fetchOp, topoMap, s.state.majority, s.state.readLevel)
 		op = fetchOp
@@ -1602,7 +1686,7 @@ func (s *session) newFetchStateWithRLock(
 		aggOp := s.pools.aggregateOp.Get()
 		aggOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = aggOp.decRef // release the ref for the current go-routine
-		aggOp.update(opts.aggregateRequest, fetchState.completionFn)
+		aggOp.update(ctx, opts.aggregateRequest, fetchState.completionFn)
 		fetchState.ResetAggregate(opts.startInclusive, opts.endExclusive,
 			aggOp, topoMap, s.state.majority, s.state.readLevel)
 		op = aggOp
@@ -2627,7 +2711,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	var attemptErr error
-	checkedAttemptFn := func(client rpc.TChanNode, _ PooledChannel) {
+	checkedAttemptFn := func(client rpc.TChanNode, _ Channel) {
 		attemptErr = attemptFn(client)
 	}
 
@@ -3144,7 +3228,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Attempt request
 	if err := retrier.Attempt(func() error {
 		var attemptErr error
-		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ PooledChannel) {
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ Channel) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})

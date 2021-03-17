@@ -22,14 +22,16 @@ package instrument
 
 import (
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/unsafe"
 )
 
 var (
-	nullStopWatchStart tally.Stopwatch
+	// no-op stopwatch must contain a valid recorder to prevent panics.
+	nullStopWatchStart = tally.NewStopwatch(time.Time{}, noopStopwatchRecorder{})
 )
 
 // TimerType is a type of timer, standard or histogram timer.
@@ -41,6 +43,8 @@ const (
 	// HistogramTimerType is a histogram timer backed by a histogram.
 	HistogramTimerType
 )
+
+const _samplingPrecision = 1 << 24
 
 // TimerOptions is a set of timer options when creating a timer.
 type TimerOptions struct {
@@ -230,8 +234,7 @@ func (t *timer) RecordStopwatch(stopwatchStart time.Time) {
 type sampledTimer struct {
 	tally.Timer
 
-	cnt  uint64
-	rate uint64
+	rate uint32
 }
 
 // NewSampledTimer creates a new sampled timer.
@@ -251,9 +254,15 @@ func newSampledTimer(base tally.Timer, rate float64) tally.Timer {
 		// Avoid the overhead of working out if should sample each time.
 		return base
 	}
+
+	r := uint32(rate * _samplingPrecision)
+	if rate >= 1.0 || r > _samplingPrecision {
+		r = _samplingPrecision // clamp to 100%
+	}
+
 	return &sampledTimer{
 		Timer: base,
-		rate:  uint64(1.0 / rate),
+		rate:  _samplingPrecision - r,
 	}
 }
 
@@ -268,7 +277,7 @@ func MustCreateSampledTimer(base tally.Timer, rate float64) tally.Timer {
 }
 
 func (t *sampledTimer) shouldSample() bool {
-	return atomic.AddUint64(&t.cnt, 1)%t.rate == 0
+	return unsafe.Fastrandn(_samplingPrecision) >= t.rate
 }
 
 func (t *sampledTimer) Start() tally.Stopwatch {
@@ -377,3 +386,7 @@ func (m *BatchMethodMetrics) ReportNonRetryableErrors(n int) {
 func (m *BatchMethodMetrics) ReportLatency(d time.Duration) {
 	m.Latency.Record(d)
 }
+
+type noopStopwatchRecorder struct{}
+
+func (noopStopwatchRecorder) RecordStopwatch(_ time.Time) {}

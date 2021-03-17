@@ -134,7 +134,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	}
 
 	if req.NoData != nil && *req.NoData {
-		results, metadata, err := session.FetchTaggedIDs(nsID,
+		results, metadata, err := session.FetchTaggedIDs(tctx, nsID,
 			index.Query{Query: q}, opts)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
@@ -166,10 +166,11 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		if err := results.Err(); err != nil {
 			return nil, convert.ToRPCError(err)
 		}
+
 		return result, nil
 	}
 
-	results, metadata, err := session.FetchTagged(nsID,
+	results, metadata, err := session.FetchTagged(tctx, nsID,
 		index.Query{Query: q}, opts)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
@@ -281,7 +282,11 @@ func (s *service) Aggregate(ctx thrift.Context, req *rpc.AggregateQueryRequest) 
 		return nil, tterrors.NewBadRequestError(err)
 	}
 
-	iter, metadata, err := session.Aggregate(ns, query, opts)
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
+	}
+
+	iter, metadata, err := session.Aggregate(ctx, ns, query, opts)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}

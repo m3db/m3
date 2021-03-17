@@ -314,7 +314,7 @@ func TestLocalRead(t *testing.T) {
 	testTags := seriesiter.GenerateTag()
 
 	session := sessions.unaggregated1MonthRetention
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2),
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().
@@ -333,7 +333,7 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	testTag := seriesiter.GenerateTag()
 
 	session := sessions.aggregated1YearRetention10MinuteResolution
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().
@@ -428,13 +428,13 @@ func TestLocalReadExceedsUnaggregatedRetentionWithinAggregatedRetention(t *testi
 	testTag := seriesiter.GenerateTag()
 
 	session := sessions.aggregated3MonthRetention5MinuteResolution
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	session = sessions.aggregatedPartial6MonthRetention1MinuteResolution
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(encoding.EmptySeriesIterators,
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
@@ -474,13 +474,13 @@ func TestLocalReadExceedsAggregatedButNotUnaggregatedAndPartialAggregated(t *tes
 	testTag := seriesiter.GenerateTag()
 
 	session := unaggregated1MonthRetention
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	session = aggregatedPartial6MonthRetention1MinuteResolution
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(encoding.EmptySeriesIterators,
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
@@ -526,13 +526,13 @@ func TestLocalReadExceedsAggregatedAndPartialAggregated(t *testing.T) {
 	testTag := seriesiter.GenerateTag()
 
 	session := aggregated3MonthRetention5MinuteResolution
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	session = aggregatedPartial6MonthRetention1MinuteResolution
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(encoding.EmptySeriesIterators,
 			testFetchResponseMetadata, nil)
 	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
@@ -561,14 +561,21 @@ func TestLocalSearchError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
-	sessions.forEach(func(session *client.MockSession) {
-		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+
+	// Query is just for last 10mins to only expect unaggregated namespace.
+	for _, session := range []*client.MockSession{
+		sessions.unaggregated1MonthRetention,
+	} {
+		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("an error"))
 		session.EXPECT().IteratorPools().
 			Return(nil, nil).AnyTimes()
-	})
+	}
 
+	// Issue query for last 10mins.
 	searchReq := newFetchReq()
+	searchReq.Start = time.Now().Add(-10 * time.Minute)
+	searchReq.End = time.Now()
 	_, err := store.SearchSeries(context.TODO(), searchReq, buildFetchOpts())
 	assert.Error(t, err)
 }
@@ -592,24 +599,6 @@ func TestLocalSearchSuccess(t *testing.T) {
 			tagName:   "qux",
 			tagValue:  "qaz",
 		},
-		{
-			id:        "bar",
-			namespace: "metrics_aggregated_1m:30d",
-			tagName:   "qel",
-			tagValue:  "quz",
-		},
-		{
-			id:        "baz",
-			namespace: "metrics_aggregated_5m:90d",
-			tagName:   "qam",
-			tagValue:  "qak",
-		},
-		{
-			id:        "qux",
-			namespace: "metrics_aggregated_10m:365d",
-			tagName:   "qed",
-			tagValue:  "qad",
-		},
 	}
 
 	sessions.forEach(func(session *client.MockSession) {
@@ -617,24 +606,8 @@ func TestLocalSearchSuccess(t *testing.T) {
 		switch {
 		case session == sessions.unaggregated1MonthRetention:
 			f = fetches[0]
-		case session == sessions.aggregated1MonthRetention1MinuteResolution:
-			f = fetches[1]
-		case session == sessions.aggregated3MonthRetention5MinuteResolution:
-			f = fetches[2]
-		case session == sessions.aggregated1YearRetention10MinuteResolution:
-			f = fetches[3]
 		default:
 			// Not expecting from other (partial) namespaces
-			iter := client.NewMockTaggedIDsIterator(ctrl)
-			gomock.InOrder(
-				iter.EXPECT().Next().Return(false),
-				iter.EXPECT().Err().Return(nil),
-				iter.EXPECT().Finalize(),
-			)
-			session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(iter, testFetchResponseMetadata, nil)
-			session.EXPECT().IteratorPools().
-				Return(nil, nil).AnyTimes()
 			return
 		}
 		iter := client.NewMockTaggedIDsIterator(ctrl)
@@ -654,13 +627,15 @@ func TestLocalSearchSuccess(t *testing.T) {
 			iter.EXPECT().Finalize(),
 		)
 
-		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(iter, testFetchResponseMetadata, nil)
 
 		session.EXPECT().IteratorPools().
 			Return(nil, nil).AnyTimes()
 	})
 	searchReq := newFetchReq()
+	searchReq.Start = time.Now().Add(-10 * time.Minute)
+	searchReq.End = time.Now()
 	result, err := store.SearchSeries(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
 
@@ -750,48 +725,45 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	}
 
 	sessions.forEach(func(session *client.MockSession) {
-		var f testFetchTaggedID
+		var f []testFetchTaggedID
 		switch {
 		case session == sessions.unaggregated1MonthRetention:
-			f = fetches[0]
-		case session == sessions.aggregated1MonthRetention1MinuteResolution:
-			f = fetches[1]
-		case session == sessions.aggregated3MonthRetention5MinuteResolution:
-			f = fetches[2]
-		case session == sessions.aggregated1YearRetention10MinuteResolution:
-			f = fetches[3]
+			f = fetches
 		default:
 			// Not expecting from other (partial) namespaces
-			iter := client.NewMockAggregatedTagsIterator(ctrl)
-			gomock.InOrder(
-				iter.EXPECT().Remaining().Return(0),
-				iter.EXPECT().Next().Return(false),
-				iter.EXPECT().Err().Return(nil),
-				iter.EXPECT().Finalize(),
-			)
-			session.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(iter, testFetchResponseMetadata, nil)
 			return
 		}
 
 		iter := client.NewMockAggregatedTagsIterator(ctrl)
-		gomock.InOrder(
-			iter.EXPECT().Remaining().Return(1),
-			iter.EXPECT().Next().Return(true),
-			iter.EXPECT().Current().Return(
-				ident.StringID(f.tagName),
-				ident.NewIDsIterator(ident.StringID(f.tagValue)),
-			),
+
+		var calls []*gomock.Call
+		calls = append(calls, []*gomock.Call{
+			iter.EXPECT().Remaining().Return(len(f)),
+		}...)
+		for _, elem := range f {
+			calls = append(calls, []*gomock.Call{
+				iter.EXPECT().Next().Return(true),
+				iter.EXPECT().Current().Return(
+					ident.StringID(elem.tagName),
+					ident.NewIDsIterator(ident.StringID(elem.tagValue)),
+				),
+			}...)
+		}
+		calls = append(calls, []*gomock.Call{
 			iter.EXPECT().Next().Return(false),
 			iter.EXPECT().Err().Return(nil),
 			iter.EXPECT().Finalize(),
-		)
+		}...)
 
-		session.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
+		gomock.InOrder(calls...)
+
+		session.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(iter, testFetchResponseMetadata, nil)
 	})
 
 	req := newCompleteTagsReq()
+	req.Start = time.Now().Add(-10 * time.Minute)
+	req.End = time.Now()
 	result, err := store.CompleteTags(context.TODO(), req, buildFetchOpts())
 	require.NoError(t, err)
 
@@ -847,7 +819,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 		}),
 	)
 
-	unagg.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
+	unagg.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(iter, testFetchResponseMetadata, nil)
 
 	req := newCompleteTagsReq()
@@ -879,6 +851,6 @@ func TestInvalidBlockTypes(t *testing.T) {
 
 	query := &storage.FetchQuery{}
 	fetchOpts := &storage.FetchOptions{BlockType: models.TypeMultiBlock}
-	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
-	assert.Error(t, err)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { _, _ = s.FetchBlocks(context.TODO(), query, fetchOpts) })
 }

@@ -59,7 +59,10 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	setupOpts := []BootstrappableTestSetupOptions{
 		{DisablePeersBootstrapper: true},
 		{DisablePeersBootstrapper: true},
-		{DisablePeersBootstrapper: false},
+		{
+			DisableCommitLogBootstrapper: true,
+			DisablePeersBootstrapper:     false,
+		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

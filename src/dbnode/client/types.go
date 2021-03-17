@@ -21,6 +21,7 @@
 package client
 
 import (
+	gocontext "context"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
@@ -70,25 +71,65 @@ type Session interface {
 	ReadClusterAvailability() (bool, error)
 
 	// Write value to the database for an ID.
-	Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Write(
+		namespace,
+		id ident.ID,
+		t time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
 
 	// WriteTagged value to the database for an ID and given tags.
-	WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	WriteTagged(
+		namespace,
+		id ident.ID,
+		tags ident.TagIterator,
+		t time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
 
 	// Fetch values from the database for an ID.
-	Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
+	Fetch(
+		namespace,
+		id ident.ID,
+		startInclusive,
+		endExclusive time.Time,
+	) (encoding.SeriesIterator, error)
 
 	// FetchIDs values from the database for a set of IDs.
-	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+	FetchIDs(
+		namespace ident.ID,
+		ids ident.Iterator,
+		startInclusive,
+		endExclusive time.Time,
+	) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error)
+	FetchTagged(
+		ctx gocontext.Context,
+		namespace ident.ID,
+		q index.Query,
+		opts index.QueryOptions,
+	) (encoding.SeriesIterators, FetchResponseMetadata, error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error)
+	FetchTaggedIDs(
+		ctx gocontext.Context,
+		namespace ident.ID,
+		q index.Query,
+		opts index.QueryOptions,
+	) (TaggedIDsIterator, FetchResponseMetadata, error)
 
 	// Aggregate aggregates values from the database for the given set of constraints.
-	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (AggregatedTagsIterator, FetchResponseMetadata, error)
+	Aggregate(
+		ctx gocontext.Context,
+		namespace ident.ID,
+		q index.Query,
+		opts index.AggregationOptions,
+	) (AggregatedTagsIterator, FetchResponseMetadata, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -253,6 +294,14 @@ type AdminSession interface {
 		fn WithBorrowConnectionFn,
 		opts BorrowConnectionOptions,
 	) (BorrowConnectionsResult, error)
+
+	// DedicatedConnection will open and health check a new connection to one of the
+	// hosts belonging to a shard. The connection should be used for long running requests.
+	// For normal requests consider using BorrowConnections.
+	DedicatedConnection(
+		shardID uint32,
+		opts DedicatedConnectionOptions,
+	) (rpc.TChanNode, Channel, error)
 }
 
 // BorrowConnectionOptions are options to use when borrowing a connection
@@ -275,13 +324,18 @@ type WithBorrowConnectionFn func(
 	shard shard.Shard,
 	host topology.Host,
 	client rpc.TChanNode,
-	channel PooledChannel,
+	channel Channel,
 ) (WithBorrowConnectionResult, error)
 
 // WithBorrowConnectionResult is returned from a borrow connection function.
 type WithBorrowConnectionResult struct {
 	// Break will break the iteration.
 	Break bool
+}
+
+// DedicatedConnectionOptions are options used for getting a dedicated connection.
+type DedicatedConnectionOptions struct {
+	ShardStateFilter shard.State
 }
 
 // Options is a set of client options.
@@ -566,6 +620,12 @@ type Options interface {
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
 	HostQueueOpsArrayPoolSize() int
 
+	// SetHostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
+	SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options
+
+	// HostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
+	HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn
+
 	// SetHostQueueEmitsHealthStatus sets the hostQueueEmitHealthStatus.
 	SetHostQueueEmitsHealthStatus(value bool) Options
 
@@ -738,7 +798,13 @@ type hostQueue interface {
 }
 
 // WithConnectionFn is a callback for a connection to a host.
-type WithConnectionFn func(client rpc.TChanNode, ch PooledChannel)
+type WithConnectionFn func(client rpc.TChanNode, ch Channel)
+
+// Channel is an interface for tchannel.Channel struct.
+type Channel interface {
+	GetSubChannel(serviceName string, opts ...tchannel.SubChannelOption) *tchannel.SubChannel
+	Close()
+}
 
 type connectionPool interface {
 	// Open starts the connection pool connecting and health checking.
@@ -748,7 +814,7 @@ type connectionPool interface {
 	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool.
-	NextClient() (rpc.TChanNode, PooledChannel, error)
+	NextClient() (rpc.TChanNode, Channel, error)
 
 	// Close the connection pool.
 	Close()

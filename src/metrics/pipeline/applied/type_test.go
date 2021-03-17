@@ -21,6 +21,7 @@
 package applied
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/transformation"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -360,8 +362,27 @@ func TestPipelineEqual(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		require.Equal(t, input.expected, input.p1.Equal(input.p2))
-		require.Equal(t, input.expected, input.p2.Equal(input.p1))
+		input := input
+		t.Run(fmt.Sprintf("%v %v", input.p1.String(), input.p2.String()), func(t *testing.T) {
+			require.Equal(t, input.expected, input.p1.Equal(input.p2))
+			require.Equal(t, input.expected, input.p2.Equal(input.p1))
+			// assert implementation is equal to OpUnion
+			if input.expected {
+				for i, op := range input.p1.Operations {
+					require.True(t, op.Equal(input.p2.Operations[i]))
+				}
+				for i, op := range input.p2.Operations {
+					require.True(t, op.Equal(input.p1.Operations[i]))
+				}
+			} else if len(input.p1.Operations) == len(input.p2.Operations) {
+				for i, op := range input.p1.Operations {
+					require.False(t, op.Equal(input.p2.Operations[i]))
+				}
+				for i, op := range input.p2.Operations {
+					require.False(t, op.Equal(input.p1.Operations[i]))
+				}
+			}
+		})
 	}
 }
 
@@ -372,7 +393,7 @@ func TestPipelineCloneEmptyPipeline(t *testing.T) {
 	p2 := p1.Clone()
 	require.True(t, p1.Equal(p2))
 
-	p2.operations = append(p2.operations, OpUnion{
+	p2.Operations = append(p2.Operations, OpUnion{
 		Type: pipeline.RollupOpType,
 		Rollup: RollupOp{
 			ID:            []byte("foo"),
@@ -418,9 +439,9 @@ func TestPipelineCloneMultiLevelPipeline(t *testing.T) {
 	require.True(t, p1.Equal(p3))
 
 	// Mutate the operations of a cloned pipeline.
-	p2.operations[0].Transformation.Type = transformation.PerSecond
-	p2.operations[1].Rollup.ID[0] = 'z'
-	p2.operations[3].Rollup.AggregationID = aggregation.MustCompressTypes(aggregation.Count)
+	p2.Operations[0].Transformation.Type = transformation.PerSecond
+	p2.Operations[1].Rollup.ID[0] = 'z'
+	p2.Operations[3].Rollup.AggregationID = aggregation.MustCompressTypes(aggregation.Count)
 
 	// Verify the mutations do not affect the source pipeline or other clones.
 	require.False(t, p1.Equal(p2))
@@ -596,7 +617,10 @@ func TestPipelineFromProto(t *testing.T) {
 		var res Pipeline
 		for i, pb := range input.sequence {
 			require.NoError(t, res.FromProto(pb))
-			require.Equal(t, input.expected[i], res)
+			if !cmp.Equal(input.expected[i], res) {
+				t.Log(cmp.Diff(input.expected[i], res))
+				t.Fail()
+			}
 		}
 	}
 }
@@ -626,7 +650,10 @@ func TestPipelineRoundTrip(t *testing.T) {
 		for _, pipeline := range input {
 			require.NoError(t, pipeline.ToProto(&pb))
 			require.NoError(t, res.FromProto(pb))
-			require.Equal(t, pipeline, res)
+			if !cmp.Equal(pipeline, res) {
+				t.Log(cmp.Diff(pipeline, res))
+				t.Fail()
+			}
 		}
 	}
 }

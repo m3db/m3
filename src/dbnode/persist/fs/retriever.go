@@ -32,6 +32,7 @@
 package fs
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"sort"
@@ -435,7 +436,7 @@ func (r *blockRetriever) fetchBatch(
 		retrieverResources)
 
 	var limitErr error
-	if err := r.queryLimits.AnyExceeded(); err != nil {
+	if err := r.queryLimits.AnyFetchExceeded(); err != nil {
 		for _, req := range reqs {
 			req.err = err
 		}
@@ -446,6 +447,13 @@ func (r *blockRetriever) fetchBatch(
 		if limitErr != nil {
 			req.err = limitErr
 			continue
+		}
+
+		select {
+		case <-req.stdCtx.Done():
+			req.err = req.stdCtx.Err()
+			continue
+		default:
 		}
 
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
@@ -493,6 +501,13 @@ func (r *blockRetriever) fetchBatch(
 			req.success = true
 			req.onCallerOrRetrieverDone()
 			continue
+		}
+
+		select {
+		case <-req.stdCtx.Done():
+			req.err = req.stdCtx.Err()
+			continue
+		default:
 		}
 
 		data, err := seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
@@ -597,9 +612,6 @@ func (r *blockRetriever) streamRequest(
 	startTime time.Time,
 ) error {
 	req.resultWg.Add(1)
-	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
-		return err
-	}
 	req.shard = shard
 
 	// NB(r): If the ID is a ident.BytesID then we can just hold
@@ -661,14 +673,13 @@ func (r *blockRetriever) Stream(
 	}
 
 	req := r.reqPool.Get()
+	// only save the go ctx to ensure we don't accidentally use the m3 ctx after it's been closed by the caller.
+	req.stdCtx = ctx.GoContext()
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
 
-	goCtx, found := ctx.GoContext()
-	if found {
-		if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
-			req.source = source
-		}
+	if source, ok := req.stdCtx.Value(limits.SourceContextKey).([]byte); ok {
+		req.source = source
 	}
 
 	err = r.streamRequest(ctx, req, shard, id, startTime)
@@ -817,6 +828,7 @@ type retrieveRequest struct {
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
 	source     []byte
+	stdCtx     stdctx.Context
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
@@ -957,12 +969,20 @@ func (req *retrieveRequest) BlockSize() time.Duration {
 	return req.blockSize
 }
 
-func (req *retrieveRequest) Read(b []byte) (int, error) {
+func (req *retrieveRequest) Read64() (word uint64, n byte, err error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return 0, req.err
+		return 0, 0, req.err
 	}
-	return req.reader.Read(b)
+	return req.reader.Read64()
+}
+
+func (req *retrieveRequest) Peek64() (word uint64, n byte, err error) {
+	req.resultWg.Wait()
+	if req.err != nil {
+		return 0, 0, req.err
+	}
+	return req.reader.Peek64()
 }
 
 func (req *retrieveRequest) Segment() (ts.Segment, error) {
@@ -1004,6 +1024,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.err = nil
 	req.notFound = false
 	req.success = false
+	req.stdCtx = nil
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest

@@ -56,7 +56,7 @@ func newEngine(
 func TestExecute(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("dummy"))
 	session.EXPECT().IteratorPools().Return(nil, nil)
 

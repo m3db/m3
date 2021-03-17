@@ -219,7 +219,7 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts, target, opts.FilesystemOptions(), testNsMd)
 	defer tester.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	_, err = src.Read(ctx, tester.Namespaces, tester.Cache)

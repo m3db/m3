@@ -21,19 +21,23 @@
 package m3tsz
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func getTestReaderIterator(rawBytes []byte) *readerIterator {
-	return NewReaderIterator(bytes.NewReader(rawBytes), false, encoding.NewOptions()).(*readerIterator)
+	return NewReaderIterator(
+		xio.NewBytesReader64(rawBytes),
+		false,
+		encoding.NewOptions(),
+	).(*readerIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {
@@ -57,7 +61,7 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		stream := encoding.NewIStream(xio.NewBytesReader64(input.rawBytes))
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 
 		it.TimeUnit = input.timeUnit
@@ -68,7 +72,7 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 		require.Equal(t, input.expectedTimeDelta, it.PrevTimeDelta)
 	}
 
-	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}), 16)
+	stream := encoding.NewIStream(xio.NewBytesReader64([]byte{0x1}))
 	it := NewTimestampIterator(encoding.NewOptions(), false)
 	err := it.readNextTimestamp(stream)
 	require.Error(t, err)
@@ -127,7 +131,7 @@ func TestReaderIteratorReadAnnotation(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		stream := encoding.NewIStream(xio.NewBytesReader64(input.rawBytes))
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 
 		err := it.readAnnotation(stream)
@@ -157,7 +161,7 @@ func TestReaderIteratorReadTimeUnit(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		stream := encoding.NewIStream(xio.NewBytesReader64(input.rawBytes))
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 		it.TimeUnit = input.timeUnit
 

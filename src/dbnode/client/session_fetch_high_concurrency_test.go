@@ -97,7 +97,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	// to be able to mock the entire end to end pipeline
 	newConnFn := func(
 		_ string, addr string, _ Options,
-	) (PooledChannel, rpc.TChanNode, error) {
+	) (Channel, rpc.TChanNode, error) {
 		mockClient := rpc.NewMockTChanNode(ctrl)
 		mockClient.EXPECT().Health(gomock.Any()).
 			Return(healthCheckResult, nil).

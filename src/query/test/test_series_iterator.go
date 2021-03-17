@@ -22,7 +22,6 @@ package test
 
 import (
 	"fmt"
-	"io"
 	"sort"
 	"time"
 
@@ -53,7 +52,7 @@ var (
 	// End is the expected end time for the generated series
 	End time.Time
 
-	testIterAlloc func(r io.Reader, d namespace.SchemaDescr) encoding.ReaderIterator
+	testIterAlloc func(r xio.Reader64, d namespace.SchemaDescr) encoding.ReaderIterator
 )
 
 func init() {
@@ -68,9 +67,7 @@ func init() {
 	Middle = Start.Add(BlockSize)
 	End = Middle.Add(BlockSize)
 
-	testIterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	testIterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 }
 
 // Builds a MultiReaderIterator representing a single replica
