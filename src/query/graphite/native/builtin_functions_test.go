@@ -71,7 +71,7 @@ var (
 
 func TestExclude(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := time.Now()
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
@@ -123,7 +123,7 @@ func TestExclude(t *testing.T) {
 
 func TestExcludeErr(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := time.Now()
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
@@ -140,7 +140,7 @@ func TestExcludeErr(t *testing.T) {
 
 func TestGrep(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := time.Now()
 	values := ts.NewConstantValues(ctx, 10.0, 5, 10)
@@ -178,7 +178,7 @@ func TestGrep(t *testing.T) {
 
 func TestSortByName(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := time.Now()
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
@@ -189,14 +189,50 @@ func TestSortByName(t *testing.T) {
 		ts.NewSeries(ctx, "a.c.d", now, values),
 	}
 
+	// Normal.
 	results, err := sortByName(ctx, singlePathSpec{
 		Values: series,
-	})
+	}, false, false)
 	require.Nil(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "a.c.d", results.Values[0].Name())
 	assert.Equal(t, "b.d.a", results.Values[1].Name())
 	assert.Equal(t, "zee", results.Values[2].Name())
+
+	// Reverse.
+	results, err = sortByName(ctx, singlePathSpec{
+		Values: series,
+	}, false, true)
+	require.Nil(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "zee", results.Values[0].Name())
+	assert.Equal(t, "b.d.a", results.Values[1].Name())
+	assert.Equal(t, "a.c.d", results.Values[2].Name())
+}
+
+func TestSortByNameNatural(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
+
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "server1", now, values),
+		ts.NewSeries(ctx, "server11", now, values),
+		ts.NewSeries(ctx, "server12", now, values),
+		ts.NewSeries(ctx, "server2", now, values),
+	}
+
+	results, err := sortByName(ctx, singlePathSpec{
+		Values: series,
+	}, true, false)
+	require.Nil(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "server1", results.Values[0].Name())
+	assert.Equal(t, "server2", results.Values[1].Name())
+	assert.Equal(t, "server11", results.Values[2].Name())
+	assert.Equal(t, "server12", results.Values[3].Name())
 }
 
 func getTestInput(ctx *common.Context) []*ts.Series {
@@ -214,14 +250,58 @@ func testSortingFuncs(
 	resultIndexes []int,
 ) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	input := getTestInput(ctx)
 	results, err := f(ctx, singlePathSpec{Values: input})
 	require.Nil(t, err)
 	require.Equal(t, len(resultIndexes), results.Len())
+
+	expected := make([]string, 0, len(input))
+	for _, idx := range resultIndexes {
+		expected = append(expected, input[idx].Name())
+	}
+
+	actual := make([]string, 0, len(input))
+	for _, s := range results.Values {
+		actual = append(actual, s.Name())
+	}
+	require.Equal(t, expected, actual)
+
 	for i, idx := range resultIndexes {
 		require.Equal(t, results.Values[i], input[idx])
+	}
+}
+
+func TestSortBy(t *testing.T) {
+	for _, test := range []struct {
+		fn      string
+		indices []int
+	}{
+		{fn: "average", indices: []int{4, 2, 0, 3, 1}},
+		{fn: "sum", indices: []int{4, 0, 2, 3, 1}},
+		{fn: "max", indices: []int{4, 0, 3, 2, 1}},
+		{fn: "min", indices: []int{1, 3, 2, 4, 0}},
+	} {
+		t.Run(test.fn, func(t *testing.T) {
+			// Regular.
+			expected := test.indices
+			testSortingFuncs(t,
+				func(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+					return sortBy(ctx, series, test.fn, false)
+				},
+				expected)
+
+			// Reversed.
+			for i, j := 0, len(expected)-1; i < j; i, j = i+1, j-1 {
+				expected[i], expected[j] = expected[j], expected[i]
+			}
+			testSortingFuncs(t,
+				func(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+					return sortBy(ctx, series, test.fn, true)
+				},
+				expected)
+		})
 	}
 }
 
@@ -239,7 +319,7 @@ func TestSortByMinima(t *testing.T) {
 
 func TestAbsolute(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	inputVals := []float64{-2, 0, 42, math.NaN()}
 	outputVals := []float64{2, 0, 42, math.NaN()}
@@ -266,7 +346,7 @@ func TestAbsolute(t *testing.T) {
 
 func TestScale(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs  []float64
@@ -320,7 +400,7 @@ func TestUseSeriesAbove(t *testing.T) {
 	)
 
 	defer ctrl.Finish()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed", gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
@@ -591,7 +671,7 @@ func TestPercentileOfSeries(t *testing.T) {
 
 func TestOffset(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs  []float64
@@ -634,7 +714,7 @@ func TestOffset(t *testing.T) {
 
 func TestPerSecond(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		millisPerStep int
@@ -684,7 +764,7 @@ func TestTransformNull(t *testing.T) {
 		ctx           = common.NewTestContext()
 		millisPerStep = 100
 	)
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs       []*ts.Series
@@ -750,7 +830,7 @@ var (
 
 func testMovingFunction(t *testing.T, target, expectedName string, values, bootstrap, output []float64) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis:     10000,
@@ -788,7 +868,7 @@ var (
 // testGeneralFunction is a copy of testMovingFunction but without any logic for bootstrapping values
 func testGeneralFunction(t *testing.T, target, expectedName string, values, output []float64) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis: 60000,
@@ -843,7 +923,7 @@ func TestCombineBootstrapWithOriginal(t *testing.T) {
 	)
 	bootstrappedSeriesList.Values = bootstrappedSeriesListValues
 
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	output, err := combineBootstrapWithOriginal(ctx, bootstrapStartTime, bootstrapEndTime, bootstrappedSeriesList, originalSeriesList)
 	assert.Equal(t, output.Values[0], expectedSeries)
@@ -904,7 +984,7 @@ func TestExponentialMovingAverageSuccess(t *testing.T) {
 
 func testMovingFunctionError(t *testing.T, target string) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis:     10000,
@@ -988,7 +1068,7 @@ func TestMovingMinError(t *testing.T) {
 
 func TestIsNonNull(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs  []float64
@@ -1028,7 +1108,7 @@ func TestIsNonNull(t *testing.T) {
 
 func TestKeepLastValue(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs  []float64
@@ -1067,7 +1147,7 @@ func TestKeepLastValue(t *testing.T) {
 
 func TestSustainedAbove(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs    []float64
@@ -1153,7 +1233,7 @@ func TestSustainedAbove(t *testing.T) {
 
 func TestSustainedAboveFail(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	input := ts.NewSeries(ctx, "foo", time.Now(), common.NewTestSeriesValues(ctx, 10000, []float64{0}))
 	outputs, err := sustainedAbove(ctx, singlePathSpec{
@@ -1165,7 +1245,7 @@ func TestSustainedAboveFail(t *testing.T) {
 
 func TestSustainedBelow(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs    []float64
@@ -1250,7 +1330,7 @@ func TestSustainedBelow(t *testing.T) {
 
 func TestSustainedBelowFail(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	input := ts.NewSeries(ctx, "foo", time.Now(), common.NewTestSeriesValues(ctx, 10000, []float64{0}))
 	outputs, err := sustainedBelow(ctx, singlePathSpec{
@@ -1328,7 +1408,7 @@ func testOrderedAggregationFunc(t *testing.T, ctx *common.Context, tests []nIntP
 
 func TestHighest(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenDataWithAgg{
 		{
@@ -1369,7 +1449,7 @@ func TestHighest(t *testing.T) {
 
 func TestHighestCurrent(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenData{
 		{
@@ -1398,7 +1478,7 @@ func TestHighestCurrent(t *testing.T) {
 
 func TestHighestCurrentWithNaNSeries(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenData{
 		{
@@ -1432,7 +1512,7 @@ func TestHighestCurrentWithNaNSeries(t *testing.T) {
 
 func TestHighestAverage(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenData{
 		{
@@ -1451,7 +1531,7 @@ func TestHighestAverage(t *testing.T) {
 
 func TestHighestMax(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenData{
 		{
@@ -1471,7 +1551,7 @@ func TestHighestMax(t *testing.T) {
 //nolint:govet
 func TestFallbackSeries(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		input    []common.TestSeries
@@ -1516,7 +1596,7 @@ func TestFallbackSeries(t *testing.T) {
 
 func TestMostDeviant(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenData{
 		{
@@ -1540,7 +1620,7 @@ func TestMostDeviant(t *testing.T) {
 
 func TestLowest(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenDataWithAgg{
 		{
@@ -1581,7 +1661,7 @@ func TestLowest(t *testing.T) {
 
 func TestLowestAverage(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenData{
 		{
@@ -1610,7 +1690,7 @@ func TestLowestAverage(t *testing.T) {
 
 func TestLowestCurrent(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []nIntParamGoldenData{
 		{
@@ -1646,7 +1726,7 @@ func testComparatorFunc(
 	resultIndexes []int,
 ) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	input := getTestInput(ctx)
 	results, err := f(ctx, singlePathSpec{
@@ -1692,7 +1772,7 @@ func TestCurrentBelow(t *testing.T) {
 
 func TestRemoveBelowValue(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	tests := []struct {
@@ -1736,7 +1816,7 @@ func TestRemoveBelowValue(t *testing.T) {
 
 func TestRemoveAboveValue(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	tests := []struct {
@@ -1782,7 +1862,7 @@ func TestRemoveAboveValue(t *testing.T) {
 
 func TestRemoveEmptySeries(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	tests := []struct {
@@ -1824,7 +1904,7 @@ func generateSeriesList(ctx *common.Context, start time.Time, inputs []common.Te
 
 func TestScaleToSeconds(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		millisPerStep int
@@ -1877,7 +1957,7 @@ func TestScaleToSeconds(t *testing.T) {
 
 func TestAsPercentWithSeriesTotal(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		valuesStep int
@@ -1932,7 +2012,7 @@ func TestAsPercentWithSeriesTotal(t *testing.T) {
 
 func TestAsPercentWithFloatTotal(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	tests := []struct {
@@ -1982,7 +2062,7 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 
 func TestAsPercentWithNilTotal(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	tests := []struct {
@@ -2022,7 +2102,7 @@ func TestAsPercentWithNilTotal(t *testing.T) {
 
 func TestAsPercentWithSeriesList(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	inputs := []struct {
@@ -2447,7 +2527,7 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 
 func testLogarithm(t *testing.T, base int, indices []int) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	invals := make([]float64, 101)
 	for i := range invals {
@@ -2483,7 +2563,7 @@ func TestLogarithm(t *testing.T) {
 
 func TestIntegral(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	invals := []float64{
 		0, 1, 2, 3, 4, 5, 6, math.NaN(), 8, math.NaN(),
@@ -2513,7 +2593,7 @@ func TestIntegral(t *testing.T) {
 
 func TestInterpolate(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		values []float64
@@ -2574,7 +2654,7 @@ func TestInterpolate(t *testing.T) {
 
 func TestIntegralByInterval(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	invals := []float64{
 		math.NaN(), 1, 2, 3, 4, 5, math.NaN(), 6, 7, 8,
@@ -2604,7 +2684,7 @@ func TestIntegralByInterval(t *testing.T) {
 
 func TestDerivative(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		values []float64
@@ -2637,7 +2717,7 @@ func TestDerivative(t *testing.T) {
 
 func TestNonNegativeDerivative(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		values   []float64
@@ -2678,7 +2758,7 @@ func (o TimeSeriesPtrVector) Swap(i, j int)      { o[i], o[j] = o[j], o[i] }
 
 func TestConstantLine(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	testValue := 5.0
 	r, err := constantLine(ctx, testValue)
@@ -2696,7 +2776,7 @@ func TestConstantLine(t *testing.T) {
 
 func TestIdentity(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	testName := "testName.mytest"
 	r, err := identity(ctx, testName)
@@ -2715,7 +2795,7 @@ func TestIdentity(t *testing.T) {
 
 func TestLimit(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	// invalid input
 	testInput := getTestInput(ctx)
@@ -2741,7 +2821,7 @@ func TestLimit(t *testing.T) {
 
 func TestLimitSortStable(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	constValues := common.NewTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
 	series := []*ts.Series{
@@ -2784,7 +2864,7 @@ func TestLimitSortStable(t *testing.T) {
 
 func TestHitCount(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := time.Now()
 	tests := []struct {
@@ -2841,7 +2921,7 @@ func TestHitCount(t *testing.T) {
 
 func TestSubstr(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := ctx.StartTime
 	input := struct {
@@ -2922,7 +3002,7 @@ func (*mockStorage) CompleteTags(
 func TestHoltWintersForecast(t *testing.T) {
 	ctx := common.NewTestContext()
 	ctx.Engine = NewEngine(&mockStorage{}, CompileOptions{})
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := ctx.StartTime
 	tests := []struct {
@@ -2972,7 +3052,7 @@ func TestHoltWintersForecast(t *testing.T) {
 func TestHoltWintersConfidenceBands(t *testing.T) {
 	ctx := common.NewTestContext()
 	ctx.Engine = NewEngine(&mockStorage{}, CompileOptions{})
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := ctx.StartTime
 	tests := []struct {
@@ -3032,7 +3112,7 @@ func TestHoltWintersConfidenceBands(t *testing.T) {
 func TestHoltWintersAberration(t *testing.T) {
 	ctx := common.NewTestContext()
 	ctx.Engine = NewEngine(&mockStorage{}, CompileOptions{})
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := ctx.StartTime
 	tests := []struct {
@@ -3079,7 +3159,7 @@ func TestHoltWintersAberration(t *testing.T) {
 
 func TestSquareRoot(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	startTime := ctx.StartTime
@@ -3128,7 +3208,7 @@ func TestSquareRoot(t *testing.T) {
 
 func TestStdev(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	startTime := ctx.StartTime
@@ -3170,7 +3250,7 @@ func TestStdev(t *testing.T) {
 
 func TestRangeOfSeries(t *testing.T) {
 	ctx, input := newConsolidationTestSeries()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	expectedStart := ctx.StartTime.Add(-30 * time.Second)
 	expectedStep := 10000
@@ -3190,7 +3270,7 @@ type percentileFunction func(ctx *common.Context, seriesList singlePathSpec, per
 
 func testPercentileFunction(t *testing.T, f percentileFunction, expected []common.TestSeries) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	startTime := ctx.StartTime
@@ -3310,7 +3390,7 @@ func testRandomWalkFunctionInternal(t *testing.T, ctx *common.Context, stepSize,
 
 func TestRandomWalkFunction(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	ctx.EndTime = ctx.StartTime.Add(1100 * time.Millisecond)
 	testRandomWalkFunctionInternal(t, ctx, 1, 2)
@@ -3321,7 +3401,7 @@ func TestRandomWalkFunction(t *testing.T) {
 
 func testAggregateLineInternal(t *testing.T, f string, expectedName string, expectedVal float64) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	input := struct {
 		name        string
@@ -3364,7 +3444,7 @@ func TestAggregateLine(t *testing.T) {
 
 func TestChanged(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	startTime := ctx.StartTime
@@ -3422,7 +3502,7 @@ func TestMovingMedian(t *testing.T) {
 	startTime := now.Add(-3 * time.Minute)
 	endTime := now.Add(-time.Minute)
 	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	stepSize := 60000
 	target := "movingMedian(foo.bar.q.zed, '1min')"
@@ -3450,7 +3530,7 @@ func TestMovingAverage(t *testing.T) {
 	startTime := now.Add(-3 * time.Minute)
 	endTime := now.Add(-1 * time.Minute)
 	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	stepSize := 60000
 	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min', 0.7)`
@@ -3470,7 +3550,7 @@ func TestMovingAverage(t *testing.T) {
 
 func TestLegendValue(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	vals := []float64{1.0, 2.0, 3.0, 4.0, math.NaN()}
 	input := struct {
@@ -3516,7 +3596,7 @@ func TestLegendValue(t *testing.T) {
 
 func TestCactiStyle(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	stepSize := 10000
 	inputs := []struct {
@@ -3571,7 +3651,7 @@ func TestCactiStyle(t *testing.T) {
 
 func TestConsolidateBy(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	stepSize := 10000
 	input := struct {
@@ -3650,7 +3730,7 @@ func TestPow(t *testing.T) {
 
 func TestCumulative(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	stepSize := 10000
 	input := struct {
@@ -3683,7 +3763,7 @@ func TestCumulative(t *testing.T) {
 
 func TestOffsetToZero(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	startTime := ctx.StartTime
@@ -3736,7 +3816,7 @@ func TestTimeFunction(t *testing.T) {
 	truncatedNow := float64(now.Truncate(time.Second).Unix())
 	ctx.StartTime = now
 	ctx.EndTime = now.Add(2 * time.Minute)
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	results, err := timeFunction(ctx, "foo", 30)
 	require.NoError(t, err)
@@ -3762,7 +3842,7 @@ func TestTimeShift(t *testing.T) {
 		End:    endTime,
 		Engine: engine,
 	})
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	stepSize := 60000
 	target := "timeShift(foo.bar.q.zed, '1min', false)"
@@ -3807,7 +3887,7 @@ var (
 
 func testDelay(t *testing.T, target, expectedName string, values, output []float64) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis: 10000,
@@ -3844,7 +3924,7 @@ func TestTimeSlice(t *testing.T) {
 
 func TestDashed(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	startTime := ctx.StartTime
@@ -3883,7 +3963,7 @@ func TestDashed(t *testing.T) {
 
 func TestThreshold(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	r, err := threshold(ctx, 1.0, "bar", "yellow")
 	require.NoError(t, err)
