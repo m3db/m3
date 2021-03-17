@@ -183,6 +183,7 @@ func testReportWithRuleUpdates(
 					})
 				}
 				expectedResultsLock.Unlock()
+				require.NoError(t, reporter.Flush())
 			}
 		}()
 

@@ -279,12 +279,10 @@ type NamespaceDataAccumulator interface {
 
 // CheckoutSeriesResult is the result of a checkout series operation.
 type CheckoutSeriesResult struct {
-	// Series is the series ref for the checkout operation.
-	Series SeriesRef
+	// Resolver is the series read write ref resolver.
+	Resolver SeriesRefResolver
 	// Shard is the shard for the series.
 	Shard uint32
-	// UniqueIndex is the unique index for the series.
-	UniqueIndex uint64
 }
 
 // NamespaceResults is the result of a bootstrap process.
@@ -495,4 +493,18 @@ type SeriesRef interface {
 		block block.DatabaseBlock,
 		writeType series.WriteType,
 	) error
+
+	// UniqueIndex is the unique index for the series.
+	UniqueIndex() uint64
+}
+
+// SeriesRefResolver is a series resolver for just in time resolving of
+// a series read write ref.
+type SeriesRefResolver interface {
+	// SeriesRef returns the series read write ref.
+	SeriesRef() (SeriesRef, error)
+	// ReleaseRef must be called after using the series ref
+	// to release the reference count to the series so it can
+	// be expired by the owning shard eventually.
+	ReleaseRef() error
 }

@@ -51,8 +51,7 @@ type results struct {
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool       QueryResultsPool
-	noFinalize bool
+	pool QueryResultsPool
 }
 
 // NewQueryResults returns a new query results object.

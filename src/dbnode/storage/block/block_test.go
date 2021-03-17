@@ -76,7 +76,7 @@ func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	block := testDatabaseBlock(ctrl)

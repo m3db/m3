@@ -43,10 +43,13 @@ type typeSpecificAggregation interface {
 	generic.Type
 
 	// Add adds a new metric value.
-	Add(t time.Time, value float64)
+	Add(t time.Time, value float64, annotation []byte)
 
 	// AddUnion adds a new metric value union.
 	AddUnion(t time.Time, mu unaggregated.MetricUnion)
+
+	// Annotation returns the last annotation of aggregated values.
+	Annotation() []byte
 
 	// ValueOf returns the value for the given aggregation type.
 	ValueOf(aggType maggregation.Type) float64
@@ -216,7 +219,7 @@ func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion)
 }
 
 // AddValue adds a metric value at a given timestamp.
-func (e *GenericElem) AddValue(timestamp time.Time, value float64) error {
+func (e *GenericElem) AddValue(timestamp time.Time, value float64, annotation []byte) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
@@ -227,7 +230,7 @@ func (e *GenericElem) AddValue(timestamp time.Time, value float64) error {
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.Add(timestamp, value)
+	lockedAgg.aggregation.Add(timestamp, value, annotation)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -235,7 +238,8 @@ func (e *GenericElem) AddValue(timestamp time.Time, value float64) error {
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
-func (e *GenericElem) AddUnique(timestamp time.Time, values []float64, sourceID uint32) error {
+//nolint: dupl
+func (e *GenericElem) AddUnique(timestamp time.Time, values []float64, annotation []byte, sourceID uint32) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
@@ -253,7 +257,7 @@ func (e *GenericElem) AddUnique(timestamp time.Time, values []float64, sourceID 
 	}
 	lockedAgg.sourcesSeen.Set(source)
 	for _, v := range values {
-		lockedAgg.aggregation.Add(timestamp, v)
+		lockedAgg.aggregation.Add(timestamp, v, annotation)
 	}
 	lockedAgg.Unlock()
 	return nil
@@ -537,15 +541,16 @@ func (e *GenericElem) processValueWithAggregationLock(
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
-					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, e.sp)
+					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				case WithPrefixWithSuffix:
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, e.sp)
+						point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
+			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
+				timeNanos, value, lockedAgg.aggregation.Annotation())
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos

@@ -40,6 +40,11 @@ type LimitsConfiguration struct {
 	// max is surpassed encounter an error.
 	MaxRecentlyQueriedSeriesBlocks *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
 
+	// MaxRecentlyQueriedMetadata sets the upper limit on metadata counts
+	// within a given lookback period. Metadata queries which are issued while
+	// this max is surpassed encounter an error.
+	MaxRecentlyQueriedMetadata *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedMetadata"`
+
 	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
 	// that the server will allow before it begins rejecting requests. Note that this value
 	// is independent of the number of values that are being written (due to variable batch

@@ -21,6 +21,7 @@
 package handleroptions
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -29,6 +30,32 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 )
 
+// ReturnedDataLimited is info about whether data was limited by a query.
+type ReturnedDataLimited struct {
+	Series     int
+	Datapoints int
+
+	// Total series is the total number of series which maybe be >= Series.
+	// Truncation happens at the series-level to avoid presenting partial series
+	// and so this value is useful for indicating how many series would have
+	// been rendered without limiting either series or datapoints.
+	TotalSeries int
+
+	// Limited signals that the results returned were
+	// limited by either series or datapoint limits.
+	Limited bool
+}
+
+// ReturnedMetadataLimited is info about whether data was limited by a query.
+type ReturnedMetadataLimited struct {
+	// Results is the total amount of rendered results.
+	Results int
+	// TotalResults is the total amount of metadata results.
+	TotalResults int
+	// Limited signals that the results returned were limited by a limit.
+	Limited bool
+}
+
 // AddResponseHeaders adds any warning headers present in the result's metadata,
 // and also effective parameters relative to the request such as effective
 // timeout in use.
@@ -36,9 +63,25 @@ func AddResponseHeaders(
 	w http.ResponseWriter,
 	meta block.ResultMetadata,
 	fetchOpts *storage.FetchOptions,
-) {
+	returnedDataLimited *ReturnedDataLimited,
+	returnedMetadataLimited *ReturnedMetadataLimited,
+) error {
 	if fetchOpts != nil {
 		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
+	}
+	if limited := returnedDataLimited; limited != nil {
+		s, err := json.Marshal(limited)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
+	}
+	if limited := returnedMetadataLimited; limited != nil {
+		s, err := json.Marshal(limited)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.ReturnedMetadataLimitedHeader, string(s))
 	}
 
 	ex := meta.Exhaustive
@@ -48,7 +91,7 @@ func AddResponseHeaders(
 	}
 
 	if warns == 0 {
-		return
+		return nil
 	}
 
 	warnings := make([]string, 0, warns)
@@ -61,4 +104,6 @@ func AddResponseHeaders(
 	}
 
 	w.Header().Set(headers.LimitHeader, strings.Join(warnings, ","))
+
+	return nil
 }

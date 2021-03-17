@@ -44,7 +44,7 @@ type Configuration struct {
 // options, which extends the default object pool configuration.
 type MessagePoolConfiguration struct {
 	// Size is the size of the pool.
-	Size int `yaml:"size"`
+	Size pool.Size `yaml:"size"`
 
 	// Watermark is the object pool watermark configuration.
 	Watermark pool.WatermarkConfiguration `yaml:"watermark"`

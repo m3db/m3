@@ -22,9 +22,9 @@ syntax = "proto3";
 package kvpb;
 
 message KeyValueUpdate {
-	string key = 1;
+	string key   = 1;
 	string value = 2;
-	bool commit = 3;
+	bool commit  = 3;
 }
 
 message KeyValueUpdateResult {
@@ -34,13 +34,14 @@ message KeyValueUpdateResult {
 }
 
 message QueryLimits {
-	QueryLimit maxRecentlyQueriedSeriesBlocks = 1;
+	QueryLimit maxRecentlyQueriedSeriesBlocks        = 1;
 	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
-	QueryLimit maxRecentlyQueriedSeriesDiskRead = 3;
+	QueryLimit maxRecentlyQueriedSeriesDiskRead      = 3;
+	QueryLimit maxRecentlyQueriedMetadataRead        = 4;
 }
 
 message QueryLimit {
-	int64 limit = 1;
+	int64 limit           = 1;
 	int64 lookbackSeconds = 2;
-	bool forceExceeded = 3;
+	bool forceExceeded    = 3;
 }

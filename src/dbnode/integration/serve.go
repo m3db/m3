@@ -107,7 +107,8 @@ func openAndServe(
 	contextPool := opts.ContextPool()
 	ttopts := tchannelthrift.NewOptions()
 	service := ttnode.NewService(db, ttopts)
-	nodeOpts := ttnode.NewOptions(nil)
+	nodeOpts := ttnode.NewOptions(nil).
+		SetInstrumentOptions(opts.InstrumentOptions())
 	if fn := serverStorageOpts.TChanChannelFn; fn != nil {
 		nodeOpts = nodeOpts.SetTChanChannelFn(fn)
 	}

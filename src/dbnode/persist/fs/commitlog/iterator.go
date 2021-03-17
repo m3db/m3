@@ -22,7 +22,9 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 
@@ -45,7 +47,7 @@ type iterator struct {
 	metrics  iteratorMetrics
 	log      *zap.Logger
 	files    []persist.CommitLogFile
-	reader   commitLogReader
+	reader   Reader
 	read     LogEntry
 	err      error
 	setRead  bool
@@ -72,6 +74,10 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 	filteredCorruptFiles := filterCorruptFiles(corruptFiles, iterOpts.FileFilterPredicate)
 
 	scope := iops.MetricsScope()
+	log := iops.Logger()
+	log.Info("found commit log files to read",
+		zap.Int("fileCount", len(filteredFiles)),
+		zap.Strings("commitlog-files", commitLogFilesForLogging(filteredFiles)))
 	return &iterator{
 		iterOpts: iterOpts,
 		opts:     opts,
@@ -79,7 +85,7 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 		metrics: iteratorMetrics{
 			readsErrors: scope.Counter("reads.errors"),
 		},
-		log:   iops.Logger(),
+		log:   log,
 		files: filteredFiles,
 	}, filteredCorruptFiles, nil
 }
@@ -157,7 +163,7 @@ func (i *iterator) nextReader() bool {
 	file := i.files[0]
 	i.files = i.files[1:]
 
-	reader := newCommitLogReader(commitLogReaderOptions{
+	reader := NewReader(ReaderOptions{
 		commitLogOptions:    i.opts,
 		returnMetadataAsRef: i.iterOpts.ReturnMetadataAsRef,
 	})
@@ -171,6 +177,7 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
+	i.log.Info("reading commit log file", zap.String("file", file.FilePath))
 	i.reader = reader
 	return true
 }
@@ -198,6 +205,18 @@ func filterCorruptFiles(corruptFiles []ErrorWithPath, predicate FileFilterPredic
 		}
 	}
 	return filtered
+}
+
+func commitLogFilesForLogging(files []persist.CommitLogFile) []string {
+	result := make([]string, 0, len(files))
+	for _, f := range files {
+		var fileSize int64
+		if fi, err := os.Stat(f.FilePath); err == nil {
+			fileSize = fi.Size()
+		}
+		result = append(result, fmt.Sprintf("path=%s, len=%d", f.FilePath, fileSize))
+	}
+	return result
 }
 
 func (i *iterator) closeAndResetReader() error {

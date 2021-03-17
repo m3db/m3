@@ -57,10 +57,14 @@ func TestNamespaceReadyHandler(t *testing.T) {
 		options: m3.ClusterNamespaceOptions{},
 	}
 	testClusters := testClusters{
+		configType:         m3.ClusterConfigTypeDynamic,
 		nonReadyNamespaces: []m3.ClusterNamespace{&testClusterNs},
 	}
-	mockSession.EXPECT().FetchTaggedIDs(testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
-		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1}).Return(nil, client.FetchResponseMetadata{}, nil)
+
+	mockSession.EXPECT().
+		FetchTaggedIDs(gomock.Any(), testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
+			index.QueryOptions{SeriesLimit: 1, DocsLimit: 1}).
+		Return(nil, client.FetchResponseMetadata{}, nil)
 
 	readyHandler := NewReadyHandler(mockClient, &testClusters, instrument.NewOptions())
 
@@ -173,6 +177,45 @@ func TestNamespaceReadyFailIfNamespaceMissing(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
+func TestNamespaceReadyHandlerStaticConf(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := clusterclient.NewMockClient(ctrl)
+	require.NotNil(t, mockClient)
+
+	tc := testClusters{
+		configType: m3.ClusterConfigTypeStatic,
+	}
+
+	readyHandler := NewReadyHandler(mockClient, &tc, instrument.NewOptions())
+
+	jsonInput := xjson.Map{
+		"name": "testNamespace",
+	}
+
+	req := httptest.NewRequest("POST", "/namespace/ready",
+		xjson.MustNewTestReader(t, jsonInput))
+	require.NotNil(t, req)
+
+	w := httptest.NewRecorder()
+	readyHandler.ServeHTTP(svcDefaults, w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	expected := xtest.MustPrettyJSONMap(t,
+		xjson.Map{
+			"ready": true,
+		})
+	actual := xtest.MustPrettyJSONString(t, string(body))
+	require.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
 func testSetup(t *testing.T, ctrl *gomock.Controller) (*clusterclient.MockClient, *kv.MockStore, ident.ID) {
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
@@ -220,6 +263,7 @@ func (t *testClusterNamespace) Session() client.Session {
 }
 
 type testClusters struct {
+	configType         m3.ClusterConfigType
 	nonReadyNamespaces m3.ClusterNamespaces
 }
 
@@ -241,4 +285,8 @@ func (t *testClusters) UnaggregatedClusterNamespace() (m3.ClusterNamespace, bool
 
 func (t *testClusters) AggregatedClusterNamespace(attrs m3.RetentionResolution) (m3.ClusterNamespace, bool) {
 	panic("implement me")
+}
+
+func (t *testClusters) ConfigType() m3.ClusterConfigType {
+	return t.configType
 }

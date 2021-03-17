@@ -3,14 +3,6 @@ coordinator:
   # Address for M3Coordinator to listen for traffic.
   listenAddress: 0.0.0.0:7201
 
-  # All configured M3DB namespaces must be listed in this config if running an
-  # embedded M3Coordinator instance.
-  local:
-    namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 48h
-
   # Configuratino for M3Coordinator logging.
   logging:
     level: info

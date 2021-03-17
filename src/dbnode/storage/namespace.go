@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -742,19 +741,19 @@ func (n *dbNamespace) WritePendingIndexInserts(
 	return n.reverseIndex.WritePending(pending)
 }
 
-func (n *dbNamespace) SeriesReadWriteRef(
+func (n *dbNamespace) SeriesRefResolver(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, bool, error) {
+) (bootstrap.SeriesRefResolver, bool, error) {
 	n.RLock()
 	shard, owned, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	if err != nil {
-		return SeriesReadWriteRef{}, owned, err
+		return nil, owned, err
 	}
-	res, err := shard.SeriesReadWriteRef(id, tags)
-	return res, true, err
+	resolver, err := shard.SeriesRefResolver(id, tags)
+	return resolver, true, err
 }
 
 func (n *dbNamespace) QueryIDs(
@@ -907,7 +906,7 @@ func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.BlockReader, error) {
+) (series.BlockReaderIter, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
@@ -1059,6 +1058,15 @@ func (n *dbNamespace) Bootstrap(
 			multiErr = multiErr.Add(err)
 			mutex.Unlock()
 			continue
+		}
+
+		// Check if there are unfulfilled ranges
+		if ranges, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+			continue
+		} else if n.reverseIndex != nil {
+			if ranges, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+				continue
+			}
 		}
 
 		wg.Add(1)
@@ -1280,7 +1288,8 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		}
 	}
 
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	cfOpts := NewColdFlushNsOpts(true)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
@@ -1722,6 +1731,7 @@ func (n *dbNamespace) aggregateTiles(
 		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
 		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
 		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
+		processedShards    = opts.InsOptions.MetricsScope().Counter("processed-shards")
 	)
 
 	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
@@ -1733,55 +1743,30 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
-	var (
-		processedShards   = opts.InsOptions.MetricsScope().Counter("processed-shards")
-		targetShards      = n.OwnedShards()
-		bytesPool         = sourceNs.StorageOptions().BytesPool()
-		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
-		blockReaders      []fs.DataFileSetReader
-		sourceBlockStarts []time.Time
-	)
-
-	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
-		reader, err := fs.NewReader(bytesPool, fsOptions)
-		if err != nil {
-			return 0, err
-		}
-		sourceBlockStarts = append(sourceBlockStarts, sourceBlockStart)
-		blockReaders = append(blockReaders, reader)
-	}
-
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	// Cold flusher builds the reverse index for target (current) ns.
+	cfOpts := NewColdFlushNsOpts(false)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		return 0, err
 	}
 
-	var processedTileCount int64
-	for _, targetShard := range targetShards {
-		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
-		if err != nil {
-			return 0, fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
+	var (
+		processedTileCount int64
+		aggregationSuccess bool
+	)
+	defer func() {
+		if aggregationSuccess {
+			return
 		}
-
-		sourceBlockVolumes := make([]shardBlockVolume, 0, len(sourceBlockStarts))
-		for _, sourceBlockStart := range sourceBlockStarts {
-			latestVolume, err := sourceShard.LatestVolume(sourceBlockStart)
-			if err != nil {
-				n.log.Error("error getting shards latest volume",
-					zap.Error(err), zap.Uint32("shard", sourceShard.ID()), zap.Time("blockStart", sourceBlockStart))
-				return 0, err
-			}
-			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
+		// Abort building reverse index if aggregation fails.
+		if err := onColdFlushNs.Abort(); err != nil {
+			n.log.Error("error aborting cold flush",
+				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
 		}
-
-		writer, err := fs.NewStreamingWriter(n.opts.CommitLogOptions().FilesystemOptions())
-		if err != nil {
-			return 0, err
-		}
-
+	}()
+	for _, targetShard := range n.OwnedShards() {
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			ctx, sourceNs, n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes,
-			onColdFlushNs, opts)
+			ctx, sourceNs, n, targetShard.ID(), onColdFlushNs, opts)
 
 		processedTileCount += shardProcessedTileCount
 		processedShards.Inc(1)
@@ -1790,6 +1775,8 @@ func (n *dbNamespace) aggregateTiles(
 		}
 	}
 
+	// Aggregation success, mark so we don't abort reverse index building (cold flusher).
+	aggregationSuccess = true
 	if err := onColdFlushNs.Done(); err != nil {
 		return 0, err
 	}

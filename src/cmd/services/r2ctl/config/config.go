@@ -71,7 +71,7 @@ type r2StoreConfiguration struct {
 // NewR2Store creates a new R2 store.
 func (c r2StoreConfiguration) NewR2Store(instrumentOpts instrument.Options) (r2store.Store, error) {
 	if c.Stub {
-		return stub.NewStore(instrumentOpts), nil
+		return stub.NewStore(instrumentOpts)
 	}
 
 	if c.KV == nil {

@@ -38,7 +38,7 @@ import (
 
 func TestTime(t *testing.T) {
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(0)))
 	op, err := NewTimeOp(models.NewTagOptions())
 	require.NoError(t, err)
 

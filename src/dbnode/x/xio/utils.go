@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cm
+package xio
 
-import "github.com/m3db/m3/src/x/pool"
+import "encoding/binary"
 
-type samplePool struct {
-	pool pool.ObjectPool
-}
+// ToBytes reads and returns the contents of Reader64 as a slice of bytes.
+// Should normally return io.EOF as an error.
+func ToBytes(reader Reader64) ([]byte, error) {
+	var (
+		res []byte
+		buf [8]byte
+	)
 
-// NewSamplePool creates a new pool for samples.
-func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
-	return &samplePool{pool: pool.NewObjectPool(opts)}
-}
+	word, bytes, err := reader.Read64()
+	for ; err == nil; word, bytes, err = reader.Read64() {
+		binary.BigEndian.PutUint64(buf[:], word)
+		res = append(res, buf[:bytes]...)
+	}
 
-func (p *samplePool) Init() {
-	p.pool.Init(func() interface{} {
-		return newSample()
-	})
-}
-
-func (p *samplePool) Get() *Sample {
-	return p.pool.Get().(*Sample)
-}
-
-func (p *samplePool) Put(sample *Sample) {
-	// Reset sample to reduce GC sweep overhead.
-	sample.reset()
-	p.pool.Put(sample)
+	return res, err
 }

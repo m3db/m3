@@ -21,12 +21,12 @@
 package prototest
 
 import (
-	"io"
 	"time"
 
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -63,10 +63,10 @@ func newPools() Pools {
 	encoderPool.Init(func() encoding.Encoder {
 		return proto.NewEncoder(timeZero, encodingOpts)
 	})
-	readerIterPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	readerIterPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		i := readerIterPool.Get()
 		i.Reset(r, descr)
 		return i

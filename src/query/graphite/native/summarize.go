@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 // summarize summarizes each series into interval buckets of a certain size.
@@ -177,7 +177,8 @@ func smartSummarize(
 		results[i] = series.RenamedTo(newName)
 	}
 
-	r := ts.NewSeriesList()
+	// Retain whether sort was applied or not and metadata.
+	r := ts.SeriesList(series)
 	r.Values = results
 	return r, nil
 }
@@ -242,7 +243,7 @@ var (
 		specificationFunc: averageSpecificationFunc,
 	}
 	medianFuncInfo = funcInfo{
-		fname:             "median",
+		fname: "median",
 		// median does not have a consolidationFunc
 		specificationFunc: medianSpecificationFunc,
 	}

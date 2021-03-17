@@ -30,8 +30,8 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
@@ -556,8 +556,10 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		wg.Wait()
 	}
 
-	r := ts.NewSeriesList()
+	// Retain metadata but we definitely did not retain sort order.
+	r := ts.SeriesList(seriesList)
 	r.Values = output
+	r.SortApplied = false
 	return r, nil
 }
 

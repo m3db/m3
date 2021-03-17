@@ -1271,7 +1271,6 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 		require.True(t, xerrors.IsInvalidParams(err))
 		require.Equal(t, errTooFarInThePast, xerrors.InnerError(err))
 		require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in past"))
-		require.True(t, strings.Contains(err.Error(), "id="+string(metric.ID)))
 		require.True(t, strings.Contains(err.Error(), "timestamp="))
 		require.True(t, strings.Contains(err.Error(), "past_limit="))
 	}
@@ -1307,7 +1306,6 @@ func TestEntryAddTimedMetricTooEarly(t *testing.T) {
 		require.True(t, xerrors.IsInvalidParams(err))
 		require.Equal(t, errTooFarInTheFuture, xerrors.InnerError(err))
 		require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in future"))
-		require.True(t, strings.Contains(err.Error(), "id="+string(metric.ID)))
 		require.True(t, strings.Contains(err.Error(), "timestamp="))
 		require.True(t, strings.Contains(err.Error(), "future_limit="))
 	}
@@ -1423,6 +1421,47 @@ func TestEntryAddTimed(t *testing.T) {
 	// metric ID stored in the elements.
 	metric.ID[0] = '2'
 	require.Equal(t, testTimedMetric.ID, counterElem.ID())
+}
+
+func TestEntryAddTimedWithStagedMetadatasEmptyList(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
+
+	require.Equal(t, errEmptyMetadatas, e.AddTimedWithStagedMetadatas(testTimedMetric, nil))
+}
+
+func TestEntryAddTimedWithStagedMetadatasDefaultMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
+
+	require.Equal(
+		t,
+		errOnlyDefaultStagedMetadata,
+		e.AddTimedWithStagedMetadatas(testTimedMetric, metadata.DefaultStagedMetadatas),
+	)
+}
+
+func TestEntryAddTimedWithStagedMetadatasDropPolicyMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
+
+	require.Equal(
+		t,
+		errOnlyDropPolicyStagedMetadata,
+		e.AddTimedWithStagedMetadatas(testTimedMetric, metadata.DropStagedMetadatas),
+	)
 }
 
 func TestEntryForwardedRateLimiting(t *testing.T) {

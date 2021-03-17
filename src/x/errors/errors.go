@@ -130,6 +130,29 @@ func GetInnerInvalidParamsError(err error) error {
 	return nil
 }
 
+// Is checks if the error is or contains the corresponding target error.
+// It's intended to mimic the errors.Is functionality, but also consider xerrors' MultiError / InnerError
+// wrapping functionality.
+func Is(err, target error) bool {
+	for err != nil {
+		if errors.Is(err, target) {
+			return true
+		}
+
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if Is(e, target) {
+					return true
+				}
+			}
+		}
+
+		err = InnerError(err)
+	}
+	return false
+}
+
 type retryableError struct {
 	containedError
 }
@@ -262,6 +285,19 @@ func (e MultiError) Errors() []error {
 	result[0] = e.err
 	copy(result[1:], e.errors)
 	return result
+}
+
+// Contains returns true if any of the errors match the provided error using the Is check.
+func (e MultiError) Contains(err error) bool {
+	if errors.Is(e.err, err) {
+		return true
+	}
+	for _, e := range e.errors {
+		if errors.Is(e, err) {
+			return true
+		}
+	}
+	return false
 }
 
 // Add adds an error returns a new MultiError object.

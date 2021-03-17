@@ -322,7 +322,7 @@ func TestElectionManagerResignSuccess(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil)
+		Return(p, nil)
 	mgr = NewElectionManager(opts).(*electionManager)
 	mgr.sleepFn = func(time.Duration) {}
 	mgr.electionStateWatchable.Update(LeaderState)
@@ -417,7 +417,7 @@ func TestElectionManagerCampaignLoop(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 
@@ -540,7 +540,7 @@ func TestElectionManagerVerifyLeaderDelayWithValidLeader(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	retryOpts := retry.NewOptions().
@@ -602,7 +602,7 @@ func TestElectionManagerVerifyLeaderDelayWithLeaderNotInPlacement(t *testing.T) 
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	retryOpts := retry.NewOptions().
@@ -668,7 +668,7 @@ func TestElectionManagerVerifyLeaderDelayWithLeaderOwningDifferentShardSet(t *te
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	retryOpts := retry.NewOptions().
@@ -737,7 +737,7 @@ func TestElectionManagerVerifyWithLeaderErrors(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	mgr.electionStateWatchable.Update(PendingFollowerState)

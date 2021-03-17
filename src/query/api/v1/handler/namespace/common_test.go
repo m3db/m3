@@ -30,7 +30,6 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	m3test "github.com/m3db/m3/src/x/generated/proto/test"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -40,7 +39,7 @@ import (
 )
 
 func init() {
-	namespace.RegisterExtendedOptionsConverter(xtest.TypeURLPrefix, &m3test.PingResponse{}, xtest.ConvertToExtendedOptions)
+	namespace.RegisterExtendedOptionsConverter("testExtendedOptions", xtest.ConvertToTestExtendedOptions)
 }
 
 type storeOptionsMatcher struct {

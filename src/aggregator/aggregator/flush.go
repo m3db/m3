@@ -38,6 +38,11 @@ type flushingMetricList interface {
 	// FlushInterval returns the periodic flush interval.
 	FlushInterval() time.Duration
 
+	// FixedFlushOffset returns a fixed flush offset (and true) within the flush interval when
+	// a flush is performed for lists that have a fixed flush offset.
+	// For lists that do not have a fixed flush offset, it returns 0 and false.
+	FixedFlushOffset() (time.Duration, bool)
+
 	// LastFlushedNanos returns the last flushed timestamp.
 	LastFlushedNanos() int64
 
@@ -46,16 +51,6 @@ type flushingMetricList interface {
 
 	// DiscardBefore discards all metrics before a given timestamp.
 	DiscardBefore(beforeNanos int64)
-}
-
-// fixedOffsetFlushingMetricList is a flushing metric list that flushes at fixed offset
-// within the flush interval.
-type fixedOffsetFlushingMetricList interface {
-	flushingMetricList
-
-	// FlushOffset is the fixed offset within the flush interval when
-	// a flush is performed.
-	FlushOffset() time.Duration
 }
 
 // flushRequest is a request to flush data.
@@ -86,6 +81,7 @@ type flushLocalMetricFn func(
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 )
 
@@ -98,6 +94,7 @@ type flushForwardedMetricFn func(
 	aggregationKey aggregationKey,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 )
 
 // An onForwardingElemFlushedFn is a callback function that should be called

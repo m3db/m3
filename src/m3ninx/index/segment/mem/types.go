@@ -72,6 +72,7 @@ type ReadableSegment interface {
 	Fields() (sgmt.FieldsIterator, error)
 	ContainsField(field []byte) (bool, error)
 	Terms(field []byte) (sgmt.TermsIterator, error)
+	FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error)
 	matchTerm(field, term []byte) (postings.List, error)
 	matchRegexp(field []byte, compiled *re.Regexp) (postings.List, error)
 	getDoc(id postings.ID) (doc.Metadata, error)

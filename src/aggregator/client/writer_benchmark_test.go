@@ -32,8 +32,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-const ()
-
 var (
 	testLargerBatchTimer = unaggregated.MetricUnion{
 		Type:          metric.TimerType,
@@ -49,7 +47,7 @@ func BenchmarkParallelWriter(b *testing.B) {
 		log:             opts.InstrumentOptions().Logger(),
 		metrics:         newWriterMetrics(tally.NoopScope),
 		encoderOpts:     opts.EncoderOptions(),
-		flushSize:       opts.FlushSize(),
+		maxBatchSize:    opts.MaxBatchSize(),
 		queue:           testNoOpQueue{},
 		encodersByShard: make(map[uint32]*lockedEncoder),
 	}
@@ -82,7 +80,7 @@ func BenchmarkSerialOneShardWriter(b *testing.B) {
 		log:             opts.InstrumentOptions().Logger(),
 		metrics:         newWriterMetrics(tally.NoopScope),
 		encoderOpts:     opts.EncoderOptions(),
-		flushSize:       opts.FlushSize(),
+		maxBatchSize:    opts.MaxBatchSize(),
 		queue:           testNoOpQueue{},
 		encodersByShard: make(map[uint32]*lockedEncoder),
 	}
@@ -116,7 +114,7 @@ func BenchmarkSerialWriter(b *testing.B) {
 		log:             opts.InstrumentOptions().Logger(),
 		metrics:         newWriterMetrics(tally.NoopScope),
 		encoderOpts:     opts.EncoderOptions(),
-		flushSize:       opts.FlushSize(),
+		maxBatchSize:    opts.MaxBatchSize(),
 		queue:           testNoOpQueue{},
 		encodersByShard: make(map[uint32]*lockedEncoder),
 	}
@@ -151,6 +149,7 @@ type testNoOpQueue struct{}
 func (q testNoOpQueue) Enqueue(protobuf.Buffer) error { return nil }
 func (q testNoOpQueue) Close() error                  { return nil }
 func (q testNoOpQueue) Size() int                     { return 0 }
+func (q testNoOpQueue) Flush()                        {}
 
 type testSerialWriter struct {
 	*writer

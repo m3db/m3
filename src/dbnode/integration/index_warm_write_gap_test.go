@@ -121,7 +121,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 
 	// ensure all data is present
 	log.Info("querying period0 results")
-	period0Results, _, err := session.FetchTagged(
+	period0Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t1, EndExclusive: t2})
 	require.NoError(t, err)
 	writesPeriod0.MatchesSeriesIters(t, period0Results)

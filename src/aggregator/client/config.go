@@ -40,24 +40,23 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")
-)
+var errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")
 
 // Configuration contains client configuration.
 type Configuration struct {
 	Type                       AggregatorClientType            `yaml:"type"`
 	M3Msg                      *M3MsgConfiguration             `yaml:"m3msg"`
 	PlacementKV                *kv.OverrideConfiguration       `yaml:"placementKV"`
-	PlacementWatcher           *placement.WatcherConfiguration `yaml:"placementWatcher"`
+	Watcher                    *placement.WatcherConfiguration `yaml:"placementWatcher"`
 	HashType                   *sharding.HashType              `yaml:"hashType"`
 	ShardCutoverWarmupDuration *time.Duration                  `yaml:"shardCutoverWarmupDuration"`
 	ShardCutoffLingerDuration  *time.Duration                  `yaml:"shardCutoffLingerDuration"`
 	Encoder                    EncoderConfiguration            `yaml:"encoder"`
-	FlushSize                  int                             `yaml:"flushSize"`
+	FlushSize                  int                             `yaml:"flushSize,omitempty"` // FlushSize is deprecated
+	FlushWorkerCount           int                             `yaml:"flushWorkerCount"`
+	ForceFlushEvery            time.Duration                   `yaml:"forceFlushEvery"`
 	MaxBatchSize               int                             `yaml:"maxBatchSize"`
 	MaxTimerBatchSize          int                             `yaml:"maxTimerBatchSize"`
-	BatchFlushDeadline         time.Duration                   `yaml:"batchFlushDeadline"`
 	QueueSize                  int                             `yaml:"queueSize"`
 	QueueDropType              *DropType                       `yaml:"queueDropType"`
 	Connection                 ConnectionConfiguration         `yaml:"connection"`
@@ -93,8 +92,8 @@ func (c *Configuration) NewClient(
 }
 
 var (
-	errLegacyClientNoPlacementKVConfig      = errors.New("no placement KV config set")
-	errLegacyClientNoPlacementWatcherConfig = errors.New("no placement watcher config set")
+	errLegacyClientNoPlacementKVConfig = errors.New("no placement KV config set")
+	errLegacyClientNoWatcherConfig     = errors.New("no placement watcher config set")
 )
 
 func (c *Configuration) newClientOptions(
@@ -133,9 +132,9 @@ func (c *Configuration) newClientOptions(
 			return nil, errLegacyClientNoPlacementKVConfig
 		}
 
-		placementWatcher := c.PlacementWatcher
+		placementWatcher := c.Watcher
 		if placementWatcher == nil {
-			return nil, errLegacyClientNoPlacementWatcherConfig
+			return nil, errLegacyClientNoWatcherConfig
 		}
 
 		scope := instrumentOpts.MetricsScope()
@@ -166,7 +165,7 @@ func (c *Configuration) newClientOptions(
 			return nil, err
 		}
 
-		opts = opts.SetStagedPlacementWatcherOptions(watcherOpts).
+		opts = opts.SetWatcherOptions(watcherOpts).
 			SetShardFn(shardFn).
 			SetEncoderOptions(encoderOpts).
 			SetConnectionOptions(connectionOpts)
@@ -177,17 +176,17 @@ func (c *Configuration) newClientOptions(
 		if c.ShardCutoffLingerDuration != nil {
 			opts = opts.SetShardCutoffLingerDuration(*c.ShardCutoffLingerDuration)
 		}
-		if c.FlushSize != 0 {
-			opts = opts.SetFlushSize(c.FlushSize)
+		if c.FlushWorkerCount != 0 {
+			opts = opts.SetFlushWorkerCount(c.FlushWorkerCount)
+		}
+		if c.ForceFlushEvery != 0 {
+			opts = opts.SetForceFlushEvery(c.ForceFlushEvery)
 		}
 		if c.MaxBatchSize != 0 {
 			opts = opts.SetMaxBatchSize(c.MaxBatchSize)
 		}
 		if c.MaxTimerBatchSize != 0 {
 			opts = opts.SetMaxTimerBatchSize(c.MaxTimerBatchSize)
-		}
-		if c.BatchFlushDeadline != 0 {
-			opts = opts.SetBatchFlushDeadline(c.BatchFlushDeadline)
 		}
 		if c.QueueSize != 0 {
 			opts = opts.SetInstanceQueueSize(c.QueueSize)

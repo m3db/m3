@@ -21,8 +21,10 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -32,6 +34,9 @@ import (
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	querystorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xgomock "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -594,11 +599,13 @@ func TestOffset(t *testing.T) {
 		outputs []float64
 	}{
 		{
-			[]float64{0, 1.0, 2.0, math.NaN(), 3.0}, 2.5,
+			[]float64{0, 1.0, 2.0, math.NaN(), 3.0},
+			2.5,
 			[]float64{2.5, 3.5, 4.5, math.NaN(), 5.5},
 		},
 		{
-			[]float64{0, 1.0, 2.0, math.NaN(), 3.0}, -0.5,
+			[]float64{0, 1.0, 2.0, math.NaN(), 3.0},
+			-0.5,
 			[]float64{-0.5, 0.5, 1.5, math.NaN(), 2.5},
 		},
 	}
@@ -623,7 +630,6 @@ func TestOffset(t *testing.T) {
 			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
 	}
-
 }
 
 func TestPerSecond(t *testing.T) {
@@ -642,8 +648,11 @@ func TestPerSecond(t *testing.T) {
 		{10000, []float64{1, 2, 3, 4, 5}, []float64{math.NaN(), 0.1, 0.1, 0.1, 0.1}},
 
 		// decreasing value - rate of change not applicable
-		{1000, []float64{5, 4, 3, 2, 1},
-			[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}},
+		{
+			1000,
+			[]float64{5, 4, 3, 2, 1},
+			[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
 
 		// skip over missing values
 		{1000, []float64{1, 2, math.NaN(), 4, 5}, []float64{math.NaN(), 1, math.NaN(), 1, 1}},
@@ -1459,6 +1468,7 @@ func TestHighestMax(t *testing.T) {
 	testRanking(t, ctx, tests, highestMax)
 }
 
+//nolint:govet
 func TestFallbackSeries(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -1878,14 +1888,20 @@ func TestAsPercentWithSeriesTotal(t *testing.T) {
 		output     []float64
 	}{
 		{
-			100, []float64{10.0, 20.0, 30.0, 40.0, 50.0},
-			100, []float64{1000.0, 1000.0, 1000.0, 1000.0, 1000.0},
-			100, []float64{1.0, 2.0, 3.0, 4.0, 5.0},
+			100,
+			[]float64{10.0, 20.0, 30.0, 40.0, 50.0},
+			100,
+			[]float64{1000.0, 1000.0, 1000.0, 1000.0, 1000.0},
+			100,
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0},
 		},
 		{
-			100, []float64{12.0, 14.0, 16.0, math.NaN(), 20.0},
-			150, []float64{50.0, 50.0, 25.0, 50.0, 50.0},
-			300, []float64{28.0, 53.0},
+			100,
+			[]float64{12.0, 14.0, 16.0, math.NaN(), 20.0},
+			150,
+			[]float64{50.0, 50.0, 25.0, 50.0, 50.0},
+			300,
+			[]float64{28.0, 53.0},
 		},
 	}
 
@@ -1927,14 +1943,18 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 		output     []float64
 	}{
 		{
-			100, []float64{12.0, 14.0, 16.0, nan, 20.0},
+			100,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0},
 			20.0,
-			100, []float64{60, 70, 80, nan, 100},
+			100,
+			[]float64{60, 70, 80, nan, 100},
 		},
 		{
-			100, []float64{12.0, 14.0, 16.0, nan, 20.0},
+			100,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0},
 			0,
-			100, []float64{nan, nan, nan, nan, nan},
+			100,
+			[]float64{nan, nan, nan, nan, nan},
 		},
 	}
 
@@ -2060,16 +2080,11 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 		expected = append(expected, timeSeries)
 	}
 
-	for _, totalArg := range []interface{}{
-		nil,
-		singlePathSpec{},
-	} {
-		r, err := asPercent(ctx, singlePathSpec{
-			Values: inputSeries,
-		}, totalArg)
-		require.NoError(t, err)
-		requireEqual(t, expected, r.Values)
-	}
+	r, err := asPercent(ctx, singlePathSpec{
+		Values: inputSeries,
+	}, nil)
+	require.NoError(t, err)
+	requireEqual(t, expected, r.Values)
 }
 
 func requireEqual(t *testing.T, expected, results []*ts.Series) {
@@ -2178,6 +2193,48 @@ func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 	requireEqual(t, expected, r.Values)
+}
+
+func TestAsPercentWithSeriesListAndEmptyTotalSeriesList(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	nan := math.NaN()
+	inputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"foo.value",
+			100,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0, 30.0},
+		},
+		{
+			"bar.value",
+			200,
+			[]float64{7.0, nan, 25.0},
+		},
+	}
+
+	var inputSeries []*ts.Series // nolint: prealloc
+	for _, input := range inputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, input.step, input.values),
+		)
+		inputSeries = append(inputSeries, timeSeries)
+	}
+
+	_, err := asPercent(ctx, singlePathSpec{
+		Values: inputSeries,
+	}, singlePathSpec{
+		Values: []*ts.Series{},
+	})
+	require.Error(t, err)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
@@ -2681,6 +2738,49 @@ func TestLimit(t *testing.T) {
 	require.Equal(t, len(testInput), testSeries.Len())
 }
 
+func TestLimitSortStable(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	constValues := common.NewTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "qux", time.Now(), constValues),
+		ts.NewSeries(ctx, "bar", time.Now(), constValues),
+		ts.NewSeries(ctx, "foo", time.Now(), constValues),
+		ts.NewSeries(ctx, "baz", time.Now(), constValues),
+	}
+
+	// Check that if input order is random that the same first
+	// series is chosen deterministically each time if the results weren't
+	// already ordered.
+	var lastOrder []string
+	for i := 0; i < 100; i++ {
+		rand.Shuffle(len(series), func(i, j int) {
+			series[i], series[j] = series[j], series[i]
+		})
+
+		result, err := limit(ctx, singlePathSpec(ts.SeriesList{
+			Values:      series,
+			SortApplied: false,
+		}), 2)
+		require.NoError(t, err)
+
+		order := make([]string, 0, len(result.Values))
+		for _, series := range result.Values {
+			order = append(order, series.Name())
+		}
+
+		expectedOrder := lastOrder
+		lastOrder = order
+		if expectedOrder == nil {
+			continue
+		}
+
+		require.Equal(t, expectedOrder, order)
+	}
+
+}
+
 func TestHitCount(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2804,9 +2904,18 @@ func TestSubstr(t *testing.T) {
 type mockStorage struct{}
 
 func (*mockStorage) FetchByQuery(
-	ctx xctx.Context, query string, opts storage.FetchOptions,
+	ctx xctx.Context,
+	query string,
+	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
+}
+func (*mockStorage) CompleteTags(
+	ctx context.Context,
+	query *querystorage.CompleteTagsQuery,
+	opts *querystorage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func TestHoltWintersForecast(t *testing.T) {
@@ -3673,7 +3782,7 @@ func TestTimeShift(t *testing.T) {
 }
 
 func TestDelay(t *testing.T) {
-	var values = [3][]float64{
+	values := [3][]float64{
 		{54.0, 48.0, 92.0, 54.0, 14.0, 1.2},
 		{4.0, 5.0, math.NaN(), 6.4, 7.2, math.NaN()},
 		{math.NaN(), 8.0, 9.0, 10.6, 11.2, 12.2},

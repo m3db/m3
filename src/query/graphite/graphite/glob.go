@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 const (

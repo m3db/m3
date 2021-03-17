@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package execution
+package cm
 
 import (
-	"context"
-	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type (
-	// ErrQueryTimeout is returned if a query timed out during processing.
-	ErrQueryTimeout string
-	// ErrQueryCanceled is returned if a query was canceled during processing.
-	ErrQueryCanceled string
-)
+func TestHeapPool(t *testing.T) {
+	h := sharedHeapPool.Get(_initialHeapBucketSize)
+	require.NotNil(t, h)
+	assert.Equal(t, _initialHeapBucketSize, cap(*h))
+	assert.Equal(t, 0, len(*h))
+	h.Reset()
 
-func (e ErrQueryTimeout) Error() string  { return fmt.Sprintf("query timed out in %s", string(e)) }
-func (e ErrQueryCanceled) Error() string { return fmt.Sprintf("query was canceled in %s", string(e)) }
+	h2 := sharedHeapPool.Get(_initialHeapBucketSize + 1) // should fall into different bucket
+	require.NotNil(t, h2)
+	require.True(t, h != h2)
+	assert.Equal(t, _initialHeapBucketSize*_heapSizeBucketGrowthFactor, cap(*h2))
+	assert.Equal(t, 0, len(*h2))
+	h2.Reset()
 
-// ContextDone returns an error if the context was canceled or timed out.
-func ContextDone(ctx context.Context, env string) error {
-	select {
-	case <-ctx.Done():
-		err := ctx.Err()
-		switch err {
-		case context.Canceled:
-			return ErrQueryCanceled(env)
-		case context.DeadlineExceeded:
-			return ErrQueryTimeout(env)
-		default:
-			return err
-		}
-	default:
-		return nil
-	}
+	h3 := sharedHeapPool.Get(65) // should get the next largest one
+	require.NotNil(t, h3)
+	require.True(t, h3 != h)
+	require.True(t, h3 != h2)
+	assert.Equal(t, 256, cap(*h3))
+	assert.Equal(t, 0, len(*h3))
 }

@@ -22,6 +22,7 @@ package native
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -33,7 +34,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/util"
@@ -79,7 +79,8 @@ func sortByName(_ *common.Context, series singlePathSpec) (ts.SeriesList, error)
 		sorted[i] = series.Values[i]
 	}
 
-	sort.Sort(ts.SeriesByName(sorted))
+	// Use sort.Stable for deterministic output.
+	sort.Stable(ts.SeriesByName(sorted))
 
 	r := ts.SeriesList(series)
 	r.Values = sorted
@@ -105,13 +106,17 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 // the response time metric will be plotted only when the maximum value of the
 // corresponding request/s metric is > 10
 // Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
-func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
+//nolint:govet,gocritic
+func useSeriesAbove(
+	ctx *common.Context,
+	seriesList singlePathSpec,
+	maxAllowedValue float64,
+	search, replace string,
+) (ts.SeriesList, error) {
 	var (
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-		multiErr xerrors.MultiError
-		newNames []string
-
+		mu             sync.Mutex
+		multiErr       xerrors.MultiError
+		newNames       []string
 		output         = make([]*ts.Series, 0, len(seriesList.Values))
 		maxConcurrency = runtime.NumCPU() / 2
 	)
@@ -124,36 +129,39 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedVa
 	}
 
 	for _, newNameChunk := range chunkArrayHelper(newNames, maxConcurrency) {
-		if multiErr.LastError() != nil {
-			return ts.NewSeriesList(), multiErr.LastError()
-		}
-
+		var wg sync.WaitGroup
 		for _, newTarget := range newNameChunk {
+			newTarget := newTarget
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
 
+				mu.Lock()
+				defer mu.Unlock()
+
 				if err != nil {
-					mu.Lock()
 					multiErr = multiErr.Add(err)
-					mu.Unlock()
 					return
 				}
 
-				mu.Lock()
 				for _, resultSeries := range resultSeriesList.Values {
 					resultSeries.Specification = newTarget
 					output = append(output, resultSeries)
 				}
-				mu.Unlock()
 			}()
 		}
 		wg.Wait()
+
+		if err := multiErr.LastError(); err != nil {
+			return ts.NewSeriesList(), err
+		}
 	}
 
-	r := ts.NewSeriesList()
+	// Retain metadata but mark as unsorted since this was done in parallel.
+	r := ts.SeriesList(seriesList)
 	r.Values = output
+	r.SortApplied = false
 	return r, nil
 }
 
@@ -259,12 +267,20 @@ func identity(ctx *common.Context, name string) (ts.SeriesList, error) {
 // the first N metrics.
 func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, error) {
 	if n < 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid limit parameter n: %d", n))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid limit parameter n: %d", n))
 	}
 	upperBound := int(math.Min(float64(len(series.Values)), float64(n)))
 
+	if !series.SortApplied {
+		// If sort not applied then sort to get deterministic results.
+		// Use sort.Stable for deterministic output.
+		sort.Stable(ts.SeriesByName(series.Values))
+	}
+
 	r := ts.SeriesList(series)
 	r.Values = series.Values[0:upperBound]
+	// Note: If wasn't sorted we applied a sort by name for determinism.
+	r.SortApplied = true
 	return r, nil
 }
 
@@ -283,7 +299,8 @@ func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.Series
 		}
 	}
 
-	r := ts.NewSeriesList()
+	// Retain sort applied function.
+	r := ts.SeriesList(seriesList)
 	r.Values = filtered
 	return r, nil
 }
@@ -298,7 +315,6 @@ func timeShift(
 	_ bool,
 	_ bool,
 ) (*unaryContextShifter, error) {
-
 	// TODO: implement resetEnd
 	if !(strings.HasPrefix(timeShiftS, "+") || strings.HasPrefix(timeShiftS, "-")) {
 		timeShiftS = "-" + timeShiftS
@@ -306,7 +322,7 @@ func timeShift(
 
 	shift, err := common.ParseInterval(timeShiftS)
 	if err != nil {
-		return nil, errors.NewInvalidParamsError(fmt.Errorf("invalid timeShift parameter %s: %v", timeShiftS, err))
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("invalid timeShift parameter %s: %v", timeShiftS, err))
 	}
 
 	contextShiftingFn := func(c *common.Context) *common.Context {
@@ -468,7 +484,6 @@ func offset(ctx *common.Context, input singlePathSpec, factor float64) (ts.Serie
 // transform converts values in a timeseries according to the valueTransformer.
 func transform(ctx *common.Context, input singlePathSpec,
 	fname func(inputName string) string, fn common.TransformFunc) (ts.SeriesList, error) {
-
 	t := common.NewStatelessTransformer(fn)
 	return common.Transform(ctx, ts.SeriesList(input), t, func(in *ts.Series) string {
 		return fname(in.Name())
@@ -639,23 +654,18 @@ func removeEmptySeries(ctx *common.Context, input singlePathSpec) (ts.SeriesList
 }
 
 func takeByFunction(input singlePathSpec, n int, sr ts.SeriesReducer, sort ts.Direction) (ts.SeriesList, error) {
-	series, err := ts.SortSeries(input.Values, sr, sort)
+	result, err := ts.SortSeries(ts.SeriesList(input), sr, sort)
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}
-	r := ts.SeriesList{
-		Values:      series,
-		SortApplied: true,
-		Metadata:    input.Metadata,
-	}
-	return common.Head(r, n)
+	return common.Head(result, n)
 }
 
 func getReducer(f string) (ts.SeriesReducer, error) {
 	sa := ts.SeriesReducerApproach(f)
 	r, ok := sa.SafeReducer()
 	if !ok {
-		return r, errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
+		return r, xerrors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
 	}
 	return r, nil
 }
@@ -766,7 +776,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 			return windowSize, err
 		}
 		if interval <= 0 {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %v",
 				interval))
 			return windowSize, err
@@ -779,7 +789,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 	case float64:
 		windowSizeInt := int(windowSizeValue)
 		if windowSizeInt <= 0 {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %d",
 				windowSizeInt))
 			return windowSize, err
@@ -792,7 +802,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 		}
 		windowSize.deltaValue = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
 	default:
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"windowSize must be either a string or an int but instead is a %T",
 			windowSizeValue))
 		return windowSize, err
@@ -807,7 +817,6 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 	}
 
 	widowSize, err := parseWindowSize(windowSizeValue, input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +843,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			stepSize := series.MillisPerStep()
 			windowPoints := widowSize.windowSizeFunc(stepSize)
 			if windowPoints == 0 {
-				err := errors.NewInvalidParamsError(fmt.Errorf(
+				err := xerrors.NewInvalidParamsError(fmt.Errorf(
 					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
 					windowSizeValue, stepSize))
 				return ts.NewSeriesList(), err
@@ -941,7 +950,7 @@ func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowS
 			stepSize := series.MillisPerStep()
 			windowPoints := windowSize.windowSizeFunc(stepSize)
 			if windowPoints == 0 {
-				err := errors.NewInvalidParamsError(fmt.Errorf(
+				err := xerrors.NewInvalidParamsError(fmt.Errorf(
 					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
 					windowSizeValue, stepSize))
 				return ts.NewSeriesList(), err
@@ -1051,7 +1060,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 				}
 			}
 		default:
-			return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("total must be nil or series list"))
+			return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("total must be nil or series list"))
 		}
 
 		keys := make([]string, 0, len(metaSeries)+len(totalSeries))
@@ -1155,9 +1164,9 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		case singlePathSpec:
 			total = ts.SeriesList(v)
 		}
-		if total.Len() != 0 && total.Len() != 1 && total.Len() != len(input.Values) {
-			return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf(
-				"require total to be nil, float, single series or same number of series: series=%d, total=%d",
+		if total.Len() != 1 && total.Len() != len(input.Values) {
+			return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf(
+				"require total to be missing, float, single series or same number of series: series=%d, total=%d",
 				len(input.Values), total.Len()))
 		}
 		if total.Len() == 0 {
@@ -1179,7 +1188,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			totalSeriesList = total
 		}
 	default:
-		err := errors.NewInvalidParamsError(errors.New(
+		err := xerrors.NewInvalidParamsError(errors.New(
 			"total must be either an nil, float, a series or same number of series"))
 		return ts.NewSeriesList(), err
 	}
@@ -1220,8 +1229,8 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 // expression.
 func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.SeriesList, error) {
 	rePattern, err := regexp.Compile(pattern)
-	//NB(rooz): we decided to just fail if regex compilation fails to
-	//differentiate it from an all-excluding regex
+	// NB(rooz): we decided to just fail if regex compilation fails to
+	// differentiate it from an all-excluding regex
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}
@@ -1264,7 +1273,7 @@ func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesLi
 // logarithmic format.
 func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesList, error) {
 	if base <= 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf("invalid log base %d", base))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("invalid log base %d", base))
 		return ts.NewSeriesList(), err
 	}
 
@@ -1358,7 +1367,6 @@ func group(_ *common.Context, input multiplePathSpecs) (ts.SeriesList, error) {
 
 func derivativeTemplate(ctx *common.Context, input singlePathSpec, nameTemplate string,
 	fn func(float64, float64) float64) (ts.SeriesList, error) {
-
 	output := make([]*ts.Series, len(input.Values))
 	for i, in := range input.Values {
 		derivativeValues := ts.NewValues(ctx, in.MillisPerStep(), in.Len())
@@ -1485,7 +1493,7 @@ func nPercentile(ctx *common.Context, seriesList singlePathSpec, percentile floa
 
 func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percentile float64, interpolateValue genericInterface) (ts.SeriesList, error) {
 	if percentile <= 0 || percentile > 100 {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"the requested percentile value must be betwween 0 and 100"))
 		return ts.NewSeriesList(), err
 	}
@@ -1498,20 +1506,20 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 		if interpolateValue == "true" {
 			interpolate = true
 		} else if interpolateValue != "false" {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"interpolateValue must be either true or false but instead is %s",
 				interpolateValue))
 			return ts.NewSeriesList(), err
 		}
 	default:
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"interpolateValue must be either a boolean or a string but instead is %T",
 			interpolateValue))
 		return ts.NewSeriesList(), err
 	}
 
 	if len(seriesList.Values) == 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf("series list cannot be empty"))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("series list cannot be empty"))
 		return ts.NewSeriesList(), err
 	}
 
@@ -1523,7 +1531,7 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 	step := seriesList.Values[0].MillisPerStep()
 	for _, series := range seriesList.Values[1:] {
 		if step != series.MillisPerStep() {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"different step sizes in input series not supported"))
 			return ts.NewSeriesList(), err
 		}
@@ -1669,7 +1677,7 @@ func substr(_ *common.Context, seriesList singlePathSpec, start, stop int) (ts.S
 		numParts := len(nameParts)
 		// If stop == 0, it's as if stop was unspecified
 		if start < 0 || start >= numParts || (stop != 0 && stop < start) {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"invalid substr params, start=%d, stop=%d", start, stop))
 			return ts.NewSeriesList(), err
 		}
@@ -2073,10 +2081,10 @@ func removeBelowPercentile(ctx *common.Context, seriesList singlePathSpec, perce
 // Note: step has a unit of seconds.
 func randomWalkFunction(ctx *common.Context, name string, step int) (ts.SeriesList, error) {
 	if step <= 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("non-positive step size %d", step))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("non-positive step size %d", step))
 	}
 	if !ctx.StartTime.Before(ctx.EndTime) {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("startTime %v is no earlier than endTime %v", ctx.StartTime, ctx.EndTime))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("startTime %v is no earlier than endTime %v", ctx.StartTime, ctx.EndTime))
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	millisPerStep := step * millisPerSecond
@@ -2098,7 +2106,7 @@ func aggregateLine(ctx *common.Context, seriesList singlePathSpec, f string) (ts
 	sa := ts.SeriesReducerApproach(f)
 	r, ok := sa.SafeReducer()
 	if !ok {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
 	}
 
 	value := r(seriesList.Values[0])
@@ -2215,7 +2223,7 @@ func newMovingBinaryTransform(
 				series := original.Values[i]
 				windowPoints := windowPointsLength(series, interval)
 				if windowPoints <= 0 {
-					err := errors.NewInvalidParamsError(fmt.Errorf(
+					err := xerrors.NewInvalidParamsError(fmt.Errorf(
 						"non positive window points, windowSize=%s, stepSize=%d",
 						windowSize.stringValue, series.MillisPerStep()))
 					return ts.NewSeriesList(), err
@@ -2287,7 +2295,7 @@ func legendValue(_ *common.Context, seriesList singlePathSpec, valueType string)
 	sa := ts.SeriesReducerApproach(valueType)
 	reducer, ok := sa.SafeReducer()
 	if !ok {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", valueType))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid function %s", valueType))
 	}
 
 	results := make([]*ts.Series, 0, len(seriesList.Values))
@@ -2370,7 +2378,7 @@ func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationAp
 	ca := ts.ConsolidationApproach(consolidationApproach)
 	cf, ok := ca.SafeFunc()
 	if !ok {
-		err := errors.NewInvalidParamsError(fmt.Errorf("invalid consolidation approach %s", consolidationApproach))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("invalid consolidation approach %s", consolidationApproach))
 		return ts.NewSeriesList(), err
 	}
 
@@ -2422,7 +2430,7 @@ func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList
 // Note: step is measured in seconds.
 func timeFunction(ctx *common.Context, name string, step int) (ts.SeriesList, error) {
 	if step <= 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("step must be a positive int but instead is %d", step))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("step must be a positive int but instead is %d", step))
 	}
 
 	stepSizeInMilli := step * millisPerSecond
@@ -2441,7 +2449,7 @@ func timeFunction(ctx *common.Context, name string, step int) (ts.SeriesList, er
 // dashed draws the selected metrics with a dotted line with segments of length f.
 func dashed(_ *common.Context, seriesList singlePathSpec, dashLength float64) (ts.SeriesList, error) {
 	if dashLength <= 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("expected a positive dashLength but got %f", dashLength))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("expected a positive dashLength but got %f", dashLength))
 	}
 
 	results := make([]*ts.Series, len(seriesList.Values))
@@ -2460,7 +2468,7 @@ func dashed(_ *common.Context, seriesList singlePathSpec, dashLength float64) (t
 func threshold(ctx *common.Context, value float64, label string, color string) (ts.SeriesList, error) {
 	seriesList, err := constantLine(ctx, value)
 	if err != nil {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"error applying threshold function, error=%v", err))
 		return ts.NewSeriesList(), err
 	}

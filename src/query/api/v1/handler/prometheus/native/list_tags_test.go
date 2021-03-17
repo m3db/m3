@@ -21,6 +21,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -116,32 +118,63 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb).
+		SetTagOptions(models.NewTagOptions()).
 		SetNowFn(nowFn)
 	h := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{start: time.Unix(0, 0), end: now}
-		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
-			Return(storeResult, nil)
-
-		req := httptest.NewRequest(method, "/labels", nil)
-		w := httptest.NewRecorder()
-
-		h.ServeHTTP(w, req)
-
-		require.Equal(t, http.StatusOK, w.Result().StatusCode)
-
-		body := w.Result().Body
-		defer body.Close()
-
-		r, err := ioutil.ReadAll(body)
-		require.NoError(t, err)
-
-		ex := `{"status":"success","data":["bar","baz","foo"]}`
-		require.Equal(t, ex, string(r))
-
-		actual := w.Header().Get(headers.LimitHeader)
-		assert.Equal(t, header, actual)
+		testListTagsWithMatch(t, now, store, storeResult, method, header, h, false)
+		testListTagsWithMatch(t, now, store, storeResult, method, header, h, true)
 	}
+}
+
+func testListTagsWithMatch(
+	t *testing.T,
+	now time.Time,
+	store *storage.MockStorage,
+	storeResult *consolidators.CompleteTagsResult,
+	method string,
+	header string,
+	h http.Handler,
+	withMatchOverride bool,
+) {
+	tagMatcher := models.Matchers{{Type: models.MatchAll}}
+	target := "/labels"
+	if withMatchOverride {
+		tagMatcher = models.Matchers{{
+			Type:  models.MatchEqual,
+			Name:  []byte("__name__"),
+			Value: []byte("testing"),
+		}}
+		target = "/labels?match[]=testing"
+	}
+
+	matcher := &storage.CompleteTagsQuery{
+		CompleteNameOnly: true,
+		TagMatchers:      tagMatcher,
+		Start:            time.Unix(0, 0),
+		End:              now,
+	}
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Eq(matcher), gomock.Any()).
+		Return(storeResult, nil)
+
+	req := httptest.NewRequest(method, target, nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Result().StatusCode) // nolint:bodyclose
+
+	body := w.Result().Body
+	defer body.Close() // nolint:errcheck
+
+	r, err := ioutil.ReadAll(body)
+	require.NoError(t, err)
+
+	ex := `{"status":"success","data":["bar","baz","foo"]}`
+	require.Equal(t, ex, string(r))
+
+	actual := w.Header().Get(headers.LimitHeader)
+	assert.Equal(t, header, actual)
 }
 
 func TestListErrorTags(t *testing.T) {
@@ -174,4 +207,34 @@ func TestListErrorTags(t *testing.T) {
 
 		require.JSONEq(t, `{"status":"error","error":"err"}`, string(r))
 	}
+}
+
+//nolint:dupl
+func TestListTagsTimeout(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	req := httptest.NewRequest("GET", "/labels", nil)
+	w := httptest.NewRecorder()
+	h := NewListTagsHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 504, w.Code, "Status code not 504")
+	assert.Contains(t, w.Body.String(), "context deadline exceeded")
+}
+
+//nolint:dupl
+func TestListTagsUseRequestContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("GET", "/labels", nil).WithContext(cancelledCtx)
+	w := httptest.NewRecorder()
+	h := NewListTagsHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 499, w.Code, "Status code not 499")
+	assert.Contains(t, w.Body.String(), "context canceled")
 }

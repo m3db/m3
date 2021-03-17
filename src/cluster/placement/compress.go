@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,53 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package placement
 
 import (
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"bytes"
 
-	"go.uber.org/zap/zapcore"
+	"github.com/gogo/protobuf/proto"
+	"github.com/klauspost/compress/zstd"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
-type bootstrapStep interface {
-	prepare(totalRanges result.ShardTimeRanges) (bootstrapStepPreparedResult, error)
-	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
-	mergeResults(totalUnfulfilled result.ShardTimeRanges)
+func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
+	if p == nil {
+		return nil, errNilPlacementSnapshotsProto
+	}
+
+	uncompressed, _ := p.Marshal()
+	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
+	w, err := zstd.NewWriter(nil, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer w.Close() //nolint:errcheck
+	compressed := w.EncodeAll(uncompressed, nil)
+
+	return compressed, nil
 }
 
-type bootstrapStepPreparedResult struct {
-	currAvailable result.ShardTimeRanges
-}
+func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error) {
+	if compressed == nil {
+		return nil, errNilValue
+	}
 
-type bootstrapStepStatus struct {
-	fulfilled result.ShardTimeRanges
-	logFields []zapcore.Field
+	r, err := zstd.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	decompressed, err := r.DecodeAll(compressed, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &placementpb.Placement{}
+	if err := proto.Unmarshal(decompressed, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
