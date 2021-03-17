@@ -2532,6 +2532,7 @@ func (s *service) PauseWritesToCommitLog(ctx thrift.Context, req *rpc.PauseWrite
 		return err
 	}
 	commitlog.PauseWritesForMillis.Store(pause.Milliseconds())
+	s.logger.Info("received pause request", zap.Duration("duration", pause))
 	return nil
 }
 

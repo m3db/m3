@@ -519,7 +519,9 @@ func (l *commitLog) write() {
 
 		pause := PauseWritesForMillis.Swap(0)
 		if pause > 0 {
-			time.Sleep(time.Duration(pause) * time.Millisecond)
+			duration := time.Duration(pause) * time.Millisecond
+			l.log.Info("pausing writes to commitlog", zap.Duration("duration", duration))
+			time.Sleep(duration)
 		}
 
 		for _, writeBatch := range batch {
