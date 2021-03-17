@@ -678,6 +678,7 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	require.NoError(t, ns.WarmFlush(blockStart, nil))
+	require.NoError(t, ns.ColdFlush(nil))
 }
 
 type snapshotTestCase struct {
@@ -686,6 +687,7 @@ type snapshotTestCase struct {
 	shardBootstrapStateBeforeTick BootstrapState
 	lastSnapshotTime              func(blockStart time.Time, blockSize time.Duration) time.Time
 	shardSnapshotErr              error
+	isBootstrapped                bool
 }
 
 func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
@@ -712,12 +714,14 @@ func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
 		},
 		snapshotTestCase{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
 		},
 	}
 	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
@@ -730,15 +734,37 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
 		},
 		snapshotTestCase{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              errors.New("err"),
+			isBootstrapped:                true,
 		},
 	}
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func TestNamespaceSnapshotShardSkipNotBootstrapped(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
+		},
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			// Skip this shard (not bootstrapped) so we do not see this error.
+			shardSnapshotErr: errors.New("shard not bootstrapped"),
+		},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
 func testSnapshotWithShardSnapshotErrs(
@@ -770,7 +796,10 @@ func testSnapshotWithShardSnapshotErrs(
 		shard := NewMockdatabaseShard(ctrl)
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
-		shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+		shard.EXPECT().IsBootstrapped().Return(tc.isBootstrapped).AnyTimes()
+		if !tc.isBootstrapped {
+			continue
+		}
 		if tc.expectSnapshot {
 			shard.EXPECT().
 				Snapshot(blockStart, now, gomock.Any(), gomock.Any()).
