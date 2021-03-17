@@ -90,13 +90,19 @@ func (p *pattern) UnwriteLast() {
 
 func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 	var (
-		pattern  pattern
-		escaping = false
-		regexed  = false
+		pattern      pattern
+		escaping     = false
+		regexed      = false
+		matchAll     = false
+		prevMatchAll = false
 	)
 
 	groupStartStack := []rune{rune(0)} // rune(0) indicates pattern is not in a group
 	for i, r := range glob {
+		// Evaluate if last was a matchAll statement and reset current matchAll.
+		prevMatchAll = matchAll
+		matchAll = false
+
 		prevEval := pattern.LastEvaluate()
 		pattern.Evaluate(r)
 
@@ -111,9 +117,18 @@ func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 			escaping = true
 			pattern.WriteRune('\\')
 		case '.':
-			// Match hierarchy separator
-			pattern.WriteString("\\.+")
-			regexed = true
+			// Check that previous rune was not the match all statement
+			// since we need to skip adding a trailing dot to pattern if so.
+			// It's meant to match zero or more segment separators.
+			// e.g. "foo.**.bar.baz" glob should match:
+			// - foo.term.bar.baz
+			// - foo.term1.term2.bar.baz
+			// - foo.bar.baz
+			if !prevMatchAll {
+				// Match hierarchy separator
+				pattern.WriteString("\\.+")
+				regexed = true
+			}
 		case '?':
 			// Match anything except the hierarchy separator
 			pattern.WriteString("[^\\.]")
@@ -123,6 +138,7 @@ func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 				pattern.UnwriteLast()
 				pattern.WriteString(".*")
 				regexed = true
+				matchAll = true
 			} else {
 				// Match everything up to the next hierarchy separator
 				pattern.WriteString("[^\\.]*")
