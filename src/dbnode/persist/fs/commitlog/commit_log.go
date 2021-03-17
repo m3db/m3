@@ -520,7 +520,7 @@ func (l *commitLog) write() {
 		pause := PauseWritesForMillis.Swap(0)
 		if pause > 0 {
 			duration := time.Duration(pause) * time.Millisecond
-			l.log.Info("pausing writes to commitlog", zap.Duration("duration", duration))
+			l.log.Info("pausing writes to commitlog", zap.Stringer("duration", duration))
 			time.Sleep(duration)
 		}
 
