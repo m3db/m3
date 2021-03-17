@@ -184,7 +184,7 @@ type commitLogMetrics struct {
 	flushDone        tally.Counter
 }
 
-type eventType int
+type eventType int8
 
 // nolint: varcheck, unused
 const (
@@ -240,9 +240,9 @@ func (r callbackResult) rotateLogsResult() (rotateLogsResult, error) {
 }
 
 type commitLogWrite struct {
-	eventType  eventType
 	write      writeOrWriteBatch
 	callbackFn callbackFn
+	eventType  eventType
 }
 
 // NewCommitLog creates a new commit log
@@ -743,6 +743,11 @@ func (l *commitLog) writeWait(
 	ctx context.Context,
 	write writeOrWriteBatch,
 ) error {
+	numToEnqueue := int64(1)
+	if write.writeBatch != nil {
+		numToEnqueue = int64(len(write.writeBatch.Iter()))
+	}
+
 	l.closedState.RLock()
 	if l.closedState.closed {
 		l.closedState.RUnlock()
@@ -766,11 +771,6 @@ func (l *commitLog) writeWait(
 		callbackFn: completion,
 	}
 
-	numToEnqueue := int64(1)
-	if writeToEnqueue.write.writeBatch != nil {
-		numToEnqueue = int64(len(writeToEnqueue.write.writeBatch.Iter()))
-	}
-
 	// Optimistically increment the number of enqueued writes.
 	numEnqueued := atomic.AddInt64(&l.numWritesInQueue, numToEnqueue)
 
@@ -789,10 +789,7 @@ func (l *commitLog) writeWait(
 	}
 
 	// Otherwise submit the write.
-	l.writes <- commitLogWrite{
-		write:      write,
-		callbackFn: completion,
-	}
+	l.writes <- writeToEnqueue
 
 	l.closedState.RUnlock()
 
@@ -805,12 +802,6 @@ func (l *commitLog) writeBehind(
 	ctx context.Context,
 	write writeOrWriteBatch,
 ) error {
-	l.closedState.RLock()
-	if l.closedState.closed {
-		l.closedState.RUnlock()
-		return errCommitLogClosed
-	}
-
 	numToEnqueue := int64(1)
 	if write.writeBatch != nil {
 		numToEnqueue = int64(len(write.writeBatch.Iter()))
@@ -822,7 +813,6 @@ func (l *commitLog) writeBehind(
 	// If we exceeded the limit, decrement the number of enqueued writes and bail.
 	if numEnqueued > l.maxQueueSize {
 		atomic.AddInt64(&l.numWritesInQueue, -numToEnqueue)
-		l.closedState.RUnlock()
 
 		if write.writeBatch != nil {
 			// Make sure to finalize the write batch even though we didn't accept the writes
@@ -831,6 +821,13 @@ func (l *commitLog) writeBehind(
 		}
 
 		return ErrCommitLogQueueFull
+	}
+
+	l.closedState.RLock()
+	if l.closedState.closed {
+		l.closedState.RUnlock()
+		atomic.AddInt64(&l.numWritesInQueue, -numToEnqueue)
+		return errCommitLogClosed
 	}
 
 	// Otherwise submit the write.
