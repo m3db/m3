@@ -22,7 +22,6 @@ package fs
 
 import (
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -665,7 +664,7 @@ func TestSeekerManagerCacheShardIndicesSkipNotFound(t *testing.T) {
 		blockStart time.Time,
 		volume int,
 	) (DataFileSetSeeker, error) {
-		return nil, syscall.ENOENT
+		return nil, errSeekerManagerFileSetNotFound
 	}
 
 	shards := []uint32{2, 5, 9, 478, 1023}
