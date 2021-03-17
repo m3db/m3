@@ -2181,6 +2181,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 	}
 }
 
+// nolint: thelper
 func testLogarithm(t *testing.T, base float64, asserts func(*ts.Series)) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
