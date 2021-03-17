@@ -174,6 +174,9 @@ type AggregatorConfiguration struct {
 
 	// AddToReset is the yaml config for aggregator.Options.AddToReset
 	AddToReset bool `yaml:"addToReset"`
+
+	// TimedMetricsFlushOffsetEnabled enables using FlushOffset for timed metrics.
+	TimedMetricsFlushOffsetEnabled bool `yaml:"timedMetricsFlushOffsetEnabled"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -258,7 +261,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		SetInstrumentOptions(instrumentOpts).
 		SetRuntimeOptionsManager(runtimeOptsManager).
 		SetVerboseErrors(c.VerboseErrors).
-		SetAddToReset(c.AddToReset)
+		SetAddToReset(c.AddToReset).
+		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled)
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {
