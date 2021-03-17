@@ -762,6 +762,7 @@ func TestNamespaceSnapshotShardSkipNotBootstrapped(t *testing.T) {
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			// Skip this shard (not bootstrapped) so we do not see this error.
 			shardSnapshotErr: errors.New("shard not bootstrapped"),
+			isBootstrapped:   false,
 		},
 	}
 	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
