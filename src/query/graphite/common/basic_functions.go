@@ -187,7 +187,8 @@ func ParseInterval(fullInterval string) (time.Duration, error) {
 	allIntervals := reInterval.FindAllString(fullInterval, -1)
 	output := time.Duration(0)
 	if allIntervals == nil {
-		return 0, xerrors.NewInvalidParamsError(fmt.Errorf("Unrecognized interval string: %s", fullInterval))
+		return 0, xerrors.NewInvalidParamsError(
+			fmt.Errorf("unrecognized interval string: %s", fullInterval))
 	}
 
 	for _, interval := range allIntervals {

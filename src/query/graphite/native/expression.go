@@ -33,7 +33,8 @@ import (
 )
 
 var (
-	errTopLevelFunctionMustReturnTimeSeries = xerrors.NewInvalidParamsError(errors.New("top-level functions must return timeseries data"))
+	errTopLevelFunctionMustReturnTimeSeries = xerrors.NewInvalidParamsError(
+		errors.New("top-level functions must return timeseries data"))
 )
 
 // An Expression is a metric query expression

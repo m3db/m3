@@ -322,7 +322,8 @@ func timeShift(
 
 	shift, err := common.ParseInterval(timeShiftS)
 	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("invalid timeShift parameter %s: %v", timeShiftS, err))
+		return nil, xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid timeShift parameter %s: %w", timeShiftS, err))
 	}
 
 	contextShiftingFn := func(c *common.Context) *common.Context {
@@ -2084,7 +2085,8 @@ func randomWalkFunction(ctx *common.Context, name string, step int) (ts.SeriesLi
 		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("non-positive step size %d", step))
 	}
 	if !ctx.StartTime.Before(ctx.EndTime) {
-		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("startTime %v is no earlier than endTime %v", ctx.StartTime, ctx.EndTime))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(
+			fmt.Errorf("startTime %v is no earlier than endTime %v", ctx.StartTime, ctx.EndTime))
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	millisPerStep := step * millisPerSecond
@@ -2430,7 +2432,8 @@ func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList
 // Note: step is measured in seconds.
 func timeFunction(ctx *common.Context, name string, step int) (ts.SeriesList, error) {
 	if step <= 0 {
-		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("step must be a positive int but instead is %d", step))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(
+			fmt.Errorf("step must be a positive int but instead is %d", step))
 	}
 
 	stepSizeInMilli := step * millisPerSecond
@@ -2449,7 +2452,8 @@ func timeFunction(ctx *common.Context, name string, step int) (ts.SeriesList, er
 // dashed draws the selected metrics with a dotted line with segments of length f.
 func dashed(_ *common.Context, seriesList singlePathSpec, dashLength float64) (ts.SeriesList, error) {
 	if dashLength <= 0 {
-		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("expected a positive dashLength but got %f", dashLength))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(
+			fmt.Errorf("expected a positive dashLength but got %f", dashLength))
 	}
 
 	results := make([]*ts.Series, len(seriesList.Values))
