@@ -72,15 +72,52 @@ func joinPathExpr(series ts.SeriesList) string {
 	return strings.Join(joined, ",")
 }
 
+// sortBy allows for sorting by an aggregation function.
+func sortBy(ctx *common.Context, series singlePathSpec, fn string, reverse bool) (ts.SeriesList, error) {
+	var (
+		result ts.SeriesList
+		err    error
+	)
+	if strings.HasPrefix(fn, "min") {
+		result, err = lowest(ctx, series, len(series.Values), fn)
+	} else {
+		result, err = highest(ctx, series, len(series.Values), fn)
+	}
+	if err != nil {
+		return ts.SeriesList{}, err
+	}
+	if reverse {
+		reverseSeries(result.Values)
+	}
+	return result, nil
+}
+
+func reverseSeries(s []*ts.Series) {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
+}
+
 // sortByName sorts timeseries results by their names
-func sortByName(_ *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+func sortByName(_ *common.Context, series singlePathSpec, natural, reverse bool) (ts.SeriesList, error) {
 	sorted := make([]*ts.Series, len(series.Values))
 	for i := range series.Values {
 		sorted[i] = series.Values[i]
 	}
 
+	var sortedBy sort.Interface
+	if natural {
+		sortedBy = ts.SeriesByNameAndNaturalNumbers(sorted)
+	} else {
+		sortedBy = ts.SeriesByName(sorted)
+	}
+
+	if reverse {
+		sortedBy = sort.Reverse(sortedBy)
+	}
+
 	// Use sort.Stable for deterministic output.
-	sort.Stable(ts.SeriesByName(sorted))
+	sort.Stable(sortedBy)
 
 	r := ts.SeriesList(series)
 	r.Values = sorted
@@ -2514,9 +2551,16 @@ func init() {
 	MustRegisterFunction(removeEmptySeries)
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
+	MustRegisterFunction(sortBy).WithDefaultParams(map[uint8]interface{}{
+		2: "average", // fn
+		3: false,     // reverse
+	})
 	MustRegisterFunction(sortByMaxima)
 	MustRegisterFunction(sortByMinima)
-	MustRegisterFunction(sortByName)
+	MustRegisterFunction(sortByName).WithDefaultParams(map[uint8]interface{}{
+		2: false, // natural
+		3: false, // reverse
+	})
 	MustRegisterFunction(sortByTotal)
 	MustRegisterFunction(squareRoot)
 	MustRegisterFunction(stdev).WithDefaultParams(map[uint8]interface{}{
