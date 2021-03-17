@@ -23,6 +23,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"strings"
 	"sync"
@@ -37,7 +38,7 @@ import (
 
 const (
 	_queueMinWriteBufSize = 65536
-	_queueMaxWriteBufSize = 4 * _queueMinWriteBufSize
+	_queueMaxWriteBufSize = 2 * _queueMinWriteBufSize
 )
 
 var (
@@ -208,24 +209,63 @@ func (q *queue) Close() error {
 }
 
 func (q *queue) Flush() {
+	var (
+		buf = _queueConnWriteBufPool.Get().(*[]byte)
+		n   int
+		err error
+	)
+
+	for err == nil {
+		// flush everything in batches, to make sure no single payload is too large,
+		// to prevent a) allocs and b) timeouts due to big buffer IO taking too long.
+		var processed int
+		processed, err = q.flush(buf)
+		n += processed
+	}
+
+	if err != nil && err != io.EOF {
+		q.log.Error("error writing data",
+			zap.String("target_instance_id", q.instance.ID()),
+			zap.String("target_instance", q.instance.Endpoint()),
+			zap.Int("bytes_processed", n),
+			zap.Error(err),
+		)
+	}
+
+	// Check buffer capacity, not length, to make sure we're not pooling slices that are too large.
+	// Otherwise, it could result in multi-megabyte slices hanging around, in case we get a single massive write.
+	if cap(*buf) < _queueMaxWriteBufSize {
+		*buf = (*buf)[:0]
+		_queueConnWriteBufPool.Put(buf)
+	}
+}
+
+func (q *queue) flush(buf *[]byte) (int, error) {
+	var n int
+
 	q.mtx.Lock()
 
 	if q.buf.size() == 0 {
 		q.mtx.Unlock()
-		return
+		return n, io.EOF
 	}
 
-	buf := _queueConnWriteBufPool.Get().(*[]byte)
-
+	*buf = (*buf)[:0]
 	for q.buf.size() > 0 {
-		b := q.buf.shift()
+		b := q.buf.peek()
+		if n > 0 && len(b.Bytes())+len(*buf) >= _queueMaxWriteBufSize {
+			// only merge buffers that are smaller than _queueMaxWriteBufSize bytes
+			break
+		}
+		_ = q.buf.shift()
 
 		bytes := b.Bytes()
 		if len(bytes) == 0 {
 			continue
 		}
 
-		(*buf) = append(*buf, bytes...)
+		*buf = append(*buf, bytes...)
+		n += len(bytes)
 		b.Close()
 	}
 
@@ -235,29 +275,17 @@ func (q *queue) Flush() {
 	size := len(*buf)
 	if size == 0 {
 		_queueConnWriteBufPool.Put(buf)
-		return
+		return n, io.EOF
 	}
 
 	if err := q.writeFn(*buf); err != nil {
-		q.log.Error("error writing data",
-			zap.Int("buffer_size", size),
-			zap.String("target_instance_id", q.instance.ID()),
-			zap.String("target_instance", q.instance.Endpoint()),
-			zap.Error(err),
-		)
 		q.metrics.connWriteErrors.Inc(1)
-	} else {
-		q.metrics.connWriteSuccesses.Inc(1)
+		return n, err
 	}
 
-	// Check buffer capacity, not length, to make sure we're not pooling slices that are too large.
-	// Otherwise, it could result in multi-megabyte slices hanging around, in case we get a spike in writes.
-	if cap(*buf) > _queueMaxWriteBufSize {
-		return
-	}
+	q.metrics.connWriteSuccesses.Inc(1)
 
-	(*buf) = (*buf)[:0]
-	_queueConnWriteBufPool.Put(buf)
+	return n, nil
 }
 
 func (q *queue) Size() int {
@@ -322,6 +350,11 @@ func (q *qbuf) shift() protobuf.Buffer {
 	val := q.b[idx]
 	q.b[idx] = protobuf.Buffer{}
 	return val
+}
+
+func (q *qbuf) peek() protobuf.Buffer {
+	idx := q.mask(q.r + 1)
+	return q.b[idx]
 }
 
 func roundUpToPowerOfTwo(val int) int {

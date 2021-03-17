@@ -94,6 +94,38 @@ func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 	}, result)
 }
 
+func TestInstanceQueueEnqueueLargeBuffers(t *testing.T) {
+	var (
+		opts = testOptions().
+			SetInstanceQueueSize(4)
+		queue        = newInstanceQueue(testPlacementInstance, opts).(*queue)
+		largeBuf     = [_queueMaxWriteBufSize * 2]byte{}
+		bytesWritten int
+		timesWritten int
+	)
+
+	queue.writeFn = func(payload []byte) error {
+		bytesWritten += len(payload)
+		timesWritten++
+		return nil
+	}
+
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:])))
+	queue.Flush()
+	require.Equal(t, len(largeBuf)+3, bytesWritten)
+	require.Equal(t, 2, timesWritten)
+
+	timesWritten, bytesWritten = 0, 0
+	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:])))
+	queue.Flush()
+	require.Equal(t, len(largeBuf), bytesWritten)
+	require.Equal(t, 1, timesWritten)
+
+}
+
 func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
 	opts := testOptions().SetMaxBatchSize(1)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
