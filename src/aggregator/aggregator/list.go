@@ -761,7 +761,10 @@ func (l *timedMetricList) ID() metricListID {
 }
 
 func (l *timedMetricList) FixedFlushOffset() (time.Duration, bool) {
-	return l.flushOffset, true
+	if l.opts.TimedMetricsFlushOffsetEnabled() {
+		return l.flushOffset, true
+	}
+	return 0, false
 }
 
 func (l *timedMetricList) Close() {
