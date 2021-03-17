@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"io/ioutil"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -59,6 +60,8 @@ type PromSeriesMatchHandler struct {
 }
 
 // NewPromSeriesMatchHandler returns a new instance of handler.
+// TODO: Remove series match handler, not part of Prometheus HTTP API
+// and not used anywhere or documented.
 func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 	return &PromSeriesMatchHandler{
 		tagOptions:          opts.TagOptions(),
@@ -103,9 +106,35 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		meta = meta.CombineMetadata(result.Metadata)
 	}
 
-	handleroptions.AddResponseHeaders(w, meta, opts)
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
+	var (
+		noopWriter = ioutil.Discard
+		renderOpts = prometheus.RenderSeriesMetadataOptions{
+			ReturnedSeriesMetadataLimit: opts.ReturnedSeriesMetadataLimit,
+		}
+	)
+	renderResult, err := prometheus.RenderSeriesMatchResultsJSON(noopWriter, results, renderOpts)
+	if err != nil {
+		logger.Error("unable to render match series results", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	limited := &handleroptions.ReturnedMetadataLimited{
+		Results:      renderResult.Results,
+		TotalResults: renderResult.TotalResults,
+		Limited:      renderResult.LimitedMaxReturnedData,
+	}
+	if err := handleroptions.AddResponseHeaders(w, meta, opts, nil, limited); err != nil {
+		logger.Error("unable to render list tags headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	// TODO: Support multiple result types
-	if err := prometheus.RenderSeriesMatchResultsJSON(w, results, false); err != nil {
-		logger.Error("unable to write matched series", zap.Error(err))
+	_, err = prometheus.RenderSeriesMatchResultsJSON(w, results, renderOpts)
+	if err != nil {
+		logger.Error("unable to render match series", zap.Error(err))
 	}
 }

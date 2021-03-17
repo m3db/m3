@@ -161,7 +161,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
 		SetJitterEnabled(opts.JitterEnabled()).
-		SetMaxJitterFn(opts.MaxJitterFn())
+		SetMaxJitterFn(opts.MaxJitterFn()).
+		SetBufferForPastTimedMetric(aggregatorOpts.BufferForPastTimedMetric())
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 

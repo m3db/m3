@@ -96,6 +96,10 @@ const (
 	// the number of series returned in total to the client.
 	LimitMaxReturnedSeriesHeader = M3HeaderPrefix + "Limit-Max-Returned-Series"
 
+	// LimitMaxReturnedSeriesMetadataHeader is the M3 header that limits
+	// the number of series metadata returned in total to the client.
+	LimitMaxReturnedSeriesMetadataHeader = M3HeaderPrefix + "Limit-Max-Returned-SeriesMetadata"
+
 	// LimitRequireExhaustiveHeader is the M3 limit exhaustive header that will
 	// ensure M3 returns an error if the results set is not exhaustive.
 	LimitRequireExhaustiveHeader = M3HeaderPrefix + "Limit-Require-Exhaustive"
@@ -126,6 +130,10 @@ const (
 	// ReturnedDataLimitedHeader is the header added when returned
 	// data are limited either by series or datapoints.
 	ReturnedDataLimitedHeader = M3HeaderPrefix + "Returned-Data-Limited"
+
+	// ReturnedMetadataLimitedHeader is the header added when returned
+	// metadata is limited.
+	ReturnedMetadataLimitedHeader = M3HeaderPrefix + "Returned-Metadata-Limited"
 
 	// TimeoutHeader is the header added with the effective timeout.
 	TimeoutHeader = M3HeaderPrefix + "Timeout"

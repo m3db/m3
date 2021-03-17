@@ -71,7 +71,10 @@ func NewTCPClient(opts Options) (*TCPClient, error) {
 
 	writerMgrScope := instrumentOpts.MetricsScope().SubScope("writer-manager")
 	writerMgrOpts := opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
-	writerMgr = newInstanceWriterManager(writerMgrOpts)
+	writerMgr, err := newInstanceWriterManager(writerMgrOpts)
+	if err != nil {
+		return nil, err
+	}
 
 	onPlacementChangedFn := func(prev, curr placement.Placement) {
 		writerMgr.AddInstances(curr.Instances()) // nolint: errcheck
@@ -255,7 +258,8 @@ func (c *TCPClient) Flush() error {
 
 // Close closes the client.
 func (c *TCPClient) Close() error {
-	c.placementWatcher.Unwatch() // nolint: errcheck
+	c.writerMgr.Flush()          //nolint:errcheck
+	c.placementWatcher.Unwatch() //nolint:errcheck
 	// writerMgr errors out if trying to close twice
 	return c.writerMgr.Close()
 }

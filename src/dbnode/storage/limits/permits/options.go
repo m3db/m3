@@ -21,8 +21,9 @@
 package permits
 
 import (
-	"math"
-	"runtime"
+	"time"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type options struct {
@@ -32,10 +33,16 @@ type options struct {
 
 // NewOptions return a new set of default permit managers.
 func NewOptions() Options {
+	// provide some defaults to exercise parallel processing in tests.
 	return &options{
-		seriesReadManager: NewNoOpPermitsManager(),
-		// Default to using half of the available cores for querying IDs
-		indexQueryManager: NewFixedPermitsManager(int(math.Ceil(float64(runtime.NumCPU()) / 2))),
+		seriesReadManager: NewFixedPermitsManager(
+			100000,
+			100,
+			instrument.NewOptions()),
+		indexQueryManager: NewFixedPermitsManager(
+			8,
+			int64(time.Millisecond*10),
+			instrument.NewOptions()),
 	}
 }
 

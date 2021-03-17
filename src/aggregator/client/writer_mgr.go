@@ -26,10 +26,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"golang.org/x/sys/cpu"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/uber-go/tally"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (
@@ -65,15 +67,21 @@ type instanceWriterManager interface {
 }
 
 type writerManagerMetrics struct {
-	instancesAdded   tally.Counter
-	instancesRemoved tally.Counter
-	queueLen         tally.Histogram
+	instancesAdded      tally.Counter
+	instancesRemoved    tally.Counter
+	queueLen            tally.Histogram
+	dirtyWritersPercent tally.Histogram
 }
 
 func newWriterManagerMetrics(scope tally.Scope) writerManagerMetrics {
 	buckets := append(
 		tally.ValueBuckets{0},
 		tally.MustMakeExponentialValueBuckets(_queueMetricBucketStart, 2, _queueMetricBuckets)...,
+	)
+
+	percentBuckets := append(
+		tally.ValueBuckets{0},
+		tally.MustMakeLinearValueBuckets(5, 5, 20)...,
 	)
 
 	return writerManagerMetrics{
@@ -83,7 +91,8 @@ func newWriterManagerMetrics(scope tally.Scope) writerManagerMetrics {
 		instancesRemoved: scope.Tagged(map[string]string{
 			"action": "remove",
 		}).Counter("instances"),
-		queueLen: scope.Histogram("queue-length", buckets),
+		queueLen:            scope.Histogram("queue-length", buckets),
+		dirtyWritersPercent: scope.Histogram("dirty-writers-percent", percentBuckets),
 	}
 }
 
@@ -95,18 +104,40 @@ type writerManager struct {
 	writers map[string]*refCountedWriter
 	closed  bool
 	metrics writerManagerMetrics
+	_       cpu.CacheLinePad
+	pool    xsync.PooledWorkerPool
 }
 
-func newInstanceWriterManager(opts Options) instanceWriterManager {
+func newInstanceWriterManager(opts Options) (instanceWriterManager, error) {
 	wm := &writerManager{
 		opts:    opts,
 		writers: make(map[string]*refCountedWriter),
 		metrics: newWriterManagerMetrics(opts.InstrumentOptions().MetricsScope()),
 		doneCh:  make(chan struct{}),
 	}
+
+	pool, err := xsync.NewPooledWorkerPool(
+		opts.FlushWorkerCount(),
+		xsync.NewPooledWorkerPoolOptions().SetKillWorkerProbability(0.05),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	wm.pool = pool
+	wm.pool.Init()
+
 	wm.wg.Add(1)
 	go wm.reportMetricsLoop()
-	return wm
+
+	if opts.ForceFlushEvery() > 0 {
+		wm.wg.Add(1)
+		go func() {
+			wm.flushLoop(opts.ForceFlushEvery())
+		}()
+	}
+
+	return wm, nil
 }
 
 func (mgr *writerManager) AddInstances(instances []placement.Instance) error {
@@ -169,24 +200,62 @@ func (mgr *writerManager) Write(
 		mgr.RUnlock()
 		return fmt.Errorf("writer for instance %s is not found", id)
 	}
+	writer.dirty.Store(true)
 	err := writer.Write(shardID, payload)
 	mgr.RUnlock()
+
 	return err
 }
 
 func (mgr *writerManager) Flush() error {
 	mgr.RLock()
+	defer mgr.RUnlock()
+
 	if mgr.closed {
-		mgr.RUnlock()
 		return errInstanceWriterManagerClosed
 	}
-	multiErr := xerrors.NewMultiError()
+
+	var (
+		errCh  = make(chan error, 1)
+		mErrCh = make(chan xerrors.MultiError, 1)
+		wg     sync.WaitGroup
+	)
+
+	numDirty := 0
 	for _, w := range mgr.writers {
-		if err := w.Flush(); err != nil {
+		if !w.dirty.Load() {
+			continue
+		}
+		numDirty++
+		w := w
+		wg.Add(1)
+		mgr.pool.Go(func() {
+			defer wg.Done()
+
+			w.dirty.CAS(true, false)
+			if err := w.Flush(); err != nil {
+				errCh <- err
+			}
+		})
+	}
+
+	percentInUse := 0.0
+	if numDirty > 0 && len(mgr.writers) > 0 {
+		percentInUse = 100.0 * (float64(numDirty) / float64(len(mgr.writers)))
+	}
+	mgr.metrics.dirtyWritersPercent.RecordValue(percentInUse)
+
+	go func() {
+		multiErr := xerrors.NewMultiError()
+		for err := range errCh {
 			multiErr = multiErr.Add(err)
 		}
-	}
-	mgr.RUnlock()
+		mErrCh <- multiErr
+	}()
+	wg.Wait()
+	close(errCh)
+
+	multiErr := <-mErrCh
 	return multiErr.FinalError()
 }
 
@@ -232,5 +301,21 @@ func (mgr *writerManager) reportMetrics() {
 
 	for _, writer := range mgr.writers {
 		mgr.metrics.queueLen.RecordValue(float64(writer.QueueSize()))
+	}
+}
+
+func (mgr *writerManager) flushLoop(d time.Duration) {
+	defer mgr.wg.Done()
+
+	ticker := time.NewTicker(d)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-mgr.doneCh:
+			return
+		case <-ticker.C:
+			mgr.Flush() //nolint:errcheck
+		}
 	}
 }

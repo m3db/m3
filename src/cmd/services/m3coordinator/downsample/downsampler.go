@@ -66,9 +66,9 @@ type SamplesAppenderResult struct {
 // SampleAppenderOptions defines the options being used when constructing
 // the samples appender for a metric.
 type SampleAppenderOptions struct {
-	Override      bool
-	OverrideRules SamplesAppenderOverrideRules
-	MetricType    ts.M3MetricType
+	Override         bool
+	OverrideRules    SamplesAppenderOverrideRules
+	SeriesAttributes ts.SeriesAttributes
 }
 
 // SamplesAppenderOverrideRules provides override rules to
@@ -137,6 +137,7 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
 		debugLogging:           debugLogging,
 		logger:                 logger,
+		untimedRollups:         agg.untimedRollups,
 	}
 }
 

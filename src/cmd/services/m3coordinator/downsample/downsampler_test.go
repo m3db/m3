@@ -447,6 +447,88 @@ func TestDownsamplerAggregationWithRulesConfigMappingRules(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithAutoMappingRulesAndRulesConfigMappingRulesAndDropRule(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+			"env":   "staging",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+		expectDropPolicyApplied: true,
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []m3.ClusterNamespaceOptions{
+			m3.NewClusterNamespaceOptions(
+				storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   2 * time.Hour,
+					Resolution:  1 * time.Second,
+				},
+				nil,
+			),
+			m3.NewClusterNamespaceOptions(
+				storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   12 * time.Hour,
+					Resolution:  5 * time.Second,
+				},
+				nil,
+			),
+		},
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter: "env:staging",
+					Drop:   true,
+				},
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 10 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			allowFilter: &testDownsamplerOptionsExpectAllowFilter{
+				attributes: []storagemetadata.Attributes{
+					{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  10 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+			writes: []testExpectedWrite{
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  10 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMappingRuleFromNamespacesWatcher(t *testing.T) {
 	t.Parallel()
 
@@ -677,7 +759,64 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilter(t *testing.
 			},
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
-			MetricType: ts.M3MetricTypeCounter,
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						"app":      "nginx_edge",
+						"endpoint": "health",
+					},
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  1 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+//nolint:dupl
+func TestDownsamplerAggregationWithRulesConfigMappingRulesTypePromFilter(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			"app":      "nginx_edge",
+			"endpoint": "health",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		identTag: "endpoint",
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "__m3_prom_type__:counter",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{PromType: ts.PromMetricTypeCounter},
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -733,7 +872,51 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilterNoMatch(t *t
 			},
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
-			MetricType: ts.M3MetricTypeGauge,
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeGauge},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+//nolint:dupl
+func TestDownsamplerAggregationWithRulesConfigMappingRulesPromTypeFilterNoMatch(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			"app":      "nginx_edge",
+			"endpoint": "health",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		identTag: "endpoint",
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "__m3_prom_type__:counter",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{PromType: ts.PromMetricTypeGauge},
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -1630,7 +1813,321 @@ func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicyAndDropTime
 						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
-					values: []expectedValue{{value: 55}, {value: 39}},
+					values: []expectedValue{{value: 94}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollups(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetrics := []testGaugeMetric{
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_1",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 42},
+				{value: 12, offset: 2 * time.Second},
+			},
+			expectDropTimestamp: true,
+		},
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_2",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 13},
+				{value: 27, offset: 2 * time.Second},
+			},
+			expectDropTimestamp: true,
+		},
+	}
+	res := 1 * time.Second
+	ret := 30 * 24 * time.Hour
+	filter := fmt.Sprintf("%s:http_requests app:* status_code:* endpoint:*", nameTag)
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		untimedRollups: true,
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: filter,
+					Transforms: []TransformConfiguration{
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: gaugeMetrics,
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 94}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigRollupRuleUntimedRollupsWaitForOffset(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetrics := []testGaugeMetric{
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_1",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 42},
+			},
+			expectDropPolicyApplied: true,
+			expectDropTimestamp:     true,
+		},
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_2",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 12, offset: 2 * time.Second},
+			},
+			expectDropPolicyApplied: true,
+			expectDropTimestamp:     true,
+		},
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_3",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 13},
+			},
+			expectDropPolicyApplied: true,
+			expectDropTimestamp:     true,
+		},
+	}
+	res := 1 * time.Second
+	ret := 30 * 24 * time.Hour
+	filter := fmt.Sprintf("%s:http_requests app:* status_code:* endpoint:*", nameTag)
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		waitForOffset:  true,
+		untimedRollups: true,
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter: filter,
+					Drop:   true,
+				},
+			},
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: filter,
+					Transforms: []TransformConfiguration{
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: gaugeMetrics,
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 42}, {value: 25}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigRollupRuleRollupLaterUntimedRollups(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetrics := []testGaugeMetric{
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_1",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 42},
+				{value: 12, offset: 2 * time.Second},
+			},
+			expectDropTimestamp: true,
+		},
+		{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   "500",
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value_2",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 13},
+				{value: 27, offset: 2 * time.Second},
+			},
+			expectDropTimestamp: true,
+		},
+	}
+	res := 1 * time.Second
+	ret := 30 * 24 * time.Hour
+	filter := fmt.Sprintf("%s:http_requests app:* status_code:* endpoint:*", nameTag)
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		untimedRollups: true,
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: filter,
+					Transforms: []TransformConfiguration{
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.Add,
+							},
+						},
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: gaugeMetrics,
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 39}},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  res,
@@ -2169,12 +2666,14 @@ func testDownsamplerAggregation(
 	expectedWrites := append(counterMetricsExpect, gaugeMetricsExpect...)
 
 	// Allow overrides
+	var allowFilter *testDownsamplerOptionsExpectAllowFilter
 	if ingest := testOpts.ingest; ingest != nil {
 		counterMetrics = ingest.counterMetrics
 		gaugeMetrics = ingest.gaugeMetrics
 	}
 	if expect := testOpts.expect; expect != nil {
 		expectedWrites = expect.writes
+		allowFilter = expect.allowFilter
 	}
 
 	// Ingest points
@@ -2291,6 +2790,24 @@ CheckAllWritesArrivedLoop:
 				assert.Equal(t, *attrs, write.Attributes())
 			}
 		}
+	}
+
+	if allowFilter == nil {
+		return // No allow filter checking required.
+	}
+
+	for _, write := range testDownsampler.storage.Writes() {
+		attrs := write.Attributes()
+		foundMatchingAttribute := false
+		for _, allowed := range allowFilter.attributes {
+			if allowed == attrs {
+				foundMatchingAttribute = true
+				break
+			}
+		}
+		assert.True(t, foundMatchingAttribute,
+			fmt.Sprintf("attribute not allowed: allowed=%v, actual=%v",
+				allowFilter.attributes, attrs))
 	}
 }
 
@@ -2441,7 +2958,14 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
-			err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
+			if testOpts.waitForOffset {
+				time.Sleep(sample.offset)
+			}
+			if samplesAppenderResult.ShouldDropTimestamp {
+				err = samplesAppender.AppendUntimedCounterSample(sample.value, nil)
+			} else {
+				err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
+			}
 			require.NoError(t, err)
 		}
 	}
@@ -2471,7 +2995,14 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
-			err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
+			if testOpts.waitForOffset {
+				time.Sleep(sample.offset)
+			}
+			if samplesAppenderResult.ShouldDropTimestamp {
+				err = samplesAppender.AppendUntimedGaugeSample(sample.value, nil)
+			} else {
+				err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
+			}
 			require.NoError(t, err)
 		}
 	}
@@ -2515,9 +3046,11 @@ type testDownsamplerOptions struct {
 	clockOpts      clock.Options
 	instrumentOpts instrument.Options
 	identTag       string
+	untimedRollups bool
+	waitForOffset  bool
 
 	// Options for the test
-	autoMappingRules   []AutoMappingRule
+	autoMappingRules   []m3.ClusterNamespaceOptions
 	sampleAppenderOpts *SampleAppenderOptions
 	remoteClientMock   *client.MockClient
 	rulesConfig        *RulesConfiguration
@@ -2534,7 +3067,12 @@ type testDownsamplerOptionsIngest struct {
 }
 
 type testDownsamplerOptionsExpect struct {
-	writes []testExpectedWrite
+	writes      []testExpectedWrite
+	allowFilter *testDownsamplerOptionsExpectAllowFilter
+}
+
+type testDownsamplerOptionsExpectAllowFilter struct {
+	attributes []storagemetadata.Attributes
 }
 
 func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampler {
@@ -2600,6 +3138,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		cfg.Rules = opts.rulesConfig
 	}
 	cfg.Matcher = opts.matcherConfig
+	cfg.UntimedRollups = opts.untimedRollups
 
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:                    storage,
@@ -2617,6 +3156,23 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		TagOptions:                 models.NewTagOptions(),
 	})
 	require.NoError(t, err)
+
+	if len(opts.autoMappingRules) > 0 {
+		// Simulate the automapping rules being injected into the downsampler.
+		ctrl := gomock.NewController(t)
+
+		var mockNamespaces m3.ClusterNamespaces
+		for _, r := range opts.autoMappingRules {
+			n := m3.NewMockClusterNamespace(ctrl)
+			n.EXPECT().
+				Options().
+				Return(r).
+				AnyTimes()
+			mockNamespaces = append(mockNamespaces, n)
+		}
+
+		instance.(*downsampler).OnUpdate(mockNamespaces)
+	}
 
 	downcast, ok := instance.(*downsampler)
 	require.True(t, ok)

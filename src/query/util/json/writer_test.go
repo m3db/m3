@@ -42,24 +42,34 @@ func TestWriteValues(t *testing.T) {
 	testWrite(t, "\"Hello\\t \\r \\\" World\"", func(w Writer) {
 		w.WriteString("Hello\t \r \" World")
 	})
+	testWrite(t, "\"Hello\\t \\r \\\" World\"", func(w Writer) {
+		w.WriteBytesString([]byte("Hello\t \r \" World"))
+	})
 	maxTestUTF8Value := 1032
-	for i := 0; i <= maxTestUTF8Value; i++ {
-		i := i
-		switch {
-		case i == int('"') || i == int('\\'):
-			testWrite(t, fmt.Sprintf("\"\\%c\"", rune(i)), func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
-		case i == int('\n'):
-			testWrite(t, "\"\\n\"", func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
-		case i == int('\r'):
-			testWrite(t, "\"\\r\"", func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
-		case i == int('\t'):
-			testWrite(t, "\"\\t\"", func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
-		case i <= 31:
-			testWrite(t,
-				fmt.Sprintf("\"\\u%s\"", fmt.Sprintf("%U", i)[2:]),
-				func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
-		default:
-			testWrite(t, fmt.Sprintf("\"%c\"", rune(i)), func(w Writer) { w.WriteString(fmt.Sprintf("%c", rune(i))) })
+	type utf8FnTest func(w Writer, s string)
+	for _, fn := range []utf8FnTest{
+		utf8FnTest(func(w Writer, s string) { w.WriteString(s) }),
+		utf8FnTest(func(w Writer, s string) { w.WriteBytesString([]byte(s)) }),
+	} {
+		fn := fn // Capture for lambdas.
+		for i := 0; i <= maxTestUTF8Value; i++ {
+			i := i
+			switch {
+			case i == int('"') || i == int('\\'):
+				testWrite(t, fmt.Sprintf("\"\\%c\"", rune(i)), func(w Writer) { fn(w, fmt.Sprintf("%c", rune(i))) })
+			case i == int('\n'):
+				testWrite(t, "\"\\n\"", func(w Writer) { fn(w, fmt.Sprintf("%c", rune(i))) })
+			case i == int('\r'):
+				testWrite(t, "\"\\r\"", func(w Writer) { fn(w, fmt.Sprintf("%c", rune(i))) })
+			case i == int('\t'):
+				testWrite(t, "\"\\t\"", func(w Writer) { fn(w, fmt.Sprintf("%c", rune(i))) })
+			case i <= 31:
+				testWrite(t,
+					fmt.Sprintf("\"\\u%s\"", fmt.Sprintf("%U", i)[2:]),
+					func(w Writer) { fn(w, fmt.Sprintf("%c", rune(i))) })
+			default:
+				testWrite(t, fmt.Sprintf("\"%c\"", rune(i)), func(w Writer) { fn(w, fmt.Sprintf("%c", rune(i))) })
+			}
 		}
 	}
 }
@@ -71,7 +81,7 @@ func TestWriteObject(t *testing.T) {
 			w.BeginObject()
 			w.BeginObjectField("foo")
 			w.WriteNull()
-			w.BeginObjectField("bar")
+			w.BeginObjectBytesField([]byte("bar"))
 			w.WriteFloat64(3.145)
 			w.BeginObjectField("zed")
 			w.WriteString("Hello World")
@@ -121,7 +131,6 @@ func TestWriteComplexObject(t *testing.T) {
 			w.EndObject()
 			w.EndObject()
 		})
-
 }
 
 func TestWriteErrors(t *testing.T) {

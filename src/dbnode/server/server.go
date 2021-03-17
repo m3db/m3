@@ -473,13 +473,18 @@ func Run(runOpts RunOptions) {
 	defer seriesReadPermits.Stop()
 
 	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
-	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		permitOptions = permitOptions.SetIndexQueryPermitsManager(
-			permits.NewFixedPermitsManager(cfg.Index.MaxQueryIDsConcurrency))
+	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
+	if cfg.Index.MaxQueryIDsConcurrency > 0 {
+		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
 	} else {
 		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
-	opts = opts.SetPermitsOptions(permitOptions)
+	maxWorkerTime := time.Second
+	if cfg.Index.MaxWorkerTime > 0 {
+		maxWorkerTime = cfg.Index.MaxWorkerTime
+	}
+	opts = opts.SetPermitsOptions(permitOptions.SetIndexQueryPermitsManager(
+		permits.NewFixedPermitsManager(maxIdxConcurrency, int64(maxWorkerTime), iOpts)))
 
 	// Setup postings list cache.
 	var (
@@ -521,10 +526,6 @@ func Run(runOpts RunOptions) {
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
-
-	if cfg.Index.MaxWorkerTime > 0 {
-		indexOpts = indexOpts.SetMaxWorkerTime(cfg.Index.MaxWorkerTime)
-	}
 
 	opts = opts.SetIndexOptions(indexOpts)
 
@@ -747,7 +748,6 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
 		SetQueryLimits(queryLimits).
-		SetFetchTaggedSeriesBlocksPerBatch(cfg.FetchTagged.SeriesBlocksPerBatchOrDefault()).
 		SetPermitsOptions(opts.PermitsOptions())
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
@@ -884,6 +884,7 @@ func Run(runOpts RunOptions) {
 	documentsBuilderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
@@ -1533,7 +1534,7 @@ func withEncodingAndPoolingOptions(
 
 		logger.Info("bytes pool configured",
 			zap.Int("capacity", bucket.CapacityOrDefault()),
-			zap.Int("size", bucket.SizeOrDefault()),
+			zap.Int("size", int(bucket.SizeOrDefault())),
 			zap.Float64("refillLowWaterMark", bucket.RefillLowWaterMarkOrDefault()),
 			zap.Float64("refillHighWaterMark", bucket.RefillHighWaterMarkOrDefault()))
 	}
@@ -1920,7 +1921,7 @@ func poolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1929,6 +1930,8 @@ func poolOptions(
 				SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1948,7 +1951,7 @@ func capacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1956,6 +1959,8 @@ func capacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1975,7 +1980,7 @@ func maxCapacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1983,6 +1988,8 @@ func maxCapacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))

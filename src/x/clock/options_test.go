@@ -18,38 +18,63 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package permits
+package clock
 
-import "github.com/m3db/m3/src/x/context"
+import (
+	"os"
+	"testing"
 
-type noOpPermits struct {
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-var _ Manager = (*noOpPermits)(nil)
+func TestPanicOnDefaultClock(t *testing.T) {
+	tests := []struct {
+		value       string
+		shouldPanic bool
+	}{
+		{
+			value:       "<unset>", // environment variable not set
+			shouldPanic: false,
+		},
+		{
+			value:       "",
+			shouldPanic: false,
+		},
+		{
+			value:       "false",
+			shouldPanic: false,
+		},
+		{
+			value:       "0",
+			shouldPanic: false,
+		},
+		{
+			value:       "true",
+			shouldPanic: true,
+		},
+		{
+			value:       "1",
+			shouldPanic: true,
+		},
+	}
 
-var _ Permits = (*noOpPermits)(nil)
-
-// NewNoOpPermitsManager builds a new no-op permits manager.
-func NewNoOpPermitsManager() Manager {
-	return &noOpPermits{}
-}
-
-// NewNoOpPermits builds a new no-op permits.
-func NewNoOpPermits() Permits {
-	return &noOpPermits{}
-}
-
-func (p noOpPermits) NewPermits(context.Context) (Permits, error) {
-	return p, nil
-}
-
-func (p noOpPermits) Acquire(context.Context) error {
-	return nil
-}
-
-func (p noOpPermits) TryAcquire(context.Context) (bool, error) {
-	return true, nil
-}
-
-func (p noOpPermits) Release(_ int64) {
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			if tt.value != "<unset>" {
+				require.NoError(t, os.Setenv(panicOnDefaultClockEnvVar, tt.value))
+			}
+			nowFn := NewOptions().NowFn()
+			require.NoError(t, os.Unsetenv(panicOnDefaultClockEnvVar))
+			if tt.shouldPanic {
+				assert.Panics(t, func() {
+					nowFn()
+				})
+			} else {
+				assert.NotPanics(t, func() {
+					nowFn()
+				})
+			}
+		})
+	}
 }
