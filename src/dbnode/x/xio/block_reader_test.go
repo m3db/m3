@@ -50,16 +50,15 @@ func TestCloneBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var p []byte
 	seg := ts.Segment{}
 
 	reader := NewMockSegmentReader(ctrl)
-	reader.EXPECT().Read(p).Return(0, errTest).Times(1)
-	reader.EXPECT().Read(p).Return(100, nil).Times(1)
+	reader.EXPECT().Read64().Return(uint64(0), byte(0), errTest).Times(1)
+	reader.EXPECT().Read64().Return(uint64(123456), byte(10), nil).Times(1)
 	reader.EXPECT().Reset(seg).Return().Times(1)
 
 	clonedReader := NewMockSegmentReader(ctrl)
-	clonedReader.EXPECT().Read(p).Return(1337, nil).Times(1)
+	clonedReader.EXPECT().Read64().Return(uint64(1337), byte(2), nil).Times(1)
 
 	reader.EXPECT().Clone(nil).Return(clonedReader, nil).Times(1)
 
@@ -69,12 +68,14 @@ func TestCloneBlock(t *testing.T) {
 		BlockSize:     blockSize,
 	}
 
-	read, err := b.Read(p)
-	require.Equal(t, read, 0)
-	require.Equal(t, err, errTest)
+	word, n, err := b.Read64()
+	require.Equal(t, uint64(0), word)
+	require.Equal(t, byte(0), n)
+	require.Equal(t, errTest, err)
 
-	read, err = b.Read(p)
-	require.Equal(t, read, 100)
+	word, n, err = b.Read64()
+	require.Equal(t, uint64(123456), word)
+	require.Equal(t, byte(10), n)
 	require.NoError(t, err)
 
 	b2, err := b.CloneBlock(nil)
@@ -90,9 +91,10 @@ func TestCloneBlock(t *testing.T) {
 	require.Equal(t, b2.Start, start)
 	require.Equal(t, b2.BlockSize, blockSize)
 
-	read, err = b2.Read(p)
+	word, n, err = b2.Read64()
 
-	require.Equal(t, read, 1337)
+	require.Equal(t, uint64(1337), word)
+	require.Equal(t, byte(2), n)
 	require.NoError(t, err)
 }
 
@@ -121,16 +123,16 @@ func TestBlockReaderClone(t *testing.T) {
 func TestBlockReaderRead(t *testing.T) {
 	br, sr := buildBlock(t)
 
-	var p []byte
-
-	sr.EXPECT().Read(p).Return(0, errTest).Times(1)
-	read, err := br.Read(p)
-	require.Equal(t, read, 0)
+	sr.EXPECT().Read64().Return(uint64(0), byte(0), errTest).Times(1)
+	word, n, err := br.Read64()
+	require.Equal(t, uint64(0), word)
+	require.Equal(t, byte(0), n)
 	require.Equal(t, err, errTest)
 
-	sr.EXPECT().Read(p).Return(100, nil).Times(1)
-	read, err = br.Read(p)
-	require.Equal(t, read, 100)
+	sr.EXPECT().Read64().Return(uint64(100), byte(1), nil).Times(1)
+	word, n, err = br.Read64()
+	require.Equal(t, uint64(100), word)
+	require.Equal(t, byte(1), n)
 	require.NoError(t, err)
 }
 

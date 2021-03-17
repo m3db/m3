@@ -55,6 +55,7 @@ func TestQueryLimitExceededError(t *testing.T) {
 		start     = end.Add(-time.Hour)
 		query     = index.Query{Query: idx.NewTermQuery([]byte("tag"), []byte("value"))}
 		queryOpts = index.QueryOptions{StartInclusive: start, EndExclusive: end}
+		aggOpts   = index.AggregationOptions{QueryOptions: queryOpts}
 	)
 
 	session, err := testSetup.M3DBClient().DefaultSession()
@@ -66,13 +67,20 @@ func TestQueryLimitExceededError(t *testing.T) {
 			tags       = ident.StringTag("tag", "value")
 			timestamp  = nowFn().Add(-time.Minute * time.Duration(i+1))
 		)
-		session.WriteTagged(ns.ID(), ident.StringID(metricName),
+		err := session.WriteTagged(ns.ID(), ident.StringID(metricName),
 			ident.NewTagsIterator(ident.NewTags(tags)), timestamp, 0.0, xtime.Second, nil)
+		require.NoError(t, err)
 	}
 
-	_, _, err = session.FetchTagged(ns.ID(), query, queryOpts)
+	_, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
+		ns.ID(), query, queryOpts)
 	require.True(t, client.IsResourceExhaustedError(err),
 		"expected resource exhausted error, got: %v", err)
+
+	_, _, err = session.Aggregate(ContextWithDefaultTimeout(), ns.ID(), query, aggOpts)
+	require.True(t, client.IsResourceExhaustedError(err),
+		"expected aggregate resource exhausted error, got: %v", err)
+
 }
 
 func newTestOptionsWithIndexedNamespace(t *testing.T) (TestOptions, namespace.Metadata) {
@@ -94,6 +102,7 @@ func newTestSetupWithQueryLimits(t *testing.T, opts TestOptions) TestSetup {
 		limitOpts := limits.NewOptions().
 			SetBytesReadLimitOpts(queryLookback).
 			SetDocsLimitOpts(queryLookback).
+			SetAggregateDocsLimitOpts(queryLookback).
 			SetInstrumentOptions(storageOpts.InstrumentOptions())
 		queryLimits, err := limits.NewQueryLimits(limitOpts)
 		require.NoError(t, err)

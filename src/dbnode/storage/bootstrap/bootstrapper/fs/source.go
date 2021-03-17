@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -81,6 +80,7 @@ type fileSystemSource struct {
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
 	metrics           fileSystemSourceMetrics
+	instrumentation   *instrumentation
 }
 
 type fileSystemSourceMetrics struct {
@@ -94,9 +94,10 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		return nil, err
 	}
 
-	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("fs-bootstrapper")
-	iopts = iopts.SetMetricsScope(scope)
+	var (
+		scope = opts.InstrumentOptions().MetricsScope().SubScope("fs-bootstrapper")
+		iopts = opts.InstrumentOptions().SetMetricsScope(scope)
+	)
 	opts = opts.SetInstrumentOptions(iopts)
 
 	s := &fileSystemSource{
@@ -111,6 +112,7 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 			persistedIndexBlocksWrite:          scope.Counter("persist-index-blocks-write"),
 			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
 		},
+		instrumentation: newInstrumentation(opts, scope, iopts),
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
 
@@ -140,8 +142,8 @@ func (s *fileSystemSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.fsBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
@@ -155,20 +157,14 @@ func (s *fileSystemSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	start := s.nowFn()
-	dataLogFields := []zapcore.Field{
-		zap.Stringer("cachePolicy", s.opts.ResultOptions().SeriesCachePolicy()),
-	}
-	s.log.Info("bootstrapping time series data start",
-		dataLogFields...)
-	span.LogEvent("bootstrap_data_start")
+	instrCtx.bootstrapDataStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, span, cache)
+			namespace.DataRunOptions.RunOptions, instrCtx.span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -179,13 +175,9 @@ func (s *fileSystemSource) Read(
 			DataResult: r.data,
 		})
 	}
-	s.log.Info("bootstrapping time series data success",
-		append(dataLogFields, zap.Duration("took", s.nowFn().Sub(start)))...)
-	span.LogEvent("bootstrap_data_done")
+	instrCtx.bootstrapDataCompleted()
 
-	start = s.nowFn()
-	s.log.Info("bootstrapping index metadata start")
-	span.LogEvent("bootstrap_index_start")
+	instrCtx.bootstrapIndexStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -198,7 +190,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, span, cache)
+			namespace.IndexRunOptions.RunOptions, instrCtx.span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -213,10 +205,7 @@ func (s *fileSystemSource) Read(
 		result.IndexResult = r.index
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", s.nowFn().Sub(start)))
-	span.LogEvent("bootstrap_index_done")
-
+	instrCtx.bootstrapIndexCompleted()
 	return results, nil
 }
 
@@ -359,7 +348,7 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 		for i := range timesWithErrors {
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
-		s.log.Info("encounted errors for range",
+		s.log.Info("encountered errors for range",
 			zap.String("requestedRanges", requestedRanges.SummaryString()),
 			zap.Strings("timesWithErrors", timesWithErrorsString))
 	}
@@ -528,17 +517,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
 			}
-			overlapsWithInitalIndexRange = false
-			min, max                     = requestedRanges.MinMax()
-			blockStart                   = min.Truncate(indexBlockSize)
-			blockEnd                     = blockStart.Add(indexBlockSize)
-			iopts                        = s.opts.ResultOptions().InstrumentOptions()
-			indexBlock                   result.IndexBlock
-			err                          error
+			overlapsWithInitialIndexRange = false
+			min, max                      = requestedRanges.MinMax()
+			blockStart                    = min.Truncate(indexBlockSize)
+			blockEnd                      = blockStart.Add(indexBlockSize)
+			iopts                         = s.opts.ResultOptions().InstrumentOptions()
+			indexBlock                    result.IndexBlock
+			err                           error
 		)
 		for _, remainingRange := range remainingRanges.Iter() {
 			if remainingRange.Overlaps(initialIndexRange) {
-				overlapsWithInitalIndexRange = true
+				overlapsWithInitialIndexRange = true
 			}
 		}
 
@@ -566,13 +555,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			persistCfg.FileSetType == persist.FileSetFlushType
 
 		// Determine all requested ranges were fulfilled or at edge of retention
-		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+		satisfiedFlushRanges := noneRemaining || overlapsWithInitialIndexRange
 
 		buildIndexLogFields := []zapcore.Field{
 			zap.Stringer("namespace", ns.ID()),
 			zap.Bool("shouldBuildSegment", shouldBuildSegment),
 			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
+			zap.Bool("overlapsWithInitialIndexRange", overlapsWithInitialIndexRange),
 			zap.Int("totalEntries", totalEntries),
 			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
 			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
@@ -581,10 +570,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 			zap.Bool("shouldFlush", shouldFlush),
-			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
+			zap.Bool("satisfiedFlushRanges", satisfiedFlushRanges),
 		}
 
-		if shouldFlush && satisifiedFlushRanges {
+		if shouldFlush && satisfiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
@@ -597,7 +586,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+			if errors.Is(err, fs.ErrIndexOutOfRetention) {
 				// Bail early if the index segment is already out of retention.
 				// This can happen when the edge of requested ranges at time of data bootstrap
 				// is now out of retention.
@@ -626,7 +615,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if errors.Is(err, fs.ErrIndexOutOfRetention) {
+				// Bail early if the index segment is already out of retention.
+				// This can happen when the edge of requested ranges at time of data bootstrap
+				// is now out of retention.
+				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+				return
+			} else if err != nil {
 				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("build fs index bootstrap failed",
@@ -705,7 +701,12 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 	seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 	seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
-	if err := ref.Series.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
+
+	seriesRef, err := ref.Resolver.SeriesRef()
+	if err != nil {
+		return fmt.Errorf("unable to resolve seriesRef: %w", err)
+	}
+	if err := seriesRef.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)
 	}
 

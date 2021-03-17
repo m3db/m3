@@ -359,6 +359,21 @@ func TestValidatorValidateDuplicateRollupRules(t *testing.T) {
 }
 
 func TestValidatorValidateNoDuplicateRollupRulesWithTombstone(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -369,12 +384,8 @@ func TestValidatorValidateNoDuplicateRollupRulesWithTombstone(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -388,12 +399,8 @@ func TestValidatorValidateNoDuplicateRollupRulesWithTombstone(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -408,6 +415,14 @@ func TestValidatorValidateNoDuplicateRollupRulesWithTombstone(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleInvalidFilterExpr(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -417,12 +432,8 @@ func TestValidatorValidateRollupRuleInvalidFilterExpr(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -437,6 +448,14 @@ func TestValidatorValidateRollupRuleInvalidFilterExpr(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleInvalidFilterTagName(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	invalidChars := []rune{'$'}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -447,12 +466,8 @@ func TestValidatorValidateRollupRuleInvalidFilterTagName(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -466,6 +481,14 @@ func TestValidatorValidateRollupRuleInvalidFilterTagName(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -475,12 +498,8 @@ func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -659,6 +678,14 @@ func TestValidatorValidateRollupRulePipelineAggregationOpDisallowedAggregationTy
 }
 
 func TestValidatorValidateRollupRulePipelineTransformationDerivativeOrderNotSupported(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -668,12 +695,8 @@ func TestValidatorValidateRollupRulePipelineTransformationDerivativeOrderNotSupp
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 							{
 								Type:           pipeline.TransformationOpType,
@@ -691,7 +714,7 @@ func TestValidatorValidateRollupRulePipelineTransformationDerivativeOrderNotSupp
 		},
 	}
 	validator := NewValidator(testValidatorOptions())
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "transformation derivative order is 2 higher than supported 1"))
 }
@@ -749,6 +772,21 @@ func TestValidatorValidateRollupRulePipelineNoRollupOp(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRulePipelineRollupLevelHigherThanMax(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -758,20 +796,12 @@ func TestValidatorValidateRollupRulePipelineRollupLevelHigherThanMax(t *testing.
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName2"),
-									Tags:          [][]byte{[]byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -781,12 +811,27 @@ func TestValidatorValidateRollupRulePipelineRollupLevelHigherThanMax(t *testing.
 		},
 	}
 	validator := NewValidator(testValidatorOptions())
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "number of rollup levels is 2 higher than supported 1"))
 }
 
 func TestValidatorValidateRollupRulePipelineRollupTagNotFoundInPrevRollupOp(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1", "rtagName2", "rtagName3"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -796,20 +841,12 @@ func TestValidatorValidateRollupRulePipelineRollupTagNotFoundInPrevRollupOp(t *t
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName2"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2"), []byte("rtagName3")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -819,12 +856,26 @@ func TestValidatorValidateRollupRulePipelineRollupTagNotFoundInPrevRollupOp(t *t
 		},
 	}
 	validator := NewValidator(testValidatorOptions().SetMaxRollupLevels(100))
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "tag rtagName3 not found in previous rollup operations"))
 }
 
 func TestValidatorValidateRollupRulePipelineRollupTagUnchangedInConsecutiveRollupOps(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -834,20 +885,12 @@ func TestValidatorValidateRollupRulePipelineRollupTagUnchangedInConsecutiveRollu
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName2"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -857,12 +900,34 @@ func TestValidatorValidateRollupRulePipelineRollupTagUnchangedInConsecutiveRollu
 		},
 	}
 	validator := NewValidator(testValidatorOptions().SetMaxRollupLevels(100))
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "same set of 2 rollup tags in consecutive rollup operations"))
 }
 
 func TestValidatorValidateRollupRulePipelineMultiLevelRollup(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2", "rtagName3"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -872,28 +937,16 @@ func TestValidatorValidateRollupRulePipelineMultiLevelRollup(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2"), []byte("rtagName3")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName2"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName2"),
-									Tags:          [][]byte{[]byte("rtagName1")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr3,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -907,6 +960,14 @@ func TestValidatorValidateRollupRulePipelineMultiLevelRollup(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleRollupOpDuplicateRollupTag(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -916,12 +977,8 @@ func TestValidatorValidateRollupRuleRollupOpDuplicateRollupTag(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -931,12 +988,20 @@ func TestValidatorValidateRollupRuleRollupOpDuplicateRollupTag(t *testing.T) {
 		},
 	}
 	validator := NewValidator(testValidatorOptions())
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "duplicate rollup tag: 'rtagName2'"))
 }
 
 func TestValidatorValidateRollupRuleRollupOpMissingRequiredTag(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -946,12 +1011,8 @@ func TestValidatorValidateRollupRuleRollupOpMissingRequiredTag(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -961,12 +1022,19 @@ func TestValidatorValidateRollupRuleRollupOpMissingRequiredTag(t *testing.T) {
 		},
 	}
 	validator := NewValidator(testValidatorOptions().SetRequiredRollupTags([]string{"requiredTag"}))
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "missing required rollup tag: 'requiredTag'"))
 }
 
 func TestValidatorValidateRollupRuleRollupOpWithInvalidMetricName(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName$1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	invalidChars := []rune{'$'}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -977,12 +1045,8 @@ func TestValidatorValidateRollupRuleRollupOpWithInvalidMetricName(t *testing.T) 
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName$1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -997,6 +1061,13 @@ func TestValidatorValidateRollupRuleRollupOpWithInvalidMetricName(t *testing.T) 
 }
 
 func TestValidatorValidateRollupRuleRollupOpWithEmptyMetricName(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	invalidChars := []rune{'$'}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1007,12 +1078,8 @@ func TestValidatorValidateRollupRuleRollupOpWithEmptyMetricName(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte(""),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -1027,6 +1094,13 @@ func TestValidatorValidateRollupRuleRollupOpWithEmptyMetricName(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleRollupOpWithValidMetricName(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	invalidChars := []rune{' ', '%'}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1037,12 +1111,8 @@ func TestValidatorValidateRollupRuleRollupOpWithValidMetricName(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte(""),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -1057,6 +1127,13 @@ func TestValidatorValidateRollupRuleRollupOpWithValidMetricName(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleRollupOpWithInvalidTagName(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"foo",
+		[]string{"rtagName1", "rtagName2", "$"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	invalidChars := []rune{'$'}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1067,12 +1144,8 @@ func TestValidatorValidateRollupRuleRollupOpWithInvalidTagName(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("foo"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2$"), []byte("$")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -1087,6 +1160,13 @@ func TestValidatorValidateRollupRuleRollupOpWithInvalidTagName(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleRollupOpWithValidTagName(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"foo",
+		[]string{"rtagName1", "rtagName2", "$"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	invalidChars := []rune{' ', '%'}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1097,12 +1177,8 @@ func TestValidatorValidateRollupRuleRollupOpWithValidTagName(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("foo"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2$"), []byte("$")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -1155,6 +1231,14 @@ func TestValidatorValidateNoTimertypeFilter(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleRollupOpMultipleAggregationTypes(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+	)
+	require.NoError(t, err)
+
 	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1165,12 +1249,8 @@ func TestValidatorValidateRollupRuleRollupOpMultipleAggregationTypes(t *testing.
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -1208,6 +1288,13 @@ func TestValidatorValidateRollupRuleRollupOpMultipleAggregationTypes(t *testing.
 }
 
 func TestValidatorValidateRollupRuleRollupOpFirstLevelAggregationTypes(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+	)
+	require.NoError(t, err)
 	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1218,12 +1305,8 @@ func TestValidatorValidateRollupRuleRollupOpFirstLevelAggregationTypes(t *testin
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -1266,6 +1349,13 @@ func TestValidatorValidateRollupRuleRollupOpFirstLevelAggregationTypes(t *testin
 }
 
 func TestValidatorValidateRollupRuleRollupOpNonFirstLevelAggregationTypes(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+	)
+	require.NoError(t, err)
 	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1280,12 +1370,8 @@ func TestValidatorValidateRollupRuleRollupOpNonFirstLevelAggregationTypes(t *tes
 								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -1328,6 +1414,13 @@ func TestValidatorValidateRollupRuleRollupOpNonFirstLevelAggregationTypes(t *tes
 }
 
 func TestValidatorValidateRollupRuleRollupTargetWithStoragePolicies(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	storagePolicies := testStoragePolicies()
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
@@ -1338,12 +1431,8 @@ func TestValidatorValidateRollupRuleRollupTargetWithStoragePolicies(t *testing.T
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: storagePolicies,
@@ -1385,6 +1474,13 @@ func TestValidatorValidateRollupRuleRollupTargetWithStoragePolicies(t *testing.T
 }
 
 func TestValidatorValidateRollupRuleRollupTargetWithNoStoragePolicies(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -1394,12 +1490,8 @@ func TestValidatorValidateRollupRuleRollupTargetWithNoStoragePolicies(t *testing
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 					},
@@ -1408,12 +1500,19 @@ func TestValidatorValidateRollupRuleRollupTargetWithNoStoragePolicies(t *testing
 		},
 	}
 	validator := NewValidator(testValidatorOptions())
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "no storage policies"))
 }
 
 func TestValidatorValidateRollupRuleRollupOpWithDuplicateStoragePolicies(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -1423,12 +1522,8 @@ func TestValidatorValidateRollupRuleRollupOpWithDuplicateStoragePolicies(t *test
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -1442,12 +1537,19 @@ func TestValidatorValidateRollupRuleRollupOpWithDuplicateStoragePolicies(t *test
 	}
 
 	validator := NewValidator(testValidatorOptions())
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "duplicate storage policy '10s:6h'"))
 }
 
 func TestValidatorValidateRollupRuleDisallowedStoragePolicies(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -1457,12 +1559,8 @@ func TestValidatorValidateRollupRuleDisallowedStoragePolicies(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -1479,6 +1577,13 @@ func TestValidatorValidateRollupRuleDisallowedStoragePolicies(t *testing.T) {
 }
 
 func TestValidatorRollupRule(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Sum),
+	)
+	require.NoError(t, err)
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -1496,12 +1601,8 @@ func TestValidatorRollupRule(t *testing.T) {
 								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -1521,6 +1622,20 @@ func TestValidatorRollupRule(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleDuplicateRollupIDs(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Sum),
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	view := view.RuleSet{
 		RollupRules: []view.RollupRule{
 			{
@@ -1538,12 +1653,8 @@ func TestValidatorValidateRollupRuleDuplicateRollupIDs(t *testing.T) {
 								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -1557,12 +1668,8 @@ func TestValidatorValidateRollupRuleDuplicateRollupIDs(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("rName1"),
-									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: testStoragePolicies(),
@@ -1577,7 +1684,7 @@ func TestValidatorValidateRollupRuleDuplicateRollupIDs(t *testing.T) {
 		SetAllowedFirstLevelAggregationTypesFor(metric.GaugeType, firstLevelAggregationTypes).
 		SetAllowedNonFirstLevelAggregationTypesFor(metric.GaugeType, nonFirstLevelAggregationTypes)
 	validator := NewValidator(opts)
-	err := validator.ValidateSnapshot(view)
+	err = validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "more than one rollup operations with name 'rName1' and tags '[rtagName1 rtagName2]' exist"))
 	_, ok := err.(errors.InvalidInputError)

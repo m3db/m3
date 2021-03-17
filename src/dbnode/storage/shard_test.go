@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -136,7 +135,7 @@ func TestShardBootstrapState(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -168,7 +167,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -240,7 +239,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -302,7 +301,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -338,7 +337,7 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
 	s.setBlockRetriever(mockRetriever)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -390,7 +389,7 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 
 	seriesMap := sr.AllSeries()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -415,7 +414,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -495,7 +494,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -592,7 +591,7 @@ func TestShardColdFlush(t *testing.T) {
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -680,7 +679,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -940,7 +939,7 @@ func TestShardTick(t *testing.T) {
 
 	sleepPerSeries := time.Microsecond
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1110,7 +1109,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	sleepPerSeries := time.Microsecond
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1182,7 +1181,7 @@ func TestShardTickRace(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -1215,7 +1214,7 @@ func TestShardTickRace(t *testing.T) {
 func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	opts := DefaultTestOptions()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1243,7 +1242,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 		SetCommitLogOptions(opts.CommitLogOptions().
 			SetFilesystemOptions(fsOpts))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1599,7 +1598,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -1673,7 +1672,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -1721,13 +1720,16 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 		Return(blockReaders[1], nil)
 
 	// Check reads as expected
-	r, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end, namespace.Context{})
+	iter, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end, namespace.Context{})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(r))
-	for i, readers := range r {
-		require.Equal(t, 1, len(readers))
-		assert.Equal(t, blockReaders[i], readers[0])
+	count := 0
+	for iter.Next(ctx) {
+		require.Equal(t, 1, len(iter.Current()))
+		assert.Equal(t, blockReaders[count], iter.Current()[0])
+		count++
 	}
+	require.Equal(t, 2, count)
+	require.NoError(t, iter.Err())
 
 	// Check that gets cached
 	begin := time.Now()
@@ -1849,18 +1851,15 @@ func TestShardAggregateTiles(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (
-		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
-		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute}
-
-		firstSourceBlockEntries  = 3
-		secondSourceBlockEntries = 2
-		maxSourceBlockEntries    = 3
+		opts            = AggregateTilesOptions{
+			Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute,
+		}
 
 		expectedProcessedTileCount = int64(4)
 
@@ -1870,44 +1869,8 @@ func TestShardAggregateTiles(t *testing.T) {
 	aggregator := NewMockTileAggregator(ctrl)
 	testOpts := DefaultTestOptions().SetTileAggregator(aggregator)
 
-	sourceShard := testDatabaseShard(t, testOpts)
-	defer assert.NoError(t, sourceShard.Close())
-
-	reader0, volume0 := getMockReader(
-		ctrl, t, sourceShard, start, nil)
-	reader0.EXPECT().Entries().Return(firstSourceBlockEntries)
-
-	secondSourceBlockStart := start.Add(sourceBlockSize)
-	reader1, volume1 := getMockReader(
-		ctrl, t, sourceShard, secondSourceBlockStart, nil)
-	reader1.EXPECT().Entries().Return(secondSourceBlockEntries)
-
-	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
-	reader2, volume2 := getMockReader(
-		ctrl, t, sourceShard, thirdSourceBlockStart, fs.ErrCheckpointFileNotFound)
-
-	blockReaders := []fs.DataFileSetReader{reader0, reader1, reader2}
-	sourceBlockVolumes := []shardBlockVolume{
-		{start, volume0},
-		{secondSourceBlockStart, volume1},
-		{thirdSourceBlockStart, volume2},
-	}
-
 	targetShard := testDatabaseShardWithIndexFn(t, testOpts, nil, true)
 	defer assert.NoError(t, targetShard.Close())
-
-	writer := fs.NewMockStreamingWriter(ctrl)
-	gomock.InOrder(
-		writer.EXPECT().Open(fs.StreamingWriterOpenOptions{
-			NamespaceID:         targetShard.namespace.ID(),
-			ShardID:             targetShard.shard,
-			BlockStart:          opts.Start,
-			BlockSize:           targetBlockSize,
-			VolumeIndex:         1,
-			PlannedRecordsCount: uint(maxSourceBlockEntries),
-		}),
-		writer.EXPECT().Close(),
-	)
 
 	var (
 		noOpColdFlushNs = &persist.NoOpColdFlushNamespace{}
@@ -1915,43 +1878,14 @@ func TestShardAggregateTiles(t *testing.T) {
 		targetNs        = NewMockNamespace(ctrl)
 	)
 
-	sourceNs.EXPECT().ID().Return(sourceShard.namespace.ID())
-
 	aggregator.EXPECT().
-		AggregateTiles(ctx, sourceNs, targetNs, sourceShard.ID(), gomock.Len(2), writer,
-			noOpColdFlushNs, opts).
-		Return(expectedProcessedTileCount, nil)
+		AggregateTiles(ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts).
+		Return(expectedProcessedTileCount, 33, nil)
 
 	processedTileCount, err := targetShard.AggregateTiles(
-		ctx, sourceNs, targetNs, sourceShard.ID(), blockReaders, writer,
-		sourceBlockVolumes, noOpColdFlushNs, opts)
+		ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expectedProcessedTileCount, processedTileCount)
-}
-
-func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
-	defer assert.NoError(t, targetShard.Close())
-
-	var (
-		start              = time.Now()
-		blockReaders       []fs.DataFileSetReader
-		sourceBlockVolumes = []shardBlockVolume{{start, 0}}
-		writer             = fs.NewMockStreamingWriter(ctrl)
-		sourceNs           = NewMockNamespace(ctrl)
-		targetNs           = NewMockNamespace(ctrl)
-	)
-
-	_, err := targetShard.AggregateTiles(
-		ctx, sourceNs, targetNs, 1, blockReaders, writer, sourceBlockVolumes,
-		&persist.NoOpColdFlushNamespace{}, AggregateTilesOptions{})
-	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 
 func TestOpenStreamingReader(t *testing.T) {
@@ -1991,50 +1925,57 @@ func TestOpenStreamingReader(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestShardScan(t *testing.T) {
+func TestSeriesRefResolver(t *testing.T) {
 	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
+	shard := testDatabaseShard(t, DefaultTestOptions())
+	ctx := context.NewBackground()
+	defer func() {
+		ctrl.Finish()
+		_ = shard.Close()
+		ctx.Close()
+	}()
 
-	var (
-		blockSize = time.Hour
-		start     = time.Now().Truncate(blockSize)
-		testOpts  = DefaultTestOptions()
-	)
+	seriesID := ident.StringID("foo+bar=baz")
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
 
-	shard := testDatabaseShard(t, testOpts)
-	defer assert.NoError(t, shard.Close())
+	iter := ident.NewMockTagIterator(ctrl)
+	// Ensure duplicate called but no close, etc
+	iter.EXPECT().
+		Duplicate().
+		Return(ident.NewTagsIterator(seriesTags))
 
-	shardEntries := []fs.StreamedDataEntry{
-		{
-			ID:           ident.BytesID("id1"),
-			EncodedTags:  ts.EncodedTags("tags1"),
-			Data:         []byte{1},
-			DataChecksum: 11,
-		},
-		{
-			ID:           ident.BytesID("id2"),
-			EncodedTags:  ts.EncodedTags("tags2"),
-			Data:         []byte{2},
-			DataChecksum: 22,
-		},
-	}
+	now := time.Now()
 
-	processor := fs.NewMockDataEntryProcessor(ctrl)
-	processor.EXPECT().SetEntriesCount(len(shardEntries))
+	resolver, err := shard.SeriesRefResolver(seriesID, iter)
+	require.NoError(t, err)
+	seriesRef, err := resolver.SeriesRef()
+	require.NoError(t, err)
+	write, writeType, err := seriesRef.Write(ctx, now, 1.0, xtime.Second,
+		[]byte("annotation1"), series.WriteOptions{})
+	require.NoError(t, err)
+	require.Equal(t, series.WarmWrite, writeType)
+	require.True(t, write)
 
-	reader, _ := getMockReader(ctrl, t, shard, start, nil)
-	reader.EXPECT().Entries().Return(len(shardEntries))
-	for _, entry := range shardEntries {
-		reader.EXPECT().StreamingRead().Return(entry, nil)
-		processor.EXPECT().ProcessEntry(entry)
-	}
-	reader.EXPECT().StreamingRead().Return(fs.StreamedDataEntry{}, io.EOF)
+	// should return already inserted entry as series.
+	resolverEntry, err := shard.SeriesRefResolver(seriesID, iter)
+	require.NoError(t, err)
+	require.IsType(t, &lookup.Entry{}, resolverEntry)
+	refEntry, err := resolverEntry.SeriesRef()
+	require.NoError(t, err)
+	require.Equal(t, seriesRef, refEntry)
 
-	shard.newReaderFn = func(pool.CheckedBytesPool, fs.Options) (fs.DataFileSetReader, error) {
-		return reader, nil
-	}
+	databaseBlock := block.NewMockDatabaseBlock(ctrl)
+	databaseBlock.EXPECT().StartTime().Return(now).AnyTimes()
+	err = seriesRef.LoadBlock(databaseBlock, series.ColdWrite)
+	require.NoError(t, err)
 
-	require.NoError(t, shard.ScanData(start, processor))
+	err = resolver.ReleaseRef()
+	require.NoError(t, err)
+	err = resolverEntry.ReleaseRef()
+	require.NoError(t, err)
 }
 
 func getMockReader(

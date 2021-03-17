@@ -35,6 +35,8 @@ const (
 	defaultReportingInterval = time.Second
 )
 
+var defaultProfiler = NewNoOpProfiler()
+
 type options struct {
 	zap             *zap.Logger
 	scope           tally.Scope
@@ -43,6 +45,7 @@ type options struct {
 	timerOptions    TimerOptions
 	reportInterval  time.Duration
 	customBuildTags map[string]string
+	profiler        Profiler
 }
 
 // NewOptions creates new instrument options.
@@ -56,6 +59,7 @@ func NewOptions() Options {
 		samplingRate:    defaultSamplingRate,
 		reportInterval:  defaultReportingInterval,
 		customBuildTags: map[string]string{},
+		profiler:        defaultProfiler,
 	}
 }
 
@@ -117,4 +121,15 @@ func (o *options) SetCustomBuildTags(tags map[string]string) Options {
 
 func (o *options) CustomBuildTags() map[string]string {
 	return o.customBuildTags
+}
+
+func (o *options) SetProfiler(value Profiler) Options {
+	opts := *o
+	opts.profiler = value
+
+	return &opts
+}
+
+func (o *options) Profiler() Profiler {
+	return o.profiler
 }

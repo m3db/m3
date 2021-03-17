@@ -58,7 +58,8 @@ var (
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 )
 
-type commitLogReader interface {
+// Reader reads a commit log file.
+type Reader interface {
 	// Open opens the commit log for reading
 	Open(filePath string) (int64, error)
 
@@ -70,7 +71,7 @@ type commitLogReader interface {
 }
 
 type reader struct {
-	opts commitLogReaderOptions
+	opts ReaderOptions
 
 	logEntryBytes          []byte
 	tagDecoder             serialize.TagDecoder
@@ -92,13 +93,23 @@ type namespaceRead struct {
 	namespaceIDRef   ident.ID
 }
 
-type commitLogReaderOptions struct {
+// ReaderOptions are the options for Reader.
+type ReaderOptions struct {
 	commitLogOptions Options
 	// returnMetadataAsRef indicates to not allocate metadata results.
 	returnMetadataAsRef bool
 }
 
-func newCommitLogReader(opts commitLogReaderOptions) commitLogReader {
+// NewReaderOptions returns new ReaderOptions.
+func NewReaderOptions(opts Options, returnMetadataAsRef bool) ReaderOptions {
+	return ReaderOptions{
+		commitLogOptions:    opts,
+		returnMetadataAsRef: returnMetadataAsRef,
+	}
+}
+
+// NewReader returns a new Reader.
+func NewReader(opts ReaderOptions) Reader {
 	tagDecoderCheckedBytes := checked.NewBytes(nil, nil)
 	tagDecoderCheckedBytes.IncRef()
 	return &reader{

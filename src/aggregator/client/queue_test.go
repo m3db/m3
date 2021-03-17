@@ -21,9 +21,7 @@
 package client
 
 import (
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 
@@ -36,52 +34,64 @@ func TestInstanceQueueEnqueueClosed(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 	queue.writeFn = func([]byte) error { return nil }
-	queue.closed = true
+	queue.closed.Store(true)
 
 	require.Equal(t, errInstanceQueueClosed, queue.Enqueue(testNewBuffer(nil)))
 }
 
 func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
 	opts := testOptions().
-		SetInstanceQueueSize(1).
-		SetQueueDropType(DropCurrent).
-		SetBatchFlushDeadline(1 * time.Microsecond).
-		SetMaxBatchSize(1)
+		SetInstanceQueueSize(2).
+		SetQueueDropType(DropCurrent)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 
-	ready := make(chan struct{})
-	// Fill up the queue and park the draining goroutine so the queue remains full.
-	queue.writeFn = func([]byte) error {
-		ready <- struct{}{}
-		select {}
+	var result []byte
+	queue.writeFn = func(payload []byte) error {
+		result = payload
+		return nil
 	}
-
-	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
-	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
-	queue.bufCh <- testNewBuffer([]byte{42, 42, 42})
-	<-ready
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
 	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42})))
+	queue.Flush()
+	require.EqualValues(t, []byte{42, 43, 44, 45, 46, 47}, result)
 }
 
 func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 	opts := testOptions().
-		SetInstanceQueueSize(1).
-		SetBatchFlushDeadline(1 * time.Microsecond).
-		SetMaxBatchSize(1)
+		SetInstanceQueueSize(4)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 
-	ready := make(chan struct{})
-	// Fill up the queue and park the draining goroutine so the queue remains full
-	// until the enqueueing goroutine pulls a buffer off the channel.
-	queue.writeFn = func([]byte) error {
-		ready <- struct{}{}
-		select {}
+	var result []byte
+	queue.writeFn = func(payload []byte) error {
+		result = payload
+		return nil
 	}
 
-	queue.bufCh <- testNewBuffer([]byte{42})
-	queue.bufCh <- testNewBuffer([]byte{42})
-	<-ready
-	require.NoError(t, queue.Enqueue(testNewBuffer(nil)))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1})))
+
+	queue.Flush()
+	require.EqualValues(t, []byte{
+		42, 43, 44, 45, 46, 47, 1, 2, 3, 1,
+	}, result)
+
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1})))
+
+	queue.Flush()
+
+	require.EqualValues(t, []byte{
+		42, 42, 43, 44, 45, 46, 47, 1,
+	}, result)
 }
 
 func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
@@ -91,7 +101,7 @@ func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
 		res []byte
 	)
 
-	ready := make(chan struct{})
+	ready := make(chan struct{}, 1)
 	queue.writeFn = func(data []byte) error {
 		defer func() {
 			ready <- struct{}{}
@@ -103,77 +113,16 @@ func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
 	data := []byte("foobar")
 	require.NoError(t, queue.Enqueue(testNewBuffer(data)))
 
+	queue.Flush()
 	<-ready
+
 	require.Equal(t, data, res)
-}
-
-func TestInstanceQueueDrainBatching(t *testing.T) {
-	var (
-		res     []byte
-		resLock sync.Mutex
-	)
-
-	newBatchedTestQueue := func(flushDeadline time.Duration, batchSize int) *queue {
-		res = []byte{}
-		opts := testOptions().
-			SetBatchFlushDeadline(flushDeadline).
-			SetMaxBatchSize(batchSize)
-
-		queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
-
-		queue.writeFn = func(data []byte) error {
-			resLock.Lock()
-			res = append(res, data...)
-			resLock.Unlock()
-			return nil
-		}
-		return queue
-	}
-
-	// Test batching by size
-	data := []byte("foobar")
-	expected := []byte("foobarfoobarfoobar")
-	queue := newBatchedTestQueue(500*time.Millisecond, 3*len(data))
-	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
-	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
-	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
-
-	// Wait for the queue to be drained.
-	for i := 0; i <= 5; i++ {
-		resLock.Lock()
-		if len(res) == len(expected) {
-			resLock.Unlock()
-			break
-		}
-		resLock.Unlock()
-		// Total sleep must be less than flush deadline
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	assert.Equal(t, expected, res)
-
-	// Test batching by time
-	queue = newBatchedTestQueue(40*time.Millisecond, 10000)
-
-	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
-	assert.NoError(t, queue.Enqueue(testNewBuffer(data)))
-
-	time.Sleep(20 * time.Millisecond)
-	resLock.Lock()
-	assert.Equal(t, []byte{}, res)
-	resLock.Unlock()
-
-	time.Sleep(25 * time.Millisecond)
-
-	resLock.Lock()
-	assert.Equal(t, []byte("foobarfoobar"), res)
-	resLock.Unlock()
 }
 
 func TestInstanceQueueEnqueueSuccessDrainError(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
-	drained := make(chan struct{})
+	drained := make(chan struct{}, 1)
 	queue.writeFn = func(data []byte) error {
 		defer func() {
 			drained <- struct{}{}
@@ -182,7 +131,7 @@ func TestInstanceQueueEnqueueSuccessDrainError(t *testing.T) {
 	}
 
 	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
-
+	queue.Flush()
 	// Wait for the queue to be drained.
 	<-drained
 }
@@ -190,7 +139,7 @@ func TestInstanceQueueEnqueueSuccessDrainError(t *testing.T) {
 func TestInstanceQueueEnqueueSuccessWriteError(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
-	done := make(chan struct{})
+	done := make(chan struct{}, 1)
 	queue.writeFn = func(data []byte) error {
 		err := queue.conn.Write(data)
 		done <- struct{}{}
@@ -198,7 +147,7 @@ func TestInstanceQueueEnqueueSuccessWriteError(t *testing.T) {
 	}
 
 	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{0x1, 0x2})))
-
+	queue.Flush()
 	// Wait for the queue to be drained.
 	<-done
 }
@@ -206,7 +155,7 @@ func TestInstanceQueueEnqueueSuccessWriteError(t *testing.T) {
 func TestInstanceQueueCloseAlreadyClosed(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
-	queue.closed = true
+	queue.closed.Store(true)
 
 	require.Equal(t, errInstanceQueueClosed, queue.Close())
 }
@@ -215,9 +164,26 @@ func TestInstanceQueueCloseSuccess(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 	require.NoError(t, queue.Close())
-	require.True(t, queue.closed)
-	_, ok := <-queue.bufCh
-	require.False(t, ok)
+	require.True(t, queue.closed.Load())
+	require.Error(t, queue.Enqueue(testNewBuffer([]byte("foo"))))
+}
+
+func TestInstanceQueueSizeIsPowerOfTwo(t *testing.T) {
+	for _, tt := range []struct {
+		size     int
+		expected int
+	}{
+		{1, 1},
+		{2, 2},
+		{3, 4},
+		{4, 4},
+		{42, 64},
+		{123, 128},
+	} {
+		opts := testOptions().SetInstanceQueueSize(tt.size)
+		q := newInstanceQueue(testPlacementInstance, opts).(*queue)
+		require.Equal(t, tt.expected, cap(q.buf.b))
+	}
 }
 
 func TestDropTypeUnmarshalYAML(t *testing.T) {
@@ -244,6 +210,23 @@ func TestDropTypeUnmarshalYAML(t *testing.T) {
 		err := yaml.Unmarshal(test.input, &s)
 		require.NoError(t, err)
 		assert.Equal(t, test.expected, s.A)
+	}
+}
+
+func TestRoundUpToPowerOfTwo(t *testing.T) {
+	for _, tt := range []struct {
+		in, out int
+	}{
+		{1, 1},
+		{2, 2},
+		{3, 4},
+		{4, 4},
+		{5, 8},
+		{7, 8},
+		{33, 64},
+		{42, 64},
+	} {
+		assert.Equal(t, tt.out, roundUpToPowerOfTwo(tt.in))
 	}
 }
 

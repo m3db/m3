@@ -256,7 +256,7 @@ func TestDatabaseReadEncodedNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -272,7 +272,7 @@ func TestDatabaseReadEncoded(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -297,7 +297,7 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -313,7 +313,7 @@ func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -332,7 +332,7 @@ func TestDatabaseFetchBlocks(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -810,7 +810,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	var (
 		namespace   = ident.StringID("testns")
-		ctx         = context.NewContext()
+		ctx         = context.NewBackground()
 		id          = ident.StringID("foo")
 		tagsIter    = ident.EmptyTagIterator
 		seriesWrite = SeriesWrite{
@@ -937,7 +937,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
@@ -1022,7 +1022,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteBatch(context.NewContext(), notExistNamespace, nil, nil)
+	err = d.WriteBatch(context.NewBackground(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -1045,7 +1045,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteTaggedBatch(context.NewContext(), notExistNamespace, nil, nil)
+	err = d.WriteTaggedBatch(context.NewBackground(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -1117,7 +1117,7 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	var (
 		namespace = ident.StringID("testns")
-		ctx       = context.NewContext()
+		ctx       = context.NewBackground()
 		tags      = ident.NewTags(ident.Tag{
 			Name:  ident.StringID("foo"),
 			Value: ident.StringID("bar"),
@@ -1347,7 +1347,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 
 	var (
 		namespace    = ident.StringID("testns")
-		ctx          = context.NewContext()
+		ctx          = context.NewBackground()
 		seriesWrite1 = SeriesWrite{Series: ts.Series{UniqueIndex: 0}, WasWritten: true}
 		seriesWrite2 = SeriesWrite{Series: ts.Series{UniqueIndex: 1}, WasWritten: true}
 		seriesWrite3 = SeriesWrite{Series: ts.Series{UniqueIndex: 2}, WasWritten: false}
@@ -1433,7 +1433,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)

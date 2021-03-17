@@ -276,7 +276,7 @@ func writeCommitLogs(
 		return int(result)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	preWrites := getAllWrites()
@@ -553,7 +553,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	require.Equal(t, 2, len(files))
 
 	// Assert commitlog cannot be opened more than once
-	reader := newCommitLogReader(commitLogReaderOptions{commitLogOptions: opts})
+	reader := NewReader(ReaderOptions{commitLogOptions: opts})
 	_, err = reader.Open(files[0])
 	require.NoError(t, err)
 	reader.Close()
@@ -714,7 +714,7 @@ func TestCommitLogWriteErrorOnClosed(t *testing.T) {
 	series := testSeries(t, opts, 0, "foo.bar", testTags1, 127)
 	datapoint := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	err := commitLog.Write(ctx, series, datapoint, xtime.Millisecond, nil)
@@ -741,7 +741,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	dp := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 	unit := xtime.Millisecond
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	for {
@@ -783,7 +783,7 @@ func TestCommitLogQueueLength(t *testing.T) {
 		series = testSeries(t, opts, 0, "foo.bar", testTags1, 127)
 		dp     = ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 		unit   = xtime.Millisecond
-		ctx    = context.NewContext()
+		ctx    = context.NewBackground()
 	)
 	defer ctx.Close()
 
@@ -1103,7 +1103,7 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 		return int(result)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wg.Add(1)

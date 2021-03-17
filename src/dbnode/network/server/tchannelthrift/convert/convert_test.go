@@ -21,15 +21,20 @@
 package convert_test
 
 import (
+	stdctx "context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
+	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/query/graphite/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 
@@ -251,6 +256,38 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestToRPCError(t *testing.T) {
+	limitErr := limits.NewQueryLimitExceededError("limit")
+	invalidParamsErr := xerrors.NewInvalidParamsError(errors.New("param"))
+
+	require.Equal(t, tterrors.NewResourceExhaustedError(limitErr), convert.ToRPCError(limitErr))
+	require.Equal(
+		t,
+		tterrors.NewResourceExhaustedError(xerrors.Wrap(limitErr, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(limitErr, "wrap")),
+	)
+
+	require.Equal(t, tterrors.NewBadRequestError(invalidParamsErr), convert.ToRPCError(invalidParamsErr))
+	require.Equal(
+		t,
+		tterrors.NewBadRequestError(xerrors.Wrap(invalidParamsErr, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(invalidParamsErr, "wrap")),
+	)
+
+	require.Equal(t, tterrors.NewTimeoutError(stdctx.Canceled), convert.ToRPCError(stdctx.Canceled))
+	require.Equal(t, tterrors.NewTimeoutError(stdctx.DeadlineExceeded), convert.ToRPCError(stdctx.DeadlineExceeded))
+	require.Equal(
+		t,
+		tterrors.NewTimeoutError(xerrors.Wrap(stdctx.Canceled, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(stdctx.Canceled, "wrap")),
+	)
+	require.Equal(
+		t,
+		tterrors.NewTimeoutError(xerrors.Wrap(stdctx.DeadlineExceeded, "wrap")),
+		convert.ToRPCError(xerrors.Wrap(stdctx.DeadlineExceeded, "wrap")),
+	)
 }
 
 type testPools struct {

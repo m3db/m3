@@ -253,7 +253,7 @@ var (
 	}
 	testPassthroughMetadata1 = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
 	testPassthroughMetadata2 = policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour)
-	testCounter1Proto = metricpb.Counter{
+	testCounter1Proto        = metricpb.Counter{
 		Id:    []byte("testCounter1"),
 		Value: 123,
 	}
@@ -673,11 +673,11 @@ func TestUnaggregatedEncoderEncodeBatchTimerWithMetadatas(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.BatchTimerWithMetadatasType,
+			Type:                    encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
-			Type: metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
+			Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 			BatchTimerWithMetadatas: &expected[i],
 		}
 		expectedMsgSize := expectedProto.Size()
@@ -793,11 +793,11 @@ func TestUnaggregatedEncoderEncodeForwardedMetricWithMetadata(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.ForwardedMetricWithMetadataType,
+			Type:                        encoding.ForwardedMetricWithMetadataType,
 			ForwardedMetricWithMetadata: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
-			Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+			Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 			ForwardedMetricWithMetadata: &expected[i],
 		}
 		expectedMsgSize := expectedProto.Size()
@@ -853,11 +853,11 @@ func TestUnaggregatedEncoderEncodeTimedMetricWithMetadata(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithMetadataType,
+			Type:                    encoding.TimedMetricWithMetadataType,
 			TimedMetricWithMetadata: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
-			Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
+			Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 			TimedMetricWithMetadata: &expected[i],
 		}
 		expectedMsgSize := expectedProto.Size()
@@ -1121,12 +1121,12 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 				}
 			case unaggregated.BatchTimerWithMetadatas:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.BatchTimerWithMetadatasType,
+					Type:                    encoding.BatchTimerWithMetadatasType,
 					BatchTimerWithMetadatas: input,
 				}
 				res := expected[i].(metricpb.BatchTimerWithMetadatas)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
+					Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 					BatchTimerWithMetadatas: &res,
 				}
 			case unaggregated.GaugeWithMetadatas:
@@ -1141,32 +1141,32 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 				}
 			case aggregated.ForwardedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.ForwardedMetricWithMetadataType,
+					Type:                        encoding.ForwardedMetricWithMetadataType,
 					ForwardedMetricWithMetadata: input,
 				}
 				res := expected[i].(metricpb.ForwardedMetricWithMetadata)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+					Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 					ForwardedMetricWithMetadata: &res,
 				}
 			case aggregated.TimedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.TimedMetricWithMetadataType,
+					Type:                    encoding.TimedMetricWithMetadataType,
 					TimedMetricWithMetadata: input,
 				}
 				res := expected[i].(metricpb.TimedMetricWithMetadata)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
+					Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 					TimedMetricWithMetadata: &res,
 				}
 			case aggregated.PassthroughMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.PassthroughMetricWithMetadataType,
+					Type:                          encoding.PassthroughMetricWithMetadataType,
 					PassthroughMetricWithMetadata: input,
 				}
 				res := expected[i].(metricpb.TimedMetricWithStoragePolicy)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY,
+					Type:                         metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY,
 					TimedMetricWithStoragePolicy: &res,
 				}
 			default:

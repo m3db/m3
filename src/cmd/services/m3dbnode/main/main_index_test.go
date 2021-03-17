@@ -23,6 +23,7 @@
 package main_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -261,10 +262,17 @@ func TestIndexEnabledServer(t *testing.T) {
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
-	iters, fetchResponse, err := session.FetchTagged(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
-		StartInclusive: fetchStart,
-		EndExclusive:   fetchEnd,
-	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	iters, fetchResponse, err := session.FetchTagged(ctx,
+		ident.StringID(namespaceID),
+		index.Query{reQuery},
+		index.QueryOptions{
+			StartInclusive: fetchStart,
+			EndExclusive:   fetchEnd,
+		})
 	assert.NoError(t, err)
 	assert.True(t, fetchResponse.Exhaustive)
 	assert.Equal(t, 1, iters.Len())
@@ -283,10 +291,13 @@ func TestIndexEnabledServer(t *testing.T) {
 		assert.Equal(t, v.unit, unit)
 	}
 
-	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
-		StartInclusive: fetchStart,
-		EndExclusive:   fetchEnd,
-	})
+	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(ctx,
+		ident.StringID(namespaceID),
+		index.Query{reQuery},
+		index.QueryOptions{
+			StartInclusive: fetchStart,
+			EndExclusive:   fetchEnd,
+		})
 	assert.NoError(t, err)
 	assert.True(t, resultsFetchResponse.Exhaustive)
 	assert.True(t, resultsIter.Next())

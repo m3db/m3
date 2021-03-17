@@ -48,6 +48,7 @@ func RegisterRoutes(
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 	namespaceValidator options.NamespaceValidator,
+	kvStoreProtoParser options.KVStoreProtoParser,
 ) error {
 	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
 		defaults, instrumentOpts, namespaceValidator)
@@ -55,7 +56,7 @@ func RegisterRoutes(
 		return err
 	}
 
-	kvStoreHandler := NewKeyValueStoreHandler(client, instrumentOpts)
+	kvStoreHandler := NewKeyValueStoreHandler(client, instrumentOpts, kvStoreProtoParser)
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.

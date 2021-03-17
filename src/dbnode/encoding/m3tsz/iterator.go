@@ -21,19 +21,28 @@
 package m3tsz
 
 import (
-	"io"
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 )
+
+// DefaultReaderIteratorAllocFn returns a function for allocating NewReaderIterator.
+func DefaultReaderIteratorAllocFn(
+	opts encoding.Options,
+) func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+	return func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+		return NewReaderIterator(r, DefaultIntOptimizationEnabled, opts)
+	}
+}
 
 // readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
 type readerIterator struct {
-	is   encoding.IStream
+	is   *encoding.IStream
 	opts encoding.Options
 
 	err        error   // current error
@@ -51,9 +60,13 @@ type readerIterator struct {
 }
 
 // NewReaderIterator returns a new iterator for a given reader
-func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
+func NewReaderIterator(
+	reader xio.Reader64,
+	intOptimized bool,
+	opts encoding.Options,
+) encoding.ReaderIterator {
 	return &readerIterator{
-		is:           encoding.NewIStream(reader, opts.IStreamReaderSizeM3TSZ()),
+		is:           encoding.NewIStream(reader),
 		opts:         opts,
 		tsIterator:   NewTimestampIterator(opts, false),
 		intOptimized: intOptimized,
@@ -165,10 +178,10 @@ func (it *readerIterator) readIntValDiff() {
 		sign = 1.0
 	}
 
-	it.intVal += sign * float64(it.readBits(uint(it.sig)))
+	it.intVal += sign * float64(it.readBits(it.sig))
 }
 
-func (it *readerIterator) readBits(numBits uint) uint64 {
+func (it *readerIterator) readBits(numBits uint8) uint64 {
 	if !it.hasNext() {
 		return 0
 	}
@@ -218,7 +231,7 @@ func (it *readerIterator) hasNext() bool {
 }
 
 // Reset resets the ReadIterator for reuse.
-func (it *readerIterator) Reset(reader io.Reader, schema namespace.SchemaDescr) {
+func (it *readerIterator) Reset(reader xio.Reader64, schema namespace.SchemaDescr) {
 	it.is.Reset(reader)
 	it.tsIterator = NewTimestampIterator(it.opts, it.tsIterator.SkipMarkers)
 	it.err = nil

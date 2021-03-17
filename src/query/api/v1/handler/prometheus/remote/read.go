@@ -113,9 +113,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
 
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
-	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
+	logger := logging.WithContext(r.Context(), h.opts.InstrumentOpts())
+	ctx, req, fetchOpts, rErr := ParseRequest(r.Context(), r, h.opts)
 	if rErr != nil {
 		h.promReadMetrics.incError(rErr)
 		logger.Error("remote read query parse error",
@@ -126,8 +125,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
-	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
+	readResult, err := Read(ctx, req, fetchOpts, h.opts)
 	if err != nil {
 		h.promReadMetrics.incError(err)
 		logger.Error("remote read query error",
@@ -139,7 +137,16 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write headers before response.
-	handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
+	err = handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts, nil, nil)
+	if err != nil {
+		h.promReadMetrics.incError(err)
+		logger.Error("remote read query write response header error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Any("fetchOpts", fetchOpts))
+		xhttp.WriteError(w, err)
+		return
+	}
 
 	// NB: if this errors, all relevant headers and information should already
 	// be sent to the writer; so it is not necessary to do anything here other
@@ -384,20 +391,20 @@ func ParseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, error) {
-	req, fetchOpts, err := parseRequest(ctx, r, opts)
+) (context.Context, *prompb.ReadRequest, *storage.FetchOptions, error) {
+	ctx, req, fetchOpts, err := parseRequest(ctx, r, opts)
 	if err != nil {
 		// Always invalid request if parsing fails params.
-		return nil, nil, xerrors.NewInvalidParamsError(err)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	return req, fetchOpts, nil
+	return ctx, req, fetchOpts, nil
 }
 
 func parseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, error) {
+) (context.Context, *prompb.ReadRequest, *storage.FetchOptions, error) {
 	var (
 		req *prompb.ReadRequest
 		err error
@@ -409,21 +416,20 @@ func parseRequest(
 		req, err = parseCompressedRequest(r)
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	ctx, fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
 	if rErr != nil {
-		return nil, nil, rErr
+		return nil, nil, nil, rErr
 	}
 
-	return req, fetchOpts, nil
+	return ctx, req, fetchOpts, nil
 }
 
 // Read performs a remote read on the given engine.
 func Read(
 	ctx context.Context,
-	cancelWatcher handler.CancelWatcher,
 	r *prompb.ReadRequest,
 	fetchOpts *storage.FetchOptions,
 	opts options.HandlerOptions,
@@ -435,8 +441,11 @@ func Read(
 		meta         = block.NewResultMetadata()
 		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
-				LimitMaxTimeseries: fetchOpts.SeriesLimit,
-				LimitMaxDocs:       fetchOpts.DocsLimit,
+				LimitMaxTimeseries:             fetchOpts.SeriesLimit,
+				LimitMaxDocs:                   fetchOpts.DocsLimit,
+				LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
+				LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
+				LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
 			}}
 
 		engine = opts.Engine()
@@ -463,11 +472,6 @@ func Read(
 				multiErr = multiErr.Add(err)
 				mu.Unlock()
 				return
-			}
-
-			// Detect clients closing connections.
-			if cancelWatcher != nil {
-				cancelWatcher.WatchForCancel(ctx, cancel)
 			}
 
 			result, err := engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)

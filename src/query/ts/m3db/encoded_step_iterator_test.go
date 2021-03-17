@@ -22,7 +22,6 @@ package m3db
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"runtime"
 	"sync"
@@ -44,8 +43,8 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/pkg/profile"
 
+	"github.com/pkg/profile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -478,7 +477,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 				m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 
 			iterAlloc := func(
-				r io.Reader,
+				r xio.Reader64,
 				d namespace.SchemaDescr,
 			) encoding.ReaderIterator {
 				readerIter.Reset(r, d)

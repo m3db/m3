@@ -49,10 +49,8 @@ const (
 	CheckpointFileSizeBytes = 4
 )
 
-var (
-	errWriterEncodeTagsDataNotAccessible = errors.New(
-		"failed to encode tags: cannot get data")
-)
+var errWriterEncodeTagsDataNotAccessible = errors.New(
+	"failed to encode tags: cannot get data")
 
 type writer struct {
 	blockSize        time.Duration

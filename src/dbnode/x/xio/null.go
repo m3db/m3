@@ -27,7 +27,8 @@ import (
 
 type nullSegmentReader struct{}
 
-func (r nullSegmentReader) Read(_ []byte) (n int, err error) { return 0, nil }
+func (r nullSegmentReader) Read64() (word uint64, n byte, err error) { return 0, 0, nil }
+func (r nullSegmentReader) Peek64() (word uint64, n byte, err error) { return 0, 0, nil }
 func (r nullSegmentReader) Segment() (ts.Segment, error)     { return ts.Segment{}, nil }
 func (r nullSegmentReader) Reset(_ ts.Segment)               {}
 func (r nullSegmentReader) Finalize()                        {}

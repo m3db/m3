@@ -179,7 +179,7 @@ func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
 			enqueuedBuf = buf
 			return nil
 		})
-	w := newInstanceWriter(testPlacementInstance, testOptions().SetFlushSize(3)).(*writer)
+	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
@@ -207,7 +207,6 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 
 	var (
 		stream      = protobuf.NewBuffer([]byte{1, 2, 3, 4, 5, 6, 7}, nil)
-		resetBytes  []byte
 		enqueuedBuf protobuf.Buffer
 	)
 	encoder := protobuf.NewMockUnaggregatedEncoder(ctrl)
@@ -222,9 +221,6 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 		}).Return(nil),
 		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Relinquish().Return(stream),
-		encoder.EXPECT().
-			Reset([]byte{4, 5, 6, 7}).
-			DoAndReturn(func(data []byte) { resetBytes = data }),
 	)
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
@@ -233,7 +229,7 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 			enqueuedBuf = buf
 			return nil
 		})
-	w := newInstanceWriter(testPlacementInstance, testOptions().SetFlushSize(3)).(*writer)
+	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
@@ -252,8 +248,7 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 	require.True(t, exists)
 	require.NotNil(t, enc)
 	require.Equal(t, 1, len(w.encodersByShard))
-	require.Equal(t, []byte{0x4, 0x5, 0x6, 0x7}, resetBytes)
-	require.Equal(t, []byte{0x1, 0x2, 0x3}, enqueuedBuf.Bytes())
+	require.Equal(t, []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7}, enqueuedBuf.Bytes())
 }
 
 func TestWriterWriteUntimedBatchTimerNoBatchSizeLimit(t *testing.T) {
@@ -312,7 +307,7 @@ func TestWriterWriteUntimedBatchTimerSmallBatchSize(t *testing.T) {
 				StagedMetadatas: testStagedMetadatas,
 			},
 		}).Return(nil),
-		encoder.EXPECT().Len().Return(7).Times(2),
+		encoder.EXPECT().Len().Return(7),
 	)
 	opts := testOptions().SetMaxTimerBatchSize(140)
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
@@ -354,7 +349,7 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 		expectedNumBatches = int(math.Ceil(float64(numValues) / float64(maxBatchSize)))
 	)
 	encoder := protobuf.NewMockUnaggregatedEncoder(ctrl)
-	encoder.EXPECT().Len().Return(7).Times(expectedNumBatches + 2)
+	encoder.EXPECT().Len().Return(7).MinTimes(2)
 	encoder.EXPECT().
 		EncodeMessage(gomock.Any()).
 		DoAndReturn(func(msg encoding.UnaggregatedMessageUnion) error {
@@ -364,6 +359,8 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 			metadataRes = append(metadataRes, msg.BatchTimerWithMetadatas.StagedMetadatas)
 			return nil
 		}).Times(expectedNumBatches)
+	encoder.EXPECT().Relinquish()
+
 	opts := testOptions().SetMaxTimerBatchSize(maxBatchSize)
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
@@ -378,6 +375,7 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 		},
 	}
 	require.NoError(t, w.Write(0, payload))
+	require.NoError(t, w.Flush())
 
 	var (
 		expectedMsgTypes  []encoding.UnaggregatedMessageType
@@ -403,37 +401,57 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 }
 
 func TestWriterWriteUntimedLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
-	numValues := 1400
+	const (
+		numValues  = 1400
+		testIDName = "testLargeBatchTimer"
+	)
+
 	timerValues := make([]float64, numValues)
 	for i := 0; i < numValues; i++ {
 		timerValues[i] = float64(i)
 	}
-	testLargeBatchTimer := unaggregated.MetricUnion{
-		Type:          metric.TimerType,
-		ID:            []byte("testLargeBatchTimer"),
-		BatchTimerVal: timerValues,
+
+	var (
+		testLargeBatchTimer = unaggregated.MetricUnion{
+			Type:          metric.TimerType,
+			ID:            []byte(testIDName),
+			BatchTimerVal: timerValues,
+		}
+		payload = payloadUnion{
+			payloadType: untimedType,
+			untimed: untimedPayload{
+				metric:    testLargeBatchTimer,
+				metadatas: testStagedMetadatas,
+			},
+		}
+		testScope = tally.NewTestScope("", nil)
+		iOpts     = instrument.NewOptions().SetMetricsScope(testScope)
+		opts      = testOptions().
+				SetMaxBatchSize(1000).
+				SetMaxTimerBatchSize(10).
+				SetInstrumentOptions(iOpts)
+
+		w            = newInstanceWriter(testPlacementInstance, opts).(*writer)
+		q            = w.queue.(*queue)
+		payloadCount int
+	)
+
+	q.writeFn = func(payload []byte) error {
+		payloadCount += strings.Count(string(payload), testIDName)
+		return nil
 	}
 
-	testScope := tally.NewTestScope("", nil)
-	iOpts := instrument.NewOptions().SetMetricsScope(testScope)
-	opts := testOptions().
-		SetMaxTimerBatchSize(140).
-		SetInstrumentOptions(iOpts)
-
-	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
-
-	payload := payloadUnion{
-		payloadType: untimedType,
-		untimed: untimedPayload{
-			metric:    testLargeBatchTimer,
-			metadatas: testStagedMetadatas,
-		},
-	}
 	require.NoError(t, w.Write(0, payload))
+	require.NoError(t, w.Flush())
+	time.Sleep(1 * time.Second) // TODO: remove once queue is sync
+	require.NoError(t, w.Close())
 
 	enqueuedCounter := testScope.Snapshot().Counters()["buffers+action=enqueued"]
 	require.NotNil(t, enqueuedCounter)
-	require.Equal(t, int64(5), enqueuedCounter.Value())
+	// Expect 1 byte buffer to be enqueued to write to network,
+	// but timer itself should be split to multiple protobuf payloads.
+	require.Equal(t, int64(1), enqueuedCounter.Value())
+	require.Equal(t, 140, payloadCount)
 }
 
 func TestWriterWriteUntimedBatchTimerWriteError(t *testing.T) {
@@ -458,10 +476,10 @@ func TestWriterWriteUntimedBatchTimerWriteError(t *testing.T) {
 		encoder.EXPECT().
 			EncodeMessage(gomock.Any()).
 			Return(nil),
-		encoder.EXPECT().Len().Return(5),
 		encoder.EXPECT().
 			EncodeMessage(gomock.Any()).
 			Return(errTestWrite),
+
 		encoder.EXPECT().Truncate(3).Return(nil),
 	)
 	opts := testOptions().SetMaxTimerBatchSize(3)
@@ -489,7 +507,7 @@ func TestWriterWriteUntimedBatchTimerEnqueueError(t *testing.T) {
 	queue.EXPECT().Enqueue(gomock.Any()).Return(errTestEnqueue)
 	opts := testOptions().
 		SetMaxTimerBatchSize(1).
-		SetFlushSize(1)
+		SetMaxBatchSize(1)
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.queue = queue
 
@@ -562,7 +580,7 @@ func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
 			enqueuedBuf = buf
 			return nil
 		})
-	w := newInstanceWriter(testPlacementInstance, testOptions().SetFlushSize(3)).(*writer)
+	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
@@ -590,7 +608,6 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 
 	var (
 		stream      = protobuf.NewBuffer([]byte{1, 2, 3, 4, 5, 6, 7}, nil)
-		resetBytes  []byte
 		enqueuedBuf protobuf.Buffer
 	)
 	encoder := protobuf.NewMockUnaggregatedEncoder(ctrl)
@@ -605,9 +622,6 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 		}).Return(nil),
 		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Relinquish().Return(stream),
-		encoder.EXPECT().
-			Reset([]byte{4, 5, 6, 7}).
-			DoAndReturn(func(data []byte) { resetBytes = data }),
 	)
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
@@ -616,7 +630,7 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 			enqueuedBuf = buf
 			return nil
 		})
-	w := newInstanceWriter(testPlacementInstance, testOptions().SetFlushSize(3)).(*writer)
+	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
@@ -635,8 +649,7 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 	require.True(t, exists)
 	require.NotNil(t, enc)
 	require.Equal(t, 1, len(w.encodersByShard))
-	require.Equal(t, []byte{0x4, 0x5, 0x6, 0x7}, resetBytes)
-	require.Equal(t, []byte{0x1, 0x2, 0x3}, enqueuedBuf.Bytes())
+	require.Equal(t, []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7}, enqueuedBuf.Bytes())
 }
 
 func TestWriterWriteForwardedEncodeError(t *testing.T) {
@@ -678,7 +691,7 @@ func TestWriterWriteForwardedEnqueueError(t *testing.T) {
 	queue.EXPECT().Enqueue(gomock.Any()).Return(errTestEnqueue)
 	opts := testOptions().
 		SetMaxTimerBatchSize(1).
-		SetFlushSize(1)
+		SetMaxBatchSize(1)
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.queue = queue
 
@@ -719,6 +732,7 @@ func TestWriterFlushPartialError(t *testing.T) {
 			return nil
 		}).
 		Times(2)
+	queue.EXPECT().Flush().MinTimes(1)
 	opts := testOptions()
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.queue = queue
@@ -764,20 +778,20 @@ func TestWriterConcurrentWriteStress(t *testing.T) {
 	params := []struct {
 		maxInputBatchSize int
 		maxTimerBatchSize int
-		flushSize         int
+		maxBatchSize      int
 	}{
 		// High likelihood of counter/gauge encoding triggering a flush in between
 		// releasing and re-acquiring locks when encoding large timer batches.
 		{
 			maxInputBatchSize: 150,
 			maxTimerBatchSize: 150,
-			flushSize:         1000,
+			maxBatchSize:      1000,
 		},
 		// Large timer batches.
 		{
 			maxInputBatchSize: 1000,
 			maxTimerBatchSize: 140,
-			flushSize:         1440,
+			maxBatchSize:      1440,
 		},
 	}
 
@@ -786,7 +800,7 @@ func TestWriterConcurrentWriteStress(t *testing.T) {
 			t,
 			param.maxInputBatchSize,
 			param.maxTimerBatchSize,
-			param.flushSize,
+			param.maxBatchSize,
 		)
 	}
 }
@@ -795,7 +809,7 @@ func testWriterConcurrentWriteStress(
 	t *testing.T,
 	maxInputBatchSize int,
 	maxTimerBatchSize int,
-	flushSize int,
+	maxBatchSize int,
 ) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -862,9 +876,10 @@ func testWriterConcurrentWriteStress(
 			return nil
 		}).
 		AnyTimes()
+	queue.EXPECT().Flush().MinTimes(1)
 	opts := testOptions().
 		SetMaxTimerBatchSize(maxTimerBatchSize).
-		SetFlushSize(flushSize)
+		SetMaxBatchSize(maxBatchSize)
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.queue = queue
 

@@ -42,7 +42,26 @@ type ResettableWriterFn func(r io.Writer, opts ResettableWriterOptions) Resettab
 
 // defaultResettableWriterFn creates a default resettable writer.
 func defaultResettableWriterFn() ResettableWriterFn {
-	return func(r io.Writer, opts ResettableWriterOptions) ResettableWriter {
-		return bufio.NewWriterSize(r, opts.WriteBufferSize)
+	return func(w io.Writer, opts ResettableWriterOptions) ResettableWriter {
+		if opts.WriteBufferSize <= 0 {
+			return &passthroughResettableWriter{w: w}
+		}
+		return bufio.NewWriterSize(w, opts.WriteBufferSize)
 	}
+}
+
+type passthroughResettableWriter struct {
+	w io.Writer
+}
+
+func (p passthroughResettableWriter) Write(b []byte) (n int, err error) {
+	return p.w.Write(b)
+}
+
+func (p passthroughResettableWriter) Flush() error {
+	return nil
+}
+
+func (p *passthroughResettableWriter) Reset(w io.Writer) {
+	p.w = w
 }

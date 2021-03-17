@@ -23,7 +23,6 @@
 package proto
 
 import (
-	"bytes"
 	"os"
 	"testing"
 	"time"
@@ -31,7 +30,9 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
 // TestIteratorHandlesCorruptStreams ensures that the protobuf iterator never panics when reading corrupt streams.
@@ -48,8 +49,8 @@ func TestIteratorHandlesCorruptStreams(t *testing.T) {
 	parameters.Rng.Seed(seed)
 
 	props.Property("Iterator should handle corrupt streams", prop.ForAll(func(input corruptionPropTestInput) (bool, error) {
-		buff := bytes.NewBuffer(input.bytes)
-		iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
+		r := xio.NewBytesReader64(input.bytes)
+		iter := NewIterator(r, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 		for iter.Next() {
 		}
 		return true, nil

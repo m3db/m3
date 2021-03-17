@@ -193,7 +193,7 @@ func writeToDiskWithPredicate(
 			return err
 		}
 
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		for _, series := range seriesList {
 			encoder.Reset(start, 0, nsCtx.Schema)
 			for _, dp := range series.Data {

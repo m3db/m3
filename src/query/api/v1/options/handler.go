@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/prometheus/prometheus/promql"
+	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 // QueryEngine is a type of query engine.
@@ -215,6 +216,11 @@ type HandlerOptions interface {
 	SetNamespaceValidator(NamespaceValidator) HandlerOptions
 	// NamespaceValidator returns the NamespaceValidator.
 	NamespaceValidator() NamespaceValidator
+
+	// KVStoreProtoParser sets the KVStoreProtoParser.
+	SetKVStoreProtoParser(KVStoreProtoParser) HandlerOptions
+	// KVStoreProtoHandler returns the KVStoreProtoParser.
+	KVStoreProtoParser() KVStoreProtoParser
 }
 
 // HandlerOptions represents handler options.
@@ -243,6 +249,7 @@ type handlerOptions struct {
 	m3dbOpts              m3db.Options
 	namespaceValidator    NamespaceValidator
 	storeMetricsType      bool
+	kvStoreProtoParser    KVStoreProtoParser
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -572,3 +579,16 @@ type NamespaceValidator interface {
 	// ValidateNewNamespace gets invoked when creating a new namespace.
 	ValidateNewNamespace(newNs dbnamespace.Metadata, existing []dbnamespace.Metadata) error
 }
+
+func (o *handlerOptions) SetKVStoreProtoParser(value KVStoreProtoParser) HandlerOptions {
+	opts := *o
+	opts.kvStoreProtoParser = value
+	return &opts
+}
+
+func (o *handlerOptions) KVStoreProtoParser() KVStoreProtoParser {
+	return o.kvStoreProtoParser
+}
+
+// KVStoreProtoParser parses protobuf messages based off specific keys.
+type KVStoreProtoParser func(key string) (protoiface.MessageV1, error)
