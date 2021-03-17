@@ -709,14 +709,14 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
 			isBootstrapped:                true,
 		},
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
@@ -729,14 +729,14 @@ func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
 
 func TestNamespaceSnapshotShardError(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
 			isBootstrapped:                true,
 		},
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
@@ -749,14 +749,14 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 
 func TestNamespaceSnapshotShardSkipNotBootstrapped(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
 			isBootstrapped:                true,
 		},
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
