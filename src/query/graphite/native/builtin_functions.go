@@ -2219,11 +2219,13 @@ func newMovingBinaryTransform(
 				offset := bootstrap.Len() - numSteps
 				vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 
-				impl.Reset(movingImplResetOptions{
+				if err := impl.Reset(movingImplResetOptions{
 					Original:     series,
 					Bootstrap:    bootstrap,
 					WindowPoints: currWindowPoints,
-				})
+				}); err != nil {
+					return ts.SeriesList{}, err
+				}
 				for i := 0; i < numSteps; i++ {
 					for j := i + offset - currWindowPoints; j < i+offset; j++ {
 						if j < 0 || j >= bootstrap.Len() {
