@@ -1531,7 +1531,7 @@ func substr(_ *common.Context, seriesList singlePathSpec, start, stop int) (ts.S
 func combineBootstrapWithOriginal(
 	ctx *common.Context,
 	bootstrapStartTime, bootstrapEndTime time.Time,
-	originalStartTime, originalEndTime time.Time,
+	_, originalEndTime time.Time,
 	bootstrapped ts.SeriesList,
 	seriesList singlePathSpec,
 ) (ts.SeriesList, error) {
@@ -2211,31 +2211,56 @@ func newMovingBinaryTransform(
 }
 
 // movingMedian calculates the moving median of a metric (or metrics) over a time interval.
-func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+func movingMedian(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", xFilesFactor,
 		movingImplementationFn(movingMedianHelper))
 }
 
 // movingSum calculates the moving sum of a metric (or metrics) over a time interval.
-func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+func movingSum(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", xFilesFactor,
 		movingImplementationFn(movingSumHelper))
 }
 
 // movingAverage calculates the moving average of a metric (or metrics) over a time interval.
-func movingAverage(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+func movingAverage(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingAverage", xFilesFactor,
 		movingImplementationFn(movingAverageHelper))
 }
 
 // movingMax calculates the moving maximum of a metric (or metrics) over a time interval.
-func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+func movingMax(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", xFilesFactor,
 		movingImplementationFn(movingMaxHelper))
 }
 
 // movingMin calculates the moving minimum of a metric (or metrics) over a time interval.
-func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+func movingMin(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", xFilesFactor,
 		movingImplementationFn(movingMinHelper))
 }

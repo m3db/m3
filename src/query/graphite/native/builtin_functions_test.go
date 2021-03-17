@@ -1040,11 +1040,11 @@ func TestMovingSumError(t *testing.T) {
 // list, say using movingSum 1h but the query is only for the last few minutes
 // and in the last few minutes data for a series from an hour ago exists
 // but is not present in the last few minutes; for this case the results
-// from the preceeding hour should still be evaluated as part of the movingSum
+// from the preceding hour should still be evaluated as part of the movingSum
 // calculation).
 func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	end := time.Now().Truncate(time.Minute)
 	start := end.Add(-3 * time.Minute)
