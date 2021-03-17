@@ -360,6 +360,21 @@ func (mr *MockReaderMockRecorder) Terms(field interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockReader)(nil).Terms), field)
 }
 
+// FieldsPostingsList mocks base method
+func (m *MockReader) FieldsPostingsList() (FieldsPostingsListIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockReaderMockRecorder) FieldsPostingsList() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockReader)(nil).FieldsPostingsList))
+}
+
 // ContainsField mocks base method
 func (m *MockReader) ContainsField(field []byte) (bool, error) {
 	m.ctrl.T.Helper()

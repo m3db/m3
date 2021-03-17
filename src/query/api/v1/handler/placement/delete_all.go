@@ -73,7 +73,8 @@ func (h *DeleteAllHandler) ServeHTTP(
 		opts   = handleroptions.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
-	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
+	service, err := Service(h.clusterClient, opts,
+		h.config.ClusterManagement.Placement, h.nowFn(), nil)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return

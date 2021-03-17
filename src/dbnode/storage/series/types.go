@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -85,7 +84,7 @@ type DatabaseSeries interface {
 		ctx context.Context,
 		start, end time.Time,
 		nsCtx namespace.Context,
-	) ([][]xio.BlockReader, error)
+	) (BlockReaderIter, error)
 
 	// FetchWideEntry reads wide entries from encoded blocks.
 	FetchWideEntry(

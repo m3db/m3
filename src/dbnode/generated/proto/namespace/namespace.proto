@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package namespace;
 
-import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/wrappers.proto";
 import "github.com/m3db/m3/src/dbnode/generated/proto/namespace/schema.proto";
 
@@ -38,7 +38,7 @@ message NamespaceOptions {
     StagingState stagingState                       = 14;
 
     // Use larger field ID to ensure new fields are always added before extended options.
-    google.protobuf.Any extendedOptions             = 1000;
+    ExtendedOptions extendedOptions                 = 1000;
 }
 
 // AggregationOptions is a set of options for aggregating data
@@ -98,4 +98,9 @@ message Registry {
 message NamespaceRuntimeOptions {
     google.protobuf.DoubleValue writeIndexingPerCPUConcurrency = 1;
     google.protobuf.DoubleValue flushIndexingPerCPUConcurrency = 2;
+}
+
+message ExtendedOptions {
+    string type                    = 1;
+    google.protobuf.Struct options = 2;
 }

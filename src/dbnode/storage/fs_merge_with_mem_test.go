@@ -51,7 +51,7 @@ func TestRead(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	retriever := series.NewMockQueryableBlockRetriever(ctrl)
 	version := 0
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	nsCtx := namespace.Context{}
 	result := block.FetchBlockResult{
 		Blocks: []xio.BlockReader{xio.BlockReader{}},
@@ -134,7 +134,7 @@ func TestForEachRemaining(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	retriever := series.NewMockQueryableBlockRetriever(ctrl)
 	version := 0
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	nsCtx := namespace.Context{}
 	result := block.FetchBlockResult{
 		Blocks: []xio.BlockReader{xio.BlockReader{}},

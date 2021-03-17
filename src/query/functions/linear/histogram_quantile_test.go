@@ -338,9 +338,9 @@ func testQuantileFunctionWithQ(t *testing.T, q float64) [][]float64 {
 	}
 
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(histogramQuantileOp).Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 
 	return sink.Values
@@ -421,9 +421,9 @@ func testWithMultipleBuckets(t *testing.T, q float64) [][]float64 {
 	}
 
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(histogramQuantileOp).Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 
 	return sink.Values

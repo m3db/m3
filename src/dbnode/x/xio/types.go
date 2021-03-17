@@ -21,7 +21,6 @@
 package xio
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -42,7 +41,7 @@ var EmptyBlockReader = BlockReader{}
 
 // SegmentReader implements the io reader interface backed by a segment.
 type SegmentReader interface {
-	io.Reader
+	Reader64
 	xresource.Finalizer
 
 	// Segment gets the segment read by this reader.
@@ -102,4 +101,14 @@ type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 
 	// Reset resets the iterator with a new array of block readers arrays.
 	Reset(blocks [][]BlockReader)
+}
+
+// Reader64 is a reader for reading 64 bit words.
+type Reader64 interface {
+
+	// Read64 reads and returns a 64 bit word plus a number of bytes (up to 8) actually read.
+	Read64() (word uint64, n byte, err error)
+
+	// Read64 peeks and returns the next 64 bit word plus a number of bytes (up to 8) available.
+	Peek64() (word uint64, n byte, err error)
 }

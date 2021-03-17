@@ -40,9 +40,6 @@ var (
 	// errMustUseSingleClaimsManager returned when a second claims manager
 	// created, since this is a violation of expected behavior.
 	errMustUseSingleClaimsManager = errors.New("not using single global claims manager")
-	// ErrOutOfRetentionClaim returned when reserving a claim that is
-	// out of retention.
-	ErrOutOfRetentionClaim = errors.New("out of retention index volume claim")
 
 	globalIndexClaimsManagers uint64
 )
@@ -110,7 +107,7 @@ func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
 
 	// Reject out of retention claims.
 	if blockStart.Before(earliestBlockStart) {
-		return 0, ErrOutOfRetentionClaim
+		return 0, ErrIndexOutOfRetention
 	}
 
 	volumeIndexClaimsByBlockStart, ok := i.volumeIndexClaims[md.ID().String()]

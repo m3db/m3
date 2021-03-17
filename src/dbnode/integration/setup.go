@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -131,10 +132,8 @@ type testSetup struct {
 	namespaces     []namespace.Metadata
 
 	// signals
-	doneCh chan struct {
-	}
-	closedCh chan struct {
-	}
+	doneCh   chan struct{}
+	closedCh chan struct{}
 }
 
 // TestSetup is a test setup.
@@ -295,6 +294,7 @@ func NewTestSetup(
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
 	runtimeOpts := runtimeOptsMgr.Get().
 		SetTickMinimumInterval(opts.TickMinimumInterval()).
+		SetTickCancellationCheckInterval(opts.TickCancellationCheckInterval()).
 		SetMaxWiredBlocks(opts.MaxWiredBlocks()).
 		SetWriteNewSeriesAsync(opts.WriteNewSeriesAsync())
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
@@ -1035,6 +1035,11 @@ func newClients(
 		verificationAdminOpts = verificationAdminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
 	}
 
+	for _, opt := range opts.CustomClientAdminOptions() {
+		adminOpts = opt(adminOpts)
+		verificationAdminOpts = opt(verificationAdminOpts)
+	}
+
 	// Set up m3db client
 	adminClient, err := m3dbAdminClient(adminOpts)
 	if err != nil {
@@ -1106,7 +1111,7 @@ func newNodes(
 
 	nodeOpt := BootstrappableTestSetupOptions{
 		DisablePeersBootstrapper: true,
-		FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		FinalBootstrapper:        uninitialized.UninitializedTopologyBootstrapperName,
 		TopologyInitializer:      topoInit,
 	}
 

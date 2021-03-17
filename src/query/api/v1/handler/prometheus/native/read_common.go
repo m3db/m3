@@ -22,10 +22,10 @@ package native
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
@@ -47,6 +48,14 @@ type promReadMetrics struct {
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
+
+	returnedDataMetrics PromReadReturnedDataMetrics
+}
+
+// PromReadReturnedDataMetrics are metrics on the data returned from prom reads.
+type PromReadReturnedDataMetrics struct {
+	FetchSeries     tally.Histogram
+	FetchDatapoints tally.Histogram
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -56,7 +65,18 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 			Counter("fetch.errors"),
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
-		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+		fetchTimerSuccess:   scope.Timer("fetch.success.latency"),
+		returnedDataMetrics: NewPromReadReturnedDataMetrics(scope),
+	}
+}
+
+// NewPromReadReturnedDataMetrics returns metrics for returned data.
+func NewPromReadReturnedDataMetrics(scope tally.Scope) PromReadReturnedDataMetrics {
+	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 16)...)
+	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
+	return PromReadReturnedDataMetrics{
+		FetchSeries:     scope.Histogram("fetch.series", seriesBuckets),
+		FetchDatapoints: scope.Histogram("fetch.datapoints", datapointBuckets),
 	}
 }
 
@@ -86,13 +106,13 @@ func ParseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, error) {
-	parsed, err := parseRequest(ctx, r, instantaneous, opts)
+) (context.Context, ParsedOptions, error) {
+	ctx, parsed, err := parseRequest(ctx, r, instantaneous, opts)
 	if err != nil {
 		// All parsing of requests should result in an invalid params error.
-		return ParsedOptions{}, xerrors.NewInvalidParamsError(err)
+		return nil, ParsedOptions{}, xerrors.NewInvalidParamsError(err)
 	}
-	return parsed, nil
+	return ctx, parsed, nil
 }
 
 func parseRequest(
@@ -100,17 +120,20 @@ func parseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, error) {
-	fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(r)
+) (context.Context, ParsedOptions, error) {
+	ctx, fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
 	if err != nil {
-		return ParsedOptions{}, err
+		return nil, ParsedOptions{}, err
 	}
 
 	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries: fetchOpts.SeriesLimit,
-			LimitMaxDocs:       fetchOpts.DocsLimit,
-			Instantaneous:      instantaneous,
+			LimitMaxTimeseries:             fetchOpts.SeriesLimit,
+			LimitMaxDocs:                   fetchOpts.DocsLimit,
+			LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
+			LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
+			LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
+			Instantaneous:                  instantaneous,
 		},
 	}
 
@@ -134,10 +157,10 @@ func parseRequest(
 		params, err = parseParams(r, engine.Options(), fetchOpts)
 	}
 	if err != nil {
-		return ParsedOptions{}, err
+		return nil, ParsedOptions{}, err
 	}
 
-	return ParsedOptions{
+	return ctx, ParsedOptions{
 		QueryOpts: queryOpts,
 		FetchOpts: fetchOpts,
 		Params:    params,
@@ -146,10 +169,9 @@ func parseRequest(
 
 // ParsedOptions are parsed options for the query.
 type ParsedOptions struct {
-	QueryOpts     *executor.QueryOptions
-	FetchOpts     *storage.FetchOptions
-	Params        models.RequestParams
-	CancelWatcher handler.CancelWatcher
+	QueryOpts *executor.QueryOptions
+	FetchOpts *storage.FetchOptions
+	Params    models.RequestParams
 }
 
 func read(
@@ -158,10 +180,9 @@ func read(
 	handlerOpts options.HandlerOptions,
 ) (ReadResult, error) {
 	var (
-		opts          = parsed.QueryOpts
-		fetchOpts     = parsed.FetchOpts
-		params        = parsed.Params
-		cancelWatcher = parsed.CancelWatcher
+		opts      = parsed.QueryOpts
+		fetchOpts = parsed.FetchOpts
+		params    = parsed.Params
 
 		tagOpts = handlerOpts.TagOptions()
 		engine  = handlerOpts.Engine()
@@ -185,14 +206,6 @@ func read(
 	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
 		return emptyResult, xerrors.NewInvalidParamsError(err)
-	}
-
-	// Detect clients closing connections.
-	if cancelWatcher != nil {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, parsed.Params.Timeout)
-		defer cancel()
-		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
 	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
@@ -256,4 +269,31 @@ func read(
 		Meta:      resultMeta,
 		BlockType: blockType,
 	}, nil
+}
+
+// ReturnedDataLimited are parsed options for the query.
+type ReturnedDataLimited struct {
+	Series     int
+	Datapoints int
+
+	// Total series is the total number of series which maybe be >= Series.
+	// Truncation happens at the series-level to avoid presenting partial series
+	// and so this value is useful for indicating how many series would have
+	// been rendered without limiting either series or datapoints.
+	TotalSeries int
+
+	// Limited signals that the results returned were
+	// limited by either series or datapoint limits.
+	Limited bool
+}
+
+// WriteReturnedDataLimitedHeader writes a header to indicate the returned data
+// was limited based on returned series or datapoint limits.
+func WriteReturnedDataLimitedHeader(w http.ResponseWriter, r ReturnedDataLimited) error {
+	s, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
+	return nil
 }

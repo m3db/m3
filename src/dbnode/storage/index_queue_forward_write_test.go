@@ -132,7 +132,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
@@ -174,7 +174,7 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
@@ -218,7 +218,7 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
@@ -566,7 +566,7 @@ func testShardForwardWriteTaggedSyncRefCount(
 		SetWriteNewSeriesAsync(false))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	writeToShardAndVerify(ctx, t, shard, idx, now, next, "foo", true)
@@ -622,7 +622,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 		SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	writeToShard(ctx, t, shard, idx, now, "foo", true)

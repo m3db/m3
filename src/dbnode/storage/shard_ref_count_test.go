@@ -62,7 +62,7 @@ func testShardWriteSyncRefCount(t *testing.T, opts Options) {
 		SetWriteNewSeriesAsync(false))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	seriesWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
@@ -186,7 +186,7 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 		SetWriteNewSeriesAsync(false))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, series.WriteOptions{})
@@ -254,7 +254,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 		SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	seriesWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
@@ -408,7 +408,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 		SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),

@@ -21,7 +21,6 @@
 package proto
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -30,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -162,8 +162,8 @@ func TestRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, numExpectedBytes, len(rawBytes))
 
-	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
+	r := xio.NewBytesReader64(rawBytes)
+	iter := NewIterator(r, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	i := 0
 	for iter.Next() {
@@ -212,9 +212,9 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 
 	vl2WriteTime := vl1WriteTime.Add(time.Second)
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshalledVL)
-	require.Equal(t,
-		"proto encoder: error unmarshalling message: encountered unknown field with field number: 6",
-		err.Error())
+	require.EqualError(t,
+		err,
+		"proto encoder: error unmarshalling message: encountered unknown field with field number: 6")
 
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
 	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshalledVL)
@@ -224,8 +224,8 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try reading the stream just using the vl1 schema.
-	buff := bytes.NewBuffer(rawBytes)
-	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
+	r := xio.NewBytesReader64(rawBytes)
+	iter := NewIterator(r, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation := iter.Current()
@@ -260,8 +260,8 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, iter.Err())
 
 	// Try reading the stream just using the vl2 schema.
-	buff = bytes.NewBuffer(rawBytes)
-	iter = NewIterator(buff, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
+	r = xio.NewBytesReader64(rawBytes)
+	iter = NewIterator(r, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
 
 	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()

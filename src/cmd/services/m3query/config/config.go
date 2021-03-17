@@ -25,6 +25,7 @@ import (
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
@@ -126,9 +127,9 @@ type Configuration struct {
 	// coordinator embedded in the DB.
 	Local *LocalConfiguration `yaml:"local"`
 
-	// ClusterManagement for placemement, namespaces and database management
-	// endpoints (optional).
-	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
+	// ClusterManagement for placement, namespaces and database management
+	// endpoints.
+	ClusterManagement ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
 	ListenAddress *string `yaml:"listenAddress"`
@@ -270,6 +271,12 @@ type QueryConfiguration struct {
 	// RestrictTags is an optional configuration that can be set to restrict
 	// all queries with certain tags by.
 	RestrictTags *RestrictTagsConfiguration `yaml:"restrictTags"`
+	// RequireLabelsEndpointStartEndTime requires requests to /label(s) endpoints
+	// to specify a start and end time to prevent unbounded queries.
+	RequireLabelsEndpointStartEndTime bool `yaml:"requireLabelsEndpointStartEndTime"`
+	// RequireSeriesEndpointStartEndTime requires requests to /series endpoint
+	// to specify a start and end time to prevent unbounded queries.
+	RequireSeriesEndpointStartEndTime bool `yaml:"requireSeriesEndpointStartEndTime"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -585,11 +592,14 @@ type LocalConfiguration struct {
 	Namespaces []m3.ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 }
 
-// ClusterManagementConfiguration is configuration for the placemement,
+// ClusterManagementConfiguration is configuration for the placement,
 // namespaces and database management endpoints (optional).
 type ClusterManagementConfiguration struct {
 	// Etcd is the client configuration for etcd.
-	Etcd etcdclient.Configuration `yaml:"etcd"`
+	Etcd *etcdclient.Configuration `yaml:"etcd"`
+
+	// Placement is the cluster placement configuration.
+	Placement placement.Configuration `yaml:"placement"`
 }
 
 // RemoteConfigurations is a set of remote host configurations.

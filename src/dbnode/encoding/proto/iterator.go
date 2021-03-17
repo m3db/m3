@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -55,7 +56,7 @@ type iterator struct {
 	err                  error
 	schema               *desc.MessageDescriptor
 	schemaDesc           namespace.SchemaDescr
-	stream               encoding.IStream
+	stream               *encoding.IStream
 	marshaller           customFieldMarshaller
 	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
@@ -79,11 +80,11 @@ type iterator struct {
 
 // NewIterator creates a new iterator.
 func NewIterator(
-	reader io.Reader,
+	reader xio.Reader64,
 	descr namespace.SchemaDescr,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
-	stream := encoding.NewIStream(reader, opts.IStreamReaderSizeProto())
+	stream := encoding.NewIStream(reader)
 
 	i := &iterator{
 		opts:       opts,
@@ -237,7 +238,7 @@ func (it *iterator) Err() error {
 	return it.err
 }
 
-func (it *iterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {
+func (it *iterator) Reset(reader xio.Reader64, descr namespace.SchemaDescr) {
 	it.resetSchema(descr)
 	it.stream.Reset(reader)
 	it.tsIterator = m3tsz.NewTimestampIterator(it.opts, true)
@@ -336,7 +337,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 	}
 
 	for i := 1; i <= int(numCustomFields); i++ {
-		fieldTypeBits, err := it.stream.ReadBits(uint(numBitsToEncodeCustomType))
+		fieldTypeBits, err := it.stream.ReadBits(uint8(numBitsToEncodeCustomType))
 		if err != nil {
 			return err
 		}
@@ -546,7 +547,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 
 	if valueInDictControlBit == opCodeInterpretSubsequentBitsAsLRUIndex {
 		dictIdxBits, err := it.stream.ReadBits(
-			uint(numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize)))
+			uint8(numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize)))
 		if err != nil {
 			return fmt.Errorf(
 				"%s error trying to read bytes dict idx: %v",
@@ -859,15 +860,6 @@ func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {
 	}
 
 	return dict[0]
-}
-
-func (it *iterator) readBits(numBits uint) (uint64, error) {
-	res, err := it.stream.ReadBits(numBits)
-	if err != nil {
-		return 0, err
-	}
-
-	return res, nil
 }
 
 func (it *iterator) resetUnmarshalProtoBuffer(n int) {

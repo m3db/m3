@@ -50,6 +50,7 @@ type writeForwardedMetricFn func(
 	key aggregationKey,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 )
 
 type onForwardedAggregationDoneFn func(key aggregationKey) error
@@ -258,8 +259,9 @@ func newIDKey(
 }
 
 type forwardedAggregationBucket struct {
-	timeNanos int64
-	values    []float64
+	timeNanos  int64
+	values     []float64
+	annotation []byte
 }
 
 type forwardedAggregationBuckets []forwardedAggregationBucket
@@ -292,10 +294,13 @@ func (agg *forwardedAggregationWithKey) reset() {
 	agg.buckets = agg.buckets[:0]
 }
 
-func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64) {
+func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, annotation []byte) {
 	for i := 0; i < len(agg.buckets); i++ {
 		if agg.buckets[i].timeNanos == timeNanos {
 			agg.buckets[i].values = append(agg.buckets[i].values, value)
+			if annotation != nil {
+				agg.buckets[i].annotation = annotation
+			}
 			return
 		}
 	}
@@ -309,8 +314,9 @@ func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64) {
 	}
 	values = append(values, value)
 	bucket := forwardedAggregationBucket{
-		timeNanos: timeNanos,
-		values:    values,
+		timeNanos:  timeNanos,
+		values:     values,
+		annotation: annotation,
 	}
 	agg.buckets = append(agg.buckets, bucket)
 }
@@ -425,9 +431,10 @@ func (agg *forwardedAggregation) write(
 	key aggregationKey,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 ) {
 	idx := agg.index(key)
-	agg.byKey[idx].add(timeNanos, value)
+	agg.byKey[idx].add(timeNanos, value, annotation)
 	agg.metrics.write.Inc(1)
 }
 
@@ -454,10 +461,11 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				continue
 			}
 			metric := aggregated.ForwardedMetric{
-				Type:      agg.metricType,
-				ID:        agg.metricID,
-				TimeNanos: b.timeNanos,
-				Values:    b.values,
+				Type:       agg.metricType,
+				ID:         agg.metricID,
+				TimeNanos:  b.timeNanos,
+				Values:     b.values,
+				Annotation: b.annotation,
 			}
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
@@ -474,8 +482,8 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 }
 
 func (agg *forwardedAggregation) index(key aggregationKey) int {
-	for i, k := range agg.byKey {
-		if k.key.Equal(key) {
+	for i := range agg.byKey {
+		if agg.byKey[i].key.Equal(key) {
 			return i
 		}
 	}

@@ -83,19 +83,36 @@ func (mr *MockSegmentReaderMockRecorder) Finalize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockSegmentReader)(nil).Finalize))
 }
 
-// Read mocks base method
-func (m *MockSegmentReader) Read(arg0 []byte) (int, error) {
+// Peek64 mocks base method
+func (m *MockSegmentReader) Peek64() (uint64, byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read", arg0)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "Peek64")
+	ret0, _ := ret[0].(uint64)
+	ret1, _ := ret[1].(byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
-// Read indicates an expected call of Read
-func (mr *MockSegmentReaderMockRecorder) Read(arg0 interface{}) *gomock.Call {
+// Peek64 indicates an expected call of Peek64
+func (mr *MockSegmentReaderMockRecorder) Peek64() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSegmentReader)(nil).Read), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peek64", reflect.TypeOf((*MockSegmentReader)(nil).Peek64))
+}
+
+// Read64 mocks base method
+func (m *MockSegmentReader) Read64() (uint64, byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Read64")
+	ret0, _ := ret[0].(uint64)
+	ret1, _ := ret[1].(byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// Read64 indicates an expected call of Read64
+func (mr *MockSegmentReaderMockRecorder) Read64() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read64", reflect.TypeOf((*MockSegmentReader)(nil).Read64))
 }
 
 // Reset mocks base method

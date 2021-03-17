@@ -446,7 +446,7 @@ func addUntimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(time.Now(), mu.CounterVal)
+		v.Update(time.Now(), mu.CounterVal, nil)
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
@@ -454,7 +454,7 @@ func addUntimedMetricToAggregation(
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(time.Now(), mu.GaugeVal)
+		v.Update(time.Now(), mu.GaugeVal, nil)
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized untimed metric type %v", mu.Type)
@@ -468,7 +468,7 @@ func addTimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(time.Now(), int64(mu.Value))
+		v.Update(time.Now(), int64(mu.Value), nil)
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
@@ -476,7 +476,7 @@ func addTimedMetricToAggregation(
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(time.Now(), mu.Value)
+		v.Update(time.Now(), mu.Value, nil)
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized timed metric type %v", mu.Type)
@@ -491,7 +491,7 @@ func addForwardedMetricToAggregation(
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
 		for _, val := range mu.Values {
-			v.Update(time.Now(), int64(val))
+			v.Update(time.Now(), int64(val), nil)
 		}
 		return v, nil
 	case metric.TimerType:
@@ -501,7 +501,7 @@ func addForwardedMetricToAggregation(
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
 		for _, val := range mu.Values {
-			v.Update(time.Now(), val)
+			v.Update(time.Now(), val, nil)
 		}
 		return v, nil
 	default:

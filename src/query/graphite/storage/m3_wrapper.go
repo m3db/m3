@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	querystorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -396,6 +398,21 @@ func translateTimeseriesFromIter(
 	return series, nil
 }
 
+func (s *m3WrappedStore) fanoutOptions() *storage.FanoutOptions {
+	fanoutOpts := &storage.FanoutOptions{
+		FanoutUnaggregated:        storage.FanoutForceDisable,
+		FanoutAggregated:          storage.FanoutDefault,
+		FanoutAggregatedOptimized: storage.FanoutForceDisable,
+	}
+	if s.opts.AggregateNamespacesAllData {
+		// NB(r): If aggregate namespaces house all the data, we can do a
+		// default optimized fanout where we only query the namespaces
+		// that contain the data for the ranges we are querying for.
+		fanoutOpts.FanoutAggregatedOptimized = storage.FanoutDefault
+	}
+	return fanoutOpts
+}
+
 func (s *m3WrappedStore) FetchByQuery(
 	ctx xctx.Context, query string, fetchOpts FetchOptions,
 ) (*FetchResult, error) {
@@ -412,26 +429,20 @@ func (s *m3WrappedStore) FetchByQuery(
 		}, nil
 	}
 
-	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), fetchOpts.Timeout)
-	defer cancel()
+	m3ctx := ctx.RequestContext()
+	if _, ok := m3ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		m3ctx, cancel = context.WithTimeout(m3ctx, fetchOpts.Timeout)
+		defer cancel()
+	}
+
 	fetchOptions := storage.NewFetchOptions()
 	fetchOptions.SeriesLimit = fetchOpts.Limit
 	fetchOptions.Source = fetchOpts.Source
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock
-	fetchOptions.FanoutOptions = &storage.FanoutOptions{
-		FanoutUnaggregated:        storage.FanoutForceDisable,
-		FanoutAggregated:          storage.FanoutDefault,
-		FanoutAggregatedOptimized: storage.FanoutForceDisable,
-	}
-	if s.opts.AggregateNamespacesAllData {
-		// NB(r): If aggregate namespaces house all the data, we can do a
-		// default optimized fanout where we only query the namespaces
-		// that contain the data for the ranges we are querying for.
-		fetchOptions.FanoutOptions.FanoutAggregatedOptimized = storage.FanoutDefault
-	}
-
+	fetchOptions.FanoutOptions = s.fanoutOptions()
 	res, err := s.m3.FetchBlocks(m3ctx, m3query, fetchOptions)
 	if err != nil {
 		return nil, err
@@ -459,4 +470,16 @@ func (s *m3WrappedStore) FetchByQuery(
 	}
 
 	return NewFetchResult(ctx, series, res.Metadata), nil
+}
+
+func (s *m3WrappedStore) CompleteTags(
+	ctx context.Context,
+	query *querystorage.CompleteTagsQuery,
+	opts *querystorage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	// NB(r): Make sure to apply consistent fanout options to both
+	// queries and aggregate queries for Graphite.
+	opts = opts.Clone() // Clone to avoid mutating input and cause data races.
+	opts.FanoutOptions = s.fanoutOptions()
+	return s.m3.CompleteTags(ctx, query, opts)
 }

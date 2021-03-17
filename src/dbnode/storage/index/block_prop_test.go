@@ -45,7 +45,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xresource "github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/tallytest"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -114,46 +114,36 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					idx.NewQueryFromSearchQuery(q),
 				}
 
-				cancellable := xresource.NewCancellableLifetime()
-				cancelled := false
-				doneQuery := func() {
-					if !cancelled {
-						cancelled = true
-						cancellable.Cancel()
-					}
-				}
-
-				// In case we return early
-				defer doneQuery()
-
 				queryOpts := QueryOptions{
 					StartInclusive: blockStart,
 					EndExclusive:   blockStart.Add(blockSize),
 				}
 
 				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(context.NewContext(), cancellable, indexQuery,
-					queryOpts, uncachedResults, emptyLogFields)
+				ctx := context.NewBackground()
+				queryIter, err := uncachedBlock.QueryIter(ctx, indexQuery)
 				if err != nil {
-					return false, fmt.Errorf("error querying uncached block: %v", err)
+					return false, err
 				}
-				if !exhaustive {
-					return false, errors.New("querying uncached block was not exhaustive")
+				require.NoError(t, err)
+				for !queryIter.Done() {
+					err = uncachedBlock.QueryWithIter(ctx,
+						queryOpts, queryIter, uncachedResults, time.Now().Add(time.Millisecond * 10), emptyLogFields)
+					if err != nil {
+						return false, fmt.Errorf("error querying uncached block: %v", err)
+					}
 				}
 
 				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(context.NewContext(), cancellable, indexQuery,
-					queryOpts, cachedResults, emptyLogFields)
-				if err != nil {
-					return false, fmt.Errorf("error querying cached block: %v", err)
+				ctx = context.NewBackground()
+				queryIter, err = cachedBlock.QueryIter(ctx, indexQuery)
+				for !queryIter.Done() {
+					err = cachedBlock.QueryWithIter(ctx, queryOpts, queryIter, cachedResults,
+						time.Now().Add(time.Millisecond * 10), emptyLogFields)
+					if err != nil {
+						return false, fmt.Errorf("error querying cached block: %v", err)
+					}
 				}
-				if !exhaustive {
-					return false, errors.New("querying cached block was not exhaustive")
-				}
-
-				// The lifetime of the query is complete, cancel the lifetime so we
-				// can safely access the results of each
-				doneQuery()
 
 				uncachedMap := uncachedResults.Map()
 				cachedMap := cachedResults.Map()
@@ -230,6 +220,7 @@ func genField() gopter.Gen {
 type propTestSegment struct {
 	metadata   doc.Metadata
 	exCount    int64
+	exCountAgg int64
 	segmentMap segmentMap
 }
 
@@ -250,8 +241,10 @@ func genTestSegment() gopter.Gen {
 			}
 		}
 
+		aggLength := len(segMap)
 		fields := make([]testFields, 0, len(input))
 		for name, valSet := range segMap {
+			aggLength += len(valSet)
 			vals := make([]string, 0, len(valSet))
 			for val := range valSet {
 				vals = append(vals, val)
@@ -278,6 +271,7 @@ func genTestSegment() gopter.Gen {
 		return propTestSegment{
 			metadata:   doc.Metadata{Fields: docFields},
 			exCount:    int64(len(segMap)),
+			exCountAgg: int64(aggLength),
 			segmentMap: segMap,
 		}
 	})
@@ -344,7 +338,8 @@ func TestAggregateDocLimits(t *testing.T) {
 			limitOpts := limits.NewOptions().
 				SetInstrumentOptions(iOpts).
 				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
-				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
 			queryLimits, err := limits.NewQueryLimits((limitOpts))
 			require.NoError(t, err)
 			testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
@@ -370,32 +365,32 @@ func TestAggregateDocLimits(t *testing.T) {
 				Type: AggregateTagNamesAndValues,
 			}, testOpts)
 
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
-			exhaustive, err := b.Aggregate(
-				ctx,
-				xresource.NewCancellableLifetime(),
-				QueryOptions{},
-				results,
-				emptyLogFields)
-
+			aggIter, err := b.AggregateIter(ctx, results.AggregateResultsOptions())
 			if err != nil {
 				return false, err
 			}
+			for !aggIter.Done() {
+				err = b.AggregateWithIter(
+					ctx,
+					aggIter,
+					QueryOptions{},
+					results,
+					time.Now().Add(time.Millisecond * 10),
+					emptyLogFields)
 
-			require.True(t, exhaustive, errors.New("not exhaustive"))
-			verifyResults(t, results, testSegment.segmentMap)
-			found := false
-			for _, c := range scope.Snapshot().Counters() {
-				if c.Name() == "query-limit.total-docs-matched" {
-					require.Equal(t, testSegment.exCount, c.Value(), "docs count mismatch")
-					found = true
-					break
+				if err != nil {
+					return false, err
 				}
 			}
-
-			require.True(t, found, "counter not found in metrics")
+			verifyResults(t, results, testSegment.segmentMap)
+			snap := scope.Snapshot()
+			tallytest.AssertCounterValue(t, testSegment.exCount, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+			tallytest.AssertCounterValue(t, testSegment.exCountAgg, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
 			return true, nil
 		},
 		genTestSegment(),

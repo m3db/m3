@@ -21,6 +21,7 @@
 package graphite
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -85,16 +86,17 @@ type RenderRequest struct {
 
 // ParseRenderRequest parses the arguments to a render call from an incoming request.
 func ParseRenderRequest(
+	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (RenderRequest, *storage.FetchOptions, error) {
-	fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(r)
+) (context.Context, RenderRequest, *storage.FetchOptions, error) {
+	ctx, fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
 	if err != nil {
-		return RenderRequest{}, nil, err
+		return nil, RenderRequest{}, nil, err
 	}
 
 	if err := r.ParseForm(); err != nil {
-		return RenderRequest{}, nil, err
+		return nil, RenderRequest{}, nil, err
 	}
 
 	var (
@@ -105,7 +107,7 @@ func ParseRenderRequest(
 	)
 	p.Targets = r.Form["target"]
 	if len(p.Targets) == 0 {
-		return p, nil, errNoTarget
+		return nil, p, nil, errNoTarget
 	}
 
 	fromString, untilString := r.FormValue("from"), r.FormValue("until")
@@ -122,7 +124,7 @@ func ParseRenderRequest(
 		now,
 		tzOffsetForAbsoluteTime,
 	); err != nil {
-		return p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'from': %s", fromString))
+		return nil, p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'from': %s", fromString))
 	}
 
 	if p.Until, err = graphite.ParseTime(
@@ -130,11 +132,11 @@ func ParseRenderRequest(
 		now,
 		tzOffsetForAbsoluteTime,
 	); err != nil {
-		return p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'until': %s", untilString))
+		return nil, p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'until': %s", untilString))
 	}
 
 	if !p.From.Before(p.Until) {
-		return p, nil, errFromNotBeforeUntil
+		return nil, p, nil, errFromNotBeforeUntil
 	}
 
 	// If this is a real-time query, and the query range is large enough, we shift the query
@@ -155,7 +157,7 @@ func ParseRenderRequest(
 		dur, err := graphite.ParseDuration(offset)
 		if err != nil {
 			err = errors.NewInvalidParamsError(err)
-			return p, nil, errors.NewRenamedError(err, fmt.Errorf("invalid 'offset': %s", err))
+			return nil, p, nil, errors.NewRenamedError(err, fmt.Errorf("invalid 'offset': %w", err))
 		}
 
 		p.Until = p.Until.Add(dur)
@@ -167,7 +169,7 @@ func ParseRenderRequest(
 		p.MaxDataPoints, err = strconv.ParseInt(maxDataPointsString, 10, 64)
 
 		if err != nil || p.MaxDataPoints < 1 {
-			return p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'maxDataPoints': %s", maxDataPointsString))
+			return nil, p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'maxDataPoints': %s", maxDataPointsString))
 		}
 	} else {
 		p.MaxDataPoints = math.MaxInt64
@@ -180,14 +182,14 @@ func ParseRenderRequest(
 		p.From,
 		tzOffsetForAbsoluteTime,
 	); err != nil && len(compareString) != 0 {
-		return p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'compare': %s", compareString))
+		return nil, p, nil, errors.NewInvalidParamsError(fmt.Errorf("invalid 'compare': %s", compareString))
 	} else if p.From.Before(compareFrom) {
-		return p, nil, errors.NewInvalidParamsError(fmt.Errorf("'compare' must be in the past"))
+		return nil, p, nil, errors.NewInvalidParamsError(fmt.Errorf("'compare' must be in the past"))
 	} else {
 		p.Compare = compareFrom.Sub(p.From)
 	}
 
-	return p, fetchOpts, nil
+	return ctx, p, fetchOpts, nil
 }
 
 type renderResultsJSONOptions struct {

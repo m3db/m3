@@ -23,7 +23,7 @@ package writer
 import (
 	"container/list"
 	"errors"
-	"math/rand"
+	"math"
 	"sync"
 	"time"
 
@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/unsafe"
 
 	"github.com/uber-go/tally"
 )
@@ -40,6 +41,8 @@ var (
 	errFailAllConsumers = errors.New("could not write to any consumer")
 	errNoWriters        = errors.New("no writers")
 )
+
+const _recordMessageDelayEvery = 4 // keep it a power of two value to keep modulo fast
 
 type messageWriter interface {
 	// Write writes a message, messages not acknowledged in time will be retried.
@@ -96,8 +99,8 @@ type messageWriter interface {
 }
 
 type messageWriterMetrics struct {
-	scope tally.Scope
-	opts instrument.TimerOptions
+	scope                    tally.Scope
+	opts                     instrument.TimerOptions
 	writeSuccess             tally.Counter
 	oneConsumerWriteError    tally.Counter
 	allConsumersWriteError   tally.Counter
@@ -139,10 +142,10 @@ func newMessageWriterMetricsWithConsumer(
 	opts instrument.TimerOptions,
 	consumer string,
 ) messageWriterMetrics {
-	consumerScope := scope.Tagged(map[string]string{"consumer" : consumer})
+	consumerScope := scope.Tagged(map[string]string{"consumer": consumer})
 	return messageWriterMetrics{
-		scope: scope,
-		opts: opts,
+		scope:                 scope,
+		opts:                  opts,
 		writeSuccess:          consumerScope.Counter("write-success"),
 		oneConsumerWriteError: scope.Counter("write-error-one-consumer"),
 		allConsumersWriteError: consumerScope.
@@ -196,13 +199,12 @@ func newMessageWriterMetricsWithConsumer(
 type messageWriterImpl struct {
 	sync.RWMutex
 
-	replicatedShardID uint64
-	mPool             messagePool
-	opts              Options
-	retryOpts         retry.Options
-	r                 *rand.Rand
-	encoder           proto.Encoder
-	numConnections    int
+	replicatedShardID   uint64
+	mPool               messagePool
+	opts                Options
+	nextRetryAfterNanos func(int) int64
+	encoder             proto.Encoder
+	numConnections      int
 
 	msgID            uint64
 	queue            *list.List
@@ -217,9 +219,9 @@ type messageWriterImpl struct {
 	doneCh           chan struct{}
 	wg               sync.WaitGroup
 	// metrics can be updated when a consumer instance changes, so must be guarded with RLock
-	m                *messageWriterMetrics
-	nextFullScan     time.Time
-	lastNewWrite     *list.Element
+	m            *messageWriterMetrics
+	nextFullScan time.Time
+	lastNewWrite *list.Element
 
 	nowFn clock.NowFn
 }
@@ -235,23 +237,22 @@ func newMessageWriter(
 	}
 	nowFn := time.Now
 	return &messageWriterImpl{
-		replicatedShardID: replicatedShardID,
-		mPool:             mPool,
-		opts:              opts,
-		retryOpts:         opts.MessageRetryOptions(),
-		r:                 rand.New(rand.NewSource(nowFn().UnixNano())),
-		encoder:           proto.NewEncoder(opts.EncoderOptions()),
-		numConnections:    opts.ConnectionOptions().NumConnections(),
-		msgID:             0,
-		queue:             list.New(),
-		acks:              newAckHelper(opts.InitialAckMapSize()),
-		cutOffNanos:       0,
-		cutOverNanos:      0,
-		msgsToWrite:       make([]*message, 0, opts.MessageQueueScanBatchSize()),
-		isClosed:          false,
-		doneCh:            make(chan struct{}),
-		m:                 &m,
-		nowFn:             nowFn,
+		replicatedShardID:   replicatedShardID,
+		mPool:               mPool,
+		opts:                opts,
+		nextRetryAfterNanos: nextRetryNanosFn(opts.MessageRetryOptions()),
+		encoder:             proto.NewEncoder(opts.EncoderOptions()),
+		numConnections:      opts.ConnectionOptions().NumConnections(),
+		msgID:               0,
+		queue:               list.New(),
+		acks:                newAckHelper(opts.InitialAckMapSize()),
+		cutOffNanos:         0,
+		cutOverNanos:        0,
+		msgsToWrite:         make([]*message, 0, opts.MessageQueueScanBatchSize()),
+		isClosed:            false,
+		doneCh:              make(chan struct{}),
+		m:                   &m,
+		nowFn:               nowFn,
 	}
 }
 
@@ -317,20 +318,27 @@ func (w *messageWriterImpl) write(
 	}
 	var (
 		// NB(r): Always select the same connection index per shard.
-		connIndex = int(w.replicatedShardID % uint64(w.numConnections))
-		written   = false
+		connIndex   = int(w.replicatedShardID % uint64(w.numConnections))
+		writes      int64
+		writeErrors int64
 	)
+
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
 		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
-			metrics.oneConsumerWriteError.Inc(1)
+			writeErrors++
 			continue
 		}
-		written = true
-		metrics.writeSuccess.Inc(1)
+		writes++
 		break
 	}
-	if written {
+
+	if writeErrors > 0 {
+		metrics.oneConsumerWriteError.Inc(writeErrors)
+	}
+
+	if writes > 0 {
+		metrics.writeSuccess.Inc(writes)
 		return nil
 	}
 	// Could not be written to any consumer, will retry later.
@@ -339,23 +347,11 @@ func (w *messageWriterImpl) write(
 }
 
 func randIndex(iterationIndexes []int, i int) int {
-	j := rand.Intn(i + 1)
+	j := int(unsafe.Fastrandn(uint32(i + 1)))
 	// NB: we should only mutate the order in the iteration indexes and
 	// keep the order of consumer writers unchanged to prevent data race.
 	iterationIndexes[i], iterationIndexes[j] = iterationIndexes[j], iterationIndexes[i]
 	return iterationIndexes[i]
-}
-
-func (w *messageWriterImpl) nextRetryNanos(writeTimes int, nowNanos int64) int64 {
-	backoff := retry.BackoffNanos(
-		writeTimes,
-		w.retryOpts.Jitter(),
-		w.retryOpts.BackoffFactor(),
-		w.retryOpts.InitialBackoff(),
-		w.retryOpts.MaxBackoff(),
-		w.r.Int63n,
-	)
-	return nowNanos + backoff
 }
 
 func (w *messageWriterImpl) Ack(meta metadata) bool {
@@ -381,7 +377,10 @@ func (w *messageWriterImpl) Init() {
 func (w *messageWriterImpl) scanMessageQueueUntilClose() {
 	var (
 		interval = w.opts.MessageQueueNewWritesScanInterval()
-		jitter   = time.Duration(w.r.Int63n(int64(interval)))
+		jitter   = time.Duration(
+			// approx ~40 days of jitter at millisecond precision - more than enough
+			unsafe.Fastrandn(uint32(interval.Milliseconds())),
+		) * time.Millisecond
 	)
 	// NB(cw): Add some jitter before the tick starts to reduce
 	// some contention between all the message writers.
@@ -407,30 +406,32 @@ func (w *messageWriterImpl) scanMessageQueue() {
 	m := w.m
 	w.RUnlock()
 	var (
+		nowFn            = w.nowFn
 		msgsToWrite      []*message
-		beforeScan       = w.nowFn()
+		beforeScan       = nowFn()
+		beforeBatchNanos = beforeScan.UnixNano()
 		batchSize        = w.opts.MessageQueueScanBatchSize()
 		consumerWriters  []consumerWriter
 		iterationIndexes []int
 		fullScan         = isClosed || beforeScan.After(w.nextFullScan)
+		scanMetrics      scanBatchMetrics
 		skipWrites       bool
 	)
+	defer scanMetrics.record(m)
 	for e != nil {
-		beforeBatch := w.nowFn()
-		beforeBatchNanos := beforeBatch.UnixNano()
 		w.Lock()
-		e, msgsToWrite = w.scanBatchWithLock(e, beforeBatchNanos, batchSize, fullScan)
+		e, msgsToWrite = w.scanBatchWithLock(e, beforeBatchNanos, batchSize, fullScan, &scanMetrics)
 		consumerWriters = w.consumerWriters
 		iterationIndexes = w.iterationIndexes
 		w.Unlock()
 		if !fullScan && len(msgsToWrite) == 0 {
-			m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			m.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
 			// If this is not a full scan, abort after the iteration batch
 			// that no new messages were found.
 			break
 		}
 		if skipWrites {
-			m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			m.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
 			continue
 		}
 		if err := w.writeBatch(iterationIndexes, consumerWriters, m, msgsToWrite); err != nil {
@@ -438,9 +439,11 @@ func (w *messageWriterImpl) scanMessageQueue() {
 			// to avoid meaningless attempts but continue to clean up the queue.
 			skipWrites = true
 		}
-		m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+		nowNanos := nowFn().UnixNano()
+		m.scanBatchLatency.Record(time.Duration(nowNanos - beforeBatchNanos))
+		beforeBatchNanos = nowNanos
 	}
-	afterScan := w.nowFn()
+	afterScan := nowFn()
 	m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
 	if fullScan {
 		w.nextFullScan = afterScan.Add(w.opts.MessageQueueFullScanInterval())
@@ -458,11 +461,15 @@ func (w *messageWriterImpl) writeBatch(
 		metrics.noWritersError.Inc(int64(len(messages)))
 		return errNoWriters
 	}
-	for _, m := range messages {
-		if err := w.write(iterationIndexes, consumerWriters, metrics, m); err != nil {
+	delay := metrics.messageWriteDelay
+	nowFn := w.nowFn
+	for i := range messages {
+		if err := w.write(iterationIndexes, consumerWriters, metrics, messages[i]); err != nil {
 			return err
 		}
-		metrics.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
+		if i%_recordMessageDelayEvery == 0 {
+			delay.Record(time.Duration(nowFn().UnixNano() - messages[i].InitNanos()))
+		}
 	}
 	return nil
 }
@@ -475,6 +482,7 @@ func (w *messageWriterImpl) scanBatchWithLock(
 	nowNanos int64,
 	batchSize int,
 	fullScan bool,
+	scanMetrics *scanBatchMetrics,
 ) (*list.Element, []*message) {
 	var (
 		iterated int
@@ -489,7 +497,7 @@ func (w *messageWriterImpl) scanBatchWithLock(
 		next = e.Next()
 		m := e.Value.(*message)
 		if w.isClosed {
-			w.m.processedClosed.Inc(1)
+			scanMetrics[_processedClosed]++
 			// Simply ack the messages here to mark them as consumed for this
 			// message writer, this is useful when user removes a consumer service
 			// during runtime that may be unhealthy to consume the messages.
@@ -498,11 +506,11 @@ func (w *messageWriterImpl) scanBatchWithLock(
 			// NB: The message must be added to the ack map to be acked here.
 			w.acks.ack(m.Metadata())
 			w.removeFromQueueWithLock(e, m)
-			w.m.messageClosed.Inc(1)
+			scanMetrics[_messageClosed]++
 			continue
 		}
 		if m.RetryAtNanos() >= nowNanos {
-			w.m.processedNotReady.Inc(1)
+			scanMetrics[_processedNotReady]++
 			if !fullScan {
 				// If this is not a full scan, bail after the first element that
 				// is not a new write.
@@ -513,22 +521,22 @@ func (w *messageWriterImpl) scanBatchWithLock(
 		// If the message exceeded its allowed ttl of the consumer service,
 		// remove it from the buffer.
 		if w.messageTTLNanos > 0 && m.InitNanos()+w.messageTTLNanos <= nowNanos {
-			w.m.processedTTL.Inc(1)
+			scanMetrics[_processedTTL]++
 			// There is a chance the message was acked right before the ack is
 			// called, in which case just remove it from the queue.
 			if acked, _ := w.acks.ack(m.Metadata()); acked {
-				w.m.messageDroppedTTLExpire.Inc(1)
+				scanMetrics[_messageDroppedTTLExpire]++
 			}
 			w.removeFromQueueWithLock(e, m)
 			continue
 		}
 		if m.IsAcked() {
-			w.m.processedAck.Inc(1)
+			scanMetrics[_processedAck]++
 			w.removeFromQueueWithLock(e, m)
 			continue
 		}
 		if m.IsDroppedOrConsumed() {
-			w.m.processedDrop.Inc(1)
+			scanMetrics[_processedDrop]++
 			// There is a chance the message could be acked between m.Acked()
 			// and m.IsDroppedOrConsumed() check, in which case we should not
 			// mark it as dropped, just continue and next tick will remove it
@@ -538,16 +546,16 @@ func (w *messageWriterImpl) scanBatchWithLock(
 			}
 			w.acks.remove(m.Metadata())
 			w.removeFromQueueWithLock(e, m)
-			w.m.messageDroppedBufferFull.Inc(1)
+			scanMetrics[_messageDroppedBufferFull]++
 			continue
 		}
 		m.IncWriteTimes()
 		writeTimes := m.WriteTimes()
-		m.SetRetryAtNanos(w.nextRetryNanos(writeTimes, nowNanos))
+		m.SetRetryAtNanos(w.nextRetryAfterNanos(writeTimes) + nowNanos)
 		if writeTimes > 1 {
-			w.m.messageRetry.Inc(1)
+			scanMetrics[_messageRetry]++
 		}
-		w.m.processedWrite.Inc(1)
+		scanMetrics[_processedWrite]++
 		w.msgsToWrite = append(w.msgsToWrite, m)
 	}
 	return next, w.msgsToWrite
@@ -746,4 +754,76 @@ func (a *acks) size() int {
 	l := len(a.ackMap)
 	a.Unlock()
 	return l
+}
+
+type metricIdx byte
+
+const (
+	_messageClosed metricIdx = iota
+	_messageDroppedBufferFull
+	_messageDroppedTTLExpire
+	_messageRetry
+	_processedAck
+	_processedClosed
+	_processedDrop
+	_processedNotReady
+	_processedTTL
+	_processedWrite
+	_lastMetricIdx
+)
+
+type scanBatchMetrics [_lastMetricIdx]int32
+
+func (m *scanBatchMetrics) record(metrics *messageWriterMetrics) {
+	m.recordNonzeroCounter(_messageClosed, metrics.messageClosed)
+	m.recordNonzeroCounter(_messageDroppedBufferFull, metrics.messageDroppedBufferFull)
+	m.recordNonzeroCounter(_messageDroppedTTLExpire, metrics.messageDroppedTTLExpire)
+	m.recordNonzeroCounter(_messageRetry, metrics.messageRetry)
+	m.recordNonzeroCounter(_processedAck, metrics.processedAck)
+	m.recordNonzeroCounter(_processedClosed, metrics.processedClosed)
+	m.recordNonzeroCounter(_processedDrop, metrics.processedDrop)
+	m.recordNonzeroCounter(_processedNotReady, metrics.processedNotReady)
+	m.recordNonzeroCounter(_processedTTL, metrics.processedTTL)
+	m.recordNonzeroCounter(_processedWrite, metrics.processedWrite)
+}
+
+func (m *scanBatchMetrics) recordNonzeroCounter(idx metricIdx, c tally.Counter) {
+	if m[idx] > 0 {
+		c.Inc(int64(m[idx]))
+	}
+}
+
+func nextRetryNanosFn(retryOpts retry.Options) func(int) int64 {
+	var (
+		jitter              = retryOpts.Jitter()
+		backoffFactor       = retryOpts.BackoffFactor()
+		initialBackoff      = retryOpts.InitialBackoff()
+		maxBackoff          = retryOpts.MaxBackoff()
+		initialBackoffFloat = float64(initialBackoff)
+	)
+
+	// inlined and specialized retry function that does not have any state that needs to be kept
+	// between tries
+	return func(writeTimes int) int64 {
+		backoff := initialBackoff.Nanoseconds()
+		if writeTimes >= 1 {
+			backoffFloat64 := initialBackoffFloat * math.Pow(backoffFactor, float64(writeTimes-1))
+			backoff = int64(backoffFloat64)
+		}
+		// Validate the value of backoff to make sure Fastrandn() does not panic and
+		// check for overflow from the exponentiation op - unlikely, but prevents weird side effects.
+		halfInMicros := (backoff / 2) / int64(time.Microsecond)
+		if jitter && backoff >= 2 && halfInMicros < math.MaxUint32 {
+			// Jitter can be only up to ~1 hour in microseconds, but it's not a limitation here
+			jitterInMicros := unsafe.Fastrandn(uint32(halfInMicros))
+			jitterInNanos := time.Duration(jitterInMicros) * time.Microsecond
+			halfInNanos := time.Duration(halfInMicros) * time.Microsecond
+			backoff = int64(halfInNanos + jitterInNanos)
+		}
+		// Clamp backoff to maxBackoff
+		if maxBackoff := maxBackoff.Nanoseconds(); backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+		return backoff
+	}
 }

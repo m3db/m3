@@ -22,7 +22,6 @@ package native
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -222,59 +221,42 @@ func parseQuery(r *http.Request) (string, error) {
 	return queries[0], nil
 }
 
-func filterNaNSeries(
-	series []*ts.Series,
-	startInclusive time.Time,
-	endInclusive time.Time,
-) []*ts.Series {
-	filtered := series[:0]
-	for _, s := range series {
-		dps := s.Values().Datapoints()
-		hasVal := false
-		for _, dp := range dps {
-			if !math.IsNaN(dp.Value) {
-				ts := dp.Timestamp
-				if ts.Before(startInclusive) || ts.After(endInclusive) {
-					continue
-				}
-
-				hasVal = true
-				break
-			}
-		}
-
-		if hasVal {
-			filtered = append(filtered, s)
-		}
-	}
-
-	return filtered
-}
-
 // RenderResultsOptions is a set of options for rendering the result.
 type RenderResultsOptions struct {
-	KeepNaNs bool
-	Start    time.Time
-	End      time.Time
+	KeepNaNs                bool
+	Start                   time.Time
+	End                     time.Time
+	ReturnedSeriesLimit     int
+	ReturnedDatapointsLimit int
+}
+
+// RenderResultsResult is the result from rendering results.
+type RenderResultsResult struct {
+	// Datapoints is the count of datapoints rendered.
+	Datapoints int
+	// Series is the count of series rendered.
+	Series int
+	// TotalSeries is the count of series in total.
+	TotalSeries int
+	// LimitedMaxReturnedData indicates if the results rendering
+	// was truncated by a limit on returned series or datapoints.
+	LimitedMaxReturnedData bool
 }
 
 // RenderResultsJSON renders results in JSON for range queries.
 func RenderResultsJSON(
-	w io.Writer,
+	jw json.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,
-) error {
+) RenderResultsResult {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
+		series             = result.Series
+		warnings           = result.Meta.WarningStrings()
+		seriesRendered     = 0
+		datapointsRendered = 0
+		limited            = false
 	)
 
-	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
-	if !opts.KeepNaNs {
-		series = filterNaNSeries(series, opts.Start, opts.End)
-	}
-
-	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -299,23 +281,27 @@ func RenderResultsJSON(
 	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
-		jw.BeginObject()
-		jw.BeginObjectField("metric")
-		jw.BeginObject()
-		for _, t := range s.Tags.Tags {
-			jw.BeginObjectField(string(t.Name))
-			jw.WriteString(string(t.Value))
-		}
-		jw.EndObject()
-
-		jw.BeginObjectField("values")
-		jw.BeginArray()
 		vals := s.Values()
 		length := s.Len()
+
+		// If a limit of the number of datapoints is present, then write
+		// out series' data up until that limit is hit.
+		if opts.ReturnedSeriesLimit > 0 && seriesRendered+1 > opts.ReturnedSeriesLimit {
+			limited = true
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && datapointsRendered+length > opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+
+		hasData := false
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.
+			// If the series has no datapoints at all then this datapoint iteration will
+			// count zero total and end up skipping writing the series entirely.
 			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
 				continue
 			}
@@ -324,14 +310,39 @@ func RenderResultsJSON(
 			// would be at the result node but that would make it inefficient since
 			// we would need to create another block just for the sake of restricting
 			// the bounds.
-			if dp.Timestamp.Before(opts.Start) {
+			if dp.Timestamp.Before(opts.Start) || dp.Timestamp.After(opts.End) {
 				continue
 			}
+
+			// On first datapoint for the series, write out the series beginning content.
+			if !hasData {
+				jw.BeginObject()
+				jw.BeginObjectField("metric")
+				jw.BeginObject()
+				for _, t := range s.Tags.Tags {
+					jw.BeginObjectBytesField(t.Name)
+					jw.WriteBytesString(t.Value)
+				}
+				jw.EndObject()
+
+				jw.BeginObjectField("values")
+				jw.BeginArray()
+
+				seriesRendered++
+				hasData = true
+			}
+			datapointsRendered++
 
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
+		}
+
+		if !hasData {
+			// No datapoints written for series so continue to
+			// next instead of writing the end content.
+			continue
 		}
 
 		jw.EndArray()
@@ -346,19 +357,27 @@ func RenderResultsJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	return jw.Close()
+	return RenderResultsResult{
+		Series:                 seriesRendered,
+		Datapoints:             datapointsRendered,
+		TotalSeries:            len(series),
+		LimitedMaxReturnedData: limited,
+	}
 }
 
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
-	w io.Writer,
+	jw json.Writer,
 	result ReadResult,
-	keepNaNs bool,
-) {
+	opts RenderResultsOptions,
+) RenderResultsResult {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
-		isScalar = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		series        = result.Series
+		warnings      = result.Meta.WarningStrings()
+		isScalar      = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		keepNaNs      = opts.KeepNaNs
+		returnedCount = 0
+		limited       = false
 	)
 
 	resultType := "vector"
@@ -366,7 +385,6 @@ func renderResultsInstantaneousJSON(
 		resultType = "scalar"
 	}
 
-	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -395,9 +413,19 @@ func renderResultsInstantaneousJSON(
 		length := s.Len()
 		dp := vals.DatapointAt(length - 1)
 
+		if opts.ReturnedSeriesLimit > 0 && returnedCount >= opts.ReturnedSeriesLimit {
+			limited = true
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && returnedCount >= opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+
 		if isScalar {
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
+			returnedCount++
 			continue
 		}
 
@@ -406,12 +434,14 @@ func renderResultsInstantaneousJSON(
 			continue
 		}
 
+		returnedCount++
+
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
 		for _, t := range s.Tags.Tags {
-			jw.BeginObjectField(string(t.Name))
-			jw.WriteString(string(t.Value))
+			jw.BeginObjectBytesField(t.Name)
+			jw.WriteBytesString(t.Value)
 		}
 		jw.EndObject()
 
@@ -427,5 +457,13 @@ func renderResultsInstantaneousJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	jw.Close()
+
+	return RenderResultsResult{
+		LimitedMaxReturnedData: limited,
+		// Series and datapoints are the same count for instant
+		// queries since a series has one datapoint.
+		Datapoints:  returnedCount,
+		Series:      returnedCount,
+		TotalSeries: len(series),
+	}
 }

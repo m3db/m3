@@ -295,7 +295,8 @@ func makeTestFetchTagged(
 		require.NoError(t, err)
 
 		startTime := nodes[0].NowFn()()
-		series, metadata, err := s.FetchTagged(testNamespaces[0],
+		series, metadata, err := s.FetchTagged(ContextWithDefaultTimeout(),
+			testNamespaces[0],
 			index.Query{Query: q},
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
@@ -312,7 +313,7 @@ func writeTagged(
 	t *testing.T,
 	nodes ...TestSetup,
 ) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 	for _, n := range nodes {
 		require.NoError(t, n.DB().WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),

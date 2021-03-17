@@ -71,7 +71,7 @@ func BenchmarkIterator(b *testing.B) {
 }
 
 func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	var (

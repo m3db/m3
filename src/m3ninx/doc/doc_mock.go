@@ -26,6 +26,7 @@ package doc
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -186,4 +187,111 @@ func (m *MockIterator) Close() error {
 func (mr *MockIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterator)(nil).Close))
+}
+
+// MockQueryDocIterator is a mock of QueryDocIterator interface
+type MockQueryDocIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockQueryDocIteratorMockRecorder
+}
+
+// MockQueryDocIteratorMockRecorder is the mock recorder for MockQueryDocIterator
+type MockQueryDocIteratorMockRecorder struct {
+	mock *MockQueryDocIterator
+}
+
+// NewMockQueryDocIterator creates a new mock instance
+func NewMockQueryDocIterator(ctrl *gomock.Controller) *MockQueryDocIterator {
+	mock := &MockQueryDocIterator{ctrl: ctrl}
+	mock.recorder = &MockQueryDocIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockQueryDocIterator) EXPECT() *MockQueryDocIteratorMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockQueryDocIterator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockQueryDocIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockQueryDocIterator)(nil).Next))
+}
+
+// Current mocks base method
+func (m *MockQueryDocIterator) Current() Document {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].(Document)
+	return ret0
+}
+
+// Current indicates an expected call of Current
+func (mr *MockQueryDocIteratorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockQueryDocIterator)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockQueryDocIterator) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockQueryDocIteratorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockQueryDocIterator)(nil).Err))
+}
+
+// Close mocks base method
+func (m *MockQueryDocIterator) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockQueryDocIteratorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockQueryDocIterator)(nil).Close))
+}
+
+// Done mocks base method
+func (m *MockQueryDocIterator) Done() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Done")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Done indicates an expected call of Done
+func (mr *MockQueryDocIteratorMockRecorder) Done() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockQueryDocIterator)(nil).Done))
+}
+
+// SearchDuration mocks base method
+func (m *MockQueryDocIterator) SearchDuration() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchDuration")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// SearchDuration indicates an expected call of SearchDuration
+func (mr *MockQueryDocIteratorMockRecorder) SearchDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockQueryDocIterator)(nil).SearchDuration))
 }

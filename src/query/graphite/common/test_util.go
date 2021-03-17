@@ -21,6 +21,7 @@
 package common
 
 import (
+	stdcontext "context"
 	"fmt"
 	"math"
 	"testing"
@@ -31,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	querystorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -172,4 +175,13 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	}
 
 	return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
+}
+
+// CompleteTags implements the storage interface.
+func (s *MovingFunctionStorage) CompleteTags(
+	ctx stdcontext.Context,
+	query *querystorage.CompleteTagsQuery,
+	opts *querystorage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	return nil, fmt.Errorf("not implemented")
 }

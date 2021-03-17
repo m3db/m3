@@ -35,6 +35,7 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -873,7 +874,7 @@ func (d *db) QueryIDs(
 
 	// Check if exceeding query limits at very beginning of
 	// query path to abandon as early as possible.
-	if err := d.queryLimits.AnyExceeded(); err != nil {
+	if err := d.queryLimits.AnyFetchExceeded(); err != nil {
 		return index.QueryResult{}, err
 	}
 
@@ -920,7 +921,7 @@ func (d *db) ReadEncoded(
 	namespace ident.ID,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.BlockReader, error) {
+) (series.BlockReaderIter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)

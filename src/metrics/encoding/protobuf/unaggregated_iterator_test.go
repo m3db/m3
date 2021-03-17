@@ -538,18 +538,17 @@ func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 
 	stream := bytes.NewReader(dataBuf.Bytes())
 	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
-	iterator := it.(*unaggregatedIterator)
-	require.False(t, iterator.closed)
-	require.NotNil(t, iterator.buf)
+	require.False(t, it.closed)
+	require.NotNil(t, it.buf)
 	require.Nil(t, it.Err())
 
 	// Verify that closing the iterator cleans up the state.
 	it.Close()
 	require.False(t, it.Next())
 	require.False(t, it.Next())
-	require.True(t, iterator.closed)
-	require.Nil(t, iterator.bytesPool)
-	require.Nil(t, iterator.buf)
+	require.True(t, it.closed)
+	require.Nil(t, it.bytesPool)
+	require.Nil(t, it.buf)
 	require.Nil(t, it.Err())
 
 	// Verify that closing a second time is a no op.

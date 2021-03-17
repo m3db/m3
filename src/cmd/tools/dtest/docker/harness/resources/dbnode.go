@@ -101,6 +101,8 @@ type Node interface {
 	AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error)
 	// Fetch fetches datapoints.
 	Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error)
+	// FetchTagged fetches datapoints by tag.
+	FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error)
 	// Exec executes the given commands on the node container, returning
 	// stdout and stderr from the container.
 	Exec(commands ...string) (string, error)
@@ -265,6 +267,22 @@ func (c *dbNode) Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 
 	logger.Info("fetched", zap.Int("num_points", len(dps.GetDatapoints())))
 	return dps, nil
+}
+
+func (c *dbNode) FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+
+	logger := c.resource.logger.With(zapMethod("fetchtagged"))
+	result, err := c.tchanClient.TChannelClientFetchTagged(timeout, req)
+	if err != nil {
+		logger.Error("could not fetch", zap.Error(err))
+		return nil, err
+	}
+
+	logger.Info("fetched", zap.Int("series_count", len(result.GetElements())))
+	return result, nil
 }
 
 func (c *dbNode) Restart() error {

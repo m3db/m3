@@ -39,6 +39,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -47,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -241,7 +245,7 @@ func TestServiceQuery(t *testing.T) {
 	nsID := "metrics"
 
 	streams := map[string]xio.SegmentReader{}
-	series := map[string][]struct {
+	seriesData := map[string][]struct {
 		t time.Time
 		v float64
 	}{
@@ -261,7 +265,7 @@ func TestServiceQuery(t *testing.T) {
 		"foo": {{"foo", "bar"}, {"baz", "dxk"}},
 		"bar": {{"foo", "bar"}, {"dzk", "baz"}},
 	}
-	for id, s := range series {
+	for id, s := range seriesData {
 		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0, nil)
 		for _, v := range s {
@@ -276,11 +280,13 @@ func TestServiceQuery(t *testing.T) {
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.BlockReader{{
-				xio.BlockReader{
-					SegmentReader: stream,
-				},
-			}}, nil)
+			Return(&series.FakeBlockReaderIter{
+				Readers: [][]xio.BlockReader{{
+					xio.BlockReader{
+						SegmentReader: stream,
+					},
+				}},
+			}, nil)
 	}
 
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
@@ -364,10 +370,10 @@ func TestServiceQuery(t *testing.T) {
 			assert.Equal(t, tags[id][i].value, tag.Value)
 		}
 
-		require.Equal(t, len(series[id]), len(elem.Datapoints))
+		require.Equal(t, len(seriesData[id]), len(elem.Datapoints))
 		for i, dp := range elem.Datapoints {
-			assert.Equal(t, series[id][i].t.Unix(), dp.Timestamp)
-			assert.Equal(t, series[id][i].v, dp.Value)
+			assert.Equal(t, seriesData[id][i].t.Unix(), dp.Timestamp)
+			assert.Equal(t, seriesData[id][i].v, dp.Value)
 		}
 	}
 }
@@ -582,10 +588,12 @@ func TestServiceFetch(t *testing.T) {
 	stream, _ := enc.Stream(ctx)
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
-		Return([][]xio.BlockReader{
-			{
+		Return(&series.FakeBlockReaderIter{
+			Readers: [][]xio.BlockReader{
 				{
-					SegmentReader: stream,
+					{
+						SegmentReader: stream,
+					},
 				},
 			},
 		}, nil)
@@ -726,7 +734,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 	nsID := "metrics"
 
 	streams := map[string]xio.SegmentReader{}
-	series := map[string][]struct {
+	seriesData := map[string][]struct {
 		t time.Time
 		v float64
 	}{
@@ -739,7 +747,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 			{start.Add(30 * time.Second), 4.0},
 		},
 	}
-	for id, s := range series {
+	for id, s := range seriesData {
 		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0, nil)
 		for _, v := range s {
@@ -754,10 +762,12 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.BlockReader{
-				{
+			Return(&series.FakeBlockReaderIter{
+				Readers: [][]xio.BlockReader{
 					{
-						SegmentReader: stream,
+						{
+							SegmentReader: stream,
+						},
 					},
 				},
 			}, nil)
@@ -824,7 +834,7 @@ func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
 	nsID2 := "metrics2"
 
 	streams := map[string]xio.SegmentReader{}
-	series := map[string][]struct {
+	seriesData := map[string][]struct {
 		t time.Time
 		v float64
 	}{
@@ -837,7 +847,7 @@ func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
 			{start.Add(30 * time.Second), 4.0},
 		},
 	}
-	for id, s := range series {
+	for id, s := range seriesData {
 		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0, nil)
 		for _, v := range s {
@@ -856,10 +866,12 @@ func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
 		}
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.BlockReader{
-				{
+			Return(&series.FakeBlockReaderIter{
+				Readers: [][]xio.BlockReader{
 					{
-						SegmentReader: stream,
+						{
+							SegmentReader: stream,
+						},
 					},
 				},
 			}, nil)
@@ -940,9 +952,9 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
 	var (
-		nsID    = "metrics"
-		streams = map[string]xio.SegmentReader{}
-		series  = map[string][]struct {
+		nsID       = "metrics"
+		streams    = map[string]xio.SegmentReader{}
+		seriesData = map[string][]struct {
 			t time.Time
 			v float64
 		}{
@@ -955,7 +967,7 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 		requestIsOutstanding = make(chan struct{}, 0)
 		testIsComplete       = make(chan struct{}, 0)
 	)
-	for id, s := range series {
+	for id, s := range seriesData {
 		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0, nil)
 		for _, v := range s {
@@ -974,10 +986,12 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 				close(requestIsOutstanding)
 				<-testIsComplete
 			}).
-			Return([][]xio.BlockReader{
-				{
+			Return(&series.FakeBlockReaderIter{
+				Readers: [][]xio.BlockReader{
 					{
-						SegmentReader: stream,
+						{
+							SegmentReader: stream,
+						},
 					},
 				},
 			}, nil)
@@ -1536,173 +1550,242 @@ func TestServiceFetchBlocksMetadataEndpointV2RawDatabaseNotSet(t *testing.T) {
 	require.Equal(t, tterrors.NewInternalError(errDatabaseIsNotInitializedYet), err)
 }
 
+//nolint:dupl
 func TestServiceFetchTagged(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
-	mockDB.EXPECT().IsOverloaded().Return(false)
-
-	service := NewService(mockDB, testTChannelThriftOptions).(*service)
-
-	tctx, _ := tchannelthrift.NewContext(time.Minute)
-	ctx := tchannelthrift.Context(tctx)
-	defer ctx.Close()
-
-	mtr := mocktracer.New()
-	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
-
-	start := time.Now().Add(-2 * time.Hour)
-	end := start.Add(2 * time.Hour)
-
-	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
-
-	nsID := "metrics"
-
-	streams := map[string]xio.SegmentReader{}
-	series := map[string][]struct {
-		t time.Time
-		v float64
+	testCases := []struct {
+		name            string
+		blocksReadLimit int64
+		fetchErrMsg     string
+		blockReadCancel bool
 	}{
-		"foo": {
-			{start.Add(10 * time.Second), 1.0},
-			{start.Add(20 * time.Second), 2.0},
+		{
+			name: "happy path",
 		},
-		"bar": {
-			{start.Add(20 * time.Second), 3.0},
-			{start.Add(30 * time.Second), 4.0},
+		{
+			name:            "block read limit",
+			blocksReadLimit: 1,
+			fetchErrMsg:     "query aborted due to limit",
+		},
+		{
+			name:            "data read canceled",
+			fetchErrMsg:     "context canceled",
+			blockReadCancel: true,
 		},
 	}
-	for id, s := range series {
-		enc := testStorageOpts.EncoderPool().Get()
-		enc.Reset(start, 0, nil)
-		for _, v := range s {
-			dp := ts.Datapoint{
-				Timestamp: v.t,
-				Value:     v.v,
-			}
-			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
-		}
 
-		stream, _ := enc.Stream(ctx)
-		streams[id] = stream
-		mockDB.EXPECT().
-			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.BlockReader{{
-				xio.BlockReader{
-					SegmentReader: stream,
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
+
+			mockDB := storage.NewMockDatabase(ctrl)
+			mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+			mockDB.EXPECT().IsOverloaded().Return(false)
+			limitsOpts := limits.NewOptions().
+				SetInstrumentOptions(testTChannelThriftOptions.InstrumentOptions()).
+				SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
+				SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
+					Limit:    tc.blocksReadLimit,
+					Lookback: time.Second * 1,
+				}).
+				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions())
+
+			queryLimits, err := limits.NewQueryLimits(limitsOpts)
+			permitOpts := permits.NewOptions().
+				SetSeriesReadPermitsManager(permits.NewLookbackLimitPermitsManager(
+					"disk-series-read",
+					limitsOpts.DiskSeriesReadLimitOpts(),
+					testTChannelThriftOptions.InstrumentOptions(),
+					limitsOpts.SourceLoggerBuilder(),
+				))
+
+			require.NoError(t, err)
+			testTChannelThriftOptions = testTChannelThriftOptions.
+				SetQueryLimits(queryLimits).
+				SetPermitsOptions(permitOpts)
+
+			service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+			tctx, _ := tchannelthrift.NewContext(time.Minute)
+			ctx := tchannelthrift.Context(tctx)
+			defer ctx.Close()
+
+			mtr := mocktracer.New()
+			sp := mtr.StartSpan("root")
+			stdCtx := opentracing.ContextWithSpan(gocontext.Background(), sp)
+			stdCtx, cancel := gocontext.WithCancel(stdCtx)
+			defer cancel()
+			ctx.SetGoContext(stdCtx)
+
+			start := time.Now().Add(-2 * time.Hour)
+			end := start.Add(2 * time.Hour)
+
+			start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+			nsID := "metrics"
+
+			streams := map[string]xio.SegmentReader{}
+			seriesData := map[string][]struct {
+				t time.Time
+				v float64
+			}{
+				"foo": {
+					{start.Add(10 * time.Second), 1.0},
+					{start.Add(20 * time.Second), 2.0},
 				},
-			}}, nil)
+				"bar": {
+					{start.Add(20 * time.Second), 3.0},
+					{start.Add(30 * time.Second), 4.0},
+				},
+			}
+			for id, s := range seriesData {
+				enc := testStorageOpts.EncoderPool().Get()
+				enc.Reset(start, 0, nil)
+				for _, v := range s {
+					dp := ts.Datapoint{
+						Timestamp: v.t,
+						Value:     v.v,
+					}
+					require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+				}
+
+				stream, _ := enc.Stream(ctx)
+				streams[id] = stream
+				mockDB.EXPECT().
+					ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+					DoAndReturn(func(
+						ctx context.Context,
+						namespace ident.ID,
+						id ident.ID,
+						start, end time.Time) (series.BlockReaderIter, error) {
+						if tc.blockReadCancel {
+							cancel()
+						}
+						return &series.FakeBlockReaderIter{
+							Readers: [][]xio.BlockReader{{
+								xio.BlockReader{
+									SegmentReader: stream,
+								},
+							}},
+						}, nil
+					})
+			}
+
+			req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+			require.NoError(t, err)
+			qry := index.Query{Query: req}
+
+			md1 := doc.Metadata{
+				ID: ident.BytesID("foo"),
+				Fields: []doc.Field{
+					{
+						Name:  []byte("foo"),
+						Value: []byte("bar"),
+					},
+					{
+						Name:  []byte("baz"),
+						Value: []byte("dxk"),
+					},
+				},
+			}
+			md2 := doc.Metadata{
+				ID: ident.BytesID("bar"),
+				Fields: []doc.Field{
+					{
+						Name:  []byte("foo"),
+						Value: []byte("bar"),
+					},
+					{
+						Name:  []byte("dzk"),
+						Value: []byte("baz"),
+					},
+				},
+			}
+
+			resMap := index.NewQueryResults(ident.StringID(nsID),
+				index.QueryResultsOptions{}, testIndexOptions)
+			resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+			resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
+			var (
+				seriesLimit int64 = 10
+				docsLimit   int64 = 10
+			)
+			mockDB.EXPECT().QueryIDs(
+				gomock.Any(),
+				ident.NewIDMatcher(nsID),
+				index.NewQueryMatcher(qry),
+				index.QueryOptions{
+					StartInclusive: start,
+					EndExclusive:   end,
+					SeriesLimit:    int(seriesLimit),
+					DocsLimit:      int(docsLimit),
+				}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
+
+			startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+			require.NoError(t, err)
+			endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
+			require.NoError(t, err)
+
+			data, err := idx.Marshal(req)
+			require.NoError(t, err)
+			r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
+				NameSpace:   []byte(nsID),
+				Query:       data,
+				RangeStart:  startNanos,
+				RangeEnd:    endNanos,
+				FetchData:   true,
+				SeriesLimit: &seriesLimit,
+				DocsLimit:   &docsLimit,
+			})
+			if tc.fetchErrMsg != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.fetchErrMsg)
+				return
+			}
+			require.NoError(t, err)
+
+			// sort to order results to make test deterministic.
+			sort.Slice(r.Elements, func(i, j int) bool {
+				return bytes.Compare(r.Elements[i].ID, r.Elements[j].ID) < 0
+			})
+			ids := [][]byte{[]byte("bar"), []byte("foo")}
+			require.Equal(t, len(ids), len(r.Elements))
+			//nolint: dupl
+			for i, id := range ids {
+				elem := r.Elements[i]
+				require.NotNil(t, elem)
+
+				assert.Nil(t, elem.Err)
+				require.Equal(t, 1, len(elem.Segments))
+
+				seg := elem.Segments[0]
+				require.NotNil(t, seg)
+				require.NotNil(t, seg.Merged)
+
+				var expectHead, expectTail []byte
+				expectSegment, err := streams[string(id)].Segment()
+				require.NoError(t, err)
+
+				if expectSegment.Head != nil {
+					expectHead = expectSegment.Head.Bytes()
+				}
+				if expectSegment.Tail != nil {
+					expectTail = expectSegment.Tail.Bytes()
+				}
+
+				assert.Equal(t, expectHead, seg.Merged.Head)
+				assert.Equal(t, expectTail, seg.Merged.Tail)
+			}
+
+			sp.Finish()
+			spans := mtr.FinishedSpans()
+
+			require.Len(t, spans, 2)
+			assert.Equal(t, tracepoint.FetchTagged, spans[0].OperationName)
+			assert.Equal(t, "root", spans[1].OperationName)
+		})
 	}
-
-	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
-	require.NoError(t, err)
-	qry := index.Query{Query: req}
-
-	md1 := doc.Metadata{
-		ID: ident.BytesID("foo"),
-		Fields: []doc.Field{
-			{
-				Name:  []byte("foo"),
-				Value: []byte("bar"),
-			},
-			{
-				Name:  []byte("baz"),
-				Value: []byte("dxk"),
-			},
-		},
-	}
-	md2 := doc.Metadata{
-		ID: ident.BytesID("bar"),
-		Fields: []doc.Field{
-			{
-				Name:  []byte("foo"),
-				Value: []byte("bar"),
-			},
-			{
-				Name:  []byte("dzk"),
-				Value: []byte("baz"),
-			},
-		},
-	}
-
-	resMap := index.NewQueryResults(ident.StringID(nsID),
-		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
-	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
-	var (
-		seriesLimit int64 = 10
-		docsLimit   int64 = 10
-	)
-	mockDB.EXPECT().QueryIDs(
-		gomock.Any(),
-		ident.NewIDMatcher(nsID),
-		index.NewQueryMatcher(qry),
-		index.QueryOptions{
-			StartInclusive: start,
-			EndExclusive:   end,
-			SeriesLimit:    int(seriesLimit),
-			DocsLimit:      int(docsLimit),
-		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
-
-	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
-	require.NoError(t, err)
-	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
-	require.NoError(t, err)
-
-	data, err := idx.Marshal(req)
-	require.NoError(t, err)
-	r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace:   []byte(nsID),
-		Query:       data,
-		RangeStart:  startNanos,
-		RangeEnd:    endNanos,
-		FetchData:   true,
-		SeriesLimit: &seriesLimit,
-		DocsLimit:   &docsLimit,
-	})
-	require.NoError(t, err)
-
-	// sort to order results to make test deterministic.
-	sort.Slice(r.Elements, func(i, j int) bool {
-		return bytes.Compare(r.Elements[i].ID, r.Elements[j].ID) < 0
-	})
-	ids := [][]byte{[]byte("bar"), []byte("foo")}
-	require.Equal(t, len(ids), len(r.Elements))
-	for i, id := range ids {
-		elem := r.Elements[i]
-		require.NotNil(t, elem)
-
-		assert.Nil(t, elem.Err)
-		require.Equal(t, 1, len(elem.Segments))
-
-		seg := elem.Segments[0]
-		require.NotNil(t, seg)
-		require.NotNil(t, seg.Merged)
-
-		var expectHead, expectTail []byte
-		expectSegment, err := streams[string(id)].Segment()
-		require.NoError(t, err)
-
-		if expectSegment.Head != nil {
-			expectHead = expectSegment.Head.Bytes()
-		}
-		if expectSegment.Tail != nil {
-			expectTail = expectSegment.Tail.Bytes()
-		}
-
-		assert.Equal(t, expectHead, seg.Merged.Head)
-		assert.Equal(t, expectTail, seg.Merged.Tail)
-	}
-
-	sp.Finish()
-	spans := mtr.FinishedSpans()
-
-	require.Len(t, spans, 2)
-	assert.Equal(t, tracepoint.FetchTagged, spans[0].OperationName)
-	assert.Equal(t, "root", spans[1].OperationName)
 }
 
 func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
@@ -2015,11 +2098,13 @@ func TestServiceFetchTaggedReturnOnFirstErr(t *testing.T) {
 	stream, _ := enc.Stream(ctx)
 	mockDB.EXPECT().
 		ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-		Return([][]xio.BlockReader{{
-			xio.BlockReader{
-				SegmentReader: stream,
-			},
-		}}, fmt.Errorf("random err")) // Return error that should trigger failure of the entire call
+		Return(&series.FakeBlockReaderIter{
+			Readers: [][]xio.BlockReader{{
+				xio.BlockReader{
+					SegmentReader: stream,
+				},
+			}},
+		}, fmt.Errorf("random err")) // Return error that should trigger failure of the entire call
 
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)

@@ -278,7 +278,7 @@ func TestWideFetch(t *testing.T) {
 
 	for _, tt := range shardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
@@ -320,7 +320,7 @@ func TestWideFetch(t *testing.T) {
 
 	for _, tt := range exactShardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
@@ -352,7 +352,7 @@ func TestWideFetch(t *testing.T) {
 		go func() {
 			var runError error
 			for j := 0; j < runs; j++ {
-				ctx := context.NewContext()
+				ctx := context.NewBackground()
 				chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), q,
 					now, nil, iterOpts)
 
