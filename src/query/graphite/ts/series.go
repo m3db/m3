@@ -22,8 +22,12 @@ package ts
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -35,6 +39,12 @@ var (
 	// ErrRangeIsInvalid is returned when attempting to slice Series with invalid range
 	// endpoints (begin is beyond end).
 	ErrRangeIsInvalid = errors.New("requested range is invalid")
+
+	digitsRegex = regexp.MustCompile(`\d+`)
+)
+
+const (
+	digits = "0123456789"
 )
 
 // An AggregationFunc combines two data values at a given point.
@@ -58,17 +68,61 @@ type Series struct {
 	consolidationFunc ConsolidationFunc
 }
 
-// SeriesByName implements sort.Interface for sorting collections of series by name
+// SeriesByName implements sort.Interface for sorting collections
+// of series by name.
 type SeriesByName []*Series
 
 // Len returns the length of the series collection
-func (a SeriesByName) Len() int { return len(a) }
+func (a SeriesByName) Len() int {
+	return len(a)
+}
 
 // Swap swaps two series in the collection
-func (a SeriesByName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a SeriesByName) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
 
 // Less determines if a series is ordered before another series by name
-func (a SeriesByName) Less(i, j int) bool { return a[i].name < a[j].name }
+func (a SeriesByName) Less(i, j int) bool {
+	return a[i].name < a[j].name
+}
+
+// SeriesByNameAndNaturalNumbers implements sort.Interface for sorting
+// collections of series by name respecting natural sort order for numbers.
+type SeriesByNameAndNaturalNumbers []*Series
+
+// Len returns the length of the series collection
+func (a SeriesByNameAndNaturalNumbers) Len() int {
+	return len(a)
+}
+
+// Swap swaps two series in the collection
+func (a SeriesByNameAndNaturalNumbers) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+// Less determines if a series is ordered before another series by name
+func (a SeriesByNameAndNaturalNumbers) Less(i, j int) bool {
+	left := a[i].name
+	if strings.ContainsAny(left, digits) {
+		left = digitsRegex.ReplaceAllStringFunc(left, digitsPrefixed)
+	}
+
+	right := a[j].name
+	if strings.ContainsAny(right, digits) {
+		right = digitsRegex.ReplaceAllStringFunc(right, digitsPrefixed)
+	}
+
+	return left < right
+}
+
+func digitsPrefixed(digits string) string {
+	n, err := strconv.Atoi(digits)
+	if err != nil {
+		return digits
+	}
+	return fmt.Sprintf("%010d", n)
+}
 
 // NewSeries creates a new Series at a given start time, backed by the provided values
 func NewSeries(ctx context.Context, name string, startTime time.Time, vals Values) *Series {

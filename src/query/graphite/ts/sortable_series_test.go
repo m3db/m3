@@ -23,6 +23,7 @@ package ts
 import (
 	"math"
 	"math/rand"
+	"sort"
 	"testing"
 	"time"
 
@@ -172,4 +173,31 @@ func TestSortSeriesStable(t *testing.T) {
 
 		require.Equal(t, expectedOrder, order)
 	}
+}
+
+func TestSortSeriesByNameAndNaturalNumbers(t *testing.T) {
+	ctx := context.New()
+	defer ctx.Close()
+
+	constValues := newTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
+	series := []*Series{
+		NewSeries(ctx, "server1", time.Now(), constValues),
+		NewSeries(ctx, "server11", time.Now(), constValues),
+		NewSeries(ctx, "server12", time.Now(), constValues),
+		NewSeries(ctx, "server2", time.Now(), constValues),
+	}
+
+	sort.Sort(SeriesByNameAndNaturalNumbers(series))
+
+	actual := make([]string, 0, len(series))
+	for _, s := range series {
+		actual = append(actual, s.Name())
+	}
+
+	require.Equal(t, []string{
+		"server1",
+		"server2",
+		"server11",
+		"server12",
+	}, actual)
 }

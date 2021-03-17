@@ -188,14 +188,50 @@ func TestSortByName(t *testing.T) {
 		ts.NewSeries(ctx, "a.c.d", now, values),
 	}
 
+	// Normal.
 	results, err := sortByName(ctx, singlePathSpec{
 		Values: series,
-	})
+	}, false, false)
 	require.Nil(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "a.c.d", results.Values[0].Name())
 	assert.Equal(t, "b.d.a", results.Values[1].Name())
 	assert.Equal(t, "zee", results.Values[2].Name())
+
+	// Reverse.
+	results, err = sortByName(ctx, singlePathSpec{
+		Values: series,
+	}, false, true)
+	require.Nil(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "zee", results.Values[0].Name())
+	assert.Equal(t, "b.d.a", results.Values[1].Name())
+	assert.Equal(t, "a.c.d", results.Values[2].Name())
+}
+
+func TestSortByNameNatural(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
+
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "server1", now, values),
+		ts.NewSeries(ctx, "server11", now, values),
+		ts.NewSeries(ctx, "server12", now, values),
+		ts.NewSeries(ctx, "server2", now, values),
+	}
+
+	results, err := sortByName(ctx, singlePathSpec{
+		Values: series,
+	}, true, false)
+	require.Nil(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "server1", results.Values[0].Name())
+	assert.Equal(t, "server2", results.Values[1].Name())
+	assert.Equal(t, "server11", results.Values[2].Name())
+	assert.Equal(t, "server12", results.Values[3].Name())
 }
 
 func getTestInput(ctx *common.Context) []*ts.Series {
@@ -219,8 +255,52 @@ func testSortingFuncs(
 	results, err := f(ctx, singlePathSpec{Values: input})
 	require.Nil(t, err)
 	require.Equal(t, len(resultIndexes), results.Len())
+
+	expected := make([]string, 0, len(input))
+	for _, idx := range resultIndexes {
+		expected = append(expected, input[idx].Name())
+	}
+
+	actual := make([]string, 0, len(input))
+	for _, s := range results.Values {
+		actual = append(actual, s.Name())
+	}
+	require.Equal(t, expected, actual)
+
 	for i, idx := range resultIndexes {
 		require.Equal(t, results.Values[i], input[idx])
+	}
+}
+
+func TestSortBy(t *testing.T) {
+	for _, test := range []struct {
+		fn      string
+		indices []int
+	}{
+		{fn: "average", indices: []int{4, 2, 0, 3, 1}},
+		{fn: "sum", indices: []int{4, 0, 2, 3, 1}},
+		{fn: "max", indices: []int{4, 0, 3, 2, 1}},
+		{fn: "min", indices: []int{1, 3, 2, 4, 0}},
+	} {
+		t.Run(test.fn, func(t *testing.T) {
+			// Regular.
+			expected := test.indices
+			testSortingFuncs(t,
+				func(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+					return sortBy(ctx, series, test.fn, false)
+				},
+				expected)
+
+			// Reversed.
+			for i, j := 0, len(expected)-1; i < j; i, j = i+1, j-1 {
+				expected[i], expected[j] = expected[j], expected[i]
+			}
+			testSortingFuncs(t,
+				func(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+					return sortBy(ctx, series, test.fn, true)
+				},
+				expected)
+		})
 	}
 }
 
