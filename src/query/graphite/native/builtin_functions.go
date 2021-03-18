@@ -41,15 +41,16 @@ import (
 )
 
 const (
-	millisPerSecond  = 1000
-	secondsPerDay    = 24 * 3600
-	daysPerWeek      = 7
-	secondsPerWeek   = secondsPerDay * daysPerWeek
-	cactiStyleFormat = "%.2f"
-	wrappingFmt      = "%s(%s)"
-	alpha            = 0.1
-	gamma            = 0.1
-	beta             = 0.0035
+	millisPerSecond     = 1000
+	secondsPerDay       = 24 * 3600
+	daysPerWeek         = 7
+	secondsPerWeek      = secondsPerDay * daysPerWeek
+	cactiStyleFormat    = "%.2f"
+	wrappingFmt         = "%s(%s)"
+	alpha               = 0.1
+	gamma               = 0.1
+	beta                = 0.0035
+	defaultXFilesFactor = 0.0
 )
 
 func joinPathExpr(series ts.SeriesList) string {
@@ -847,192 +848,79 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 	return windowSize, nil
 }
 
-// movingAverage calculates the moving average of a metric (or metrics) over a time interval.
-func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
-	if len(input.Values) == 0 {
-		return nil, nil
-	}
-
-	widowSize, err := parseWindowSize(windowSizeValue, input)
-	if err != nil {
-		return nil, err
-	}
-
-	contextShiftingFn := func(c *common.Context) *common.Context {
-		opts := common.NewChildContextOptions()
-		opts.AdjustTimeRange(0, 0, widowSize.deltaValue, 0)
-		childCtx := c.NewChildContext(opts)
-		return childCtx
-	}
-
-	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-widowSize.deltaValue), ctx.StartTime
-	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
-		bootstrapList, err := combineBootstrapWithOriginal(ctx,
-			bootstrapStartTime, bootstrapEndTime,
-			bootstrapped, singlePathSpec(original))
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-
-		results := make([]*ts.Series, 0, original.Len())
-		for i, bootstrap := range bootstrapList.Values {
-			series := original.Values[i]
-			stepSize := series.MillisPerStep()
-			windowPoints := widowSize.windowSizeFunc(stepSize)
-			if windowPoints == 0 {
-				err := errors.NewInvalidParamsError(fmt.Errorf(
-					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
-					windowSizeValue, stepSize))
-				return ts.NewSeriesList(), err
-			}
-
-			numSteps := series.Len()
-			offset := bootstrap.Len() - numSteps
-			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-			sum := 0.0
-			num := 0
-			nans := 0
-			firstPoint := false
-			for i := 0; i < numSteps; i++ {
-				// NB: skip if the number of points received is less than the number
-				// of points in the lookback window.
-				if !firstPoint {
-					firstPoint = true
-					for j := offset - windowPoints; j < offset; j++ {
-						if j < 0 {
-							continue
-						}
-
-						v := bootstrap.ValueAt(j)
-						if !math.IsNaN(v) {
-							sum += v
-							num++
-						} else {
-							nans++
-						}
-					}
-				} else {
-					if i+offset-windowPoints > 0 {
-						prev := bootstrap.ValueAt(i + offset - windowPoints - 1)
-						if !math.IsNaN(prev) {
-							sum -= prev
-							num--
-						} else {
-							nans--
-						}
-					}
-					next := bootstrap.ValueAt(i + offset - 1)
-					if !math.IsNaN(next) {
-						sum += next
-						num++
-					} else {
-						nans++
-					}
-				}
-
-				if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
-					vals.SetValueAt(i, sum/float64(num))
-				}
-			}
-			name := fmt.Sprintf("movingAverage(%s,%s)", series.Name(), widowSize.stringValue)
-			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
-			results = append(results, newSeries)
-		}
-
-		original.Values = results
-		return original, nil
-	}
-
-	return &binaryContextShifter{
-		ContextShiftFunc:  contextShiftingFn,
-		BinaryTransformer: transformerFn,
-	}, nil
-}
-
 // exponentialMovingAverage takes a series of values and a window size and produces
 // an exponential moving average utilizing the following formula:
 // 		ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
 // The `constant` is calculated as:
 // 		constant = 2 / (windowSize + 1)
 // the first period EMA uses a simple moving average for its value.
-func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
-	if len(input.Values) == 0 {
-		return nil, nil
-	}
+func exponentialMovingAverage(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize,
+		"exponentialMovingAverage", defaultXFilesFactor,
+		newExponentialMovingAverageImpl())
+}
 
-	windowSize, err := parseWindowSize(windowSizeValue, input)
+var _ movingImpl = (*exponentialMovingAverageImpl)(nil)
+
+type exponentialMovingAverageImpl struct {
+	bootstrap   *ts.Series
+	offset      int
+	ema         float64
+	emaConstant float64
+}
+
+func newExponentialMovingAverageImpl() *exponentialMovingAverageImpl {
+	return &exponentialMovingAverageImpl{}
+}
+
+func (impl *exponentialMovingAverageImpl) Reset(opts movingImplResetOptions) error {
+	impl.emaConstant = 2.0 / (float64(opts.WindowPoints) + 1.0)
+
+	numSteps := opts.Original.Len()
+	impl.bootstrap = opts.Bootstrap
+	impl.offset = impl.bootstrap.Len() - numSteps
+
+	firstWindow, err := impl.bootstrap.Slice(0, impl.offset)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	contextShiftingFn := func(c *common.Context) *common.Context {
-		opts := common.NewChildContextOptions()
-		opts.AdjustTimeRange(0, 0, windowSize.deltaValue, 0)
-		childCtx := c.NewChildContext(opts)
-		return childCtx
+	// The first value is just a regular moving average.
+	impl.ema = firstWindow.SafeAvg()
+	if !math.IsNaN(impl.ema) {
+		return nil
 	}
 
-	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-windowSize.deltaValue), ctx.StartTime
-	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
-		bootstrapList, err := combineBootstrapWithOriginal(ctx,
-			bootstrapStartTime, bootstrapEndTime,
-			bootstrapped, singlePathSpec(original))
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
+	// Use zero if NaN.
+	impl.ema = 0
+	return nil
+}
 
-		results := make([]*ts.Series, 0, original.Len())
-		for i, bootstrap := range bootstrapList.Values {
-			series := original.Values[i]
-			stepSize := series.MillisPerStep()
-			windowPoints := windowSize.windowSizeFunc(stepSize)
-			if windowPoints == 0 {
-				err := errors.NewInvalidParamsError(fmt.Errorf(
-					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
-					windowSizeValue, stepSize))
-				return ts.NewSeriesList(), err
-			}
-			emaConstant := 2.0 / (float64(windowPoints) + 1.0)
-
-			numSteps := series.Len()
-			offset := bootstrap.Len() - numSteps
-			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-			firstWindow, err := bootstrap.Slice(0, offset)
-			if err != nil {
-				return ts.NewSeriesList(), err
-			}
-
-			// the first value is just a regular moving average
-			ema := firstWindow.SafeAvg()
-			if math.IsNaN(ema) {
-				ema = 0
-			}
-			vals.SetValueAt(0, ema)
-			for i := 1; i < numSteps; i++ {
-				curr := bootstrap.ValueAt(i + offset)
-				if !math.IsNaN(curr) {
-					// formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
-					ema = emaConstant*curr + (1-emaConstant)*ema
-					vals.SetValueAt(i, ema)
-				} else {
-					vals.SetValueAt(i, math.NaN())
-				}
-
-			}
-
-			name := fmt.Sprintf("exponentialMovingAverage(%s,%s)", series.Name(), windowSize.stringValue)
-			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
-			results = append(results, newSeries)
-		}
-
-		original.Values = results
-		return original, nil
+func (impl *exponentialMovingAverageImpl) Evaluate(
+	window []float64,
+	values ts.MutableValues,
+	windowPoints int,
+	i int,
+	_ float64,
+) {
+	if i == 0 {
+		// First value is the first moving average value.
+		values.SetValueAt(i, impl.ema)
+		return
 	}
 
-	return &binaryContextShifter{
-		ContextShiftFunc:  contextShiftingFn,
-		BinaryTransformer: transformerFn,
-	}, nil
+	curr := impl.bootstrap.ValueAt(i + impl.offset)
+	if !math.IsNaN(curr) {
+		// Formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous).
+		impl.ema = impl.emaConstant*curr + (1-impl.emaConstant)*impl.ema
+		values.SetValueAt(i, impl.ema)
+	} else {
+		values.SetValueAt(i, math.NaN())
+	}
 }
 
 // totalFunc takes an index and returns a total value for that index
@@ -1213,16 +1101,16 @@ func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesLi
 
 // logarithm takes one metric or a wildcard seriesList, and draws the y-axis in
 // logarithmic format.
-func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesList, error) {
+func logarithm(ctx *common.Context, input singlePathSpec, base float64) (ts.SeriesList, error) {
 	if base <= 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf("invalid log base %d", base))
+		err := errors.NewInvalidParamsError(fmt.Errorf("invalid log base %f", base))
 		return ts.NewSeriesList(), err
 	}
 
 	results := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
 		vals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-		newName := fmt.Sprintf("log(%s, %d)", series.Name(), base)
+		newName := fmt.Sprintf("log(%s, %f)", series.Name(), base)
 		if series.AllNaN() {
 			results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
 			continue
@@ -1231,7 +1119,7 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 		for i := 0; i < series.Len(); i++ {
 			n := series.ValueAt(i)
 			if !math.IsNaN(n) && n > 0 {
-				vals.SetValueAt(i, math.Log10(n)/math.Log10(float64(base)))
+				vals.SetValueAt(i, math.Log10(n)/math.Log10(base))
 			}
 		}
 
@@ -1642,8 +1530,8 @@ func substr(_ *common.Context, seriesList singlePathSpec, start, stop int) (ts.S
 // combineBootstrapWithOriginal combines the bootstrapped the series with the original series.
 func combineBootstrapWithOriginal(
 	ctx *common.Context,
-	startTime time.Time,
-	endTime time.Time,
+	bootstrapStartTime, bootstrapEndTime time.Time,
+	_, originalEndTime time.Time,
 	bootstrapped ts.SeriesList,
 	seriesList singlePathSpec,
 ) (ts.SeriesList, error) {
@@ -1656,15 +1544,20 @@ func combineBootstrapWithOriginal(
 	for _, series := range seriesList.Values {
 		bs, found := nameToSeries[series.Name()]
 		if !found {
-			numSteps := ts.NumSteps(startTime, endTime, series.MillisPerStep())
+			numSteps := ts.NumSteps(bootstrapStartTime, bootstrapEndTime, series.MillisPerStep())
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-			bs = ts.NewSeries(ctx, series.Name(), startTime, vals)
+			bs = ts.NewSeries(ctx, series.Name(), bootstrapStartTime, vals)
+		} else {
+			// Delete from the lookup so we can fill in
+			// the bootstrapped time series with NaNs if
+			// the original series list is missing the series.
+			delete(nameToSeries, series.Name())
 		}
 		bootstrapList = append(bootstrapList, bs)
 	}
 
 	var err error
-	newSeriesList := make([]*ts.Series, len(seriesList.Values))
+	newSeriesList := make([]*ts.Series, 0, len(seriesList.Values)+len(nameToSeries))
 	for i, bootstrap := range bootstrapList {
 		original := seriesList.Values[i]
 		if bootstrap.MillisPerStep() < original.MillisPerStep() {
@@ -1673,8 +1566,8 @@ func combineBootstrapWithOriginal(
 				return ts.NewSeriesList(), err
 			}
 		}
-		bootstrapEndStep := endTime.Truncate(original.Resolution())
-		if bootstrapEndStep.Before(endTime) {
+		bootstrapEndStep := bootstrapEndTime.Truncate(original.Resolution())
+		if bootstrapEndStep.Before(bootstrapEndTime) {
 			bootstrapEndStep = bootstrapEndStep.Add(original.Resolution())
 		}
 		// NB(braskin): using bootstrap.Len() is incorrect as it will include all
@@ -1692,9 +1585,32 @@ func combineBootstrapWithOriginal(
 		for j := numBootstrapValues; j < numCombinedValues; j++ {
 			values.SetValueAt(j, original.ValueAt(j-numBootstrapValues))
 		}
-		newSeries := ts.NewSeries(ctx, original.Name(), startTime, values)
+		newSeries := ts.NewSeries(ctx, original.Name(), bootstrapStartTime, values)
 		newSeries.Specification = original.Specification
-		newSeriesList[i] = newSeries
+		newSeriesList = append(newSeriesList, newSeries)
+	}
+	// Now add any series in bootstrap list but not original series,
+	// need to iterate the bootstrapped.Values to retain order
+	// but can check if they are in the nameToSeries map still and if so
+	// then there was no matching original series.
+	for _, series := range bootstrapped.Values {
+		bs, found := nameToSeries[series.Name()]
+		if !found {
+			// Processed already.
+			continue
+		}
+		// Extend the bootstrap series to include steps covered by original
+		// time range since the original series is missing from fetch.
+		needSteps := bs.StepAtTime(originalEndTime)
+		if currSteps := bs.Len(); needSteps > currSteps {
+			// Need to resize.
+			vals := ts.NewValues(ctx, bs.MillisPerStep(), needSteps)
+			for i := 0; i < currSteps; i++ {
+				vals.SetValueAt(i, bs.ValueAt(i))
+			}
+			bs = bs.DerivedSeries(bs.StartTime(), vals)
+		}
+		newSeriesList = append(newSeriesList, bs)
 	}
 
 	r := ts.SeriesList(seriesList)
@@ -2079,7 +1995,50 @@ func windowPointsLength(series *ts.Series, interval time.Duration) int {
 	return int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
 }
 
-type movingImplementationFn func(window []float64, values ts.MutableValues, windowPoints int, i int, xFilesFactor float64)
+type movingImpl interface {
+	Reset(
+		opts movingImplResetOptions,
+	) error
+
+	Evaluate(
+		window []float64,
+		values ts.MutableValues,
+		windowPoints int,
+		i int,
+		xFilesFactor float64,
+	)
+}
+
+type movingImplResetOptions struct {
+	Original     *ts.Series
+	Bootstrap    *ts.Series
+	WindowPoints int
+}
+
+// Ensure movingImplementationFn implements movingImpl.
+var _ movingImpl = movingImplementationFn(nil)
+
+type movingImplementationFn func(
+	window []float64,
+	values ts.MutableValues,
+	windowPoints int,
+	i int,
+	xFilesFactor float64,
+)
+
+func (f movingImplementationFn) Reset(opts movingImplResetOptions) error {
+	return nil
+}
+
+func (f movingImplementationFn) Evaluate(
+	window []float64,
+	values ts.MutableValues,
+	windowPoints int,
+	i int,
+	xFilesFactor float64,
+) {
+	f(window, values, windowPoints, i, xFilesFactor)
+}
 
 // movingMedianHelper given a slice of floats, calculates the median and assigns it into vals as index i
 func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
@@ -2098,6 +2057,15 @@ func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, sum)
+	}
+}
+
+// movingAverageHelper given a slice of floats, calculates the average and assigns it into vals as index i
+func movingAverageHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
+	avg, nans := common.SafeAverage(window)
+
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
+		vals.SetValueAt(i, avg)
 	}
 }
 
@@ -2125,7 +2093,7 @@ func newMovingBinaryTransform(
 	windowSizeValue genericInterface,
 	movingFunctionName string,
 	xFilesFactor float64,
-	impl movingImplementationFn,
+	impl movingImpl,
 ) (*binaryContextShifter, error) {
 	if len(input.Values) == 0 {
 		return nil, nil
@@ -2148,12 +2116,14 @@ func newMovingBinaryTransform(
 		return childCtx
 	}
 
-	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-interval), ctx.StartTime
+	originalStart, originalEnd := ctx.StartTime, ctx.EndTime
+	bootstrapStartTime, bootstrapEndTime := originalStart.Add(-interval), originalStart
 	return &binaryContextShifter{
 		ContextShiftFunc: contextShiftingFn,
 		BinaryTransformer: func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
 			bootstrapList, err := combineBootstrapWithOriginal(ctx,
 				bootstrapStartTime, bootstrapEndTime,
+				ctx.StartTime, ctx.EndTime,
 				bootstrapped, singlePathSpec(original))
 			if err != nil {
 				return ts.NewSeriesList(), err
@@ -2162,7 +2132,15 @@ func newMovingBinaryTransform(
 			results := make([]*ts.Series, 0, original.Len())
 			maxWindowPoints := 0
 			for i := range bootstrapList.Values {
-				series := original.Values[i]
+				var series *ts.Series
+				if i < original.Len() {
+					// Existing series exists, prefer that resolution.
+					series = original.Values[i]
+				} else {
+					// No existing series use resolution from bootstrapped.
+					series = bootstrapList.Values[i]
+				}
+
 				windowPoints := windowPointsLength(series, interval)
 				if windowPoints <= 0 {
 					err := errors.NewInvalidParamsError(fmt.Errorf(
@@ -2177,13 +2155,35 @@ func newMovingBinaryTransform(
 
 			windowPoints := make([]float64, maxWindowPoints)
 			for i, bootstrap := range bootstrapList.Values {
-				series := original.Values[i]
+				var series *ts.Series
+				if i < original.Len() {
+					// Existing series exists, prefer that.
+					series = original.Values[i]
+				} else {
+					// No existing series, use an intersected
+					// version of the bootstrapped series as a
+					// reference for values to compute.
+					series, err = bootstrap.IntersectAndResize(originalStart,
+						originalEnd, bootstrap.MillisPerStep(), bootstrap.ConsolidationFunc())
+					if err != nil {
+						return ts.NewSeriesList(), err
+					}
+				}
 				currWindowPoints := windowPointsLength(series, interval)
 				window := windowPoints[:currWindowPoints]
 				util.Memset(window, math.NaN())
+
 				numSteps := series.Len()
 				offset := bootstrap.Len() - numSteps
 				vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+
+				if err := impl.Reset(movingImplResetOptions{
+					Original:     series,
+					Bootstrap:    bootstrap,
+					WindowPoints: currWindowPoints,
+				}); err != nil {
+					return ts.SeriesList{}, err
+				}
 				for i := 0; i < numSteps; i++ {
 					for j := i + offset - currWindowPoints; j < i+offset; j++ {
 						if j < 0 || j >= bootstrap.Len() {
@@ -2197,7 +2197,7 @@ func newMovingBinaryTransform(
 
 						window[idx] = bootstrap.ValueAt(j)
 					}
-					impl(window, vals, currWindowPoints, i, xFilesFactor)
+					impl.Evaluate(window, vals, currWindowPoints, i, xFilesFactor)
 				}
 				name := fmt.Sprintf("%s(%s,%s)", movingFunctionName, series.Name(), windowSize.stringValue)
 				newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
@@ -2211,23 +2211,58 @@ func newMovingBinaryTransform(
 }
 
 // movingMedian calculates the moving median of a metric (or metrics) over a time interval.
-func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", xFilesFactor, movingMedianHelper)
+func movingMedian(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", xFilesFactor,
+		movingImplementationFn(movingMedianHelper))
 }
 
 // movingSum calculates the moving sum of a metric (or metrics) over a time interval.
-func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", xFilesFactor, movingSumHelper)
+func movingSum(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", xFilesFactor,
+		movingImplementationFn(movingSumHelper))
+}
+
+// movingAverage calculates the moving average of a metric (or metrics) over a time interval.
+func movingAverage(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingAverage", xFilesFactor,
+		movingImplementationFn(movingAverageHelper))
 }
 
 // movingMax calculates the moving maximum of a metric (or metrics) over a time interval.
-func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", xFilesFactor, movingMaxHelper)
+func movingMax(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", xFilesFactor,
+		movingImplementationFn(movingMaxHelper))
 }
 
 // movingMin calculates the moving minimum of a metric (or metrics) over a time interval.
-func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", xFilesFactor, movingMinHelper)
+func movingMin(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	xFilesFactor float64,
+) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", xFilesFactor,
+		movingImplementationFn(movingMinHelper))
 }
 
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
@@ -2511,19 +2546,19 @@ func init() {
 	MustRegisterFunction(minimumAbove)
 	MustRegisterFunction(mostDeviant)
 	MustRegisterFunction(movingAverage).WithDefaultParams(map[uint8]interface{}{
-		3: 0.0, // XFilesFactor
+		3: defaultXFilesFactor, // XFilesFactor
 	})
 	MustRegisterFunction(movingMedian).WithDefaultParams(map[uint8]interface{}{
-		3: 0.0, // XFilesFactor
+		3: defaultXFilesFactor, // XFilesFactor
 	})
 	MustRegisterFunction(movingSum).WithDefaultParams(map[uint8]interface{}{
-		3: 0.0, // XFilesFactor
+		3: defaultXFilesFactor, // XFilesFactor
 	})
 	MustRegisterFunction(movingMax).WithDefaultParams(map[uint8]interface{}{
-		3: 0.0, // XFilesFactor
+		3: defaultXFilesFactor, // XFilesFactor
 	})
 	MustRegisterFunction(movingMin).WithDefaultParams(map[uint8]interface{}{
-		3: 0.0, // XFilesFactor
+		3: defaultXFilesFactor, // XFilesFactor
 	})
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
