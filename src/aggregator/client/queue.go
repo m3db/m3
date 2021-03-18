@@ -223,7 +223,7 @@ func (q *queue) Flush() {
 		n += processed
 	}
 
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		q.log.Error("error writing data",
 			zap.String("target_instance_id", q.instance.ID()),
 			zap.String("target_instance", q.instance.Endpoint()),

@@ -27,7 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 func TestInstanceQueueEnqueueClosed(t *testing.T) {
@@ -123,7 +123,6 @@ func TestInstanceQueueEnqueueLargeBuffers(t *testing.T) {
 	queue.Flush()
 	require.Equal(t, len(largeBuf), bytesWritten)
 	require.Equal(t, 1, timesWritten)
-
 }
 
 func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
