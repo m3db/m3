@@ -723,6 +723,7 @@ type aggregatorAddMetricMetrics struct {
 	shardNotWriteable          tally.Counter
 	valueRateLimitExceeded     tally.Counter
 	newMetricRateLimitExceeded tally.Counter
+	arrivedTooLate             tally.Counter
 	uncategorizedErrors        tally.Counter
 }
 
@@ -744,6 +745,9 @@ func newAggregatorAddMetricMetrics(
 		}).Counter("errors"),
 		newMetricRateLimitExceeded: scope.Tagged(map[string]string{
 			"reason": "new-metric-rate-limit-exceeded",
+		}).Counter("errors"),
+		arrivedTooLate: scope.Tagged(map[string]string{
+			"reason": "arrived-too-late",
 		}).Counter("errors"),
 		uncategorizedErrors: scope.Tagged(map[string]string{
 			"reason": "not-categorized",
@@ -773,7 +777,11 @@ func (m *aggregatorAddMetricMetrics) ReportError(err error) {
 	case errWriteValueRateLimitExceeded:
 		m.valueRateLimitExceeded.Inc(1)
 	default:
-		m.uncategorizedErrors.Inc(1)
+		if xerrors.Is(err, errArrivedTooLate) {
+			m.arrivedTooLate.Inc(1)
+		} else {
+			m.uncategorizedErrors.Inc(1)
+		}
 	}
 }
 
