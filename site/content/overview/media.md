@@ -20,11 +20,29 @@ Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings fo
 
 - [August 2020 Meetup and Walmart presentation](https://vimeo.com/449883279).
 
+- [M3 Day 2021](vimeo.com/user/120001164/folder/3804212).
+
+- [M3 Day 2021 - Lightning Talks by LinkedIn and Walmart](https://vimeo.com/518855731).
+
+- [M3 Day 2021 - Fireside Chat and Q&A with M3 Leaders](https://vimeo.com/519117013). 
+
 ## Recorded Talks
+
+- [Linux OSS EU 2020: "Monitoring at Global Scale with M3 and Prometheus](https://www.youtube.com/watch?v=CcH13GyszHI&ab_channel=TheLinuxFoundation) By Gibbs Cullen, October 2020.
+
+- [Linux OSS EU 2020: "Comprehensive Observability of your Microservices Using Deep Linked Metrics and Traces"](https://www.youtube.com/watch?v=HwhtXKx5O1Q&ab_channel=TheLinuxFoundation) By Ryan Allen.
+
+- [KubeCon NA 2020: "Supercharged Analytics for Prometheus Metrics with Spark, Presto, and Superset"](https://www.youtube.com/watch?v=4RB4XfY_Low&ab_channel=CNCF%5BCloudNativeComputingFoundation%5D) By Rob Skillington & Gibbs Cullen
+
+- [KubeCon EU 2020: "From Alert Notification to Comparison of Good and Bad Requests in One Click"](https://www.youtube.com/watch?v=nsTEFLwRJRI&list=PLj6h78yzYM2O1wlsM-Ma-RYhfT5LKq0XC&index=61&t=1s&ab_channel=CNCF%5BCloudNativeComputingFoundation%5D) By Shreyas Srivatsan. 
+
+- [M3 Day 2021: "Scaling Monitoring at Databricks from Prometheus to M3"](https://vimeo.com/518824135). 
 
 - [OpenObservability Talks: Long-Term Metrics with M3 and Prometheus](https://youtu.be/XQ_yCLyAMLU) By Matt Schallert. Aug 27, 2020.
 
 - [CNCF Webinar: Maximizing M3 – Pushing performance boundaries in a distributed metrics engine](https://www.cncf.io/webinars/maximizing-m3-pushing-performance-boundaries-in-a-distributed-metrics-engine-at-global-scale/) By Ryan Allen - Aug 6, 2020.
+
+- [KubeCon EU 2020: "Speed Racer: Local Persistent Volumes in Production"](https://www.youtube.com/watch?v=6RjjtSpLar0&ab_channel=CNCF%5BCloudNativeComputingFoundation%5D) By Matt Schallert. 
 
 - [OSCON 2019: Large-Scale Automated Storage on Kubernetes](https://youtu.be/N9A7xSE9n-c) By Matt Schallert - Jul 18, 2019. [Slides](https://schallert.io/OSCON%20Large-Scale%20Automated%20Storage%20on%20Kubernetes.pdf)
 
