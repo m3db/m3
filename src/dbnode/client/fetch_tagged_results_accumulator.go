@@ -421,81 +421,45 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 			values := aggregateValueResultsSortedByValue(tagResponse.TagValues)
 			sort.Sort(values)
 
-			if len(tagResult.tagValues) == 0 {
-				// If first response with values from host then add in order blindly.
-				for _, tagValueResponse := range values {
-					elem := ident.BytesID(tagValueResponse.TagValue)
-					tagResult.tagValues = append(tagResult.tagValues, elem)
-					count++
-				}
-				continue
-			}
-
-			// Otherwise add in order and deduplicate.
 			if tempValues == nil {
 				tempValues = make([]ident.ID, 0, len(tagResult.tagValues))
 			}
 			tempValues = tempValues[:0]
 
-			lastValueIdx := 0
-			addRemaining := false
-			nextLastValue := func() {
-				lastValueIdx++
-				if lastValueIdx >= len(tagResult.tagValues) {
-					// None left to compare against, just blindly add the remaining.
-					addRemaining = true
-				}
-			}
+			// perform a merge sort with the final results.
+			i, j := 0, 0
+			for i < len(tagResult.tagValues) || j < len(values) {
+				var nextValue ident.ID
 
-			for i := 0; i < len(values); i++ {
-				tagValueResponse := values[i]
-				currValue := ident.BytesID(tagValueResponse.TagValue)
-				if addRemaining {
-					// Just add remaining values.
-					elem := ident.BytesID(tagValueResponse.TagValue)
-					tempValues = append(tempValues, elem)
-					count++
-					continue
-				}
-
-				existingValue := tagResult.tagValues[lastValueIdx]
-				cmp := bytes.Compare(currValue.Bytes(), existingValue.Bytes())
-				for !addRemaining && cmp > 0 {
-					// Take the existing value
-					tempValues = append(tempValues, existingValue)
-
-					// Move to next record
-					nextLastValue()
-					if addRemaining {
-						// None left to compare against, just blindly add the remaining.
-						break
+				switch {
+				case i == len(tagResult.tagValues):
+					nextValue = ident.BytesID(values[j].TagValue)
+					j++
+				case j == len(values):
+					nextValue = tagResult.tagValues[i]
+					i++
+				default:
+					switch bytes.Compare(tagResult.tagValues[i].Bytes(), values[j].TagValue) {
+					case -1:
+						nextValue = tagResult.tagValues[i]
+						i++
+					case 0:
+						nextValue = tagResult.tagValues[i]
+						i++
+						j++
+					case 1:
+						nextValue = ident.BytesID(values[j].TagValue)
+						j++
 					}
-
-					// Re-run check
-					existingValue = tagResult.tagValues[lastValueIdx]
-					cmp = bytes.Compare(currValue.Bytes(), existingValue.Bytes())
 				}
-				if addRemaining {
-					// Reprocess this element
-					i--
-					continue
-				}
-
-				if cmp == 0 {
-					// Take existing record, skip this copy
-					tempValues = append(tempValues, existingValue)
-					nextLastValue()
-					continue
-				}
-
-				// This record must come before any existing value, take and move to next
-				tempValues = append(tempValues, currValue)
+				tempValues = append(tempValues, nextValue)
 			}
 
 			// Copy out of temp values back to final result
 			tagResult.tagValues = append(tagResult.tagValues[:0], tempValues...)
 		}
 
+		count += len(tagResult.tagValues)
 		moreElems = hasMore
 		// Would count ever be above limit?
 		return count < limit

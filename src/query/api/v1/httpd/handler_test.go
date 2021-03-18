@@ -127,8 +127,8 @@ func setupHandler(
 
 func newPromEngine() *promql.Engine {
 	return promql.NewEngine(promql.EngineOpts{
-		MaxSamples:         10000,
-		Timeout:            100 * time.Second,
+		MaxSamples: 10000,
+		Timeout:    100 * time.Second,
 	})
 }
 

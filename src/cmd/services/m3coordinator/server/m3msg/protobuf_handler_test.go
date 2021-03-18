@@ -235,6 +235,7 @@ func (m *mockWriter) write(
 	name []byte,
 	metricNanos, encodeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 	callbackable Callbackable,
 ) {

@@ -2,9 +2,9 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/aggregator_legacy/docker-compose.yml
+COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/aggregator_legacy/docker-compose.yml
 export REVISION
 
 echo "Run m3dbnode"

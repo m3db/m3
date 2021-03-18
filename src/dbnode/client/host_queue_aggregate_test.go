@@ -102,14 +102,14 @@ func TestHostQueueAggregate(t *testing.T) {
 	namespace := "testNs"
 	res := &rpc.AggregateQueryRawResult_{
 		Results: []*rpc.AggregateQueryRawResultTagNameElement{
-			&rpc.AggregateQueryRawResultTagNameElement{
+			{
 				TagName: []byte("tagName"),
 			},
 		},
 		Exhaustive: true,
 	}
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				response: res,
 				host:     h,
@@ -125,7 +125,7 @@ func TestHostQueueAggregateErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				host: h,
 			},
@@ -144,7 +144,7 @@ func TestHostQueueAggregateErrorOnAggregateError(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{host: h},
 			err:    expectedErr,
 		},
@@ -252,6 +252,7 @@ func testAggregateOp(
 ) *aggregateOp {
 	f := newAggregateOp(nil)
 	f.incRef()
+	f.context = testContext()
 	f.request = rpc.AggregateQueryRawRequest{
 		NameSpace: []byte(namespace),
 	}

@@ -27,24 +27,31 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xresource "github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/tallytest"
 
 	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -107,46 +114,36 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					idx.NewQueryFromSearchQuery(q),
 				}
 
-				cancellable := xresource.NewCancellableLifetime()
-				cancelled := false
-				doneQuery := func() {
-					if !cancelled {
-						cancelled = true
-						cancellable.Cancel()
-					}
-				}
-
-				// In case we return early
-				defer doneQuery()
-
 				queryOpts := QueryOptions{
 					StartInclusive: blockStart,
 					EndExclusive:   blockStart.Add(blockSize),
 				}
 
 				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(context.NewContext(), cancellable, indexQuery,
-					queryOpts, uncachedResults, emptyLogFields)
+				ctx := context.NewBackground()
+				queryIter, err := uncachedBlock.QueryIter(ctx, indexQuery)
 				if err != nil {
-					return false, fmt.Errorf("error querying uncached block: %v", err)
+					return false, err
 				}
-				if !exhaustive {
-					return false, errors.New("querying uncached block was not exhaustive")
+				require.NoError(t, err)
+				for !queryIter.Done() {
+					err = uncachedBlock.QueryWithIter(ctx,
+						queryOpts, queryIter, uncachedResults, time.Now().Add(time.Millisecond * 10), emptyLogFields)
+					if err != nil {
+						return false, fmt.Errorf("error querying uncached block: %v", err)
+					}
 				}
 
 				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(context.NewContext(), cancellable, indexQuery,
-					queryOpts, cachedResults, emptyLogFields)
-				if err != nil {
-					return false, fmt.Errorf("error querying cached block: %v", err)
+				ctx = context.NewBackground()
+				queryIter, err = cachedBlock.QueryIter(ctx, indexQuery)
+				for !queryIter.Done() {
+					err = cachedBlock.QueryWithIter(ctx, queryOpts, queryIter, cachedResults,
+						time.Now().Add(time.Millisecond * 10), emptyLogFields)
+					if err != nil {
+						return false, fmt.Errorf("error querying cached block: %v", err)
+					}
 				}
-				if !exhaustive {
-					return false, errors.New("querying cached block was not exhaustive")
-				}
-
-				// The lifetime of the query is complete, cancel the lifetime so we
-				// can safely access the results of each
-				doneQuery()
 
 				uncachedMap := uncachedResults.Map()
 				cachedMap := cachedResults.Map()
@@ -196,4 +193,210 @@ func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metad
 	err = blk.AddResults(indexBlockByVolumeType)
 	require.NoError(t, err)
 	return blk, nil
+}
+
+type testFields struct {
+	name   string
+	values []string
+}
+
+func genField() gopter.Gen {
+	return gopter.CombineGens(
+		gen.AlphaString(),
+		gen.SliceOf(gen.AlphaString()),
+	).Map(func(input []interface{}) testFields {
+		var (
+			name   = input[0].(string)
+			values = input[1].([]string)
+		)
+
+		return testFields{
+			name:   name,
+			values: values,
+		}
+	})
+}
+
+type propTestSegment struct {
+	metadata   doc.Metadata
+	exCount    int64
+	exCountAgg int64
+	segmentMap segmentMap
+}
+
+type testValuesSet map[string]struct{}   //nolint:gofumpt
+type segmentMap map[string]testValuesSet //nolint:gofumpt
+
+func genTestSegment() gopter.Gen {
+	return gen.SliceOf(genField()).Map(func(input []testFields) propTestSegment {
+		segMap := make(segmentMap, len(input))
+		for _, field := range input { //nolint:gocritic
+			for _, value := range field.values {
+				exVals, found := segMap[field.name]
+				if !found {
+					exVals = make(testValuesSet)
+				}
+				exVals[value] = struct{}{}
+				segMap[field.name] = exVals
+			}
+		}
+
+		aggLength := len(segMap)
+		fields := make([]testFields, 0, len(input))
+		for name, valSet := range segMap {
+			aggLength += len(valSet)
+			vals := make([]string, 0, len(valSet))
+			for val := range valSet {
+				vals = append(vals, val)
+			}
+
+			sort.Strings(vals)
+			fields = append(fields, testFields{name: name, values: vals})
+		}
+
+		sort.Slice(fields, func(i, j int) bool {
+			return fields[i].name < fields[j].name
+		})
+
+		docFields := []doc.Field{}
+		for _, field := range fields { //nolint:gocritic
+			for _, val := range field.values {
+				docFields = append(docFields, doc.Field{
+					Name:  []byte(field.name),
+					Value: []byte(val),
+				})
+			}
+		}
+
+		return propTestSegment{
+			metadata:   doc.Metadata{Fields: docFields},
+			exCount:    int64(len(segMap)),
+			exCountAgg: int64(aggLength),
+			segmentMap: segMap,
+		}
+	})
+}
+
+func verifyResults(
+	t *testing.T,
+	results AggregateResults,
+	exMap segmentMap,
+) {
+	resultMap := make(segmentMap, results.Map().Len())
+	for _, field := range results.Map().Iter() { //nolint:gocritic
+		name := field.Key().String()
+		_, found := resultMap[name]
+		require.False(t, found, "duplicate values in results map")
+
+		values := make(testValuesSet, field.value.Map().Len())
+		for _, value := range field.value.Map().Iter() {
+			val := value.Key().String()
+			_, found := values[val]
+			require.False(t, found, "duplicate values in results map")
+
+			values[val] = struct{}{}
+		}
+
+		resultMap[name] = values
+	}
+
+	require.Equal(t, resultMap, exMap)
+}
+
+func TestAggregateDocLimits(t *testing.T) {
+	var (
+		parameters = gopter.DefaultTestParameters()
+		seed       = time.Now().UnixNano()
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
+	)
+
+	parameters.MinSuccessfulTests = 1000
+	parameters.MinSize = 5
+	parameters.MaxSize = 10
+	parameters.Rng = rand.New(rand.NewSource(seed)) //nolint:gosec
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("segments dedupe and have correct docs counts", prop.ForAll(
+		func(testSegment propTestSegment) (bool, error) {
+			seg, err := mem.NewSegment(mem.NewOptions())
+			if err != nil {
+				return false, err
+			}
+
+			_, err = seg.Insert(testSegment.metadata)
+			if err != nil {
+				return false, err
+			}
+
+			err = seg.Seal()
+			if err != nil {
+				return false, err
+			}
+
+			scope := tally.NewTestScope("", nil)
+			iOpts := instrument.NewOptions().SetMetricsScope(scope)
+			limitOpts := limits.NewOptions().
+				SetInstrumentOptions(iOpts).
+				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+			queryLimits, err := limits.NewQueryLimits((limitOpts))
+			require.NoError(t, err)
+			testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
+
+			testMD := newTestNSMetadata(t)
+			start := time.Now().Truncate(time.Hour)
+			blk, err := NewBlock(start, testMD, BlockOptions{},
+				namespace.NewRuntimeOptionsManager("foo"), testOpts)
+			if err != nil {
+				return false, err
+			}
+
+			b, ok := blk.(*block)
+			if !ok {
+				return false, errors.New("bad block type")
+			}
+
+			b.mutableSegments.foregroundSegments = []*readableSeg{
+				newReadableSeg(seg, testOpts),
+			}
+
+			results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+				Type: AggregateTagNamesAndValues,
+			}, testOpts)
+
+			ctx := context.NewBackground()
+			defer ctx.BlockingClose()
+
+			aggIter, err := b.AggregateIter(ctx, results.AggregateResultsOptions())
+			if err != nil {
+				return false, err
+			}
+			for !aggIter.Done() {
+				err = b.AggregateWithIter(
+					ctx,
+					aggIter,
+					QueryOptions{},
+					results,
+					time.Now().Add(time.Millisecond * 10),
+					emptyLogFields)
+
+				if err != nil {
+					return false, err
+				}
+			}
+			verifyResults(t, results, testSegment.segmentMap)
+			snap := scope.Snapshot()
+			tallytest.AssertCounterValue(t, testSegment.exCount, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "fetch"})
+			tallytest.AssertCounterValue(t, testSegment.exCountAgg, snap,
+				"query-limit.total-docs-matched", map[string]string{"type": "aggregate"})
+			return true, nil
+		},
+		genTestSegment(),
+	))
+
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
 }

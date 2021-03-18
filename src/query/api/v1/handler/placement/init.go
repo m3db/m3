@@ -128,7 +128,8 @@ func (h *InitHandler) Init(
 
 	serviceOpts := handleroptions.NewServiceOptions(svc, httpReq.Header,
 		h.m3AggServiceOptions)
-	service, err := Service(h.clusterClient, serviceOpts, h.nowFn(), nil)
+	service, err := Service(h.clusterClient, serviceOpts,
+		h.config.ClusterManagement.Placement, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

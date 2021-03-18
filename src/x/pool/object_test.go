@@ -21,6 +21,7 @@
 package pool
 
 import (
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -192,6 +193,40 @@ func BenchmarkObjectPoolParallelGetMultiPutContended(b *testing.B) {
 				o := bufs[i]
 				buf := *o
 				buf = strconv.AppendInt(buf[:0], 12344321, 10)
+				runtime.KeepAlive(buf)
+				p.Put(o)
+			}
+		}
+	})
+}
+
+//nolint:dupl
+func BenchmarkObjectPoolParallelGetMultiPutContendedDynamic(b *testing.B) {
+	opts := NewObjectPoolOptions().
+		SetDynamic(true)
+
+	p := NewObjectPool(opts)
+	p.Init(func() interface{} {
+		b := make([]byte, 0, 64)
+		return &b
+	})
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			bufs := make([]*[]byte, 16)
+			for i := 0; i < len(bufs); i++ {
+				o, ok := p.Get().(*[]byte)
+				if !ok {
+					b.Fail()
+				}
+				bufs[i] = o
+			}
+			for i := 0; i < len(bufs); i++ {
+				o := bufs[i]
+				buf := *o
+				buf = strconv.AppendInt(buf[:0], 12344321, 10)
+				runtime.KeepAlive(buf)
 				p.Put(o)
 			}
 		}

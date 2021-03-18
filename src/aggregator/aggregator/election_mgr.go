@@ -516,7 +516,7 @@ func (mgr *electionManager) verifyPendingFollower(watch watch.Watch) {
 				mgr.logError("leader has not changed", errLeaderNotChanged)
 				return errLeaderNotChanged
 			}
-			_, p, err := mgr.placementManager.Placement()
+			p, err := mgr.placementManager.Placement()
 			if err != nil {
 				mgr.metrics.verifyPlacementErrors.Inc(1)
 				mgr.logError("error getting placement", err)

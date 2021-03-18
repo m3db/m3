@@ -80,3 +80,5 @@ carbon:
 
 tagOptions:
   idScheme: quoted
+
+storeMetricsType: true

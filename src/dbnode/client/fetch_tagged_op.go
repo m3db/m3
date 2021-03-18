@@ -21,6 +21,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -31,6 +33,7 @@ var (
 
 type fetchTaggedOp struct {
 	refCounter
+	context      context.Context
 	request      rpc.FetchTaggedRequest
 	completionFn completionFn
 
@@ -40,7 +43,12 @@ type fetchTaggedOp struct {
 func (f *fetchTaggedOp) Size() int                  { return 1 }
 func (f *fetchTaggedOp) CompletionFn() completionFn { return f.completionFn }
 
-func (f *fetchTaggedOp) update(req rpc.FetchTaggedRequest, fn completionFn) {
+func (f *fetchTaggedOp) update(
+	context context.Context,
+	req rpc.FetchTaggedRequest,
+	fn completionFn,
+) {
+	f.context = context
 	f.request = req
 	f.completionFn = fn
 }

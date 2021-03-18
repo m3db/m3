@@ -291,11 +291,21 @@ func newTestRuleSetChanges(mrs view.MappingRules, rrs view.RollupRules) changes.
 // nolint: unparam
 func testRuleSet(version int, meta rules.UpdateMetadata) (rules.RuleSet, error) {
 	mutable := rules.NewEmptyRuleSet("testNamespace", meta)
-	err := mutable.ApplyRuleSetChanges(
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testTarget",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	err = mutable.ApplyRuleSetChanges(
 		changes.RuleSetChanges{
 			Namespace: "testNamespace",
 			RollupRuleChanges: []changes.RollupRuleChange{
-				changes.RollupRuleChange{
+				{
 					Op: changes.AddOp,
 					RuleData: &view.RollupRule{
 						Name: "rollupRule3",
@@ -303,12 +313,8 @@ func testRuleSet(version int, meta rules.UpdateMetadata) (rules.RuleSet, error) 
 							{
 								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 									{
-										Type: pipeline.RollupOpType,
-										Rollup: pipeline.RollupOp{
-											NewName:       []byte("testTarget"),
-											Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min),
-										},
+										Type:   pipeline.RollupOpType,
+										Rollup: rr1,
 									},
 								}),
 								StoragePolicies: policy.StoragePolicies{
@@ -320,7 +326,7 @@ func testRuleSet(version int, meta rules.UpdateMetadata) (rules.RuleSet, error) 
 				},
 			},
 			MappingRuleChanges: []changes.MappingRuleChange{
-				changes.MappingRuleChange{
+				{
 					Op: changes.AddOp,
 					RuleData: &view.MappingRule{
 						Name: "mappingRule3",

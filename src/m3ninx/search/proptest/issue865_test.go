@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3/src/m3ninx/search/query"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -91,6 +92,7 @@ func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {
 	require.NoError(t, err)
 	properties.Property("Any distribution of simple documents does not affect query results", prop.ForAll(
 		func(i propTestInput) (bool, error) {
+			ctx := context.NewBackground()
 			segments := i.generate(t, simpleTestDocs)
 			readers := make([]index.Reader, 0, len(segments))
 			for _, s := range segments {
@@ -107,7 +109,7 @@ func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {
 			})
 
 			e := executor.NewExecutor(readers)
-			d, err := e.Execute(q)
+			d, err := e.Execute(ctx, q)
 			if err != nil {
 				return false, err
 			}

@@ -386,5 +386,8 @@ func (n *NoOpColdFlushNamespace) OnFlushNewSeries(event OnFlushNewSeriesEvent) e
 	return nil
 }
 
+// Abort is a no-op.
+func (n *NoOpColdFlushNamespace) Abort() error { return nil }
+
 // Done is a no-op.
 func (n *NoOpColdFlushNamespace) Done() error { return nil }

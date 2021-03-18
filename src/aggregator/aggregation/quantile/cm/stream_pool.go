@@ -20,27 +20,30 @@
 
 package cm
 
-import "github.com/m3db/m3/src/x/pool"
+import "sync"
 
-type streamPool struct {
-	pool pool.ObjectPool
+// StreamPool is a pool of streams, wrapping sync.Pool.
+type StreamPool struct {
+	pool *sync.Pool
 }
 
-// NewStreamPool creates a new pool for streams.
-func NewStreamPool(opts pool.ObjectPoolOptions) StreamPool {
-	return &streamPool{pool: pool.NewObjectPool(opts)}
+// NewStreamPool creates a new StreamPool.
+func NewStreamPool(opts Options) StreamPool {
+	return StreamPool{
+		pool: &sync.Pool{
+			New: func() interface{} {
+				return NewStream(opts)
+			},
+		},
+	}
 }
 
-func (p *streamPool) Init(alloc StreamAlloc) {
-	p.pool.Init(func() interface{} {
-		return alloc()
-	})
+// Get returns a new Stream from the pool.
+func (p StreamPool) Get() *Stream {
+	return p.pool.Get().(*Stream) //nolint:errcheck
 }
 
-func (p *streamPool) Get() Stream {
-	return p.pool.Get().(*stream)
-}
-
-func (p *streamPool) Put(value Stream) {
-	p.pool.Put(value)
+// Put puts a Stream back into the pool.
+func (p StreamPool) Put(s *Stream) {
+	p.pool.Put(s)
 }

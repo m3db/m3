@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -44,7 +43,7 @@ type testIterator struct {
 	closed  bool
 	err     error
 	onNext  func(oldIdx, newIdx int)
-	onReset func(r io.Reader, descr namespace.SchemaDescr)
+	onReset func(r xio.Reader64, descr namespace.SchemaDescr)
 }
 
 func newTestIterator(values []testValue) ReaderIterator {
@@ -72,7 +71,7 @@ func (it *testIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	}
 	v := it.values[idx]
 	dp := ts.Datapoint{Timestamp: v.t, TimestampNanos: xtime.ToUnixNano(v.t), Value: v.value}
-	return dp, v.unit, ts.Annotation(v.annotation)
+	return dp, v.unit, v.annotation
 }
 
 func (it *testIterator) Err() error {
@@ -83,7 +82,7 @@ func (it *testIterator) Close() {
 	it.closed = true
 }
 
-func (it *testIterator) Reset(r io.Reader, descr namespace.SchemaDescr) {
+func (it *testIterator) Reset(r xio.Reader64, descr namespace.SchemaDescr) {
 	it.onReset(r, descr)
 }
 
@@ -101,7 +100,7 @@ type testMultiIterator struct {
 	closed  bool
 	err     error
 	onNext  func(oldIdx, newIdx int)
-	onReset func(r io.Reader)
+	onReset func(r xio.Reader64)
 }
 
 func newTestMultiIterator(values []testValue, err error) MultiReaderIterator {
@@ -129,7 +128,7 @@ func (it *testMultiIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 	}
 	v := it.values[idx]
 	dp := ts.Datapoint{Timestamp: v.t, TimestampNanos: xtime.ToUnixNano(v.t), Value: v.value}
-	return dp, v.unit, ts.Annotation(v.annotation)
+	return dp, v.unit, v.annotation
 }
 
 func (it *testMultiIterator) Err() error {
@@ -215,10 +214,11 @@ func (it *testReaderSliceOfSlicesIterator) arrayIdx() int {
 }
 
 type testNoopReader struct {
-	n int // return for "n", also required so that each struct construction has its address
+	n byte // return for "n", also required so that each struct construction has its address
 }
 
-func (r *testNoopReader) Read(p []byte) (int, error)   { return r.n, nil }
+func (r *testNoopReader) Read64() (word uint64, n byte, err error) { return 0, r.n, nil }
+func (r *testNoopReader) Peek64() (word uint64, n byte, err error) { return 0, r.n, nil }
 func (r *testNoopReader) Segment() (ts.Segment, error) { return ts.Segment{}, nil }
 func (r *testNoopReader) Reset(ts.Segment)             {}
 func (r *testNoopReader) Finalize()                    {}

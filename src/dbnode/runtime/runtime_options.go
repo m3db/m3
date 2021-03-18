@@ -38,16 +38,13 @@ const (
 	// DefaultBootstrapConsistencyLevel is the default bootstrap consistency level
 	DefaultBootstrapConsistencyLevel = topology.ReadConsistencyLevelMajority
 
-	// DefaultIndexDefaultQueryTimeout is the hard timeout value to use if none is
-	// specified for a specific query, zero specifies no timeout.
-	DefaultIndexDefaultQueryTimeout = time.Minute
-
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = 10 * time.Second
+	defaultTickCancellationCheckInterval        = time.Second
 	defaultMaxWiredBlocks                       = uint(1 << 16) // 65,536
 )
 
@@ -75,7 +72,7 @@ type options struct {
 	clientBootstrapConsistencyLevel      topology.ReadConsistencyLevel
 	clientReadConsistencyLevel           topology.ReadConsistencyLevel
 	clientWriteConsistencyLevel          topology.ConsistencyLevel
-	indexDefaultQueryTimeout             time.Duration
+	tickCancellationCheckInterval        time.Duration
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -92,7 +89,7 @@ func NewOptions() Options {
 		clientBootstrapConsistencyLevel:      DefaultBootstrapConsistencyLevel,
 		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
 		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
-		indexDefaultQueryTimeout:             DefaultIndexDefaultQueryTimeout,
+		tickCancellationCheckInterval:        defaultTickCancellationCheckInterval,
 	}
 }
 
@@ -241,12 +238,12 @@ func (o *options) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.clientWriteConsistencyLevel
 }
 
-func (o *options) SetIndexDefaultQueryTimeout(value time.Duration) Options {
+func (o *options) SetTickCancellationCheckInterval(value time.Duration) Options {
 	opts := *o
-	opts.indexDefaultQueryTimeout = value
+	opts.tickCancellationCheckInterval = value
 	return &opts
 }
 
-func (o *options) IndexDefaultQueryTimeout() time.Duration {
-	return o.indexDefaultQueryTimeout
+func (o *options) TickCancellationCheckInterval() time.Duration {
+	return o.tickCancellationCheckInterval
 }

@@ -415,8 +415,10 @@ func TestFileExists(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exists)
 
-	_, err = FileExists(checkpointFilePath)
-	require.Error(t, err)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _ = FileExists(checkpointFilePath)
+	})
 
 	os.Remove(infoFilePath)
 	require.False(t, mustFileExists(t, infoFilePath))
@@ -447,9 +449,8 @@ func TestCompleteCheckpointFileExists(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exists)
 
-	exists, err = CompleteCheckpointFileExists("some-arbitrary-file")
-	require.Contains(t, err.Error(), instrument.InvariantViolatedMetricName)
-	require.False(t, exists)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { _, _ = CompleteCheckpointFileExists("some-arbitrary-file") })
 }
 
 func TestShardDirPath(t *testing.T) {

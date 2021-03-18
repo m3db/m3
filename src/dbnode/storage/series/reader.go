@@ -76,7 +76,7 @@ func (r *Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
 	nsCtx namespace.Context,
-) ([][]xio.BlockReader, error) {
+) (BlockReaderIter, error) {
 	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil, nsCtx)
 }
 
@@ -86,7 +86,7 @@ func (r *Reader) readersWithBlocksMapAndBuffer(
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
-) ([][]xio.BlockReader, error) {
+) (BlockReaderIter, error) {
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
 	}
@@ -119,88 +119,182 @@ func (r *Reader) readersWithBlocksMapAndBuffer(
 		seriesBlocks, seriesBuffer, nsCtx)
 }
 
+// BlockReaderIter provides an Iterator interface to a collection of BlockReaders.
+//
+// The Iterator allows disk read to be lazily requested when Next() is called. This allows the system to limit an
+// expensive Query before it issues all its disk reads.
+//
+// The Iterator does not hold any locks so it's safe to pause or even abandon iterating through the results. Any
+// in-memory blocks (cache, series buffer) are eagerly loaded to avoid holding read locks while iterating.
+//
+// This iterator is not thread safe and should be only be used by a single go routine.
+type BlockReaderIter interface {
+	// Next requests the next BlockReaders, returning if any more existed.
+	// The BlockReaders are available with Current.
+	// If an error occurs, false is returned and it is available with Err.
+	Next(ctx context.Context) bool
+
+	// Current returns the current set of BlockReaders for a given blockStart time, guaranteed to be not empty.
+	// Results are returned in block start time asc ordering. Within the same block start time there is no guaranteed
+	// ordering.
+	Current() []xio.BlockReader
+
+	// Err is non-nil if an error occurred when calling Next.
+	Err() error
+
+	// ToSlices eagerly loads all BlockReaders into the legacy slices of slices for backward compatibility.
+	// TODO: remove this and convert everything to the iterator pattern.
+	ToSlices(ctx context.Context) ([][]xio.BlockReader, error)
+}
+
+type blockReaderIterOpts struct {
+	start     time.Time
+	end       time.Time
+	blockSize time.Duration
+	reader    *Reader
+	nsCtx     namespace.Context
+	cached    []xio.BlockReader
+	buffer    [][]xio.BlockReader
+}
+
+type blockReaderIter struct {
+	blockReaderIterOpts
+
+	blockAt time.Time
+	curr    []xio.BlockReader
+	err     error
+}
+
+func (i *blockReaderIter) Err() error {
+	return i.err
+}
+
+func (i *blockReaderIter) Current() []xio.BlockReader {
+	return i.curr
+}
+
 // nolint: gocyclo
+func (i *blockReaderIter) Next(ctx context.Context) bool {
+	if i.blockAt.IsZero() {
+		i.blockAt = i.start
+	}
+	i.curr = make([]xio.BlockReader, 0)
+	for !i.blockAt.After(i.end) && len(i.curr) == 0 {
+		// first checks the blocks from the series buffer at this time.
+		// blocks are sorted by start time so we only need to look at the head.
+		for len(i.buffer) > 0 && len(i.buffer[0]) > 0 && i.buffer[0][0].Start.Equal(i.blockAt) {
+			i.curr = append(i.curr, i.buffer[0][0])
+			i.buffer[0] = i.buffer[0][1:]
+			if len(i.buffer[0]) == 0 {
+				i.buffer = i.buffer[1:]
+			}
+		}
+
+		// next check for the disk block at this time.
+		// check the cache first.
+		// blocks are sorted by start time so we only need to look at the head.
+		if len(i.cached) > 0 && i.cached[0].Start.Equal(i.blockAt) {
+			i.curr = append(i.curr, i.cached[0])
+			i.cached = i.cached[1:]
+		} else {
+			// if not in the cache, request a load from disk.
+			blockReader, found, err := i.reader.streamBlock(ctx, i.blockAt, i.reader.onRetrieve, i.nsCtx)
+			if err != nil {
+				i.err = err
+				return false
+			}
+			if found {
+				i.curr = append(i.curr, blockReader)
+			}
+		}
+		i.blockAt = i.blockAt.Add(i.blockSize)
+	}
+	return len(i.curr) != 0
+}
+
+func (i *blockReaderIter) ToSlices(ctx context.Context) ([][]xio.BlockReader, error) {
+	var results [][]xio.BlockReader
+	for i.Next(ctx) {
+		results = append(results, i.Current())
+	}
+	if i.Err() != nil {
+		return nil, i.Err()
+	}
+	return results, nil
+}
+
 func (r *Reader) readersWithBlocksMapAndBufferAligned(
 	ctx context.Context,
 	start, end time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
-) ([][]xio.BlockReader, error) {
+) (BlockReaderIter, error) {
 	var (
 		nowFn       = r.opts.ClockOptions().NowFn()
 		now         = nowFn()
 		ropts       = r.opts.RetentionOptions()
 		blockSize   = ropts.BlockSize()
 		readerCount = end.Sub(start) / blockSize
+		buffer      [][]xio.BlockReader
+		cached      []xio.BlockReader
 	)
 
 	if readerCount < 0 {
 		readerCount = 0
 	}
 
-	// Two-dimensional slice such that the first dimension is unique by blockstart
-	// and the second dimension is blocks of data for that blockstart (not necessarily
-	// in chronological order).
-	//
-	// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
-	// [][]xio.BlockReader{
-	//   {block0, block1, block2}, // <- 2P.M
-	//   {block0, block1}, // <-4P.M
-	// }
-	results := make([][]xio.BlockReader, 0, readerCount)
 	for blockAt := start; !blockAt.After(end); blockAt = blockAt.Add(blockSize) {
-		// resultsBlock holds the results from one block. The flow is:
-		// 1) Look in the cache for metrics for a block.
-		// 2) If there is nothing in the cache, try getting metrics from disk.
-		// 3) Regardless of (1) or (2), look for metrics in the series buffer.
+		// Eagerly load the readers from the series buffer and disk cache to avoid holding locks in the iterator.
 		//
 		// It is important to look for data in the series buffer one block at
 		// a time within this loop so that the returned results contain data
 		// from blocks in chronological order. Failure to do this will result
 		// in an out of order error in the MultiReaderIterator on query.
-		var resultsBlock []xio.BlockReader
 
-		blockReader, block, found, err := retrieveCached(ctx, blockAt, seriesBlocks)
+		blockReader, blk, found, err := retrieveCached(ctx, blockAt, seriesBlocks)
 		if err != nil {
 			return nil, err
 		}
 
 		if found {
 			// NB(r): Mark this block as read now
-			block.SetLastReadTime(now)
+			blk.SetLastReadTime(now)
 			if r.onRead != nil {
-				r.onRead.OnReadBlock(block)
+				r.onRead.OnReadBlock(blk)
 			}
-		} else {
-			blockReader, found, err = r.streamBlock(ctx, blockAt, r.onRetrieve, nsCtx)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if found {
-			resultsBlock = append(resultsBlock, blockReader)
+			cached = append(cached, blockReader)
 		}
 
 		if seriesBuffer != nil {
+			var bufferReaders []xio.BlockReader
 			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(blockSize), nsCtx)
 			if err != nil {
 				return nil, err
 			}
+
 			// Multiple block results may be returned here (for the same block
 			// start) - one for warm writes and another for cold writes.
 			for _, bufferRes := range bufferResults {
-				resultsBlock = append(resultsBlock, bufferRes...)
+				bufferReaders = append(bufferReaders, bufferRes...)
 			}
-		}
-
-		if len(resultsBlock) > 0 {
-			results = append(results, resultsBlock)
+			if len(bufferReaders) > 0 {
+				buffer = append(buffer, bufferReaders)
+			}
 		}
 	}
 
-	return results, nil
+	return &blockReaderIter{
+		blockReaderIterOpts: blockReaderIterOpts{
+			start:     start,
+			end:       end,
+			blockSize: blockSize,
+			reader:    r,
+			nsCtx:     nsCtx,
+			buffer:    buffer,
+			cached:    cached,
+		},
+	}, nil
 }
 
 // FetchWideEntry reads wide entries using just a block retriever.

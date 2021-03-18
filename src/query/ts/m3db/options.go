@@ -23,13 +23,11 @@ package m3db
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	queryconsolidator "github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -39,13 +37,11 @@ import (
 )
 
 var (
-	defaultCapacity         = 1024
-	defaultCount            = 10
-	defaultLookbackDuration = time.Duration(0)
-	defaultConsolidationFn  = consolidators.TakeLast
-	defaultIterAlloc        = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	defaultCapacity             = 1024
+	defaultCount                = 10
+	defaultLookbackDuration     = time.Duration(0)
+	defaultConsolidationFn      = consolidators.TakeLast
+	defaultIterAlloc            = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	defaultIteratorBatchingFn   = iteratorBatchingFn
 	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
 	defaultInstrumented         = true
@@ -74,7 +70,7 @@ type encodedBlockOptions struct {
 func NewOptions() Options {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: defaultCapacity,
-		Count:    defaultCount,
+		Count:    pool.Size(defaultCount),
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})

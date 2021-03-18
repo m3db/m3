@@ -123,21 +123,21 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 		Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
 	log.Info("querying period0 results")
-	period0Results, _, err := session.FetchTagged(
+	period0Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.MatchesSeriesIters(t, period0Results)
 	log.Info("found period0 results")
 
 	log.Info("querying period1 results")
-	period1Results, _, err := session.FetchTagged(
+	period1Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t1, EndExclusive: t2})
 	require.NoError(t, err)
 	writesPeriod1.MatchesSeriesIters(t, period1Results)
 	log.Info("found period1 results")
 
 	log.Info("querying period 0+1 results")
-	period01Results, _, err := session.FetchTagged(
+	period01Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t2})
 	require.NoError(t, err)
 	writes := append(writesPeriod0, writesPeriod1...)

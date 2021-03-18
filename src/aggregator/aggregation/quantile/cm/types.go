@@ -20,68 +20,6 @@
 
 package cm
 
-import "github.com/m3db/m3/src/x/pool"
-
-// Sample represents a sampled value.
-type Sample struct {
-	value    float64 // sampled value
-	numRanks int64   // number of ranks represented
-	delta    int64   // delta between min rank and max rank
-	prev     *Sample // previous sample
-	next     *Sample // next sample
-}
-
-// SamplePool is a pool of samples.
-type SamplePool interface {
-	// Init initializes the pool.
-	Init()
-
-	// Get gets a sample from the pool.
-	Get() *Sample
-
-	// Put returns a sample to the pool.
-	Put(sample *Sample)
-}
-
-// Stream represents a data sample stream for floating point numbers.
-type Stream interface {
-	// Add adds a sample value.
-	Add(value float64)
-
-	// Flush flushes the internal buffer.
-	Flush()
-
-	// Min returns the minimum value.
-	Min() float64
-
-	// Max returns the maximum value.
-	Max() float64
-
-	// Quantile returns the quantile value.
-	Quantile(q float64) float64
-
-	// Close closes the stream.
-	Close()
-
-	// ResetSetData resets the stream and sets data.
-	ResetSetData(quantiles []float64)
-}
-
-// StreamAlloc allocates a stream.
-type StreamAlloc func() Stream
-
-// StreamPool provides a pool for streams.
-type StreamPool interface {
-	// Init initializes the pool.
-	Init(alloc StreamAlloc)
-
-	// Get provides a stream from the pool.
-	Get() Stream
-
-	// Put returns a stream to the pool.
-	Put(value Stream)
-}
-
 // Options represent various options for computing quantiles.
 type Options interface {
 	// SetEps sets the desired epsilon for errors.
@@ -106,33 +44,11 @@ type Options interface {
 	// high frequency timers.
 	InsertAndCompressEvery() int
 
-	// SetFlushEvery sets how frequently the underlying stream is flushed
-	// to reduce processing time when computing aggregated statistics from
-	// the stream.
-	SetFlushEvery(value int) Options
-
-	// FlushEvery returns how frequently the underlying stream is flushed
-	// to reduce processing time when computing aggregated statistics from
-	// the stream.
-	FlushEvery() int
-
 	// SetStreamPool sets the stream pool.
 	SetStreamPool(value StreamPool) Options
 
 	// StreamPool returns the stream pool.
 	StreamPool() StreamPool
-
-	// SetSamplePool sets the sample pool.
-	SetSamplePool(value SamplePool) Options
-
-	// SamplePool returns the sample pool.
-	SamplePool() SamplePool
-
-	// SetFloatsPool sets the floats pool.
-	SetFloatsPool(value pool.FloatsPool) Options
-
-	// FloatsPool returns the floats pool.
-	FloatsPool() pool.FloatsPool
 
 	// Validate validates the options.
 	Validate() error

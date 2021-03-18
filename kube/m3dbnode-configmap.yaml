@@ -7,11 +7,6 @@ data:
   m3dbnode.yml: |+
     coordinator:
       listenAddress: 0.0.0.0:7201
-      local:
-        namespaces:
-            - namespace: default
-              type: unaggregated
-              retention: 48h
       logging:
         level: info
       metrics:

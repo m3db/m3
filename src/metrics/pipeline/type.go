@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
@@ -40,6 +41,22 @@ var (
 	errNilPipelineProto         = errors.New("nil pipeline proto message")
 	errNoOpInUnionMarshaler     = errors.New("no operation in union JSON value")
 )
+
+const (
+	templateMetricNameVar        = ".MetricName"
+	templateOpen                 = "{{"
+	templateClose                = "}}"
+	templateMetricNameExactMatch = templateOpen + " " + templateMetricNameVar + " " + templateClose
+)
+
+var (
+	templateMetricNameExactMatchBytes = []byte(templateMetricNameExactMatch)
+	templateAllowed                   = []string{templateMetricNameExactMatch}
+)
+
+func maybeContainsTemplate(str string) bool {
+	return strings.Contains(str, templateOpen) || strings.Contains(str, templateClose)
+}
 
 // OpType defines the type of an operation.
 type OpType int
@@ -166,14 +183,29 @@ func (op TransformationOp) MarshalText() (text []byte, err error) {
 	return op.Type.MarshalText()
 }
 
+// RollupType is the rollup type.
+// Note: Must match the protobuf enum definition since this is a direct cast.
+type RollupType int
+
+const (
+	// GroupByRollupType defines the group by rollup op type (default).
+	GroupByRollupType RollupType = iota
+	// ExcludeByRollupType defines the exclude by rollup op type.
+	ExcludeByRollupType
+)
+
 // RollupOp is a rollup operation.
 type RollupOp struct {
-	// New metric name generated as a result of the rollup.
-	NewName []byte
+	// Type is the rollup type.
+	Type RollupType
 	// Dimensions along which the rollup is performed.
 	Tags [][]byte
 	// Types of aggregation performed within each unique dimension combination.
 	AggregationID aggregation.ID
+
+	// New metric name generated as a result of the rollup.
+	newName          []byte
+	newNameTemplated bool
 }
 
 // NewRollupOpFromProto creates a new rollup op from proto.
@@ -183,27 +215,91 @@ func NewRollupOpFromProto(pb *pipelinepb.RollupOp) (RollupOp, error) {
 	if pb == nil {
 		return rollup, errNilRollupOpProto
 	}
+
 	aggregationID, err := aggregation.NewIDFromProto(pb.AggregationTypes)
 	if err != nil {
 		return rollup, err
 	}
-	tags := make([]string, len(pb.Tags))
-	copy(tags, pb.Tags)
+
+	return NewRollupOp(RollupType(pb.Type), pb.NewName, pb.Tags, aggregationID)
+}
+
+// NewRollupOp creates a new rollup op.
+func NewRollupOp(
+	rollupType RollupType,
+	rollupNewName string,
+	rollupTags []string,
+	rollupAggregationID aggregation.ID,
+) (RollupOp, error) {
+	var rollup RollupOp
+
+	tags := make([]string, len(rollupTags))
+	copy(tags, rollupTags)
 	sort.Strings(tags)
+
+	var newNameTemplated bool
+	if maybeContainsTemplate(rollupNewName) {
+		// This metric might have a templated metric name.
+		newNameTemplated = true
+
+		// Right now only support "{{ .MetricName }}" to be able to generate
+		// the resulting metric name without using a Go template and only
+		// a single instance of it.
+		if n := strings.Count(rollupNewName, templateMetricNameExactMatch); n > 1 {
+			return rollup, fmt.Errorf(
+				"rollup contained template variable metric name more than once: "+
+					"input=%s, count_var_metric_name=%v", rollupNewName, n)
+		}
+
+		// Replace and see if all template tags resolved.
+		replacedNewName := strings.Replace(rollupNewName, templateMetricNameExactMatch, "", 1)
+
+		// Make sure fully replaced all instances of template usage, otherwise
+		// there are some other variables not supported or invalid use of
+		// template variable tags.
+		if maybeContainsTemplate(replacedNewName) {
+			return rollup, fmt.Errorf(
+				"rollup contained template tags but variables not resolved: "+
+					"input=%s, allowed=%v", rollupNewName, templateAllowed)
+		}
+	}
+
 	return RollupOp{
-		NewName:       []byte(pb.NewName),
-		Tags:          xbytes.ArraysFromStringArray(tags),
-		AggregationID: aggregationID,
+		Type:             rollupType,
+		Tags:             xbytes.ArraysFromStringArray(tags),
+		AggregationID:    rollupAggregationID,
+		newName:          []byte(rollupNewName),
+		newNameTemplated: newNameTemplated,
 	}, nil
+}
+
+// NewName returns the new rollup name based on an existing name if
+// the new name uses a template, or otherwise the literal new name.
+func (op RollupOp) NewName(currName []byte) []byte {
+	if !op.newNameTemplated {
+		// No templated name, just return the "literal" new name.
+		return op.newName
+	}
+
+	out := make([]byte, 0, len(op.newName)+len(currName))
+	idx := bytes.Index(op.newName, templateMetricNameExactMatchBytes)
+	if idx == -1 {
+		return op.newName
+	}
+
+	out = append(out, op.newName[0:idx]...)
+	out = append(out, currName...)
+	out = append(out, op.newName[idx+len(templateMetricNameExactMatchBytes):]...)
+	return out
 }
 
 // SameTransform returns true if the two rollup operations have the same rollup transformation
 // (i.e., same new rollup metric name and same set of rollup tags).
 func (op RollupOp) SameTransform(other RollupOp) bool {
-	if !bytes.Equal(op.NewName, other.NewName) {
+	if len(op.Tags) != len(other.Tags) {
 		return false
 	}
-	if len(op.Tags) != len(other.Tags) {
+	if !bytes.Equal(op.newName, other.newName) {
 		return false
 	}
 	// Sort the tags and compare.
@@ -224,17 +320,22 @@ func (op RollupOp) Equal(other RollupOp) bool {
 	if !op.AggregationID.Equal(other.AggregationID) {
 		return false
 	}
+	if op.Type != other.Type {
+		return false
+	}
 	return op.SameTransform(other)
 }
 
 // Clone clones the rollup operation.
 func (op RollupOp) Clone() RollupOp {
-	newName := make([]byte, len(op.NewName))
-	copy(newName, op.NewName)
+	newName := make([]byte, len(op.newName))
+	copy(newName, op.newName)
 	return RollupOp{
-		NewName:       newName,
-		Tags:          xbytes.ArrayCopy(op.Tags),
-		AggregationID: op.AggregationID,
+		Type:             op.Type,
+		Tags:             xbytes.ArrayCopy(op.Tags),
+		AggregationID:    op.AggregationID,
+		newName:          newName,
+		newNameTemplated: op.newNameTemplated,
 	}
 }
 
@@ -249,7 +350,8 @@ func (op RollupOp) Proto() (*pipelinepb.RollupOp, error) {
 		return nil, err
 	}
 	return &pipelinepb.RollupOp{
-		NewName:          string(op.NewName),
+		Type:             pipelinepb.RollupOp_Type(op.Type),
+		NewName:          string(op.newName),
 		Tags:             xbytes.ArraysToStringArray(op.Tags),
 		AggregationTypes: pbAggTypes,
 	}, nil
@@ -258,7 +360,7 @@ func (op RollupOp) Proto() (*pipelinepb.RollupOp, error) {
 func (op RollupOp) String() string {
 	var b bytes.Buffer
 	b.WriteString("{")
-	fmt.Fprintf(&b, "name: %s, ", op.NewName)
+	fmt.Fprintf(&b, "name: %s, ", op.newName)
 	b.WriteString("tags: [")
 	for i, t := range op.Tags {
 		fmt.Fprintf(&b, "%s", t)
@@ -280,21 +382,23 @@ func (op RollupOp) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON unmarshals JSON-encoded data into a rollup operation.
 func (op *RollupOp) UnmarshalJSON(data []byte) error {
 	var converted rollupMarshaler
-	if err := json.Unmarshal(data, &converted); err != nil {
+	err := json.Unmarshal(data, &converted)
+	if err != nil {
 		return err
 	}
-	*op = converted.RollupOp()
-	return nil
+	*op, err = converted.RollupOp()
+	return err
 }
 
 // UnmarshalYAML unmarshals YAML-encoded data into a rollup operation.
 func (op *RollupOp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var converted rollupMarshaler
-	if err := unmarshal(&converted); err != nil {
+	err := unmarshal(&converted)
+	if err != nil {
 		return err
 	}
-	*op = converted.RollupOp()
-	return nil
+	*op, err = converted.RollupOp()
+	return err
 }
 
 // MarshalYAML returns the YAML representation of this type.
@@ -303,6 +407,7 @@ func (op RollupOp) MarshalYAML() (interface{}, error) {
 }
 
 type rollupMarshaler struct {
+	Type          RollupType     `json:"type" yaml:"type"`
 	NewName       string         `json:"newName" yaml:"newName"`
 	Tags          []string       `json:"tags" yaml:"tags"`
 	AggregationID aggregation.ID `json:"aggregation,omitempty" yaml:"aggregation"`
@@ -310,18 +415,14 @@ type rollupMarshaler struct {
 
 func newRollupMarshaler(op RollupOp) rollupMarshaler {
 	return rollupMarshaler{
-		NewName:       string(op.NewName),
+		NewName:       string(op.newName),
 		Tags:          xbytes.ArraysToStringArray(op.Tags),
 		AggregationID: op.AggregationID,
 	}
 }
 
-func (m rollupMarshaler) RollupOp() RollupOp {
-	return RollupOp{
-		NewName:       []byte(m.NewName),
-		Tags:          xbytes.ArraysFromStringArray(m.Tags),
-		AggregationID: m.AggregationID,
-	}
+func (m rollupMarshaler) RollupOp() (RollupOp, error) {
+	return NewRollupOp(m.Type, m.NewName, m.Tags, m.AggregationID)
 }
 
 // OpUnion is a union of different types of operation.
