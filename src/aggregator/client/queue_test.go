@@ -23,11 +23,11 @@ package client
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 )
 
 func TestInstanceQueueEnqueueClosed(t *testing.T) {
