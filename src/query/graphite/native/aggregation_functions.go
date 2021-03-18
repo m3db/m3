@@ -698,7 +698,7 @@ func combineSeries(ctx *common.Context,
 
 	normalized, start, end, millisPerStep, err := common.Normalize(ctx, ts.SeriesList(series))
 	if err != nil {
-		err := xerrors.NewInvalidParamsError(fmt.Errorf("combine series error: %v", err))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("combine series error: %w", err))
 		return ts.NewSeriesList(), err
 	}
 
