@@ -300,12 +300,12 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 
 // LastAnnotation returns the checksum of the last encoded annotation (which contain the bytes
 // used for ProtoBuf data).
-func (enc *Encoder) LastAnnotationChecksum() (uint64, error) {
+func (enc *Encoder) LastAnnotation() (ts.Annotation, error) {
 	if enc.numEncoded == 0 {
-		return 0, errNoEncodedDatapoints
+		return nil, errNoEncodedDatapoints
 	}
 
-	return xxhash.Sum64(enc.prevAnnotation), nil
+	return enc.prevAnnotation, nil
 }
 
 // Len returns the length of the data stream.
