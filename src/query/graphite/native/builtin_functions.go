@@ -1101,16 +1101,16 @@ func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesLi
 
 // logarithm takes one metric or a wildcard seriesList, and draws the y-axis in
 // logarithmic format.
-func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesList, error) {
+func logarithm(ctx *common.Context, input singlePathSpec, base float64) (ts.SeriesList, error) {
 	if base <= 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf("invalid log base %d", base))
+		err := errors.NewInvalidParamsError(fmt.Errorf("invalid log base %f", base))
 		return ts.NewSeriesList(), err
 	}
 
 	results := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
 		vals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-		newName := fmt.Sprintf("log(%s, %d)", series.Name(), base)
+		newName := fmt.Sprintf("log(%s, %f)", series.Name(), base)
 		if series.AllNaN() {
 			results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
 			continue
@@ -1119,7 +1119,7 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 		for i := 0; i < series.Len(); i++ {
 			n := series.ValueAt(i)
 			if !math.IsNaN(n) && n > 0 {
-				vals.SetValueAt(i, math.Log10(n)/math.Log10(float64(base)))
+				vals.SetValueAt(i, math.Log10(n)/math.Log10(base))
 			}
 		}
 
