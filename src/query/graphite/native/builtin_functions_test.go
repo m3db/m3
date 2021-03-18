@@ -2525,7 +2525,8 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 	requireEqual(t, expected, r.Values)
 }
 
-func testLogarithm(t *testing.T, base int, indices []int) {
+// nolint: thelper
+func testLogarithm(t *testing.T, base float64, asserts func(*ts.Series)) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
 
@@ -2544,18 +2545,29 @@ func testLogarithm(t *testing.T, base int, indices []int) {
 
 	output := r.Values
 	require.Equal(t, 1, len(output))
-	assert.Equal(t, fmt.Sprintf("log(hello, %d)", base), output[0].Name())
+	assert.Equal(t, fmt.Sprintf("log(hello, %f)", base), output[0].Name())
 	assert.Equal(t, series.StartTime(), output[0].StartTime())
 	require.Equal(t, len(invals), output[0].Len())
 	xtest.Equalish(t, math.NaN(), output[0].ValueAt(0))
-	xtest.Equalish(t, 0, output[0].ValueAt(indices[0]))
-	xtest.Equalish(t, 1, output[0].ValueAt(indices[1]))
-	xtest.Equalish(t, 2, output[0].ValueAt(indices[2]))
+	asserts(output[0])
 }
 
 func TestLogarithm(t *testing.T) {
-	testLogarithm(t, 10, []int{1, 10, 100})
-	testLogarithm(t, 2, []int{1, 2, 4})
+	testLogarithm(t, 10, func(output *ts.Series) {
+		xtest.Equalish(t, 0, output.ValueAt(1))
+		xtest.Equalish(t, 1, output.ValueAt(10))
+		xtest.Equalish(t, 2, output.ValueAt(100))
+	})
+	testLogarithm(t, 2, func(output *ts.Series) {
+		xtest.Equalish(t, 0, output.ValueAt(1))
+		xtest.Equalish(t, 1, output.ValueAt(2))
+		xtest.Equalish(t, 2, output.ValueAt(4))
+	})
+	testLogarithm(t, 3.142, func(output *ts.Series) {
+		xtest.Equalish(t, 0, output.ValueAt(1))
+		xtest.Equalish(t, 0.6054429879326457, output.ValueAt(2))
+		xtest.Equalish(t, 0.9596044321978149, output.ValueAt(3))
+	})
 
 	_, err := logarithm(nil, singlePathSpec{}, -1)
 	require.NotNil(t, err)
