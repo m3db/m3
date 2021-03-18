@@ -22,6 +22,7 @@ package native
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -33,7 +34,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/util"
@@ -305,7 +305,7 @@ func identity(ctx *common.Context, name string) (ts.SeriesList, error) {
 // the first N metrics.
 func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, error) {
 	if n < 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid limit parameter n: %d", n))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid limit parameter n: %d", n))
 	}
 	upperBound := int(math.Min(float64(len(series.Values)), float64(n)))
 
@@ -360,7 +360,8 @@ func timeShift(
 
 	shift, err := common.ParseInterval(timeShiftS)
 	if err != nil {
-		return nil, errors.NewInvalidParamsError(fmt.Errorf("invalid timeShift parameter %s: %v", timeShiftS, err))
+		return nil, xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid timeShift parameter %s: %w", timeShiftS, err))
 	}
 
 	contextShiftingFn := func(c *common.Context) *common.Context {
@@ -703,7 +704,7 @@ func getReducer(f string) (ts.SeriesReducer, error) {
 	sa := ts.SeriesReducerApproach(f)
 	r, ok := sa.SafeReducer()
 	if !ok {
-		return r, errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
+		return r, xerrors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
 	}
 	return r, nil
 }
@@ -814,7 +815,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 			return windowSize, err
 		}
 		if interval <= 0 {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %v",
 				interval))
 			return windowSize, err
@@ -827,7 +828,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 	case float64:
 		windowSizeInt := int(windowSizeValue)
 		if windowSizeInt <= 0 {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %d",
 				windowSizeInt))
 			return windowSize, err
@@ -840,7 +841,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 		}
 		windowSize.deltaValue = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
 	default:
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"windowSize must be either a string or an int but instead is a %T",
 			windowSizeValue))
 		return windowSize, err
@@ -947,12 +948,141 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		return ts.SeriesList(input), nil
 	}
 
-	var toNormalize, normalized []*ts.Series
-	var tf totalFunc
-	var totalText string
+	if len(nodes) > 0 {
+		metaSeries := getMetaSeriesGrouping(input, nodes)
+		totalSeries := make(map[string]*ts.Series)
 
+		switch totalArg := total.(type) {
+		case nil:
+			for k, series := range metaSeries {
+				if len(series) == 1 {
+					totalSeries[k] = series[0]
+				} else {
+					group, err := sumSeries(ctx, multiplePathSpecs(ts.NewSeriesListWithSeries(series...)))
+					if err != nil {
+						return ts.NewSeriesList(), err
+					}
+					totalSeries[k] = group.Values[0]
+				}
+			}
+		case ts.SeriesList, singlePathSpec:
+			var total ts.SeriesList
+			switch v := totalArg.(type) {
+			case ts.SeriesList:
+				total = v
+			case singlePathSpec:
+				total = ts.SeriesList(v)
+			}
+			totalGroups := getMetaSeriesGrouping(singlePathSpec(total), nodes)
+			for k, series := range totalGroups {
+				if len(series) == 1 {
+					totalSeries[k] = series[0]
+				} else {
+					group, err := sumSeries(ctx, multiplePathSpecs(ts.NewSeriesListWithSeries(series...)))
+					if err != nil {
+						return ts.NewSeriesList(), err
+					}
+					totalSeries[k] = group.Values[0]
+				}
+			}
+		default:
+			return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("total must be nil or series list"))
+		}
+
+		keys := make([]string, 0, len(metaSeries)+len(totalSeries))
+		// Create meta series keys copy.
+		for k := range metaSeries {
+			keys = append(keys, k)
+		}
+		// Add any missing keys from totals.
+		for k := range totalSeries {
+			if _, ok := metaSeries[k]; ok {
+				continue
+			}
+			keys = append(keys, k)
+		}
+		// Sort keys for determinism and test result.
+		sort.Strings(keys)
+
+		results := make([]*ts.Series, 0, len(metaSeries))
+		for _, k := range keys {
+			seriesList, ok := metaSeries[k]
+			if !ok {
+				total := totalSeries[k]
+				newName := fmt.Sprintf("asPercent(MISSING,%s)", total.Name())
+				nanValues := ts.NewConstantValues(ctx, math.NaN(), total.Len(), total.MillisPerStep())
+				newSeries := ts.NewSeries(ctx, newName, total.StartTime(), nanValues)
+				results = append(results, newSeries)
+				continue
+			}
+
+			for _, series := range seriesList {
+				total, ok := totalSeries[k]
+				if !ok {
+					newName := fmt.Sprintf("asPercent(%s,MISSING)", series.Name())
+					nanValues := ts.NewConstantValues(ctx, math.NaN(), series.Len(), series.MillisPerStep())
+					newSeries := ts.NewSeries(ctx, newName, series.StartTime(), nanValues)
+					results = append(results, newSeries)
+					continue
+				}
+
+				normalized, start, _, millisPerStep, err := common.Normalize(ctx,
+					ts.NewSeriesListWithSeries(series, total))
+				if err != nil {
+					return ts.NewSeriesList(), err
+				}
+
+				steps := normalized.Values[0].Len()
+				values := ts.NewValues(ctx, millisPerStep, steps)
+				for i := 0; i < steps; i++ {
+					v, t := normalized.Values[0].ValueAt(i), normalized.Values[1].ValueAt(i)
+					if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
+						values.SetValueAt(i, (v/t)*100.0)
+					}
+				}
+
+				newName := fmt.Sprintf("asPercent(%s,%s)", series.Name(), total.Name())
+				divided := ts.NewSeries(ctx, newName, start, values)
+				results = append(results, divided)
+			}
+		}
+
+		result := ts.NewSeriesList()
+		result.Values = results
+		return result, nil
+	}
+
+	var totalSeriesList ts.SeriesList
 	switch totalArg := total.(type) {
+	case float64:
+		// No normalization required, simply divide each by constant.
+		results := make([]*ts.Series, 0, len(input.Values))
+		totalText := fmt.Sprintf(common.FloatingPointFormat, totalArg)
+		for _, series := range input.Values {
+			steps := series.Len()
+			values := ts.NewValues(ctx, series.MillisPerStep(), steps)
+			for i := 0; i < steps; i++ {
+				v, t := series.ValueAt(i), totalArg
+				if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
+					values.SetValueAt(i, (v/t)*100.0)
+				}
+			}
+			newName := fmt.Sprintf("asPercent(%s,%s)", series.Name(), totalText)
+			divided := ts.NewSeries(ctx, newName, series.StartTime(), values)
+			results = append(results, divided)
+		}
+		result := ts.NewSeriesList()
+		result.Values = results
+		return result, nil
+	case nil:
+		// Totals of the total sum.
+		sum, err := sumSeries(ctx, multiplePathSpecs(input))
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		totalSeriesList = sum
 	case ts.SeriesList, singlePathSpec:
+		// Total of a single series or same number of matching series.
 		var total ts.SeriesList
 		switch v := totalArg.(type) {
 		case ts.SeriesList:
@@ -960,98 +1090,64 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		case singlePathSpec:
 			total = ts.SeriesList(v)
 		}
+		if total.Len() != 1 && total.Len() != len(input.Values) {
+			return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf(
+				"require total to be missing, float, single series or same number of series: series=%d, total=%d",
+				len(input.Values), total.Len()))
+		}
 		if total.Len() == 0 {
-			// normalize input and sum up input as the total series
-			toNormalize = input.Values
-			tf = func(idx int, _ *ts.Series) float64 { return totalBySum(normalized, idx) }
-		} else {
-			if len(nodes) > 0 {
-				// group the series by specified nodes and then sum those groups
-				groupedTotal, err := groupByNodes(ctx, input, "sum", nodes...)
-				if err != nil {
-					return ts.NewSeriesList(), err
-				}
-				toNormalize = append(input.Values, groupedTotal.Values[0])
-				metaSeriesSumByKey := make(map[string]*ts.Series)
-
-				// map the aggregation key to the aggregated series
-				for _, series := range groupedTotal.Values {
-					metaSeriesSumByKey[series.Name()] = series
-				}
-
-				tf = func(idx int, series *ts.Series) float64 {
-					// find which aggregation key this series falls under
-					// and return the sum for that aggregated group
-					key := getAggregationKey(series, nodes)
-					return metaSeriesSumByKey[key].ValueAt(idx)
-				}
-				totalText = groupedTotal.Values[0].Name()
-			} else {
-				toNormalize = append(input.Values, total.Values[0])
-				tf = func(idx int, _ *ts.Series) float64 { return normalized[len(normalized)-1].ValueAt(idx) }
-				totalText = total.Values[0].Name()
+			// Same as nil take as sum of input.
+			sum, err := sumSeries(ctx, multiplePathSpecs(input))
+			if err != nil {
+				return ts.NewSeriesList(), err
 			}
+			totalSeriesList = sum
+		} else {
+			// Sort both by name so they get divided by same name if same length
+			// or closest match.
+			sort.Slice(input.Values, func(i, j int) bool {
+				return strings.Compare(input.Values[i].Name(), input.Values[j].Name()) < 0
+			})
+			sort.Slice(total.Values, func(i, j int) bool {
+				return strings.Compare(total.Values[i].Name(), total.Values[j].Name()) < 0
+			})
+			totalSeriesList = total
 		}
-	case float64:
-		toNormalize = input.Values
-		tf = func(idx int, _ *ts.Series) float64 { return totalArg }
-		totalText = fmt.Sprintf(common.FloatingPointFormat, totalArg)
-	case nil:
-		// if total is nil, the total is the sum of all the input series
-		toNormalize = input.Values
-		var err error
-		summedSeries, err := sumSeries(ctx, multiplePathSpecs(input))
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-		tf = func(idx int, _ *ts.Series) float64 { return summedSeries.Values[0].ValueAt(idx) }
-		totalText = summedSeries.Values[0].Name()
 	default:
-		err := errors.NewInvalidParamsError(errors.New("total must be either an int, a series, or nil"))
+		err := xerrors.NewInvalidParamsError(errors.New(
+			"total must be either an nil, float, a series or same number of series"))
 		return ts.NewSeriesList(), err
 	}
 
-	result, _, _, _, err := common.Normalize(ctx, ts.SeriesList{
-		Values:   toNormalize,
-		Metadata: input.Metadata,
-	})
-	if err != nil {
-		return ts.NewSeriesList(), err
-	}
+	results := make([]*ts.Series, 0, len(input.Values))
+	for idx, series := range input.Values {
+		totalSeries := totalSeriesList.Values[0]
+		if totalSeriesList.Len() == len(input.Values) {
+			// Divide each by their matching total if matching
+			// number of total.
+			totalSeries = totalSeriesList.Values[idx]
+		}
+		normalized, start, _, millisPerStep, err := common.Normalize(ctx,
+			ts.NewSeriesListWithSeries(series, totalSeries))
+		if err != nil {
+			return ts.NewSeriesList(), nil
+		}
 
-	normalized = result.Values
-	numInputSeries := len(input.Values)
-	values := make([]ts.MutableValues, 0, numInputSeries)
-	for i := 0; i < numInputSeries; i++ {
-		percents := ts.NewValues(ctx, normalized[i].MillisPerStep(), normalized[i].Len())
-		values = append(values, percents)
-	}
-	for i := 0; i < normalized[0].Len(); i++ {
-		for j := 0; j < numInputSeries; j++ {
-			t := tf(i, normalized[j])
-			v := normalized[j].ValueAt(i)
+		steps := normalized.Values[0].Len()
+		values := ts.NewValues(ctx, millisPerStep, steps)
+		for i := 0; i < steps; i++ {
+			v, t := normalized.Values[0].ValueAt(i), normalized.Values[1].ValueAt(i)
 			if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
-				values[j].SetValueAt(i, 100.0*v/t)
+				values.SetValueAt(i, (v/t)*100.0)
 			}
 		}
+		newName := fmt.Sprintf("asPercent(%s,%s)", series.Name(), totalSeries.Name())
+		divided := ts.NewSeries(ctx, newName, start, values)
+		results = append(results, divided)
 	}
-
-	results := make([]*ts.Series, 0, numInputSeries)
-	for i := 0; i < numInputSeries; i++ {
-		var totalName string
-		if len(totalText) == 0 {
-			totalName = normalized[i].Specification
-		} else {
-			totalName = totalText
-		}
-		newName := fmt.Sprintf("asPercent(%s, %s)", normalized[i].Name(), totalName)
-		newSeries := ts.NewSeries(ctx, newName, normalized[i].StartTime(), values[i])
-		results = append(results, newSeries)
-	}
-
-	r := ts.SeriesList(input)
-	r.Values = results
-	return r, nil
+	result := ts.NewSeriesList()
+	result.Values = results
+	return result, nil
 }
 
 // exclude takes a metric or a wildcard seriesList, followed by a regular
@@ -1103,7 +1199,7 @@ func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesLi
 // logarithmic format.
 func logarithm(ctx *common.Context, input singlePathSpec, base float64) (ts.SeriesList, error) {
 	if base <= 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf("invalid log base %f", base))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("invalid log base: %v", base))
 		return ts.NewSeriesList(), err
 	}
 
@@ -1323,7 +1419,7 @@ func nPercentile(ctx *common.Context, seriesList singlePathSpec, percentile floa
 
 func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percentile float64, interpolateValue genericInterface) (ts.SeriesList, error) {
 	if percentile <= 0 || percentile > 100 {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"the requested percentile value must be betwween 0 and 100"))
 		return ts.NewSeriesList(), err
 	}
@@ -1336,20 +1432,20 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 		if interpolateValue == "true" {
 			interpolate = true
 		} else if interpolateValue != "false" {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"interpolateValue must be either true or false but instead is %s",
 				interpolateValue))
 			return ts.NewSeriesList(), err
 		}
 	default:
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"interpolateValue must be either a boolean or a string but instead is %T",
 			interpolateValue))
 		return ts.NewSeriesList(), err
 	}
 
 	if len(seriesList.Values) == 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf("series list cannot be empty"))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("series list cannot be empty"))
 		return ts.NewSeriesList(), err
 	}
 
@@ -1361,7 +1457,7 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 	step := seriesList.Values[0].MillisPerStep()
 	for _, series := range seriesList.Values[1:] {
 		if step != series.MillisPerStep() {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"different step sizes in input series not supported"))
 			return ts.NewSeriesList(), err
 		}
@@ -1507,7 +1603,7 @@ func substr(_ *common.Context, seriesList singlePathSpec, start, stop int) (ts.S
 		numParts := len(nameParts)
 		// If stop == 0, it's as if stop was unspecified
 		if start < 0 || start >= numParts || (stop != 0 && stop < start) {
-			err := errors.NewInvalidParamsError(fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"invalid substr params, start=%d, stop=%d", start, stop))
 			return ts.NewSeriesList(), err
 		}
@@ -1939,10 +2035,11 @@ func removeBelowPercentile(ctx *common.Context, seriesList singlePathSpec, perce
 // Note: step has a unit of seconds.
 func randomWalkFunction(ctx *common.Context, name string, step int) (ts.SeriesList, error) {
 	if step <= 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("non-positive step size %d", step))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("non-positive step size %d", step))
 	}
 	if !ctx.StartTime.Before(ctx.EndTime) {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("startTime %v is no earlier than endTime %v", ctx.StartTime, ctx.EndTime))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(
+			fmt.Errorf("startTime %v is no earlier than endTime %v", ctx.StartTime, ctx.EndTime))
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	millisPerStep := step * millisPerSecond
@@ -1964,7 +2061,7 @@ func aggregateLine(ctx *common.Context, seriesList singlePathSpec, f string) (ts
 	sa := ts.SeriesReducerApproach(f)
 	r, ok := sa.SafeReducer()
 	if !ok {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
 	}
 
 	value := r(seriesList.Values[0])
@@ -2143,7 +2240,7 @@ func newMovingBinaryTransform(
 
 				windowPoints := windowPointsLength(series, interval)
 				if windowPoints <= 0 {
-					err := errors.NewInvalidParamsError(fmt.Errorf(
+					err := xerrors.NewInvalidParamsError(fmt.Errorf(
 						"non positive window points, windowSize=%s, stepSize=%d",
 						windowSize.stringValue, series.MillisPerStep()))
 					return ts.NewSeriesList(), err
@@ -2272,7 +2369,7 @@ func legendValue(_ *common.Context, seriesList singlePathSpec, valueType string)
 	sa := ts.SeriesReducerApproach(valueType)
 	reducer, ok := sa.SafeReducer()
 	if !ok {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", valueType))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid function %s", valueType))
 	}
 
 	results := make([]*ts.Series, 0, len(seriesList.Values))
@@ -2355,7 +2452,7 @@ func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationAp
 	ca := ts.ConsolidationApproach(consolidationApproach)
 	cf, ok := ca.SafeFunc()
 	if !ok {
-		err := errors.NewInvalidParamsError(fmt.Errorf("invalid consolidation approach %s", consolidationApproach))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("invalid consolidation approach %s", consolidationApproach))
 		return ts.NewSeriesList(), err
 	}
 
@@ -2407,7 +2504,8 @@ func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList
 // Note: step is measured in seconds.
 func timeFunction(ctx *common.Context, name string, step int) (ts.SeriesList, error) {
 	if step <= 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("step must be a positive int but instead is %d", step))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(
+			fmt.Errorf("step must be a positive int but instead is %d", step))
 	}
 
 	stepSizeInMilli := step * millisPerSecond
@@ -2426,7 +2524,8 @@ func timeFunction(ctx *common.Context, name string, step int) (ts.SeriesList, er
 // dashed draws the selected metrics with a dotted line with segments of length f.
 func dashed(_ *common.Context, seriesList singlePathSpec, dashLength float64) (ts.SeriesList, error) {
 	if dashLength <= 0 {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("expected a positive dashLength but got %f", dashLength))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(
+			fmt.Errorf("expected a positive dashLength but got %f", dashLength))
 	}
 
 	results := make([]*ts.Series, len(seriesList.Values))
@@ -2445,7 +2544,7 @@ func dashed(_ *common.Context, seriesList singlePathSpec, dashLength float64) (t
 func threshold(ctx *common.Context, value float64, label string, color string) (ts.SeriesList, error) {
 	seriesList, err := constantLine(ctx, value)
 	if err != nil {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"error applying threshold function, error=%v", err))
 		return ts.NewSeriesList(), err
 	}
