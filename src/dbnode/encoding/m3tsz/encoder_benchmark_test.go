@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -50,7 +51,7 @@ var sampleSeriesBase64 = []string{
 func BenchmarkM3TSZEncode(b *testing.B) {
 	var (
 		encodingOpts = encoding.NewOptions()
-		seriesRun    = prepareSampleSeriesEncRun(b)
+		seriesRun    = prepareSampleSeriesEncRun(b, nil)
 		encoder      = NewEncoder(time.Now(), nil, DefaultIntOptimizationEnabled, encodingOpts)
 	)
 
@@ -58,22 +59,62 @@ func BenchmarkM3TSZEncode(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		run := seriesRun[i]
-		encoder.Reset(run[0].Timestamp, len(run), nil)
+		encoder.Reset(run[0].dp.Timestamp, len(run), nil)
 
 		for i := range run {
 			// Using index access to avoid copying a 40 byte datapoint.
-			_ = encoder.Encode(run[i], xtime.Nanosecond, nil)
+			r := run[i]
+			_ = encoder.Encode(r.dp, r.unit, r.annotation)
 		}
 
 		encoder.Discard()
 	}
 }
 
-func prepareSampleSeriesEncRun(b *testing.B) [][]ts.Datapoint {
+func BenchmarkM3TSZEncodeWithAnnotation(b *testing.B) {
+	annotationPayload := annotation.Payload{
+		MetricType:        annotation.MetricType_COUNTER,
+		HandleValueResets: true,
+	}
+	annotationValue, err := annotationPayload.Marshal()
+	require.NoError(b, err)
+
+	var (
+		encodingOpts = encoding.NewOptions()
+		seriesRun    = prepareSampleSeriesEncRun(b, annotationValue)
+		encoder      = NewEncoder(time.Now(), nil, DefaultIntOptimizationEnabled, encodingOpts)
+	)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		run := seriesRun[i]
+		encoder.Reset(run[0].dp.Timestamp, len(run), nil)
+
+		for i := range run {
+			// Using index access to avoid copying a 40 byte datapoint.
+			r := run[i]
+			_ = encoder.Encode(r.dp, r.unit, r.annotation)
+		}
+
+		encoder.Discard()
+	}
+}
+
+type extendedDatapoint struct {
+	dp         ts.Datapoint
+	unit       xtime.Unit
+	annotation ts.Annotation
+}
+
+func prepareSampleSeriesEncRun(
+	b *testing.B,
+	annotationOverride ts.Annotation,
+) [][]extendedDatapoint {
 	var (
 		rnd          = rand.New(rand.NewSource(42)) // nolint:gosec
 		sampleSeries = make([][]byte, 0, len(sampleSeriesBase64))
-		seriesRun    = make([][]ts.Datapoint, b.N)
+		seriesRun    = make([][]extendedDatapoint, b.N)
 		encodingOpts = encoding.NewOptions()
 		reader       = xio.NewBytesReader64(nil)
 	)
@@ -90,8 +131,16 @@ func prepareSampleSeriesEncRun(b *testing.B) [][]ts.Datapoint {
 
 		iter := NewReaderIterator(reader, DefaultIntOptimizationEnabled, encodingOpts)
 		for iter.Next() {
-			dp, _, _ := iter.Current()
-			seriesRun[i] = append(seriesRun[i], dp)
+			dp, unit, annot := iter.Current()
+			extDP := extendedDatapoint{
+				dp:         dp,
+				unit:       unit,
+				annotation: annot,
+			}
+			if annotationOverride != nil {
+				extDP.annotation = annotationOverride
+			}
+			seriesRun[i] = append(seriesRun[i], extDP)
 		}
 
 		require.NoError(b, iter.Err())
