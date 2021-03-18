@@ -767,21 +767,19 @@ func (m *aggregatorAddMetricMetrics) ReportError(err error) {
 	if err == nil {
 		return
 	}
-	switch err {
-	case errShardNotOwned:
+	switch {
+	case xerrors.Is(err, errShardNotOwned):
 		m.shardNotOwned.Inc(1)
-	case errAggregatorShardNotWriteable:
+	case xerrors.Is(err, errAggregatorShardNotWriteable):
 		m.shardNotWriteable.Inc(1)
-	case errWriteNewMetricRateLimitExceeded:
+	case xerrors.Is(err, errWriteNewMetricRateLimitExceeded):
 		m.newMetricRateLimitExceeded.Inc(1)
-	case errWriteValueRateLimitExceeded:
+	case xerrors.Is(err, errWriteValueRateLimitExceeded):
 		m.valueRateLimitExceeded.Inc(1)
+	case xerrors.Is(err, errArrivedTooLate):
+		m.arrivedTooLate.Inc(1)
 	default:
-		if xerrors.Is(err, errArrivedTooLate) {
-			m.arrivedTooLate.Inc(1)
-		} else {
-			m.uncategorizedErrors.Inc(1)
-		}
+		m.uncategorizedErrors.Inc(1)
 	}
 }
 
