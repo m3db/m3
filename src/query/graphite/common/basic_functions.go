@@ -21,6 +21,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -28,17 +29,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
 	// ErrNegativeCount occurs when the request count is < 0.
-	ErrNegativeCount = errors.NewInvalidParamsError(errors.New("n must be positive"))
+	ErrNegativeCount = xerrors.NewInvalidParamsError(errors.New("n must be positive"))
 	// ErrEmptySeriesList occurs when a function requires a series as input
-	ErrEmptySeriesList = errors.NewInvalidParamsError(errors.New("empty series list"))
+	ErrEmptySeriesList = xerrors.NewInvalidParamsError(errors.New("empty series list"))
 	// ErrInvalidIntervalFormat occurs when invalid interval string encountered
-	ErrInvalidIntervalFormat = errors.NewInvalidParamsError(errors.New("invalid format"))
+	ErrInvalidIntervalFormat = xerrors.NewInvalidParamsError(errors.New("invalid format"))
 
 	reInterval *regexp.Regexp
 
@@ -115,7 +116,7 @@ func Identity(ctx *Context, name string) (ts.SeriesList, error) {
 func Normalize(ctx *Context, input ts.SeriesList) (ts.SeriesList, time.Time, time.Time, int, error) {
 	numSeries := input.Len()
 	if numSeries == 0 {
-		return ts.NewSeriesList(), ctx.StartTime, ctx.EndTime, -1, errors.NewInvalidParamsError(ErrEmptySeriesList)
+		return ts.NewSeriesList(), ctx.StartTime, ctx.EndTime, -1, xerrors.NewInvalidParamsError(ErrEmptySeriesList)
 	}
 	if numSeries == 1 {
 		return input, input.Values[0].StartTime(), input.Values[0].EndTime(), input.Values[0].MillisPerStep(), nil
@@ -186,14 +187,15 @@ func ParseInterval(fullInterval string) (time.Duration, error) {
 	allIntervals := reInterval.FindAllString(fullInterval, -1)
 	output := time.Duration(0)
 	if allIntervals == nil {
-		return 0, errors.NewInvalidParamsError(fmt.Errorf("Unrecognized interval string: %s", fullInterval))
+		return 0, xerrors.NewInvalidParamsError(
+			fmt.Errorf("unrecognized interval string: %s", fullInterval))
 	}
-	
+
 	for _, interval := range allIntervals {
 		if m := reInterval.FindStringSubmatch(strings.TrimSpace(interval)); len(m) != 0 {
 			amount, err := strconv.ParseInt(m[1], 10, 32)
 			if err != nil {
-				return 0, errors.NewInvalidParamsError(err)
+				return 0, xerrors.NewInvalidParamsError(err)
 			}
 
 			interval := intervals[strings.ToLower(m[2])]

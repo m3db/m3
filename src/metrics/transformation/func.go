@@ -20,7 +20,10 @@
 
 package transformation
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 var (
 	emptyDatapoint = Datapoint{Value: math.NaN()}
@@ -70,12 +73,14 @@ func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint) Datapoint {
 // UnaryMultiOutputTransform is like UnaryTransform, but can output an additional datapoint.
 // The additional datapoint is not passed to subsequent transforms.
 type UnaryMultiOutputTransform interface {
-	Evaluate(dp Datapoint) (Datapoint, Datapoint)
+	// Evaluate applies the transform on the provided datapoint.
+	Evaluate(dp Datapoint, resolution time.Duration) (Datapoint, Datapoint)
 }
 
 // UnaryMultiOutputTransformFn implements UnaryMultiOutputTransform as a function.
-type UnaryMultiOutputTransformFn func(dp Datapoint) (Datapoint, Datapoint)
+type UnaryMultiOutputTransformFn func(dp Datapoint, resolution time.Duration) (Datapoint, Datapoint)
 
-func (fn UnaryMultiOutputTransformFn) Evaluate(dp Datapoint) (Datapoint, Datapoint) {
-	return fn(dp)
+// Evaluate applies the transform on the provided datapoint.
+func (fn UnaryMultiOutputTransformFn) Evaluate(dp Datapoint, resolution time.Duration) (Datapoint, Datapoint) {
+	return fn(dp, resolution)
 }
