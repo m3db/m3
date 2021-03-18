@@ -4,7 +4,7 @@
 
 <p align="center"><img src="site/static/images/logo-square.png" alt="M3 Logo" width="256" height="270"></p>
 
-[Distributed TSDB](https://m3db.io/docs/m3db/) and [Query Engine](https://m3db.io/docs/how_to/query/), [Prometheus Sidecar](https://m3db.io/docs/integrations/prometheus/), [Metrics Aggregator](https://m3db.io/docs/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://m3db.io/docs/integrations/graphite/).
+[Distributed TSDB](https://m3db.io/docs/components/m3db/) and [Query Engine](https://m3db.io/docs/how_to/query/), [Prometheus Sidecar](https://m3db.io/docs/integrations/prometheus/), [Metrics Aggregator](https://m3db.io/docs/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://m3db.io/docs/integrations/graphite/).
 
 ## Table of Contents
 
