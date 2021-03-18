@@ -924,7 +924,8 @@ func TestCombineBootstrapWithOriginal(t *testing.T) {
 
 	defer func() { _ = ctx.Close() }()
 
-	output, err := combineBootstrapWithOriginal(ctx, bootstrapStartTime, bootstrapEndTime, bootstrappedSeriesList, originalSeriesList)
+	output, err := combineBootstrapWithOriginal(ctx, bootstrapStartTime, bootstrapEndTime,
+		contextStart, contextEnd, bootstrappedSeriesList, originalSeriesList)
 	assert.Equal(t, output.Values[0], expectedSeries)
 	assert.Nil(t, err)
 }
@@ -1029,6 +1030,57 @@ func TestMovingSumSuccess(t *testing.T) {
 func TestMovingSumError(t *testing.T) {
 	testMovingFunctionError(t, "movingSum(foo.bar.baz, '-30s')")
 	testMovingFunctionError(t, "movingSum(foo.bar.baz, 0)")
+}
+
+// TestMovingSumOriginalIDsMissingFromBootstrapIDs tests the case for the
+// "moving" function families where the bootstrap of the time range that
+// expands back returns timeseries not present from the original series list
+// which can happen when using a temporal index (i.e. latest time window
+// does not include the same timeseries as the time window from the bootstrap
+// list, say using movingSum 1h but the query is only for the last few minutes
+// and in the last few minutes data for a series from an hour ago exists
+// but is not present in the last few minutes; for this case the results
+// from the preceding hour should still be evaluated as part of the movingSum
+// calculation).
+func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	end := time.Now().Truncate(time.Minute)
+	start := end.Add(-3 * time.Minute)
+	bootstrapStart := start.Add(-10 * time.Minute)
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     60000,
+		Bootstrap:      []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2},
+		BootstrapStart: bootstrapStart,
+		Values:         []float64{3, 3, 3},
+		OriginalIDs:    []string{"foo.bar"},
+		BootstrapIDs:   []string{"foo.bar", "foo.baz"},
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	target := "movingSum(foo.*, '10min')"
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "movingSum(foo.bar,\"10min\")",
+			Data: []float64{15, 17, 19},
+		},
+		{
+			Name: "movingSum(foo.baz,\"10min\")",
+			Data: []float64{15, 14, 13},
+		},
+	}
+	common.CompareOutputsAndExpected(t, 60000, start,
+		expected, res.Values)
 }
 
 func TestMovingMaxSuccess(t *testing.T) {
