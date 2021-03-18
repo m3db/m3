@@ -234,13 +234,13 @@ func (q *queue) Flush() {
 
 	// Check buffer capacity, not length, to make sure we're not pooling slices that are too large.
 	// Otherwise, it could result in multi-megabyte slices hanging around, in case we get a single massive write.
-	if cap(*buf) < _queueMaxWriteBufSize {
+	if cap(*buf) <= _queueMaxWriteBufSize {
 		*buf = (*buf)[:0]
 		_queueConnWriteBufPool.Put(buf)
 	}
 }
 
-func (q *queue) flush(buf *[]byte) (int, error) {
+func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 	var n int
 
 	q.mtx.Lock()
@@ -250,35 +250,36 @@ func (q *queue) flush(buf *[]byte) (int, error) {
 		return n, io.EOF
 	}
 
-	*buf = (*buf)[:0]
+	*tmpWriteBuf = (*tmpWriteBuf)[:0]
 	for q.buf.size() > 0 {
-		b := q.buf.peek()
-		if n > 0 && len(b.Bytes())+len(*buf) >= _queueMaxWriteBufSize {
+		protoBuffer := q.buf.peek()
+		bytes := protoBuffer.Bytes()
+
+		if n > 0 && len(bytes)+len(*tmpWriteBuf) >= _queueMaxWriteBufSize {
 			// only merge buffers that are smaller than _queueMaxWriteBufSize bytes
 			break
 		}
 		_ = q.buf.shift()
 
-		bytes := b.Bytes()
 		if len(bytes) == 0 {
 			continue
 		}
 
-		*buf = append(*buf, bytes...)
+		*tmpWriteBuf = append(*tmpWriteBuf, bytes...)
 		n += len(bytes)
-		b.Close()
+		protoBuffer.Close()
 	}
 
 	// mutex is not held while doing IO
 	q.mtx.Unlock()
 
-	size := len(*buf)
+	size := len(*tmpWriteBuf)
 	if size == 0 {
-		_queueConnWriteBufPool.Put(buf)
+		_queueConnWriteBufPool.Put(tmpWriteBuf)
 		return n, io.EOF
 	}
 
-	if err := q.writeFn(*buf); err != nil {
+	if err := q.writeFn(*tmpWriteBuf); err != nil {
 		q.metrics.connWriteErrors.Inc(1)
 		return n, err
 	}
