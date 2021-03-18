@@ -1322,7 +1322,6 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 			releaseEntryRef: true,
 		},
 	})
-
 	// i.e. unable to enqueue into shard insert queue
 	if err != nil {
 		entry.OnIndexFinalize(indexBlockStart) // release any reference's we've held for indexing
