@@ -701,7 +701,12 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 	seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 	seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
-	if err := ref.Series.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
+
+	seriesRef, err := ref.Resolver.SeriesRef()
+	if err != nil {
+		return fmt.Errorf("unable to resolve seriesRef: %w", err)
+	}
+	if err := seriesRef.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)
 	}
 

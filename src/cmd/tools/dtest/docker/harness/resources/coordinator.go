@@ -86,6 +86,10 @@ type Admin interface {
 	WaitForNamespace(name string) error
 	// AddNamespace adds a namespace.
 	AddNamespace(admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error)
+	// UpdateNamespace updates the namespace.
+	UpdateNamespace(admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error)
+	// DeleteNamespace removes the namespace.
+	DeleteNamespace(namespaceID string) error
 	// CreateDatabase creates a database.
 	CreateDatabase(admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error)
 	// GetPlacement gets placements.
@@ -278,7 +282,7 @@ func (c *coordinator) CreateDatabase(
 		zapMethod("createDatabase"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	resp, err := makePostRequest(logger, url, &addRequest)
+	resp, err := makeRequest(logger, url, http.MethodPost, &addRequest)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.DatabaseCreateResponse{}, err
@@ -314,7 +318,7 @@ func (c *coordinator) AddNamespace(
 		zapMethod("addNamespace"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	resp, err := makePostRequest(logger, url, &addRequest)
+	resp, err := makeRequest(logger, url, http.MethodPost, &addRequest)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
@@ -333,18 +337,59 @@ func (c *coordinator) AddNamespace(
 	return response, nil
 }
 
+func (c *coordinator) UpdateNamespace(
+	req admin.NamespaceUpdateRequest,
+) (admin.NamespaceGetResponse, error) {
+	if c.resource.closed {
+		return admin.NamespaceGetResponse{}, errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace")
+	logger := c.resource.logger.With(
+		zapMethod("updateNamespace"), zap.String("url", url),
+		zap.String("request", req.String()))
+
+	resp, err := makeRequest(logger, url, http.MethodPut, &req)
+	if err != nil {
+		logger.Error("failed to update namespace", zap.Error(err))
+		return admin.NamespaceGetResponse{}, err
+	}
+
+	var response admin.NamespaceGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		return admin.NamespaceGetResponse{}, err
+	}
+
+	return response, nil
+}
+
 func (c *coordinator) setNamespaceReady(name string) error {
 	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace/ready")
 	logger := c.resource.logger.With(
 		zapMethod("setNamespaceReady"), zap.String("url", url),
 		zap.String("namespace", name))
 
-	_, err := makePostRequest(logger, url, // nolint: bodyclose
+	_, err := makeRequest(logger, url, http.MethodPost, // nolint: bodyclose
 		&admin.NamespaceReadyRequest{
 			Name:  name,
 			Force: true,
 		})
 	return err
+}
+
+func (c *coordinator) DeleteNamespace(namespaceID string) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace/"+namespaceID)
+	logger := c.resource.logger.With(zapMethod("deleteNamespace"), zap.String("url", url))
+
+	if _, err := makeRequest(logger, url, http.MethodDelete, nil); err != nil { // nolint: bodyclose
+		logger.Error("failed to delete namespace", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (c *coordinator) WriteCarbon(
@@ -443,15 +488,17 @@ func (c *coordinator) WriteProm(name string, tags map[string]string, samples []p
 	return nil
 }
 
-func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.Response, error) {
+func makeRequest(logger *zap.Logger, url string, method string, body proto.Message) (*http.Response, error) {
 	data := bytes.NewBuffer(nil)
-	if err := (&jsonpb.Marshaler{}).Marshal(data, body); err != nil {
-		logger.Error("failed to marshal", zap.Error(err))
+	if body != nil {
+		if err := (&jsonpb.Marshaler{}).Marshal(data, body); err != nil {
+			logger.Error("failed to marshal", zap.Error(err))
 
-		return nil, fmt.Errorf("failed to marshal: %w", err)
+			return nil, fmt.Errorf("failed to marshal: %w", err)
+		}
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
+	req, err := http.NewRequestWithContext(context.Background(), method, url, data)
 	if err != nil {
 		logger.Error("failed to construct request", zap.Error(err))
 

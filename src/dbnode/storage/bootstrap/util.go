@@ -284,13 +284,26 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 			}).AnyTimes()
 
 	result := CheckoutSeriesResult{
-		Shard:       shardID,
-		Series:      mockSeries,
-		UniqueIndex: uint64(len(a.results) + 1),
+		Shard:    shardID,
+		Resolver: &seriesStaticResolver{series: mockSeries},
 	}
 
 	a.results[stringID] = result
 	return result, true, streamErr
+}
+
+var _ SeriesRefResolver = (*seriesStaticResolver)(nil)
+
+type seriesStaticResolver struct {
+	series SeriesRef
+}
+
+func (r *seriesStaticResolver) SeriesRef() (SeriesRef, error) {
+	return r.series, nil
+}
+
+func (r *seriesStaticResolver) ReleaseRef() error {
+	return nil
 }
 
 // Release is a no-op on the test accumulator.

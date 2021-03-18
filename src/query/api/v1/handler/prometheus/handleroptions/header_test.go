@@ -31,38 +31,64 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAddResponseHeaders(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	meta := block.NewResultMetadata()
-	AddResponseHeaders(recorder, meta, nil)
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, nil))
 	assert.Equal(t, 0, len(recorder.Header()))
 
 	recorder = httptest.NewRecorder()
 	meta.Exhaustive = false
 	ex := headers.LimitHeaderSeriesLimitApplied
-	AddResponseHeaders(recorder, meta, nil)
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, ex, recorder.Header().Get(headers.LimitHeader))
 
 	recorder = httptest.NewRecorder()
 	meta.AddWarning("foo", "bar")
 	ex = fmt.Sprintf("%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")
-	AddResponseHeaders(recorder, meta, nil)
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, ex, recorder.Header().Get(headers.LimitHeader))
 
 	recorder = httptest.NewRecorder()
 	meta.Exhaustive = true
 	ex = "foo_bar"
-	AddResponseHeaders(recorder, meta, nil)
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, ex, recorder.Header().Get(headers.LimitHeader))
 
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
-	AddResponseHeaders(recorder, meta, &storage.FetchOptions{Timeout: 5 * time.Second})
+	require.NoError(t, AddResponseHeaders(recorder, meta, &storage.FetchOptions{
+		Timeout: 5 * time.Second,
+	}, nil, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, "5s", recorder.Header().Get(headers.TimeoutHeader))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, &ReturnedDataLimited{
+		Series:      3,
+		Datapoints:  6,
+		TotalSeries: 3,
+		Limited:     false,
+	}, nil))
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, "{\"Series\":3,\"Datapoints\":6,\"TotalSeries\":3,\"Limited\":false}",
+		recorder.Header().Get(headers.ReturnedDataLimitedHeader))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, &ReturnedMetadataLimited{
+		Results:      3,
+		TotalResults: 3,
+		Limited:      false,
+	}))
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, "{\"Results\":3,\"TotalResults\":3,\"Limited\":false}",
+		recorder.Header().Get(headers.ReturnedMetadataLimitedHeader))
 }

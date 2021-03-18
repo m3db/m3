@@ -553,7 +553,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	require.Equal(t, 2, len(files))
 
 	// Assert commitlog cannot be opened more than once
-	reader := newCommitLogReader(commitLogReaderOptions{commitLogOptions: opts})
+	reader := NewReader(ReaderOptions{commitLogOptions: opts})
 	_, err = reader.Open(files[0])
 	require.NoError(t, err)
 	reader.Close()
