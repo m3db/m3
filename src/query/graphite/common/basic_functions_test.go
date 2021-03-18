@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,10 +110,10 @@ func TestNormalize(t *testing.T) {
 	require.Equal(t, expectedEnd, end)
 	require.Equal(t, expectedStep, step)
 	expected := []TestSeries{
-		TestSeries{Name: "a", Data: []float64{nan, nan, nan, 10, 10, 10, 10, 10, 10, nan, nan, nan}},
-		TestSeries{Name: "b", Data: []float64{15, 15, 15, 15, 15, 15, nan, nan, nan, nan, nan, nan}},
-		TestSeries{Name: "c", Data: []float64{nan, nan, nan, nan, nan, nan, 17, 17, 17, 17, 17, 17}},
-		TestSeries{Name: "d", Data: []float64{nan, nan, nan, 3, 3, 3, 3, 3, 3, nan, nan, nan}},
+		{Name: "a", Data: []float64{nan, nan, nan, 10, 10, 10, 10, 10, 10, nan, nan, nan}},
+		{Name: "b", Data: []float64{15, 15, 15, 15, 15, 15, nan, nan, nan, nan, nan, nan}},
+		{Name: "c", Data: []float64{nan, nan, nan, nan, nan, nan, 17, 17, 17, 17, 17, 17}},
+		{Name: "d", Data: []float64{nan, nan, nan, 3, 3, 3, 3, 3, 3, nan, nan, nan}},
 	}
 
 	CompareOutputsAndExpected(t, expectedStep, expectedStart, expected, normalized.Values)

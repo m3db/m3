@@ -20,7 +20,10 @@
 
 package transformation
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // transformReset returns the provided datapoint and a zero datapoint one second later.
 //
@@ -41,7 +44,11 @@ import "time"
 // Currently only a single extra datapoint per aggregation is supported. If multiple transforms in an aggregation emit
 // an additional datapoint, only the last one is used.
 func transformReset() UnaryMultiOutputTransform {
-	return UnaryMultiOutputTransformFn(func(dp Datapoint) (Datapoint, Datapoint) {
-		return dp, Datapoint{Value: 0, TimeNanos: dp.TimeNanos + int64(time.Second)}
+	return UnaryMultiOutputTransformFn(func(dp Datapoint, resolution time.Duration) (Datapoint, Datapoint) {
+		// Add the reset datapoint to be half the resolution period to ensure equal spacing between datapoints.
+		// We take the max with 1 to ensure there's at least a 1 nanosecond gap.
+		resetWindow := int64(math.Max(float64(resolution.Nanoseconds()/2), 1))
+
+		return dp, Datapoint{Value: 0, TimeNanos: dp.TimeNanos + resetWindow*int64(time.Nanosecond)}
 	})
 }

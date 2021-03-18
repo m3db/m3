@@ -22,6 +22,7 @@ package native
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -31,8 +32,8 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -231,10 +232,10 @@ var (
 )
 
 var (
-	errNonFunction   = errors.NewInvalidParamsError(errors.New("not a function"))
-	errNeedsArgument = errors.NewInvalidParamsError(errors.New("functions must take at least 1 argument"))
-	errNoContext     = errors.NewInvalidParamsError(errors.New("first argument must be a context"))
-	errInvalidReturn = errors.NewInvalidParamsError(errors.New("functions must return a value and an error"))
+	errNonFunction   = xerrors.NewInvalidParamsError(errors.New("not a function"))
+	errNeedsArgument = xerrors.NewInvalidParamsError(errors.New("functions must take at least 1 argument"))
+	errNoContext     = xerrors.NewInvalidParamsError(errors.New("first argument must be a context"))
+	errInvalidReturn = xerrors.NewInvalidParamsError(errors.New("functions must return a value and an error"))
 )
 
 // Function contains a function to invoke along with metadata about

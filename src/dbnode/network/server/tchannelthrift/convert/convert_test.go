@@ -22,6 +22,7 @@ package convert_test
 
 import (
 	stdctx "context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -33,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
