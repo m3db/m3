@@ -273,9 +273,7 @@ func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 	// mutex is not held while doing IO
 	q.mtx.Unlock()
 
-	size := len(*tmpWriteBuf)
-	if size == 0 {
-		_queueConnWriteBufPool.Put(tmpWriteBuf)
+	if n == 0 {
 		return n, io.EOF
 	}
 
