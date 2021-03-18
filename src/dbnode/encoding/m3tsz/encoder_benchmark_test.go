@@ -71,6 +71,12 @@ func BenchmarkM3TSZEncode(b *testing.B) {
 	}
 }
 
+// Using xxhash.Sum64 to check for annotation changes:
+// BenchmarkM3TSZEncodeWithAnnotation-12    	    9222	    136928 ns/op
+//
+// Using bytes.Equal to check for annotation changes:
+// BenchmarkM3TSZEncodeWithAnnotation-12    	    9372	    128621 ns/op
+//
 func BenchmarkM3TSZEncodeWithAnnotation(b *testing.B) {
 	annotationPayload := annotation.Payload{
 		MetricType:        annotation.MetricType_COUNTER,

@@ -64,10 +64,10 @@ type Encoder interface {
 	// an error is returned.
 	LastEncoded() (ts.Datapoint, error)
 
-	// LastAnnotationChecksum returns the checksum of the last annotation, useful for
+	// LastAnnotation returns the last encoded annotation, useful for
 	// de-duplicating encoded values. If there are no previously encoded values
 	// an error is returned.
-	LastAnnotationChecksum() (uint64, error)
+	LastAnnotation() (ts.Annotation, error)
 
 	// Len returns the length of the encoded stream as returned by a call to Stream().
 	Len() int

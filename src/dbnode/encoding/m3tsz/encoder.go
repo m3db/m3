@@ -314,12 +314,12 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
-func (enc *encoder) LastAnnotationChecksum() (uint64, error) {
+func (enc *encoder) LastAnnotation() (ts.Annotation, error) {
 	if enc.numEncoded == 0 {
-		return 0, errNoEncodedDatapoints
+		return nil, errNoEncodedDatapoints
 	}
 
-	return enc.tsEncoderState.PrevAnnotationChecksum, nil
+	return enc.tsEncoderState.PrevAnnotation, nil
 }
 
 // Len returns the length of the final data stream that would be generated

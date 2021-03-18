@@ -21,6 +21,7 @@
 package series
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sort"
@@ -41,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/cespare/xxhash/v2"
 	"go.uber.org/zap"
 )
 
@@ -1264,12 +1264,12 @@ func (b *BufferBucket) write(
 			if err != nil {
 				return false, err
 			}
-			lastAnnotationChecksum, err := b.encoders[i].encoder.LastAnnotationChecksum()
+			lastAnnotation, err := b.encoders[i].encoder.LastAnnotation()
 			if err != nil {
 				return false, err
 			}
 
-			if lastDatapoint.Value == value && lastAnnotationChecksum == xxhash.Sum64(annotation) {
+			if lastDatapoint.Value == value && bytes.Equal(lastAnnotation, annotation) {
 				// No-op since matches the current value. Propagates up to callers that
 				// no value was written.
 				return false, nil
