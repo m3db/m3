@@ -26,8 +26,8 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/lexer"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 // CompileOptions allows for specifying compile options.
