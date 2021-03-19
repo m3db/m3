@@ -205,17 +205,17 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 		numBits -= 8
 	}
 
+	remainder := byte(v >> 56)
 	for numBits > 0 {
+		val := remainder & 0x80
 		// inlined WriteBit
-		val := (v >> 63) & 1
-		val <<= 7
-		if !os.hasUnusedBits() {
-			os.grow(byte(val), 1)
-		} else {
-			os.fillUnused(byte(val))
+		if os.hasUnusedBits() {
+			os.fillUnused(val)
 			os.pos++
+		} else {
+			os.grow(val, 1)
 		}
-		v <<= 1
+		remainder <<= 1
 		numBits--
 	}
 }
