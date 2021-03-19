@@ -1,6 +1,8 @@
 # Documentation Guide
 
-M3 is a large and complex project, and any help you can offer to explain it better is most welcome.
+M3 is a large and complex project, and any help you can offer to explain it better is most welcome. If you have a suggestion for the documentation we welcome it, and documentation pull requests follow the same process as [code contributions](CONTRIBUTING.MD).
+
+The rest of this document explains how to setup the dicumentation locally and the structure of the content.
 
 ## Setup Documentation Locally
 
@@ -55,7 +57,7 @@ The M3 documentation adds the following additional shortcodes:
 
 ## Running Documentation
 
-As noted in the prerequisites section, if you want to run the documentation locally with `hugo server`, you need to have the Victor theme in the same directory as the M3 codebase, as `hugo server` runs in Hugo's "development" mode (and matches _site/config/development/config.toml_).
+As noted in the prerequisites section, if you need to run the documentation locally to see how your edits look with `hugo server`, you need to have the Victor theme in the same directory as the M3 codebase, as `hugo server` runs in Hugo's "development" mode (and matches _site/config/development/config.toml_).
 
 This does mean that as you make changes to the theme or documentation, usually, it refreshes automatically in the browser preview. Sometimes Hugo doesn't refresh included files, so you may need to restart the server process.
 
@@ -65,17 +67,15 @@ The M3 documentation has a number of tests that need to pass before a pull reque
 
 -   Link checking with htmltest
 
-To run them you need Docker installed and running, and at the top level of the M3 project, run `make clean install-vendor-m3 docs-test`.
+To run them you need Docker installed and running, and at the top level of the M3 project, run `make clean install-vendor-m3 docs-test`. If the test is successful you see green text, if not, htmltest tells you which links in which pages you need to fix.
 
 ## Building Documentation
 
 There are a couple of different ways to build the documentation depending what you want to do.
 
-If you want to build only the most up-to-date version of the docs, you can use `hugo` to build.
-
-If you want to build all versions of the docs using Hugo run in Docker (this is what CI does to test the documentation). From the top level of the project, run `make docs-build`.
-
-If you want to build all versions of the docs with a system-installed version of Hugo (this is what Netlify does to build and serve the documentation). From the top level of the project, run `make site-build`.
+- If you want to build only the most up-to-date version of the docs, you can use `hugo` to build.
+- If you want to build all versions of the docs using Hugo run in Docker (this is what CI does to test the documentation). From the top level of the project, run `make docs-build`.
+- If you want to build all versions of the docs with a system-installed version of Hugo (this is what Netlify does to build and serve the documentation). From the top level of the project, run `make site-build`.
 
 ## Creating a New Documentation Version
 
