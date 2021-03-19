@@ -361,12 +361,12 @@ type PerQueryLimitsConfiguration struct {
 	// MaxFetchedSeries limits the number of time series returned for any given
 	// individual storage node per query, before returning result to query
 	// service.
-	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
+	MaxFetchedSeries *int `yaml:"maxFetchedSeries"`
 
 	// MaxFetchedDocs limits the number of index documents matched for any given
 	// individual storage node per query, before returning result to query
 	// service.
-	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
+	MaxFetchedDocs *int `yaml:"maxFetchedDocs"`
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
@@ -376,13 +376,13 @@ type PerQueryLimitsConfiguration struct {
 // handleroptions.FetchOptionsBuilderLimitsOptions.
 func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handleroptions.FetchOptionsBuilderLimitsOptions {
 	seriesLimit := defaultStorageQuerySeriesLimit
-	if v := l.MaxFetchedSeries; v > 0 {
-		seriesLimit = v
+	if v := l.MaxFetchedSeries; v != nil {
+		seriesLimit = *v
 	}
 
 	docsLimit := defaultStorageQueryDocsLimit
-	if v := l.MaxFetchedDocs; v > 0 {
-		docsLimit = v
+	if v := l.MaxFetchedDocs; v != nil {
+		docsLimit = *v
 	}
 
 	requireExhaustive := defaultRequireExhaustive

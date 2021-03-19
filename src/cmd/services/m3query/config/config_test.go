@@ -94,12 +94,16 @@ func TestConfigLoading(t *testing.T) {
 	requireExhaustive = true
 	assert.Equal(t, &LimitsConfiguration{
 		PerQuery: PerQueryLimitsConfiguration{
-			MaxFetchedSeries:  12000,
-			MaxFetchedDocs:    11000,
+			MaxFetchedSeries:  intPtrValue(12000),
+			MaxFetchedDocs:    intPtrValue(11000),
 			RequireExhaustive: &requireExhaustive,
 		},
 	}, &cfg.Limits)
 	// TODO: assert on more fields here.
+}
+
+func intPtrValue(i int) *int {
+	return &i
 }
 
 func TestConfigValidation(t *testing.T) {
@@ -131,7 +135,7 @@ func TestConfigValidation(t *testing.T) {
 			cfg := baseCfg(t)
 			cfg.Limits = LimitsConfiguration{
 				PerQuery: PerQueryLimitsConfiguration{
-					MaxFetchedSeries: tc.limit,
+					MaxFetchedSeries: intPtrValue(tc.limit),
 				}}
 
 			assert.NoError(t, validator.Validate(cfg))
