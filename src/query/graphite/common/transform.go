@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 // TransformFunc is used by Transform to apply a function
