@@ -24,17 +24,20 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Configuration defines configuration for logging.
 type Configuration struct {
-	File   string                 `json:"file" yaml:"file"`
-	Level  string                 `json:"level" yaml:"level"`
-	Fields map[string]interface{} `json:"fields" yaml:"fields"`
+	File          string                 `json:"file" yaml:"file"`
+	Level         string                 `json:"level" yaml:"level"`
+	Fields        map[string]interface{} `json:"fields" yaml:"fields"`
+	EncoderConfig zapcore.EncoderConfig  `json:"encoderConfig" yaml:"encoderConfig"`
 }
 
 // BuildLogger builds a new Logger based on the configuration.
 func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
+
 	zc := zap.Config{
 		Level:             zap.NewAtomicLevelAt(zap.InfoLevel),
 		Development:       false,
@@ -45,7 +48,7 @@ func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
 			Thereafter: 100,
 		},
 		Encoding:         "json",
-		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		EncoderConfig:    cfg.newEncoderConfig(),
 		OutputPaths:      []string{"stdout"},
 		ErrorOutputPaths: []string{"stdout"},
 		InitialFields:    cfg.Fields,
@@ -65,4 +68,58 @@ func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
 	}
 
 	return zc.Build()
+}
+
+func (cfg Configuration) newEncoderConfig() zapcore.EncoderConfig {
+	ec := zap.NewProductionEncoderConfig()
+
+	if cfg.EncoderConfig.MessageKey != "" {
+		ec.MessageKey = cfg.EncoderConfig.MessageKey
+	}
+
+	if cfg.EncoderConfig.LevelKey != "" {
+		ec.LevelKey = cfg.EncoderConfig.LevelKey
+	}
+
+	if cfg.EncoderConfig.TimeKey != "" {
+		ec.TimeKey = cfg.EncoderConfig.TimeKey
+	}
+
+	if cfg.EncoderConfig.NameKey != "" {
+		ec.NameKey = cfg.EncoderConfig.NameKey
+	}
+
+	if cfg.EncoderConfig.CallerKey != "" {
+		ec.CallerKey = cfg.EncoderConfig.CallerKey
+	}
+
+	if cfg.EncoderConfig.StacktraceKey != "" {
+		ec.StacktraceKey = cfg.EncoderConfig.StacktraceKey
+	}
+
+	if cfg.EncoderConfig.LineEnding != "" {
+		ec.LineEnding = cfg.EncoderConfig.LineEnding
+	}
+
+	if cfg.EncoderConfig.EncodeLevel != nil {
+		ec.EncodeLevel = cfg.EncoderConfig.EncodeLevel
+	}
+
+	if cfg.EncoderConfig.EncodeTime != nil {
+		ec.EncodeTime = cfg.EncoderConfig.EncodeTime
+	}
+
+	if cfg.EncoderConfig.EncodeDuration != nil {
+		ec.EncodeDuration = cfg.EncoderConfig.EncodeDuration
+	}
+
+	if cfg.EncoderConfig.EncodeCaller != nil {
+		ec.EncodeCaller = cfg.EncoderConfig.EncodeCaller
+	}
+
+	if cfg.EncoderConfig.EncodeName != nil {
+		ec.EncodeName = cfg.EncoderConfig.EncodeName
+	}
+
+	return ec
 }

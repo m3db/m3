@@ -3,9 +3,23 @@ coordinator:
   # Address for M3Coordinator to listen for traffic.
   listenAddress: 0.0.0.0:7201
 
-  # Configuratino for M3Coordinator logging.
+  # Configuration for M3Coordinator logging.
   logging:
     level: info
+    # Configuration for logging encoder.
+    encoderConfig:
+      messageKey: msg
+      levelKey: level
+      timeKey: ts
+      nameKey: logger
+      callerKey: caller
+      stacktraceKey: stacktrace
+      lineEnding: "\n"
+      levelEncoder: lowercase
+      timeEncoder: epoch
+      durationEncoder: seconds
+      callerEncoder: short
+      nameEncoder: full
 
   # Configuration for emitting M3Coordinator metrics.
   metrics:
@@ -124,7 +138,7 @@ db:
     seekReadBufferSize: 4096
     # Maximum Mib/s that can be written to disk by background operations like flushing
     # and snapshotting to prevent them from interfering with the commitlog. Increasing
-    # this value can make node adds significantly faster if the underlyign disk can
+    # this value can make node adds significantly faster if the underlying disk can
     # support the throughput.
     throughputLimitMbps: 1000.0
     throughputCheckEvery: 128
