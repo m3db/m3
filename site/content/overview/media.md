@@ -20,7 +20,7 @@ Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings fo
 
 - [August 2020 Meetup and Walmart presentation](https://vimeo.com/449883279).
 
-- [M3 Day 2021](vimeo.com/user/120001164/folder/3804212).
+- [M3 Day 2021](https://vimeo.com/user/120001164/folder/3804212).
 
 - [M3 Day 2021 - Lightning Talks by LinkedIn and Walmart](https://vimeo.com/518855731).
 
