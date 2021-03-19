@@ -1096,6 +1096,12 @@ func (i *nsIndex) canFlushBlockWithRLock(
 
 	// Check all data files exist for the shards we own
 	for _, shard := range shards {
+		if !shard.IsBootstrapped() {
+			i.logger.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping index cold flush due to shard not bootstrapped yet")
+			continue
+		}
 		start := blockStart
 		end := blockStart.Add(i.blockSize)
 		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
