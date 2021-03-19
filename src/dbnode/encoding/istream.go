@@ -35,6 +35,11 @@ type IStream struct {
 	remaining uint8  // bits remaining in current to be read
 }
 
+var (
+	_ io.ByteReader = (*IStream)(nil)
+	_ io.Reader     = (*IStream)(nil)
+)
+
 // NewIStream creates a new IStream
 func NewIStream(reader64 xio.Reader64) *IStream {
 	return &IStream{r: reader64}

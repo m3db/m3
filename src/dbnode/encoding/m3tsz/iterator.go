@@ -157,8 +157,9 @@ func (it *readerIterator) readNextValue() {
 	sign := -1.0
 	if (bits >> it.sig) == opcodeNegative {
 		sign = 1.0
+		// clear the opcode bit
+		bits ^= uint64(1 << it.sig)
 	}
-	bits &= ^uint64(1 << it.sig)
 	it.intVal += sign * float64(bits)
 }
 
@@ -185,8 +186,9 @@ func (it *readerIterator) readIntValDiff() {
 	sign := -1.0
 	if (bits >> it.sig) == opcodeNegative {
 		sign = 1.0
+		// clear the opcode bit
+		bits ^= uint64(1 << it.sig)
 	}
-	bits &= ^uint64(1 << it.sig)
 	it.intVal += sign * float64(bits)
 }
 
