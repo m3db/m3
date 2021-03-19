@@ -23,11 +23,11 @@ package client
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 )
 
 func TestInstanceQueueEnqueueClosed(t *testing.T) {
@@ -92,6 +92,37 @@ func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 	require.EqualValues(t, []byte{
 		42, 42, 43, 44, 45, 46, 47, 1,
 	}, result)
+}
+
+func TestInstanceQueueEnqueueLargeBuffers(t *testing.T) {
+	var (
+		opts = testOptions().
+			SetInstanceQueueSize(4)
+		queue        = newInstanceQueue(testPlacementInstance, opts).(*queue)
+		largeBuf     = [_queueMaxWriteBufSize * 2]byte{}
+		bytesWritten int
+		timesWritten int
+	)
+
+	queue.writeFn = func(payload []byte) error {
+		bytesWritten += len(payload)
+		timesWritten++
+		return nil
+	}
+
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:])))
+	queue.Flush()
+	require.Equal(t, len(largeBuf)+3, bytesWritten)
+	require.Equal(t, 2, timesWritten)
+
+	timesWritten, bytesWritten = 0, 0
+	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:])))
+	queue.Flush()
+	require.Equal(t, len(largeBuf), bytesWritten)
+	require.Equal(t, 1, timesWritten)
 }
 
 func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -270,12 +271,12 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 
 		wg.Add(1)
 		m.cacheShardIndicesWorkers.Go(func() {
+			defer wg.Done()
 			if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
 				resultsLock.Lock()
 				multiErr = multiErr.Add(err)
 				resultsLock.Unlock()
 			}
-			wg.Done()
 		})
 	}
 
@@ -808,6 +809,11 @@ func (m *seekerManager) newOpenSeeker(
 	resources := m.getSeekerResources()
 	err = seeker.Open(m.namespace, shard, blockStart, volume, resources)
 	m.putSeekerResources(resources)
+	// This is expected is the cleanup manager may have
+	// removed out of retention index filesets.
+	if xerrors.Is(err, syscall.ENOENT) {
+		return nil, errSeekerManagerFileSetNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
