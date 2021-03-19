@@ -29,7 +29,6 @@ import (
 // IStream encapsulates a readable stream.
 type IStream struct {
 	r         xio.Reader64
-	err       error  // error encountered
 	current   uint64 // current uint64 we are working off of
 	index     int    // current index within data slice
 	remaining uint8  // bits remaining in current to be read
