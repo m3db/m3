@@ -54,7 +54,8 @@ type bootstrapProcessProvider struct {
 
 // ErrFileSetSnapshotTypeRangeAdvanced is an error of bootstrap time ranges for snapshot-type
 // blocks advancing during the bootstrap
-var ErrFileSetSnapshotTypeRangeAdvanced = errors.New("retrying bootstrap in order to recalculate time ranges")
+var ErrFileSetSnapshotTypeRangeAdvanced = errors.New(
+	"retrying bootstrap in order to recalculate time ranges (this is OK)")
 
 // NewProcessProvider creates a new bootstrap process provider.
 func NewProcessProvider(
