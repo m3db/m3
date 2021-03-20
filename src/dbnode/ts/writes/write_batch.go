@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -68,7 +69,7 @@ func (b *writeBatch) Add(
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
-	annotation []byte,
+	annotation checked.Bytes,
 ) error {
 	write, err := newBatchWriterWrite(
 		originalIndex, b.ns, id, nil, nil, timestamp, value, unit, annotation)
@@ -83,11 +84,11 @@ func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
 	tagIter ident.TagIterator,
-	encodedTags ts.EncodedTags,
+	encodedTags checked.Bytes,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
-	annotation []byte,
+	annotation checked.Bytes,
 ) error {
 	write, err := newBatchWriterWrite(
 		originalIndex, b.ns, id, tagIter, encodedTags, timestamp, value, unit, annotation)
@@ -123,7 +124,11 @@ func (b *writeBatch) SetSeries(idx int, series ts.Series) {
 	b.writes[idx].SkipWrite = false
 	b.writes[idx].Write.Series = series
 	// Make sure that the EncodedTags does not get clobbered
-	b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags
+	if b.writes[idx].EncodedTags != nil {
+		b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags.Bytes()
+	} else {
+		b.writes[idx].Write.Series.EncodedTags = nil
+	}
 }
 
 func (b *writeBatch) SetError(idx int, err error) {
@@ -171,7 +176,7 @@ func (b *writeBatch) Finalize() {
 
 	if b.finalizeAnnotationFn != nil {
 		for _, write := range b.writes {
-			annotation := write.Write.Annotation
+			annotation := write.Annotation
 			if annotation == nil {
 				continue
 			}
@@ -209,22 +214,33 @@ func newBatchWriterWrite(
 	namespace ident.ID,
 	id ident.ID,
 	tagIter ident.TagIterator,
-	encodedTags ts.EncodedTags,
+	encodedTags checked.Bytes,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
-	annotation []byte,
+	annotation checked.Bytes,
 ) (BatchWrite, error) {
 	write := tagIter == nil && encodedTags == nil
 	writeTagged := tagIter != nil && encodedTags != nil
 	if !write && !writeTagged {
 		return BatchWrite{}, errTagsAndEncodedTagsRequired
 	}
+
+	var encodedTagsBytes ts.EncodedTags
+	if encodedTags != nil {
+		encodedTagsBytes = encodedTags.Bytes()
+	}
+
+	var annotationBytes ts.Annotation
+	if annotation != nil {
+		annotationBytes = annotation.Bytes()
+	}
+
 	return BatchWrite{
 		Write: Write{
 			Series: ts.Series{
 				ID:          id,
-				EncodedTags: encodedTags,
+				EncodedTags: encodedTagsBytes,
 				Namespace:   namespace,
 			},
 			Datapoint: ts.Datapoint{
@@ -233,10 +249,11 @@ func newBatchWriterWrite(
 				Value:          value,
 			},
 			Unit:       unit,
-			Annotation: annotation,
+			Annotation: annotationBytes,
 		},
 		TagIter:       tagIter,
 		EncodedTags:   encodedTags,
+		Annotation:    annotation,
 		OriginalIndex: originalIndex,
 	}, nil
 }
