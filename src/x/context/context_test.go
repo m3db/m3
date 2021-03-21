@@ -23,7 +23,6 @@ package context
 import (
 	stdctx "context"
 	"fmt"
-	"github.com/m3db/m3/vendor/github.com/opentracing/opentracing-go"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -302,8 +301,7 @@ func TestTooDeepSpanTreeIsPreventedAndMarked(t *testing.T) {
 	span := tracer.StartSpan("root-span")
 	defer span.Finish()
 
-	context := NewContext()
-	context.SetGoContext(opentracing.ContextWithSpan(stdctx.Background(), span))
+	context := NewWithGoContext(opentracing.ContextWithSpan(stdctx.Background(), span))
 
 	var (
 		lastChildSpanCreated    opentracing.Span = nil

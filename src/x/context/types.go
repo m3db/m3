@@ -22,7 +22,6 @@ package context
 
 import (
 	stdctx "context"
-	"github.com/m3db/m3/vendor/github.com/opentracing/opentracing-go"
 
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
