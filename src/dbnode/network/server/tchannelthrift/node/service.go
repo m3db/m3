@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -2031,13 +2032,13 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
-		var encodedTags checked.Bytes
-		if len(elem.EncodedTags) > 0 {
-			encodedTags = bytesPool.Get(len(elem.EncodedTags))
-			encodedTags.IncRef()
-			encodedTags.AppendAll(elem.EncodedTags)
-		}
-		apachethrift.BytesPoolPut(elem.EncodedTags)
+		//var encodedTags checked.Bytes
+		//if len(elem.EncodedTags) > 0 {
+		//	encodedTags = bytesPool.Get(len(elem.EncodedTags))
+		//	encodedTags.IncRef()
+		//	encodedTags.AppendAll(elem.EncodedTags)
+		//}
+		//apachethrift.BytesPoolPut(elem.EncodedTags)
 
 		var annotation checked.Bytes
 		if len(elem.Datapoint.Annotation) > 0 {
@@ -2061,7 +2062,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		dec, err := s.newPooledTagsDecoder(ctx, encodedTags.Bytes(), pooledReq)
+		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
 		if err != nil {
 			nonRetryableErrors++
 			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
@@ -2073,7 +2074,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			i,
 			seriesID,
 			dec,
-			encodedTags,
+			ts.EncodedTags(elem.EncodedTags),
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
@@ -2170,13 +2171,13 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 			batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 		}
 
-		var encodedTags checked.Bytes
-		if len(elem.EncodedTags) > 0 {
-			encodedTags = bytesPool.Get(len(elem.EncodedTags))
-			encodedTags.IncRef()
-			encodedTags.AppendAll(elem.Datapoint.Annotation)
-		}
-		apachethrift.BytesPoolPut(elem.EncodedTags)
+		//var encodedTags checked.Bytes
+		//if len(elem.EncodedTags) > 0 {
+		//	encodedTags = bytesPool.Get(len(elem.EncodedTags))
+		//	encodedTags.IncRef()
+		//	encodedTags.AppendAll(elem.Datapoint.Annotation)
+		//}
+		//apachethrift.BytesPoolPut(elem.EncodedTags)
 
 		var annotation checked.Bytes
 		if len(elem.Datapoint.Annotation) > 0 {
@@ -2212,7 +2213,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 			i,
 			seriesID,
 			dec,
-			encodedTags,
+			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
@@ -3000,9 +3001,8 @@ func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 // finalizeEncodedTagsFn implements ts.FinalizeEncodedTagsFn because
 // apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeEncodedTagsFn
 // does not.
-func finalizeEncodedTagsFn(b checked.Bytes) {
-	b.DecRef()
-	b.Finalize()
+func finalizeEncodedTagsFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }
 
 // finalizeAnnotationFn implements ts.FinalizeAnnotationFn because

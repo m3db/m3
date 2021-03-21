@@ -84,7 +84,7 @@ func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
 	tagIter ident.TagIterator,
-	encodedTags checked.Bytes,
+	encodedTags ts.EncodedTags,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -124,11 +124,7 @@ func (b *writeBatch) SetSeries(idx int, series ts.Series) {
 	b.writes[idx].SkipWrite = false
 	b.writes[idx].Write.Series = series
 	// Make sure that the EncodedTags does not get clobbered
-	if b.writes[idx].EncodedTags != nil {
-		b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags.Bytes()
-	} else {
-		b.writes[idx].Write.Series.EncodedTags = nil
-	}
+	b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags
 }
 
 func (b *writeBatch) SetError(idx int, err error) {
@@ -214,7 +210,7 @@ func newBatchWriterWrite(
 	namespace ident.ID,
 	id ident.ID,
 	tagIter ident.TagIterator,
-	encodedTags checked.Bytes,
+	encodedTags ts.EncodedTags,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -226,10 +222,10 @@ func newBatchWriterWrite(
 		return BatchWrite{}, errTagsAndEncodedTagsRequired
 	}
 
-	var encodedTagsBytes ts.EncodedTags
-	if encodedTags != nil {
-		encodedTagsBytes = encodedTags.Bytes()
-	}
+	//var encodedTagsBytes ts.EncodedTags
+	//if encodedTags != nil {
+	//	encodedTagsBytes = encodedTags.Bytes()
+	//}
 
 	var annotationBytes ts.Annotation
 	if annotation != nil {
@@ -240,7 +236,7 @@ func newBatchWriterWrite(
 		Write: Write{
 			Series: ts.Series{
 				ID:          id,
-				EncodedTags: encodedTagsBytes,
+				EncodedTags: encodedTags,
 				Namespace:   namespace,
 			},
 			Datapoint: ts.Datapoint{
