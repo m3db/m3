@@ -255,6 +255,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	client client.Client,
 	serveOpts serve.Options,
 	runtimeOptsManager aggruntime.OptionsManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
 	opts := aggregator.NewOptions().
@@ -365,6 +366,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		placementNamespace,
 		placementManager,
 		flushTimesManager,
+		clockOpts,
 		iOpts,
 	)
 	if err != nil {
@@ -665,6 +667,7 @@ func (c electionManagerConfiguration) NewElectionManager(
 	placementNamespace string,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (aggregator.ElectionManager, error) {
 	electionOpts, err := c.Election.NewElectionOptions()
@@ -696,6 +699,7 @@ func (c electionManagerConfiguration) NewElectionManager(
 	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change-retrier"))
 	resignRetryOpts := c.ResignRetrier.NewOptions(scope.SubScope("resign-retrier"))
 	opts := aggregator.NewElectionManagerOptions().
+		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetElectionOptions(electionOpts).
 		SetCampaignOptions(campaignOpts).

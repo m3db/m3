@@ -837,7 +837,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			SetFlushTimesStore(localKVStore))
 
 	electionManager, err := o.newAggregatorElectionManager(serviceID,
-		placementManager, flushTimesManager)
+		placementManager, flushTimesManager, clockOpts)
 	if err != nil {
 		return agg{}, err
 	}
@@ -1135,6 +1135,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
+	clockOpts clock.Options,
 ) (aggregator.ElectionManager, error) {
 	leaderValue := instanceID
 	campaignOpts, err := services.NewCampaignOptions()
@@ -1147,6 +1148,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	leaderService := newLocalLeaderService(serviceID)
 
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
+		SetClockOptions(clockOpts).
 		SetCampaignOptions(campaignOpts).
 		SetLeaderService(leaderService).
 		SetPlacementManager(placementManager).
