@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 )
 
@@ -118,4 +119,10 @@ type Options interface {
 	// SetFetchTaggedSeriesBlocksPerBatch sets the series blocks allowed to be read
 	// per permit acquired.
 	SetFetchTaggedSeriesBlocksPerBatch(value int) Options
+
+	// SetCheckedBytesPool sets the checked bytes pool.
+	SetCheckedBytesPool(value pool.CheckedBytesPool) Options
+
+	// CheckedBytesPool returns the checked bytes pool.
+	CheckedBytesPool() pool.CheckedBytesPool
 }
