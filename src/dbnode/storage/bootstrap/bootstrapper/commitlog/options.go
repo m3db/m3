@@ -42,7 +42,7 @@ var (
 	errRuntimeOptsMgrNotSet          = errors.New("runtime options manager is not set")
 
 	// defaultAccumulateConcurrency determines how fast to accumulate results.
-	defaultAccumulateConcurrency = int(math.Max(float64(goruntime.NumCPU())*0.75, 1))
+	defaultAccumulateConcurrency = int(math.Max(float64(goruntime.NumCPU())*0.5, 1))
 )
 
 type options struct {
