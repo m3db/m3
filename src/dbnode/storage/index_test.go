@@ -316,6 +316,7 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockBlock.EXPECT().Close().Return(nil)
 
 	mockShard := NewMockdatabaseShard(ctrl)
+	mockShard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpFailed}, nil).AnyTimes()
 	shards := []databaseShard{mockShard}
@@ -442,6 +443,59 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 	require.True(t, multiErr.Contains(stdctx.DeadlineExceeded))
 }
 
+func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	test := newTestIndex(t, ctrl)
+
+	now := time.Now().Truncate(test.indexBlockSize)
+	idx := test.index.(*nsIndex)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
+
+	// NB(bodu): We don't need to allocate a mock block for every block start we just need to
+	// ensure that we aren't flushing index data if TSDB is not on disk and a single mock block is sufficient.
+	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	blockTime := now.Add(-2 * test.indexBlockSize)
+	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
+	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
+	mockBlock.EXPECT().NeedsColdMutableSegmentsEvicted().Return(true).AnyTimes()
+	mockBlock.EXPECT().RotateColdMutableSegments().Return().AnyTimes()
+	mockBlock.EXPECT().EvictColdMutableSegments().Return(nil).AnyTimes()
+	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+
+	mockBlock.EXPECT().Close().Return(nil)
+
+	shardInfos := []struct {
+		id             uint32
+		isBootstrapped bool
+	}{
+		{0, true},
+		{1, false},
+		{2, true},
+		{3, false},
+	}
+
+	shards := make([]databaseShard, 0, len(shardInfos))
+	for _, shardInfo := range shardInfos {
+		mockShard := NewMockdatabaseShard(ctrl)
+		mockShard.EXPECT().IsBootstrapped().Return(shardInfo.isBootstrapped).AnyTimes()
+		mockShard.EXPECT().ID().Return(shardInfo.id).AnyTimes()
+		if shardInfo.isBootstrapped {
+			mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpSuccess}, nil).AnyTimes()
+		}
+		shards = append(shards, mockShard)
+	}
+
+	done, err := idx.ColdFlush(shards)
+	require.NoError(t, err)
+	require.NoError(t, done())
+}
+
 func verifyFlushForShards(
 	t *testing.T,
 	ctrl *gomock.Controller,
@@ -522,6 +576,7 @@ func verifyFlushForShards(
 		expectedDocs = append(expectedDocs, doc2)
 
 		for _, mockShard := range mockShards {
+			mockShard.EXPECT().IsBootstrapped().Return(true)
 			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
