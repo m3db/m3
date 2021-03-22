@@ -1,6 +1,6 @@
 ## Organizing Data with Placements and Namespaces
 
-A time series database (TSDBs) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
+A time series database (TSDB) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
 
 As a distributed TSDB, M3 helps solve this problem by spreading metrics data, and demand for that data, across multiple nodes in a cluster. M3 does this by splitting data into segments that match certain criteria (such as above a certain value) across nodes into shards.
 
@@ -189,7 +189,7 @@ curl {{% apiendpoint %}}services/m3db/placement | jq .
 {{% /notice %}}
 
 ### Ready a Namespace
-<!-- TODO: Why?> -->
+
 Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}services/m3db/namespace/ready_.
 
 {{< tabs name="ready_namespaces" >}}
@@ -513,9 +513,3 @@ curl -X "POST" -G "{{% apiendpoint %}}query_range" \
 
 {{% /tab %}}
 {{< /tabs >}}
-<!-- ## Next Steps
-
-This quickstart covered getting a single-node M3DB cluster running, and writing and querying metrics to the cluster. Some next steps are:
-
--   one
--   two -->
