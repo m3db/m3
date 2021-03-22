@@ -91,6 +91,10 @@ type accumulateArg struct {
 	dp         ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
+
+	// annotationBytes is a predefined buffer for passing small allocations around instead of allocating.
+	// annotation points to annotationBytes in case the value of annotation fits in it.
+	annotationBytes [16]byte
 }
 
 type accumulateWorker struct {
@@ -660,6 +664,22 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		if !ok {
 			datapointsSkippedNotBootstrappingShard++
 			continue
+		}
+
+		arg := accumulateArg{
+			namespace:  seriesEntry.namespace,
+			series:     seriesEntry.series,
+			shard:      seriesEntry.series.Shard,
+			dp:         entry.Datapoint,
+			unit:       entry.Unit,
+		}
+
+		if len(entry.Annotation) > 0 {
+			// Use the predefined buffer if the annotation fits in it, otherwise allocate.
+			if len(entry.Annotation) <= len(arg.annotationBytes) {
+				arg.annotation = arg.annotationBytes[:0]
+			}
+			arg.annotation = append(arg.annotation, entry.Annotation...)
 		}
 
 		// Distribute work.

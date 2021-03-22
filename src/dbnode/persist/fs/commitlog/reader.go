@@ -185,16 +185,12 @@ func (r *reader) Read() (LogEntry, error) {
 			TimestampNanos: xtime.UnixNano(entry.Timestamp),
 			Value:          entry.Value,
 		},
-		Unit: xtime.Unit(entry.Unit),
+		Unit:       xtime.Unit(entry.Unit),
+		Annotation: entry.Annotation,
 		Metadata: LogEntryMetadata{
 			FileReadID:        r.fileReadID,
 			SeriesUniqueIndex: entry.Index,
 		},
-	}
-
-	if len(entry.Annotation) > 0 {
-		// Copy annotation to prevent reference to pooled byte slice
-		result.Annotation = append(ts.Annotation(nil), ts.Annotation(entry.Annotation)...)
 	}
 
 	return result, nil
