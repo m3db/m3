@@ -687,14 +687,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		// to a channel to alleviate lock contention/stress on the channels.
 		workerEnqueue++
 		worker := workers[workerEnqueue%numWorkers]
-		worker.inputCh <- accumulateArg{
-			namespace:  seriesEntry.namespace,
-			series:     seriesEntry.series,
-			shard:      seriesEntry.series.Shard,
-			dp:         entry.Datapoint,
-			unit:       entry.Unit,
-			annotation: entry.Annotation,
-		}
+		worker.inputCh <- arg
 	}
 
 	if iterErr := iter.Err(); iterErr != nil {
