@@ -367,10 +367,6 @@ func (s *commitLogSource) Read(
 		}
 	}
 
-	bootstrapResult := bootstrap.NamespaceResults{
-		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
-	}
-
 	if !emptyRange {
 		instrCtx.readCommitLogStarted()
 		if !s.commitLogResult.read {
@@ -382,32 +378,35 @@ func (s *commitLogSource) Read(
 		} else {
 			s.log.Info("commit log already read in a previous pass, using previous result.")
 		}
-
-		for _, elem := range namespaceIter {
-			ns := elem.Value()
-			id := ns.Metadata.ID()
-			dataResult := result.NewDataBootstrapResult()
-			if s.commitLogResult.shouldReturnUnfulfilled {
-				shardTimeRanges := ns.DataRunOptions.ShardTimeRanges
-				dataResult = shardTimeRanges.ToUnfulfilledDataResult()
-			}
-			var indexResult result.IndexBootstrapResult
-			if ns.Metadata.Options().IndexOptions().Enabled() {
-				indexResult = result.NewIndexBootstrapResult()
-				if s.commitLogResult.shouldReturnUnfulfilled {
-					shardTimeRanges := ns.IndexRunOptions.ShardTimeRanges
-					indexResult = shardTimeRanges.ToUnfulfilledIndexResult()
-				}
-			}
-			bootstrapResult.Results.Set(id, bootstrap.NamespaceResult{
-				Metadata:    ns.Metadata,
-				Shards:      ns.Shards,
-				DataResult:  dataResult,
-				IndexResult: indexResult,
-			})
-		}
 	} else {
 		s.log.Info("commit log skipped because of empty ranges")
+	}
+
+	bootstrapResult := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+	}
+	for _, elem := range namespaceIter {
+		ns := elem.Value()
+		id := ns.Metadata.ID()
+		dataResult := result.NewDataBootstrapResult()
+		if s.commitLogResult.shouldReturnUnfulfilled {
+			shardTimeRanges := ns.DataRunOptions.ShardTimeRanges
+			dataResult = shardTimeRanges.ToUnfulfilledDataResult()
+		}
+		var indexResult result.IndexBootstrapResult
+		if ns.Metadata.Options().IndexOptions().Enabled() {
+			indexResult = result.NewIndexBootstrapResult()
+			if s.commitLogResult.shouldReturnUnfulfilled {
+				shardTimeRanges := ns.IndexRunOptions.ShardTimeRanges
+				indexResult = shardTimeRanges.ToUnfulfilledIndexResult()
+			}
+		}
+		bootstrapResult.Results.Set(id, bootstrap.NamespaceResult{
+			Metadata:    ns.Metadata,
+			Shards:      ns.Shards,
+			DataResult:  dataResult,
+			IndexResult: indexResult,
+		})
 	}
 	instrCtx.readCommitLogCompleted()
 	return bootstrapResult, nil
@@ -683,11 +682,11 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		}
 
 		arg := accumulateArg{
-			namespace:  seriesEntry.namespace,
-			series:     seriesEntry.series,
-			shard:      seriesEntry.series.Shard,
-			dp:         entry.Datapoint,
-			unit:       entry.Unit,
+			namespace: seriesEntry.namespace,
+			series:    seriesEntry.series,
+			shard:     seriesEntry.series.Shard,
+			dp:        entry.Datapoint,
+			unit:      entry.Unit,
 		}
 
 		if len(entry.Annotation) > 0 {
