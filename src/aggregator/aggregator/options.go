@@ -387,6 +387,11 @@ type options struct {
 
 // NewOptions create a new set of options.
 func NewOptions() Options {
+	return NewOptionsWithClock(clock.NewOptions())
+}
+
+// NewOptionsWithClock create a new set of options using the supplied clock options.
+func NewOptionsWithClock(clockOpts clock.Options) Options {
 	aggTypesOptions := aggregation.NewTypesOptions().
 		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
@@ -398,7 +403,7 @@ func NewOptions() Options {
 		timerPrefix:                      defaultTimerPrefix,
 		gaugePrefix:                      defaultGaugePrefix,
 		timeLock:                         &sync.RWMutex{},
-		clockOpts:                        clock.NewOptions(),
+		clockOpts:                        clockOpts,
 		instrumentOpts:                   instrument.NewOptions(),
 		streamOpts:                       cm.NewOptions(),
 		runtimeOptsManager:               runtime.NewOptionsManager(runtime.NewOptions()),
