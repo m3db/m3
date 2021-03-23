@@ -58,6 +58,9 @@ func (o *objectPoolOptions) SetSize(value int) ObjectPoolOptions {
 }
 
 func (o *objectPoolOptions) Size() int {
+	if o.dynamic {
+		return _dynamicPoolSize
+	}
 	return o.size
 }
 
