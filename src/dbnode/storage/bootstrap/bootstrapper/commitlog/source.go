@@ -679,7 +679,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		annotationLen := len(entry.Annotation)
 		if annotationLen > 0 {
 			// Use the predefined buffer if the annotation fits in it, otherwise allocate.
-			if len(entry.Annotation) <= annotationLen {
+			if annotationLen <= len(arg.shortAnnotation) {
 				copy(arg.shortAnnotation[:], entry.Annotation)
 				arg.shortAnnotationLen = uint8(annotationLen)
 			} else {
