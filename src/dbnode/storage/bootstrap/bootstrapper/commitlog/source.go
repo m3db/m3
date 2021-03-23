@@ -90,11 +90,13 @@ type accumulateArg struct {
 	shard      uint32
 	dp         ts.Datapoint
 	unit       xtime.Unit
-	annotation ts.Annotation
 
-	// annotationBytes is a predefined buffer for passing small allocations around instead of allocating.
-	// annotation points to annotationBytes in case the value of annotation fits in it.
-	annotationBytes [16]byte
+	// longAnnotation stores the annotation value in case it does not fit in shortAnnotation.
+	longAnnotation ts.Annotation
+
+	// shortAnnotation is a predefined buffer for passing small allocations around instead of allocating.
+	shortAnnotation [16]byte
+	shortAnnotationLen uint8
 }
 
 type accumulateWorker struct {
@@ -674,12 +676,15 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 			unit:       entry.Unit,
 		}
 
-		if len(entry.Annotation) > 0 {
+		annotationLen := len(entry.Annotation)
+		if annotationLen > 0 {
 			// Use the predefined buffer if the annotation fits in it, otherwise allocate.
-			if len(entry.Annotation) <= len(arg.annotationBytes) {
-				arg.annotation = arg.annotationBytes[:0]
+			if len(entry.Annotation) <= annotationLen {
+				copy(entry.Annotation, arg.shortAnnotation[:])
+				arg.shortAnnotationLen = uint8(annotationLen)
+			} else {
+				arg.longAnnotation = append(make([]byte, 0, annotationLen), entry.Annotation...)
 			}
-			arg.annotation = append(arg.annotation, entry.Annotation...)
 		}
 
 		// Distribute work.
@@ -1056,7 +1061,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 	ctx := xcontext.NewBackground()
 	defer ctx.Close()
 
-	var reusableAnnotation ts.Annotation
+	var reusableAnnotation [16]byte
 
 	for input := range worker.inputCh {
 		var (
@@ -1065,7 +1070,11 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 			dp         = input.dp
 			unit       = input.unit
 		)
-		reusableAnnotation = append(reusableAnnotation[:0], input.annotation...)
+
+		annotation := input.longAnnotation
+		if input.shortAnnotationLen > 0 {
+			annotation = append(reusableAnnotation[:0], input.shortAnnotation[:input.shortAnnotationLen]...)
+		}
 		worker.datapointsRead++
 
 		ref, err := entry.Resolver.SeriesRef()
@@ -1082,7 +1091,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 		}
 
 		_, _, err = ref.Write(ctx, dp.Timestamp, dp.Value,
-			unit, reusableAnnotation, series.WriteOptions{
+			unit, annotation, series.WriteOptions{
 				SchemaDesc:         namespace.namespaceContext.Schema,
 				BootstrapWrite:     true,
 				SkipOutOfRetention: true,
