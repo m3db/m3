@@ -47,6 +47,7 @@ type options struct {
 	queryLimits                 limits.QueryLimits
 	permitsOptions              permits.Options
 	seriesBlocksPerBatch        int
+	bytesPool                   pool.CheckedBytesPool
 }
 
 // NewOptions creates new options.
@@ -90,6 +91,7 @@ func NewOptions() Options {
 		checkedBytesWrapperPool:  bytesWrapperPool,
 		queryLimits:              limits.NoOpQueryLimits(),
 		permitsOptions:           permits.NewOptions(),
+		bytesPool:                bytesPool,
 	}
 }
 
@@ -231,4 +233,14 @@ func (o *options) SetFetchTaggedSeriesBlocksPerBatch(value int) Options {
 
 func (o *options) FetchTaggedSeriesBlocksPerBatch() int {
 	return o.seriesBlocksPerBatch
+}
+
+func (o *options) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
+	opts := *o
+	opts.bytesPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesPool() pool.CheckedBytesPool {
+	return o.bytesPool
 }
