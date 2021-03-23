@@ -678,11 +678,12 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 
 		annotationLen := len(entry.Annotation)
 		if annotationLen > 0 {
-			// Use the predefined buffer if the annotation fits in it, otherwise allocate.
+			// Use the predefined buffer if the annotation fits in it.
 			if annotationLen <= len(arg.shortAnnotation) {
 				copy(arg.shortAnnotation[:], entry.Annotation)
 				arg.shortAnnotationLen = uint8(annotationLen)
 			} else {
+				// Otherwise allocate.
 				arg.longAnnotation = append(make([]byte, 0, annotationLen), entry.Annotation...)
 			}
 		}
@@ -1073,8 +1074,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 
 		annotation := input.longAnnotation
 		if input.shortAnnotationLen > 0 {
-			copy(reusableAnnotation, input.shortAnnotation[:input.shortAnnotationLen])
-			annotation = reusableAnnotation
+			annotation = append(reusableAnnotation, input.shortAnnotation[:input.shortAnnotationLen]...)
 		}
 		worker.datapointsRead++
 
