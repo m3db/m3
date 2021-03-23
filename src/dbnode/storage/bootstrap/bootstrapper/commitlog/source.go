@@ -1056,14 +1056,16 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 	ctx := xcontext.NewBackground()
 	defer ctx.Close()
 
+	var reusableAnnotation ts.Annotation
+
 	for input := range worker.inputCh {
 		var (
 			namespace  = input.namespace
 			entry      = input.series
 			dp         = input.dp
 			unit       = input.unit
-			annotation = input.annotation
 		)
+		reusableAnnotation = append(reusableAnnotation[:0], input.annotation...)
 		worker.datapointsRead++
 
 		ref, err := entry.Resolver.SeriesRef()
@@ -1080,7 +1082,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 		}
 
 		_, _, err = ref.Write(ctx, dp.Timestamp, dp.Value,
-			unit, annotation, series.WriteOptions{
+			unit, reusableAnnotation, series.WriteOptions{
 				SchemaDesc:         namespace.namespaceContext.Schema,
 				BootstrapWrite:     true,
 				SkipOutOfRetention: true,
