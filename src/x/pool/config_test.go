@@ -42,14 +42,19 @@ func TestObjectPoolConfiguration(t *testing.T) {
 	require.False(t, opts.Dynamic())
 	require.Equal(t, 0.1, opts.refillLowWatermark)
 	require.Equal(t, 0.5, opts.refillHighWatermark)
+
+	dynamicOpts := cfg.NewObjectPoolOptions(instrument.NewOptions())
+	require.False(t, dynamicOpts.Dynamic())
+	dynamicOpts = dynamicOpts.SetSize(-1)
+	require.True(t, dynamicOpts.Dynamic())
 }
 
 func TestDynamicObjectPoolConfiguration(t *testing.T) {
 	cfg := ObjectPoolConfiguration{
-		Size: _dynamicPoolSize,
+		Size: DynamicPoolSize,
 	}
 	opts := cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
-	require.Equal(t, _dynamicPoolSize, opts.Size())
+	require.Equal(t, DynamicPoolSize, opts.Size())
 	require.True(t, opts.Dynamic())
 
 	cfg, err := cfgFromStr(`
@@ -58,7 +63,7 @@ size: dynamic
 	require.NoError(t, err)
 
 	opts = cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
-	require.Equal(t, _dynamicPoolSize, opts.Size())
+	require.Equal(t, DynamicPoolSize, opts.Size())
 	require.True(t, opts.Dynamic())
 
 	_, err = cfgFromStr(`
