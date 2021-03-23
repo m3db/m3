@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,12 +32,27 @@ type Configuration struct {
 	File          string                 `json:"file" yaml:"file"`
 	Level         string                 `json:"level" yaml:"level"`
 	Fields        map[string]interface{} `json:"fields" yaml:"fields"`
-	EncoderConfig zapcore.EncoderConfig  `json:"encoderConfig" yaml:"encoderConfig"`
+	EncoderConfig encoderConfig          `json:"encoderConfig,omitempty" yaml:"encoderConfig,omitempty"`
+}
+
+type encoderConfig struct {
+	MessageKey     string `json:"messageKey" yaml:"messageKey"`
+	LevelKey       string `json:"levelKey" yaml:"levelKey"`
+	TimeKey        string `json:"timeKey" yaml:"timeKey"`
+	NameKey        string `json:"nameKey" yaml:"nameKey"`
+	CallerKey      string `json:"callerKey" yaml:"callerKey"`
+	FunctionKey    string `json:"functionKey" yaml:"functionKey"`
+	StacktraceKey  string `json:"stacktraceKey" yaml:"stacktraceKey"`
+	LineEnding     string `json:"lineEnding" yaml:"lineEnding"`
+	EncodeLevel    string `json:"levelEncoder" yaml:"levelEncoder"`
+	EncodeTime     string `json:"timeEncoder" yaml:"timeEncoder"`
+	EncodeDuration string `json:"durationEncoder" yaml:"durationEncoder"`
+	EncodeCaller   string `json:"callerEncoder" yaml:"callerEncoder"`
+	EncodeName     string `json:"nameEncoder" yaml:"nameEncoder,omitempty"`
 }
 
 // BuildLogger builds a new Logger based on the configuration.
 func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
-
 	zc := zap.Config{
 		Level:             zap.NewAtomicLevelAt(zap.InfoLevel),
 		Development:       false,
@@ -93,6 +108,10 @@ func (cfg Configuration) newEncoderConfig() zapcore.EncoderConfig {
 		ec.CallerKey = cfg.EncoderConfig.CallerKey
 	}
 
+	if cfg.EncoderConfig.FunctionKey != "" {
+		ec.FunctionKey = cfg.EncoderConfig.FunctionKey
+	}
+
 	if cfg.EncoderConfig.StacktraceKey != "" {
 		ec.StacktraceKey = cfg.EncoderConfig.StacktraceKey
 	}
@@ -101,24 +120,34 @@ func (cfg Configuration) newEncoderConfig() zapcore.EncoderConfig {
 		ec.LineEnding = cfg.EncoderConfig.LineEnding
 	}
 
-	if cfg.EncoderConfig.EncodeLevel != nil {
-		ec.EncodeLevel = cfg.EncoderConfig.EncodeLevel
+	if cfg.EncoderConfig.EncodeLevel != "" {
+		var levelEncoder zapcore.LevelEncoder
+		_ = levelEncoder.UnmarshalText([]byte(cfg.EncoderConfig.EncodeLevel))
+		ec.EncodeLevel = levelEncoder
 	}
 
-	if cfg.EncoderConfig.EncodeTime != nil {
-		ec.EncodeTime = cfg.EncoderConfig.EncodeTime
+	if cfg.EncoderConfig.EncodeTime != "" {
+		var timeEncoder zapcore.TimeEncoder
+		_ = timeEncoder.UnmarshalText([]byte(cfg.EncoderConfig.EncodeTime))
+		ec.EncodeTime = timeEncoder
 	}
 
-	if cfg.EncoderConfig.EncodeDuration != nil {
-		ec.EncodeDuration = cfg.EncoderConfig.EncodeDuration
+	if cfg.EncoderConfig.EncodeDuration != "" {
+		var durationEncoder zapcore.DurationEncoder
+		_ = durationEncoder.UnmarshalText([]byte(cfg.EncoderConfig.EncodeDuration))
+		ec.EncodeDuration = durationEncoder
 	}
 
-	if cfg.EncoderConfig.EncodeCaller != nil {
-		ec.EncodeCaller = cfg.EncoderConfig.EncodeCaller
+	if cfg.EncoderConfig.EncodeCaller != "" {
+		var callerEncoder zapcore.CallerEncoder
+		_ = callerEncoder.UnmarshalText([]byte(cfg.EncoderConfig.EncodeCaller))
+		ec.EncodeCaller = callerEncoder
 	}
 
-	if cfg.EncoderConfig.EncodeName != nil {
-		ec.EncodeName = cfg.EncoderConfig.EncodeName
+	if cfg.EncoderConfig.EncodeName != "" {
+		var nameEncoder zapcore.NameEncoder
+		_ = nameEncoder.UnmarshalText([]byte(cfg.EncoderConfig.EncodeName))
+		ec.EncodeName = nameEncoder
 	}
 
 	return ec
