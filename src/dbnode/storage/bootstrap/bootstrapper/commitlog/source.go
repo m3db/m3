@@ -77,25 +77,25 @@ type seriesMapKey struct {
 }
 
 type seriesMapEntry struct {
-	shardNoLongerOwned bool
 	namespace          *bootstrapNamespace
 	series             bootstrap.CheckoutSeriesResult
+	shardNoLongerOwned bool
 }
 
 // accumulateArg contains all the information a worker go-routine needs to
 // accumulate a write for encoding into the database.
 type accumulateArg struct {
-	namespace  *bootstrapNamespace
-	series     bootstrap.CheckoutSeriesResult
-	shard      uint32
-	dp         ts.Datapoint
-	unit       xtime.Unit
+	namespace *bootstrapNamespace
+	series    bootstrap.CheckoutSeriesResult
+	shard     uint32
+	dp        ts.Datapoint
+	unit      xtime.Unit
 
 	// longAnnotation stores the annotation value in case it does not fit in shortAnnotation.
 	longAnnotation ts.Annotation
 
 	// shortAnnotation is a predefined buffer for passing small allocations around instead of allocating.
-	shortAnnotation [16]byte
+	shortAnnotation    [16]byte
 	shortAnnotationLen uint8
 }
 
@@ -669,11 +669,11 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		}
 
 		arg := accumulateArg{
-			namespace:  seriesEntry.namespace,
-			series:     seriesEntry.series,
-			shard:      seriesEntry.series.Shard,
-			dp:         entry.Datapoint,
-			unit:       entry.Unit,
+			namespace: seriesEntry.namespace,
+			series:    seriesEntry.series,
+			shard:     seriesEntry.series.Shard,
+			dp:        entry.Datapoint,
+			unit:      entry.Unit,
 		}
 
 		annotationLen := len(entry.Annotation)
@@ -1066,10 +1066,10 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 
 	for input := range worker.inputCh {
 		var (
-			namespace  = input.namespace
-			entry      = input.series
-			dp         = input.dp
-			unit       = input.unit
+			namespace = input.namespace
+			entry     = input.series
+			dp        = input.dp
+			unit      = input.unit
 		)
 
 		annotation := input.longAnnotation
