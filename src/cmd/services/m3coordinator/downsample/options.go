@@ -842,8 +842,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		return agg{}, err
 	}
 
-	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(serviceID,
-		placementManager, flushTimesManager, electionManager, instrumentOpts,
+	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(
+		placementManager, flushTimesManager, electionManager, o.ClockOptions, instrumentOpts,
 		storageFlushConcurrency, pools)
 
 	bufferPastLimits := defaultBufferPastLimits
@@ -1157,15 +1157,16 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 }
 
 func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
-	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	electionManager aggregator.ElectionManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 	storageFlushConcurrency int,
 	pools aggPools,
 ) (aggregator.FlushManager, handler.Handler) {
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetClockOptions(clockOpts).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).

@@ -39,6 +39,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
@@ -105,6 +106,9 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 			metricTagsIteratorPool: metricTagsIteratorPool,
 			matcher:                matcher,
 			agg:                    agg,
+			metrics: metricsAppenderMetrics{
+				processedCount: tally.NoopScope.Counter("test-counter"),
+			},
 		})
 		name := []byte(fmt.Sprint("foo", i))
 		value := []byte(fmt.Sprint("bar", i))

@@ -42,7 +42,7 @@ var (
 type options struct {
 	defaultTimeUnit         xtime.Unit
 	timeEncodingSchemes     TimeEncodingSchemes
-	markerEncodingScheme    MarkerEncodingScheme
+	markerEncodingScheme    *MarkerEncodingScheme
 	encoderPool             EncoderPool
 	readerIteratorPool      ReaderIteratorPool
 	bytesPool               pool.CheckedBytesPool
@@ -56,7 +56,7 @@ type options struct {
 func newOptions() Options {
 	return &options{
 		defaultTimeUnit:        defaultDefaultTimeUnit,
-		timeEncodingSchemes:    newTimeEncodingSchemes(defaultTimeEncodingSchemes),
+		timeEncodingSchemes:    NewTimeEncodingSchemes(defaultTimeEncodingSchemes),
 		markerEncodingScheme:   defaultMarkerEncodingScheme,
 		byteFieldDictLRUSize:   defaultByteFieldDictLRUSize,
 		iStreamReaderSizeM3TSZ: defaultIStreamReaderSizeM3TSZ,
@@ -81,7 +81,7 @@ func (o *options) DefaultTimeUnit() xtime.Unit {
 
 func (o *options) SetTimeEncodingSchemes(value map[xtime.Unit]TimeEncodingScheme) Options {
 	opts := *o
-	opts.timeEncodingSchemes = newTimeEncodingSchemes(value)
+	opts.timeEncodingSchemes = NewTimeEncodingSchemes(value)
 	return &opts
 }
 
@@ -89,13 +89,13 @@ func (o *options) TimeEncodingSchemes() TimeEncodingSchemes {
 	return o.timeEncodingSchemes
 }
 
-func (o *options) SetMarkerEncodingScheme(value MarkerEncodingScheme) Options {
+func (o *options) SetMarkerEncodingScheme(value *MarkerEncodingScheme) Options {
 	opts := *o
 	opts.markerEncodingScheme = value
 	return &opts
 }
 
-func (o *options) MarkerEncodingScheme() MarkerEncodingScheme {
+func (o *options) MarkerEncodingScheme() *MarkerEncodingScheme {
 	return o.markerEncodingScheme
 }
 
