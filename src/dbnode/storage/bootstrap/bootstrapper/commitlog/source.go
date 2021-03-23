@@ -680,7 +680,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		if annotationLen > 0 {
 			// Use the predefined buffer if the annotation fits in it, otherwise allocate.
 			if len(entry.Annotation) <= annotationLen {
-				copy(entry.Annotation, arg.shortAnnotation[:])
+				copy(arg.shortAnnotation[:], entry.Annotation)
 				arg.shortAnnotationLen = uint8(annotationLen)
 			} else {
 				arg.longAnnotation = append(make([]byte, 0, annotationLen), entry.Annotation...)
@@ -1061,7 +1061,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 	ctx := xcontext.NewBackground()
 	defer ctx.Close()
 
-	var reusableAnnotation [16]byte
+	var reusableAnnotation = make([]byte, 0, 16)
 
 	for input := range worker.inputCh {
 		var (
@@ -1073,7 +1073,8 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 
 		annotation := input.longAnnotation
 		if input.shortAnnotationLen > 0 {
-			annotation = append(reusableAnnotation[:0], input.shortAnnotation[:input.shortAnnotationLen]...)
+			copy(reusableAnnotation, input.shortAnnotation[:input.shortAnnotationLen])
+			annotation = reusableAnnotation
 		}
 		worker.datapointsRead++
 
