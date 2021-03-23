@@ -42,6 +42,11 @@ func TestObjectPoolConfiguration(t *testing.T) {
 	require.False(t, opts.Dynamic())
 	require.Equal(t, 0.1, opts.refillLowWatermark)
 	require.Equal(t, 0.5, opts.refillHighWatermark)
+
+	dynamicOpts := cfg.NewObjectPoolOptions(instrument.NewOptions())
+	require.False(t, dynamicOpts.Dynamic())
+	dynamicOpts = dynamicOpts.SetSize(-1)
+	require.True(t, dynamicOpts.Dynamic())
 }
 
 func TestDynamicObjectPoolConfiguration(t *testing.T) {

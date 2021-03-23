@@ -58,9 +58,6 @@ func (o *objectPoolOptions) SetSize(value int) ObjectPoolOptions {
 }
 
 func (o *objectPoolOptions) Size() int {
-	if o.dynamic {
-		return _dynamicPoolSize
-	}
 	return o.size
 }
 
@@ -71,6 +68,10 @@ func (o *objectPoolOptions) SetDynamic(dynamic bool) ObjectPoolOptions {
 }
 
 func (o *objectPoolOptions) Dynamic() bool {
+	// support enabling dynamic pools, even if a user does not expose pool options directly.
+	if o.size == _dynamicPoolSize {
+		return true
+	}
 	return o.dynamic
 }
 
