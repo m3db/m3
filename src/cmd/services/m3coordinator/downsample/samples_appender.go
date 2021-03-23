@@ -23,6 +23,8 @@ package downsample
 import (
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -34,8 +36,9 @@ import (
 
 // samplesAppender must have one of agg or client set
 type samplesAppender struct {
-	agg          aggregator.Aggregator
-	clientRemote client.Client
+	agg              aggregator.Aggregator
+	clientRemote     client.Client
+	processedCounter tally.Counter
 
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
@@ -45,6 +48,7 @@ type samplesAppender struct {
 var _ SamplesAppender = (*samplesAppender)(nil)
 
 func (a samplesAppender) AppendUntimedCounterSample(value int64, annotation []byte) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Counter{
@@ -65,6 +69,7 @@ func (a samplesAppender) AppendUntimedCounterSample(value int64, annotation []by
 }
 
 func (a samplesAppender) AppendUntimedGaugeSample(value float64, annotation []byte) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Gauge{
@@ -85,6 +90,7 @@ func (a samplesAppender) AppendUntimedGaugeSample(value float64, annotation []by
 }
 
 func (a samplesAppender) AppendUntimedTimerSample(value float64, annotation []byte) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.BatchTimer{
@@ -135,11 +141,16 @@ func (a *samplesAppender) AppendTimerSample(t time.Time, value float64, annotati
 }
 
 func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		return a.clientRemote.WriteTimedWithStagedMetadatas(sample, a.stagedMetadatas)
 	}
 
 	return a.agg.AddTimedWithStagedMetadatas(sample, a.stagedMetadatas)
+}
+
+func (a *samplesAppender) emitMetrics() {
+	a.processedCounter.Inc(int64(len(a.stagedMetadatas)))
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender.
