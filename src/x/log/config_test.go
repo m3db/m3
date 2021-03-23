@@ -32,7 +32,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func TestConfiguration_BuildLogger(t *testing.T) {
+func TestLoggerConfiguration(t *testing.T) {
 	tmpfile, err := ioutil.TempFile("", "logtest")
 	require.NoError(t, err)
 
@@ -64,7 +64,7 @@ func TestConfiguration_BuildLogger(t *testing.T) {
 	require.True(t, strings.Contains(data, `"level":"error"`))
 }
 
-func TestConfiguration_newEncoderConfig(t *testing.T) {
+func TestLoggerEncoderConfiguraion(t *testing.T) {
 	logTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	logEntry := zapcore.Entry{
 		LoggerName: "main",
