@@ -95,7 +95,7 @@ type accumulateArg struct {
 	longAnnotation ts.Annotation
 
 	// shortAnnotation is a predefined buffer for passing small allocations around instead of allocating.
-	shortAnnotation    [16]byte
+	shortAnnotation    [ts.OptimizedAnnotationLen]byte
 	shortAnnotationLen uint8
 }
 
@@ -1062,7 +1062,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 	ctx := xcontext.NewBackground()
 	defer ctx.Close()
 
-	var reusableAnnotation = make([]byte, 0, 16)
+	var reusableAnnotation = make([]byte, 0, ts.OptimizedAnnotationLen)
 
 	for input := range worker.inputCh {
 		var (
