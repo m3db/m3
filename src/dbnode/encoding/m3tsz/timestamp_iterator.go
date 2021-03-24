@@ -42,7 +42,7 @@ type TimestampIterator struct {
 	PrevTime      xtime.UnixNano
 	PrevTimeDelta time.Duration
 	PrevAnt       ts.Annotation
-	prevAntBytes  [16]byte
+	prevAntBytes  [ts.OptimizedAnnotationLen]byte
 
 	TimeUnit        xtime.Unit
 	defaultTimeUnit xtime.Unit
