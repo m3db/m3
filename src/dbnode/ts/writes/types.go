@@ -26,18 +26,17 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // FinalizeEncodedTagsFn is a function that will be called for each encoded tags once
 // the WriteBatch itself is finalized.
-type FinalizeEncodedTagsFn func(b checked.Bytes)
+type FinalizeEncodedTagsFn func(b []byte)
 
 // FinalizeAnnotationFn is a function that will be called for each annotation once
 // the WriteBatch itself is finalized.
-type FinalizeAnnotationFn func(b checked.Bytes)
+type FinalizeAnnotationFn func(b []byte)
 
 // Write is a write for the commitlog.
 type Write struct {
@@ -73,8 +72,7 @@ type BatchWrite struct {
 	// here so that it can be returned to the pool after the write to commit log
 	// completes (since the Write.Series gets overwritten in SetOutcome so can't
 	// use the reference there for returning to the pool).
-	EncodedTags checked.Bytes
-	Annotation checked.Bytes
+	EncodedTags ts.EncodedTags
 	// Used to help the caller tie errors back to an index in their
 	// own collection.
 	OriginalIndex int
@@ -111,18 +109,18 @@ type BatchWriter interface {
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
-		annotation checked.Bytes,
+		annotation []byte,
 	) error
 
 	AddTagged(
 		originalIndex int,
 		id ident.ID,
 		tags ident.TagIterator,
-		encodedTags checked.Bytes,
+		encodedTags ts.EncodedTags,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
-		annotation checked.Bytes,
+		annotation []byte,
 	) error
 
 	SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn)

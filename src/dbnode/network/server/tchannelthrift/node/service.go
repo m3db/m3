@@ -269,7 +269,6 @@ type pools struct {
 	writeBatchPooledReqPool *writeBatchPooledReqPool
 	blockMetadataV2         tchannelthrift.BlockMetadataV2Pool
 	blockMetadataV2Slice    tchannelthrift.BlockMetadataV2SlicePool
-	checkedBytes            pool.CheckedBytesPool
 }
 
 // ensure `pools` matches a required conversion interface
@@ -363,7 +362,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			writeBatchPooledReqPool: writeBatchPooledReqPool,
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
-			checkedBytes:            opts.CheckedBytesPool(),
 		},
 		queryLimits:       opts.QueryLimits(),
 		seriesReadPermits: opts.PermitsOptions().SeriesReadPermitsManager(),
@@ -1800,22 +1798,12 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		return convert.ToRPCError(err)
 	}
 
-	bytesPool := s.pools.checkedBytes
-
 	// The lifecycle of the annotations is more involved than the rest of the data
 	// so we set the annotation pool put method as the finalization function and
 	// let the database take care of returning them to the pool.
 	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
-		var annotation checked.Bytes
-		if len(elem.Datapoint.Annotation) > 0 {
-			annotation = bytesPool.Get(len(elem.Datapoint.Annotation))
-			annotation.IncRef()
-			annotation.AppendAll(elem.Datapoint.Annotation)
-		}
-		apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
 			nonRetryableErrors++
@@ -1837,7 +1825,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
-			annotation,
+			elem.Datapoint.Annotation,
 		)
 	}
 
@@ -1898,8 +1886,6 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 	pooledReq.writeV2Req = req
 	ctx.RegisterFinalizer(pooledReq)
 
-	bytesPool := s.pools.checkedBytes
-
 	var (
 		nsID        ident.ID
 		nsIdx       int64
@@ -1931,14 +1917,6 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 			batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 		}
 
-		var annotation checked.Bytes
-		if len(elem.Datapoint.Annotation) > 0 {
-			annotation = bytesPool.Get(len(elem.Datapoint.Annotation))
-			annotation.IncRef()
-			annotation.AppendAll(elem.Datapoint.Annotation)
-		}
-		apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
 			nonRetryableErrors++
@@ -1960,7 +1938,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
-			annotation,
+			elem.Datapoint.Annotation,
 		)
 	}
 
@@ -2021,8 +1999,6 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 		return convert.ToRPCError(err)
 	}
 
-	bytesPool := s.pools.checkedBytes
-
 	// The lifecycle of the encoded tags and annotations is more involved than
 	// the rest of the data so we set the encoded tags and annotation pool put
 	// calls as finalization functions and let the database take care of
@@ -2031,22 +2007,6 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
-		var encodedTags checked.Bytes
-		if len(elem.EncodedTags) > 0 {
-			encodedTags = bytesPool.Get(len(elem.EncodedTags))
-			encodedTags.IncRef()
-			encodedTags.AppendAll(elem.EncodedTags)
-		}
-		apachethrift.BytesPoolPut(elem.EncodedTags)
-
-		var annotation checked.Bytes
-		if len(elem.Datapoint.Annotation) > 0 {
-			annotation = bytesPool.Get(len(elem.Datapoint.Annotation))
-			annotation.IncRef()
-			annotation.AppendAll(elem.Datapoint.Annotation)
-		}
-		apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
 			nonRetryableErrors++
@@ -2061,7 +2021,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		dec, err := s.newPooledTagsDecoder(ctx, encodedTags.Bytes(), pooledReq)
+		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
 		if err != nil {
 			nonRetryableErrors++
 			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
@@ -2073,11 +2033,11 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			i,
 			seriesID,
 			dec,
-			encodedTags,
+			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
-			annotation)
+			elem.Datapoint.Annotation)
 	}
 
 	err = db.WriteTaggedBatch(ctx, nsID, batchWriter, pooledReq)
@@ -2136,8 +2096,6 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 	pooledReq.writeTaggedV2Req = req
 	ctx.RegisterFinalizer(pooledReq)
 
-	bytesPool := s.pools.checkedBytes
-
 	var (
 		nsID        ident.ID
 		nsIdx       int64
@@ -2170,22 +2128,6 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 			batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 		}
 
-		var encodedTags checked.Bytes
-		if len(elem.EncodedTags) > 0 {
-			encodedTags = bytesPool.Get(len(elem.EncodedTags))
-			encodedTags.IncRef()
-			encodedTags.AppendAll(elem.Datapoint.Annotation)
-		}
-		apachethrift.BytesPoolPut(elem.EncodedTags)
-
-		var annotation checked.Bytes
-		if len(elem.Datapoint.Annotation) > 0 {
-			annotation = bytesPool.Get(len(elem.Datapoint.Annotation))
-			annotation.IncRef()
-			annotation.AppendAll(elem.Datapoint.Annotation)
-		}
-		apachethrift.BytesPoolPut(elem.Datapoint.Annotation)
-
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
 			nonRetryableErrors++
@@ -2212,11 +2154,11 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 			i,
 			seriesID,
 			dec,
-			encodedTags,
+			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
-			annotation,
+			elem.Datapoint.Annotation,
 		)
 	}
 
@@ -3000,17 +2942,15 @@ func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 // finalizeEncodedTagsFn implements ts.FinalizeEncodedTagsFn because
 // apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeEncodedTagsFn
 // does not.
-func finalizeEncodedTagsFn(b checked.Bytes) {
-	b.DecRef()
-	b.Finalize()
+func finalizeEncodedTagsFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }
 
 // finalizeAnnotationFn implements ts.FinalizeAnnotationFn because
 // apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeAnnotationFn
 // does not.
-func finalizeAnnotationFn(b checked.Bytes) {
-	b.DecRef()
-	b.Finalize()
+func finalizeAnnotationFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }
 
 func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
