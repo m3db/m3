@@ -44,7 +44,6 @@ var (
 	commitLogFileReadCounter = atomic.NewUint64(0)
 
 	// var instead of const so we can modify them in tests.
-	defaultDecodeEntryBufSize = 1024
 	decoderInBufChanSize      = 1000
 	decoderOutBufChanSize     = 1000
 )
@@ -54,7 +53,6 @@ var (
 
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
 	errCommitLogReaderIsNotReusable             = errors.New("commit log reader is not reusable")
-	errCommitLogReaderMultipleReadloops         = errors.New("commit log reader tried to open multiple readLoops, do not call Read() concurrently")
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 )
 
@@ -173,7 +171,7 @@ func (r *reader) Read() (LogEntry, error) {
 		return LogEntry{}, err
 	}
 
-	metadata, err := r.seriesMetadataForEntry(entry)
+	metadata, err := r.seriesMetadataForEntry(entry.Index, entry.Metadata)
 	if err != nil {
 		return LogEntry{}, err
 	}
@@ -235,7 +233,8 @@ func (r *reader) namespaceIDReused(id []byte) ident.ID {
 }
 
 func (r *reader) seriesMetadataForEntry(
-	entry schema.LogEntry,
+	entryIndex uint64,
+	metadataBytes []byte,
 ) (ts.Series, error) {
 	if r.opts.returnMetadataAsRef {
 		// NB(r): This is a fast path for callers where nothing
@@ -244,14 +243,14 @@ func (r *reader) seriesMetadataForEntry(
 		// the backing commit log file the first and only time
 		// we encounter the series metadata, and then the refs are
 		// invalid on the next call to metadata.
-		if len(entry.Metadata) == 0 {
+		if len(metadataBytes) == 0 {
 			// Valid, nothing to return here and caller will already
 			// have processed metadata for this entry (based on the
 			// FileReadID and the SeriesUniqueIndex returned).
 			return ts.Series{}, nil
 		}
 
-		decoded, err := msgpack.DecodeLogMetadataFast(entry.Metadata)
+		decoded, err := msgpack.DecodeLogMetadataFast(metadataBytes)
 		if err != nil {
 			return ts.Series{}, err
 		}
@@ -261,7 +260,7 @@ func (r *reader) seriesMetadataForEntry(
 		// Find or allocate the namespace ID.
 		namespaceID := r.namespaceIDReused(decoded.Namespace)
 		metadata := ts.Series{
-			UniqueIndex: entry.Index,
+			UniqueIndex: entryIndex,
 			ID:          r.seriesIDReused,
 			Namespace:   namespaceID,
 			Shard:       decoded.Shard,
@@ -272,18 +271,18 @@ func (r *reader) seriesMetadataForEntry(
 
 	// We only check for previously returned metadata
 	// if we're allocating results and can hold onto them.
-	metadata, ok := r.metadataLookup[entry.Index]
+	metadata, ok := r.metadataLookup[entryIndex]
 	if ok {
 		// If the metadata already exists, we can skip this step.
 		return metadata, nil
 	}
 
-	if len(entry.Metadata) == 0 {
+	if len(metadataBytes) == 0 {
 		// Expected metadata but not encoded.
 		return ts.Series{}, errCommitLogReaderMissingMetadata
 	}
 
-	decoded, err := msgpack.DecodeLogMetadataFast(entry.Metadata)
+	decoded, err := msgpack.DecodeLogMetadataFast(metadataBytes)
 	if err != nil {
 		return ts.Series{}, err
 	}
@@ -303,14 +302,14 @@ func (r *reader) seriesMetadataForEntry(
 
 	idPool := r.opts.commitLogOptions.IdentifierPool()
 	metadata = ts.Series{
-		UniqueIndex: entry.Index,
+		UniqueIndex: entryIndex,
 		ID:          idPool.BinaryID(id),
 		Namespace:   namespaceID,
 		Shard:       decoded.Shard,
-		EncodedTags: ts.EncodedTags(encodedTags),
+		EncodedTags: encodedTags,
 	}
 
-	r.metadataLookup[entry.Index] = metadata
+	r.metadataLookup[entryIndex] = metadata
 
 	id.DecRef()
 
