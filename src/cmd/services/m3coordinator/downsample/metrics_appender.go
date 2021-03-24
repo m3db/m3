@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -73,6 +74,10 @@ func (p *metricsAppenderPool) Get() *metricsAppender {
 
 func (p *metricsAppenderPool) Put(v *metricsAppender) {
 	p.pool.Put(v)
+}
+
+type metricsAppenderMetrics struct {
+	processedCount tally.Counter
 }
 
 type metricsAppender struct {
@@ -107,6 +112,7 @@ type metricsAppenderOptions struct {
 	clockOpts    clock.Options
 	debugLogging bool
 	logger       *zap.Logger
+	metrics      metricsAppenderMetrics
 }
 
 func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
@@ -403,10 +409,11 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		a.debugLogMatch("downsampler applying matched rollup rule",
 			debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
 		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			clientRemote:    a.clientRemote,
-			unownedID:       rollup.ID,
-			stagedMetadatas: rollup.Metadatas,
+			agg:              a.agg,
+			clientRemote:     a.clientRemote,
+			processedCounter: a.metrics.processedCount,
+			unownedID:        rollup.ID,
+			stagedMetadatas:  rollup.Metadatas,
 		})
 		if a.untimedRollups {
 			dropTimestamp = true
@@ -559,10 +566,11 @@ func (a *metricsAppender) newSamplesAppender(
 		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
 	return samplesAppender{
-		agg:             a.agg,
-		clientRemote:    a.clientRemote,
-		unownedID:       data.Bytes(),
-		stagedMetadatas: []metadata.StagedMetadata{sm},
+		agg:              a.agg,
+		clientRemote:     a.clientRemote,
+		processedCounter: a.metrics.processedCount,
+		unownedID:        data.Bytes(),
+		stagedMetadatas:  []metadata.StagedMetadata{sm},
 	}, nil
 }
 
