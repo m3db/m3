@@ -293,7 +293,7 @@ func TestGoContext(t *testing.T) {
 }
 
 // Test that too deep span tree created is prevented
-// Span is signalled as error in that case that which is well defined
+// Span is marked as error in that case that which is well defined
 func TestTooDeepSpanTreeIsPreventedAndMarked(t *testing.T) {
 	// use a mock tracer to ensure sampling rate is set to 1.
 	tracer := mocktracer.New()
@@ -304,8 +304,8 @@ func TestTooDeepSpanTreeIsPreventedAndMarked(t *testing.T) {
 	context := NewWithGoContext(opentracing.ContextWithSpan(stdctx.Background(), span))
 
 	var (
-		lastChildSpanCreated    opentracing.Span = nil
-		lastChildContextCreated                  = context
+		lastChildSpanCreated    opentracing.Span
+		lastChildContextCreated = context
 	)
 	for i := 1; i <= maxDistanceFromRootContext; i++ {
 		lastChildContextCreated, lastChildSpanCreated, _ =
@@ -323,7 +323,7 @@ func TestTooDeepSpanTreeIsPreventedAndMarked(t *testing.T) {
 	assert.True(t, fieldsContains(spanLog.Fields, "event", "error") &&
 		fieldsContains(spanLog.Fields, "error.object", errSpanTooDeep.Error()))
 
-	childContext, span, _ := lastChildContextCreated.StartSampledTraceSpan("another-span-beyond-max-depth")
+	childContext, _, _ := lastChildContextCreated.StartSampledTraceSpan("another-span-beyond-max-depth")
 	assert.Equal(t, lastChildContextCreated, childContext)
 }
 

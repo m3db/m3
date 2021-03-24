@@ -23,7 +23,6 @@ package context
 import (
 	stdctx "context"
 	"fmt"
-	"github.com/opentracing/opentracing-go/ext"
 	"sync"
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -31,6 +30,7 @@ import (
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
 )
@@ -291,7 +291,8 @@ func (c *ctx) Reset() {
 	}
 
 	c.Lock()
-	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled, c.distanceFromRoot = false, nil, stdctx.Background(), false, 0
+	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, stdctx.Background(), false
+	c.distanceFromRoot = 0
 	c.Unlock()
 }
 
