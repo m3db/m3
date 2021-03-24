@@ -80,10 +80,9 @@ Refer to the [Namespace configuration guide](/docs/operational_guide/namespace_c
 Currently, the best way is to go to the [M3DB Node Details Dashboard](https://grafana.com/grafana/dashboards/8126) and look at the `Ticking` panel. However, this is not entirely accurate because of the way data is stored in M3DB -- time series are stored inside time-based blocks that you configure. In actuality, the `Ticking` graph shows you how many unique series there are for the most recent block that has persisted. In the future, we plan to introduce easier ways to determine the number of unique time series. 
 
 - **How can I check the health of my M3DB node or cluster?**
-Each M3DB node has an endpoint called Health, which you can query via HTTP: `curl localhost:9002/health
+Each M3DB node has a health endpoint, which you can query via HTTP: `curl localhost:9002/health
 {"ok":true,"status":"up","bootstrapped":true}`. There are also metrics for failed requests (e.g. query timeouts). 
 
 - **How do I understand a metric type?**
 For Prometheus metrics, visit their site for [documentation of metric types](https://prometheus.io/docs/concepts/metric_types/#metric-types). 
-
 
