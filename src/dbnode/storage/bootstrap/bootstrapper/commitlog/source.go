@@ -1062,7 +1062,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 	ctx := xcontext.NewBackground()
 	defer ctx.Close()
 
-	var reusableAnnotation = make([]byte, 0, ts.OptimizedAnnotationLen)
+	reusableAnnotation := make([]byte, 0, ts.OptimizedAnnotationLen)
 
 	for input := range worker.inputCh {
 		var (
@@ -1074,7 +1074,8 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 
 		annotation := input.longAnnotation
 		if input.shortAnnotationLen > 0 {
-			annotation = append(reusableAnnotation, input.shortAnnotation[:input.shortAnnotationLen]...)
+			reusableAnnotation = append(reusableAnnotation[:0], input.shortAnnotation[:input.shortAnnotationLen]...)
+			annotation = reusableAnnotation
 		}
 		worker.datapointsRead++
 

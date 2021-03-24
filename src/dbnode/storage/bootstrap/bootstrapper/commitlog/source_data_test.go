@@ -122,10 +122,10 @@ func TestReadOnlyOnce(t *testing.T) {
 	values := testValues{
 		{foo, start, 1.0, xtime.Second, shortAnnotation},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, longAnnotation},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, longAnnotation},
 		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, shortAnnotation},
 		// "baz" is in shard 2 and should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, shortAnnotation},
 	}
 
 	var commitLogReads int
