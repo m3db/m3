@@ -1076,10 +1076,11 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		tt := alignedStart.Add(time.Minute * time.Duration(i))
 		tagsIter := opts.FilesystemOptions().TagDecoderPool().Get()
-		tagsIter.Reset(checked.NewBytes(testSeriesWrites[i].EncodedTags, nil))
-		writes.AddTagged(i, testSeriesWrites[i].ID, tagsIter,
-			testSeriesWrites[i].EncodedTags,
+		encodedTags := checked.NewBytes(testSeriesWrites[i].EncodedTags, nil)
+		tagsIter.Reset(encodedTags)
+		err := writes.AddTagged(i, testSeriesWrites[i].ID, tagsIter, encodedTags,
 			tt, float64(i)*10.5, xtime.Second, nil)
+		require.NoError(t, err)
 	}
 
 	writes.SetSkipWrite(0)

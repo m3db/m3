@@ -1197,7 +1197,7 @@ func testDatabaseWriteBatch(t *testing.T,
 		// in the WriteBatch slice.
 		if tagged {
 			batchWriter.AddTagged(i*2, ident.StringID(write.series),
-				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
+				tagsIter.Duplicate(), encodedTags, write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().
 				WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),

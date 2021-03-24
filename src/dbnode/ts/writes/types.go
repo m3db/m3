@@ -74,7 +74,7 @@ type BatchWrite struct {
 	// completes (since the Write.Series gets overwritten in SetOutcome so can't
 	// use the reference there for returning to the pool).
 	EncodedTags checked.Bytes
-	Annotation checked.Bytes
+	Annotation  checked.Bytes
 	// Used to help the caller tie errors back to an index in their
 	// own collection.
 	OriginalIndex int

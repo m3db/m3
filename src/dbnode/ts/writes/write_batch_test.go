@@ -54,7 +54,7 @@ var (
 			timestamp:  time.Now(),
 			value:      0,
 			unit:       xtime.Nanosecond,
-			annotation: []byte("annotation1"),
+			annotation: checkedBytes([]byte("annotation1")),
 		},
 		{
 			id: ident.StringID("series2"),
@@ -66,7 +66,7 @@ var (
 			timestamp:  time.Now(),
 			value:      1,
 			unit:       xtime.Nanosecond,
-			annotation: []byte("annotation2s"),
+			annotation: checkedBytes([]byte("annotation2s")),
 		},
 		{
 			id: ident.StringID("series3"),
@@ -78,7 +78,7 @@ var (
 			timestamp:  time.Now(),
 			value:      2,
 			unit:       xtime.Nanosecond,
-			annotation: []byte("annotation3s"),
+			annotation: checkedBytes([]byte("annotation3s")),
 		},
 	}
 )
@@ -106,7 +106,7 @@ type testWrite struct {
 	timestamp  time.Time
 	value      float64
 	unit       xtime.Unit
-	annotation []byte
+	annotation checked.Bytes
 }
 
 func (w testWrite) encodedTags(t *testing.T) checked.Bytes {
@@ -142,7 +142,7 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 			i,
 			write.id,
 			write.tagIter,
-			write.encodedTags(t).Bytes(),
+			write.encodedTags(t),
 			write.timestamp,
 			write.value,
 			write.unit,
@@ -161,7 +161,7 @@ func TestBatchWriterSetSeries(t *testing.T) {
 			i,
 			write.id,
 			write.tagIter,
-			write.encodedTags(t).Bytes(),
+			write.encodedTags(t),
 			write.timestamp,
 			write.value,
 			write.unit,
@@ -211,7 +211,7 @@ func TestBatchWriterSetSeries(t *testing.T) {
 			continue
 		}
 
-		require.Equal(t, fmt.Sprint(i), string(currSeries.ID.String()))
+		require.Equal(t, fmt.Sprint(i), currSeries.ID.String())
 		require.False(t, curr.SkipWrite)
 
 		require.NoError(t, curr.Err)
@@ -259,7 +259,7 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 				require.Equal(t, write.timestamp, currWrite.Datapoint.Timestamp)
 				require.Equal(t, write.value, currWrite.Datapoint.Value)
 				require.Equal(t, write.unit, currWrite.Unit)
-				require.True(t, bytes.Equal(write.annotation, currWrite.Annotation))
+				require.True(t, bytes.Equal(write.annotation.Bytes(), currWrite.Annotation))
 				found = true
 				break
 			}
@@ -275,10 +275,10 @@ func TestBatchWriterFinalizer(t *testing.T) {
 		numAnnotationsFinalized = 0
 		numFinalized            = 0
 
-		finalizeEncodedTagsFn = func(b []byte) {
+		finalizeEncodedTagsFn = func(b checked.Bytes) {
 			numEncodedTagsFinalized++
 		}
-		finalizeAnnotationFn = func(b []byte) {
+		finalizeAnnotationFn = func(b checked.Bytes) {
 			numAnnotationsFinalized++
 		}
 		finalizeFn = func(b WriteBatch) {
@@ -295,7 +295,7 @@ func TestBatchWriterFinalizer(t *testing.T) {
 			i,
 			write.id,
 			write.tagIter,
-			write.encodedTags(t).Bytes(),
+			write.encodedTags(t),
 			write.timestamp,
 			write.value,
 			write.unit,
@@ -308,4 +308,10 @@ func TestBatchWriterFinalizer(t *testing.T) {
 	require.Equal(t, 1, numFinalized)
 	require.Equal(t, 3, numEncodedTagsFinalized)
 	require.Equal(t, 3, numAnnotationsFinalized)
+}
+
+func checkedBytes(b []byte) checked.Bytes {
+	r := checked.NewBytes(b, nil)
+	r.IncRef()
+	return r
 }

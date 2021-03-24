@@ -124,8 +124,10 @@ func (b *writeBatch) SetSeries(idx int, series ts.Series) {
 	b.writes[idx].SkipWrite = false
 	b.writes[idx].Write.Series = series
 	// Make sure that the EncodedTags does not get clobbered
-	if b.writes[idx].EncodedTags != nil {
-		b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags.Bytes()
+	if encodedTags := b.writes[idx].EncodedTags; encodedTags != nil {
+		encodedTags.IncRef()
+		b.writes[idx].Write.Series.EncodedTags = encodedTags.Bytes()
+		encodedTags.DecRef()
 	} else {
 		b.writes[idx].Write.Series.EncodedTags = nil
 	}
@@ -228,12 +230,16 @@ func newBatchWriterWrite(
 
 	var encodedTagsBytes ts.EncodedTags
 	if encodedTags != nil {
+		encodedTags.IncRef()
 		encodedTagsBytes = encodedTags.Bytes()
+		encodedTags.DecRef()
 	}
 
 	var annotationBytes ts.Annotation
 	if annotation != nil {
+		annotation.IncRef()
 		annotationBytes = annotation.Bytes()
+		annotation.DecRef()
 	}
 
 	return BatchWrite{
