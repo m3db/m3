@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eo pipefail
+set -x
 
 BIN="$1"
 TARGET="$2"
