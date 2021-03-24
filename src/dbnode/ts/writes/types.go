@@ -33,7 +33,7 @@ import (
 
 // FinalizeEncodedTagsFn is a function that will be called for each encoded tags once
 // the WriteBatch itself is finalized.
-type FinalizeEncodedTagsFn func(b []byte)
+type FinalizeEncodedTagsFn func(b checked.Bytes)
 
 // FinalizeAnnotationFn is a function that will be called for each annotation once
 // the WriteBatch itself is finalized.
@@ -73,7 +73,7 @@ type BatchWrite struct {
 	// here so that it can be returned to the pool after the write to commit log
 	// completes (since the Write.Series gets overwritten in SetOutcome so can't
 	// use the reference there for returning to the pool).
-	EncodedTags ts.EncodedTags
+	EncodedTags checked.Bytes
 	Annotation checked.Bytes
 	// Used to help the caller tie errors back to an index in their
 	// own collection.
@@ -118,7 +118,7 @@ type BatchWriter interface {
 		originalIndex int,
 		id ident.ID,
 		tags ident.TagIterator,
-		encodedTags ts.EncodedTags,
+		encodedTags checked.Bytes,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
