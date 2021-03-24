@@ -258,7 +258,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
-	opts := aggregator.NewOptions().
+	opts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuntimeOptionsManager(runtimeOptsManager).
 		SetVerboseErrors(c.VerboseErrors).

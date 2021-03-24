@@ -50,7 +50,7 @@ func validateDerivedPrefix(
 }
 
 func TestOptionsValidateDefault(t *testing.T) {
-	o := NewOptions()
+	o := newTestOptions()
 
 	// Validate base options.
 	require.Equal(t, defaultMetricPrefix, o.MetricPrefix())
@@ -77,7 +77,7 @@ func TestOptionsValidateDefault(t *testing.T) {
 
 func TestOptionsSetMetricPrefix(t *testing.T) {
 	newPrefix := []byte("testMetricPrefix")
-	o := NewOptions().SetMetricPrefix(newPrefix)
+	o := newTestOptions().SetMetricPrefix(newPrefix)
 	require.Equal(t, newPrefix, o.MetricPrefix())
 	validateDerivedPrefix(t, o.FullCounterPrefix(), o.MetricPrefix(), o.CounterPrefix())
 	validateDerivedPrefix(t, o.FullTimerPrefix(), o.MetricPrefix(), o.TimerPrefix())
@@ -86,58 +86,58 @@ func TestOptionsSetMetricPrefix(t *testing.T) {
 
 func TestOptionsSetCounterPrefix(t *testing.T) {
 	newPrefix := []byte("testCounterPrefix")
-	o := NewOptions().SetCounterPrefix(newPrefix)
+	o := newTestOptions().SetCounterPrefix(newPrefix)
 	require.Equal(t, newPrefix, o.CounterPrefix())
 	validateDerivedPrefix(t, o.FullCounterPrefix(), o.MetricPrefix(), o.CounterPrefix())
 }
 
 func TestOptionsSetTimerPrefix(t *testing.T) {
 	newPrefix := []byte("testTimerPrefix")
-	o := NewOptions().SetTimerPrefix(newPrefix)
+	o := newTestOptions().SetTimerPrefix(newPrefix)
 	require.Equal(t, newPrefix, o.TimerPrefix())
 	validateDerivedPrefix(t, o.FullTimerPrefix(), o.MetricPrefix(), o.TimerPrefix())
 }
 
 func TestOptionsSetGaugePrefix(t *testing.T) {
 	newPrefix := []byte("testGaugePrefix")
-	o := NewOptions().SetGaugePrefix(newPrefix)
+	o := newTestOptions().SetGaugePrefix(newPrefix)
 	require.Equal(t, newPrefix, o.GaugePrefix())
 	validateDerivedPrefix(t, o.FullGaugePrefix(), o.MetricPrefix(), o.GaugePrefix())
 }
 
 func TestSetClockOptions(t *testing.T) {
 	value := clock.NewOptions()
-	o := NewOptions().SetClockOptions(value)
+	o := newTestOptions().SetClockOptions(value)
 	require.Equal(t, value, o.ClockOptions())
 }
 
 func TestSetInstrumentOptions(t *testing.T) {
 	value := instrument.NewOptions()
-	o := NewOptions().SetInstrumentOptions(value)
+	o := newTestOptions().SetInstrumentOptions(value)
 	require.Equal(t, value, o.InstrumentOptions())
 }
 
 func TestSetStreamOptions(t *testing.T) {
 	value := cm.NewOptions()
-	o := NewOptions().SetStreamOptions(value)
+	o := newTestOptions().SetStreamOptions(value)
 	require.Equal(t, value, o.StreamOptions())
 }
 
 func TestSetAdminClient(t *testing.T) {
 	var c client.AdminClient = &client.M3MsgClient{}
-	o := NewOptions().SetAdminClient(c)
+	o := newTestOptions().SetAdminClient(c)
 	require.True(t, c == o.AdminClient())
 }
 
 func TestSetRuntimeOptionsManager(t *testing.T) {
 	value := runtime.NewOptionsManager(runtime.NewOptions())
-	o := NewOptions().SetRuntimeOptionsManager(value)
+	o := newTestOptions().SetRuntimeOptionsManager(value)
 	require.Equal(t, value, o.RuntimeOptionsManager())
 }
 
 func TestSetTimeLock(t *testing.T) {
 	value := &sync.RWMutex{}
-	o := NewOptions().SetTimeLock(value)
+	o := newTestOptions().SetTimeLock(value)
 	require.Equal(t, value, o.TimeLock())
 }
 
@@ -146,7 +146,7 @@ func TestSetFlushHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	h := handler.NewMockHandler(ctrl)
-	o := NewOptions().SetFlushHandler(h)
+	o := newTestOptions().SetFlushHandler(h)
 	require.Equal(t, h, o.FlushHandler())
 }
 
@@ -155,13 +155,13 @@ func TestSetPassthroughWriter(t *testing.T) {
 	defer ctrl.Finish()
 
 	w := writer.NewMockWriter(ctrl)
-	o := NewOptions().SetPassthroughWriter(w)
+	o := newTestOptions().SetPassthroughWriter(w)
 	require.Equal(t, w, o.PassthroughWriter())
 }
 
 func TestSetEntryTTL(t *testing.T) {
 	value := time.Minute
-	o := NewOptions().SetEntryTTL(value)
+	o := newTestOptions().SetEntryTTL(value)
 	require.Equal(t, value, o.EntryTTL())
 }
 
@@ -169,7 +169,7 @@ func TestSetMaxAllowedForwardingDelayFn(t *testing.T) {
 	value := func(resolution time.Duration, numForwardedTimes int) time.Duration {
 		return resolution + time.Second*time.Duration(numForwardedTimes)
 	}
-	o := NewOptions().SetMaxAllowedForwardingDelayFn(value)
+	o := newTestOptions().SetMaxAllowedForwardingDelayFn(value)
 	fn := o.MaxAllowedForwardingDelayFn()
 	require.Equal(t, 72*time.Second, fn(time.Minute, 12))
 }
@@ -178,60 +178,64 @@ func TestSetTimedAggregationBufferPastFn(t *testing.T) {
 	value := func(resolution time.Duration) time.Duration {
 		return resolution * 2
 	}
-	o := NewOptions().SetBufferForPastTimedMetricFn(value)
+	o := newTestOptions().SetBufferForPastTimedMetricFn(value)
 	fn := o.BufferForPastTimedMetricFn()
 	require.Equal(t, 2*time.Minute, fn(time.Minute))
 }
 
 func TestSetTimedAggregationBufferFutureFn(t *testing.T) {
-	o := NewOptions().SetBufferForFutureTimedMetric(3 * time.Minute)
+	o := newTestOptions().SetBufferForFutureTimedMetric(3 * time.Minute)
 	require.Equal(t, 3*time.Minute, o.BufferForFutureTimedMetric())
 }
 
 func TestSetEntryCheckInterval(t *testing.T) {
 	value := time.Minute
-	o := NewOptions().SetEntryCheckInterval(value)
+	o := newTestOptions().SetEntryCheckInterval(value)
 	require.Equal(t, value, o.EntryCheckInterval())
 }
 
 func TestSetEntryCheckBatchPercent(t *testing.T) {
 	value := 0.05
-	o := NewOptions().SetEntryCheckBatchPercent(value)
+	o := newTestOptions().SetEntryCheckBatchPercent(value)
 	require.Equal(t, value, o.EntryCheckBatchPercent())
 }
 
 func TestSetEntryPool(t *testing.T) {
 	value := NewEntryPool(nil)
-	o := NewOptions().SetEntryPool(value)
+	o := newTestOptions().SetEntryPool(value)
 	require.Equal(t, value, o.EntryPool())
 }
 
 func TestSetMaxNumCachedSourceSets(t *testing.T) {
 	value := 4
-	o := NewOptions().SetMaxNumCachedSourceSets(value)
+	o := newTestOptions().SetMaxNumCachedSourceSets(value)
 	require.Equal(t, value, o.MaxNumCachedSourceSets())
 }
 
 func TestSetDiscardNaNAggregatedValues(t *testing.T) {
 	value := false
-	o := NewOptions().SetDiscardNaNAggregatedValues(value)
+	o := newTestOptions().SetDiscardNaNAggregatedValues(value)
 	require.Equal(t, value, o.DiscardNaNAggregatedValues())
 }
 
 func TestSetCounterElemPool(t *testing.T) {
 	value := NewCounterElemPool(nil)
-	o := NewOptions().SetCounterElemPool(value)
+	o := newTestOptions().SetCounterElemPool(value)
 	require.Equal(t, value, o.CounterElemPool())
 }
 
 func TestSetTimerElemPool(t *testing.T) {
 	value := NewTimerElemPool(nil)
-	o := NewOptions().SetTimerElemPool(value)
+	o := newTestOptions().SetTimerElemPool(value)
 	require.Equal(t, value, o.TimerElemPool())
 }
 
 func TestSetGaugeElemPool(t *testing.T) {
 	value := NewGaugeElemPool(nil)
-	o := NewOptions().SetGaugeElemPool(value)
+	o := newTestOptions().SetGaugeElemPool(value)
 	require.Equal(t, value, o.GaugeElemPool())
+}
+
+func newTestOptions() Options {
+	return NewOptions(clock.NewOptions())
 }

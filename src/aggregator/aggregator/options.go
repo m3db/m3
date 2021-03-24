@@ -386,12 +386,7 @@ type options struct {
 }
 
 // NewOptions create a new set of options.
-func NewOptions() Options {
-	return NewOptionsWithClock(clock.NewOptions())
-}
-
-// NewOptionsWithClock create a new set of options using the supplied clock options.
-func NewOptionsWithClock(clockOpts clock.Options) Options {
+func NewOptions(clockOpts clock.Options) Options {
 	aggTypesOptions := aggregation.NewTypesOptions().
 		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).

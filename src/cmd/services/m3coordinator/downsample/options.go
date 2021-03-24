@@ -867,7 +867,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	// Finally construct all options.
-	aggregatorOpts := aggregator.NewOptionsWithClock(clockOpts).
+	aggregatorOpts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetDefaultStoragePolicies(nil).
 		SetMetricPrefix(nil).
