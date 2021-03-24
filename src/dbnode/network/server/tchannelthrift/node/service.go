@@ -2964,10 +2964,12 @@ func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 }
 
 func finalizeEncodedTagsFn(b checked.Bytes) {
+	b.DecRef()
 	b.Finalize()
 }
 
 func finalizeAnnotationFn(b checked.Bytes) {
+	b.DecRef()
 	b.Finalize()
 }
 
@@ -2983,7 +2985,6 @@ func moveToCheckedBytesPool(data []byte, pool pool.CheckedBytesPool) checked.Byt
 		moved = pool.Get(len(data))
 		moved.IncRef()
 		moved.AppendAll(data)
-		moved.DecRef()
 	}
 	apachethrift.BytesPoolPut(data)
 
