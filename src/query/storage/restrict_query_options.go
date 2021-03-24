@@ -118,6 +118,13 @@ func (o *RestrictByTag) GetFilterByNames() [][]byte {
 func (q *FetchQuery) WithAppliedOptions(
 	opts *FetchOptions,
 ) *FetchQuery {
+	return q.withRestrictQueryOptionsApplied(opts).
+		withModifyQueryOptionsApplied(opts)
+}
+
+func (q *FetchQuery) withRestrictQueryOptionsApplied(
+	opts *FetchOptions,
+) *FetchQuery {
 	result := *q
 	if opts == nil {
 		return &result
@@ -156,6 +163,45 @@ func (q *FetchQuery) WithAppliedOptions(
 
 	// Now append the must apply matchers.
 	result.TagMatchers = append(existing, restrict...)
+	return &result
+}
+
+func (q *FetchQuery) withModifyQueryOptionsApplied(
+	opts *FetchOptions,
+) *FetchQuery {
+	result := *q
+	if opts == nil {
+		return &result
+	}
+
+	modifyOpts := opts.ModifyQueryOptions
+	if modifyOpts == nil {
+		return &result
+	}
+
+	if remap := modifyOpts.RemapQueryTags; remap != nil && remap.Mapping != nil {
+		needsModify := false
+		for _, matcher := range result.TagMatchers {
+			_, ok := remap.Mapping.Get(matcher.Name)
+			if ok {
+				needsModify = true
+				break
+			}
+		}
+
+		if needsModify {
+			original := result.TagMatchers
+			result.TagMatchers = make(models.Matchers, 0, len(original))
+			for _, matcher := range original {
+				value, ok := remap.Mapping.Get(matcher.Name)
+				if ok {
+					matcher.Value = value
+				}
+				result.TagMatchers = append(result.TagMatchers, matcher)
+			}
+		}
+	}
+
 	return &result
 }
 

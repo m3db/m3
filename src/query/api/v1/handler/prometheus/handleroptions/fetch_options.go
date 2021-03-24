@@ -68,9 +68,10 @@ type FetchOptionsBuilder interface {
 // FetchOptionsBuilderOptions provides options to use when creating a
 // fetch options builder.
 type FetchOptionsBuilderOptions struct {
-	Limits        FetchOptionsBuilderLimitsOptions
-	RestrictByTag *storage.RestrictByTag
-	Timeout       time.Duration
+	Limits             FetchOptionsBuilderLimitsOptions
+	RestrictByTag      *storage.RestrictByTag
+	ModifyQueryOptions *storage.ModifyQueryOptions
+	Timeout            time.Duration
 }
 
 // Validate validates the fetch options builder options.
@@ -172,6 +173,9 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	req *http.Request,
 ) (context.Context, *storage.FetchOptions, error) {
 	fetchOpts := storage.NewFetchOptions()
+
+	// ModifyQueryOptions set by options and not overridden.
+	fetchOpts.ModifyQueryOptions = b.opts.ModifyQueryOptions
 
 	if source := req.Header.Get(headers.SourceHeader); len(source) > 0 {
 		fetchOpts.Source = []byte(source)

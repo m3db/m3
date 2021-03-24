@@ -131,6 +131,9 @@ type FetchOptions struct {
 	// RestrictQueryOptions restricts the fetch to a specific set of
 	// conditions.
 	RestrictQueryOptions *RestrictQueryOptions
+	// ModifyQueryOptions modifies the query in different ways to provide
+	// the ability of remapping tags and other modifications.
+	ModifyQueryOptions *ModifyQueryOptions
 	// Step is the configured step size.
 	Step time.Duration
 	// LookbackDuration if set overrides the default lookback duration.
@@ -199,6 +202,23 @@ type RestrictQueryOptions struct {
 	// RestrictByTag are specific restrictions to enforce behavior for given
 	// tags.
 	RestrictByTag *RestrictByTag
+}
+
+// ModifyQueryOptions modifies the query and adds the ability to rename
+// tags both as part of the query and also the tags returned by a query.
+type ModifyQueryOptions struct {
+	// RemapQueryTags remaps tags for queries (i.e. foobar="baz" can be
+	// remapped to a query for foo_bar="baz").
+	RemapQueryTags *TagsRemapping
+	// RemapResultTags remaps tags for results (i.e. foobar="baz" can be
+	// remapped to a result of foo_bar="baz").
+	RemapResultTags *TagsRemapping
+}
+
+// TagsRemapping remaps tags to different names used for corresponding
+// tag in the storage layer.
+type TagsRemapping struct {
+	Mapping *TagsMap
 }
 
 // Querier handles queries against a storage.

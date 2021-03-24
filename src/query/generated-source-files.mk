@@ -21,6 +21,7 @@ genny-all: genny-map-all
 genny-map-all:                    \
 	genny-map-multi-fetch-result  \
 	genny-map-series-metadata-map \
+	genny-map-tags-map            \
 
 # Map generation rule for query/storage/m3/consolidators/multiFetchResultMap
 .PHONY: genny-map-multi-fetch-result
@@ -49,3 +50,18 @@ genny-map-series-metadata-map:
 	# Rename generated map file
 	mv -f $(query_package_path)/graphite/storage/map_gen.go $(query_package_path)/graphite/storage/series_metadata_map_gen.go
 	mv -f $(query_package_path)/graphite/storage/new_map_gen.go $(query_package_path)/graphite/storage/series_metadata_map_new.go
+
+# Map generation rule for query/storage/TagsMap
+.PHONY: genny-map-tags-map
+genny-map-tags-map:
+	cd $(m3x_package_path) && make byteshashmap-gen          \
+		pkg=storage                                            \
+		value_type=[]byte                                      \
+		target_package=$(query_package)/storage                \
+		rename_nogen_key=true                                  \
+		rename_type_prefix=Tags                                \
+		rename_constructor=NewTags                             \
+		rename_constructor_options=TagsMapOptions
+	# Rename generated map file
+	mv -f $(query_package_path)/storage/map_gen.go $(query_package_path)/storage/tags_map_gen.go
+	mv -f $(query_package_path)/storage/new_map_gen.go $(query_package_path)/storage/tags_map_new.go

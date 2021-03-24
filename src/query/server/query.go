@@ -285,6 +285,11 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not parse query restrict tags config", zap.Error(err))
 	}
 
+	// storageModifyQueryOptions, err := cfg.Query.ModifyQueryAsStorageModifyQueryOptions()
+	// if err != nil {
+	// 	logger.Fatal("could not parse query restrict tags config", zap.Error(err))
+	// }
+
 	timeout := cfg.Query.TimeoutOrDefault()
 	if runOpts.DBConfig != nil &&
 		runOpts.DBConfig.Client.FetchTimeout != nil &&
@@ -295,9 +300,10 @@ func Run(runOpts RunOptions) {
 	fetchOptsBuilderLimitsOpts := cfg.Limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
 		handleroptions.FetchOptionsBuilderOptions{
-			Limits:        fetchOptsBuilderLimitsOpts,
-			RestrictByTag: storageRestrictByTags,
-			Timeout:       timeout,
+			Limits:             fetchOptsBuilderLimitsOpts,
+			RestrictByTag:      storageRestrictByTags,
+			ModifyQueryOptions: storageModifyQueryOptions,
+			Timeout:            timeout,
 		})
 	if err != nil {
 		logger.Fatal("could not set fetch options parser", zap.Error(err))

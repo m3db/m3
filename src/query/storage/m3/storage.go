@@ -24,6 +24,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"sync"
 	"time"
 
@@ -336,7 +337,8 @@ func (s *m3storage) fetchCompressed(
 			blockMeta.Exhaustive = metadata.Exhaustive
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			result.Add(iters, blockMeta, namespace.Options().Attributes(), err)
+			result.Add(maybeModifyResult(iters, options), blockMeta,
+				namespace.Options().Attributes(), err)
 		}()
 	}
 
@@ -350,6 +352,93 @@ func (s *m3storage) fetchCompressed(
 	}
 
 	return result, m3query, err
+}
+
+func maybeModifyResult(
+	iters encoding.SeriesIterators,
+	opts *storage.FetchOptions,
+) encoding.SeriesIterators {
+	if iters == nil {
+		return nil
+	}
+	if opts == nil {
+		return iters
+	}
+
+	mod := opts.ModifyQueryOptions
+	if mod == nil || mod.RemapResultTags == nil || mod.RemapResultTags.Mapping == nil {
+		return iters
+	}
+
+	modified := make([]encoding.SeriesIterator, 0, iters.Len())
+	for _, iter := range iters.Iters() {
+		modified = append(modified, &modifiedSeriesIterator{
+			SeriesIterator: iter,
+			tagsRemap:      mod.RemapResultTags.Mapping,
+		})
+	}
+
+	return &modifiedSeriesIterators{
+		iters:    iters,
+		modified: modified,
+	}
+}
+
+var _ encoding.SeriesIterators = (*modifiedSeriesIterators)(nil)
+
+type modifiedSeriesIterators struct {
+	iters    encoding.SeriesIterators
+	modified []encoding.SeriesIterator
+}
+
+func (i *modifiedSeriesIterators) Iters() []encoding.SeriesIterator {
+	return i.modified
+}
+
+func (i *modifiedSeriesIterators) Len() int {
+	return i.iters.Len()
+}
+
+func (i *modifiedSeriesIterators) Close() {
+	i.iters.Close()
+}
+
+var _ encoding.SeriesIterator = (*modifiedSeriesIterator)(nil)
+
+type modifiedSeriesIterator struct {
+	encoding.SeriesIterator
+	tagsRemap *storage.TagsMap
+}
+
+func (i *modifiedSeriesIterator) Tags() ident.TagIterator {
+	return &modifiedTagIterator{
+		TagIterator: i.SeriesIterator.Tags(),
+		tagsRemap:   i.tagsRemap,
+	}
+}
+
+var _ ident.TagIterator = (*modifiedTagIterator)(nil)
+
+type modifiedTagIterator struct {
+	ident.TagIterator
+	tagsRemap *storage.TagsMap
+}
+
+func (i *modifiedTagIterator) Current() ident.Tag {
+	curr := i.TagIterator.Current()
+	replace, ok := i.tagsRemap.Get(curr.Name.Bytes())
+	if ok {
+		curr.Name = ident.BytesID(replace)
+	}
+	return curr
+}
+
+func (i *modifiedTagIterator) Duplicate() ident.TagIterator {
+	duplicate := i.TagIterator.Duplicate()
+	return &modifiedTagIterator{
+		TagIterator: duplicate,
+		tagsRemap:   i.tagsRemap,
+	}
 }
 
 func (s *m3storage) SearchSeries(
@@ -621,7 +710,7 @@ func (s *m3storage) SearchCompressed(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
-			result.Add(iter, blockMeta, err)
+			result.Add(maybeModifyTagResult(iter, options), blockMeta, err)
 			wg.Done()
 		}()
 	}
@@ -630,6 +719,17 @@ func (s *m3storage) SearchCompressed(
 
 	tagResult, err = result.FinalResult()
 	return tagResult, result.Close, err
+}
+
+func maybeModifyTagResult(
+	iter client.TaggedIDsIterator,
+	opts *storage.FetchOptions,
+) client.TaggedIDsIterator {
+	// TODO: same as maybeModifyResult to replace the corresponding
+	// tags iterator, although a little easier since can intercept the call
+	// to Current() each time and replace the modified tags iterator
+	// as each time Current() is called.
+	return iter
 }
 
 func (s *m3storage) Write(
