@@ -51,8 +51,7 @@ import (
 
 var (
 	testNamespaceID    = ident.StringID("commitlog_test_ns")
-	testDefaultRunOpts = bootstrap.NewRunOptions().
-		SetInitialTopologyState(&topology.StateSnapshot{})
+	testDefaultRunOpts = bootstrap.NewRunOptions().SetInitialTopologyState(&topology.StateSnapshot{})
 
 	shortAnnotation = ts.Annotation("annot")
 	longAnnotation  = ts.Annotation(strings.Repeat("x", ts.OptimizedAnnotationLen*3))
