@@ -2286,7 +2286,6 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 	requireEqual(t, expected, r.Values)
 }
 
-// nolint: thelper
 func requireEqual(t *testing.T, expected, results []*ts.Series) {
 	require.Equal(t, len(expected), len(results))
 	for i := 0; i < len(results); i++ {
@@ -2644,7 +2643,6 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 	requireEqual(t, expected, r.Values)
 }
 
-// nolint: thelper
 func testLogarithm(t *testing.T, base float64, asserts func(*ts.Series)) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
