@@ -147,8 +147,13 @@ func Run(opts RunOptions) {
 	runtimeOptsManager := cfg.RuntimeOptions.NewRuntimeOptionsManager()
 
 	// Create the aggregator.
+	address := serverOptions.RawTCPAddr()
+	if serverOptions.M3MsgAddr() != "" {
+		// prefer using the m3msg address if presents.
+		address = serverOptions.M3MsgAddr()
+	}
 	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(
-		serverOptions.RawTCPAddr(),
+		address,
 		client, serverOptions, runtimeOptsManager,
 		instrumentOpts.SetMetricsScope(scope.SubScope("aggregator")))
 	if err != nil {
