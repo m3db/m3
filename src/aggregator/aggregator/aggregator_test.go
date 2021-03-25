@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -1168,7 +1167,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 	infiniteBufferForPastTimedMetricFn := func(time.Duration) time.Duration {
 		return math.MaxInt64
 	}
-	return NewOptions(clock.NewOptions()).
+	return newTestOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionMgr).
