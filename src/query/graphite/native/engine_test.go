@@ -191,20 +191,20 @@ func TestTracing(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedTraces := []common.Trace{
-		common.Trace{
+		{
 			ActivityName: "fetch foo.bar.*.zed",
 			Outputs:      common.TraceStats{NumSeries: 3}},
-		common.Trace{
+		{
 			ActivityName: "aliasByNode",
-			Inputs:       []common.TraceStats{common.TraceStats{NumSeries: 3}},
+			Inputs:       []common.TraceStats{{NumSeries: 3}},
 			Outputs:      common.TraceStats{NumSeries: 3}},
-		common.Trace{
+		{
 			ActivityName: "sortByName",
-			Inputs:       []common.TraceStats{common.TraceStats{NumSeries: 3}},
+			Inputs:       []common.TraceStats{{NumSeries: 3}},
 			Outputs:      common.TraceStats{NumSeries: 3}},
-		common.Trace{
+		{
 			ActivityName: "groupByNode",
-			Inputs:       []common.TraceStats{common.TraceStats{NumSeries: 3}},
+			Inputs:       []common.TraceStats{{NumSeries: 3}},
 			Outputs:      common.TraceStats{NumSeries: 1}},
 	}
 	require.Equal(t, len(expectedTraces), len(traces))
@@ -236,7 +236,7 @@ func TestNilBinaryContextShifter(t *testing.T) {
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildEmptyTestSeriesFn()).AnyTimes()
 
-	expr, err := engine.Compile("movingSum(foo.bar.q.zed, 30s)")
+	expr, err := engine.Compile("movingSum(foo.bar.q.zed, '30s')")
 	require.NoError(t, err)
 
 	_, err = expr.Execute(ctx)
