@@ -127,12 +127,12 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 
 // MovingFunctionStorage is a special test construct for all moving functions
 type MovingFunctionStorage struct {
-	StepMillis     int
-	Bootstrap      []float64
-	Values         []float64
-	OriginalIDs    []string
-	BootstrapIDs   []string
-	BootstrapStart time.Time
+	StepMillis      int
+	Bootstrap       []float64
+	Values          []float64
+	OriginalValues  map[string][]float64
+	BootstrapValues map[string][]float64
+	BootstrapStart  time.Time
 }
 
 // FetchByPath builds a new series from the input path
@@ -159,27 +159,43 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	ids []string,
 	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	var seriesList []*ts.Series
-	if s.Bootstrap != nil || s.Values != nil {
-		var values []float64
-		if opts.StartTime.Equal(s.BootstrapStart) {
-			values = append(values, s.Bootstrap...)
-			values = append(values, s.Values...)
-			if s.BootstrapIDs != nil {
-				ids = s.BootstrapIDs
+	if s.Bootstrap == nil && s.Values == nil && s.OriginalValues == nil && s.BootstrapValues == nil {
+		return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
+	}
+
+	var (
+		seriesList []*ts.Series
+		values     []float64
+	)
+	if opts.StartTime.Equal(s.BootstrapStart) {
+		if s.BootstrapValues != nil {
+			for id, values := range s.BootstrapValues {
+				series := ts.NewSeries(ctx, id, opts.StartTime,
+					NewTestSeriesValues(ctx, s.StepMillis, values))
+				seriesList = append(seriesList, series)
 			}
-		} else {
-			values = append(values, s.Values...)
-			if s.OriginalIDs != nil {
-				ids = s.OriginalIDs
-			}
+			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
 		}
 
-		for _, id := range ids {
-			series := ts.NewSeries(ctx, id, opts.StartTime,
-				NewTestSeriesValues(ctx, s.StepMillis, values))
-			seriesList = append(seriesList, series)
+		values = append(values, s.Bootstrap...)
+		values = append(values, s.Values...)
+	} else {
+		if s.OriginalValues != nil {
+			for id, values := range s.OriginalValues {
+				series := ts.NewSeries(ctx, id, opts.StartTime,
+					NewTestSeriesValues(ctx, s.StepMillis, values))
+				seriesList = append(seriesList, series)
+			}
+			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
 		}
+
+		values = append(values, s.Values...)
+	}
+
+	for _, id := range ids {
+		series := ts.NewSeries(ctx, id, opts.StartTime,
+			NewTestSeriesValues(ctx, s.StepMillis, values))
+		seriesList = append(seriesList, series)
 	}
 
 	return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil

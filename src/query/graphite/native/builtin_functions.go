@@ -913,7 +913,7 @@ func (impl *exponentialMovingAverageImpl) Evaluate(
 ) {
 	if i == 0 {
 		// First value is the first moving average value.
-		values.SetValueAt(i, impl.ema)
+		values.SetValueAt(i, roundTo(impl.ema, 6))
 		return
 	}
 
@@ -921,10 +921,14 @@ func (impl *exponentialMovingAverageImpl) Evaluate(
 	if !math.IsNaN(curr) {
 		// Formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous).
 		impl.ema = impl.emaConstant*curr + (1-impl.emaConstant)*impl.ema
-		values.SetValueAt(i, impl.ema)
+		values.SetValueAt(i, roundTo(impl.ema, 6))
 	} else {
 		values.SetValueAt(i, math.NaN())
 	}
+}
+
+func roundTo(n float64, decimals uint32) float64 {
+	return math.Round(n*math.Pow(10, float64(decimals))) / math.Pow(10, float64(decimals))
 }
 
 // totalFunc takes an index and returns a total value for that index
@@ -2213,7 +2217,7 @@ func newMovingBinaryTransform(
 		return childCtx
 	}
 
-	_, originalEnd := ctx.StartTime, ctx.EndTime
+	originalStart, originalEnd := ctx.StartTime, ctx.EndTime
 	return &unaryContextShifter{
 		ContextShiftFunc: contextShiftingFn,
 		UnaryTransformer: func(bootstrapped ts.SeriesList) (ts.SeriesList, error) {
@@ -2243,9 +2247,13 @@ func newMovingBinaryTransform(
 				millisPerStep := series.MillisPerStep()
 				step := time.Duration(millisPerStep) * time.Millisecond
 
-				newStartTime := series.StartTime().Add(interval)
-				// Subtract nanosecond to make sure end is not inclusive.
-				numSteps := int(originalEnd.Add(-time.Nanosecond).Sub(newStartTime) / step)
+				newStartTime := originalStart
+				numSteps := int(originalEnd.Sub(newStartTime) / step)
+				if numSteps < 1 {
+					// No values in range.
+					continue
+				}
+
 				vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 
 				if err := impl.Reset(movingImplResetOptions{

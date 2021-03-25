@@ -825,7 +825,7 @@ func TestTransformNull(t *testing.T) {
 var (
 	testMovingFunctionBootstrap = testMovingFunctionStart.Add(-30 * time.Second)
 	testMovingFunctionStart     = time.Now().Truncate(time.Minute)
-	testMovingFunctionEnd       = testMovingFunctionStart.Add(time.Minute)
+	testMovingFunctionEnd       = testMovingFunctionStart.Add(time.Minute).Add(-time.Second)
 )
 
 func testMovingFunction(t *testing.T, target, expectedName string, values, bootstrap, output []float64) {
@@ -943,7 +943,6 @@ func TestMovingAverageSuccess(t *testing.T) {
 }
 
 func TestExponentialMovingAverageSuccess(t *testing.T) {
-	t.Skip()
 	tests := []struct {
 		target       string
 		expectedName string
@@ -956,21 +955,21 @@ func TestExponentialMovingAverageSuccess(t *testing.T) {
 			"exponentialMovingAverage(foo.bar.baz,3)",
 			[]float64{0.0, 1.0, 2.0},
 			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
-			[]float64{1.0, 2.5, 3.75, 4.875, 5.9375},
+			[]float64{1, 1.193548, 1.439126, 1.733376, 2.073158},
 		},
 		{
 			"exponentialMovingAverage(foo.bar.baz, '30s')",
 			"exponentialMovingAverage(foo.bar.baz,\"30s\")",
 			[]float64{0.0, 1.0, 2.0},
 			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
-			[]float64{1.0, 2.5, 3.75, 4.875, 5.9375},
+			[]float64{1, 1.193548, 1.439126, 1.733376, 2.073158},
 		},
 		{
 			"exponentialMovingAverage(foo.bar.baz, 3)",
 			"exponentialMovingAverage(foo.bar.baz,3)",
 			[]float64{0.0, 1.0, 2.0},
 			[]float64{3.0, 4.0, 5.0, math.NaN(), 7.0},
-			[]float64{1.0, 2.5, 3.75, math.NaN(), 5.375},
+			[]float64{1, 1.193548, 1.439126, math.NaN(), 1.797892},
 		},
 	}
 
@@ -1071,11 +1070,14 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis:     60000,
-		Bootstrap:      []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2},
 		BootstrapStart: bootstrapStart,
-		Values:         []float64{3, 3, 3},
-		OriginalIDs:    []string{"foo.bar"},
-		BootstrapIDs:   []string{"foo.bar", "foo.baz"},
+		OriginalValues: map[string][]float64{
+			"foo.bar": {3, 3, 3},
+		},
+		BootstrapValues: map[string][]float64{
+			"foo.bar": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3},
+			"foo.baz": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()},
+		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
 		Start:  start,
@@ -1117,10 +1119,11 @@ func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis:     60000,
-		Bootstrap:      []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2},
 		BootstrapStart: bootstrapStart,
-		OriginalIDs:    []string{},
-		BootstrapIDs:   []string{"foo.bar", "foo.baz"},
+		BootstrapValues: map[string][]float64{
+			"foo.bar": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()},
+			"foo.baz": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()},
+		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
 		Start:  start,
@@ -3625,6 +3628,7 @@ func TestMovingMedian(t *testing.T) {
 	now := time.Now().Truncate(time.Hour)
 	engine := NewEngine(store, CompileOptions{})
 	startTime := now.Add(-3 * time.Minute)
+	// Make sure two full steps considered.
 	endTime := now.Add(-time.Minute)
 	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
 	defer func() { _ = ctx.Close() }()
@@ -3660,7 +3664,7 @@ func TestMovingAverage(t *testing.T) {
 	stepSize := 60000
 	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min', 0.7)`
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).Times(2)
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).AnyTimes()
 	expr, err := engine.Compile(target)
 	require.NoError(t, err)
 	res, err := expr.Execute(ctx)
@@ -3973,7 +3977,7 @@ func TestTimeShift(t *testing.T) {
 	target := "timeShift(foo.bar.q.zed, '1min', false)"
 
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed")).AnyTimes()
 
 	expr, err := engine.Compile(target)
 	require.NoError(t, err)
