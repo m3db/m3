@@ -104,15 +104,22 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 			fmt.Sprintf("%s: StartTime in expected series (%v) does not match StartTime in actual (%v), diff %v",
 				a.Name(), start, a.StartTime(), diff))
 		e := expected[i].Data
-		require.Equal(t, len(e), a.Len(), a.Name()+": length of expected series does not match length of actual")
+		wrap := func(str string) string {
+			return str + fmt.Sprintf("\nseries=%d\nexpected=%v\nactual=%v", i, e, a.SafeValues())
+		}
+		require.Equal(t, len(e), a.Len(),
+			wrap(a.Name()+": length of expected series does not match length of actual"))
 		for step := 0; step < a.Len(); step++ {
 			v := a.ValueAt(step)
 			if math.IsNaN(e[step]) {
-				assert.True(t, math.IsNaN(v), fmt.Sprintf("%s: invalid value for step %d/%d, should be NaN but is %v", a.Name(), 1+step, a.Len(), v))
+				assert.True(t, math.IsNaN(v),
+					wrap(fmt.Sprintf("%s: invalid value for step %d/%d, should be NaN but is %v", a.Name(), 1+step, a.Len(), v)))
 			} else if math.IsNaN(v) {
-				assert.Fail(t, fmt.Sprintf("%s: invalid value for step %d/%d, should be %v but is NaN ", a.Name(), 1+step, a.Len(), e[step]))
+				assert.Fail(t,
+					wrap(fmt.Sprintf("%s: invalid value for step %d/%d, should be %v but is NaN ", a.Name(), 1+step, a.Len(), e[step])))
 			} else {
-				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", 1+step, a.Len())
+				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001,
+					wrap(fmt.Sprintf(a.Name()+": invalid value for %d/%d", 1+step, a.Len())))
 			}
 		}
 	}
@@ -156,12 +163,13 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	if s.Bootstrap != nil || s.Values != nil {
 		var values []float64
 		if opts.StartTime.Equal(s.BootstrapStart) {
-			values = s.Bootstrap
+			values = append(values, s.Bootstrap...)
+			values = append(values, s.Values...)
 			if s.BootstrapIDs != nil {
 				ids = s.BootstrapIDs
 			}
 		} else {
-			values = s.Values
+			values = append(values, s.Values...)
 			if s.OriginalIDs != nil {
 				ids = s.OriginalIDs
 			}

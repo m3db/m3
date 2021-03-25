@@ -866,7 +866,7 @@ func exponentialMovingAverage(
 	ctx *common.Context,
 	input singlePathSpec,
 	windowSize genericInterface,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize,
 		"exponentialMovingAverage", defaultXFilesFactor,
 		newExponentialMovingAverageImpl())
@@ -875,8 +875,7 @@ func exponentialMovingAverage(
 var _ movingImpl = (*exponentialMovingAverageImpl)(nil)
 
 type exponentialMovingAverageImpl struct {
-	bootstrap   *ts.Series
-	offset      int
+	curr        movingImplResetOptions
 	ema         float64
 	emaConstant float64
 }
@@ -886,13 +885,10 @@ func newExponentialMovingAverageImpl() *exponentialMovingAverageImpl {
 }
 
 func (impl *exponentialMovingAverageImpl) Reset(opts movingImplResetOptions) error {
-	impl.emaConstant = 2.0 / (float64(opts.WindowPoints) + 1.0)
+	impl.curr = opts
+	impl.emaConstant = 2.0 / (float64(impl.curr.WindowSize/time.Second) + 1.0)
 
-	numSteps := opts.Original.Len()
-	impl.bootstrap = opts.Bootstrap
-	impl.offset = impl.bootstrap.Len() - numSteps
-
-	firstWindow, err := impl.bootstrap.Slice(0, impl.offset)
+	firstWindow, err := impl.curr.Series.Slice(0, impl.curr.WindowPoints)
 	if err != nil {
 		return err
 	}
@@ -921,7 +917,7 @@ func (impl *exponentialMovingAverageImpl) Evaluate(
 		return
 	}
 
-	curr := impl.bootstrap.ValueAt(i + impl.offset)
+	curr := impl.curr.Series.ValueAt(i + impl.curr.WindowPoints)
 	if !math.IsNaN(curr) {
 		// Formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous).
 		impl.ema = impl.emaConstant*curr + (1-impl.emaConstant)*impl.ema
@@ -2115,9 +2111,9 @@ type movingImpl interface {
 }
 
 type movingImplResetOptions struct {
-	Original     *ts.Series
-	Bootstrap    *ts.Series
+	Series       *ts.Series
 	WindowPoints int
+	WindowSize   time.Duration
 }
 
 // Ensure movingImplementationFn implements movingImpl.
@@ -2199,7 +2195,7 @@ func newMovingBinaryTransform(
 	movingFunctionName string,
 	xFilesFactor float64,
 	impl movingImpl,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	windowSize, err := parseWindowSize(windowSizeValue, input)
 	if err != nil {
 		return nil, err
@@ -2217,31 +2213,13 @@ func newMovingBinaryTransform(
 		return childCtx
 	}
 
-	originalStart, originalEnd := ctx.StartTime, ctx.EndTime
-	bootstrapStartTime, bootstrapEndTime := originalStart.Add(-interval), originalStart
-	return &binaryContextShifter{
+	_, originalEnd := ctx.StartTime, ctx.EndTime
+	return &unaryContextShifter{
 		ContextShiftFunc: contextShiftingFn,
-		BinaryTransformer: func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
-			bootstrapList, err := combineBootstrapWithOriginal(ctx,
-				bootstrapStartTime, bootstrapEndTime,
-				ctx.StartTime, ctx.EndTime,
-				bootstrapped, singlePathSpec(original))
-			if err != nil {
-				return ts.NewSeriesList(), err
-			}
-
-			results := make([]*ts.Series, 0, original.Len())
+		UnaryTransformer: func(bootstrapped ts.SeriesList) (ts.SeriesList, error) {
+			results := make([]*ts.Series, 0, bootstrapped.Len())
 			maxWindowPoints := 0
-			for i := range bootstrapList.Values {
-				var series *ts.Series
-				if i < original.Len() {
-					// Existing series exists, prefer that resolution.
-					series = original.Values[i]
-				} else {
-					// No existing series use resolution from bootstrapped.
-					series = bootstrapList.Values[i]
-				}
-
+			for _, series := range bootstrapped.Values {
 				windowPoints := windowPointsLength(series, interval)
 				if windowPoints <= 0 {
 					err := xerrors.NewInvalidParamsError(fmt.Errorf(
@@ -2255,39 +2233,31 @@ func newMovingBinaryTransform(
 			}
 
 			windowPoints := make([]float64, maxWindowPoints)
-			for i, bootstrap := range bootstrapList.Values {
-				var series *ts.Series
-				if i < original.Len() {
-					// Existing series exists, prefer that.
-					series = original.Values[i]
-				} else {
-					// No existing series, use an intersected
-					// version of the bootstrapped series as a
-					// reference for values to compute.
-					series, err = bootstrap.IntersectAndResize(originalStart,
-						originalEnd, bootstrap.MillisPerStep(), bootstrap.ConsolidationFunc())
-					if err != nil {
-						return ts.NewSeriesList(), err
-					}
-				}
+			for _, series := range bootstrapped.Values {
 				currWindowPoints := windowPointsLength(series, interval)
 				window := windowPoints[:currWindowPoints]
 				util.Memset(window, math.NaN())
 
-				numSteps := series.Len()
-				offset := bootstrap.Len() - numSteps
+				offset := currWindowPoints
+
+				millisPerStep := series.MillisPerStep()
+				step := time.Duration(millisPerStep) * time.Millisecond
+
+				newStartTime := series.StartTime().Add(interval)
+				// Subtract nanosecond to make sure end is not inclusive.
+				numSteps := int(originalEnd.Add(-time.Nanosecond).Sub(newStartTime) / step)
 				vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 
 				if err := impl.Reset(movingImplResetOptions{
-					Original:     series,
-					Bootstrap:    bootstrap,
+					Series:       series,
 					WindowPoints: currWindowPoints,
+					WindowSize:   interval,
 				}); err != nil {
 					return ts.SeriesList{}, err
 				}
 				for i := 0; i < numSteps; i++ {
 					for j := i + offset - currWindowPoints; j < i+offset; j++ {
-						if j < 0 || j >= bootstrap.Len() {
+						if j < 0 || j >= series.Len() {
 							continue
 						}
 
@@ -2296,17 +2266,19 @@ func newMovingBinaryTransform(
 							continue
 						}
 
-						window[idx] = bootstrap.ValueAt(j)
+						window[idx] = series.ValueAt(j)
 					}
 					impl.Evaluate(window, vals, currWindowPoints, i, xFilesFactor)
 				}
+
 				name := fmt.Sprintf("%s(%s,%s)", movingFunctionName, series.Name(), windowSize.stringValue)
-				newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+
+				newSeries := ts.NewSeries(ctx, name, newStartTime, vals)
 				results = append(results, newSeries)
 			}
 
-			original.Values = results
-			return original, nil
+			bootstrapped.Values = results
+			return bootstrapped, nil
 		},
 	}, nil
 }
@@ -2317,7 +2289,7 @@ func movingMedian(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", xFilesFactor,
 		movingImplementationFn(movingMedianHelper))
 }
@@ -2328,7 +2300,7 @@ func movingSum(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", xFilesFactor,
 		movingImplementationFn(movingSumHelper))
 }
@@ -2339,7 +2311,7 @@ func movingAverage(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingAverage", xFilesFactor,
 		movingImplementationFn(movingAverageHelper))
 }
@@ -2350,7 +2322,7 @@ func movingMax(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", xFilesFactor,
 		movingImplementationFn(movingMaxHelper))
 }
@@ -2361,7 +2333,7 @@ func movingMin(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", xFilesFactor,
 		movingImplementationFn(movingMinHelper))
 }
