@@ -1657,7 +1657,8 @@ func combineBootstrapWithOriginal(
 	for i, bootstrap := range bootstrapList {
 		original := seriesList.Values[i]
 		if bootstrap.MillisPerStep() < original.MillisPerStep() {
-			bootstrap, err = bootstrap.IntersectAndResize(bootstrap.StartTime(), bootstrap.EndTime(), original.MillisPerStep(), original.ConsolidationFunc())
+			bootstrap, err = bootstrap.IntersectAndResize(bootstrap.StartTime(), bootstrap.EndTime(),
+				original.MillisPerStep(), original.ConsolidationFunc())
 			if err != nil {
 				return ts.NewSeriesList(), err
 			}
@@ -2192,10 +2193,6 @@ func newMovingBinaryTransform(
 	xFilesFactor float64,
 	impl movingImpl,
 ) (*binaryContextShifter, error) {
-	if len(input.Values) == 0 {
-		return nil, nil
-	}
-
 	windowSize, err := parseWindowSize(windowSizeValue, input)
 	if err != nil {
 		return nil, err

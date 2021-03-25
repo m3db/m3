@@ -1084,6 +1084,50 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 		expected, res.Values)
 }
 
+// TestMovingSumAllOriginalIDsMissingFromBootstrapIDs tests the case for the
+// "moving" function families where the bootstrap of the time range that
+// expands back returns timeseries and the original series list is empty
+// which can also happen when using a temporal index.
+func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	end := time.Now().Truncate(time.Minute)
+	start := end.Add(-3 * time.Minute)
+	bootstrapStart := start.Add(-10 * time.Minute)
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     60000,
+		Bootstrap:      []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2},
+		BootstrapStart: bootstrapStart,
+		OriginalIDs:    []string{},
+		BootstrapIDs:   []string{"foo.bar", "foo.baz"},
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	target := "movingSum(foo.*, '10min')"
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "movingSum(foo.bar,\"10min\")",
+			Data: []float64{15, 14, 13},
+		},
+		{
+			Name: "movingSum(foo.baz,\"10min\")",
+			Data: []float64{15, 14, 13},
+		},
+	}
+	common.CompareOutputsAndExpected(t, 60000, start,
+		expected, res.Values)
+}
+
 func TestMovingMaxSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
