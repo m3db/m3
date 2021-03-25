@@ -940,7 +940,6 @@ func TestMovingAverageSuccess(t *testing.T) {
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.5)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.8)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expectedWithXFiles)
 	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.6)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
-	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.1)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
 
 	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
@@ -1006,9 +1005,33 @@ func testMovingFunctionError(t *testing.T, target string) {
 	require.Nil(t, res.Values)
 }
 
+func testMovingFunctionErrorWithInput(t *testing.T, target string, values, bootstrap []float64) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     10000,
+		Bootstrap:      bootstrap,
+		BootstrapStart: testMovingFunctionBootstrap,
+		Values:         values,
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  testMovingFunctionStart,
+		End:    testMovingFunctionEnd,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.Error(t, err)
+	require.Nil(t, res.Values)
+}
+
 func TestMovingAverageError(t *testing.T) {
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, '-30s')")
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
+	testMovingFunctionErrorWithInput(t, "movingAverage(foo.bar.baz, 3, 0.1)", nil, nil)
 }
 
 func TestMovingSumSuccess(t *testing.T) {

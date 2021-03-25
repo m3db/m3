@@ -826,6 +826,13 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 		windowSize.stringValue = fmt.Sprintf("%q", windowSizeValue)
 		windowSize.deltaValue = interval
 	case float64:
+		if len(input.Values) == 0 {
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
+				"windowSize is an int but no timeseries in time window to multiply resolution by %T",
+				windowSizeValue))
+			return windowSize, err
+		}
+
 		windowSizeInt := int(windowSizeValue)
 		if windowSizeInt <= 0 {
 			err := xerrors.NewInvalidParamsError(fmt.Errorf(
