@@ -37,7 +37,7 @@ const (
 )
 
 const (
-	defaultBlockAllocSize           = 16
+	defaultBlockAllocSize = 16
 )
 
 var (
