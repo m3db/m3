@@ -34,15 +34,11 @@ const (
 	SimplePooling PoolingType = "simple"
 
 	defaultPoolingType = SimplePooling
-)
 
-const (
 	defaultBlockAllocSize = 16
 )
 
-var (
-	defaultThriftBytesPoolAllocSizes = []int{16, 64, 256, 512, 1024, 2048}
-)
+var defaultThriftBytesPoolAllocSizes = []int{16, 64, 256, 512, 1024, 2048}
 
 type poolPolicyDefault struct {
 	size                pool.Size
