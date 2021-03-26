@@ -77,20 +77,26 @@ type seriesMapKey struct {
 }
 
 type seriesMapEntry struct {
-	shardNoLongerOwned bool
 	namespace          *bootstrapNamespace
 	series             bootstrap.CheckoutSeriesResult
+	shardNoLongerOwned bool
 }
 
 // accumulateArg contains all the information a worker go-routine needs to
 // accumulate a write for encoding into the database.
 type accumulateArg struct {
-	namespace  *bootstrapNamespace
-	series     bootstrap.CheckoutSeriesResult
-	shard      uint32
-	dp         ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
+	namespace *bootstrapNamespace
+	series    bootstrap.CheckoutSeriesResult
+	shard     uint32
+	dp        ts.Datapoint
+	unit      xtime.Unit
+
+	// longAnnotation stores the annotation value in case it does not fit in shortAnnotation.
+	longAnnotation ts.Annotation
+
+	// shortAnnotation is a predefined buffer for passing small allocations around instead of allocating.
+	shortAnnotation    [ts.OptimizedAnnotationLen]byte
+	shortAnnotationLen uint8
 }
 
 type accumulateWorker struct {
@@ -662,19 +668,32 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 			continue
 		}
 
+		arg := accumulateArg{
+			namespace: seriesEntry.namespace,
+			series:    seriesEntry.series,
+			shard:     seriesEntry.series.Shard,
+			dp:        entry.Datapoint,
+			unit:      entry.Unit,
+		}
+
+		annotationLen := len(entry.Annotation)
+		if annotationLen > 0 {
+			// Use the predefined buffer if the annotation fits in it.
+			if annotationLen <= len(arg.shortAnnotation) {
+				copy(arg.shortAnnotation[:], entry.Annotation)
+				arg.shortAnnotationLen = uint8(annotationLen)
+			} else {
+				// Otherwise allocate.
+				arg.longAnnotation = append(make([]byte, 0, annotationLen), entry.Annotation...)
+			}
+		}
+
 		// Distribute work.
 		// NB(r): In future we could batch a few points together before sending
 		// to a channel to alleviate lock contention/stress on the channels.
 		workerEnqueue++
 		worker := workers[workerEnqueue%numWorkers]
-		worker.inputCh <- accumulateArg{
-			namespace:  seriesEntry.namespace,
-			series:     seriesEntry.series,
-			shard:      seriesEntry.series.Shard,
-			dp:         entry.Datapoint,
-			unit:       entry.Unit,
-			annotation: entry.Annotation,
-		}
+		worker.inputCh <- arg
 	}
 
 	if iterErr := iter.Err(); iterErr != nil {
@@ -1043,14 +1062,21 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 	ctx := xcontext.NewBackground()
 	defer ctx.Close()
 
+	reusableAnnotation := make([]byte, 0, ts.OptimizedAnnotationLen)
+
 	for input := range worker.inputCh {
 		var (
-			namespace  = input.namespace
-			entry      = input.series
-			dp         = input.dp
-			unit       = input.unit
-			annotation = input.annotation
+			namespace = input.namespace
+			entry     = input.series
+			dp        = input.dp
+			unit      = input.unit
 		)
+
+		annotation := input.longAnnotation
+		if input.shortAnnotationLen > 0 {
+			reusableAnnotation = append(reusableAnnotation[:0], input.shortAnnotation[:input.shortAnnotationLen]...)
+			annotation = reusableAnnotation
+		}
 		worker.datapointsRead++
 
 		ref, err := entry.Resolver.SeriesRef()
