@@ -629,8 +629,6 @@ github.com/m3db/stackmurmur3 v1.0.1 h1:ASTdJ6Bd2m34dgsnOBZHrwWdKGcpaavP3MokiKL/E
 github.com/m3db/stackmurmur3 v1.0.1/go.mod h1:hkR/F91aDUfPxDv5Jw55ifIXV6ZW1jzNHW0d8GP02rw=
 github.com/m3db/stackmurmur3/v2 v2.0.2 h1:q/kOlC12PwOib9XziHUTM/jsCQULHnRxBz/H4hT/Aro=
 github.com/m3db/stackmurmur3/v2 v2.0.2/go.mod h1:HnguA9wfEbTqYdTT/5klUlhxSDPRMGaWyvLzugxW+MA=
-github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4 h1:1x3mMuURd3wqKJ2qVjhRYOAmL9g4EA9JTagWB/y/3xo=
-github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4/go.mod h1:xVfRinGzD3cYDRvMjy6RkIwM+iNL2KHNLZjT0VpVZT8=
 github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878 h1:kww0LtVVfGrXR7Ofpbi/9bvc2EGYMQC0LCH/gQXoolE=
 github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878/go.mod h1:TxroQUZzb1wzOsq+4+TfVtT7z89YTz3v2UJAYfLNfLE=
 github.com/m3dbx/pilosa v1.4.1 h1:/Cpp1XAHSd6orpjceXGiKpCoDdYBP5BD/6NoqGG9eVg=
