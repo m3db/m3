@@ -1512,11 +1512,11 @@ func withEncodingAndPoolingOptions(
 	iOpts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
-	// Set the max bytes pool byte slice alloc size for the thrift pooling.
-	thriftBytesAllocSize := policy.ThriftBytesPoolAllocSizeOrDefault()
-	logger.Info("set thrift bytes pool alloc size",
-		zap.Int("size", thriftBytesAllocSize))
-	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
+	// Set the byte slice capacities for the thrift pooling.
+	thriftBytesAllocSizes := policy.ThriftBytesPoolAllocSizesOrDefault()
+	logger.Info("set thrift bytes pool slice sizes",
+		zap.Ints("sizes", thriftBytesAllocSizes))
+	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSizes...)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("bytes-pool")))

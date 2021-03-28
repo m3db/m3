@@ -122,8 +122,8 @@ require (
 	gotest.tools v2.2.0+incompatible
 )
 
-// branch 0.9.3-pool-read-binary-3
-replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
+// branch 0.9.3-patch
+replace github.com/apache/thrift => github.com/m3dbx/thrift v0.0.0-20210326170526-6e3eef8b4a26
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
