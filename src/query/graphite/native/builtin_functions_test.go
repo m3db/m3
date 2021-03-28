@@ -974,7 +974,9 @@ func TestExponentialMovingAverageSuccess(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		testMovingFunction(t, test.target, test.expectedName, test.inputs, test.bootstrap, test.expected)
+		t.Run(test.target, func(t *testing.T) {
+			testMovingFunction(t, test.target, test.expectedName, test.inputs, test.bootstrap, test.expected)
+		})
 	}
 }
 
@@ -1071,12 +1073,12 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis:     60000,
 		BootstrapStart: bootstrapStart,
-		OriginalValues: map[string][]float64{
-			"foo.bar": {3, 3, 3},
+		OriginalValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{3, 3, 3}},
 		},
-		BootstrapValues: map[string][]float64{
-			"foo.bar": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3},
-			"foo.baz": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()},
+		BootstrapValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3}},
+			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
 		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -1120,9 +1122,9 @@ func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis:     60000,
 		BootstrapStart: bootstrapStart,
-		BootstrapValues: map[string][]float64{
-			"foo.bar": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()},
-			"foo.baz": {1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()},
+		BootstrapValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
 		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -1157,9 +1159,6 @@ func TestMovingMaxSuccess(t *testing.T) {
 
 	testMovingFunction(t, "movingMax(foo.bar.baz, '30s')", "movingMax(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingMax(foo.bar.baz, '30s')", "movingMax(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingFunction(t, "movingMax(foo.bar.baz, '30s')", "movingMax(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
 }
 
 func TestMovingMaxError(t *testing.T) {
@@ -1174,9 +1173,6 @@ func TestMovingMinSuccess(t *testing.T) {
 
 	testMovingFunction(t, "movingMin(foo.bar.baz, '30s')", "movingMin(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingMin(foo.bar.baz, '30s')", "movingMin(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingFunction(t, "movingMin(foo.bar.baz, '30s')", "movingMin(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
 }
 
 func TestMovingMinError(t *testing.T) {

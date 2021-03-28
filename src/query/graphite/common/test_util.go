@@ -130,9 +130,15 @@ type MovingFunctionStorage struct {
 	StepMillis      int
 	Bootstrap       []float64
 	Values          []float64
-	OriginalValues  map[string][]float64
-	BootstrapValues map[string][]float64
+	OriginalValues  []SeriesNameAndValues
+	BootstrapValues []SeriesNameAndValues
 	BootstrapStart  time.Time
+}
+
+// SeriesNameAndValues is a series name and a set of values.
+type SeriesNameAndValues struct {
+	Name   string
+	Values []float64
 }
 
 // FetchByPath builds a new series from the input path
@@ -169,9 +175,9 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	)
 	if opts.StartTime.Equal(s.BootstrapStart) {
 		if s.BootstrapValues != nil {
-			for id, values := range s.BootstrapValues {
-				series := ts.NewSeries(ctx, id, opts.StartTime,
-					NewTestSeriesValues(ctx, s.StepMillis, values))
+			for _, elem := range s.BootstrapValues {
+				series := ts.NewSeries(ctx, elem.Name, opts.StartTime,
+					NewTestSeriesValues(ctx, s.StepMillis, elem.Values))
 				seriesList = append(seriesList, series)
 			}
 			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
@@ -181,9 +187,9 @@ func (s *MovingFunctionStorage) fetchByIDs(
 		values = append(values, s.Values...)
 	} else {
 		if s.OriginalValues != nil {
-			for id, values := range s.OriginalValues {
-				series := ts.NewSeries(ctx, id, opts.StartTime,
-					NewTestSeriesValues(ctx, s.StepMillis, values))
+			for _, elem := range s.OriginalValues {
+				series := ts.NewSeries(ctx, elem.Name, opts.StartTime,
+					NewTestSeriesValues(ctx, s.StepMillis, elem.Values))
 				seriesList = append(seriesList, series)
 			}
 			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil

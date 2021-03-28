@@ -886,6 +886,7 @@ func newExponentialMovingAverageImpl() *exponentialMovingAverageImpl {
 
 func (impl *exponentialMovingAverageImpl) Reset(opts movingImplResetOptions) error {
 	impl.curr = opts
+	// EMA constant is based on window size seconds, not window points.
 	impl.emaConstant = 2.0 / (float64(impl.curr.WindowSize/time.Second) + 1.0)
 
 	firstWindow, err := impl.curr.Series.Slice(0, impl.curr.WindowPoints)
@@ -913,14 +914,20 @@ func (impl *exponentialMovingAverageImpl) Evaluate(
 ) {
 	if i == 0 {
 		// First value is the first moving average value.
+		// Note: roundTo rounds to 6 decimal places to match graphite rounding.
 		values.SetValueAt(i, roundTo(impl.ema, 6))
 		return
 	}
 
-	curr := impl.curr.Series.ValueAt(i + impl.curr.WindowPoints)
+	curr := math.NaN()
+	if idx := i + impl.curr.WindowPoints; idx < impl.curr.Series.Len() {
+		curr = impl.curr.Series.ValueAt(idx)
+	}
+
 	if !math.IsNaN(curr) {
 		// Formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous).
 		impl.ema = impl.emaConstant*curr + (1-impl.emaConstant)*impl.ema
+		// Note: roundTo rounds to 6 decimal places to match graphite rounding.
 		values.SetValueAt(i, roundTo(impl.ema, 6))
 	} else {
 		values.SetValueAt(i, math.NaN())
@@ -2217,7 +2224,6 @@ func newMovingBinaryTransform(
 		return childCtx
 	}
 
-	originalStart, originalEnd := ctx.StartTime, ctx.EndTime
 	return &unaryContextShifter{
 		ContextShiftFunc: contextShiftingFn,
 		UnaryTransformer: func(bootstrapped ts.SeriesList) (ts.SeriesList, error) {
@@ -2242,13 +2248,9 @@ func newMovingBinaryTransform(
 				window := windowPoints[:currWindowPoints]
 				util.Memset(window, math.NaN())
 
-				offset := currWindowPoints
-
-				millisPerStep := series.MillisPerStep()
-				step := time.Duration(millisPerStep) * time.Millisecond
-
-				newStartTime := originalStart
-				numSteps := int(originalEnd.Sub(newStartTime) / step)
+				step := time.Duration(series.MillisPerStep()) * time.Millisecond
+				newStartTime := series.StartTime().Add(step * time.Duration(currWindowPoints))
+				numSteps := series.Len() - currWindowPoints
 				if numSteps < 1 {
 					// No values in range.
 					continue
@@ -2263,13 +2265,14 @@ func newMovingBinaryTransform(
 				}); err != nil {
 					return ts.SeriesList{}, err
 				}
+
 				for i := 0; i < numSteps; i++ {
-					for j := i + offset - currWindowPoints; j < i+offset; j++ {
-						if j < 0 || j >= series.Len() {
+					for j := i; j < i+currWindowPoints; j++ {
+						if j >= series.Len() {
 							continue
 						}
 
-						idx := j - i - offset + currWindowPoints
+						idx := j - i
 						if idx < 0 || idx > len(window)-1 {
 							continue
 						}
