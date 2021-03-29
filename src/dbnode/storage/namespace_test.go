@@ -1629,6 +1629,9 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetNs.shards[0] = targetShard0
 	targetNs.shards[1] = targetShard1
 
+	targetShard0.EXPECT().IsBootstrapped().Return(true)
+	targetShard1.EXPECT().IsBootstrapped().Return(true)
+
 	targetShard0.EXPECT().ID().Return(shard0ID)
 	targetShard1.EXPECT().ID().Return(shard1ID)
 
@@ -1644,6 +1647,54 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedTileCount)
+}
+
+func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	var (
+		sourceNsID      = ident.StringID("source")
+		targetNsID      = ident.StringID("target")
+		sourceBlockSize = time.Hour
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		insOpts         = instrument.NewOptions()
+	)
+
+	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
+	require.NoError(t, err)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+	sourceNs.bootstrapState = Bootstrapped
+	sourceRetentionOpts := sourceNs.nopts.RetentionOptions().SetBlockSize(sourceBlockSize)
+	sourceNs.nopts = sourceNs.nopts.SetRetentionOptions(sourceRetentionOpts)
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
+	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
+
+	targetShard0 := NewMockdatabaseShard(ctrl)
+	targetShard1 := NewMockdatabaseShard(ctrl)
+	targetNs.shards[0] = targetShard0
+	targetNs.shards[1] = targetShard1
+
+	targetShard0.EXPECT().IsBootstrapped().Return(false)
+	targetShard1.EXPECT().IsBootstrapped().Return(false)
+
+	targetShard0.EXPECT().ID().Return(uint32(10))
+	targetShard1.EXPECT().ID().Return(uint32(11))
+
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+
+	require.NoError(t, err)
+	assert.Zero(t, processedTileCount)
 }
 
 func waitForStats(
