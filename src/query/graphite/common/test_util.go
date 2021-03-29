@@ -181,10 +181,8 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	}
 
 	var (
-		// nolint: prealloc
-		seriesList []*ts.Series
-		// nolint: prealloc
-		values []float64
+		seriesList = make([]*ts.Series, 0, len(ids))
+		values     = make([]float64, 0, len(s.Bootstrap)+len(s.Values))
 	)
 	if opts.StartTime.Equal(s.BootstrapStart) {
 		if s.BootstrapValues != nil {
