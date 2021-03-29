@@ -825,7 +825,6 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 		}
 		windowSize.stringValue = fmt.Sprintf("%q", windowSizeValue)
 		windowSize.deltaValue = interval
-		fmt.Printf("! res from str %v\n", windowSize.deltaValue.String())
 		windowSize.exponentialMovingAverageConstant = 2.0 / (1.0 + float64(int(interval/time.Second)))
 	case float64:
 		if len(input.Values) == 0 {
@@ -848,7 +847,6 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 			maxStepSize = int(math.Max(float64(maxStepSize), float64(input.Values[i].MillisPerStep())))
 		}
 		windowSize.deltaValue = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
-		fmt.Printf("! res from int %v\n", windowSize.deltaValue.String())
 		windowSize.exponentialMovingAverageConstant = 2.0 / (1.0 + float64(windowSizeInt))
 	default:
 		err := xerrors.NewInvalidParamsError(fmt.Errorf(
