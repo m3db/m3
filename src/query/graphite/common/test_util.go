@@ -96,30 +96,41 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 	actual []*ts.Series) {
 	require.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		a := actual[i]
-		require.Equal(t, expected[i].Name, a.Name())
-		assert.Equal(t, step, a.MillisPerStep(), a.Name()+": MillisPerStep in expected series do not match MillisPerStep in actual")
-		diff := time.Duration(math.Abs(float64(start.Sub(a.StartTime()))))
-		assert.True(t, diff < time.Millisecond,
-			fmt.Sprintf("%s: StartTime in expected series (%v) does not match StartTime in actual (%v), diff %v",
-				a.Name(), start, a.StartTime(), diff))
+		i := i // To capture for wrapMsg.
 		e := expected[i].Data
-		wrap := func(str string) string {
-			return str + fmt.Sprintf("\nseries=%d\nexpected=%v\nactual=%v", i, e, a.SafeValues())
+		a := actual[i]
+		wrapMsg := func(str string) string {
+			return fmt.Sprintf("%s\nseries=%d\nexpected=%v\nactual=%v",
+				str, i, e, a.SafeValues())
 		}
+		require.Equal(t, expected[i].Name, a.Name())
+		assert.Equal(t, step, a.MillisPerStep(), wrapMsg(a.Name()+
+			": MillisPerStep in expected series do not match MillisPerStep in actual"))
+		diff := time.Duration(math.Abs(float64(start.Sub(a.StartTime()))))
+		assert.True(t, diff < time.Millisecond, wrapMsg(fmt.Sprintf(
+			"%s: StartTime in expected series (%v) does not match StartTime in actual (%v), diff %v",
+			a.Name(), start, a.StartTime(), diff)))
+
 		require.Equal(t, len(e), a.Len(),
-			wrap(a.Name()+": length of expected series does not match length of actual"))
+			wrapMsg(a.Name()+
+				": length of expected series does not match length of actual"))
 		for step := 0; step < a.Len(); step++ {
 			v := a.ValueAt(step)
 			if math.IsNaN(e[step]) {
-				assert.True(t, math.IsNaN(v),
-					wrap(fmt.Sprintf("%s: invalid value for step %d/%d, should be NaN but is %v", a.Name(), 1+step, a.Len(), v)))
+				msg := wrapMsg(fmt.Sprintf(
+					"%s: invalid value for step %d/%d, should be NaN but is %v",
+					a.Name(), 1+step, a.Len(), v))
+				assert.True(t, math.IsNaN(v), msg)
 			} else if math.IsNaN(v) {
-				assert.Fail(t,
-					wrap(fmt.Sprintf("%s: invalid value for step %d/%d, should be %v but is NaN ", a.Name(), 1+step, a.Len(), e[step])))
+				msg := wrapMsg(fmt.Sprintf(
+					"%s: invalid value for step %d/%d, should be %v but is NaN ",
+					a.Name(), 1+step, a.Len(), e[step]))
+				assert.Fail(t, msg)
 			} else {
-				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001,
-					wrap(fmt.Sprintf(a.Name()+": invalid value for %d/%d", 1+step, a.Len())))
+				msg := wrapMsg(fmt.Sprintf(
+					"%s: invalid value for %d/%d",
+					a.Name(), 1+step, a.Len()))
+				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, msg)
 			}
 		}
 	}
@@ -170,8 +181,10 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	}
 
 	var (
+		// nolint: prealloc
 		seriesList []*ts.Series
-		values     []float64
+		// nolint: prealloc
+		values []float64
 	)
 	if opts.StartTime.Equal(s.BootstrapStart) {
 		if s.BootstrapValues != nil {
