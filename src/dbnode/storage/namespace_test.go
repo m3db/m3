@@ -1662,8 +1662,6 @@ func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
 		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
-		shard0ID        = uint32(10)
-		shard1ID        = uint32(20)
 		insOpts         = instrument.NewOptions()
 	)
 
@@ -1690,8 +1688,8 @@ func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
 	targetShard0.EXPECT().IsBootstrapped().Return(false)
 	targetShard1.EXPECT().IsBootstrapped().Return(false)
 
-	targetShard0.EXPECT().ID().Return(shard0ID)
-	targetShard1.EXPECT().ID().Return(shard1ID)
+	targetShard0.EXPECT().ID().Return(uint32(10))
+	targetShard1.EXPECT().ID().Return(uint32(11))
 
 	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 
