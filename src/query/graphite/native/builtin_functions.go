@@ -796,6 +796,7 @@ func effectiveXFF(windowPoints, nans int, xFilesFactor float64) bool {
 	return float64(windowPoints-nans)/float64(windowPoints) >= xFilesFactor
 }
 
+// nolint: lll
 type windowSizeParsed struct {
 	deltaValue  time.Duration
 	stringValue string
@@ -887,7 +888,8 @@ func newExponentialMovingAverageImpl() *exponentialMovingAverageImpl {
 
 func (impl *exponentialMovingAverageImpl) Reset(opts movingImplResetOptions) error {
 	impl.curr = opts
-	// EMA constant is based on window size seconds, not window points.
+	// EMA constant is based on window size seconds or num steps, see
+	// parseWindowSize and returned type windowSizeParsed for more details.
 	impl.emaConstant = opts.WindowSize.exponentialMovingAverageConstant
 
 	firstWindow, err := impl.curr.Series.Slice(0, impl.curr.WindowPoints)
