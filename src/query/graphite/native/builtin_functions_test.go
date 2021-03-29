@@ -825,7 +825,7 @@ func TestTransformNull(t *testing.T) {
 var (
 	testMovingFunctionBootstrap = testMovingFunctionStart.Add(-30 * time.Second)
 	testMovingFunctionStart     = time.Now().Truncate(time.Minute)
-	testMovingFunctionEnd       = testMovingFunctionStart.Add(time.Minute)
+	testMovingFunctionEnd       = testMovingFunctionStart.Add(time.Minute).Add(-time.Second)
 )
 
 func testMovingFunction(t *testing.T, target, expectedName string, values, bootstrap, output []float64) {
@@ -940,11 +940,6 @@ func TestMovingAverageSuccess(t *testing.T) {
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.5)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.8)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expectedWithXFiles)
 	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.6)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
-	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.1)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
-	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrapEntireSeries, expected)
 }
 
 func TestExponentialMovingAverageSuccess(t *testing.T) {
@@ -956,30 +951,32 @@ func TestExponentialMovingAverageSuccess(t *testing.T) {
 		expected     []float64
 	}{
 		{
-			"exponentialMovingAverage(foo.bar.baz, 3)",
-			"exponentialMovingAverage(foo.bar.baz,3)",
-			[]float64{0.0, 1.0, 2.0},
-			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
-			[]float64{1.0, 2.5, 3.75, 4.875, 5.9375},
-		},
-		{
 			"exponentialMovingAverage(foo.bar.baz, '30s')",
 			"exponentialMovingAverage(foo.bar.baz,\"30s\")",
 			[]float64{0.0, 1.0, 2.0},
 			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
-			[]float64{1.0, 2.5, 3.75, 4.875, 5.9375},
+			[]float64{1, 1.193548, 1.439126, 1.733376, 2.073158},
+		},
+		{
+			"exponentialMovingAverage(foo.bar.baz, 3)",
+			"exponentialMovingAverage(foo.bar.baz,3)",
+			[]float64{0.0, 1.0, 2.0},
+			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
+			[]float64{1, 2.5, 3.75, 4.875, 5.9375},
 		},
 		{
 			"exponentialMovingAverage(foo.bar.baz, 3)",
 			"exponentialMovingAverage(foo.bar.baz,3)",
 			[]float64{0.0, 1.0, 2.0},
 			[]float64{3.0, 4.0, 5.0, math.NaN(), 7.0},
-			[]float64{1.0, 2.5, 3.75, math.NaN(), 5.375},
+			[]float64{1, 2.5, 3.75, math.NaN(), 5.375},
 		},
 	}
 
 	for _, test := range tests {
-		testMovingFunction(t, test.target, test.expectedName, test.inputs, test.bootstrap, test.expected)
+		t.Run(test.target, func(t *testing.T) {
+			testMovingFunction(t, test.target, test.expectedName, test.inputs, test.bootstrap, test.expected)
+		})
 	}
 }
 
@@ -1006,9 +1003,33 @@ func testMovingFunctionError(t *testing.T, target string) {
 	require.Nil(t, res.Values)
 }
 
+func testMovingFunctionErrorWithInput(t *testing.T, target string, values, bootstrap []float64) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     10000,
+		Bootstrap:      bootstrap,
+		BootstrapStart: testMovingFunctionBootstrap,
+		Values:         values,
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  testMovingFunctionStart,
+		End:    testMovingFunctionEnd,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.Error(t, err)
+	require.Nil(t, res.Values)
+}
+
 func TestMovingAverageError(t *testing.T) {
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, '-30s')")
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
+	testMovingFunctionErrorWithInput(t, "movingAverage(foo.bar.baz, 3, 0.1)", nil, nil)
 }
 
 func TestMovingSumSuccess(t *testing.T) {
@@ -1023,9 +1044,6 @@ func TestMovingSumSuccess(t *testing.T) {
 	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 
 	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
 }
 
 func TestMovingSumError(t *testing.T) {
@@ -1049,15 +1067,19 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 
 	end := time.Now().Truncate(time.Minute)
 	start := end.Add(-3 * time.Minute)
+	end = end.Add(time.Second) // Extend so three values are calculated.
 	bootstrapStart := start.Add(-10 * time.Minute)
 
 	engine := NewEngine(&common.MovingFunctionStorage{
 		StepMillis:     60000,
-		Bootstrap:      []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2},
 		BootstrapStart: bootstrapStart,
-		Values:         []float64{3, 3, 3},
-		OriginalIDs:    []string{"foo.bar"},
-		BootstrapIDs:   []string{"foo.bar", "foo.baz"},
+		OriginalValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{3, 3, 3}},
+		},
+		BootstrapValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3}},
+			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
 		Start:  start,
@@ -1084,6 +1106,52 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 		expected, res.Values)
 }
 
+// TestMovingSumAllOriginalIDsMissingFromBootstrapIDs tests the case for the
+// "moving" function families where the bootstrap of the time range that
+// expands back returns timeseries and the original series list is empty
+// which can also happen when using a temporal index.
+func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	end := time.Now().Truncate(time.Minute)
+	start := end.Add(-3 * time.Minute)
+	end = end.Add(time.Second) // Extend so three values are calculated.
+	bootstrapStart := start.Add(-10 * time.Minute)
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     60000,
+		BootstrapStart: bootstrapStart,
+		BootstrapValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+		},
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	target := "movingSum(foo.*, '10min')"
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "movingSum(foo.bar,\"10min\")",
+			Data: []float64{15, 14, 13},
+		},
+		{
+			Name: "movingSum(foo.baz,\"10min\")",
+			Data: []float64{15, 14, 13},
+		},
+	}
+	common.CompareOutputsAndExpected(t, 60000, start,
+		expected, res.Values)
+}
+
 func TestMovingMaxSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
@@ -1091,9 +1159,6 @@ func TestMovingMaxSuccess(t *testing.T) {
 
 	testMovingFunction(t, "movingMax(foo.bar.baz, '30s')", "movingMax(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingMax(foo.bar.baz, '30s')", "movingMax(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingFunction(t, "movingMax(foo.bar.baz, '30s')", "movingMax(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
 }
 
 func TestMovingMaxError(t *testing.T) {
@@ -1108,9 +1173,6 @@ func TestMovingMinSuccess(t *testing.T) {
 
 	testMovingFunction(t, "movingMin(foo.bar.baz, '30s')", "movingMin(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingMin(foo.bar.baz, '30s')", "movingMin(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingFunction(t, "movingMin(foo.bar.baz, '30s')", "movingMin(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
 }
 
 func TestMovingMinError(t *testing.T) {
@@ -2219,7 +2281,6 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 	requireEqual(t, expected, r.Values)
 }
 
-// nolint: thelper
 func requireEqual(t *testing.T, expected, results []*ts.Series) {
 	require.Equal(t, len(expected), len(results))
 	for i := 0; i < len(results); i++ {
@@ -2577,7 +2638,6 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 	requireEqual(t, expected, r.Values)
 }
 
-// nolint: thelper
 func testLogarithm(t *testing.T, base float64, asserts func(*ts.Series)) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
@@ -3564,6 +3624,7 @@ func TestMovingMedian(t *testing.T) {
 	now := time.Now().Truncate(time.Hour)
 	engine := NewEngine(store, CompileOptions{})
 	startTime := now.Add(-3 * time.Minute)
+	// Make sure two full steps considered.
 	endTime := now.Add(-time.Minute)
 	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
 	defer func() { _ = ctx.Close() }()
@@ -3599,7 +3660,7 @@ func TestMovingAverage(t *testing.T) {
 	stepSize := 60000
 	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min', 0.7)`
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).Times(2)
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).AnyTimes()
 	expr, err := engine.Compile(target)
 	require.NoError(t, err)
 	res, err := expr.Execute(ctx)
@@ -3912,7 +3973,7 @@ func TestTimeShift(t *testing.T) {
 	target := "timeShift(foo.bar.q.zed, '1min', false)"
 
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed")).AnyTimes()
 
 	expr, err := engine.Compile(target)
 	require.NoError(t, err)

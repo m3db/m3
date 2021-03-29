@@ -1167,7 +1167,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 	infiniteBufferForPastTimedMetricFn := func(time.Duration) time.Duration {
 		return math.MaxInt64
 	}
-	return NewOptions().
+	return newTestOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionMgr).

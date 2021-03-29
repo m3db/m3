@@ -123,7 +123,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		} else if i < 7 {
 			annotation = ts.Annotation("bar")
 		} else if i == 10 {
-			annotation = ts.Annotation("baz")
+			annotation = ts.Annotation("long annotation long annotation long annotation long annotation")
 		}
 
 		if annotation != nil {

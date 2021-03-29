@@ -66,6 +66,8 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 
 		it.TimeUnit = input.timeUnit
 		it.PrevTimeDelta = input.previousTimeDelta
+		tes, _ := it.timeEncodingSchemes.SchemeForUnit(it.TimeUnit)
+		it.timeEncodingScheme = tes
 
 		err := it.readNextTimestamp(stream)
 		require.NoError(t, err)
@@ -74,7 +76,10 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 
 	stream := encoding.NewIStream(xio.NewBytesReader64([]byte{0x1}))
 	it := NewTimestampIterator(encoding.NewOptions(), false)
-	err := it.readNextTimestamp(stream)
+	err := it.readFirstTimestamp(stream)
+	require.Error(t, err)
+
+	err = it.readNextTimestamp(stream)
 	require.Error(t, err)
 
 	err = it.readNextTimestamp(stream)

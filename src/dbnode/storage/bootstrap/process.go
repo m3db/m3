@@ -52,17 +52,10 @@ type bootstrapProcessProvider struct {
 	bootstrapperProvider BootstrapperProvider
 }
 
-type bootstrapRunType string
-
-const (
-	bootstrapDataRunType  = bootstrapRunType("bootstrap-data")
-	bootstrapIndexRunType = bootstrapRunType("bootstrap-index")
-)
-
 // ErrFileSetSnapshotTypeRangeAdvanced is an error of bootstrap time ranges for snapshot-type
 // blocks advancing during the bootstrap
-var ErrFileSetSnapshotTypeRangeAdvanced = errors.New("the time ranges of snapshot-type blocks " +
-	"have advanced since they were calculated at the beginning of bootstrap")
+var ErrFileSetSnapshotTypeRangeAdvanced = errors.New(
+	"retrying bootstrap in order to recalculate time ranges (this is OK)")
 
 // NewProcessProvider creates a new bootstrap process provider.
 func NewProcessProvider(

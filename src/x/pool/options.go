@@ -27,7 +27,8 @@ const (
 	_defaultRefillLowWatermark  = 0.0
 	_defaultRefillHighWatermark = 0.0
 
-	_dynamicPoolSize = -1
+	// DynamicPoolSize is a magic size value that will force use of sync.Pool-backed pool implementation.
+	DynamicPoolSize = -1
 )
 
 type objectPoolOptions struct {
@@ -59,7 +60,7 @@ func (o *objectPoolOptions) SetSize(value int) ObjectPoolOptions {
 
 func (o *objectPoolOptions) Size() int {
 	if o.dynamic {
-		return _dynamicPoolSize
+		return DynamicPoolSize
 	}
 	return o.size
 }
@@ -71,6 +72,10 @@ func (o *objectPoolOptions) SetDynamic(dynamic bool) ObjectPoolOptions {
 }
 
 func (o *objectPoolOptions) Dynamic() bool {
+	// support enabling dynamic pools, even if a user does not expose pool options directly.
+	if o.size == DynamicPoolSize {
+		return true
+	}
 	return o.dynamic
 }
 

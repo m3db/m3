@@ -461,7 +461,7 @@ func (s *fieldsTermsIterSetup) asSegment(t *testing.T) segment.Segment {
 	return fst.ToTestSegment(t, memSeg, testFstOptions)
 }
 
-func (s *fieldsTermsIterSetup) requireEquals(t *testing.T, iter fieldsAndTermsIterator) { //nolint:thelper
+func (s *fieldsTermsIterSetup) requireEquals(t *testing.T, iter fieldsAndTermsIterator) {
 	pending := s.fields
 	for len(pending) > 0 {
 		require.True(t, iter.Next())
