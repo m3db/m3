@@ -801,7 +801,7 @@ type windowSizeParsed struct {
 	deltaValue  time.Duration
 	stringValue string
 	// exponentialMovingAverageConstant is the exponential moving average
-	// constant use by exponentialMovingAvarage which differs by how
+	// constant used by exponentialMovingAvarage which differs by how
 	// the window size was specified (whether string or number for multiplying
 	// max resolution/step of all the series).
 	// See:
