@@ -12,7 +12,7 @@ The M3 documentation uses [Hugo](https://gohugo.io/), a static site generator wr
 
 If you also want to run and serve the M3 documentation, you need the custom theme, [Victor](https://github.com/chronosphereio/victor). Clone or download it into the same directory as the M3 codebase.
 
-To run some tests and test the production build steps, you need [Docker](https://www.docker.com).
+To run some tests and test the production build steps (this doesn't run M3 itself), you need [Docker](https://www.docker.com).
 
 ## Folder Structure
 
@@ -57,9 +57,9 @@ The M3 documentation adds the following additional shortcodes:
 
 ## Running Documentation
 
-As noted in the prerequisites section, if you need to run the documentation locally to see how your edits look with `hugo server`, you need to have the Victor theme in the same directory as the M3 codebase, as `hugo server` runs in Hugo's "development" mode (and matches _site/config/development/config.toml_).
+As noted in the prerequisites section, if you want to run the documentation locally to see how your edits look with `hugo server`, you need to have the Victor theme in the same parent directory as the M3 codebase, as `hugo server` runs in Hugo's "development" mode (and matches _site/config/development/config.toml_).
 
-This does mean that as you make changes to the theme or documentation, usually, it refreshes automatically in the browser preview. Sometimes Hugo doesn't refresh included files, so you may need to restart the server process.
+This does mean that as you make changes to the theme or documentation, it refreshes automatically in the browser preview. Sometimes Hugo doesn't refresh included files, so you may need to restart the server process.
 
 ## Testing Documentation
 
