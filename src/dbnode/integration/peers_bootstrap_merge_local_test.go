@@ -73,15 +73,15 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 		// Enable useTchannelClientForWriting because this test relies upon being
 		// able to write data to a single node, and the M3DB client does not support
 		// that, but we can accomplish it by using an individual nodes TChannel endpoints.
-		setupOpts = []bootstrappableTestSetupOptions{
+		setupOpts = []BootstrappableTestSetupOptions{
 			{
-				disablePeersBootstrapper:    true,
-				useTChannelClientForWriting: true,
+				DisablePeersBootstrapper:    true,
+				UseTChannelClientForWriting: true,
 			},
 			{
-				disablePeersBootstrapper:    false,
-				useTChannelClientForWriting: true,
-				testStatsReporter:           reporter,
+				DisablePeersBootstrapper:    false,
+				UseTChannelClientForWriting: true,
+				TestStatsReporter:           reporter,
 			},
 		}
 	)
@@ -91,7 +91,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 		namesp = opts.Namespaces()[0]
 	}
 
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node, ensure to overflow past

@@ -39,8 +39,8 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.14
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.141.0
+# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.13
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 
@@ -172,19 +172,19 @@ all: test-ci-unit test-ci-integration services tools
 .PHONY: install-tools
 install-tools:
 	@echo "Installing build tools"
-	GOBIN=$(tools_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
-	GOBIN=$(tools_bin_path) go install github.com/golang/mock/mockgen
-	GOBIN=$(tools_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
-	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
-	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
-	GOBIN=$(tools_bin_path) go install github.com/golangci/golangci-lint/cmd/golangci-lint
-	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
-	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
-	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
-	GOBIN=$(tools_bin_path) go install github.com/robskillington/gorename
-	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
-	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
-	GOBIN=$(tools_bin_path) go install github.com/wjdp/htmltest
+	GOBIN=$(tools_bin_path) go install \
+		github.com/fossas/fossa-cli/cmd/fossa \
+		github.com/golang/mock/mockgen \
+		github.com/google/go-jsonnet/cmd/jsonnet \
+		github.com/m3db/build-tools/utilities/genclean \
+		github.com/m3db/tools/update-license \
+		github.com/golangci/golangci-lint/cmd/golangci-lint \
+		github.com/mauricelam/genny \
+		github.com/mjibson/esc \
+		github.com/pointlander/peg \
+		github.com/rakyll/statik \
+		github.com/garethr/kubeval \
+		github.com/wjdp/htmltest
 
 .PHONY: check-for-goreleaser-github-token
 check-for-goreleaser-github-token:
@@ -257,8 +257,7 @@ SUBDIR_TARGETS := \
 	asset-gen       \
 	genny-gen       \
 	license-gen     \
-	all-gen         \
-	lint
+	all-gen         
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
@@ -299,14 +298,12 @@ asset-gen-$(SUBDIR): install-tools
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
-# NB(schallert): gorename (used by our genny process) doesn't work with go
-# modules https://github.com/golang/go/issues/34222
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
-	@PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
+		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
+	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
 license-gen-$(SUBDIR): install-tools
@@ -481,3 +478,8 @@ clean: clean-build
 	@rm -rf ./src/ctl/ui/build
 
 .DEFAULT_GOAL := all
+
+lint: install-tools linter
+	@echo "--- :golang: Running linter on 'src'"
+	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/...
+	./bin/linter ./src/...

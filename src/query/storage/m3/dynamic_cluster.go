@@ -210,6 +210,7 @@ func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
 		if err != nil {
 			existing.remove(nsID)
 			removed = append(removed, nsID)
+			continue
 		}
 
 		if nsMd.Equal(newNsMd) {
@@ -418,12 +419,12 @@ func (d *dynamicCluster) NonReadyClusterNamespaces() ClusterNamespaces {
 	return nonReadyNamespaces
 }
 
-func (d *dynamicCluster) UnaggregatedClusterNamespace() ClusterNamespace {
+func (d *dynamicCluster) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
 	d.RLock()
-	unaggregatedNamespaces := d.unaggregatedNamespace
+	unaggregatedNamespace := d.unaggregatedNamespace
 	d.RUnlock()
 
-	return unaggregatedNamespaces
+	return unaggregatedNamespace, (unaggregatedNamespace != nil)
 }
 
 func (d *dynamicCluster) AggregatedClusterNamespace(attrs RetentionResolution) (ClusterNamespace, bool) {

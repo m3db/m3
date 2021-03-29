@@ -135,7 +135,9 @@ func TestPlacementInitHandler(t *testing.T) {
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		assert.Equal(t, "{\"error\":\"unable to build initial placement\"}\n", string(body))
+		assert.JSONEq(t,
+			`{"status":"error","error":"unable to build initial placement"}`,
+			string(body))
 
 		// Test error response
 		w = httptest.NewRecorder()

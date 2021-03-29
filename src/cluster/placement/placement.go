@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/shard"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -297,6 +298,13 @@ func (placements Placements) ActiveIndex(timeNanos int64) int {
 // - There is one Initializing shard for each Leaving shard.
 // - The instances with same shard_set_id owns the same shards.
 func Validate(p Placement) error {
+	if err := validate(p); err != nil {
+		return xerrors.NewInvalidParamsError(err)
+	}
+	return nil
+}
+
+func validate(p Placement) error {
 	if p.IsMirrored() && !p.IsSharded() {
 		return errMirrorNotSharded
 	}
@@ -311,6 +319,7 @@ func Validate(p Placement) error {
 	totalLeaving := 0
 	totalInit := 0
 	totalInitWithSourceID := 0
+	instancesLeavingShardsWithMatchingInitShards := make(map[string]map[uint32]string)
 	maxShardSetID := p.MaxShardSetID()
 	instancesByShardSetID := make(map[uint32]Instance, p.NumInstances())
 	for _, instance := range p.Instances() {
@@ -340,8 +349,52 @@ func Validate(p Placement) error {
 				totalInit++
 				shardCountMap[s.ID()] = count + 1
 				totalCapacity++
-				if s.SourceID() != "" {
+				if sourceID := s.SourceID(); sourceID != "" {
 					totalInitWithSourceID++
+
+					// Check the instance.
+					leaving, ok := p.Instance(sourceID)
+					if !ok {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but no such instance in placement",
+							instance.ID(), s.ID(), sourceID)
+					}
+
+					// Check has leaving shard.
+					leavingShard, ok := leaving.Shards().Shard(s.ID())
+					if !ok {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but leaving instance has no such shard",
+							instance.ID(), s.ID(), sourceID)
+					}
+
+					// Check the shard is leaving.
+					if state := leavingShard.State(); state != shard.Leaving {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but leaving instance has shard with state %s",
+							instance.ID(), s.ID(), sourceID, state.String())
+					}
+
+					// Make sure does not get double matched.
+					matches, ok := instancesLeavingShardsWithMatchingInitShards[sourceID]
+					if !ok {
+						matches = make(map[uint32]string)
+						instancesLeavingShardsWithMatchingInitShards[sourceID] = matches
+					}
+
+					match, ok := matches[s.ID()]
+					if ok {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but leaving instance has shard already matched by %s",
+							instance.ID(), s.ID(), sourceID, match)
+					}
+
+					// Track that it's matched.
+					matches[s.ID()] = instance.ID()
 				}
 			case shard.Leaving:
 				totalLeaving++

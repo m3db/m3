@@ -25,12 +25,22 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/headers"
 )
 
-// AddWarningHeaders adds any warning headers present in the result's metadata.
-// No-op if no warnings encountered.
-func AddWarningHeaders(w http.ResponseWriter, meta block.ResultMetadata) {
+// AddResponseHeaders adds any warning headers present in the result's metadata,
+// and also effective parameters relative to the request such as effective
+// timeout in use.
+func AddResponseHeaders(
+	w http.ResponseWriter,
+	meta block.ResultMetadata,
+	fetchOpts *storage.FetchOptions,
+) {
+	if fetchOpts != nil {
+		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
+	}
+
 	ex := meta.Exhaustive
 	warns := len(meta.Warnings)
 	if !ex {

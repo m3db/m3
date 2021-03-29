@@ -21,8 +21,10 @@
 package handleroptions
 
 import (
+	"bytes"
 	"fmt"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,7 +36,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -214,12 +218,14 @@ func TestFetchOptionsBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
+			builder, err := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
 				Limits: FetchOptionsBuilderLimitsOptions{
 					SeriesLimit: test.defaultLimit,
 				},
 				RestrictByTag: test.defaultRestrictByTag,
+				Timeout:       10 * time.Second,
 			})
+			require.NoError(t, err)
 
 			url := "/foo"
 			if test.query != "" {
@@ -231,7 +237,6 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			}
 
 			opts, err := builder.NewFetchOptions(req)
-
 			if !test.expectedErr {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedLimit, opts.SeriesLimit)
@@ -247,6 +252,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 					require.NotNil(t, opts.LookbackDuration)
 					require.Equal(t, test.expectedLookback.value, *opts.LookbackDuration)
 				}
+				require.Equal(t, 10*time.Second, opts.Timeout)
 			} else {
 				require.Error(t, err)
 			}
@@ -360,11 +366,14 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 		}`,
 	}
 
-	builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
+	builder, err := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
 		Limits: FetchOptionsBuilderLimitsOptions{
 			SeriesLimit: 5,
 		},
+		Timeout: 10 * time.Second,
 	})
+	require.NoError(t, err)
+
 	req := httptest.NewRequest("GET", "/", nil)
 	for k, v := range headers {
 		req.Header.Add(k, v)
@@ -396,4 +405,58 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 
 func stripSpace(str string) string {
 	return regexp.MustCompile(`\s+`).ReplaceAllString(str, "")
+}
+
+func TestParseRequestTimeout(t *testing.T) {
+	req := httptest.NewRequest("GET", "/read?timeout=2m", nil)
+	dur, err := ParseRequestTimeout(req, time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Minute, dur)
+}
+
+func TestTimeoutParseWithHeader(t *testing.T) {
+	req := httptest.NewRequest("POST", "/dummy", nil)
+	req.Header.Add("timeout", "1ms")
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
+
+	req.Header.Del("timeout")
+	timeout, err = ParseRequestTimeout(req, 2*time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, 2*time.Minute)
+
+	req.Header.Add("timeout", "invalid")
+	_, err = ParseRequestTimeout(req, 15*time.Second)
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestTimeoutParseWithPostRequestParam(t *testing.T) {
+	params := url.Values{}
+	params.Add("timeout", "1ms")
+
+	buff := bytes.NewBuffer(nil)
+	form := multipart.NewWriter(buff)
+	form.WriteField("timeout", "1ms")
+	require.NoError(t, form.Close())
+
+	req := httptest.NewRequest("POST", "/dummy", buff)
+	req.Header.Set(xhttp.HeaderContentType, form.FormDataContentType())
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
+}
+
+func TestTimeoutParseWithGetRequestParam(t *testing.T) {
+	params := url.Values{}
+	params.Add("timeout", "1ms")
+
+	req := httptest.NewRequest("GET", "/dummy?"+params.Encode(), nil)
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
 }

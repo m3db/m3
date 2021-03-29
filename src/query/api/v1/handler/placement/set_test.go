@@ -219,3 +219,118 @@ func TestPlacementSetHandler_NewPlacement(t *testing.T) {
 		assert.Equal(t, 0, newPlacement.Version())
 	})
 }
+
+func TestPlacementSetHandler_ValidatePlacementWithoutForce(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
+	handlerOpts, err := NewHandlerOptions(
+		mockClient, config.Configuration{}, nil, instrument.NewOptions())
+	require.NoError(t, err)
+	handler := NewSetHandler(handlerOpts)
+
+	badReqProto := &admin.PlacementSetRequest{
+		Placement: &placementpb.Placement{
+			Instances: map[string]*placementpb.Instance{
+				"host1": {
+					Id:             "host1",
+					IsolationGroup: "rack1",
+					Zone:           "test",
+					Weight:         1,
+					Endpoint:       "http://host1:1234",
+					Hostname:       "host1",
+					Port:           1234,
+					Shards: []*placementpb.Shard{
+						&placementpb.Shard{
+							Id:    0,
+							State: placementpb.ShardState_AVAILABLE,
+						},
+						&placementpb.Shard{
+							Id:    1,
+							State: placementpb.ShardState_AVAILABLE,
+						},
+					},
+				},
+				"host2": {
+					Id:             "host2",
+					IsolationGroup: "rack1",
+					Zone:           "test",
+					Weight:         1,
+					Endpoint:       "http://host2:1234",
+					Hostname:       "host2",
+					Port:           1234,
+					Shards: []*placementpb.Shard{
+						&placementpb.Shard{
+							Id:       0,
+							State:    placementpb.ShardState_INITIALIZING,
+							SourceId: "host1",
+						},
+						&placementpb.Shard{
+							Id:       1,
+							State:    placementpb.ShardState_INITIALIZING,
+							SourceId: "host1",
+						},
+					},
+				},
+			},
+			IsSharded:     true,
+			NumShards:     2,
+			ReplicaFactor: 2,
+		},
+		Version: 0,
+		Confirm: true,
+	}
+
+	reqBody, err := (&jsonpb.Marshaler{}).MarshalToString(badReqProto)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(SetHTTPMethod, M3DBSetURL, strings.NewReader(reqBody))
+	require.NotNil(t, req)
+
+	existingPlacementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"host1": {
+				Id:             "host1",
+				IsolationGroup: "rack1",
+				Zone:           "test",
+				Weight:         1,
+				Endpoint:       "http://host1:1234",
+				Hostname:       "host1",
+				Port:           1234,
+				Shards: []*placementpb.Shard{
+					&placementpb.Shard{
+						Id:    0,
+						State: placementpb.ShardState_AVAILABLE,
+					},
+					&placementpb.Shard{
+						Id:    1,
+						State: placementpb.ShardState_AVAILABLE,
+					},
+				},
+			},
+		},
+		IsSharded:     true,
+		NumShards:     2,
+		ReplicaFactor: 1,
+	}
+
+	existingPlacement, err := placement.NewPlacementFromProto(existingPlacementProto)
+	require.NoError(t, err)
+
+	mockPlacementService.EXPECT().
+		Placement().
+		Return(existingPlacement, nil)
+
+	svcDefaults := handleroptions.ServiceNameAndDefaults{
+		ServiceName: handleroptions.M3DBServiceName,
+	}
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(svcDefaults, w, req)
+	resp := w.Result()
+	body := w.Body.String()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.True(t, strings.Contains(body, "unable to validate new placement"))
+	assert.True(t, strings.Contains(body, "instance host2 has initializing shard 0 with source ID host1 but leaving instance has shard with state Available"))
+}

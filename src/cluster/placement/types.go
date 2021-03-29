@@ -271,6 +271,9 @@ type ActiveStagedPlacement interface {
 	// function when the caller is done using the placement, and any errors encountered.
 	ActivePlacement() (Placement, DoneFn, error)
 
+	// Version returns the version of the underlying staged placement.
+	Version() int
+
 	// Close closes the active staged placement.
 	Close() error
 }

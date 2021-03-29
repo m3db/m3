@@ -107,7 +107,8 @@ func TestNewClustersFromConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes
-	unaggregatedNs := clusters.UnaggregatedClusterNamespace()
+	unaggregatedNs, initialized := clusters.UnaggregatedClusterNamespace()
+	assert.True(t, initialized)
 	assert.Equal(t, "unaggregated", unaggregatedNs.NamespaceID().String())
 	assert.Equal(t, storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
@@ -209,7 +210,7 @@ func (n *noopCluster) NonReadyClusterNamespaces() ClusterNamespaces {
 	panic("implement me")
 }
 
-func (n *noopCluster) UnaggregatedClusterNamespace() ClusterNamespace {
+func (n *noopCluster) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
 	panic("implement me")
 }
 

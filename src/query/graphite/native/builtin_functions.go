@@ -1143,6 +1143,28 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 	return r, nil
 }
 
+// pow takes one metric or a wildcard seriesList followed by a constant,
+// and raises the datapoint by the power of the constant provided at each point
+// nolint: gocritic
+func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesList, error) {
+	results := make([]*ts.Series, 0, len(input.Values))
+
+	for _, series := range input.Values {
+		numSteps := series.Len()
+		millisPerStep := series.MillisPerStep()
+		vals := ts.NewValues(ctx, millisPerStep, numSteps)
+		for i := 0; i < numSteps; i++ {
+			vals.SetValueAt(i, math.Pow(series.ValueAt(i), factor))
+		}
+		newName := fmt.Sprintf("pow(%s, %f)", series.Name(), factor)
+		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
+	}
+
+	r := ts.SeriesList(input)
+	r.Values = results
+	return r, nil
+}
+
 // logarithm takes one metric or a wildcard seriesList, and draws the y-axis in
 // logarithmic format.
 func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesList, error) {
@@ -2375,7 +2397,6 @@ func init() {
 	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: []*ts.Series(nil), // total
-		3: nil, // nodes
 	})
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageSeries)
@@ -2406,9 +2427,7 @@ func init() {
 	MustRegisterFunction(groupByNode).WithDefaultParams(map[uint8]interface{}{
 		3: "average", // fname
 	})
-	MustRegisterFunction(groupByNodes).WithDefaultParams(map[uint8]interface{}{
-		3: nil, // nodes
-	})
+	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
 		2: 1,         // n,
 		3: "average", // f
@@ -2474,6 +2493,8 @@ func init() {
 	MustRegisterFunction(perSecond).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
 	})
+	MustRegisterFunction(pow)
+	MustRegisterFunction(powSeries)
 	MustRegisterFunction(rangeOfSeries)
 	MustRegisterFunction(randomWalkFunction).WithDefaultParams(map[uint8]interface{}{
 		2: 60, // step

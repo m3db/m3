@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/parser/promql"
@@ -189,11 +190,16 @@ func run(opts runOptions) {
 				log.Fatal("search execute error", zap.Error(err))
 			}
 
+			reader := docs.NewEncodedDocumentReader()
 			fields := make(map[string]string)
 			for iter.Next() {
 				d := iter.Current()
+				m, err := docs.MetadataFromDocument(d, reader)
+				if err != nil {
+					log.Fatal("error retrieve document metadata", zap.Error(err))
+				}
 
-				key := string(d.ID)
+				key := string(m.ID)
 
 				resultsLock.Lock()
 				_, ok := results[key]
@@ -209,7 +215,7 @@ func run(opts runOptions) {
 				for k := range fields {
 					delete(fields, k)
 				}
-				for _, field := range d.Fields {
+				for _, field := range m.Fields { // nolint:gocritic
 					fields[string(field.Name)] = string(field.Value)
 				}
 

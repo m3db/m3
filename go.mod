@@ -3,13 +3,9 @@ module github.com/m3db/m3
 go 1.13
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d // indirect
 	github.com/DataDog/datadog-go v3.7.1+incompatible // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
-	github.com/Microsoft/go-winio v0.4.14 // indirect
-	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/RoaringBitmap/roaring v0.4.21
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/apache/thrift v0.13.0
@@ -21,11 +17,8 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/ristretto v0.0.3
-	github.com/docker/go-connections v0.4.0 // indirect
-	github.com/fatih/color v1.10.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
@@ -38,18 +31,17 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1
+	github.com/golangci/golangci-lint v1.33.0
 	github.com/google/go-cmp v0.5.2
 	github.com/google/go-jsonnet v0.16.0
 	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
-	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
-	github.com/kr/text v0.2.0 // indirect
 	github.com/leanovate/gopter v0.2.8
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
@@ -65,17 +57,12 @@ require (
 	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v1.4.2-0.20201109081833-6c9df43642fd
-	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
+	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
-	github.com/onsi/ginkgo v1.14.1 // indirect
-	github.com/onsi/gomega v1.10.2 // indirect
-	github.com/opencontainers/image-spec v1.0.1 // indirect
-	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/ory/dockertest v3.3.5+incompatible
+	github.com/ory/dockertest/v3 v3.6.3
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml v1.5.0 // indirect
@@ -91,12 +78,9 @@ require (
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
-	github.com/robskillington/gorename v0.0.0-20180424020013-52c7307cddd2
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
-	github.com/satori/go.uuid v1.2.0
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
-	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -120,13 +104,14 @@ require (
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
 	go.uber.org/atomic v1.6.0
 	go.uber.org/config v1.4.0
+	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.13.0
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20201009025420-dfb3f7c4e634
 	golang.org/x/tools v0.0.0-20201013201025-64a9e34f3752
 	google.golang.org/grpc v1.29.1
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	google.golang.org/protobuf v1.23.0
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
@@ -136,7 +121,6 @@ require (
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible
-	honnef.co/go/tools v0.0.1-2020.1.6 // indirect
 )
 
 // branch 0.9.3-pool-read-binary-3

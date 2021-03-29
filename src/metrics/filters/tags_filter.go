@@ -209,10 +209,16 @@ func (f *tagsFilter) Matches(id []byte) bool {
 	defer iter.Close()
 
 	currIdx := 0
+
+	// Iterate over each of the metric's tags and rule's tag filters. They're both in sorted order.
 	for iter.Next() && currIdx < len(f.tagFilters) {
 		name, value := iter.Current()
 
+		// Check if the current metric tag matches the current tag filter
 		comparison := bytes.Compare(name, f.tagFilters[currIdx].name)
+
+		// If the tags don't match, we move onto the next metric tag.
+		// This is correct because not every one of the metric tag's need be represented in the rule.
 		if comparison < 0 {
 			continue
 		}
@@ -230,7 +236,7 @@ func (f *tagsFilter) Matches(id []byte) bool {
 			}
 
 			if currIdx == len(f.tagFilters) {
-				// Past all tagFilters.
+				// Past all tagFilters without covering all of the metric's tags
 				return false
 			}
 
@@ -239,6 +245,7 @@ func (f *tagsFilter) Matches(id []byte) bool {
 			}
 		}
 
+		// Now check that the metric's underlying tag value passes the corresponding filter's value
 		match := f.tagFilters[currIdx].valueFilter.Matches(value)
 		if match && f.op == Disjunction {
 			return true

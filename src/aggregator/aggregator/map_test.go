@@ -163,11 +163,11 @@ func TestMetricMapSetRuntimeOptions(t *testing.T) {
 	require.NoError(t, m.AddUntimed(testBatchTimer, testDefaultStagedMetadatas))
 	require.NoError(t, m.AddUntimed(testGauge, testDefaultStagedMetadatas))
 
-	// Assert no entries have rate limiters.
+	// Assert no entries have rate limits.
 	runtimeOpts := runtime.NewOptions()
 	require.Equal(t, runtimeOpts, m.runtimeOpts)
 	for elem := m.entryList.Front(); elem != nil; elem = elem.Next() {
-		require.Nil(t, elem.Value.(hashedEntry).entry.rateLimiter)
+		require.Equal(t, int64(0), elem.Value.(hashedEntry).entry.rateLimiter.Limit())
 	}
 
 	// Update runtime options and assert all entries now have rate limiters.

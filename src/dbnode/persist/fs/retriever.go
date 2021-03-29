@@ -40,6 +40,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -49,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -87,11 +89,12 @@ const (
 type blockRetriever struct {
 	sync.RWMutex
 
-	opts           BlockRetrieverOptions
-	fsOpts         Options
-	logger         *zap.Logger
-	queryLimits    limits.QueryLimits
-	bytesReadLimit limits.LookbackLimit
+	opts                    BlockRetrieverOptions
+	fsOpts                  Options
+	logger                  *zap.Logger
+	queryLimits             limits.QueryLimits
+	bytesReadLimit          limits.LookbackLimit
+	seriesBloomFilterMisses tally.Counter
 
 	newSeekerMgrFn newSeekerMgrFn
 
@@ -120,18 +123,21 @@ func NewBlockRetriever(
 		return nil, err
 	}
 
+	scope := fsOpts.InstrumentOptions().MetricsScope().SubScope("retriever")
+
 	return &blockRetriever{
-		opts:           opts,
-		fsOpts:         fsOpts,
-		logger:         fsOpts.InstrumentOptions().Logger(),
-		queryLimits:    opts.QueryLimits(),
-		bytesReadLimit: opts.QueryLimits().BytesReadLimit(),
-		newSeekerMgrFn: NewSeekerManager,
-		reqPool:        opts.RetrieveRequestPool(),
-		bytesPool:      opts.BytesPool(),
-		idPool:         opts.IdentifierPool(),
-		status:         blockRetrieverNotOpen,
-		notifyFetch:    make(chan struct{}, 1),
+		opts:                    opts,
+		fsOpts:                  fsOpts,
+		logger:                  fsOpts.InstrumentOptions().Logger(),
+		queryLimits:             opts.QueryLimits(),
+		bytesReadLimit:          opts.QueryLimits().BytesReadLimit(),
+		seriesBloomFilterMisses: scope.Counter("series-bloom-filter-misses"),
+		newSeekerMgrFn:          NewSeekerManager,
+		reqPool:                 opts.RetrieveRequestPool(),
+		bytesPool:               opts.BytesPool(),
+		idPool:                  opts.IdentifierPool(),
+		status:                  blockRetrieverNotOpen,
+		notifyFetch:             make(chan struct{}, 1),
 		// We just close this channel when the fetchLoops should shutdown, so no
 		// buffering is required
 		fetchLoopsShouldShutdownCh: make(chan struct{}),
@@ -200,7 +206,7 @@ func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	var (
 		seekerResources    = NewReusableSeekerResources(r.fsOpts)
-		retrieverResources = newReuseableRetrieverResources()
+		retrieverResources = newReusableRetrieverResources()
 		inFlight           []*retrieveRequest
 		currBatchReqs      []*retrieveRequest
 	)
@@ -302,7 +308,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	reqs []*retrieveRequest,
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
-	retrieverResources *reuseableRetrieverResources,
+	retrieverResources *reusableRetrieverResources,
 ) []*retrieveRequest {
 	retrieverResources.resetDataReqs()
 	retrieverResources.resetWideEntryReqs()
@@ -314,7 +320,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
 
 		case streamWideEntryReq:
-			entry, err := seeker.SeekWideEntry(req.id, seekerResources)
+			entry, err := seeker.SeekWideEntry(req.id, req.wideFilter, seekerResources)
 			if err != nil {
 				if errors.Is(err, errSeekIDNotFound) {
 					// Missing, return empty result, successful lookup.
@@ -329,7 +335,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 
 			// Enqueue for fetch in batch in offset ascending order.
 			req.wideEntry = entry
-			entry.Shard = req.shard
+			req.wideEntry.Shard = req.shard
 			retrieverResources.appendWideEntryReq(req)
 
 		default:
@@ -367,7 +373,7 @@ func (r *blockRetriever) fetchBatch(
 	blockStart time.Time,
 	allReqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
-	retrieverResources *reuseableRetrieverResources,
+	retrieverResources *reusableRetrieverResources,
 ) {
 	var (
 		seeker     ConcurrentDataFileSetSeeker
@@ -448,7 +454,7 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
+		if err := r.bytesReadLimit.Inc(int(entry.Size), req.source); err != nil {
 			req.err = err
 			limitErr = err
 			continue
@@ -554,6 +560,34 @@ func (r *blockRetriever) fetchBatch(
 	}
 }
 
+func (r *blockRetriever) seriesPresentInBloomFilter(
+	id ident.ID,
+	shard uint32,
+	startTime time.Time,
+) (bool, error) {
+	// Capture variable and RLock() because this slice can be modified in the
+	// Open() method
+	r.RLock()
+	seekerMgr := r.seekerMgr
+	r.RUnlock()
+
+	// This should never happen unless caller tries to use Stream() before Open()
+	if seekerMgr == nil {
+		return false, errNoSeekerMgr
+	}
+
+	idExists, err := seekerMgr.Test(id, shard, startTime)
+	if err != nil {
+		return false, err
+	}
+
+	if !idExists {
+		r.seriesBloomFilterMisses.Inc(1)
+	}
+
+	return idExists, nil
+}
+
 // streamRequest returns a bool indicating if the ID was found, and any errors.
 func (r *blockRetriever) streamRequest(
 	ctx context.Context,
@@ -561,43 +595,32 @@ func (r *blockRetriever) streamRequest(
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
-	nsCtx namespace.Context,
-) (bool, error) {
+) error {
+	req.resultWg.Add(1)
+	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
+		return err
+	}
 	req.shard = shard
-	// NB(r): Clone the ID as we're not positive it will stay valid throughout
-	// the lifecycle of the async request.
-	req.id = r.idPool.Clone(id)
+
+	// NB(r): If the ID is a ident.BytesID then we can just hold
+	// onto this ID.
+	seriesID := id
+	if !seriesID.IsNoFinalize() {
+		// NB(r): Clone the ID as we're not positive it will stay valid throughout
+		// the lifecycle of the async request.
+		seriesID = r.idPool.Clone(id)
+	}
+
+	req.id = seriesID
 	req.start = startTime
 	req.blockSize = r.blockSize
-
-	req.resultWg.Add(1)
 
 	// Ensure to finalize at the end of request
 	ctx.RegisterFinalizer(req)
 
-	// Capture variable and RLock() because this slice can be modified in the
-	// Open() method
-	r.RLock()
-	// This should never happen unless caller tries to use Stream() before Open()
-	if r.seekerMgr == nil {
-		r.RUnlock()
-		return false, errNoSeekerMgr
-	}
-	r.RUnlock()
-
-	idExists, err := r.seekerMgr.Test(id, shard, startTime)
-	if err != nil {
-		return false, err
-	}
-
-	// If the ID is not in the seeker's bloom filter, then it's definitely not on
-	// disk and we can return immediately.
-	if !idExists {
-		return false, nil
-	}
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	reqs.Lock()
@@ -616,7 +639,7 @@ func (r *blockRetriever) streamRequest(
 	// the data. This means that even though we're returning nil for error
 	// here, the caller may still encounter an error when they attempt to
 	// read the data.
-	return true, nil
+	return nil
 }
 
 func (r *blockRetriever) Stream(
@@ -627,20 +650,31 @@ func (r *blockRetriever) Stream(
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
+	found, err := r.seriesPresentInBloomFilter(id, shard, startTime)
+	if err != nil {
+		return xio.EmptyBlockReader, err
+	}
+	// If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// disk and we can return immediately.
+	if !found {
+		return xio.EmptyBlockReader, nil
+	}
+
 	req := r.reqPool.Get()
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
 
-	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
+	goCtx, found := ctx.GoContext()
+	if found {
+		if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
+			req.source = source
+		}
+	}
+
+	err = r.streamRequest(ctx, req, shard, id, startTime)
 	if err != nil {
 		req.resultWg.Done()
 		return xio.EmptyBlockReader, err
-	}
-
-	if !found {
-		req.onRetrieved(ts.Segment{}, namespace.Context{})
-		req.success = true
-		req.onDone()
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -656,21 +690,27 @@ func (r *blockRetriever) StreamWideEntry(
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
+	found, err := r.seriesPresentInBloomFilter(id, shard, startTime)
+	if err != nil {
+		return block.EmptyStreamedWideEntry, err
+	}
+	// If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// disk and we can return immediately.
+	if !found {
+		return block.EmptyStreamedWideEntry, nil
+	}
+
 	req := r.reqPool.Get()
 	req.streamReqType = streamWideEntryReq
+	req.wideFilter = filter
 
-	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
+	err = r.streamRequest(ctx, req, shard, id, startTime)
 	if err != nil {
 		req.resultWg.Done()
 		return block.EmptyStreamedWideEntry, err
-	}
-
-	if !found {
-		req.wideEntry = xio.WideEntry{}
-		req.success = true
-		req.onDone()
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -776,10 +816,12 @@ type retrieveRequest struct {
 	blockSize  time.Duration
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
+	source     []byte
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
 	wideEntry     xio.WideEntry
+	wideFilter    schema.WideEntryFilter
 	reader        xio.SegmentReader
 
 	err error
@@ -947,6 +989,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
 	req.finalized = false
 	req.finalizes = 0
+	req.source = nil
 	req.shard = 0
 	req.id = nil
 	req.tags = ident.EmptyTagIterator
@@ -956,6 +999,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.wideEntry = xio.WideEntry{}
+	req.wideFilter = nil
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
@@ -1036,35 +1080,35 @@ func (p *reqPool) Put(req *retrieveRequest) {
 	p.pool.Put(req)
 }
 
-type reuseableRetrieverResources struct {
+type reusableRetrieverResources struct {
 	dataReqs      []*retrieveRequest
 	wideEntryReqs []*retrieveRequest
 }
 
-func newReuseableRetrieverResources() *reuseableRetrieverResources {
-	return &reuseableRetrieverResources{}
+func newReusableRetrieverResources() *reusableRetrieverResources {
+	return &reusableRetrieverResources{}
 }
 
-func (r *reuseableRetrieverResources) resetAll() {
+func (r *reusableRetrieverResources) resetAll() {
 	r.resetDataReqs()
 	r.resetWideEntryReqs()
 }
 
-func (r *reuseableRetrieverResources) resetDataReqs() {
+func (r *reusableRetrieverResources) resetDataReqs() {
 	for i := range r.dataReqs {
 		r.dataReqs[i] = nil
 	}
 	r.dataReqs = r.dataReqs[:0]
 }
 
-func (r *reuseableRetrieverResources) resetWideEntryReqs() {
+func (r *reusableRetrieverResources) resetWideEntryReqs() {
 	for i := range r.wideEntryReqs {
 		r.wideEntryReqs[i] = nil
 	}
 	r.wideEntryReqs = r.wideEntryReqs[:0]
 }
 
-func (r *reuseableRetrieverResources) appendWideEntryReq(
+func (r *reusableRetrieverResources) appendWideEntryReq(
 	req *retrieveRequest,
 ) {
 	r.wideEntryReqs = append(r.wideEntryReqs, req)

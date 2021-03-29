@@ -1,3 +1,5 @@
+// +build dtest
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31,10 +33,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func findVerifier(expected string) resources.GoalStateVerifier {
-	return func(s string, err error) error {
+func findVerifier(expected string) resources.ResponseVerifier {
+	return func(status int, _ map[string][]string, s string, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if status/100 != 2 {
+			return fmt.Errorf("expected 200 status code, got %v", status)
 		}
 
 		if s == expected {
@@ -45,15 +51,19 @@ func findVerifier(expected string) resources.GoalStateVerifier {
 	}
 }
 
-func renderVerifier(metric string, v float64) resources.GoalStateVerifier {
+func renderVerifier(v float64) resources.ResponseVerifier {
 	type graphiteRender struct {
 		Target     string      `json:"target"`
 		Datapoints [][]float64 `json:"datapoints"`
 	}
 
-	return func(s string, err error) error {
+	return func(status int, _ map[string][]string, s string, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if status/100 != 2 {
+			return fmt.Errorf("expected 200 status code, got %v", status)
 		}
 
 		var render []graphiteRender
@@ -103,7 +113,7 @@ func TestCarbon(t *testing.T) {
 
 	read := func(metric string, expected float64) {
 		assert.NoError(t, coord.RunQuery(
-			renderVerifier(metric, expected),
+			renderVerifier(expected),
 			graphiteQuery(metric, timestamp)))
 	}
 

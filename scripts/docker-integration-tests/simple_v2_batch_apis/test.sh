@@ -34,7 +34,7 @@ function test_prometheus_remote_read {
   # Ensure Prometheus can proxy a Prometheus query
   echo "Wait until the remote write endpoint generates and allows for data to be queried"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[0].value[1]) -gt 100 ]]'
+    '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_samples_total | jq -r .data.result[0].value[1]) -gt 100 ]]'
 }
 
 function test_prometheus_remote_write_multi_namespaces {

@@ -22,7 +22,6 @@ package namespace
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -32,6 +31,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -48,21 +49,27 @@ var (
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
-
-	errNamespaceExists = xerrors.NewInvalidParamsError(errors.New("namespace with same ID already exists"))
 )
 
 // AddHandler is the handler for namespace adds.
-type AddHandler Handler
+type AddHandler struct {
+	Handler
+
+	validator options.NamespaceValidator
+}
 
 // NewAddHandler returns a new instance of AddHandler.
 func NewAddHandler(
 	client clusterclient.Client,
 	instrumentOpts instrument.Options,
+	validator options.NamespaceValidator,
 ) *AddHandler {
 	return &AddHandler{
-		client:         client,
-		instrumentOpts: instrumentOpts,
+		Handler: Handler{
+			client:         client,
+			instrumentOpts: instrumentOpts,
+		},
+		validator: validator,
 	}
 }
 
@@ -84,13 +91,13 @@ func (h *AddHandler) ServeHTTP(
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
 	nsRegistry, err := h.Add(md, opts)
 	if err != nil {
-		if err == errNamespaceExists {
+		if err == validators.ErrNamespaceExists {
 			logger.Error("namespace already exists", zap.Error(err))
 			xhttp.WriteError(w, xhttp.NewError(err, http.StatusConflict))
 			return
 		}
 
-		logger.Error("unable to get namespace", zap.Error(err))
+		logger.Error("unable to add namespace", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -103,7 +110,7 @@ func (h *AddHandler) ServeHTTP(
 }
 
 func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, error) {
-	defer r.Body.Close()
+	defer r.Body.Close() // nolint:errcheck
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
@@ -129,10 +136,6 @@ func (h *AddHandler) Add(
 		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("bad namespace metadata: %v", err))
 	}
 
-	if err := validateNewMetadata(md); err != nil {
-		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("invalid new namespace metadata: %v", err))
-	}
-
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return emptyReg, err
@@ -143,15 +146,11 @@ func (h *AddHandler) Add(
 		return emptyReg, err
 	}
 
-	// Since this endpoint is `/add` and not in-place update, return an error if
-	// the NS already exists. NewMap will return an error if there's duplicate
-	// entries with the same name, but it's abstracted away behind a MultiError so
-	// we can't easily check that it's a conflict in the handler.
-	for _, ns := range currentMetadata {
-		if ns.ID().Equal(md.ID()) {
-			// NB: errNamespaceExists already an invalid params error.
-			return emptyReg, errNamespaceExists
+	if err := h.validator.ValidateNewNamespace(md, currentMetadata); err != nil {
+		if err == validators.ErrNamespaceExists {
+			return emptyReg, err
 		}
+		return emptyReg, xerrors.NewInvalidParamsError(err)
 	}
 
 	newMDs := append(currentMetadata, md)
@@ -175,18 +174,4 @@ func (h *AddHandler) Add(
 	}
 
 	return *protoRegistry, nil
-}
-
-// Validate new namespace inputs only. Validation that applies to namespaces regardless of create/update/etc
-// belongs in the option-specific Validate functions which are invoked on every change operation.
-func validateNewMetadata(m namespace.Metadata) error {
-	indexBlockSize := m.Options().RetentionOptions().BlockSize()
-	retentionBlockSize := m.Options().IndexOptions().BlockSize()
-	if indexBlockSize != retentionBlockSize {
-		return fmt.Errorf("index and retention block size must match (%v, %v)",
-			indexBlockSize,
-			retentionBlockSize,
-		)
-	}
-	return nil
 }

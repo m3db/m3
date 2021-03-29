@@ -99,7 +99,7 @@ func (e *Element) Prev() *Element {
 }
 
 // List represents a doubly linked list.
-// The zero value for List is an empty list ready to use.
+// The zero value is an empty, ready to use list.
 type List struct {
 	root Element // sentinel list element, only &root, root.prev, and root.next are used
 	len  int     // current list length excluding (this) sentinel element

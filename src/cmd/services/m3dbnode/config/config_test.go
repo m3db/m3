@@ -287,7 +287,7 @@ db:
                       - 1.1.1.1:2379
                       - 1.1.1.2:2379
                       - 1.1.1.3:2379
-  
+
         seedNodes:
             listenPeerUrls:
                 - http://0.0.0.0:2380
@@ -337,6 +337,8 @@ func TestConfiguration(t *testing.T) {
 	expected := `db:
   index:
     maxQueryIDsConcurrency: 0
+    regexpDFALimit: null
+    regexpFSALimit: null
     forwardIndexProbability: 0
     forwardIndexThreshold: 0
   transforms:
@@ -632,6 +634,18 @@ func TestConfiguration(t *testing.T) {
             initTimeout: null
           watchWithRevision: 0
           newDirectoryMode: null
+          retry:
+            initialBackoff: 0s
+            backoffFactor: 0
+            maxBackoff: 0s
+            maxRetries: 0
+            forever: null
+            jitter: null
+          requestTimeout: 0s
+          watchChanInitTimeout: 0s
+          watchChanCheckInterval: 0s
+          watchChanResetInterval: 0s
+          enableFastGets: false
       statics: []
       seedNodes:
         rootDir: /var/lib/etcd
@@ -716,6 +730,7 @@ func TestConfiguration(t *testing.T) {
       meta_event_reporting_enabled: false
   limits:
     maxRecentlyQueriedSeriesDiskBytesRead: null
+    maxRecentlyQueriedSeriesDiskRead: null
     maxRecentlyQueriedSeriesBlocks: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
@@ -727,6 +742,7 @@ func TestConfiguration(t *testing.T) {
   debug:
     mutexProfileFraction: 0
     blockProfileRate: 0
+  forceColdWritesEnabled: null
 coordinator: null
 `
 

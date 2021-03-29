@@ -26,13 +26,15 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/prometheus"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -40,35 +42,57 @@ import (
 	"go.uber.org/zap"
 )
 
-type readHandler struct {
-	engine    *promql.Engine
-	queryable promstorage.Queryable
-	hOpts     options.HandlerOptions
-	scope     tally.Scope
-	logger    *zap.Logger
-}
+// NewQueryFn creates a new promql Query.
+type NewQueryFn func(params models.RequestParams) (promql.Query, error)
 
-type readRequest struct {
-	query         string
-	start, end    time.Time
-	step, timeout time.Duration
+var (
+	newRangeQueryFn = func(
+		engine *promql.Engine,
+		queryable promstorage.Queryable,
+	) NewQueryFn {
+		return func(params models.RequestParams) (promql.Query, error) {
+			return engine.NewRangeQuery(
+				queryable,
+				params.Query,
+				params.Start,
+				params.End,
+				params.Step)
+		}
+	}
+
+	newInstantQueryFn = func(
+		engine *promql.Engine,
+		queryable promstorage.Queryable,
+	) NewQueryFn {
+		return func(params models.RequestParams) (promql.Query, error) {
+			return engine.NewInstantQuery(
+				queryable,
+				params.Query,
+				params.Now)
+		}
+	}
+)
+
+type readHandler struct {
+	hOpts  options.HandlerOptions
+	scope  tally.Scope
+	logger *zap.Logger
+	opts   opts
 }
 
 func newReadHandler(
-	opts Options,
 	hOpts options.HandlerOptions,
-	queryable promstorage.Queryable,
-) http.Handler {
+	options opts,
+) (http.Handler, error) {
 	scope := hOpts.InstrumentOpts().MetricsScope().Tagged(
 		map[string]string{"handler": "prometheus-read"},
 	)
 	return &readHandler{
-		engine:    opts.PromQLEngine,
-		queryable: queryable,
-		hOpts:     hOpts,
-		scope:     scope,
-		logger:    hOpts.InstrumentOpts().Logger(),
-	}
+		hOpts:  hOpts,
+		opts:   options,
+		scope:  scope,
+		logger: hOpts.InstrumentOpts().Logger(),
+	}, nil
 }
 
 func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -76,15 +100,17 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fetchOptions, err := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
 	if err != nil {
-		respondError(w, err)
+		xhttp.WriteError(w, err)
 		return
 	}
 
-	request, err := native.ParseRequest(ctx, r, false, h.hOpts)
+	request, err := native.ParseRequest(ctx, r, h.opts.instant, h.hOpts)
 	if err != nil {
-		respondError(w, err)
+		xhttp.WriteError(w, err)
 		return
 	}
+
+	params := request.Params
 
 	// NB (@shreyas): We put the FetchOptions in context so it can be
 	// retrieved in the queryable object as there is no other way to pass
@@ -93,31 +119,28 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
 	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataKey, &resultMetadata)
 
-	if request.Params.Timeout > 0 {
+	if params.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, request.Params.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, params.Timeout)
 		defer cancel()
 	}
 
-	qry, err := h.engine.NewRangeQuery(
-		h.queryable,
-		request.Params.Query,
-		request.Params.Start,
-		request.Params.End,
-		request.Params.Step)
+	qry, err := h.opts.newQueryFn(params)
 	if err != nil {
-		h.logger.Error("error creating range query",
-			zap.Error(err), zap.String("query", request.Params.Query))
-		respondError(w, err)
+		h.logger.Error("error creating query",
+			zap.Error(err), zap.String("query", params.Query),
+			zap.Bool("instant", h.opts.instant))
+		xhttp.WriteError(w, xerrors.NewInvalidParamsError(err))
 		return
 	}
 	defer qry.Close()
 
 	res := qry.Exec(ctx)
 	if res.Err != nil {
-		h.logger.Error("error executing range query",
-			zap.Error(res.Err), zap.String("query", request.Params.Query))
-		respondError(w, res.Err)
+		h.logger.Error("error executing query",
+			zap.Error(res.Err), zap.String("query", params.Query),
+			zap.Bool("instant", h.opts.instant))
+		xhttp.WriteError(w, res.Err)
 		return
 	}
 
@@ -125,15 +148,16 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		res.Warnings = append(res.Warnings, errors.New(warn.Message))
 	}
 
-	query := request.Params.Query
+	query := params.Query
 	err = ApplyRangeWarnings(query, &resultMetadata)
 	if err != nil {
 		h.logger.Warn("error applying range warnings",
-			zap.Error(err), zap.String("query", query))
+			zap.Error(err), zap.String("query", query),
+			zap.Bool("instant", h.opts.instant))
 	}
 
-	handleroptions.AddWarningHeaders(w, resultMetadata)
-	respond(w, &queryData{
+	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
+	Respond(w, &QueryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
 	}, res.Warnings)

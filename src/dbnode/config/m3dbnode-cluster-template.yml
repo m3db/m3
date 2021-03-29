@@ -10,18 +10,15 @@ db:
     resolver: hostname
 
 # Fill-out the following and un-comment before using.
-#  config:
-#    service:
-#      env: default_env
-#      zone: embedded
-#      service: m3db
-#      cacheDir: /var/lib/m3kv
-#      etcdClusters:
-#        - zone: embedded
-#          endpoints:
-#            - HOST1_STATIC_IP_ADDRESS:2379
-#            - HOST2_STATIC_IP_ADDRESS:2379
-#            - HOST3_STATIC_IP_ADDRESS:2379
+  # config:
+  #   discovery: 
+  #     type: m3db_cluster 
+  #     m3dbCluster: 
+  #       env: default_env
+  #       endpoints: 
+  #         - HOST1_STATIC_IP_ADDRESS:2379
+  #         - HOST2_STATIC_IP_ADDRESS:2379
+  #         - HOST3_STATIC_IP_ADDRESS:2379
 #    seedNodes:
 #      initialCluster:
 #        - hostID: host1

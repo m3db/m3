@@ -154,7 +154,6 @@ func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (
 	var metricType annotation.MetricType
 
 	switch seriesAttributes.PromType {
-
 	case ts.PromMetricTypeUnknown:
 		metricType = annotation.MetricType_UNKNOWN
 

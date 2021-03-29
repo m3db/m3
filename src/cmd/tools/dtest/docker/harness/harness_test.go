@@ -1,3 +1,5 @@
+// +build dtest
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,6 +23,8 @@
 package harness
 
 import (
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/m3db/m3/src/cmd/tools/dtest/docker/harness/resources"
@@ -29,23 +33,21 @@ import (
 var singleDBNodeDockerResources resources.DockerResources
 
 func TestMain(m *testing.M) {
-	// TODO(bodu): Add a BK step/tag for dtests, these need to be run on a bare machine.
+	var err error
+	singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode(
+		resources.WithExistingCluster("dbnode01", "coord01"),
+	)
 
-	//var err error
-	//singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode()
+	if err != nil {
+		fmt.Println("could not set up db docker containers", err)
+		os.Exit(1)
+	}
 
-	//if err != nil {
-	//	fmt.Println("could not set up db docker containers", err)
-	//	os.Exit(1)
-	//}
+	if l := len(singleDBNodeDockerResources.Nodes()); l != 1 {
+		fmt.Println("should only have a single node, have", l)
+		os.Exit(1)
+	}
 
-	//if l := len(singleDBNodeDockerResources.Nodes()); l != 1 {
-	//	singleDBNodeDockerResources.Cleanup()
-	//	fmt.Println("should only have a single node, have", l)
-	//	os.Exit(1)
-	//}
-
-	//code := m.Run()
-	//singleDBNodeDockerResources.Cleanup()
-	//os.Exit(code)
+	code := m.Run()
+	os.Exit(code)
 }

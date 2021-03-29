@@ -74,5 +74,5 @@ type ReadableSegment interface {
 	Terms(field []byte) (sgmt.TermsIterator, error)
 	matchTerm(field, term []byte) (postings.List, error)
 	matchRegexp(field []byte, compiled *re.Regexp) (postings.List, error)
-	getDoc(id postings.ID) (doc.Document, error)
+	getDoc(id postings.ID) (doc.Metadata, error)
 }

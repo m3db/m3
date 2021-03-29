@@ -30,13 +30,20 @@ import (
 	"github.com/m3db/m3/src/query/graphite/lexer"
 )
 
+// CompileOptions allows for specifying compile options.
+type CompileOptions struct {
+	EscapeAllNotOnlyQuotes bool
+}
+
 // Compile converts an input stream into the corresponding Expression.
-func Compile(input string) (Expression, error) {
+func Compile(input string, opts CompileOptions) (Expression, error) {
 	booleanLiterals := map[string]lexer.TokenType{
 		"true":  lexer.True,
 		"false": lexer.False,
 	}
-	lex, tokens := lexer.NewLexer(input, booleanLiterals)
+	lex, tokens := lexer.NewLexer(input, booleanLiterals, lexer.Options{
+		EscapeAllNotOnlyQuotes: opts.EscapeAllNotOnlyQuotes,
+	})
 	go lex.Run()
 
 	lookforward := newTokenLookforward(tokens)
@@ -170,6 +177,11 @@ func (c *compiler) compileFunctionCall(fname string, nextToken *lexer.Token) (*f
 	}
 
 	argTypes := fn.in
+	argTypesRequired := len(fn.in)
+	if fn.variadic {
+		// Variadic can avoid specifying the last arg.
+		argTypesRequired--
+	}
 	var args []funcArg
 
 	// build up arguments for function call
@@ -206,7 +218,7 @@ func (c *compiler) compileFunctionCall(fname string, nextToken *lexer.Token) (*f
 	}
 
 	// all required argument types should be filled with values now
-	if len(args) < len(argTypes) {
+	if len(args) < argTypesRequired {
 		variadicComment := ""
 		if fn.variadic {
 			variadicComment = "at least "
@@ -322,7 +334,7 @@ func (c *compiler) errorf(msg string, args ...interface{}) error {
 
 // ExtractFetchExpressions extracts timeseries fetch expressions from the given query
 func ExtractFetchExpressions(s string) ([]string, error) {
-	expr, err := Compile(s)
+	expr, err := Compile(s, CompileOptions{})
 	if err != nil {
 		return nil, err
 	}

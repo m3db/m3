@@ -276,7 +276,7 @@ func TestCompile1(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		expr, err := Compile(test.input)
+		expr, err := Compile(test.input, CompileOptions{})
 		require.Nil(t, err, "error compiling: expression='%s', error='%v'", test.input, err)
 		require.NotNil(t, expr)
 		assertExprTree(t, test.result, expr, fmt.Sprintf("invalid result for %s: %v vs %v",
@@ -309,9 +309,6 @@ func TestCompileErrors(t *testing.T) {
 		{"aliasByNode()",
 			"invalid expression 'aliasByNode()': invalid number of arguments for aliasByNode;" +
 				" expected at least 2, received 0"},
-		{"aliasByNode(foo.*.zed)", // check that at least 1 param is provided for variadic args
-			"invalid expression 'aliasByNode(foo.*.zed)': invalid number of arguments for " +
-				"aliasByNode; expected at least 2, received 1"},
 		{"aliasByNode(foo.*.zed, 2, false)",
 			"invalid expression 'aliasByNode(foo.*.zed, 2, false)': invalid function call " +
 				"aliasByNode, arg 2: expected a int, received 'false'"},
@@ -327,9 +324,6 @@ func TestCompileErrors(t *testing.T) {
 		{"summarize(foo.bar.baz.quux)",
 			"invalid expression 'summarize(foo.bar.baz.quux)':" +
 				" invalid number of arguments for summarize; expected 4, received 1"},
-		{"sumSeries()", // check that at least 1 series is provided for variadic timeSeriesList
-			"invalid expression 'sumSeries()': invalid number of arguments for sumSeries;" +
-				" expected at least 1, received 0"},
 		{"sumSeries(foo.bar.baz.quux,)",
 			"invalid expression 'sumSeries(foo.bar.baz.quux,)': invalid function call sumSeries, " +
 				"arg 1: invalid expression 'sumSeries(foo.bar.baz.quux,)': ) not valid"},
@@ -381,7 +375,7 @@ func TestCompileErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		expr, err := Compile(test.input)
+		expr, err := Compile(test.input, CompileOptions{})
 		require.NotNil(t, err, "no error for %s", test.input)
 		assert.Equal(t, test.err, err.Error(), "wrong error for %s", test.input)
 		assert.Nil(t, expr, "non-nil expression for %s", test.input)

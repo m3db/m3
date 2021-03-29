@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -196,11 +197,6 @@ func readTestDataWithStreamingOpt(
 	streamingEnabled bool,
 ) {
 	for _, underTest := range readTestTypes {
-		if underTest == readTestTypeMetadata && streamingEnabled {
-			// ATM there is no streaming support for metadata.
-			continue
-		}
-
 		rOpenOpts := DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
@@ -263,7 +259,7 @@ func readTestDataWithStreamingOpt(
 				data.Finalize()
 
 			case readTestTypeMetadata:
-				id, tags, length, checksum, err := r.ReadMetadata()
+				id, tags, length, checksum, err := readMetadata(t, r)
 				require.NoError(t, err)
 
 				// Assert id
@@ -571,21 +567,45 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	})
 }
 
-func readData(t *testing.T, reader DataFileSetReader) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
+func readData(
+	t *testing.T,
+	reader DataFileSetReader,
+) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
 	if reader.StreamingEnabled() {
-		id, encodedTags, data, checksum, err := reader.StreamingRead()
-		var tags = ident.EmptyTagIterator
-		if len(encodedTags) > 0 {
-			tagsDecoder := testTagDecoderPool.Get()
-			tagsDecoder.Reset(checkedBytes(encodedTags))
-			require.NoError(t, tagsDecoder.Err())
-			tags = tagsDecoder
+		entry, err := reader.StreamingRead()
+		if err != nil {
+			return nil, nil, nil, 0, err
 		}
-
-		return id, tags, checked.NewBytes(data, nil), checksum, err
+		tags := decodeTags(t, entry.EncodedTags)
+		return entry.ID, tags, checked.NewBytes(entry.Data, nil), entry.DataChecksum, err
 	}
 
 	return reader.Read()
+}
+
+func readMetadata(
+	t *testing.T,
+	reader DataFileSetReader,
+) (id ident.ID, tags ident.TagIterator, length int, checksum uint32, err error) {
+	if reader.StreamingEnabled() {
+		entry, err := reader.StreamingReadMetadata()
+		tags := decodeTags(t, entry.EncodedTags)
+		return entry.ID, tags, entry.Length, entry.DataChecksum, err
+	}
+
+	return reader.ReadMetadata()
+}
+
+func decodeTags(t *testing.T, encodedTags ts.EncodedTags) ident.TagIterator {
+	tags := ident.EmptyTagIterator
+	if len(encodedTags) > 0 {
+		tagsDecoder := testTagDecoderPool.Get()
+		tagsDecoder.Reset(checkedBytes(encodedTags))
+		require.NoError(t, tagsDecoder.Err())
+		tags = tagsDecoder
+	}
+
+	return tags
 }
 
 func checkedBytes(b []byte) checked.Bytes {

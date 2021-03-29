@@ -111,7 +111,7 @@ func TestExecute(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := storage.NewMockStorage(ctrl)
-	engine := NewEngine(store)
+	engine := NewEngine(store, CompileOptions{})
 
 	tests := []queryTest{
 		{"foo.bar.q.zed", true, []queryTestResult{{"foo.bar.q.zed", "foo.bar.q.zed", 0}}},
@@ -124,6 +124,14 @@ func TestExecute(t *testing.T) {
 			{"foo.bar.g.zed", "foo.g", 1},
 			{"foo.bar.q.zed", "foo.q", 0},
 			{"foo.bar.x.zed", "foo.x", 2},
+		}},
+		{"groupByNodes(foo.bar.*.zed, \"sum\")", false, []queryTestResult{
+			{"foo.bar.*.zed", "foo.bar.*.zed", 3},
+		}},
+		{"groupByNodes(foo.bar.*.zed, \"sum\", 2)", false, []queryTestResult{
+			{"foo.bar.q.zed", "foo.bar.q.zed", 0},
+			{"foo.bar.g.zed", "foo.bar.g.zed", 1},
+			{"foo.bar.x.zed", "foo.bar.x.zed", 2},
 		}},
 	}
 
@@ -140,7 +148,7 @@ func TestExecute(t *testing.T) {
 			buildTestSeriesFn(stepSize, queries...))
 
 		expr, err := engine.Compile(test.query)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		results, err := expr.Execute(ctx)
 		require.Nil(t, err, "failed to execute %s", test.query)
@@ -163,7 +171,7 @@ func TestTracing(t *testing.T) {
 
 	store := storage.NewMockStorage(ctrl)
 
-	engine := NewEngine(store)
+	engine := NewEngine(store, CompileOptions{})
 	var traces []common.Trace
 
 	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
@@ -221,7 +229,7 @@ func TestNilBinaryContextShifter(t *testing.T) {
 
 	store := storage.NewMockStorage(ctrl)
 
-	engine := NewEngine(store)
+	engine := NewEngine(store, CompileOptions{})
 
 	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
 

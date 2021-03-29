@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -63,7 +64,7 @@ import (
 var (
 	testIndexOptions          = index.NewOptions()
 	testNamespaceOptions      = namespace.NewOptions()
-	testStorageOpts           = storage.NewOptions()
+	testStorageOpts           = storage.DefaultTestOptions()
 	testTChannelThriftOptions = tchannelthrift.NewOptions()
 )
 
@@ -286,16 +287,37 @@ func TestServiceQuery(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+	md2 := doc.Metadata{
+		ID: ident.BytesID("bar"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("dzk"),
+				Value: []byte("baz"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
-		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
-	)))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag(tags["bar"][0].name, tags["bar"][0].value),
-		ident.StringTag(tags["bar"][1].name, tags["bar"][1].value),
-	)))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -377,7 +399,7 @@ func TestServiceSetMetadata(t *testing.T) {
 		wg.Add(1)
 		md := md
 		go func() {
-			meta, ok := service.GetMetadata(md)
+			meta, ok := service.Metadata(md)
 			assert.True(t, ok)
 			assert.Equal(t, meta, md)
 			wg.Done()
@@ -1579,17 +1601,41 @@ func TestServiceFetchTagged(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+	md2 := doc.Metadata{
+		ID: ident.BytesID("bar"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("dzk"),
+				Value: []byte("baz"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	)))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("dzk", "baz"),
-	)))
-
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	mockDB.EXPECT().QueryIDs(
 		gomock.Any(),
 		ident.NewIDMatcher(nsID),
@@ -1597,23 +1643,25 @@ func TestServiceFetchTagged(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			SeriesLimit:    10,
+			SeriesLimit:    int(seriesLimit),
+			DocsLimit:      int(docsLimit),
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
+
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace:  []byte(nsID),
-		Query:      data,
-		RangeStart: startNanos,
-		RangeEnd:   endNanos,
-		FetchData:  true,
-		Limit:      &limit,
+		NameSpace:   []byte(nsID),
+		Query:       data,
+		RangeStart:  startNanos,
+		RangeEnd:    endNanos,
+		FetchData:   true,
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 	})
 	require.NoError(t, err)
 
@@ -1651,15 +1699,12 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 8)
+
+	require.Len(t, spans, 4)
 	assert.Equal(t, tracepoint.FetchReadEncoded, spans[0].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSegment, spans[1].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[2].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSegment, spans[3].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[4].OperationName)
-	assert.Equal(t, tracepoint.FetchReadResults, spans[5].OperationName)
-	assert.Equal(t, tracepoint.FetchTagged, spans[6].OperationName)
-	assert.Equal(t, "root", spans[7].OperationName)
+	assert.Equal(t, tracepoint.FetchReadResults, spans[1].OperationName)
+	assert.Equal(t, tracepoint.FetchTagged, spans[2].OperationName)
+	assert.Equal(t, "root", spans[3].OperationName)
 }
 
 func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
@@ -1688,31 +1733,56 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+	md2 := doc.Metadata{
+		ID: ident.BytesID("bar"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("dzk"),
+				Value: []byte("baz"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	)))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("dzk", "baz"),
-	)))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace:  []byte(nsID),
-		Query:      data,
-		RangeStart: startNanos,
-		RangeEnd:   endNanos,
-		FetchData:  true,
-		Limit:      &limit,
+		NameSpace:   []byte(nsID),
+		Query:       data,
+		RangeStart:  startNanos,
+		RangeEnd:    endNanos,
+		FetchData:   true,
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 	})
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
@@ -1743,17 +1813,21 @@ func TestServiceFetchTaggedDatabaseNotSet(t *testing.T) {
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace:  []byte(nsID),
-		Query:      data,
-		RangeStart: startNanos,
-		RangeEnd:   endNanos,
-		FetchData:  true,
-		Limit:      &limit,
+		NameSpace:   []byte(nsID),
+		Query:       data,
+		RangeStart:  startNanos,
+		RangeEnd:    endNanos,
+		FetchData:   true,
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 	})
 	require.Equal(t, tterrors.NewInternalError(errDatabaseIsNotInitializedYet), err)
 }
@@ -1782,10 +1856,23 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID:     ident.BytesID("foo"),
+		Fields: []doc.Field{},
+	}
+	md2 := doc.Metadata{
+		ID:     ident.BytesID("bar"),
+		Fields: []doc.Field{},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.Tags{}))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.Tags{}))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	mockDB.EXPECT().QueryIDs(
 		ctx,
 		ident.NewIDMatcher(nsID),
@@ -1793,23 +1880,25 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			SeriesLimit:    10,
+			SeriesLimit:    int(seriesLimit),
+			DocsLimit:      int(docsLimit),
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
+
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace:  []byte(nsID),
-		Query:      data,
-		RangeStart: startNanos,
-		RangeEnd:   endNanos,
-		FetchData:  false,
-		Limit:      &limit,
+		NameSpace:   []byte(nsID),
+		Query:       data,
+		RangeStart:  startNanos,
+		RangeEnd:    endNanos,
+		FetchData:   false,
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 	})
 	require.NoError(t, err)
 
@@ -1851,8 +1940,10 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
-
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 	data, err := idx.Marshal(req)
@@ -1866,15 +1957,17 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			SeriesLimit:    10,
+			SeriesLimit:    int(seriesLimit),
+			DocsLimit:      int(docsLimit),
 		}).Return(index.QueryResult{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace:  []byte(nsID),
-		Query:      data,
-		RangeStart: startNanos,
-		RangeEnd:   endNanos,
-		FetchData:  false,
-		Limit:      &limit,
+		NameSpace:   []byte(nsID),
+		Query:       data,
+		RangeStart:  startNanos,
+		RangeEnd:    endNanos,
+		FetchData:   false,
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 	})
 	require.Error(t, err)
 }
@@ -1934,13 +2027,27 @@ func TestServiceFetchTaggedReturnOnFirstErr(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	)))
-
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	mockDB.EXPECT().QueryIDs(
 		gomock.Any(),
 		ident.NewIDMatcher(nsID),
@@ -1948,23 +2055,25 @@ func TestServiceFetchTaggedReturnOnFirstErr(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			SeriesLimit:    10,
+			SeriesLimit:    int(seriesLimit),
+			DocsLimit:      int(docsLimit),
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
+
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace:  []byte(nsID),
-		Query:      data,
-		RangeStart: startNanos,
-		RangeEnd:   endNanos,
-		FetchData:  true,
-		Limit:      &limit,
+		NameSpace:   []byte(nsID),
+		Query:       data,
+		RangeStart:  startNanos,
+		RangeEnd:    endNanos,
+		FetchData:   true,
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 	})
 	require.Error(t, err)
 }
@@ -1998,6 +2107,11 @@ func TestServiceAggregate(t *testing.T) {
 	resMap.Map().Set(ident.StringID("foo"), index.MustNewAggregateValues(testIndexOptions))
 	resMap.Map().Set(ident.StringID("bar"), index.MustNewAggregateValues(testIndexOptions,
 		ident.StringID("baz"), ident.StringID("barf")))
+
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	mockDB.EXPECT().AggregateQuery(
 		ctx,
 		ident.NewIDMatcher(nsID),
@@ -2006,7 +2120,8 @@ func TestServiceAggregate(t *testing.T) {
 			QueryOptions: index.QueryOptions{
 				StartInclusive: start,
 				EndExclusive:   end,
-				SeriesLimit:    10,
+				SeriesLimit:    int(seriesLimit),
+				DocsLimit:      int(docsLimit),
 			},
 			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
@@ -2019,7 +2134,7 @@ func TestServiceAggregate(t *testing.T) {
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
+
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	r, err := service.AggregateRaw(tctx, &rpc.AggregateQueryRawRequest{
@@ -2027,7 +2142,8 @@ func TestServiceAggregate(t *testing.T) {
 		Query:              data,
 		RangeStart:         startNanos,
 		RangeEnd:           endNanos,
-		Limit:              &limit,
+		SeriesLimit:        &seriesLimit,
+		DocsLimit:          &docsLimit,
 		AggregateQueryType: rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE,
 		TagNameFilter: [][]byte{
 			[]byte("foo"), []byte("bar"),
@@ -2081,6 +2197,10 @@ func TestServiceAggregateNameOnly(t *testing.T) {
 		index.AggregateResultsOptions{}, testIndexOptions)
 	resMap.Map().Set(ident.StringID("foo"), index.AggregateValues{})
 	resMap.Map().Set(ident.StringID("bar"), index.AggregateValues{})
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	mockDB.EXPECT().AggregateQuery(
 		ctx,
 		ident.NewIDMatcher(nsID),
@@ -2089,7 +2209,8 @@ func TestServiceAggregateNameOnly(t *testing.T) {
 			QueryOptions: index.QueryOptions{
 				StartInclusive: start,
 				EndExclusive:   end,
-				SeriesLimit:    10,
+				SeriesLimit:    int(seriesLimit),
+				DocsLimit:      int(docsLimit),
 			},
 			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
@@ -2102,7 +2223,7 @@ func TestServiceAggregateNameOnly(t *testing.T) {
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
-	var limit int64 = 10
+
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	r, err := service.AggregateRaw(tctx, &rpc.AggregateQueryRawRequest{
@@ -2110,7 +2231,8 @@ func TestServiceAggregateNameOnly(t *testing.T) {
 		Query:              data,
 		RangeStart:         startNanos,
 		RangeEnd:           endNanos,
-		Limit:              &limit,
+		SeriesLimit:        &seriesLimit,
+		DocsLimit:          &docsLimit,
 		AggregateQueryType: rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME,
 		TagNameFilter: [][]byte{
 			[]byte("foo"), []byte("bar"),

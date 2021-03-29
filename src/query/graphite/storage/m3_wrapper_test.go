@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/block"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -76,6 +77,33 @@ func TestTranslateQuery(t *testing.T) {
 		{Type: models.MatchField, Name: graphite.TagName(6)},
 		{Type: models.MatchRegexp, Name: graphite.TagName(7), Value: []byte(`back[^\.]`)},
 		{Type: models.MatchNotField, Name: graphite.TagName(8)},
+	}
+
+	assert.Equal(t, expected, matchers)
+}
+
+func TestTranslateQueryStarStar(t *testing.T) {
+	query := `foo**bar`
+	end := time.Now()
+	start := end.Add(time.Hour * -2)
+	opts := FetchOptions{
+		StartTime: start,
+		EndTime:   end,
+		DataOptions: DataOptions{
+			Timeout: time.Minute,
+		},
+	}
+
+	translated, err := translateQuery(query, opts, M3WrappedStorageOptions{})
+	assert.NoError(t, err)
+	assert.Equal(t, end, translated.End)
+	assert.Equal(t, start, translated.Start)
+	assert.Equal(t, time.Duration(0), translated.Interval)
+	assert.Equal(t, query, translated.Raw)
+	matchers := translated.TagMatchers
+	expected := models.Matchers{
+		{Type: models.MatchRegexp, Name: graphite.TagName(0), Value: []byte(".*")},
+		{Type: models.MatchRegexp, Name: doc.IDReservedFieldName, Value: []byte("foo.*bar")},
 	}
 
 	assert.Equal(t, expected, matchers)

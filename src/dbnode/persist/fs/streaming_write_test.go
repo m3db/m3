@@ -60,14 +60,14 @@ func newTestStreamingWriter(
 	require.NoError(t, err)
 
 	writerOpenOpts := StreamingWriterOpenOptions{
-			NamespaceID: testNs1ID,
-			ShardID:     shard,
-			BlockStart:  timestamp,
-			BlockSize:   testBlockSize,
+		NamespaceID: testNs1ID,
+		ShardID:     shard,
+		BlockStart:  timestamp,
+		BlockSize:   testBlockSize,
 
-			VolumeIndex:         nextVersion,
-			PlannedRecordsCount: plannedEntries,
-		}
+		VolumeIndex:         nextVersion,
+		PlannedRecordsCount: plannedEntries,
+	}
 	err = writer.Open(writerOpenOpts)
 	require.NoError(t, err)
 
@@ -174,7 +174,7 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Close()
@@ -184,12 +184,31 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, nil)
 }
 
+func TestReadStreamingWriteReject0PlannedRecordsCount(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir) // nolint: errcheck
+
+	writer, err := NewStreamingWriter(testDefaultOpts.
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize))
+	require.NoError(t, err)
+
+	writerOpenOpts := StreamingWriterOpenOptions{
+		NamespaceID:         testNs1ID,
+		BlockSize:           testBlockSize,
+		PlannedRecordsCount: 0,
+	}
+	err = writer.Open(writerOpenOpts)
+	require.EqualError(t, err, "PlannedRecordsCount must be positive, got 0")
+}
+
 func TestStreamingWriterAbort(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Abort()

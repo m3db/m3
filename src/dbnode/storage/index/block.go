@@ -593,6 +593,7 @@ func (b *block) queryReadersNoLock(
 	}
 
 	var (
+		source     = opts.Source
 		iterCloser = safeCloser{closable: iter}
 		size       = queryResults.Size()
 		docsCount  = queryResults.TotalDocsCount()
@@ -620,8 +621,7 @@ func (b *block) queryReadersNoLock(
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResultsNoLock(cancellable,
-			results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -629,8 +629,7 @@ func (b *block) queryReadersNoLock(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResultsNoLock(cancellable,
-			results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -653,14 +652,15 @@ func (b *block) closeAsyncNoLock(closer io.Closer) {
 	}
 }
 
-func (b *block) addQueryResultsNoLock(
+func (b *block) addQueryResults(
 	cancellable *xresource.CancellableLifetime,
 	results BaseResultsBuilder,
 	batch []doc.Document,
+	source []byte,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch)); err != nil {
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}
@@ -760,6 +760,7 @@ func (b *block) aggregateNoLock(
 	}
 
 	var (
+		source     = opts.Source
 		size       = results.Size()
 		docsN      = results.TotalDocsCount()
 		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
@@ -810,8 +811,7 @@ func (b *block) aggregateNoLock(
 				continue
 			}
 
-			batch, size, docsN, err = b.addAggregateResultsNoLock(cancellable,
-				results, batch)
+			batch, size, docsN, err = b.addAggregateResults(cancellable, results, batch, source)
 			if err != nil {
 				return false, err
 			}
@@ -830,8 +830,7 @@ func (b *block) aggregateNoLock(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsN, err = b.addAggregateResultsNoLock(cancellable,
-			results, batch)
+		batch, size, docsN, err = b.addAggregateResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -910,14 +909,15 @@ func (b *block) pooledID(id []byte) ident.ID {
 	return b.opts.IdentifierPool().BinaryID(data)
 }
 
-func (b *block) addAggregateResultsNoLock(
+func (b *block) addAggregateResults(
 	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
+	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch)); err != nil {
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}

@@ -240,7 +240,7 @@ func (m *merger) Merge(
 	ctx.Reset()
 	err = mergeWith.ForEachRemaining(
 		ctx, blockStart,
-		func(seriesMetadata doc.Document, mergeWithData block.FetchBlockResult) error {
+		func(seriesMetadata doc.Metadata, mergeWithData block.FetchBlockResult) error {
 			segmentReaders = segmentReaders[:0]
 			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData.Blocks)
 
@@ -249,10 +249,15 @@ func (m *merger) Merge(
 
 			if err == nil {
 				err = onFlush.OnFlushNewSeries(persist.OnFlushNewSeriesEvent{
-					Shard:          shard,
-					BlockStart:     startTime,
-					FirstWrite:     mergeWithData.FirstWrite,
-					SeriesMetadata: seriesMetadata,
+					Shard:      shard,
+					BlockStart: startTime,
+					FirstWrite: mergeWithData.FirstWrite,
+					SeriesMetadata: persist.SeriesMetadata{
+						Type:     persist.SeriesDocumentType,
+						Document: seriesMetadata,
+						// The lifetime of the shard series metadata is longly lived.
+						LifeTime: persist.SeriesLifeTimeLong,
+					},
 				})
 			}
 

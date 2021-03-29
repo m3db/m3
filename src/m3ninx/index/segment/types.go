@@ -193,7 +193,7 @@ type Builder interface {
 
 	// Docs returns the current docs slice, this is not safe to modify
 	// and is invalidated on a call to reset.
-	Docs() []doc.Document
+	Docs() []doc.Metadata
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (index.IDDocIterator, error)
@@ -232,15 +232,15 @@ type SegmentsBuilder interface {
 
 // DocumentsFilter is a documents filter.
 type DocumentsFilter interface {
-	Contains(d doc.Document) bool
+	Contains(d doc.Metadata) bool
 }
 
 // DocumentsFilterFn implements DocumentsFilter.
-type DocumentsFilterFn func(d doc.Document) bool
+type DocumentsFilterFn func(d doc.Metadata) bool
 
 var _ DocumentsFilter = DocumentsFilterFn(nil)
 
 // Contains implements the DocumentsFilter interface.
-func (f DocumentsFilterFn) Contains(d doc.Document) bool {
+func (f DocumentsFilterFn) Contains(d doc.Metadata) bool {
 	return f(d)
 }

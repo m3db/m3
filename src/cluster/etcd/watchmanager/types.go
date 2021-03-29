@@ -43,10 +43,10 @@ type TickAndStopFn func(key string) bool
 
 // Options are options for the etcd watch helper
 type Options interface {
-	// Watcher is the etcd watcher
-	Watcher() clientv3.Watcher
-	// SetWatcher sets the Watcher
-	SetWatcher(w clientv3.Watcher) Options
+	// Client sets the etcd client
+	Client() *clientv3.Client
+	// SetClient sets the etcd client
+	SetClient(cli *clientv3.Client) Options
 
 	// UpdateFn is the function called when a notification on a key is received
 	UpdateFn() UpdateFn

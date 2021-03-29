@@ -41,8 +41,8 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 		nDur := time.Duration(n)
 		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
-	d := func(n int64) doc.Document {
-		return doc.Document{
+	d := func(n int64) doc.Metadata {
+		return doc.Metadata{
 			ID: []byte(fmt.Sprintf("doc-%d", n)),
 		}
 	}
@@ -88,8 +88,8 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
 		nDur := time.Duration(n)
 		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
-	d := func(n int64) doc.Document {
-		return doc.Document{
+	d := func(n int64) doc.Metadata {
+		return doc.Metadata{
 			ID: []byte(fmt.Sprintf("doc-%d", n)),
 		}
 	}

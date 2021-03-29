@@ -52,7 +52,7 @@ type Compactor struct {
 
 	opts         CompactorOptions
 	writer       fst.Writer
-	docsPool     doc.DocumentArrayPool
+	metadataPool doc.MetadataArrayPool
 	docsMaxBatch int
 	fstOpts      fst.Options
 	builder      segment.SegmentsBuilder
@@ -76,7 +76,7 @@ type CompactorOptions struct {
 // NewCompactor returns a new compactor which reuses buffers
 // to avoid allocating intermediate buffers when compacting.
 func NewCompactor(
-	docsPool doc.DocumentArrayPool,
+	metadataPool doc.MetadataArrayPool,
 	docsMaxBatch int,
 	builderOpts builder.Options,
 	fstOpts fst.Options,
@@ -93,7 +93,7 @@ func NewCompactor(
 	return &Compactor{
 		opts:         opts,
 		writer:       writer,
-		docsPool:     docsPool,
+		metadataPool: metadataPool,
 		docsMaxBatch: docsMaxBatch,
 		builder:      builder.NewBuilderFromSegments(builderOpts),
 		fstOpts:      fstOpts,
@@ -155,8 +155,10 @@ func (c *Compactor) CompactUsingBuilder(
 	}
 
 	// Need to combine segments first
-	batch := c.docsPool.Get()
-	defer c.docsPool.Put(batch)
+	batch := c.metadataPool.Get()
+	defer func() {
+		c.metadataPool.Put(batch)
+	}()
 
 	// flushBatch is declared to reuse the same code from the
 	// inner loop and the completion of the loop
@@ -185,7 +187,7 @@ func (c *Compactor) CompactUsingBuilder(
 		}
 
 		// Reset docs batch for reuse
-		var empty doc.Document
+		var empty doc.Metadata
 		for i := range batch {
 			batch[i] = empty
 		}
@@ -279,7 +281,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		// If retaining references to the original docs, simply take ownership
 		// of the documents and then reference them directly from the FST segment
 		// rather than encoding them and mmap'ing the encoded documents.
-		allDocsCopy := make([]doc.Document, len(allDocs))
+		allDocsCopy := make([]doc.Metadata, len(allDocs))
 		copy(allDocsCopy, allDocs)
 		fstData.DocsReader = docs.NewSliceReader(allDocsCopy)
 	} else {
@@ -380,7 +382,7 @@ func (c *Compactor) Close() error {
 	c.closed = true
 
 	c.writer = nil
-	c.docsPool = nil
+	c.metadataPool = nil
 	c.fstOpts = nil
 	c.builder = nil
 	c.buff = nil

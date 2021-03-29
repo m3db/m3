@@ -36,7 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testOpts = storage.NewOptions()
+var testOpts = storage.DefaultTestOptions()
 
 func newTestDatabase(
 	t *testing.T,

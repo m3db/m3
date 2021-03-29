@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -308,57 +307,6 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
 		index.Query{}, time.Now(), nil, index.IterationOptions{})
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
-}
-
-func TestDatabaseWideEntry(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
-	defer func() {
-		close(mapCh)
-	}()
-
-	nsID := ident.StringID("testns1")
-	seriesID := ident.StringID("bar")
-	end := time.Now()
-	start := end.Add(-time.Hour)
-
-	indexChecksumWithID := block.NewMockStreamedWideEntry(ctrl)
-	indexChecksumWithID.EXPECT().RetrieveWideEntry().
-		Return(
-			xio.WideEntry{
-				ID:               ident.StringID("foo"),
-				MetadataChecksum: 5,
-			}, nil)
-	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
-		Return(indexChecksumWithID, nil)
-
-	indexChecksumWithoutID := block.NewMockStreamedWideEntry(ctrl)
-	indexChecksumWithoutID.EXPECT().RetrieveWideEntry().
-		Return(xio.WideEntry{MetadataChecksum: 7}, nil)
-	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
-		Return(indexChecksumWithoutID, nil)
-	d.namespaces.Set(nsID, mockNamespace)
-
-	res, err := d.fetchWideEntries(ctx, mockNamespace, seriesID, start)
-	require.NoError(t, err)
-	checksum, err := res.RetrieveWideEntry()
-	require.NoError(t, err)
-	assert.Equal(t, "foo", checksum.ID.String())
-	assert.Equal(t, 5, int(checksum.MetadataChecksum))
-
-	res, err = d.fetchWideEntries(ctx, mockNamespace, seriesID, start)
-	require.NoError(t, err)
-	checksum, err = res.RetrieveWideEntry()
-	require.NoError(t, err)
-	require.NoError(t, err)
-	assert.Nil(t, checksum.ID)
-	assert.Equal(t, 7, int(checksum.MetadataChecksum))
 }
 
 func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
@@ -954,7 +902,7 @@ func TestWideQuery(t *testing.T) {
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
 		ns.EXPECT().FetchWideEntry(gomock.Any(),
-			ident.StringID("foo"), gomock.Any()).
+			ident.StringID("foo"), gomock.Any(), nil).
 			Return(block.EmptyStreamedWideEntry, nil)
 
 		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
@@ -965,7 +913,6 @@ func TestWideQuery(t *testing.T) {
 	}
 
 	exSpans := []string{
-		tracepoint.DBWideEntry,
 		tracepoint.DBWideQuery,
 		tracepoint.DBWideQuery,
 		"root",
@@ -1027,7 +974,11 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
 			assert.Equal(t, opts.ShardsQueried, shards)
 			go func() {
-				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
+				batch := &ident.IDBatch{
+					ShardIDs: []ident.ShardID{
+						{ID: ident.StringID("foo")},
+					},
+				}
 				batch.ReadyForProcessing()
 				collector <- batch
 				close(collector)
@@ -1482,6 +1433,9 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
@@ -1490,7 +1444,6 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
 		start      = time.Now().Truncate(time.Hour)
 	)
 
@@ -1500,7 +1453,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(sourceNs, opts).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
 	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)

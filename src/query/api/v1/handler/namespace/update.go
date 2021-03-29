@@ -54,7 +54,6 @@ var (
 	fieldNameRetentionPeriod    = "RetentionPeriodNanos"
 	fieldNameRuntimeOptions     = "RuntimeOptions"
 	fieldNameAggregationOptions = "AggregationOptions"
-	fieldNameExtendedOptions    = "ExtendedOptions"
 
 	errEmptyNamespaceName      = errors.New("must specify namespace name")
 	errEmptyNamespaceOptions   = errors.New("update options cannot be empty")
@@ -64,7 +63,6 @@ var (
 		fieldNameRetentionOptions:   {},
 		fieldNameRuntimeOptions:     {},
 		fieldNameAggregationOptions: {},
-		fieldNameExtendedOptions:    {},
 	}
 )
 

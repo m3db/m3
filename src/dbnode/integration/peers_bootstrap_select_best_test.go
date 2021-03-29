@@ -56,12 +56,12 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 		SetUseTChannelClientForWriting(true).
 		SetUseTChannelClientForReading(true)
 
-	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+	setupOpts := []BootstrappableTestSetupOptions{
+		{DisablePeersBootstrapper: true},
+		{DisablePeersBootstrapper: true},
+		{DisablePeersBootstrapper: false},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data alternating missing data for left/right nodes

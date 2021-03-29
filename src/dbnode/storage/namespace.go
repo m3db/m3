@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -41,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -921,6 +923,7 @@ func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 ) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
@@ -930,7 +933,7 @@ func (n *dbNamespace) FetchWideEntry(
 		return block.EmptyStreamedWideEntry, err
 	}
 
-	res, err := shard.FetchWideEntry(ctx, id, blockStart, nsCtx)
+	res, err := shard.FetchWideEntry(ctx, id, blockStart, filter, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return res, err
@@ -1186,7 +1189,7 @@ type idAndBlockStart struct {
 	blockStart xtime.UnixNano
 }
 
-type coldFlushReuseableResources struct {
+type coldFlushReusableResources struct {
 	// dirtySeries is a map from a composite key of <series ID, block start>
 	// to an element in a list in the dirtySeriesToWrite map. This map is used
 	// to quickly test whether a series is dirty for a particular block start.
@@ -1208,22 +1211,22 @@ type coldFlushReuseableResources struct {
 	fsReader      fs.DataFileSetReader
 }
 
-func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, error) {
+func newColdFlushReusableResources(opts Options) coldFlushReusableResources {
 	fsReader, err := fs.NewReader(opts.BytesPool(), opts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
-		return coldFlushReuseableResources{}, nil
+		return coldFlushReusableResources{}
 	}
 
-	return coldFlushReuseableResources{
+	return coldFlushReusableResources{
 		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		// TODO(juchan): set pool options.
 		idElementPool: newIDElementPool(nil),
 		fsReader:      fsReader,
-	}, nil
+	}
 }
 
-func (r *coldFlushReuseableResources) reset() {
+func (r *coldFlushReusableResources) reset() {
 	for _, seriesList := range r.dirtySeriesToWrite {
 		if seriesList != nil {
 			seriesList.Reset()
@@ -1258,12 +1261,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	}
 
 	shards := n.OwnedShards()
-
-	resources, err := newColdFlushReuseableResources(n.opts)
-	if err != nil {
-		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
-		return err
-	}
+	resources := newColdFlushReusableResources(n.opts)
 
 	// NB(bodu): The in-mem index will lag behind the TSDB in terms of new series writes. For a period of
 	// time between when we rotate out the active cold mutable index segments (happens here) and when
@@ -1272,6 +1270,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// where they will be evicted from the in-mem index.
 	var (
 		onColdFlushDone OnColdFlushDone
+		err             error
 	)
 	if n.reverseIndex != nil {
 		onColdFlushDone, err = n.reverseIndex.ColdFlush(shards)
@@ -1701,17 +1700,19 @@ func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 }
 
 func (n *dbNamespace) AggregateTiles(
+	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	callStart := n.nowFn()
-	processedTileCount, err := n.aggregateTiles(sourceNs, opts)
+	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
 	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedTileCount, err
 }
 
 func (n *dbNamespace) aggregateTiles(
+	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
@@ -1732,10 +1733,6 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
-	n.RLock()
-	nsCtx := n.nsContextWithRLock()
-	n.RUnlock()
-
 	var (
 		processedShards   = opts.InsOptions.MetricsScope().Counter("processed-shards")
 		targetShards      = n.OwnedShards()
@@ -1752,6 +1749,11 @@ func (n *dbNamespace) aggregateTiles(
 		}
 		sourceBlockStarts = append(sourceBlockStarts, sourceBlockStart)
 		blockReaders = append(blockReaders, reader)
+	}
+
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	if err != nil {
+		return 0, err
 	}
 
 	var processedTileCount int64
@@ -1778,13 +1780,18 @@ func (n *dbNamespace) aggregateTiles(
 		}
 
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
+			ctx, sourceNs, n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes,
+			onColdFlushNs, opts)
 
 		processedTileCount += shardProcessedTileCount
 		processedShards.Inc(1)
 		if err != nil {
 			return 0, fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 		}
+	}
+
+	if err := onColdFlushNs.Done(); err != nil {
+		return 0, err
 	}
 
 	n.log.Info("finished large tiles aggregation for namespace",
@@ -1796,4 +1803,12 @@ func (n *dbNamespace) aggregateTiles(
 		zap.Duration("took", time.Now().Sub(startedAt)))
 
 	return processedTileCount, nil
+}
+
+func (n *dbNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
+	shard, _, err := n.readableShardFor(id)
+	if err != nil {
+		return doc.Metadata{}, false, err
+	}
+	return shard.DocRef(id)
 }

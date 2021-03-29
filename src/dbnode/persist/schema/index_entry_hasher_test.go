@@ -65,6 +65,7 @@ func TestIndexEntryHash(t *testing.T) {
 
 	hasher := NewXXHasher()
 	for _, tt := range tests {
-		assert.Equal(t, tt.expected, hasher.HashIndexEntry(tt.entry))
+		e := tt.entry
+		assert.Equal(t, tt.expected, hasher.HashIndexEntry(e.ID, e.EncodedTags, e.DataChecksum))
 	}
 }

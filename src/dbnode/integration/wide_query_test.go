@@ -166,7 +166,7 @@ func TestWideFetch(t *testing.T) {
 	nsOpts := namespace.NewOptions().
 		SetIndexOptions(idxOpts).
 		SetRepairEnabled(false).
-		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
+		SetRetentionOptions(DefaultIntegrationTestRetentionOpts)
 
 	nsID := testNamespaces[0]
 	nsMetadata, err := namespace.NewMetadata(nsID, nsOpts)
@@ -212,11 +212,11 @@ func TestWideFetch(t *testing.T) {
 	for i := 0; i < seriesCount; i++ {
 		id := fmt.Sprintf("id-%05d", i)
 		ids = append(ids, id)
-		indexWrites = append(indexWrites, testIndexWrite{
-			id:    ident.StringID(id),
-			tags:  ident.MustNewTagStringsIterator(wideTagName, fmt.Sprintf(wideTagValFmt, i)),
-			ts:    now,
-			value: float64(i),
+		indexWrites = append(indexWrites, TestIndexWrite{
+			ID:        ident.StringID(id),
+			Tags:      ident.MustNewTagStringsIterator(wideTagName, fmt.Sprintf(wideTagValFmt, i)),
+			Timestamp: now,
+			Value:     float64(i),
 		})
 	}
 

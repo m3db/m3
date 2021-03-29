@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -55,12 +56,23 @@ const (
 
 var errInvalidNamespace = errors.New("invalid namespace")
 
+// make sure m3cluster and etcd client interfaces are implemented, and that
+// Client is a superset of cluster.Client.
+var _ client.Client = Client((*csclient)(nil))
+
 type newClientFn func(cluster Cluster) (*clientv3.Client, error)
 
 type cacheFileForZoneFn func(zone string) etcdkv.CacheFileFn
 
-// NewConfigServiceClient returns a ConfigServiceClient.
-func NewConfigServiceClient(opts Options) (client.Client, error) {
+// ZoneClient is a cached etcd client for a zone.
+type ZoneClient struct {
+	Client *clientv3.Client
+	Zone   string
+}
+
+// NewEtcdConfigServiceClient returns a new etcd-backed cluster client.
+//nolint:golint
+func NewEtcdConfigServiceClient(opts Options) (*csclient, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -81,6 +93,11 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 		retrier: retry.NewRetrier(opts.RetryOptions()),
 		stores:  make(map[string]kv.TxnStore),
 	}, nil
+}
+
+// NewConfigServiceClient returns a ConfigServiceClient.
+func NewConfigServiceClient(opts Options) (client.Client, error) {
+	return NewEtcdConfigServiceClient(opts)
 }
 
 type csclient struct {
@@ -165,12 +182,18 @@ func (c *csclient) newkvOptions(
 	cacheFileFn cacheFileForZoneFn,
 ) etcdkv.Options {
 	kvOpts := etcdkv.NewOptions().
-		SetInstrumentsOptions(instrument.NewOptions().
+		SetInstrumentsOptions(c.opts.InstrumentOptions().
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope)).
 		SetCacheFileFn(cacheFileFn(opts.Zone())).
 		SetWatchWithRevision(c.opts.WatchWithRevision()).
-		SetNewDirectoryMode(c.opts.NewDirectoryMode())
+		SetNewDirectoryMode(c.opts.NewDirectoryMode()).
+		SetEnableFastGets(c.opts.EnableFastGets()).
+		SetRetryOptions(c.opts.RetryOptions()).
+		SetRequestTimeout(c.opts.RequestTimeout()).
+		SetWatchChanInitTimeout(c.opts.WatchChanInitTimeout()).
+		SetWatchChanCheckInterval(c.opts.WatchChanCheckInterval()).
+		SetWatchChanResetInterval(c.opts.WatchChanResetInterval())
 
 	if ns := opts.Namespace(); ns != "" {
 		kvOpts = kvOpts.SetPrefix(kvOpts.ApplyPrefix(ns))
@@ -202,11 +225,7 @@ func (c *csclient) txnGen(
 	if ok {
 		return store, nil
 	}
-	if store, err = etcdkv.NewStore(
-		cli.KV,
-		cli.Watcher,
-		c.newkvOptions(opts, cacheFileFn),
-	); err != nil {
+	if store, err = etcdkv.NewStore(cli, c.newkvOptions(opts, cacheFileFn)); err != nil {
 		return nil, err
 	}
 
@@ -274,6 +293,29 @@ func (c *csclient) etcdClientGen(zone string) (*clientv3.Client, error) {
 
 	c.clis[zone] = cli
 	return cli, nil
+}
+
+// Clients returns all currently cached etcd clients.
+func (c *csclient) Clients() []ZoneClient {
+	c.Lock()
+	defer c.Unlock()
+
+	var (
+		zones   = make([]string, 0, len(c.clis))
+		clients = make([]ZoneClient, 0, len(c.clis))
+	)
+
+	for k := range c.clis {
+		zones = append(zones, k)
+	}
+
+	sort.Strings(zones)
+
+	for _, zone := range zones {
+		clients = append(clients, ZoneClient{Zone: zone, Client: c.clis[zone]})
+	}
+
+	return clients
 }
 
 func newClient(cluster Cluster) (*clientv3.Client, error) {

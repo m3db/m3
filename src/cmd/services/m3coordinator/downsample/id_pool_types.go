@@ -76,8 +76,8 @@ type rollupIDProvider struct {
 	nameTag                ident.ID
 	nameTagBytes           []byte
 	nameTagBeforeRollupTag bool
-	tagNameID              *ident.ReuseableBytesID
-	tagValueID             *ident.ReuseableBytesID
+	tagNameID              *ident.ReusableBytesID
+	tagValueID             *ident.ReusableBytesID
 }
 
 func newRollupIDProvider(
@@ -93,8 +93,8 @@ func newRollupIDProvider(
 		nameTag:                nameTag,
 		nameTagBytes:           nameTagBytes,
 		nameTagBeforeRollupTag: nameTagBeforeRollupTag,
-		tagNameID:              ident.NewReuseableBytesID(),
-		tagValueID:             ident.NewReuseableBytesID(),
+		tagNameID:              ident.NewReusableBytesID(),
+		tagValueID:             ident.NewReusableBytesID(),
 	}
 }
 

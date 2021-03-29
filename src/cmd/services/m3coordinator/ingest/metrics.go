@@ -26,7 +26,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// LatencyBuckets are a set of latency buckets useful for measuring latencies.
+// LatencyBuckets are a set of latency buckets useful for measuring things.
 type LatencyBuckets struct {
 	WriteLatencyBuckets  tally.DurationBuckets
 	IngestLatencyBuckets tally.DurationBuckets

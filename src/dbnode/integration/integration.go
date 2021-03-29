@@ -93,6 +93,7 @@ func newMultiAddrAdminClient(
 	topologyInitializer topology.Initializer,
 	origin topology.Host,
 	instrumentOpts instrument.Options,
+	customOpts ...client.CustomAdminOption,
 ) client.AdminClient {
 	if adminOpts == nil {
 		adminOpts = client.NewAdminOptions()
@@ -105,22 +106,28 @@ func newMultiAddrAdminClient(
 		SetTopologyInitializer(topologyInitializer).
 		SetClusterConnectTimeout(time.Second).(client.AdminOptions)
 
+	for _, o := range customOpts {
+		adminOpts = o(adminOpts)
+	}
+
 	adminClient, err := client.NewAdminClient(adminOpts)
 	require.NoError(t, err)
 
 	return adminClient
 }
 
-type bootstrappableTestSetupOptions struct {
-	finalBootstrapper           string
-	bootstrapBlocksBatchSize    int
-	bootstrapBlocksConcurrency  int
-	bootstrapConsistencyLevel   topology.ReadConsistencyLevel
-	topologyInitializer         topology.Initializer
-	testStatsReporter           xmetrics.TestStatsReporter
-	disablePeersBootstrapper    bool
-	useTChannelClientForWriting bool
-	enableRepairs               bool
+// BootstrappableTestSetupOptions defines options for test setups.
+type BootstrappableTestSetupOptions struct {
+	FinalBootstrapper           string
+	BootstrapBlocksBatchSize    int
+	BootstrapBlocksConcurrency  int
+	BootstrapConsistencyLevel   topology.ReadConsistencyLevel
+	TopologyInitializer         topology.Initializer
+	TestStatsReporter           xmetrics.TestStatsReporter
+	DisablePeersBootstrapper    bool
+	UseTChannelClientForWriting bool
+	EnableRepairs               bool
+	AdminClientCustomOpts       []client.CustomAdminOption
 }
 
 type closeFn func()
@@ -135,10 +142,11 @@ func newDefaulTestResultOptions(
 		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy())
 }
 
-func newDefaultBootstrappableTestSetups(
+// NewDefaultBootstrappableTestSetups creates dbnode test setups.
+func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	t *testing.T,
 	opts TestOptions,
-	setupOpts []bootstrappableTestSetupOptions,
+	setupOpts []BootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
@@ -158,17 +166,18 @@ func newDefaultBootstrappableTestSetups(
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                    = i
-			usingPeersBootstrapper      = !setupOpts[i].disablePeersBootstrapper
-			finalBootstrapperToUse      = setupOpts[i].finalBootstrapper
-			useTChannelClientForWriting = setupOpts[i].useTChannelClientForWriting
-			bootstrapBlocksBatchSize    = setupOpts[i].bootstrapBlocksBatchSize
-			bootstrapBlocksConcurrency  = setupOpts[i].bootstrapBlocksConcurrency
-			bootstrapConsistencyLevel   = setupOpts[i].bootstrapConsistencyLevel
-			topologyInitializer         = setupOpts[i].topologyInitializer
-			testStatsReporter           = setupOpts[i].testStatsReporter
-			enableRepairs               = setupOpts[i].enableRepairs
+			usingPeersBootstrapper      = !setupOpts[i].DisablePeersBootstrapper
+			finalBootstrapperToUse      = setupOpts[i].FinalBootstrapper
+			useTChannelClientForWriting = setupOpts[i].UseTChannelClientForWriting
+			bootstrapBlocksBatchSize    = setupOpts[i].BootstrapBlocksBatchSize
+			bootstrapBlocksConcurrency  = setupOpts[i].BootstrapBlocksConcurrency
+			bootstrapConsistencyLevel   = setupOpts[i].BootstrapConsistencyLevel
+			topologyInitializer         = setupOpts[i].TopologyInitializer
+			testStatsReporter           = setupOpts[i].TestStatsReporter
+			enableRepairs               = setupOpts[i].EnableRepairs
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
+			adminClientCustomOpts       = setupOpts[i].AdminClientCustomOpts
 		)
 
 		if finalBootstrapperToUse == "" {
@@ -211,7 +220,7 @@ func newDefaultBootstrappableTestSetups(
 			// claim manager instances after the initial node.
 			persistfs.ResetIndexClaimsManagersUnsafe()
 		}
-		setup, err := NewTestSetup(t, instanceOpts, nil)
+		setup, err := NewTestSetup(t, instanceOpts, nil, opts.StorageOptsFn())
 		require.NoError(t, err)
 		topologyInitializer = setup.TopologyInitializer()
 
@@ -260,8 +269,11 @@ func newDefaultBootstrappableTestSetups(
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 		}
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
+
 		adminClient := newMultiAddrAdminClient(
-			t, adminOpts, topologyInitializer, origin, instrumentOpts)
+			t, adminOpts, topologyInitializer, origin, instrumentOpts, adminClientCustomOpts...)
+		setup.SetStorageOpts(setup.StorageOpts().SetAdminClient(adminClient))
+
 		storageIdxOpts := setup.StorageOpts().IndexOptions()
 		fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 		if usingPeersBootstrapper {
@@ -430,8 +442,8 @@ func newCompactor(
 }
 
 func newCompactorWithErr(opts index.Options) (*compaction.Compactor, error) {
-	return compaction.NewCompactor(opts.DocumentArrayPool(),
-		index.DocumentArrayPoolCapacity,
+	return compaction.NewCompactor(opts.MetadataArrayPool(),
+		index.MetadataArrayPoolCapacity,
 		opts.SegmentBuilderOptions(),
 		opts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
@@ -450,7 +462,7 @@ func writeTestIndexDataToDisk(
 	indexVolumeType idxpersist.IndexVolumeType,
 	blockStart time.Time,
 	shards []uint32,
-	docs []doc.Document,
+	docs []doc.Metadata,
 ) error {
 	blockSize := md.Options().IndexOptions().BlockSize()
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()

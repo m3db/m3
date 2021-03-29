@@ -703,7 +703,8 @@ func mockMergeWithFromData(
 						Start:  startTime,
 						Blocks: []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)},
 					}
-					fn(doc.Document{ID: id.Bytes()}, br)
+					err := fn(doc.Metadata{ID: id.Bytes()}, br)
+					require.NoError(t, err)
 				}
 			}
 		})

@@ -53,11 +53,6 @@ var (
 	roleName = []byte("role")
 )
 
-// TimeoutOpts stores options related to various timeout configurations.
-type TimeoutOpts struct {
-	FetchTimeout time.Duration
-}
-
 // ParsePromCompressedRequestResult is the result of a
 // ParsePromCompressedRequest call.
 type ParsePromCompressedRequestResult struct {
@@ -93,38 +88,6 @@ func ParsePromCompressedRequest(
 		CompressedBody:   compressed,
 		UncompressedBody: reqBuf,
 	}, nil
-}
-
-// ParseRequestTimeout parses the input request timeout with a default.
-func ParseRequestTimeout(
-	r *http.Request,
-	configFetchTimeout time.Duration,
-) (time.Duration, error) {
-	var timeout string
-	if v := r.FormValue("timeout"); v != "" {
-		timeout = v
-	}
-	// Note: Header should take precedence.
-	if v := r.Header.Get("timeout"); v != "" {
-		timeout = v
-	}
-
-	if timeout == "" {
-		return configFetchTimeout, nil
-	}
-
-	duration, err := time.ParseDuration(timeout)
-	if err != nil {
-		return 0, xerrors.NewInvalidParamsError(
-			fmt.Errorf("invalid 'timeout': %v", err))
-	}
-
-	if duration > maxTimeout {
-		return 0, xerrors.NewInvalidParamsError(
-			fmt.Errorf("invalid 'timeout': greater than %v", maxTimeout))
-	}
-
-	return duration, nil
 }
 
 // TagCompletionQueries are tag completion queries.
@@ -213,6 +176,35 @@ func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 	return queries, nil
 }
 
+// ParseStartAndEnd parses start and end params from the request.
+func ParseStartAndEnd(
+	r *http.Request,
+	parseOpts xpromql.ParseOptions,
+) (time.Time, time.Time, error) {
+	if err := r.ParseForm(); err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
+		time.Unix(0, 0))
+	if err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
+		parseOpts.NowFn()())
+	if err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	if start.After(end) {
+		err := fmt.Errorf("start %v must be after end %v", start, end)
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	return start, end, nil
+}
+
 // ParseSeriesMatchQuery parses all params from the GET request.
 func ParseSeriesMatchQuery(
 	r *http.Request,
@@ -225,16 +217,9 @@ func ParseSeriesMatchQuery(
 		return nil, xerrors.NewInvalidParamsError(errors.ErrInvalidMatchers)
 	}
 
-	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
-		time.Unix(0, 0))
+	start, end, err := ParseStartAndEnd(r, parseOpts)
 	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
-	}
-
-	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
-		time.Now())
-	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
+		return nil, err
 	}
 
 	queries := make([]*storage.FetchQuery, len(matcherValues))

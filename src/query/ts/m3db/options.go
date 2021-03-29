@@ -69,16 +69,10 @@ type encodedBlockOptions struct {
 	instrumented                  bool
 }
 
-type nextDetails struct {
-	peek      peekValue
-	iter      encoding.SeriesIterator
-	collector consolidators.StepCollector
-}
-
 // NewOptions creates a default encoded block options which dictates how
 // encoded blocks are generated.
 func NewOptions() Options {
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: defaultCapacity,
 		Count:    defaultCount,
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {

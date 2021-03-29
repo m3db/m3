@@ -29,11 +29,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -143,6 +145,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	// write was correctly indexed to both.
 	nextBlockTime := now.Add(blockSize)
 	queryTimes := []time.Time{now, nextBlockTime}
+	reader := docs.NewEncodedDocumentReader()
 	for _, ts := range queryTimes {
 		res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
 			StartInclusive: ts.Add(-1 * time.Minute),
@@ -154,7 +157,11 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 		results := res.Results
 		require.Equal(t, "testns1", results.Namespace().String())
 
-		tags, ok := results.Map().Get(ident.StringID("foo"))
+		d, ok := results.Map().Get(ident.BytesID("foo"))
+		md, err := docs.MetadataFromDocument(d, reader)
+		require.NoError(t, err)
+		tags := idxconvert.ToSeriesTags(md, idxconvert.Opts{NoClone: true})
+
 		require.True(t, ok)
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("name", "value")).Matches(
@@ -234,9 +241,9 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 		go func() {
 			i := 0
 			for b := range collector {
-				batchStr := make([]string, 0, len(b.IDs))
-				for _, id := range b.IDs {
-					batchStr = append(batchStr, id.String())
+				batchStr := make([]string, 0, len(b.ShardIDs))
+				for _, shardID := range b.ShardIDs {
+					batchStr = append(batchStr, shardID.ID.String())
 				}
 
 				withinIndex := i < len(expectedBatchIDs)
@@ -275,7 +282,7 @@ func setupMockBlock(
 		Do(func(batch *index.WriteBatch) {
 			docs := batch.PendingDocs()
 			require.Equal(t, 1, len(docs))
-			require.Equal(t, doc.Document{
+			require.Equal(t, doc.Metadata{
 				ID:     id.Bytes(),
 				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
 			}, docs[0])

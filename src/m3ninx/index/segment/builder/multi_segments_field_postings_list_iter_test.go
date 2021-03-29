@@ -32,7 +32,8 @@ import (
 
 func TestFieldPostingsListIterFromSegments(t *testing.T) {
 	segments := []segment.Segment{
-		newTestSegmentWithDocs(t, []doc.Document{
+		// nolint: dupl
+		newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("bux_0"),
 				Fields: []doc.Field{
@@ -50,7 +51,8 @@ func TestFieldPostingsListIterFromSegments(t *testing.T) {
 				},
 			},
 		}),
-		newTestSegmentWithDocs(t, []doc.Document{
+		// nolint: dupl
+		newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("foo_0"),
 				Fields: []doc.Field{
@@ -68,7 +70,7 @@ func TestFieldPostingsListIterFromSegments(t *testing.T) {
 				},
 			},
 		}),
-		newTestSegmentWithDocs(t, []doc.Document{
+		newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("bar_1"),
 				Fields: []doc.Field{
@@ -127,7 +129,7 @@ func TestFieldPostingsListIterFromSegments(t *testing.T) {
 
 func checkIfFieldExistsInDoc(
 	field []byte,
-	doc doc.Document,
+	doc doc.Metadata,
 ) bool {
 	found := false
 	for _, f := range doc.Fields {

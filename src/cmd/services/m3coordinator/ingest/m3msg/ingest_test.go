@@ -93,7 +93,7 @@ func TestIngest(t *testing.T) {
 		},
 		Tags: models.NewTags(2, nil).AddTags(
 			[]models.Tag{
-				models.Tag{
+				{
 					Name:  []byte("__name__"),
 					Value: []byte("foo"),
 				},

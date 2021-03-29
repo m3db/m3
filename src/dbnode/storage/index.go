@@ -95,8 +95,6 @@ var (
 type nsIndex struct {
 	state nsIndexState
 
-	extendedRetentionPeriod time.Duration
-
 	// all the vars below this line are not modified past the ctor
 	// and don't require a lock when being accessed.
 	nowFn                 clock.NowFn
@@ -701,7 +699,7 @@ func (i *nsIndex) writeBatches(
 		blockSize                  = i.blockSize
 		futureLimit                = now.Add(1 * i.bufferFuture)
 		pastLimit                  = now.Add(-1 * i.bufferPast)
-		earliestBlockStartToRetain = i.earliestBlockStartToRetainWithLock(now)
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
 		batchOptions               = batch.Options()
 		forwardIndexDice           = i.forwardIndexDice
 		forwardIndexEnabled        = forwardIndexDice.enabled
@@ -728,7 +726,7 @@ func (i *nsIndex) writeBatches(
 	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
-			d doc.Document, _ index.WriteBatchEntryResult) {
+			d doc.Metadata, _ index.WriteBatchEntryResult) {
 			total++
 
 			if len(i.doNotIndexWithFields) != 0 {
@@ -737,8 +735,8 @@ func (i *nsIndex) writeBatches(
 				for _, matchField := range i.doNotIndexWithFields {
 					matchedField := false
 					for _, actualField := range d.Fields {
-						if bytes.Compare(actualField.Name, matchField.Name) == 0 {
-							matchedField = bytes.Compare(actualField.Value, matchField.Value) == 0
+						if bytes.Equal(actualField.Name, matchField.Name) {
+							matchedField = bytes.Equal(actualField.Value, matchField.Value)
 							break
 						}
 					}
@@ -925,9 +923,11 @@ func (i *nsIndex) Bootstrapped() bool {
 
 func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
 	var (
-		result   namespaceIndexTickResult
-		multiErr xerrors.MultiError
+		multiErr                   xerrors.MultiError
+		result                     = namespaceIndexTickResult{}
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, startTime)
 	)
+
 	i.state.Lock()
 	sealedBlocks := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
 	defer func() {
@@ -943,8 +943,6 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		i.metrics.blocksNotifySealed.Inc(int64(len(sealedBlocks)))
 		i.metrics.tick.Inc(1)
 	}()
-
-	earliestBlockStartToRetain := i.earliestBlockStartToRetainWithLock(startTime)
 
 	result.NumBlocks = int64(len(i.state.blocksByTime))
 	for blockStart, block := range i.state.blocksByTime {
@@ -1114,7 +1112,7 @@ func (i *nsIndex) flushableBlocks(
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 
 	now := i.nowFn()
-	earliestBlockStartToRetain := i.earliestBlockStartToRetainWithLock(now)
+	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
 	currentBlockStart := now.Truncate(i.blockSize)
 	// Check for flushable blocks by iterating through all block starts w/in retention.
 	for blockStart := earliestBlockStartToRetain; blockStart.Before(currentBlockStart); blockStart = blockStart.Add(i.blockSize) {
@@ -1470,7 +1468,7 @@ func (i *nsIndex) WideQuery(
 		opts,
 	)
 
-	// NB: result should be fina.ized here, regardless of outcome
+	// NB: result should be finalized here, regardless of outcome
 	// to prevent deadlocking while waiting on channel close.
 	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()
@@ -2054,7 +2052,7 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	}
 
 	// earliest block to retain based on retention period
-	earliestBlockStartToRetain := i.earliestBlockStartToRetainWithLock(t)
+	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, t)
 
 	// now we loop through the blocks we hold, to ensure we don't delete any data for them.
 	for t := range i.state.blocksByTime {
@@ -2257,28 +2255,6 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 		l.Error(ierr.Error())
 	})
 	return ierr
-}
-
-func (i *nsIndex) SetExtendedRetentionPeriod(period time.Duration) {
-	i.state.Lock()
-	defer i.state.Unlock()
-
-	if period > i.extendedRetentionPeriod {
-		i.extendedRetentionPeriod = period
-	}
-}
-
-func (i *nsIndex) effectiveRetentionPeriodWithLock() time.Duration {
-	period := i.retentionPeriod
-	if i.extendedRetentionPeriod > period {
-		period = i.extendedRetentionPeriod
-	}
-
-	return period
-}
-
-func (i *nsIndex) earliestBlockStartToRetainWithLock(t time.Time) time.Time {
-	return retention.FlushTimeStartForRetentionPeriod(i.effectiveRetentionPeriodWithLock(), i.blockSize, t)
 }
 
 type nsIndexMetrics struct {

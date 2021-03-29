@@ -22,15 +22,10 @@ package server
 
 import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3/src/dbnode/storage"
 )
 
 // StorageOptions are options to apply to the database storage options.
 type StorageOptions struct {
-	OnColdFlush            storage.OnColdFlush
-	ForceColdWritesEnabled bool
-	TChanNodeServerFn      node.NewTChanNodeServerFn
-	BackgroundProcessFns   []storage.NewBackgroundProcessFn
-	NamespaceHooks         storage.NamespaceHooks
-	NewTileAggregatorFn    storage.NewTileAggregatorFn
+	TChanChannelFn    node.NewTChanChannelFn
+	TChanNodeServerFn node.NewTChanNodeServerFn
 }

@@ -21,10 +21,14 @@
 package promql
 
 import (
-	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/parser"
+	"time"
+
 	"github.com/prometheus/prometheus/pkg/labels"
 	pql "github.com/prometheus/prometheus/promql/parser"
+
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	xclock "github.com/m3db/m3/src/x/clock"
 )
 
 // ParseFunctionExpr parses arguments to a function expression, returning
@@ -53,28 +57,38 @@ func defaultMetricSelectorFn(query string) ([]*labels.Matcher, error) {
 	return pql.ParseMetricSelector(query)
 }
 
+func defaultNowFn() time.Time {
+	return time.Now()
+}
+
 // ParseOptions are options for the Prometheus parser.
 type ParseOptions interface {
 	// ParseFn gets the parse function.
 	ParseFn() ParseFn
 	// SetParseFn sets the parse function.
-	SetParseFn(f ParseFn) ParseOptions
+	SetParseFn(ParseFn) ParseOptions
 
 	// MetricSelectorFn gets the metric selector function.
 	MetricSelectorFn() MetricSelectorFn
 	// SetMetricSelectorFn sets the metric selector function.
-	SetMetricSelectorFn(f MetricSelectorFn) ParseOptions
+	SetMetricSelectorFn(MetricSelectorFn) ParseOptions
 
 	// FunctionParseExpr gets the parsing function.
 	FunctionParseExpr() ParseFunctionExpr
 	// SetFunctionParseExpr sets the parsing function.
-	SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions
+	SetFunctionParseExpr(ParseFunctionExpr) ParseOptions
+
+	// NowFn gets the now function.
+	NowFn() xclock.NowFn
+	// SetNowFn sets the now function.
+	SetNowFn(xclock.NowFn) ParseOptions
 }
 
 type parseOptions struct {
 	parseFn     ParseFn
 	selectorFn  MetricSelectorFn
 	fnParseExpr ParseFunctionExpr
+	nowFn       xclock.NowFn
 }
 
 // NewParseOptions creates a new parse options.
@@ -83,6 +97,7 @@ func NewParseOptions() ParseOptions {
 		parseFn:     defaultParseFn,
 		selectorFn:  defaultMetricSelectorFn,
 		fnParseExpr: NewFunctionExpr,
+		nowFn:       defaultNowFn,
 	}
 }
 
@@ -113,5 +128,15 @@ func (o *parseOptions) FunctionParseExpr() ParseFunctionExpr {
 func (o *parseOptions) SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions {
 	opts := *o
 	opts.fnParseExpr = f
+	return &opts
+}
+
+func (o *parseOptions) NowFn() xclock.NowFn {
+	return o.nowFn
+}
+
+func (o *parseOptions) SetNowFn(f xclock.NowFn) ParseOptions {
+	opts := *o
+	opts.nowFn = f
 	return &opts
 }

@@ -26,7 +26,6 @@ import (
 	"net"
 
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/migration"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
@@ -59,7 +58,7 @@ func newHandler(opts HandlerOptions) *handler {
 
 func (h *handler) Handle(conn net.Conn) {
 	reader := bufio.NewReaderSize(conn, h.readBufferSize)
-	it := migration.NewUnaggregatedIterator(reader, nil, h.itOpts)
+	it := protobuf.NewUnaggregatedIterator(reader, h.itOpts)
 	defer it.Close()
 
 	for it.Next() {

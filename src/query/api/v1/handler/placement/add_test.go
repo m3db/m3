@@ -78,7 +78,9 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
-		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+		assert.JSONEq(t,
+			`{"status":"error","error":"no new instances found in the valid zone"}`,
+			string(body))
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 		// Test add success
@@ -137,7 +139,9 @@ func TestPlacementAddHandler_SafeErr_NoNewInstance(t *testing.T) {
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+		assert.JSONEq(t,
+			`{"status":"error","error":"no new instances found in the valid zone"}`,
+			string(body))
 	})
 }
 
@@ -174,8 +178,8 @@ func TestPlacementAddHandler_SafeErr_NotAllAvailable(t *testing.T) {
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Equal(t,
-			`{"error":"instances do not have all shards available: [A, B]"}`+"\n",
+		assert.JSONEq(t,
+			`{"status":"error","error":"instances do not have all shards available: [A, B]"}`,
 			string(body))
 	})
 }
@@ -243,7 +247,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
 		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		require.Equal(t, `{"error":"test err"}`+"\n", string(body))
+		require.JSONEq(t, `{"status":"error","error":"test err"}`, string(body))
 
 		w = httptest.NewRecorder()
 		if serviceName == handleroptions.M3AggregatorServiceName {

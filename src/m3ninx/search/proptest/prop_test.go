@@ -58,7 +58,7 @@ func TestSegmentDistributionDoesNotAffectQuery(t *testing.T) {
 			}
 			matchedDocs, err := collectDocs(dOrg)
 			require.NoError(t, err)
-			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
+			docMatcher, err := newDocumentIteratorMatcher(t, matchedDocs...)
 			require.NoError(t, err)
 
 			segments := i.generate(t, lotsTestDocuments)
@@ -115,7 +115,7 @@ func TestFSTSimpleSegmentsQueryTheSame(t *testing.T) {
 			}
 			matchedDocs, err := collectDocs(dOrg)
 			require.NoError(t, err)
-			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
+			docMatcher, err := newDocumentIteratorMatcher(t, matchedDocs...)
 			require.NoError(t, err)
 
 			rFst, err := fstSeg.Reader()

@@ -505,7 +505,7 @@ func (dec *Decoder) decodeWideEntry(
 	var checksum int64
 	if compare == 0 {
 		// NB: need to compute hash before freeing entry bytes.
-		checksum = dec.hasher.HashIndexEntry(entry)
+		checksum = dec.hasher.HashIndexEntry(entry.ID, entry.EncodedTags, entry.DataChecksum)
 		return schema.WideEntry{
 			IndexEntry:       entry,
 			MetadataChecksum: checksum,
@@ -522,7 +522,7 @@ func (dec *Decoder) decodeWideEntry(
 		return emptyWideEntry, MismatchLookupStatus
 	}
 
-	// compareID must have been before the curret entry.ID, so this
+	// compareID must have been before the current entry.ID, so this
 	// ID will not be matched.
 	return emptyWideEntry, NotFoundLookupStatus
 }

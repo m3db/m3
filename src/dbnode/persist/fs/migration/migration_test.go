@@ -86,7 +86,7 @@ func TestToVersion1_1Run(t *testing.T) {
 		SetNewMergerFn(fs.NewMerger).
 		SetPersistManager(pm).
 		SetNamespaceMetadata(md).
-		SetStorageOptions(storage.NewOptions().
+		SetStorageOptions(storage.DefaultTestOptions().
 			SetPersistManager(pm).
 			SetIndexClaimsManager(icm).
 			SetNamespaceInitializer(namespace.NewStaticInitializer([]namespace.Metadata{md})).

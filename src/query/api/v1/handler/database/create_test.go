@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -101,7 +102,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -234,7 +235,7 @@ func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -280,7 +281,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -410,7 +411,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -539,7 +540,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -682,7 +683,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(nil, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -737,7 +738,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsExistingIsLocal(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -783,7 +784,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -953,7 +954,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -1109,7 +1110,7 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -1131,7 +1132,8 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	assert.Equal(t,
 		xtest.MustPrettyJSONMap(t,
 			xjson.Map{
-				"error": "missing required field",
+				"status": "error",
+				"error":  "missing required field",
 			},
 		),
 		xtest.MustPrettyJSONString(t, string(body)))
@@ -1145,7 +1147,7 @@ func TestBadType(t *testing.T) {
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		nil, svcDefaultOptions, instrument.NewOptions())
+		nil, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -1166,7 +1168,8 @@ func TestBadType(t *testing.T) {
 	assert.Equal(t,
 		xtest.MustPrettyJSONMap(t,
 			xjson.Map{
-				"error": "invalid database type",
+				"status": "error",
+				"error":  "invalid database type",
 			},
 		),
 		xtest.MustPrettyJSONString(t, string(body)))
@@ -1180,7 +1183,7 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 	fakeKV := fake.NewStore()
 	mockClient.EXPECT().Store(gomock.Any()).Return(fakeKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()

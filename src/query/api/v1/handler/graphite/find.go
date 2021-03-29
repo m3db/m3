@@ -168,7 +168,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
-	handleroptions.AddWarningHeaders(w, meta)
+	handleroptions.AddResponseHeaders(w, meta, opts)
 	// TODO: Support multiple result types
 	if err = findResultsJSON(w, prefix, seenMap); err != nil {
 		logger.Error("unable to print find results", zap.Error(err))

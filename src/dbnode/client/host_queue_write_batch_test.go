@@ -115,7 +115,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 				mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil)
 			}
 
-			mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+			mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 
 			// Final write will flush
 			assert.NoError(t, queue.Enqueue(writes[3]))
@@ -203,7 +203,7 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 
 				// Assert the writes will be handled in two batches
 				mockClient.EXPECT().WriteBatchRawV2(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil).Times(1)
-				mockConnPool.EXPECT().NextClient().Return(mockClient, nil).Times(1)
+				mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil).Times(1)
 			} else {
 				writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawRequest) {
 					var writesForNamespace []*writeOperation
@@ -221,7 +221,7 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 
 				// Assert the writes will be handled in two batches
 				mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil).Times(2)
-				mockConnPool.EXPECT().NextClient().Return(mockClient, nil).Times(2)
+				mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil).Times(2)
 			}
 
 			for _, write := range writes {
@@ -267,7 +267,7 @@ func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 
 	// Prepare mocks for flush
 	nextClientErr := fmt.Errorf("an error")
-	mockConnPool.EXPECT().NextClient().Return(nil, nextClientErr)
+	mockConnPool.EXPECT().NextClient().Return(nil, nil, nextClientErr)
 
 	// Write
 	var wg sync.WaitGroup
@@ -357,7 +357,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 				}
 				mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(batchErrs)
 			}
-			mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+			mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 
 			// Perform writes
 			for _, write := range writes {
@@ -418,7 +418,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 		}
 	}
 	mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(writeErr)
-	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 
 	// Perform writes
 	for _, write := range writes {
@@ -488,7 +488,7 @@ func TestHostQueueDrainOnClose(t *testing.T) {
 	}
 	mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil)
 
-	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 
 	mockConnPool.EXPECT().Close().AnyTimes()
 

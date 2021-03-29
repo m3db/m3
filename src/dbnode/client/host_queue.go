@@ -531,7 +531,7 @@ func (q *queue) asyncTaggedWrite(
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -591,7 +591,7 @@ func (q *queue) asyncTaggedWriteV2(
 
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to.
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -656,7 +656,7 @@ func (q *queue) asyncWrite(
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -715,7 +715,7 @@ func (q *queue) asyncWriteV2(
 
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to.
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available.
 			callAllCompletionFns(ops, q.host, err)
@@ -768,7 +768,7 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 			q.Done()
 		}
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.completeAll(nil, err)
@@ -821,7 +821,7 @@ func (q *queue) asyncFetchV2(
 			q.Done()
 		}
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available.
 			callAllCompletionFns(ops, nil, err)
@@ -868,7 +868,7 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			q.Done()
 		}
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
@@ -901,7 +901,7 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			q.Done()
 		}
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
@@ -931,7 +931,7 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 	q.workerPool.Go(func() {
 		cleanup := q.Done
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.completionFn(nil, err)
@@ -1003,7 +1003,7 @@ func (q *queue) ConnectionPool() connectionPool {
 	return q.connPool
 }
 
-func (q *queue) BorrowConnection(fn withConnectionFn) error {
+func (q *queue) BorrowConnection(fn WithConnectionFn) error {
 	q.RLock()
 	if q.status != statusOpen {
 		q.RUnlock()
@@ -1014,12 +1014,12 @@ func (q *queue) BorrowConnection(fn withConnectionFn) error {
 	defer q.Done()
 	q.RUnlock()
 
-	conn, err := q.connPool.NextClient()
+	conn, ch, err := q.connPool.NextClient()
 	if err != nil {
 		return err
 	}
 
-	fn(conn)
+	fn(conn, ch)
 	return nil
 }
 

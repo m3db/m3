@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -49,6 +50,8 @@ type aggregatedResults struct {
 
 	pool       AggregateResultsPool
 	valuesPool AggregateValuesPool
+
+	encodedDocReader docs.EncodedDocumentReader
 }
 
 // NewAggregateResults returns a new AggregateResults object.
@@ -126,7 +129,7 @@ func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
 	valueInsertions := 0
-	for _, entry := range batch {
+	for _, entry := range batch { //nolint:gocritic
 		f := entry.Field
 		aggValues, ok := r.resultsMap.Get(f)
 		if !ok {
@@ -169,7 +172,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 func (r *aggregatedResults) addDocumentsBatchWithLock(
 	batch []doc.Document,
 ) error {
-	for _, doc := range batch {
+	for _, doc := range batch { //nolint:gocritic
 		switch r.aggregateOpts.Type {
 		case AggregateTagNamesAndValues:
 			if err := r.addDocumentWithLock(doc); err != nil {
@@ -198,11 +201,15 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 }
 
 func (r *aggregatedResults) addDocumentTermsWithLock(
-	document doc.Document,
+	container doc.Document,
 ) error {
-	for _, field := range document.Fields {
+	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
+	if err != nil {
+		return fmt.Errorf("unable to decode encoded document; %w", err)
+	}
+	for _, field := range document.Fields { //nolint:gocritic
 		if err := r.addTermWithLock(field.Name); err != nil {
-			return fmt.Errorf("unable to add document terms [%+v]: %v", document, err)
+			return fmt.Errorf("unable to add document terms [%+v]: %w", document, err)
 		}
 	}
 
@@ -238,11 +245,15 @@ func (r *aggregatedResults) addTermWithLock(
 }
 
 func (r *aggregatedResults) addDocumentWithLock(
-	document doc.Document,
+	container doc.Document,
 ) error {
-	for _, field := range document.Fields {
+	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
+	if err != nil {
+		return fmt.Errorf("unable to decode encoded document; %w", err)
+	}
+	for _, field := range document.Fields { //nolint:gocritic
 		if err := r.addFieldWithLock(field.Name, field.Value); err != nil {
-			return fmt.Errorf("unable to add document [%+v]: %v", document, err)
+			return fmt.Errorf("unable to add document [%+v]: %w", document, err)
 		}
 	}
 

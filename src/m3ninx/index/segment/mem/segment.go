@@ -52,7 +52,7 @@ type memSegment struct {
 	// Mapping of postings ID to document.
 	docs struct {
 		sync.RWMutex
-		data []doc.Document
+		data []doc.Metadata
 	}
 
 	// Mapping of term to postings list.
@@ -76,7 +76,7 @@ func NewSegment(opts Options) (segment.MutableSegment, error) {
 		readerID:  postings.NewAtomicID(0),
 	}
 
-	s.docs.data = make([]doc.Document, opts.InitialCapacity())
+	s.docs.data = make([]doc.Metadata, opts.InitialCapacity())
 
 	s.writer.idSet = newIDsMap(256)
 	s.writer.nextID = 0
@@ -100,7 +100,7 @@ func (s *memSegment) Reset() {
 	s.termsDict.Reset()
 	s.readerID = postings.NewAtomicID(0)
 
-	var empty doc.Document
+	var empty doc.Metadata
 	for i := range s.docs.data {
 		s.docs.data[i] = empty
 	}
@@ -121,7 +121,7 @@ func (s *memSegment) Size() int64 {
 	return size
 }
 
-func (s *memSegment) Docs() []doc.Document {
+func (s *memSegment) Docs() []doc.Metadata {
 	s.state.RLock()
 	defer s.state.RUnlock()
 
@@ -159,7 +159,7 @@ func (s *memSegment) ContainsField(f []byte) (bool, error) {
 	return contains, nil
 }
 
-func (s *memSegment) Insert(d doc.Document) ([]byte, error) {
+func (s *memSegment) Insert(d doc.Metadata) ([]byte, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if s.state.closed {
@@ -170,7 +170,7 @@ func (s *memSegment) Insert(d doc.Document) ([]byte, error) {
 		s.writer.Lock()
 		defer s.writer.Unlock()
 
-		b := index.NewBatch([]doc.Document{d})
+		b := index.NewBatch([]doc.Metadata{d})
 		b.AllowPartialUpdates = false
 		if err := s.prepareDocsWithLocks(b, nil); err != nil {
 			return nil, err
@@ -237,7 +237,7 @@ func (s *memSegment) prepareDocsWithLocks(
 ) error {
 	s.writer.idSet.Reset()
 
-	var emptyDoc doc.Document
+	var emptyDoc doc.Metadata
 	for i := 0; i < len(b.Docs); i++ {
 		d := b.Docs[i]
 		if err := d.Validate(); err != nil {
@@ -293,7 +293,7 @@ func (s *memSegment) prepareDocsWithLocks(
 
 // insertDocWithLocks inserts a document into the index. It must be called with the
 // state and writer locks.
-func (s *memSegment) insertDocWithLocks(d doc.Document) error {
+func (s *memSegment) insertDocWithLocks(d doc.Metadata) error {
 	nextID := s.writer.nextID
 	s.storeDocWithStateLock(nextID, d)
 	s.writer.nextID++
@@ -302,7 +302,7 @@ func (s *memSegment) insertDocWithLocks(d doc.Document) error {
 
 // indexDocWithStateLock indexes the fields of a document in the segment's terms
 // dictionary. It must be called with the segment's state lock.
-func (s *memSegment) indexDocWithStateLock(id postings.ID, d doc.Document) error {
+func (s *memSegment) indexDocWithStateLock(id postings.ID, d doc.Metadata) error {
 	for _, f := range d.Fields {
 		if err := s.termsDict.Insert(f, id); err != nil {
 			return err
@@ -316,7 +316,7 @@ func (s *memSegment) indexDocWithStateLock(id postings.ID, d doc.Document) error
 
 // storeDocWithStateLock stores a documents into the segment's mapping of postings
 // IDs to documents. It must be called with the segment's state lock.
-func (s *memSegment) storeDocWithStateLock(id postings.ID, d doc.Document) {
+func (s *memSegment) storeDocWithStateLock(id postings.ID, d doc.Metadata) {
 	idx := int(id)
 
 	// Can return early if we have sufficient capacity.
@@ -346,7 +346,7 @@ func (s *memSegment) storeDocWithStateLock(id postings.ID, d doc.Document) {
 			return
 		}
 
-		data := make([]doc.Document, 2*(size+1))
+		data := make([]doc.Metadata, 2*(size+1))
 		copy(data, s.docs.data)
 		s.docs.data = data
 		s.docs.data[idx] = d
@@ -396,11 +396,11 @@ func (s *memSegment) matchRegexp(field []byte, compiled *re.Regexp) (postings.Li
 	return s.termsDict.MatchRegexp(field, compiled), nil
 }
 
-func (s *memSegment) getDoc(id postings.ID) (doc.Document, error) {
+func (s *memSegment) getDoc(id postings.ID) (doc.Metadata, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if s.state.closed {
-		return doc.Document{}, segment.ErrClosed
+		return doc.Metadata{}, segment.ErrClosed
 	}
 
 	idx := int(id)
@@ -408,7 +408,7 @@ func (s *memSegment) getDoc(id postings.ID) (doc.Document, error) {
 	s.docs.RLock()
 	if idx >= len(s.docs.data) {
 		s.docs.RUnlock()
-		return doc.Document{}, index.ErrDocNotFound
+		return doc.Metadata{}, index.ErrDocNotFound
 	}
 	d := s.docs.data[idx]
 	s.docs.RUnlock()

@@ -205,7 +205,7 @@ func (f *fetchState) asTaggedIDsIterator(
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.fetchTaggedOp.requestLimit(maxInt)
+	limit := f.fetchTaggedOp.requestSeriesLimit(maxInt)
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
@@ -231,7 +231,7 @@ func (f *fetchState) asEncodingSeriesIterators(
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.fetchTaggedOp.requestLimit(maxInt)
+	limit := f.fetchTaggedOp.requestSeriesLimit(maxInt)
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools, descr, opts)
 }
 
@@ -253,7 +253,7 @@ func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (Aggregate
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.aggregateOp.requestLimit(maxInt)
+	limit := f.aggregateOp.requestSeriesLimit(maxInt)
 	return f.tagResultAccumulator.AsAggregatedTagsIterator(limit, pools)
 }
 

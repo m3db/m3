@@ -14,7 +14,7 @@ steps:
     command: make clean install-vendor-m3 test-all-gen
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.13.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -56,7 +56,7 @@ steps:
     parallelism: 2
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.13.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -76,7 +76,7 @@ steps:
     parallelism: 1
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.13.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -109,7 +109,7 @@ steps:
     command: make clean install-vendor-m3 docs-test
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.13.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3

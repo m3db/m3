@@ -27,10 +27,10 @@ db:
           - zone: embedded
             endpoints:
               - m3db_seed:2379
-        seedNodes:
-          initialCluster:
-            - hostID: m3db_seed
-              endpoint: http://m3db_seed:2380
+      seedNodes:
+        initialCluster:
+          - hostID: m3db_seed
+            endpoint: http://m3db_seed:2380
 
   # proto:
   #   schemaFilePath: /etc/m3dbnode/schema.proto

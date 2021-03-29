@@ -21,17 +21,21 @@
 package peers
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -40,28 +44,22 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type peersSource struct {
 	opts              Options
-	log               *zap.Logger
 	newPersistManager func() (persist.Manager, error)
-	nowFn             clock.NowFn
+	log               *zap.Logger
+	instrumentation   *instrumentation
 }
 
 type persistenceFlush struct {
@@ -76,14 +74,14 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 		return nil, err
 	}
 
-	iopts := opts.ResultOptions().InstrumentOptions()
+	instrumentation := newInstrumentation(opts)
 	return &peersSource{
 		opts: opts,
-		log:  iopts.Logger().With(zap.String("bootstrapper", "peers")),
 		newPersistManager: func() (persist.Manager, error) {
 			return fs.NewPersistManager(opts.FilesystemOptions())
 		},
-		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+		log:             instrumentation.log,
+		instrumentation: instrumentation,
 	}, nil
 }
 
@@ -121,8 +119,8 @@ func (s *peersSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	timeRangesEmpty := true
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -146,10 +144,8 @@ func (s *peersSource) Read(
 	}
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
-	// to more clearly deliniate which process is slower than the other.
-	start := s.nowFn()
-	s.log.Info("bootstrapping time series data start")
-	span.LogEvent("bootstrap_data_start")
+	// to more clearly delineate which process is slower than the other.
+	instrCtx.bootstrapDataStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -167,30 +163,24 @@ func (s *peersSource) Read(
 			DataResult: r,
 		})
 	}
-	s.log.Info("bootstrapping time series data success",
-		zap.Duration("took", s.nowFn().Sub(start)))
-	span.LogEvent("bootstrap_data_done")
-
+	instrCtx.bootstrapDataCompleted()
 	// NB(bodu): We need to evict the info file cache before reading index data since we've
 	// maybe fetched blocks from peers so the cached info file state is now stale.
 	cache.Evict()
-	start = s.nowFn()
-	s.log.Info("bootstrapping index metadata start")
-	span.LogEvent("bootstrap_index_start")
+
+	instrCtx.bootstrapIndexStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 		if !md.Options().IndexOptions().Enabled() {
 			s.log.Info("skipping bootstrap for namespace based on options",
 				zap.Stringer("namespace", md.ID()))
-
-			// Not bootstrapping for index.
 			continue
 		}
 
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			span,
+			instrCtx.span,
 			cache,
 			namespace.IndexRunOptions.RunOptions,
 		)
@@ -209,9 +199,7 @@ func (s *peersSource) Read(
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", s.nowFn().Sub(start)))
-	span.LogEvent("bootstrap_index_done")
+	instrCtx.bootstrapIndexCompleted()
 
 	return results, nil
 }
@@ -266,10 +254,8 @@ func (s *peersSource) readData(
 		concurrency = s.opts.ShardPersistenceConcurrency()
 	}
 
-	s.log.Info("peers bootstrapper bootstrapping shards for ranges",
-		zap.Int("shards", count),
-		zap.Int("concurrency", concurrency),
-		zap.Bool("shouldPersist", shouldPersist))
+	instrCtx := s.instrumentation.bootstrapShardsStarted(count, concurrency, shouldPersist)
+	defer instrCtx.bootstrapShardsCompleted()
 	if shouldPersist {
 		// Spin up persist workers.
 		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
@@ -474,26 +460,27 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	shardResult result.ShardResult,
 	err error,
 ) {
-	if err == nil {
-		shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-		for _, entry := range shardResult.AllSeries().Iter() {
-			series := entry.Value()
-			for blockStart := range series.Blocks.AllBlocks() {
-				shardBlockSeriesCounter[blockStart]++
-			}
-		}
-
-		for block, numSeries := range shardBlockSeriesCounter {
-			s.log.Info("peer bootstrapped shard",
-				zap.Uint32("shard", shard),
-				zap.Int64("numSeries", numSeries),
-				zap.Time("blockStart", block.ToTime()),
-			)
-		}
-	} else {
+	if err != nil {
 		s.log.Error("error fetching bootstrap blocks",
 			zap.Uint32("shard", shard),
 			zap.Error(err),
+		)
+		return
+	}
+
+	shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
+	for _, entry := range shardResult.AllSeries().Iter() { // nolint
+		series := entry.Value()
+		for blockStart := range series.Blocks.AllBlocks() {
+			shardBlockSeriesCounter[blockStart]++
+		}
+	}
+
+	for block, numSeries := range shardBlockSeriesCounter {
+		s.log.Info("peer bootstrapped shard",
+			zap.Uint32("shard", shard),
+			zap.Int64("numSeries", numSeries),
+			zap.Time("blockStart", block.ToTime()),
 		)
 	}
 }
@@ -707,8 +694,7 @@ func (s *peersSource) readIndex(
 		readersCh               = make(chan bootstrapper.TimeWindowReaders, indexSegmentConcurrency)
 	)
 	s.log.Info("peers bootstrapper bootstrapping index for ranges",
-		zap.Int("shards", count),
-	)
+		zap.Int("shards", count))
 
 	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
 		NsMD:            ns,
@@ -721,11 +707,11 @@ func (s *peersSource) readIndex(
 		BlockSize:       indexBlockSize,
 		// NB(bodu): We only read metadata when performing a peers bootstrap
 		// so we do not need to sort the data fileset reader.
-		OptimizedReadMetadataOnly: true,
-		Logger:                    s.log,
-		Span:                      span,
-		NowFn:                     s.nowFn,
-		Cache:                     cache,
+		ReadMetadataOnly: true,
+		Logger:           s.instrumentation.log,
+		Span:             span,
+		NowFn:            s.instrumentation.nowFn,
+		Cache:            cache,
 	})
 
 	var buildWg sync.WaitGroup
@@ -739,8 +725,8 @@ func (s *peersSource) readIndex(
 		builder := result.NewIndexBuilder(segBuilder)
 
 		indexOpts := s.opts.IndexOptions()
-		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
-			index.DocumentArrayPoolCapacity,
+		compactor, err := compaction.NewCompactor(indexOpts.MetadataArrayPool(),
+			index.MetadataArrayPoolCapacity,
 			indexOpts.SegmentBuilderOptions(),
 			indexOpts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
@@ -820,12 +806,23 @@ func (s *peersSource) processReaders(
 	resultLock *sync.Mutex,
 ) (result.ShardTimeRanges, []time.Time) {
 	var (
-		docsPool        = s.opts.IndexOptions().DocumentArrayPool()
-		batch           = docsPool.Get()
+		metadataPool    = s.opts.IndexOptions().MetadataArrayPool()
+		batch           = metadataPool.Get()
 		timesWithErrors []time.Time
 		totalEntries    int
 	)
-	defer docsPool.Put(batch)
+
+	defer func() {
+		metadataPool.Put(batch)
+		// Return readers to pool.
+		for _, shardReaders := range timeWindowReaders.Readers {
+			for _, r := range shardReaders.Readers {
+				if err := r.Close(); err == nil {
+					readerPool.Put(r)
+				}
+			}
+		}
+	}()
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
@@ -935,7 +932,13 @@ func (s *peersSource) processReaders(
 			blockStart,
 			blockEnd,
 		)
-		if err != nil {
+		if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+			// Bail early if the index segment is already out of retention.
+			// This can happen when the edge of requested ranges at time of data bootstrap
+			// is now out of retention.
+			s.instrumentation.outOfRetentionIndexSegmentSkipped(buildIndexLogFields)
+			return remainingRanges, timesWithErrors
+		} else if err != nil {
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
@@ -956,7 +959,6 @@ func (s *peersSource) processReaders(
 			blockEnd,
 		)
 		if err != nil {
-			iopts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("build fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
@@ -979,40 +981,28 @@ func (s *peersSource) processReaders(
 	r.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 	resultLock.Unlock()
 
-	// Return readers to pool.
-	for _, shardReaders := range timeWindowReaders.Readers {
-		for _, r := range shardReaders.Readers {
-			if err := r.Close(); err == nil {
-				readerPool.Put(r)
-			}
-		}
-	}
-
 	return remainingRanges, timesWithErrors
 }
 
 func (s *peersSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
-	batch []doc.Document,
+	batch []doc.Metadata,
 	builder *result.IndexBuilder,
-) ([]doc.Document, error) {
+) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
+	entry, err := r.StreamingReadMetadata()
 	if err != nil {
 		return batch, err
 	}
 
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
+	d, err := convert.FromSeriesIDAndEncodedTags(entry.ID, entry.EncodedTags)
 	if err != nil {
 		return batch, err
 	}
 
 	batch = append(batch, d)
 
-	if len(batch) >= index.DocumentArrayPoolCapacity {
+	if len(batch) >= index.MetadataArrayPoolCapacity {
 		return builder.FlushBatch(batch)
 	}
 
@@ -1041,8 +1031,8 @@ func (s *peersSource) markRunResultErrorsAndUnfulfilled(
 		for i := range timesWithErrors {
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
-		s.log.Info("encounted errors for range",
-			zap.String("requestedRanges", requestedRanges.SummaryString()),
+		s.log.Info("encountered errors for range",
+			zap.String("requestedRanges", remainingRanges.SummaryString()),
 			zap.Strings("timesWithErrors", timesWithErrorsString))
 	}
 
@@ -1051,24 +1041,6 @@ func (s *peersSource) markRunResultErrorsAndUnfulfilled(
 		results.Unfulfilled().AddRanges(remainingRanges)
 		resultLock.Unlock()
 	}
-}
-
-func (s *peersSource) readBlockMetadataAndIndex(
-	dataBlock block.Metadata,
-	batch []doc.Document,
-	flushBatch func() error,
-) (bool, error) {
-	d, err := convert.FromSeriesIDAndTags(dataBlock.ID, dataBlock.Tags)
-	if err != nil {
-		return false, err
-	}
-
-	batch = append(batch, d)
-	if len(batch) >= index.DocumentArrayPoolCapacity {
-		return true, flushBatch()
-	}
-
-	return true, nil
 }
 
 func (s *peersSource) peerAvailability(
@@ -1139,16 +1111,15 @@ func (s *peersSource) peerAvailability(
 
 		if available == 0 {
 			// Can't peer bootstrap if there are no available peers.
-			s.log.Debug(
-				"0 available peers, unable to peer bootstrap",
-				zap.Int("total", total), zap.Uint32("shard", shardIDUint))
+			s.log.Debug("0 available peers, unable to peer bootstrap",
+				zap.Int("total", total),
+				zap.Uint32("shard", shardIDUint))
 			continue
 		}
 
 		if !topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, total, available) {
-			s.log.Debug(
-				"read consistency not achieved, unable to peer bootstrap",
+			s.log.Debug("read consistency not achieved, unable to peer bootstrap",
 				zap.Any("level", bootstrapConsistencyLevel),
 				zap.Int("replicas", majorityReplicas),
 				zap.Int("total", total),
@@ -1166,31 +1137,6 @@ func (s *peersSource) peerAvailability(
 	}
 
 	return availableShardTimeRanges, nil
-}
-
-func (s *peersSource) markIndexResultErrorAsUnfulfilled(
-	r result.IndexBootstrapResult,
-	resultLock *sync.Mutex,
-	err error,
-	shard uint32,
-	timeRange xtime.Range,
-) {
-	// NB(r): We explicitly do not remove entries from the index results
-	// as they are additive and get merged together with results from other
-	// bootstrappers by just appending the result (ounlike data bootstrap
-	// results that when merged replace the block with the current block).
-	// It would also be difficult to remove only series that were added to the
-	// index block as results from a specific data block can be subsets of the
-	// index block and there's no way to definitively delete the entry we added
-	// as a result of just this data file failing.
-	resultLock.Lock()
-	defer resultLock.Unlock()
-
-	unfulfilled := result.NewShardTimeRanges().Set(
-		shard,
-		xtime.NewRanges(timeRange),
-	)
-	r.Add(result.NewIndexBlockByVolumeType(time.Time{}), unfulfilled)
 }
 
 func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {

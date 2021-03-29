@@ -72,16 +72,18 @@ func NewHandler(
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Body == nil {
-		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.WriteError(w, errEmptyBody)
+		err := errEmptyBody
+		h.metrics.incError(err)
+		xhttp.WriteError(w, err)
 		return
 	}
 	defer r.Body.Close()
 
 	req, err := parseRequest(r.Body)
 	if err != nil {
-		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+		resultError := xhttp.NewError(err, http.StatusBadRequest)
+		h.metrics.incError(resultError)
+		xhttp.WriteError(w, resultError)
 		return
 	}
 
@@ -97,20 +99,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		var (
-			status  = http.StatusBadRequest
-			counter = h.metrics.writeErrorsClient
-		)
+		status := http.StatusBadRequest
 		if foundInternalErr {
 			status = http.StatusInternalServerError
-			counter = h.metrics.writeErrorsServer
 		}
-		counter.Inc(1)
 
-		err = fmt.Errorf(
-			"unable to write metric batch, encountered %d errors: %v", len(batchErr.Errors()), batchErr.Error(),
-		)
-		xhttp.WriteError(w, xhttp.NewError(err, status))
+		err = fmt.Errorf("unable to write metric batch, encountered %d errors: %w",
+			len(batchErr.Errors()), batchErr)
+		responseError := xhttp.NewError(err, status)
+		h.metrics.incError(responseError)
+		xhttp.WriteError(w, responseError)
 		return
 	}
 
@@ -148,5 +146,13 @@ func newHandlerMetrics(s tally.Scope) handlerMetrics {
 		writeSuccess:      s.SubScope("write").Counter("success"),
 		writeErrorsServer: s.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
 		writeErrorsClient: s.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+	}
+}
+
+func (m *handlerMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.writeErrorsClient.Inc(1)
+	} else {
+		m.writeErrorsServer.Inc(1)
 	}
 }

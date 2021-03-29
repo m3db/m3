@@ -256,7 +256,9 @@ func TestFetchQueryToM3Query(t *testing.T) {
 
 func TestFetchOptionsToAggregateOptions(t *testing.T) {
 	fetchOptions := &FetchOptions{
-		SeriesLimit: 7,
+		SeriesLimit:       7,
+		DocsLimit:         8,
+		RequireExhaustive: true,
 	}
 
 	end := time.Now()
@@ -281,4 +283,7 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 	assert.Equal(t, index.AggregateTagNames, aggOpts.Type)
 	require.Equal(t, 1, len(aggOpts.FieldFilter))
 	require.Equal(t, "filter", string(aggOpts.FieldFilter[0]))
+	require.Equal(t, fetchOptions.SeriesLimit, aggOpts.SeriesLimit)
+	require.Equal(t, fetchOptions.DocsLimit, aggOpts.DocsLimit)
+	require.Equal(t, fetchOptions.RequireExhaustive, aggOpts.RequireExhaustive)
 }

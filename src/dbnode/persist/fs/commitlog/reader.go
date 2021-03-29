@@ -84,7 +84,7 @@ type reader struct {
 
 	metadataLookup map[uint64]ts.Series
 	namespacesRead []namespaceRead
-	seriesIDReused *ident.ReuseableBytesID
+	seriesIDReused *ident.ReusableBytesID
 }
 
 type namespaceRead struct {
@@ -111,7 +111,7 @@ func newCommitLogReader(opts commitLogReaderOptions) commitLogReader {
 		chunkReader:            newChunkReader(opts.commitLogOptions.FlushSize()),
 		infoDecoder:            msgpack.NewDecoder(opts.commitLogOptions.FilesystemOptions().DecodingOptions()),
 		infoDecoderStream:      msgpack.NewByteDecoderStream(nil),
-		seriesIDReused:         ident.NewReuseableBytesID(),
+		seriesIDReused:         ident.NewReusableBytesID(),
 	}
 }
 

@@ -21,17 +21,17 @@
 package namespace
 
 import (
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -79,7 +79,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validators.NamespaceValidator)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
@@ -100,7 +100,9 @@ func TestNamespaceAddHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"bad namespace metadata: retention options must be set\"}\n", string(body))
+	assert.JSONEq(t,
+		`{"status":"error","error":"bad namespace metadata: retention options must be set"}`,
+		string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.
@@ -164,7 +166,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validators.NamespaceValidator)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Ensure adding an existing namespace returns 409
@@ -173,7 +175,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"testNamespace": &nsproto.NamespaceOptions{
+			"testNamespace": {
 				BootstrapEnabled:  true,
 				FlushEnabled:      true,
 				SnapshotEnabled:   true,
@@ -203,40 +205,56 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
 
-func TestValidateNewMetadata(t *testing.T) {
-	// Valid.
-	addReq := new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.NoError(t, err)
-	require.NoError(t, validateNewMetadata(md))
+func TestNamespaceAddHandler_InvokesNewNamespaceValidator(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	// Valid without index options.
-	addReq = new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000 / 2
-	addReq.Options.IndexOptions = nil
-	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.NoError(t, err)
-	require.NoError(t, validateNewMetadata(md))
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	validator := &testNamespaceValidator{}
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validator)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	// Invalid without retention options.
-	addReq = new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	addReq.Options.RetentionOptions = nil
-	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 / 2
-	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.Error(t, err)
-	require.Equal(t, "retention options must be set", err.Error())
+	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))
+	require.NotNil(t, req)
 
-	// Prevent mismatching block sizes.
-	addReq = new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000
-	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 * 2
-	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.NoError(t, err)
-	err = validateNewMetadata(md)
-	require.Error(t, err)
-	require.Equal(t, "index and retention block size must match (2h0m0s, 4h0m0s)", err.Error())
+	registry := nsproto.Registry{
+		Namespaces: map[string]*nsproto.NamespaceOptions{
+			"firstNamespace": {
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				SnapshotEnabled:   true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
+				RetentionOptions: &nsproto.RetentionOptions{
+					RetentionPeriodNanos:                     172800000000000,
+					BlockSizeNanos:                           7200000000000,
+					BufferFutureNanos:                        600000000000,
+					BufferPastNanos:                          600000000000,
+					BlockDataExpiry:                          true,
+					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
+				},
+			},
+		},
+	}
+
+	mockValue := kv.NewMockValue(ctrl)
+	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
+	mockValue.EXPECT().Version().Return(0)
+	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
+
+	w := httptest.NewRecorder()
+	addHandler.ServeHTTP(svcDefaults, w, req)
+	resp := w.Result()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, 1, validator.invocationCount)
+}
+
+type testNamespaceValidator struct {
+	invocationCount int
+}
+
+func (v *testNamespaceValidator) ValidateNewNamespace(namespace.Metadata, []namespace.Metadata) error {
+	v.invocationCount++
+	return errors.New("expected validation error")
 }

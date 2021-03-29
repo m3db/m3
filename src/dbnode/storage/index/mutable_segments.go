@@ -673,7 +673,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	var documentsFilter segment.DocumentsFilter
 	if gcRequired {
 		// Only actively filter out documents if GC is required.
-		documentsFilter = segment.DocumentsFilterFn(func(d doc.Document) bool {
+		documentsFilter = segment.DocumentsFilterFn(func(d doc.Metadata) bool {
 			// Filter out any documents that only were indexed for
 			// sealed blocks.
 			if d.Ref == nil {
@@ -1055,8 +1055,8 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	concurrency int,
 ) error {
 	var (
-		err      error
-		docsPool = m.opts.DocumentArrayPool()
+		err          error
+		metadataPool = m.opts.MetadataArrayPool()
 	)
 	if m.segmentBuilder == nil {
 		builderOpts := m.opts.SegmentBuilderOptions().
@@ -1069,8 +1069,8 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	}
 
 	if m.foregroundCompactor == nil {
-		m.foregroundCompactor, err = compaction.NewCompactor(docsPool,
-			DocumentArrayPoolCapacity,
+		m.foregroundCompactor, err = compaction.NewCompactor(metadataPool,
+			MetadataArrayPoolCapacity,
 			m.opts.SegmentBuilderOptions(),
 			m.opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
@@ -1091,8 +1091,8 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 		n := numBackgroundCompactorsStandard
 		m.backgroundCompactors = make(chan *compaction.Compactor, n)
 		for i := 0; i < n; i++ {
-			backgroundCompactor, err := compaction.NewCompactor(docsPool,
-				DocumentArrayPoolCapacity,
+			backgroundCompactor, err := compaction.NewCompactor(metadataPool,
+				MetadataArrayPoolCapacity,
 				m.opts.SegmentBuilderOptions(),
 				m.opts.FSTSegmentOptions(),
 				compaction.CompactorOptions{
@@ -1112,12 +1112,12 @@ func (m *mutableSegmentsCompact) allocBackgroundCompactorsGarbageCollect() (
 	chan *compaction.Compactor,
 	error,
 ) {
-	docsPool := m.opts.DocumentArrayPool()
+	metadataPool := m.opts.MetadataArrayPool()
 	n := numBackgroundCompactorsGarbageCollect
 	compactors := make(chan *compaction.Compactor, n)
 	for i := 0; i < n; i++ {
-		backgroundCompactor, err := compaction.NewCompactor(docsPool,
-			DocumentArrayPoolCapacity,
+		backgroundCompactor, err := compaction.NewCompactor(metadataPool,
+			MetadataArrayPoolCapacity,
 			m.opts.SegmentBuilderOptions(),
 			m.opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{

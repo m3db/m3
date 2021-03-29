@@ -67,12 +67,30 @@ func NewTChannelClient(name, address string) (*TestTChannelClient, error) {
 	}, nil
 }
 
+// Address returns the address.
+func (client *TestTChannelClient) Address() string {
+	return client.address
+}
+
+// Channel returns the TChannel channel.
+func (client *TestTChannelClient) Channel() *tchannel.Channel {
+	return client.channel
+}
+
 // TChannelClientWrite writes a datapoint using a tchannel client.
 func (client *TestTChannelClient) TChannelClientWrite(
 	timeout time.Duration, req *rpc.WriteRequest,
 ) error {
 	ctx, _ := thrift.NewContext(timeout)
 	return client.node.Write(ctx, req)
+}
+
+// TChannelClientWriteTagged writes a datapoint using a tchannel client.
+func (client *TestTChannelClient) TChannelClientWriteTagged(
+	timeout time.Duration, req *rpc.WriteTaggedRequest,
+) error {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.WriteTagged(ctx, req)
 }
 
 // TChannelClientWriteBatch writes a data map using a tchannel client.
@@ -109,6 +127,14 @@ func (client *TestTChannelClient) TChannelClientFetch(
 ) (*rpc.FetchResult_, error) {
 	ctx, _ := thrift.NewContext(timeout)
 	return client.node.Fetch(ctx, req)
+}
+
+// TChannelClientAggregateTiles runs a request for AggregateTiles.
+func (client *TestTChannelClient) TChannelClientAggregateTiles(
+	timeout time.Duration, req *rpc.AggregateTilesRequest,
+) (*rpc.AggregateTilesResult_, error) {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.AggregateTiles(ctx, req)
 }
 
 // TChannelClientTruncate fulfills a namespace truncation request using a tchannel client.

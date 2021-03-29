@@ -119,8 +119,9 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 				}
 
 				// NB: expected ID is generated into human-readable form
-				// from tags in ForwardMatch mock above.
-				expected := fmt.Sprintf("foo%d-bar%d", i, i)
+				// from tags in ForwardMatch mock above. Also include the m3 type, which is included when matching.
+				// nolint:scopelint
+				expected := fmt.Sprintf("__m3_type__-gauge,foo%d-bar%d", i, i)
 				if expected != u.ID.String() {
 					// NB: if this fails, appender is holding state after Finalize.
 					return fmt.Errorf("expected ID %s, got %s", expected, u.ID.String())

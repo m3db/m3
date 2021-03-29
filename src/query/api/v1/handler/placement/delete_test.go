@@ -134,7 +134,7 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		require.Equal(t, "{\"error\":\"instance not found: nope\"}\n", string(body))
+		require.JSONEq(t, `{"status":"error","error":"instance not found: nope"}`, string(body))
 	})
 }
 
@@ -267,7 +267,9 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		require.Equal(t, `{"error":"instances do not have all shards available: [host2]"}`+"\n", string(body))
+		require.JSONEq(t,
+			`{"status":"error","error":"instances do not have all shards available: [host2]"}`,
+			string(body))
 	}
 
 	// Test OK

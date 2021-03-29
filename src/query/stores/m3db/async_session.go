@@ -93,6 +93,28 @@ func NewAsyncSession(fn NewClientFn, done chan<- struct{}) *AsyncSession {
 	return asyncSession
 }
 
+// ReadClusterAvailability returns whether the cluster is availabile for reads.
+func (s *AsyncSession) ReadClusterAvailability() (bool, error) {
+	s.RLock()
+	defer s.RUnlock()
+	if s.err != nil {
+		return false, s.err
+	}
+
+	return s.session.ReadClusterAvailability()
+}
+
+// WriteClusterAvailability returns whether the cluster is availabile for writes.
+func (s *AsyncSession) WriteClusterAvailability() (bool, error) {
+	s.RLock()
+	defer s.RUnlock()
+	if s.err != nil {
+		return false, s.err
+	}
+
+	return s.session.WriteClusterAvailability()
+}
+
 // Write writes a value to the database for an ID.
 func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
 	unit xtime.Unit, annotation []byte) error {

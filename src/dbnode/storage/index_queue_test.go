@@ -29,8 +29,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -224,7 +226,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry index.WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result index.WriteBatchEntryResult,
 	) {
 		verified++
@@ -244,7 +246,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry index.WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result index.WriteBatchEntryResult,
 	) {
 		verified++
@@ -347,7 +349,12 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	results := res.Results
 	assert.Equal(t, "testns1", results.Namespace().String())
 
-	tags, ok := results.Map().Get(ident.StringID("foo"))
+	reader := docs.NewEncodedDocumentReader()
+	d, ok := results.Map().Get(ident.BytesID("foo"))
+	md, err := docs.MetadataFromDocument(d, reader)
+	require.NoError(t, err)
+	tags := idxconvert.ToSeriesTags(md, idxconvert.Opts{NoClone: true})
+
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
@@ -417,9 +424,9 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	go func() {
 		i := 0
 		for b := range collector {
-			batchStr := make([]string, 0, len(b.IDs))
-			for _, id := range b.IDs {
-				batchStr = append(batchStr, id.String())
+			batchStr := make([]string, 0, len(b.ShardIDs))
+			for _, shardIDs := range b.ShardIDs {
+				batchStr = append(batchStr, shardIDs.ID.String())
 			}
 
 			withinIndex := i < len(expectedBatchIDs)
@@ -465,8 +472,8 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	go func() {
 		i := 0
 		for b := range collector {
+			assert.Equal(t, 0, len(b.ShardIDs))
 			b.Processed()
-			fmt.Println(b.IDs)
 			i++
 		}
 		assert.Equal(t, 0, i)

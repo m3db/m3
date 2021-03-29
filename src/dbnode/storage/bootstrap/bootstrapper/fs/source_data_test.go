@@ -70,8 +70,8 @@ var (
 	testNamespaceOptions      = namespace.NewOptions()
 	testRetentionOptions      = retention.NewOptions()
 	testDefaultFsOpts         = fs.NewOptions()
-	testDefaultRunOpts        = bootstrap.NewRunOptions().
-					SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
+
+	testDefaultRunOpts    = bootstrap.NewRunOptions().SetPersistConfig(bootstrap.PersistConfig{})
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
 	testShardRanges       = testShardTimeRanges()
@@ -79,8 +79,8 @@ var (
 
 func newTestOptions(t require.TestingT, filePathPrefix string) Options {
 	idxOpts := index.NewOptions()
-	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
-		index.DocumentArrayPoolCapacity,
+	compactor, err := compaction.NewCompactor(idxOpts.MetadataArrayPool(),
+		index.MetadataArrayPoolCapacity,
 		idxOpts.SegmentBuilderOptions(),
 		idxOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
@@ -861,29 +861,31 @@ func TestReadDeleteOnError(t *testing.T) {
 		},
 	}
 
-	reader.EXPECT().Open(rOpts).Return(nil).AnyTimes()
-	reader.EXPECT().ReadMetadata().Return(ident.StringID("foo"),
-		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), nil)
-	reader.EXPECT().ReadMetadata().Return(ident.StringID("bar"),
-		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), errors.New("foo"))
-
 	reader.EXPECT().
 		Range().
 		Return(xtime.Range{
 			Start: testStart,
 			End:   testStart.Add(2 * time.Hour),
-		}).AnyTimes()
-	reader.EXPECT().Entries().Return(2).AnyTimes()
+		}).Times(2)
+	reader.EXPECT().Entries().Return(2).Times(2)
+	reader.EXPECT().Close().Return(nil).Times(2)
+
+	reader.EXPECT().Open(rOpts).Return(nil)
 	reader.EXPECT().
 		Read().
 		Return(ident.StringID("foo"), ident.EmptyTagIterator,
 			nil, digest.Checksum(nil), nil)
-
 	reader.EXPECT().
 		Read().
 		Return(ident.StringID("bar"), ident.EmptyTagIterator,
 			nil, uint32(0), errors.New("foo"))
-	reader.EXPECT().Close().Return(nil).AnyTimes()
+
+	rOpts.StreamingEnabled = true
+	reader.EXPECT().Open(rOpts).Return(nil)
+	reader.EXPECT().StreamingReadMetadata().Return(
+		fs.StreamedMetadataEntry{ID: ident.BytesID("foo")}, nil)
+	reader.EXPECT().StreamingReadMetadata().Return(
+		fs.StreamedMetadataEntry{}, errors.New("error"))
 
 	nsMD := testNsMetadata(t)
 	ranges := testShardTimeRanges()
@@ -970,7 +972,7 @@ func newTestStorageOptions(
 	md, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions)
 	require.NoError(t, err)
 
-	return storage.NewOptions().
+	return storage.DefaultTestOptions().
 		SetPersistManager(pm).
 		SetIndexClaimsManager(icm).
 		SetNamespaceInitializer(namespace.NewStaticInitializer([]namespace.Metadata{md})).

@@ -343,6 +343,10 @@ func (tm testFetchStateWorkflow) run() fetchTaggedResultAccumulator {
 		}
 		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("i=%d, step=%+v", i, s))
 		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("i=%d, step=%+v, err=%v", i, s, err))
+		if err != nil {
+			assert.True(tm.t, IsConsistencyResultError(err),
+				fmt.Sprintf("i=%d, step=%+v, expected consistency result error", i, s))
+		}
 	}
 	return accum
 }

@@ -23,6 +23,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -37,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/configflag"
-	"github.com/m3db/m3/src/x/etcd"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -56,23 +56,14 @@ func main() {
 
 	flag.Parse()
 
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
-
 	var cfg config.Configuration
 	if err := configOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
-		// sending stdlib "log" to black hole. Don't remove unless with good reason.
-		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("error loading config: %v", err)
 	}
 
 	rawLogger, err := cfg.Logging.BuildLogger()
 	if err != nil {
-		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
-		// sending stdlib "log" to black hole. Don't remove unless with good reason.
-		fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("error creating logger: %v", err)
 	}
 	defer rawLogger.Sync()
 

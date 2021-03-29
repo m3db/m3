@@ -24,6 +24,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -33,8 +36,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	m3sync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 type newSessionFn func(Options) (clientSession, error)
@@ -111,8 +112,6 @@ func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicat
 	return &session, nil
 }
 
-type writeFunc func(Session) error
-
 func (s *replicatedSession) setSession(opts Options) error {
 	if opts.TopologyInitializer() == nil {
 		return nil
@@ -188,6 +187,14 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 		return s.session.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
 	}
 	return s.session.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
+}
+
+func (s *replicatedSession) ReadClusterAvailability() (bool, error) {
+	return s.session.ReadClusterAvailability()
+}
+
+func (s *replicatedSession) WriteClusterAvailability() (bool, error) {
+	return s.session.WriteClusterAvailability()
 }
 
 // Write value to the database for an ID.
@@ -333,6 +340,14 @@ func (s replicatedSession) FetchBlocksFromPeers(
 	opts result.Options,
 ) (PeerBlocksIter, error) {
 	return s.session.FetchBlocksFromPeers(namespace, shard, consistencyLevel, metadatas, opts)
+}
+
+func (s *replicatedSession) BorrowConnections(
+	shardID uint32,
+	fn WithBorrowConnectionFn,
+	opts BorrowConnectionOptions,
+) (BorrowConnectionsResult, error) {
+	return s.session.BorrowConnections(shardID, fn, opts)
 }
 
 // Open the client session.

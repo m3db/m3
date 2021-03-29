@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/migration"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -974,7 +973,7 @@ func testWriterConcurrentWriteStress(
 	)
 	for i := 0; i < len(results); i++ {
 		buf := bytes.NewBuffer(results[i])
-		iter := migration.NewUnaggregatedIterator(buf, nil, protobuf.NewUnaggregatedOptions())
+		iter := protobuf.NewUnaggregatedIterator(buf, protobuf.NewUnaggregatedOptions())
 		for iter.Next() {
 			msgResult := iter.Current()
 			switch msgResult.Type {

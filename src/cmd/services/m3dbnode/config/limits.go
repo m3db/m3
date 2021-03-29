@@ -29,6 +29,12 @@ type LimitsConfiguration struct {
 	// max is surpassed encounter an error.
 	MaxRecentlyQueriedSeriesDiskBytesRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesDiskBytesRead"`
 
+	// MaxRecentlyQueriedSeriesDiskRead sets the upper limit on time series read from disk within a given lookback
+	// period. Queries which are issued while this max is surpassed encounter an error.
+	// This is the number of time series, which is different from the number of bytes controlled by
+	// MaxRecentlyQueriedSeriesDiskBytesRead.
+	MaxRecentlyQueriedSeriesDiskRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesDiskRead"`
+
 	// MaxRecentlyQueriedSeriesBlocks sets the upper limit on time series blocks
 	// count within a given lookback period. Queries which are issued while this
 	// max is surpassed encounter an error.

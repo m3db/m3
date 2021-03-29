@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
@@ -189,6 +190,9 @@ func ToRPCError(err error) *rpc.Error {
 	if err == nil {
 		return nil
 	}
+	if limits.IsQueryLimitExceededError(err) {
+		return tterrors.NewResourceExhaustedError(err)
+	}
 	if xerrors.IsInvalidParams(err) {
 		return tterrors.NewBadRequestError(err)
 	}
@@ -223,11 +227,14 @@ func FromRPCFetchTaggedRequest(
 		EndExclusive:      end,
 		RequireExhaustive: req.RequireExhaustive,
 	}
-	if l := req.Limit; l != nil {
+	if l := req.SeriesLimit; l != nil {
 		opts.SeriesLimit = int(*l)
 	}
 	if l := req.DocsLimit; l != nil {
 		opts.DocsLimit = int(*l)
+	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	q, err := idx.Unmarshal(req.Query)
@@ -278,12 +285,16 @@ func ToRPCFetchTaggedRequest(
 
 	if opts.SeriesLimit > 0 {
 		l := int64(opts.SeriesLimit)
-		request.Limit = &l
+		request.SeriesLimit = &l
 	}
 
 	if opts.DocsLimit > 0 {
 		l := int64(opts.DocsLimit)
 		request.DocsLimit = &l
+	}
+
+	if len(opts.Source) > 0 {
+		request.Source = opts.Source
 	}
 
 	return request, nil
@@ -309,8 +320,18 @@ func FromRPCAggregateQueryRequest(
 			EndExclusive:   end,
 		},
 	}
-	if l := req.Limit; l != nil {
+	if l := req.SeriesLimit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if l := req.DocsLimit; l != nil {
+		opts.DocsLimit = int(*l)
+	}
+	if r := req.RequireExhaustive; r != nil {
+		opts.RequireExhaustive = *r
+	}
+
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	query, err := FromRPCQuery(req.Query)
@@ -354,8 +375,18 @@ func FromRPCAggregateQueryRawRequest(
 			EndExclusive:   end,
 		},
 	}
-	if l := req.Limit; l != nil {
+	if l := req.SeriesLimit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if l := req.DocsLimit; l != nil {
+		opts.DocsLimit = int(*l)
+	}
+	if r := req.RequireExhaustive; r != nil {
+		opts.RequireExhaustive = *r
+	}
+
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	query, err := idx.Unmarshal(req.Query)
@@ -404,7 +435,19 @@ func ToRPCAggregateQueryRawRequest(
 
 	if opts.SeriesLimit > 0 {
 		l := int64(opts.SeriesLimit)
-		request.Limit = &l
+		request.SeriesLimit = &l
+	}
+	if opts.DocsLimit > 0 {
+		l := int64(opts.DocsLimit)
+		request.DocsLimit = &l
+	}
+	if opts.RequireExhaustive {
+		r := opts.RequireExhaustive
+		request.RequireExhaustive = &r
+	}
+
+	if len(opts.Source) > 0 {
+		request.Source = opts.Source
 	}
 
 	query, queryErr := idx.Marshal(q.Query)

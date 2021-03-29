@@ -33,12 +33,12 @@ import (
 )
 
 // GenAllQuery generates an all query.
-func GenAllQuery(docs []doc.Document) gopter.Gen {
+func GenAllQuery(docs []doc.Metadata) gopter.Gen {
 	return gen.Const(query.NewAllQuery())
 }
 
 // GenFieldQuery generates a field query.
-func GenFieldQuery(docs []doc.Document) gopter.Gen {
+func GenFieldQuery(docs []doc.Metadata) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		fieldName, _ := fieldNameAndValue(genParams, docs)
 		q := query.NewFieldQuery(fieldName)
@@ -47,7 +47,7 @@ func GenFieldQuery(docs []doc.Document) gopter.Gen {
 }
 
 // GenTermQuery generates a term query.
-func GenTermQuery(docs []doc.Document) gopter.Gen {
+func GenTermQuery(docs []doc.Metadata) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		fieldName, fieldValue := fieldNameAndValue(genParams, docs)
 		q := query.NewTermQuery(fieldName, fieldValue)
@@ -55,7 +55,7 @@ func GenTermQuery(docs []doc.Document) gopter.Gen {
 	}
 }
 
-func fieldNameAndValue(genParams *gopter.GenParameters, docs []doc.Document) ([]byte, []byte) {
+func fieldNameAndValue(genParams *gopter.GenParameters, docs []doc.Metadata) ([]byte, []byte) {
 	docIDRes, ok := gen.IntRange(0, len(docs)-1)(genParams).Retrieve()
 	if !ok {
 		panic("unable to generate term query") // should never happen
@@ -75,7 +75,7 @@ func fieldNameAndValue(genParams *gopter.GenParameters, docs []doc.Document) ([]
 
 // GenIdenticalTermAndRegexpQuery generates a term query and regexp query with
 // the exact same underlying field and pattern.
-func GenIdenticalTermAndRegexpQuery(docs []doc.Document) gopter.Gen {
+func GenIdenticalTermAndRegexpQuery(docs []doc.Metadata) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		fieldName, fieldValue := fieldNameAndValue(genParams, docs)
 		termQ := query.NewTermQuery(fieldName, fieldValue)
@@ -88,7 +88,7 @@ func GenIdenticalTermAndRegexpQuery(docs []doc.Document) gopter.Gen {
 }
 
 // GenRegexpQuery generates a regexp query.
-func GenRegexpQuery(docs []doc.Document) gopter.Gen {
+func GenRegexpQuery(docs []doc.Metadata) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		docIDRes, ok := gen.IntRange(0, len(docs)-1)(genParams).Retrieve()
 		if !ok {
@@ -137,7 +137,7 @@ func GenRegexpQuery(docs []doc.Document) gopter.Gen {
 }
 
 // GenNegationQuery generates a negation query.
-func GenNegationQuery(docs []doc.Document) gopter.Gen {
+func GenNegationQuery(docs []doc.Metadata) gopter.Gen {
 	return gen.OneGenOf(
 		GenFieldQuery(docs),
 		GenTermQuery(docs),
@@ -149,7 +149,7 @@ func GenNegationQuery(docs []doc.Document) gopter.Gen {
 }
 
 // GenConjunctionQuery generates a conjunction query.
-func GenConjunctionQuery(docs []doc.Document) gopter.Gen {
+func GenConjunctionQuery(docs []doc.Metadata) gopter.Gen {
 	return gen.SliceOf(
 		gen.OneGenOf(
 			GenFieldQuery(docs),
@@ -163,7 +163,7 @@ func GenConjunctionQuery(docs []doc.Document) gopter.Gen {
 }
 
 // GenDisjunctionQuery generates a disjunction query.
-func GenDisjunctionQuery(docs []doc.Document) gopter.Gen {
+func GenDisjunctionQuery(docs []doc.Metadata) gopter.Gen {
 	return gen.SliceOf(
 		gen.OneGenOf(
 			GenFieldQuery(docs),
@@ -177,7 +177,7 @@ func GenDisjunctionQuery(docs []doc.Document) gopter.Gen {
 }
 
 // GenQuery generates a query.
-func GenQuery(docs []doc.Document) gopter.Gen {
+func GenQuery(docs []doc.Metadata) gopter.Gen {
 	return gen.OneGenOf(
 		GenAllQuery(docs),
 		GenFieldQuery(docs),
