@@ -951,13 +951,6 @@ func TestExponentialMovingAverageSuccess(t *testing.T) {
 		expected     []float64
 	}{
 		{
-			"exponentialMovingAverage(foo.bar.baz, 3)",
-			"exponentialMovingAverage(foo.bar.baz,3)",
-			[]float64{0.0, 1.0, 2.0},
-			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
-			[]float64{1, 1.193548, 1.439126, 1.733376, 2.073158},
-		},
-		{
 			"exponentialMovingAverage(foo.bar.baz, '30s')",
 			"exponentialMovingAverage(foo.bar.baz,\"30s\")",
 			[]float64{0.0, 1.0, 2.0},
@@ -968,8 +961,15 @@ func TestExponentialMovingAverageSuccess(t *testing.T) {
 			"exponentialMovingAverage(foo.bar.baz, 3)",
 			"exponentialMovingAverage(foo.bar.baz,3)",
 			[]float64{0.0, 1.0, 2.0},
+			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
+			[]float64{1, 2.5, 3.75, 4.875, 5.9375},
+		},
+		{
+			"exponentialMovingAverage(foo.bar.baz, 3)",
+			"exponentialMovingAverage(foo.bar.baz,3)",
+			[]float64{0.0, 1.0, 2.0},
 			[]float64{3.0, 4.0, 5.0, math.NaN(), 7.0},
-			[]float64{1, 1.193548, 1.439126, math.NaN(), 1.797892},
+			[]float64{1, 2.5, 3.75, math.NaN(), 5.375},
 		},
 	}
 
