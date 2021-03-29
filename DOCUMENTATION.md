@@ -1,8 +1,8 @@
 # Documentation Guide
 
-M3 is a large and complex project, and any help you can offer to explain it better is most welcome. If you have a suggestion for the documentation we welcome it, and documentation pull requests follow the same process as [code contributions](CONTRIBUTING.MD).
+M3 is a large and complex project, and any help you can offer to explain it better is most welcome. If you have a suggestion for the documentation M3 welcomes it, and documentation pull requests follow the same process as [code contributions](CONTRIBUTING.MD).
 
-The rest of this document explains how to setup the dicumentation locally and the structure of the content.
+The rest of this document explains how to setup the documentation locally and the structure of the content.
 
 ## Setup Documentation Locally
 
@@ -35,11 +35,11 @@ The _site/config_ folder has configuration for Hugo, split into three folders:
 
 ### Theme Overrides
 
-The _site/layouts_ folder adds a several changes and additional files to the Victor theme used by the M3 documentation.
+The _site/layouts_ folder adds a several changes and overridden files to the Victor theme used by the M3 documentation.
 
 ### Documentation
 
-The _site/content_ folder contains the documentation files, organized by folders that match the paths for URLs. The _includes_ folder is a special folder not served as part of the documentation and contains files used by other files.
+The _site/content_ folder contains the documentation files, organized by folders that match the paths for URLs. The _includes_ folder is a special folder not served as part of the documentation and files used by other files.
 
 #### Theme
 
@@ -49,7 +49,7 @@ Victor is a theme based on Hugo modules, [read more in the Hugo docs](https://go
 
 #### Shortcodes
 
-The M3 documentation adds the following additional shortcodes:
+The M3 documentation adds the following extra shortcodes:
 
 -   `{{% apiendpoint %}}` - Combines the values of `Params.api.localCordinator` + `Params.api.apiEndpoint` as defined in the site configuration to output the base API endpoint for M3 running on a localhost.
 -   `{{% docker-version %}}` - Outputs the value of `Params.releases.docker` as defined in the site configuration to output the consistent current Docker release.
