@@ -940,7 +940,6 @@ func TestMovingAverageSuccess(t *testing.T) {
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.5)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.8)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expectedWithXFiles)
 	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.6)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
-	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.1)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
 
 	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
@@ -1006,9 +1005,33 @@ func testMovingFunctionError(t *testing.T, target string) {
 	require.Nil(t, res.Values)
 }
 
+func testMovingFunctionErrorWithInput(t *testing.T, target string, values, bootstrap []float64) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     10000,
+		Bootstrap:      bootstrap,
+		BootstrapStart: testMovingFunctionBootstrap,
+		Values:         values,
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  testMovingFunctionStart,
+		End:    testMovingFunctionEnd,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.Error(t, err)
+	require.Nil(t, res.Values)
+}
+
 func TestMovingAverageError(t *testing.T) {
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, '-30s')")
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
+	testMovingFunctionErrorWithInput(t, "movingAverage(foo.bar.baz, 3, 0.1)", nil, nil)
 }
 
 func TestMovingSumSuccess(t *testing.T) {
@@ -1074,6 +1097,50 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 		{
 			Name: "movingSum(foo.bar,\"10min\")",
 			Data: []float64{15, 17, 19},
+		},
+		{
+			Name: "movingSum(foo.baz,\"10min\")",
+			Data: []float64{15, 14, 13},
+		},
+	}
+	common.CompareOutputsAndExpected(t, 60000, start,
+		expected, res.Values)
+}
+
+// TestMovingSumAllOriginalIDsMissingFromBootstrapIDs tests the case for the
+// "moving" function families where the bootstrap of the time range that
+// expands back returns timeseries and the original series list is empty
+// which can also happen when using a temporal index.
+func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	end := time.Now().Truncate(time.Minute)
+	start := end.Add(-3 * time.Minute)
+	bootstrapStart := start.Add(-10 * time.Minute)
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     60000,
+		Bootstrap:      []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2},
+		BootstrapStart: bootstrapStart,
+		OriginalIDs:    []string{},
+		BootstrapIDs:   []string{"foo.bar", "foo.baz"},
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	target := "movingSum(foo.*, '10min')"
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "movingSum(foo.bar,\"10min\")",
+			Data: []float64{15, 14, 13},
 		},
 		{
 			Name: "movingSum(foo.baz,\"10min\")",
@@ -2219,7 +2286,6 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 	requireEqual(t, expected, r.Values)
 }
 
-// nolint: thelper
 func requireEqual(t *testing.T, expected, results []*ts.Series) {
 	require.Equal(t, len(expected), len(results))
 	for i := 0; i < len(results); i++ {
@@ -2577,7 +2643,6 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 	requireEqual(t, expected, r.Values)
 }
 
-// nolint: thelper
 func testLogarithm(t *testing.T, base float64, asserts func(*ts.Series)) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()

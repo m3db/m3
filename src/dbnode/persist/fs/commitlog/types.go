@@ -90,6 +90,7 @@ type LogEntry struct {
 	Series     ts.Series
 	Datapoint  ts.Datapoint
 	Unit       xtime.Unit
+	// Annotation gets invalidates on every read.
 	Annotation ts.Annotation
 	Metadata   LogEntryMetadata
 }

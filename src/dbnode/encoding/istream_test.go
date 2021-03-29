@@ -183,5 +183,4 @@ func TestIStreamReset(t *testing.T) {
 	require.Equal(t, uint64(0), is.current)
 	require.Equal(t, uint8(0), is.remaining)
 	require.Equal(t, 0, is.index)
-	require.NoError(t, is.err)
 }

@@ -34,13 +34,11 @@ const (
 	SimplePooling PoolingType = "simple"
 
 	defaultPoolingType = SimplePooling
+
+	defaultBlockAllocSize = 16
 )
 
-const (
-	defaultMaxFinalizerCapacity     = 4
-	defaultBlockAllocSize           = 16
-	defaultThriftBytesPoolAllocSize = 2048
-)
+var defaultThriftBytesPoolAllocSizes = []int{16, 64, 256, 512, 1024, 2048}
 
 type poolPolicyDefault struct {
 	size                pool.Size
@@ -467,14 +465,14 @@ func (p *PoolingPolicy) BlockAllocSizeOrDefault() int {
 	return defaultBlockAllocSize
 }
 
-// ThriftBytesPoolAllocSizeOrDefault returns the configured thrift bytes pool
+// ThriftBytesPoolAllocSizesOrDefault returns the configured thrift bytes pool
 // max alloc size if provided, or a default value otherwise.
-func (p *PoolingPolicy) ThriftBytesPoolAllocSizeOrDefault() int {
+func (p *PoolingPolicy) ThriftBytesPoolAllocSizesOrDefault() []int {
 	if p.ThriftBytesPoolAllocSize != nil {
-		return *p.ThriftBytesPoolAllocSize
+		return []int{*p.ThriftBytesPoolAllocSize}
 	}
 
-	return defaultThriftBytesPoolAllocSize
+	return defaultThriftBytesPoolAllocSizes
 }
 
 // TypeOrDefault returns the configured pooling type if provided, or a default
