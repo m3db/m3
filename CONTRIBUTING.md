@@ -17,3 +17,7 @@ For code changes that affect M3 functionality, or fix bugs, read the [developer 
 ## Reporting a Bug
 
 If you have found a bug in M3, [create an issue](https://github.com/m3db/m3/issues/new) and fill in the details asked for in the issue template as much as possible.
+
+## Documentation
+
+For additions and changes to M3 documentation, read the [documentation guide](DOCUMENTATION.md).
