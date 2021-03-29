@@ -223,7 +223,7 @@ func buildEmptyTestSeriesFn() func(context.Context, string, storage.FetchOptions
 	}
 }
 
-func TestNilBinaryContextShifter(t *testing.T) {
+func TestNilContextShifter(t *testing.T) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
 
