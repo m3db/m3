@@ -47,8 +47,8 @@ logging:
   file: <string>
   # Error logging level
   level: <string>
-  # TODO: ??
-  fields:
+  # Key-value pairs to send to logging
+  fields: <map_of_strings>
 
 # Enables tracing, if nothing configured, tracing is disabled
 tracing:

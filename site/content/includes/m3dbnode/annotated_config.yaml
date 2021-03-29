@@ -33,8 +33,8 @@ db:
     file: <string>
     # Error logging level
     level: <string>
-    # TODO: ??
-    fields:
+    # Key-value pairs to send to logging
+    fields: <map_of_strings>
 
   # Options for emitting metrics
   metrics:
@@ -577,20 +577,48 @@ db:
           hostQueueFlushInterval: <duration>
           targetHostQueueFlushSize: <int>
         service:
-          # TODO: ?
-          env: default_env
+          # Configures the etcd keyspace, valid options: [default_env, user_defined]
+          # default_env is bare metal single node, user-defined matches a kubernetes-namespace/cluster-name pattern
+          env: <string>
           # Availability zone, valid options: [user-defined, embedded]
+          # user-defined should match the availabilty zone for your hosting proider
+          # NOTE: Since V1, not used as much anymore, now more simplified (see rob message)
           zone: <string>
-          # TODO: ??
+          # TODO: ?? Largely replaced, again see somment ConfigurationType
+          # TODO: Now I am not sure if this is actually true… Looking at code and examples…
           service: m3db
           # Directory to store cached etcd data
           cacheDir: <string>
           # Identify the etcd hosts this node should connect to
-          # TODO: Fill this in
           etcdClusters:
-            - zone: embedded
+            # TODO: Confusing, if you use embedded, why do you still need endpoints?
+            # TODO: Embedded vs seed nodes embedded??
+            # NOTE: Using opinionated types (see above) this is not needed
+            # Availability zone, valid options: [user-defined, embedded]
+            # user-defined should match the availabilty zone for your hosting proider
+            - zone: <string>
+              # Member nodes of the etcd cluster, in form url:port
               endpoints:
-                - m3db_seed:2379
+                - <url>
+              # Keep alive header behavior
+              keepAlive:
+                # Enable keep alive
+                enabled: <bool>
+                # Duration of time after which if the client doesn't see any activity the client pings the server to see if transport is alive.
+                period: <duration>
+                # Add jittering to keep alive period to avoid a large number of clients sending keepalive probes at the same time.
+                jitter: <duration>
+                # Time the client waits for a response for the keep alive probe. If the response is not received in this time, the connection is closed.
+                timeout: <duration>
+              # TLS configuration
+              tls:
+                # Certificate path
+                crtPath: <string>
+                # Certificiate authority path
+                caCrtPath: <string>
+                # Key store path
+                keyPath: <string>
+              autoSyncInterval: <duration>    
           # M3 service discovery configuration
           m3sd:
             initTimeout: <duration>
@@ -649,7 +677,6 @@ db:
               # Block size
               blockSize: <duration>
               # Buffer future
-              # TODO: What does this mean?
               bufferFuture: <duration>
               # Buffer past
               bufferPast: <duration>
