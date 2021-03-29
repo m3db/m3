@@ -149,7 +149,7 @@ type funcExpression struct {
 
 // newFuncExpression creates a new expressioon based on the given function call
 func newFuncExpression(call *functionCall) (Expression, error) {
-	if !(call.f.out == seriesListType || call.f.out == unaryContextShifterPtrType || call.f.out == binaryContextShifterPtrType) {
+	if !(call.f.out == seriesListType || call.f.out == unaryContextShifterPtrType) {
 		return nil, errTopLevelFunctionMustReturnTimeSeries
 	}
 
