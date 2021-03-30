@@ -114,7 +114,7 @@ type Size int
 // UnmarshalText unmarshals Size.
 func (s *Size) UnmarshalText(b []byte) error {
 	if string(b) == "dynamic" {
-		*s = _dynamicPoolSize
+		*s = DynamicPoolSize
 		return nil
 	}
 
@@ -134,5 +134,5 @@ func (s *Size) UnmarshalText(b []byte) error {
 
 // IsDynamic returns whether the pool should be fixed size or not.
 func (s Size) IsDynamic() bool {
-	return s == _dynamicPoolSize
+	return s == DynamicPoolSize
 }

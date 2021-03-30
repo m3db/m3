@@ -42,6 +42,7 @@ type TimestampIterator struct {
 	PrevTime      xtime.UnixNano
 	PrevTimeDelta time.Duration
 	PrevAnt       ts.Annotation
+	prevAntBytes  [ts.OptimizedAnnotationLen]byte
 
 	TimeUnit        xtime.Unit
 	defaultTimeUnit xtime.Unit
@@ -335,8 +336,13 @@ func (it *TimestampIterator) readAnnotation(stream *encoding.IStream) error {
 		return errUnexpectedAnnotationLength
 	}
 
-	// TODO(xichen): use pool to allocate the buffer once the pool diff lands.
-	buf := make([]byte, antLen)
+	var buf []byte
+	if antLen <= len(it.prevAntBytes) {
+		buf = it.prevAntBytes[:antLen]
+	} else {
+		buf = make([]byte, antLen)
+	}
+
 	n, err := stream.Read(buf)
 	if err != nil {
 		return err

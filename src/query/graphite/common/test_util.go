@@ -96,23 +96,41 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 	actual []*ts.Series) {
 	require.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		a := actual[i]
-		require.Equal(t, expected[i].Name, a.Name())
-		assert.Equal(t, step, a.MillisPerStep(), a.Name()+": MillisPerStep in expected series do not match MillisPerStep in actual")
-		diff := time.Duration(math.Abs(float64(start.Sub(a.StartTime()))))
-		assert.True(t, diff < time.Millisecond,
-			fmt.Sprintf("%s: StartTime in expected series (%v) does not match StartTime in actual (%v), diff %v",
-				a.Name(), start, a.StartTime(), diff))
+		i := i // To capture for wrapMsg.
 		e := expected[i].Data
-		require.Equal(t, len(e), a.Len(), a.Name()+": length of expected series does not match length of actual")
+		a := actual[i]
+		wrapMsg := func(str string) string {
+			return fmt.Sprintf("%s\nseries=%d\nexpected=%v\nactual=%v",
+				str, i, e, a.SafeValues())
+		}
+		require.Equal(t, expected[i].Name, a.Name())
+		assert.Equal(t, step, a.MillisPerStep(), wrapMsg(a.Name()+
+			": MillisPerStep in expected series do not match MillisPerStep in actual"))
+		diff := time.Duration(math.Abs(float64(start.Sub(a.StartTime()))))
+		assert.True(t, diff < time.Millisecond, wrapMsg(fmt.Sprintf(
+			"%s: StartTime in expected series (%v) does not match StartTime in actual (%v), diff %v",
+			a.Name(), start, a.StartTime(), diff)))
+
+		require.Equal(t, len(e), a.Len(),
+			wrapMsg(a.Name()+
+				": length of expected series does not match length of actual"))
 		for step := 0; step < a.Len(); step++ {
 			v := a.ValueAt(step)
 			if math.IsNaN(e[step]) {
-				assert.True(t, math.IsNaN(v), fmt.Sprintf("%s: invalid value for step %d/%d, should be NaN but is %v", a.Name(), 1+step, a.Len(), v))
+				msg := wrapMsg(fmt.Sprintf(
+					"%s: invalid value for step %d/%d, should be NaN but is %v",
+					a.Name(), 1+step, a.Len(), v))
+				assert.True(t, math.IsNaN(v), msg)
 			} else if math.IsNaN(v) {
-				assert.Fail(t, fmt.Sprintf("%s: invalid value for step %d/%d, should be %v but is NaN ", a.Name(), 1+step, a.Len(), e[step]))
+				msg := wrapMsg(fmt.Sprintf(
+					"%s: invalid value for step %d/%d, should be %v but is NaN ",
+					a.Name(), 1+step, a.Len(), e[step]))
+				assert.Fail(t, msg)
 			} else {
-				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", 1+step, a.Len())
+				msg := wrapMsg(fmt.Sprintf(
+					"%s: invalid value for %d/%d",
+					a.Name(), 1+step, a.Len()))
+				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, msg)
 			}
 		}
 	}
@@ -120,12 +138,18 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 
 // MovingFunctionStorage is a special test construct for all moving functions
 type MovingFunctionStorage struct {
-	StepMillis     int
-	Bootstrap      []float64
-	Values         []float64
-	OriginalIDs    []string
-	BootstrapIDs   []string
-	BootstrapStart time.Time
+	StepMillis      int
+	Bootstrap       []float64
+	Values          []float64
+	OriginalValues  []SeriesNameAndValues
+	BootstrapValues []SeriesNameAndValues
+	BootstrapStart  time.Time
+}
+
+// SeriesNameAndValues is a series name and a set of values.
+type SeriesNameAndValues struct {
+	Name   string
+	Values []float64
 }
 
 // FetchByPath builds a new series from the input path
@@ -152,26 +176,43 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	ids []string,
 	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	var seriesList []*ts.Series
-	if s.Bootstrap != nil || s.Values != nil {
-		var values []float64
-		if opts.StartTime.Equal(s.BootstrapStart) {
-			values = s.Bootstrap
-			if s.BootstrapIDs != nil {
-				ids = s.BootstrapIDs
+	if s.Bootstrap == nil && s.Values == nil && s.OriginalValues == nil && s.BootstrapValues == nil {
+		return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
+	}
+
+	var (
+		seriesList = make([]*ts.Series, 0, len(ids))
+		values     = make([]float64, 0, len(s.Bootstrap)+len(s.Values))
+	)
+	if opts.StartTime.Equal(s.BootstrapStart) {
+		if s.BootstrapValues != nil {
+			for _, elem := range s.BootstrapValues {
+				series := ts.NewSeries(ctx, elem.Name, opts.StartTime,
+					NewTestSeriesValues(ctx, s.StepMillis, elem.Values))
+				seriesList = append(seriesList, series)
 			}
-		} else {
-			values = s.Values
-			if s.OriginalIDs != nil {
-				ids = s.OriginalIDs
-			}
+			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
 		}
 
-		for _, id := range ids {
-			series := ts.NewSeries(ctx, id, opts.StartTime,
-				NewTestSeriesValues(ctx, s.StepMillis, values))
-			seriesList = append(seriesList, series)
+		values = append(values, s.Bootstrap...)
+		values = append(values, s.Values...)
+	} else {
+		if s.OriginalValues != nil {
+			for _, elem := range s.OriginalValues {
+				series := ts.NewSeries(ctx, elem.Name, opts.StartTime,
+					NewTestSeriesValues(ctx, s.StepMillis, elem.Values))
+				seriesList = append(seriesList, series)
+			}
+			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
 		}
+
+		values = append(values, s.Values...)
+	}
+
+	for _, id := range ids {
+		series := ts.NewSeries(ctx, id, opts.StartTime,
+			NewTestSeriesValues(ctx, s.StepMillis, values))
+		seriesList = append(seriesList, series)
 	}
 
 	return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil

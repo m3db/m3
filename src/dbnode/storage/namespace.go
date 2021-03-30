@@ -1766,6 +1766,7 @@ func (n *dbNamespace) aggregateTiles(
 		processedTileCount int64
 		aggregationSuccess bool
 	)
+
 	defer func() {
 		if aggregationSuccess {
 			return
@@ -1776,7 +1777,15 @@ func (n *dbNamespace) aggregateTiles(
 				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
 		}
 	}()
+
 	for _, targetShard := range n.OwnedShards() {
+		if !targetShard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", targetShard.ID())).
+				Debug("skipping aggregateTiles due to shard not bootstrapped")
+			continue
+		}
+
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
 			ctx, sourceNs, n, targetShard.ID(), onColdFlushNs, opts)
 

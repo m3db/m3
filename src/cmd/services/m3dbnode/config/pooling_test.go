@@ -25,12 +25,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPoolingPolicyThriftBytesPoolAllocSizeOrDefault(t *testing.T) {
+func TestPoolingPolicyThriftBytesPoolAllocSizesOrDefault(t *testing.T) {
 	policy := PoolingPolicy{}
-	require.Equal(t, defaultThriftBytesPoolAllocSize,
-		policy.ThriftBytesPoolAllocSizeOrDefault())
+	require.Equal(t, defaultThriftBytesPoolAllocSizes,
+		policy.ThriftBytesPoolAllocSizesOrDefault())
 
-	value := 42
-	policy.ThriftBytesPoolAllocSize = &value
-	require.Equal(t, 42, policy.ThriftBytesPoolAllocSizeOrDefault())
+	values := []int{42}
+	policy.ThriftBytesPoolAllocSize = &values[0]
+	require.Equal(t, values, policy.ThriftBytesPoolAllocSizesOrDefault())
 }
