@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +18,63 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package errors
+package clock
 
 import (
-	"errors"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestInvalidParamsError(t *testing.T) {
-	var (
-		innerErr = errors.New("inner")
-		err      = NewInvalidParamsError(innerErr)
-	)
+func TestPanicOnDefaultClock(t *testing.T) {
+	tests := []struct {
+		value       string
+		shouldPanic bool
+	}{
+		{
+			value:       "<unset>", // environment variable not set
+			shouldPanic: false,
+		},
+		{
+			value:       "",
+			shouldPanic: false,
+		},
+		{
+			value:       "false",
+			shouldPanic: false,
+		},
+		{
+			value:       "0",
+			shouldPanic: false,
+		},
+		{
+			value:       "true",
+			shouldPanic: true,
+		},
+		{
+			value:       "1",
+			shouldPanic: true,
+		},
+	}
 
-	assert.Error(t, err)
-	assert.True(t, IsInvalidParams(err))
-	assert.Equal(t, innerErr, GetInnerInvalidParamsError(err))
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			if tt.value != "<unset>" {
+				require.NoError(t, os.Setenv(panicOnDefaultClockEnvVar, tt.value))
+			}
+			nowFn := NewOptions().NowFn()
+			require.NoError(t, os.Unsetenv(panicOnDefaultClockEnvVar))
+			if tt.shouldPanic {
+				assert.Panics(t, func() {
+					nowFn()
+				})
+			} else {
+				assert.NotPanics(t, func() {
+					nowFn()
+				})
+			}
+		})
+	}
 }

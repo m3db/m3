@@ -3,15 +3,17 @@ title: "etcd"
 weight: 12
 ---
 
-The M3 stack leverages `etcd` as a distributed key-value storage to:
+## Overview
+
+All components within the M3 stack (e.g. M3 Query, M3DB, M3 Aggregator) leverage `etcd` as its distributed key-value storage. See below for examples of how this `etcd` metadata is used: 
 
 1.  Update cluster configuration in realtime
-2.  Manage placements for our distributed / sharded tiers like M3DB and M3Aggregator
+2.  Manage placements for distributed / sharded tiers like M3DB and M3Aggregator
 3.  Perform leader-election in M3Aggregator
+4.  Define placements for nodes within a M3DB cluster
+5.  Define which shards are tied to a given node within a M3DB cluster 
 
-and much more!
-
-## Overview
+## Best practices for operating etcd with M3
 
 `M3DB` ships with support for running embedded `etcd` (called `seed nodes`), and while this is convenient for testing and development, we don't recommend running with this setup in production.
 

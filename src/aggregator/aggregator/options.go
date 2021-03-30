@@ -328,6 +328,12 @@ type Options interface {
 	// This is a temporary option to help with the seamless rollout of changing Add transforms to Reset transforms for
 	// resetting aggregate counters. Once rollup rules have changed to use Reset explicitly, this can be removed.
 	AddToReset() bool
+
+	// TimedMetricsFlushOffsetEnabled returns true if using of FlushOffset for timed metrics is enabled.
+	TimedMetricsFlushOffsetEnabled() bool
+
+	// SetTimedMetricsFlushOffsetEnabled controls using of FlushOffset for timed metrics.
+	SetTimedMetricsFlushOffsetEnabled(bool) Options
 }
 
 type options struct {
@@ -370,6 +376,7 @@ type options struct {
 	gaugeElemPool                    GaugeElemPool
 	verboseErrors                    bool
 	addToReset                       bool
+	timedMetricsFlushOffsetEnabled   bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -379,7 +386,7 @@ type options struct {
 }
 
 // NewOptions create a new set of options.
-func NewOptions() Options {
+func NewOptions(clockOpts clock.Options) Options {
 	aggTypesOptions := aggregation.NewTypesOptions().
 		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
@@ -391,7 +398,7 @@ func NewOptions() Options {
 		timerPrefix:                      defaultTimerPrefix,
 		gaugePrefix:                      defaultGaugePrefix,
 		timeLock:                         &sync.RWMutex{},
-		clockOpts:                        clock.NewOptions(),
+		clockOpts:                        clockOpts,
 		instrumentOpts:                   instrument.NewOptions(),
 		streamOpts:                       cm.NewOptions(),
 		runtimeOptsManager:               runtime.NewOptionsManager(runtime.NewOptions()),
@@ -875,6 +882,16 @@ func (o *options) AddToReset() bool {
 func (o *options) SetAddToReset(value bool) Options {
 	opts := *o
 	opts.addToReset = value
+	return &opts
+}
+
+func (o *options) TimedMetricsFlushOffsetEnabled() bool {
+	return o.timedMetricsFlushOffsetEnabled
+}
+
+func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
+	opts := *o
+	opts.timedMetricsFlushOffsetEnabled = value
 	return &opts
 }
 

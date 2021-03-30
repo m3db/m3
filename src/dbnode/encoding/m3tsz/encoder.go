@@ -41,8 +41,9 @@ var (
 
 // encoder is an M3TSZ encoder that can encode a stream of data in M3TSZ format.
 type encoder struct {
-	os   encoding.OStream
-	opts encoding.Options
+	os                   encoding.OStream
+	opts                 encoding.Options
+	markerEncodingScheme *encoding.MarkerEncodingScheme
 
 	// internal bookkeeping
 	tsEncoderState TimestampEncoder
@@ -75,11 +76,12 @@ func NewEncoder(
 	// `Reset` method is called.
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	return &encoder{
-		os:             encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool()),
-		opts:           opts,
-		tsEncoderState: NewTimestampEncoder(start, opts.DefaultTimeUnit(), opts),
-		closed:         false,
-		intOptimized:   intOptimized,
+		os:                   encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool()),
+		opts:                 opts,
+		markerEncodingScheme: opts.MarkerEncodingScheme(),
+		tsEncoderState:       NewTimestampEncoder(start, opts.DefaultTimeUnit(), opts),
+		closed:               false,
+		intOptimized:         intOptimized,
 	}
 }
 
@@ -334,7 +336,7 @@ func (enc *encoder) Len() int {
 	var (
 		lastIdx  = len(raw) - 1
 		lastByte = raw[lastIdx]
-		scheme   = enc.opts.MarkerEncodingScheme()
+		scheme   = enc.markerEncodingScheme
 		tail     = scheme.Tail(lastByte, pos)
 	)
 	tail.IncRef()
@@ -406,7 +408,7 @@ func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	ctx.RegisterCloser(buffer.DelayFinalizer())
 
 	// Take a shared ref to a known good tail.
-	scheme := enc.opts.MarkerEncodingScheme()
+	scheme := enc.markerEncodingScheme
 	tail := scheme.Tail(lastByte, pos)
 
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
@@ -434,7 +436,7 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	head.DecRef()
 
 	// Take a shared ref to a known good tail.
-	scheme := enc.opts.MarkerEncodingScheme()
+	scheme := enc.markerEncodingScheme
 	tail := scheme.Tail(lastByte, pos)
 
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
