@@ -39,10 +39,10 @@ func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 
-	database.EXPECT().IsBootstrapped().Return(false)
+	database.EXPECT().IsBootstrappedAndDurable().Return(false)
 	require.False(t, mgr.shouldRunWithLock())
 
-	database.EXPECT().IsBootstrapped().Return(true)
+	database.EXPECT().IsBootstrappedAndDurable().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
 }
 
@@ -52,7 +52,7 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
-	database.EXPECT().IsBootstrapped().Return(true)
+	database.EXPECT().IsBootstrappedAndDurable().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
 	mgr.status = fileOpInProgress
 	require.False(t, mgr.shouldRunWithLock())
@@ -64,7 +64,7 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
-	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	database.EXPECT().IsBootstrappedAndDurable().Return(true).AnyTimes()
 	require.True(t, mgr.shouldRunWithLock())
 	require.NotEqual(t, fileOpInProgress, mgr.Disable())
 	require.False(t, mgr.shouldRunWithLock())
@@ -76,7 +76,7 @@ func TestFileSystemManagerRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
-	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	database.EXPECT().IsBootstrappedAndDurable().Return(true).AnyTimes()
 
 	fm := NewMockdatabaseFlushManager(ctrl)
 	cm := NewMockdatabaseCleanupManager(ctrl)

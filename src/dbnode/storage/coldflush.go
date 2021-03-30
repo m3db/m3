@@ -106,7 +106,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	// and not caught in CI or integration tests.
 	// When an invariant occurs in CI tests it panics so as to fail
 	// the build.
-	if err := m.ColdFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
+	if err := m.ColdFlushCleanup(t, m.database.IsBootstrappedAndDurable()); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
 				l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
@@ -195,7 +195,7 @@ func (m *coldFlushManager) Report() {
 }
 
 func (m *coldFlushManager) shouldRunWithLock() bool {
-	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
+	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrappedAndDurable()
 }
 
 type coldFlushNsOpts struct {
