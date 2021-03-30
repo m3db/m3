@@ -62,10 +62,6 @@ tracing:
   lightstep:
 
 clusters:
-  - namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 48h
     client:
       config:
         service:
@@ -74,18 +70,13 @@ clusters:
           env: <string>
           # Availability zone, valid options: [user-defined, embedded]
           # user-defined should match the availabilty zone for your hosting proider
-          # NOTE: Since V1, not used as much anymore, now more simplified (see rob message)
           zone: <string>
-          # TODO: ?? Largely replaced, again see somment ConfigurationType
-          # TODO: Now I am not sure if this is actually true… Looking at code and examples…
-          service: m3db
+          # Service name
+          service: <string>
           # Directory to store cached etcd data
           cacheDir: <string>
           # Identify the etcd hosts this node should connect to
           etcdClusters:
-            # TODO: Confusing, if you use embedded, why do you still need endpoints?
-            # TODO: Embedded vs seed nodes embedded??
-            # NOTE: Using opinionated types (see above) this is not needed
             # Availability zone, valid options: [user-defined, embedded]
             # user-defined should match the availabilty zone for your hosting proider
             - zone: <string>
@@ -212,20 +203,18 @@ local:
 clusterManagement:
   # etcd client configuration
   etcd:
-    # TODO: As above, I am still confused here…
-    # Name for the environment
+    # Configures the etcd keyspace, valid options: [default_env, user_defined]
+    # default_env is bare metal single node, user-defined matches a kubernetes-namespace/cluster-name pattern
     env: <string>
     # Availability zone, valid options: [user-defined, embedded]
     # user-defined should match the availabilty zone for your hosting proider
     zone: <string>
-    # TODO: ??
-    service: m3db
+    # Service name
+    service: <string>
     # Directory to store cached etcd data
     cacheDir: <string>
     # Identify the etcd hosts this node should connect to
     etcdClusters:
-      # TODO: Confusing, if you use embedded, why do you still need endpoints?
-      # TODO: Embedded vs seed nodes embedded??
       # Availability zone, valid options: [user-defined, embedded]
       # user-defined should match the availabilty zone for your hosting proider
       - zone: <string>
@@ -423,249 +412,6 @@ downsample:
         resolution: <duration>
       # Name for the rollup rule
       name: <string>
-  # Downsample remotely by sending values to a remote m3aggregator cluster which forwards the aggregated values to stateless m3coordinator backends
-  remoteAggregator:
-    # TODO: Rob mentioned removing things here, but they are shown in coord downsample options
-    # TODO: Or is it that it's very complex?
-    # Remote aggregator client
-    client:
-      # The aggregator client type, valid options: [legacy, m3msg, tcp]
-      type: <string>
-      # Required configuration if using the m3msg client type
-      m3msg:
-        producer:
-          # Buffer configuration for m3msg client type
-          buffer:
-            # The buffer behavior when the buffer is full, valid options: [returnError, dropOldest]
-            # returnError means an error is returned
-            # dropOldest means the oldest message in the buffer is dropped
-            onFullStrategy:
-            # Maximum duration data are buffered without getting flushed or discarded
-            maxBufferSize: <duration>
-            # Maximum message size
-            # Max is 50MB
-            maxMessageSize: <int>
-            # Interval to check for connection closed
-            closeCheckInterval: <duration>
-            # The interval to drop oldest buffer
-            dropOldestInterval: <duration>
-            # Scan batch size
-            scanBatchSize: <int>
-            # Ratio for allowed buffer spill over below which the buffer drops oldest messages asynchronizely for better performance. When the limit for allowed spill over is reached the buffer will start to drop oldest messages synchronizely.
-            allowedSpilloverRatio: <float>
-            #  Cleanup retry configuration
-            cleanupRetry:
-              initialBackoff: <duration>
-              # Factor for exponential backoff
-              backoffFactor: <float>
-              # Maximum backoff time
-              maxBackoff: <duration>
-              # Maximum retry attempts
-              maxRetries: <int>
-              # Retry connection forever until the attempt succeeds, or the retry condition becomes false
-              forever: <bool>    
-              # Add randomness to wait intervals
-              jitter: <bool>
-          # Writer configuration for m3msg client type
-          writer:
-            topicName: <string>
-            topicServiceOverride:
-            topicWatchInitTimeout: <duration>
-            # Placement options
-            placement:
-              allowPartialReplace: <bool>
-              allowAllZones: <bool>
-              addAllCandidates: <bool>
-              isSharded: <bool>
-              # The mode to manage shard state in the placement, valid options: [stable, includetransitional]
-              shardStateMode: <string>
-              # Mirror shard distribution to support master/slave model.
-              isMirrored: <bool>
-              # Should placement keep all snapshots
-              isStaged: <bool>
-              # zone that added instances must be in to be added to a placement
-              validZone: <string>
-            # Override configuration for namespace options
-            placementServiceOverride:
-              namespaces:
-                placement: <string>
-                metadata: <string>
-            placementWatchInitTimeout: <duration>
-            messagePool:
-              size: <int>
-              # Pool watermark configuration
-              watermark:
-                # The low watermark to start refilling the pool
-                # min=0.0, max=1.0
-                low: <float>
-                # The high watermark to start refilling the pool
-                # min=0.0, max=1.0
-                high: <float>
-            # Message retry configuration
-            messageRetry:
-              initialBackoff: <duration>
-              # Factor for exponential backoff
-              backoffFactor: <float>
-              # Maximum backoff time
-              maxBackoff: <duration>
-              # Maximum retry attempts
-              maxRetries: <int>
-              # Retry connection forever until the attempt succeeds, or the retry condition becomes false
-              forever: <bool> 
-              # Add randomness to wait intervals
-              jitter: <bool>
-            messageQueueNewWritesScanInterval: <duration>
-            messageQueueFullScanInterval: <int>
-            messageQueueScanBatchSize: <int>
-            initialAckMapSize: <int>
-            closeCheckInterval: <duration>
-            # Acknowledging error retry configuration
-            ackErrorRetry:
-              initialBackoff: <duration>
-              # Factor for exponential backoff
-              backoffFactor: <float>
-              # Maximum backoff time
-              maxBackoff: <duration>
-              # Maximum retry attempts
-              maxRetries: <int>
-              # Retry connection forever until the attempt succeeds, or the retry condition becomes false
-              forever: <bool>   
-              # Add randomness to wait intervals
-              jitter: <bool>            
-            encoder:
-              maxMessageSize: <int>
-              # Bucketized pool configuration
-              bytesPool:
-                # Configuration for buckets in a pool
-                buckets:
-                  # Number of items in the bucket
-                  count: <int>
-                  # Capacity of each item in the bucket
-                  capacity: <int>
-                watermark:
-                  # The low watermark to start refilling the pool
-                  # min=0.0, max=1.0
-                  low: <float>
-                  # The high watermark to start refilling the pool
-                  # min=0.0, max=1.0
-                  high: <float>
-            decoder:
-              maxMessageSize: <int>
-              # Bucketized pool configuration
-              bytesPool:
-                # Configuration for buckets in a pool
-                buckets:
-                  # Number of items in the bucket
-                  count: <int>
-                  # Capacity of each item in the bucket
-                  capacity: <int>
-                watermark:
-                  # The low watermark to start refilling the pool
-                  # min=0.0, max=1.0
-                  low: <float>
-                  # The high watermark to start refilling the pool
-                  # min=0.0, max=1.0
-                  high: <float>
-            # Connection options
-            connection:
-              numConnections: <int>
-              dialTimeout: <duration>
-              writeTimeout: <duration>
-              keepAlivePeriod: <duration>
-              resetDelay: <duration>
-              retry:
-                initialBackoff: <duration>
-                # Factor for exponential backoff
-                backoffFactor: <float>
-                # Maximum backoff time
-                maxBackoff: <duration>
-                # Maximum retry attempts
-                maxRetries: <int>
-                # Retry connection forever until the attempt succeeds, or the retry condition becomes false
-                forever: <bool>
-                # Add randomness to wait intervals
-                jitter: <bool>                 
-              flushInterval: <duration>
-              writeBufferSize: <int>
-              readBufferSize: <int>
-      # Override values for placement
-      # NOTE: Only really used by aggregator, and needs more manual config
-      # NOTE: Potentially look at droid cli that can generate configs to see (message from Rob)
-      placementKV:
-        zone: <string>
-        environment: <string>
-        namespace: <string>
-      # Placement watcher configuration
-      placementWatcher:
-        # Placement key
-        key: <string>
-        # Initial watch timeout
-        initWatchTimeout: <duration>
-      # Hashing type, valid options: [murmu32, zero] 
-      hashType: <string>
-      shardCutoverWarmupDuration: <duration>
-      shardCutoffLingerDuration: <duration>
-      # Encoder configuration
-      encoder:
-        # Initial buffer size
-        initBufferSize: <int>
-        maxMessageSize: <int>
-        # Bucketized pool configuration
-        bytesPool:
-          # Configuration for buckets in a pool
-          buckets:
-            # Number of items in the bucket
-            count: <int>
-            # Capacity of each item in the bucket
-            capacity: <int>
-          watermark:
-            # The low watermark to start refilling the pool
-            # min=0.0, max=1.0
-            low: <float>
-            # The high watermark to start refilling the pool
-            # min=0.0, max=1.0
-            high: <float>
-      # Buffer size to trigger a flush
-      flushSize: <int>
-      # The maximum buffer size that triggers a queue drain
-      maxBatchSize: <int>
-      # The maximum timer batch size
-      maxTimerBatchSize: <int>
-      # The deadline that triggers a write of queued buffers
-      batchFlushDeadline: <duration>
-      # Queue size
-      queueSize: <int>
-      # The strategy for which metrics should be dropped when the queue is full, valid options: [oldest, current]
-      # Default = oldest
-      queueDropType: <string>
-      # Connection configuration
-      connection:
-        # Timeout for establishing a connection
-        connectionTimeout: <duration>
-        # Set a keep-alive http header on the connection
-        connectionKeepAlive: <bool>
-        # Timeout for writing data
-        writeTimeout: <duration>
-        # Initial threshold for re-establshing connections
-        initReconnectThreshold: <int>
-        # Max threshold for re-establishing connections
-        maxReconnectThreshold: <int>
-        # Threshold multiplier
-        reconnectThresholdMultiplier: <int>
-        # Max duration between attempts to re-establish connections
-        maxReconnectDuration: <duration>
-        writeRetries:
-          initialBackoff: <duration>
-          # Factor for exponential backoff
-          backoffFactor: <float>
-          # Maximum backoff time
-          maxBackoff: <duration>
-          # Maximum retry attempts
-          maxRetries: <int>
-          # Retry connection forever until the attempt succeeds, or the retry condition becomes false
-          forever: <bool>
-          # Add randomness to wait intervals
-          jitter: <bool>                        
   # Pool of counter elements
   counterElemPool:
     # Size of the pool
