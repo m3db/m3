@@ -5,7 +5,7 @@ weight: 7
 
 ## Overview
 
-Blocks that are still being actively compressed / M3TSZ encoded must be kept in memory until they are sealed and flushed to disk. Blocks that have already been sealed, however, don't need to remain in-memory. In order to support efficient reads, M3DB implements various caching policies which determine which flushed blocks are kept in memory, and which are not. The "cache" itself is not a separate datastructure in memory, cached blocks are simply stored in their respective [in-memory objects](/docs/components/m3db/architecture/engine#in-memory-object-layout) with various different mechanisms (depending on the chosen cache policy) determining which series / blocks are evicted and which are retained.
+Blocks that are still being actively compressed / M3TSZ encoded must be kept in memory until they are sealed and flushed to disk. Blocks that have already been sealed, however, don't need to remain in-memory. In order to support efficient reads, M3DB implements various caching policies which determine which flushed blocks are kept in memory, and which are not. The "cache" itself is not a separate datastructure in memory, cached blocks are simply stored in their respective [in-memory objects](/docs/reference/m3db/architecture/engine#in-memory-object-layout) with various different mechanisms (depending on the chosen cache policy) determining which series / blocks are evicted and which are retained.
 
 For general purpose workloads, the `lru` caching policy is reccommended.
 
@@ -21,7 +21,7 @@ The `all` cache policy is the opposite of the `none` cache policy. All blocks ar
 
 The `recently_read` cache policy keeps all blocks that are read from disk in memory for a configurable duration of time. For example, if the `recently_read` cache policy is set with a duration of 10 minutes, then everytime a block is read from disk it will be kept in memory for at least 10 minutes. This policy can be very effective if only a small portion of your overall dataset is ever read, and especially if that subset is read frequently (i.e as is common in the case of database backing an automatic alerting system), but it can cause very high memory usage during workloads that involve sequentially scanning all of the data.
 
-Data eviction from memory is triggered by the "ticking" process described in the [background processes section](/docs/components/m3db/architecture/engine#background-processes)
+Data eviction from memory is triggered by the "ticking" process described in the [background processes section](/docs/reference/m3db/architecture/engine#background-processes)
 
 ## Least Recently Used (LRU) Cache Policy
 

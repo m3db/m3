@@ -1,4 +1,4 @@
 ---
-title: Components
+title: Reference
 weight: 20
 ---

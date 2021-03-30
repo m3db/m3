@@ -26,7 +26,7 @@
 
 [[redirects]]
   from = "/docs/architecture/*"
-  to = "/docs/components/:splat"
+  to = "/docs/reference/:splat"
 
 [[redirects]]
   from = "https://docs.m3db.io/*"

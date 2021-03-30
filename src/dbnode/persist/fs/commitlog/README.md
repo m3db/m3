@@ -71,4 +71,4 @@ The commitlog package is tested via:
 
 # File Format
 
-See `/docs/components/m3db/architecture/commitlogs.md`.
+See `/docs/reference/m3db/architecture/commitlogs.md`.
