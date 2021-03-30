@@ -796,13 +796,17 @@ func effectiveXFF(windowPoints, nans int, xFilesFactor float64) bool {
 	return float64(windowPoints-nans)/float64(windowPoints) >= xFilesFactor
 }
 
-// windowSizeFunc calculates window size for moving average calculation
-type windowSizeFunc func(stepSize int) int
-
+// nolint: lll
 type windowSizeParsed struct {
-	deltaValue     time.Duration
-	stringValue    string
-	windowSizeFunc windowSizeFunc
+	deltaValue  time.Duration
+	stringValue string
+	// exponentialMovingAverageConstant is the exponential moving average
+	// constant used by exponentialMovingAvarage which differs by how
+	// the window size was specified (whether string or number for multiplying
+	// max resolution/step of all the series).
+	// See:
+	// https://github.com/graphite-project/graphite-web/blob/f1acda6590627dabccf877ed309f28b7a7263374/webapp/graphite/render/functions.py#L1370-L1376
+	exponentialMovingAverageConstant float64
 }
 
 func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (windowSizeParsed, error) {
@@ -820,11 +824,9 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 				interval))
 			return windowSize, err
 		}
-		windowSize.windowSizeFunc = func(stepSize int) int {
-			return int(int64(windowSize.deltaValue/time.Millisecond) / int64(stepSize))
-		}
 		windowSize.stringValue = fmt.Sprintf("%q", windowSizeValue)
 		windowSize.deltaValue = interval
+		windowSize.exponentialMovingAverageConstant = 2.0 / (1.0 + float64(int(interval/time.Second)))
 	case float64:
 		if len(input.Values) == 0 {
 			err := xerrors.NewInvalidParamsError(fmt.Errorf(
@@ -840,13 +842,13 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 				windowSizeInt))
 			return windowSize, err
 		}
-		windowSize.windowSizeFunc = func(_ int) int { return windowSizeInt }
 		windowSize.stringValue = fmt.Sprintf("%d", windowSizeInt)
 		maxStepSize := input.Values[0].MillisPerStep()
 		for i := 1; i < len(input.Values); i++ {
 			maxStepSize = int(math.Max(float64(maxStepSize), float64(input.Values[i].MillisPerStep())))
 		}
 		windowSize.deltaValue = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
+		windowSize.exponentialMovingAverageConstant = 2.0 / (1.0 + float64(windowSizeInt))
 	default:
 		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"windowSize must be either a string or an int but instead is a %T",
@@ -886,8 +888,9 @@ func newExponentialMovingAverageImpl() *exponentialMovingAverageImpl {
 
 func (impl *exponentialMovingAverageImpl) Reset(opts movingImplResetOptions) error {
 	impl.curr = opts
-	// EMA constant is based on window size seconds, not window points.
-	impl.emaConstant = 2.0 / (float64(impl.curr.WindowSize/time.Second) + 1.0)
+	// EMA constant is based on window size seconds or num steps, see
+	// parseWindowSize and returned type windowSizeParsed for more details.
+	impl.emaConstant = opts.WindowSize.exponentialMovingAverageConstant
 
 	firstWindow, err := impl.curr.Series.Slice(0, impl.curr.WindowPoints)
 	if err != nil {
@@ -2124,7 +2127,7 @@ type movingImpl interface {
 type movingImplResetOptions struct {
 	Series       *ts.Series
 	WindowPoints int
-	WindowSize   time.Duration
+	WindowSize   windowSizeParsed
 }
 
 // Ensure movingImplementationFn implements movingImpl.
@@ -2261,7 +2264,7 @@ func newMovingBinaryTransform(
 				if err := impl.Reset(movingImplResetOptions{
 					Series:       series,
 					WindowPoints: currWindowPoints,
-					WindowSize:   interval,
+					WindowSize:   windowSize,
 				}); err != nil {
 					return ts.SeriesList{}, err
 				}
