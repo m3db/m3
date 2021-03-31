@@ -103,6 +103,7 @@ func toPromConcurrently(
 		mu       sync.Mutex
 	)
 
+	fastWorkerPool := readWorkerPool.Fast(100)
 	for i := 0; i < count; i++ {
 		i := i
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
@@ -111,7 +112,7 @@ func toPromConcurrently(
 		}
 
 		wg.Add(1)
-		readWorkerPool.GoWithContext(ctx, func() {
+		available := fastWorkerPool.GoWithContext(ctx, func() {
 			defer wg.Done()
 			series, err := iteratorToPromResult(iter, tags, tagOptions)
 			if err != nil {
@@ -122,6 +123,13 @@ func toPromConcurrently(
 
 			seriesList[i] = series
 		})
+		if !available {
+			wg.Done()
+			mu.Lock()
+			multiErr = multiErr.Add(ctx.Err())
+			mu.Unlock()
+			break
+		}
 	}
 
 	wg.Wait()

@@ -134,3 +134,7 @@ func (p *workerPool) GoWithContext(ctx context.Context, work Work) ScheduleResul
 		return ScheduleResult{Available: false, WaitTime: time.Since(start)}
 	}
 }
+
+func (p *workerPool) Fast(batchSize int) WorkerPool {
+	return &fastWorkerPool{workerPool: p, batchSize: batchSize}
+}

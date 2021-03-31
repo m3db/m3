@@ -113,6 +113,25 @@ func testExpandPromSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
 	}
 }
 
+func TestContextCanceled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+
+	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, 1, 2)
+	fetchResult := fr(t, iters, makeTag("foo", "bar", 1)...)
+	_, err = SeriesIteratorsToPromResult(ctx, fetchResult, pool, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "context canceled")
+
+}
+
 func TestExpandPromSeriesNilPools(t *testing.T) {
 	testExpandPromSeries(t, false, nil)
 	testExpandPromSeries(t, true, nil)

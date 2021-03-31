@@ -70,6 +70,13 @@ type PooledWorkerPool interface {
 	// GoWithContext waits until a worker is available or the provided ctx is
 	// canceled.
 	GoWithContext(ctx gocontext.Context, work Work) bool
+
+	// Fast returns a wrapper worker pool that only checks the context deadline every batchSize calls.
+	// This is useful for tight looping code that wants to amortize the cost of the ctx deadline check over batchSize
+	// iterations.
+	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
+	// checked the calling goroutine blocks waiting for a worker.
+	Fast(batchSize int) PooledWorkerPool
 }
 
 // NewPooledWorkerOptions is a set of new instrument worker pool options.
@@ -105,6 +112,13 @@ type WorkerPool interface {
 
 	// GoWithContext waits until a worker is available or the provided ctx is canceled.
 	GoWithContext(ctx context.Context, work Work) ScheduleResult
+
+	// Fast returns a wrapper worker pool that only checks the context deadline every batchSize calls.
+	// This is useful for tight looping code that wants to amortize the cost of the ctx deadline check over batchSize
+	// iterations.
+	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
+	// checked the calling goroutine blocks waiting for a worker.
+	Fast(batchSize int) WorkerPool
 }
 
 // ScheduleResult is the result of scheduling a goroutine in the worker pool.

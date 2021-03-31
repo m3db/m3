@@ -99,6 +99,10 @@ func (p *pooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
 	return p.work(maybeContext{ctx: ctx}, work, 0)
 }
 
+func (p *pooledWorkerPool) Fast(batchSize int) PooledWorkerPool {
+	return &fastPooledWorkerPool{workerPool: p, batchSize: batchSize}
+}
+
 // maybeContext works around the linter about optionally
 // passing the context for scenarios where we don't want to use
 // context in the APIs.
