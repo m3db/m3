@@ -26,15 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
 )
 
 func TestConnectionConfiguration(t *testing.T) {
@@ -131,12 +131,12 @@ decoder:
 	require.Equal(t, xio.SnappyCompression, wOpts.ConnectionOptions().Compression())
 
 	decoderWriteFnExpected := xio.SnappyResettableWriterFn()
-	decoderWriteFnActual := wOpts.DecoderOptions().RWOptions().ResettableWriterFn()
+	decoderWriteFnActual := wOpts.EncoderOptions().RWOptions().ResettableWriterFn()
 	decoderWriteFnExpectedName := runtime.FuncForPC(reflect.ValueOf(decoderWriteFnExpected).Pointer()).Name()
 	decoderWriteFnActualName := runtime.FuncForPC(reflect.ValueOf(decoderWriteFnActual).Pointer()).Name()
 	require.Equal(t, decoderWriteFnExpectedName, decoderWriteFnActualName)
 
-	decoderReadFnExpected := xio.SnappyResettableReaderFn()
+	decoderReadFnExpected := xio.NewOptions().ResettableReaderFn()
 	decoderReadFnActual := wOpts.DecoderOptions().RWOptions().ResettableReaderFn()
 	decoderReadFnExpectedName := runtime.FuncForPC(reflect.ValueOf(decoderReadFnExpected).Pointer()).Name()
 	decoderReadFnActualName := runtime.FuncForPC(reflect.ValueOf(decoderReadFnActual).Pointer()).Name()
@@ -148,7 +148,7 @@ decoder:
 	encoderWriteFnActualName := runtime.FuncForPC(reflect.ValueOf(encoderWriteFnActual).Pointer()).Name()
 	require.Equal(t, encoderWriteFnExpectedName, encoderWriteFnActualName)
 
-	encoderReadFnExpected := xio.SnappyResettableReaderFn()
+	encoderReadFnExpected := xio.NewOptions().ResettableReaderFn()
 	encoderReadFnActual := wOpts.EncoderOptions().RWOptions().ResettableReaderFn()
 	encoderReadFnExpectedName := runtime.FuncForPC(reflect.ValueOf(encoderReadFnExpected).Pointer()).Name()
 	encoderReadFnActualName := runtime.FuncForPC(reflect.ValueOf(encoderReadFnActual).Pointer()).Name()

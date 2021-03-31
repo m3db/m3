@@ -63,7 +63,8 @@ func TestServerWithMessageFn(t *testing.T) {
 		require.NoError(t, err)
 
 		s := server.NewServer("a", NewMessageHandler(p, opts), server.NewOptions())
-		s.Serve(l)
+		err = s.Serve(l)
+		require.NoError(t, err)
 
 		conn, err := net.Dial("tcp", l.Addr().String())
 		require.NoError(t, err)
@@ -125,7 +126,8 @@ func TestServerWithConsumeFn(t *testing.T) {
 		opts = opts.SetAckBufferSize(100)
 		s := server.NewServer("a", NewConsumerHandler(consumeFn, opts), server.NewOptions())
 		require.NoError(t, err)
-		s.Serve(l)
+		err = s.Serve(l)
+		require.NoError(t, err)
 
 		conn, err := net.Dial("tcp", l.Addr().String())
 		require.NoError(t, err)

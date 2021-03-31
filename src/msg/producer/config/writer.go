@@ -183,7 +183,6 @@ func (c *WriterConfiguration) NewOptions(
 	// Enable compression
 	if opts.ConnectionOptions().Compression() == xio.SnappyCompression {
 		rwOptions = rwOptions.
-			SetResettableReaderFn(xio.SnappyResettableReaderFn()).
 			SetResettableWriterFn(xio.SnappyResettableWriterFn())
 	}
 

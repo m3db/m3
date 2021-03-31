@@ -391,7 +391,7 @@ func TestListenerMultipleConnection(t *testing.T) {
 func testProduceAndReceiveAck(t *testing.T, testMsg msgpb.Message, l Listener, opts Options) {
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	produce(conn, &testMsg, opts)
+	err = produce(conn, &testMsg, opts)
 	require.NoError(t, err)
 
 	c, err := l.Accept()
@@ -447,6 +447,9 @@ func produce(w io.Writer, m proto.Marshaler, opts Options) error {
 	writerOpts := xio.ResettableWriterOptions{WriteBufferSize: opts.ConnectionWriteBufferSize()}
 	writerFn := opts.EncoderOptions().RWOptions().ResettableWriterFn()(w, writerOpts)
 	_, err = writerFn.Write(encoder.Bytes())
+	if err != nil {
+		return err
+	}
 	err = writerFn.Flush()
 	return err
 }

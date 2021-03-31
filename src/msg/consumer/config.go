@@ -103,8 +103,7 @@ func (c *Configuration) NewOptions(iOpts instrument.Options, rwOpts xio.Options)
 	opts = opts.SetCompression(c.Compression)
 	if opts.Compression() == xio.SnappyCompression {
 		rwOpts = rwOpts.
-			SetResettableReaderFn(xio.SnappyResettableReaderFn()).
-			SetResettableWriterFn(xio.SnappyResettableWriterFn())
+			SetResettableReaderFn(xio.SnappyResettableReaderFn())
 	}
 
 	opts = opts.

@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
-
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -71,7 +70,7 @@ decoder:
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
 	require.Equal(t, xio.SnappyCompression, opts.Compression())
 
-	decoderWriteFnExpected := xio.SnappyResettableWriterFn()
+	decoderWriteFnExpected := xio.NewOptions().ResettableWriterFn()
 	decoderWriteFnActual := opts.DecoderOptions().RWOptions().ResettableWriterFn()
 	decoderWriteFnExpectedName := runtime.FuncForPC(reflect.ValueOf(decoderWriteFnExpected).Pointer()).Name()
 	decoderWriteFnActualName := runtime.FuncForPC(reflect.ValueOf(decoderWriteFnActual).Pointer()).Name()
@@ -83,7 +82,7 @@ decoder:
 	decoderReadFnActualName := runtime.FuncForPC(reflect.ValueOf(decoderReadFnActual).Pointer()).Name()
 	require.Equal(t, decoderReadFnExpectedName, decoderReadFnActualName)
 
-	encoderWriteFnExpected := xio.SnappyResettableWriterFn()
+	encoderWriteFnExpected := xio.NewOptions().ResettableWriterFn()
 	encoderWriteFnActual := opts.EncoderOptions().RWOptions().ResettableWriterFn()
 	encoderWriteFnExpectedName := runtime.FuncForPC(reflect.ValueOf(encoderWriteFnExpected).Pointer()).Name()
 	encoderWriteFnActualName := runtime.FuncForPC(reflect.ValueOf(encoderWriteFnActual).Pointer()).Name()

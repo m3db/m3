@@ -63,7 +63,9 @@ func TestNewConsumerWriter(t *testing.T) {
 	for _, opts := range testOpts {
 		lis, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer lis.Close()
+		defer func() {
+			_ = lis.Close()
+		}()
 
 		ctrl := xtest.NewController(t)
 		defer ctrl.Finish()
