@@ -78,7 +78,7 @@ func verifyExpandPromSeries(
 	fetchResult.Metadata = block.ResultMetadata{
 		Exhaustive: ex,
 		LocalOnly:  true,
-		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 	}
 
 	results, err := SeriesIteratorsToPromResult(context.Background(), fetchResult, pools, nil)
@@ -92,7 +92,7 @@ func verifyExpandPromSeries(
 	require.Equal(t, "foo_bar", results.Metadata.Warnings[0].Header())
 	require.Equal(t, len(ts), num)
 	expectedTags := []prompb.Label{
-		prompb.Label{
+		{
 			Name:  []byte("foo"),
 			Value: []byte("bar"),
 		},
@@ -129,7 +129,6 @@ func TestContextCanceled(t *testing.T) {
 	_, err = SeriesIteratorsToPromResult(ctx, fetchResult, pool, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context canceled")
-
 }
 
 func TestExpandPromSeriesNilPools(t *testing.T) {
@@ -185,7 +184,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 	result := FetchResultToPromResult(r, false)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -198,11 +197,11 @@ func TestIteratorsToPromResult(t *testing.T) {
 	result = FetchResultToPromResult(r, true)
 	expected = &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
 				Samples: []prompb.Sample{},
 			},
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -216,7 +215,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 type overwrite func()
 
 func setupTags(name, value string) (ident.Tags, overwrite) {
-	var buckets = []pool.Bucket{{Capacity: 100, Count: 2}}
+	buckets := []pool.Bucket{{Capacity: 100, Count: 2}}
 	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
 		func(sizes []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(sizes, nil)

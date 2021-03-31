@@ -146,7 +146,7 @@ func TestFast(t *testing.T) {
 	wp := NewWorkerPool(1)
 	wp.Init()
 
-	fast := wp.Fast(3)
+	fast := wp.FastContextCheck(3)
 
 	goctx, cancel := stdctx.WithCancel(stdctx.Background())
 	cancel()

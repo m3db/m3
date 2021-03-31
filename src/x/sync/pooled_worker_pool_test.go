@@ -234,7 +234,7 @@ func TestPooledWorkerFast(t *testing.T) {
 	require.NoError(t, err)
 	wp.Init()
 
-	fast := wp.Fast(3)
+	fast := wp.FastContextCheck(3)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

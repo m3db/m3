@@ -99,7 +99,7 @@ func (p *pooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
 	return p.work(maybeContext{ctx: ctx}, work, 0)
 }
 
-func (p *pooledWorkerPool) Fast(batchSize int) PooledWorkerPool {
+func (p *pooledWorkerPool) FastContextCheck(batchSize int) PooledWorkerPool {
 	return &fastPooledWorkerPool{workerPool: p, batchSize: batchSize}
 }
 

@@ -103,7 +103,7 @@ func toPromConcurrently(
 		mu       sync.Mutex
 	)
 
-	fastWorkerPool := readWorkerPool.Fast(100)
+	fastWorkerPool := readWorkerPool.FastContextCheck(100)
 	for i := 0; i < count; i++ {
 		i := i
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)

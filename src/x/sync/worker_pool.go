@@ -135,6 +135,6 @@ func (p *workerPool) GoWithContext(ctx context.Context, work Work) ScheduleResul
 	}
 }
 
-func (p *workerPool) Fast(batchSize int) WorkerPool {
+func (p *workerPool) FastContextCheck(batchSize int) WorkerPool {
 	return &fastWorkerPool{workerPool: p, batchSize: batchSize}
 }
