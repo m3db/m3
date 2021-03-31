@@ -141,3 +141,20 @@ func TestGoWithContext(t *testing.T) {
 	result = wp.GoWithContext(ctx, func() {})
 	require.False(t, result.Available)
 }
+
+func TestFast(t *testing.T) {
+	wp := NewWorkerPool(1)
+	wp.Init()
+
+	fast := wp.FastContextCheck(3)
+
+	goctx, cancel := stdctx.WithCancel(stdctx.Background())
+	cancel()
+	ctx := context.NewWithGoContext(goctx)
+
+	require.False(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.True(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.True(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.False(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.True(t, fast.GoWithContext(ctx, func() {}).Available)
+}

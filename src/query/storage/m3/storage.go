@@ -116,6 +116,7 @@ func (s *m3storage) FetchProm(
 
 	result.Metadata.Resolutions = resolutions
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
+		ctx,
 		result,
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
