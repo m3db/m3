@@ -57,7 +57,7 @@ func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().IsBootstrappedAndDurable().Return(true).AnyTimes()
+	db.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	db.EXPECT().OwnedNamespaces().Return(nil, nil).AnyTimes()
 
 	cfm := newColdFlushManager(db, mockPersistManager, testOpts).(*coldFlushManager)

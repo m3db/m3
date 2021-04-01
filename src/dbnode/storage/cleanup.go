@@ -263,6 +263,9 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 		var activeShards []string
 		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
 		for _, s := range n.OwnedShards() {
+			if !s.IsBootstrapped() {
+				continue
+			}
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
 		}
@@ -321,6 +324,9 @@ func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespa
 func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.Time, shards []databaseShard) error {
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
+		if !shard.IsBootstrapped() {
+			continue
+		}
 		if err := shard.CleanupExpiredFileSets(earliestToRetain); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -332,6 +338,9 @@ func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.
 func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseShard) error {
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
+		if !shard.IsBootstrapped() {
+			continue
+		}
 		if err := shard.CleanupCompactedFileSets(); err != nil {
 			multiErr = multiErr.Add(err)
 		}

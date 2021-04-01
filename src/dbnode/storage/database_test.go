@@ -487,6 +487,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil).Do(func() {
 		wg.Done()
 	})
+	mediator.EXPECT().DisableFileOpsAndWait()
 
 	d.AssignShardSet(shardSet)
 

@@ -1045,6 +1045,9 @@ func (n *dbNamespace) Bootstrap(
 		}
 		if !bootstrapped {
 			// NB(r): Not bootstrapped in this bootstrap run.
+			n.log.Warn("skipping shard",
+				zap.Uint32("shard", shardID),
+				zap.Stringer("namespace", n.id))
 			continue
 		}
 

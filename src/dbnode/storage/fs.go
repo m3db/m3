@@ -158,7 +158,7 @@ func (m *fileSystemManager) Run(
 		// and not caught in CI or integration tests.
 		// When an invariant occurs in CI tests it panics so as to fail
 		// the build.
-		if err := m.WarmFlushCleanup(t, m.database.IsBootstrappedAndDurable()); err != nil {
+		if err := m.WarmFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
 					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
@@ -189,5 +189,5 @@ func (m *fileSystemManager) Report() {
 }
 
 func (m *fileSystemManager) shouldRunWithLock() bool {
-	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrappedAndDurable()
+	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
 }

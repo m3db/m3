@@ -286,6 +286,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				shard := NewMockdatabaseShard(ctrl)
 				shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+				shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 				shard.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil).AnyTimes()
 				shard.EXPECT().CleanupCompactedFileSets().Return(nil).AnyTimes()
 
@@ -437,6 +438,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
 	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
@@ -469,6 +471,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
