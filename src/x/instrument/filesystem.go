@@ -32,6 +32,7 @@ func (r *fileSystemMetrics) report() {
 	info, err := xos.GetFileSystemStats(r.rootDir)
 	if err != nil {
 		r.Errors.Inc(1)
+		return
 	}
 	r.Total.Update(float64(info.Total))
 	r.Avail.Update(float64(info.Avail))
