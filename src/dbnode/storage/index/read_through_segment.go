@@ -174,13 +174,23 @@ func (r *ReadThroughSegment) PutCachedSearchPattern(
 	cache.PutSearch(r.uuid, queryStr, query, pl)
 }
 
-func (r *ReadThroughSegment) CachedSearchPatterns() []CachedPattern {
+type CachedSearchPatternsResult struct {
+	CacheSearchesDisabled bool
+	CachedPatternsResult  CachedPatternsResult
+}
+
+func (r *ReadThroughSegment) CachedSearchPatterns() ([]CachedPattern, CachedSearchPatternsResult) {
 	cache := r.caches.SearchPostingsListCache
 	if cache == nil || !r.opts.CacheSearches {
-		return nil
+		return nil, CachedSearchPatternsResult{
+			CacheSearchesDisabled: true,
+		}
 	}
 
-	return cache.CachedPatterns(r.uuid, PatternTypeSearch)
+	patterns, result := cache.CachedPatterns(r.uuid, PatternTypeSearch)
+	return patterns, CachedSearchPatternsResult{
+		CachedPatternsResult: result,
+	}
 }
 
 var _ search.ReadThroughSegmentSearcher = (*readThroughSegmentReader)(nil)
@@ -369,9 +379,6 @@ func (s *readThroughSegmentReader) Search(
 		return nil, err
 	}
 
-	// Only cache the second time seen a recent query since
-	// copying the postings lists into a roaring postings list
-	// can be expensive (in PutSearch).
 	cache.PutSearch(s.uuid, queryStr, query, pl)
 
 	return pl, nil

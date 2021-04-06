@@ -389,30 +389,37 @@ type CachedPattern struct {
 	Postings    postings.List
 }
 
+type CachedPatternsResult struct {
+	InRegistry      bool
+	TotalPatterns   int
+	MatchedPatterns int
+}
+
 func (q *PostingsListCache) CachedPatterns(
 	uuid uuid.UUID,
 	patternType PatternType,
-) []CachedPattern {
+) ([]CachedPattern, CachedPatternsResult) {
+	var result CachedPatternsResult
+
 	q.registry.RLock()
 	defer q.registry.RUnlock()
 
 	segmentPostings, ok := q.registry.active[uuid.Array()]
 	if !ok {
-		return nil
+		return nil, result
 	}
 
-	n := 0
+	result.InRegistry = true
 	for key := range segmentPostings {
 		if patternType == key.patternType {
-			n++
+			result.TotalPatterns++
 		}
 	}
-
-	if n == 0 {
-		return nil
+	if result.TotalPatterns == 0 {
+		return nil, CachedPatternsResult{}
 	}
 
-	patterns := make([]CachedPattern, 0, n)
+	patterns := make([]CachedPattern, 0, result.TotalPatterns)
 	for key, value := range segmentPostings {
 		if patternType == key.patternType {
 			patterns = append(patterns, CachedPattern{
@@ -422,10 +429,11 @@ func (q *PostingsListCache) CachedPatterns(
 				SearchQuery: key.searchQuery,
 				Postings:    value,
 			})
+			result.MatchedPatterns++
 		}
 	}
 
-	return patterns
+	return patterns, result
 }
 
 func (q *PostingsListCache) processEventWithLock(ev postingsListEvent) {

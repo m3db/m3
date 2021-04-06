@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -147,6 +148,7 @@ type block struct {
 	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
 	querySegmentsWorkers            xsync.WorkerPool
+	cachedSearchesWorkers           xsync.PooledWorkerPool
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -223,26 +225,45 @@ func NewBlock(
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
-	segs := newMutableSegments(
+
+	cpus := int(math.Max(1, math.Ceil(0.25*float64(runtime.NumCPU()))))
+	poolOpts := xsync.NewPooledWorkerPoolOptions().
+		SetGrowOnDemand(false).
+		SetNumShards(1).
+		SetInstrumentOptions(iopts.SetMetricsScope(iopts.MetricsScope().SubScope("cached-searches")))
+	cachedSearchesWorkers, err := xsync.NewPooledWorkerPool(cpus, poolOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	segs, err := newMutableSegments(
 		md,
 		blockStart,
 		opts,
 		blockOpts,
+		cachedSearchesWorkers,
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	coldSegs, err := newMutableSegments(
+		md,
+		blockStart,
+		opts,
+		blockOpts,
+		cachedSearchesWorkers,
+		namespaceRuntimeOptsMgr,
+		iopts,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
-	coldSegs := []*mutableSegments{
-		newMutableSegments(
-			md,
-			blockStart,
-			opts,
-			blockOpts,
-			namespaceRuntimeOptsMgr,
-			iopts,
-		),
-	}
+	coldMutableSegments := []*mutableSegments{coldSegs}
 	b := &block{
 		state:                           blockStateOpen,
 		blockStart:                      blockStart,
@@ -250,7 +271,7 @@ func NewBlock(
 		blockSize:                       blockSize,
 		blockOpts:                       blockOpts,
 		mutableSegments:                 segs,
-		coldMutableSegments:             coldSegs,
+		coldMutableSegments:             coldMutableSegments,
 		shardRangesSegmentsByVolumeType: make(shardRangesSegmentsByVolumeType),
 		opts:                            opts,
 		iopts:                           iopts,
@@ -261,6 +282,7 @@ func NewBlock(
 		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
 		querySegmentsWorkers:            opts.QueryBlockSegmentWorkerPool(),
+		cachedSearchesWorkers:           cachedSearchesWorkers,
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 
@@ -1226,17 +1248,23 @@ func (b *block) EvictColdMutableSegments() error {
 	return nil
 }
 
-func (b *block) RotateColdMutableSegments() {
+func (b *block) RotateColdMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
-	b.coldMutableSegments = append(b.coldMutableSegments, newMutableSegments(
+	coldSegs, err := newMutableSegments(
 		b.nsMD,
 		b.blockStart,
 		b.opts,
 		b.blockOpts,
+		b.cachedSearchesWorkers,
 		b.namespaceRuntimeOptsMgr,
 		b.iopts,
-	))
+	)
+	if err != nil {
+		return err
+	}
+	b.coldMutableSegments = append(b.coldMutableSegments, coldSegs)
+	return nil
 }
 
 func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {

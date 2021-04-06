@@ -1111,7 +1111,9 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 	}
 	// We only rotate cold mutable segments in phase I of cold flushing.
 	for _, block := range flushable {
-		block.RotateColdMutableSegments()
+		if err := block.RotateColdMutableSegments(); err != nil {
+			return nil, err
+		}
 	}
 	// We can't immediately evict cold mutable segments so we return a callback to do so
 	// when cold flush finishes.

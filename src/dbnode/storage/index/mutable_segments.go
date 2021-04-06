@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -81,6 +82,7 @@ type mutableSegments struct {
 	iopts                    instrument.Options
 	optsListener             xresource.SimpleCloser
 	writeIndexingConcurrency int
+	cachedSearchesWorkers    xsync.PooledWorkerPool
 
 	sealedBlockStarts          map[xtime.UnixNano]struct{}
 	backgroundCompactGCPending bool
@@ -113,14 +115,20 @@ func (f *indexedBloomFilter) Write(id []byte) {
 }
 
 type mutableSegmentsMetrics struct {
-	foregroundCompactionPlanRunLatency    tally.Timer
-	foregroundCompactionTaskRunLatency    tally.Timer
-	backgroundCompactionPlanRunLatency    tally.Timer
-	backgroundCompactionTaskRunLatency    tally.Timer
-	activeBlockIndexNew                   tally.Counter
-	activeBlockGarbageCollectSegment      tally.Counter
-	activeBlockGarbageCollectSeries       tally.Counter
-	backgroundCompactionRerunCachedSearch tally.Counter
+	foregroundCompactionPlanRunLatency                   tally.Timer
+	foregroundCompactionTaskRunLatency                   tally.Timer
+	backgroundCompactionPlanRunLatency                   tally.Timer
+	backgroundCompactionTaskRunLatency                   tally.Timer
+	activeBlockIndexNew                                  tally.Counter
+	activeBlockGarbageCollectSegment                     tally.Counter
+	activeBlockGarbageCollectSeries                      tally.Counter
+	activeBlockGarbageCollectEmptySegment                tally.Counter
+	activeBlockGarbageCollectCachedSearchesDisabled      tally.Counter
+	activeBlockGarbageCollectCachedSearchesInRegistry    tally.Counter
+	activeBlockGarbageCollectCachedSearchesNotInRegistry tally.Counter
+	activeBlockGarbageCollectCachedSearchesTotal         tally.Histogram
+	activeBlockGarbageCollectCachedSearchesMatched       tally.Histogram
+	activeBlockGarbageCollectRerunCachedSearch           tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -135,9 +143,21 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		activeBlockIndexNew: activeBlockScope.Tagged(map[string]string{
 			"result_type": "new",
 		}).Counter("index-result"),
-		activeBlockGarbageCollectSegment:      activeBlockScope.Counter("gc-segment"),
-		activeBlockGarbageCollectSeries:       activeBlockScope.Counter("gc-series"),
-		backgroundCompactionRerunCachedSearch: backgroundScope.Counter("rerun-cached-search"),
+		activeBlockGarbageCollectSegment:                activeBlockScope.Counter("gc-segment"),
+		activeBlockGarbageCollectSeries:                 activeBlockScope.Counter("gc-series"),
+		activeBlockGarbageCollectEmptySegment:           backgroundScope.Counter("gc-empty-segment"),
+		activeBlockGarbageCollectCachedSearchesDisabled: backgroundScope.Counter("gc-cached-searches-disabled"),
+		activeBlockGarbageCollectCachedSearchesInRegistry: backgroundScope.Tagged(map[string]string{
+			"found": "true",
+		}).Counter("gc-cached-searches-in-registry"),
+		activeBlockGarbageCollectCachedSearchesNotInRegistry: backgroundScope.Tagged(map[string]string{
+			"found": "false",
+		}).Counter("gc-cached-searches-in-registry"),
+		activeBlockGarbageCollectCachedSearchesTotal: backgroundScope.Histogram("gc-cached-searches-total",
+			append(tally.ValueBuckets{0, 1}, tally.MustMakeExponentialValueBuckets(2, 2, 12)...)),
+		activeBlockGarbageCollectCachedSearchesMatched: backgroundScope.Histogram("gc-cached-searches-matched",
+			append(tally.ValueBuckets{0, 1}, tally.MustMakeExponentialValueBuckets(2, 2, 12)...)),
+		activeBlockGarbageCollectRerunCachedSearch: backgroundScope.Counter("gc-rerun-cached-search"),
 	}
 }
 
@@ -148,22 +168,24 @@ func newMutableSegments(
 	blockStart time.Time,
 	opts Options,
 	blockOpts BlockOptions,
+	cachedSearchesWorkers xsync.PooledWorkerPool,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	iopts instrument.Options,
-) *mutableSegments {
+) (*mutableSegments, error) {
 	m := &mutableSegments{
-		blockStart:        blockStart,
-		blockSize:         md.Options().IndexOptions().BlockSize(),
-		opts:              opts,
-		blockOpts:         blockOpts,
-		compact:           mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
-		sealedBlockStarts: make(map[xtime.UnixNano]struct{}),
-		iopts:             iopts,
-		metrics:           newMutableSegmentsMetrics(iopts.MetricsScope()),
-		logger:            iopts.Logger(),
+		blockStart:            blockStart,
+		blockSize:             md.Options().IndexOptions().BlockSize(),
+		opts:                  opts,
+		blockOpts:             blockOpts,
+		compact:               mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
+		cachedSearchesWorkers: cachedSearchesWorkers,
+		sealedBlockStarts:     make(map[xtime.UnixNano]struct{}),
+		iopts:                 iopts,
+		metrics:               newMutableSegmentsMetrics(iopts.MetricsScope()),
+		logger:                iopts.Logger(),
 	}
 	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
-	return m
+	return m, nil
 }
 
 func (m *mutableSegments) NotifySealedBlocks(
@@ -736,7 +758,9 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	}
 
 	var replaceSeg segment.Segment
-	if !empty {
+	if empty {
+		m.metrics.activeBlockGarbageCollectEmptySegment.Inc(1)
+	} else {
 		// Add a read through cache for repeated expensive queries against
 		// background compacted segments since they can live for quite some
 		// time and accrue a large set of documents.
@@ -758,48 +782,65 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				continue
 			}
 
-			searches := prevReadThroughSeg.CachedSearchPatterns()
+			searches, result := prevReadThroughSeg.CachedSearchPatterns()
+			if result.CacheSearchesDisabled {
+				m.metrics.activeBlockGarbageCollectCachedSearchesDisabled.Inc(1)
+			}
+			if result.CachedPatternsResult.InRegistry {
+				m.metrics.activeBlockGarbageCollectCachedSearchesInRegistry.Inc(1)
+			} else {
+				m.metrics.activeBlockGarbageCollectCachedSearchesNotInRegistry.Inc(1)
+			}
+			total := float64(result.CachedPatternsResult.TotalPatterns)
+			m.metrics.activeBlockGarbageCollectCachedSearchesTotal.RecordValue(total)
+			matched := float64(len(searches))
+			m.metrics.activeBlockGarbageCollectCachedSearchesMatched.RecordValue(matched)
 			for _, s := range searches {
-				r, err := readThroughSeg.Reader()
-				if err != nil {
-					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-						l.Error("failed to create read through segment reader")
-					})
-					continue
-				}
+				s := s // Capture for loop.
+				m.cachedSearchesWorkers.Go(func() {
+					r, err := readThroughSeg.Reader()
+					if err != nil {
+						instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+							l.Error("failed to create read through segment reader")
+						})
+						return
+					}
 
-				if s.SearchQuery == nil {
-					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-						l.Error("no search query for cached search pattern")
-					})
-					continue
-				}
+					defer func() {
+						if err := r.Close(); err != nil {
+							instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+								l.Error("failed to close read through segment reader")
+							})
+						}
+					}()
 
-				searcher, err := s.SearchQuery.Searcher()
-				if err != nil {
-					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-						l.Error("failed to create searcher from cached search pattern")
-					})
-					continue
-				}
+					if s.SearchQuery == nil {
+						instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+							l.Error("no search query for cached search pattern")
+						})
+						return
+					}
 
-				pl, err := searcher.Search(r)
-				if err != nil {
-					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-						l.Error("failed to create searcher from cached search pattern")
-					})
-					continue
-				}
+					searcher, err := s.SearchQuery.Searcher()
+					if err != nil {
+						instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+							l.Error("failed to create searcher from cached search pattern")
+						})
+						return
+					}
 
-				if err := r.Close(); err != nil {
-					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-						l.Error("failed to close read through segment reader")
-					})
-					continue
-				}
+					pl, err := searcher.Search(r)
+					if err != nil {
+						instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+							l.Error("failed to create searcher from cached search pattern")
+						})
+						return
+					}
 
-				readThroughSeg.PutCachedSearchPattern(s.Field, s.SearchQuery, pl)
-				m.metrics.backgroundCompactionRerunCachedSearch.Inc(1)
+					readThroughSeg.PutCachedSearchPattern(s.Field, s.SearchQuery, pl)
+					m.metrics.activeBlockGarbageCollectRerunCachedSearch.Inc(1)
+				})
+
 			}
 		}
 	}

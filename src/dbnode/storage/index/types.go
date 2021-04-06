@@ -446,7 +446,7 @@ type Block interface {
 
 	// RotateColdMutableSegments rotates the currently active cold mutable segment out for a
 	// new cold mutable segment to write to.
-	RotateColdMutableSegments()
+	RotateColdMutableSegments() error
 
 	// MemorySegmentsData returns all in memory segments data.
 	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
