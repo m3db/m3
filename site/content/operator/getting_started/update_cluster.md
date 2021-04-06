@@ -46,3 +46,13 @@ cluster so that no two replicas are ever down at the same time.
 ```bash
 kubectl annotate statefulset -l operator.m3db.io/cluster=my-cluster operator.m3db.io/update=enabled
 ```
+## Parallel Pod Updates
+In larger M3DB clusters, the default of updating one pod at a time may be too slow. To update multiple pods in parallel, you should do the following:
+
+1. Set `onDeleteUpdateStrategy` to `true` in your `M3DBCluster` CRD
+2. Use the parallel update annotation when ready to update a cluster. For example:
+
+```
+kubectl annotate statefulset my-cluster-rep0 operator.m3db.io/parallel-update=3
+```
+In the example above, the operator will update three pods at a time, instead of one.
