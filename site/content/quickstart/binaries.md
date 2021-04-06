@@ -16,10 +16,7 @@ M3 has pre-built binaries available for Linux and macOS. [Download the latest re
 
 ## Build From Source
 
-### Prerequisites
-
--   [Go 1.10 or higher](https://golang.org/dl/)
--   [Make](https://www.gnu.org/software/make/)
+{{< fileinclude file="build_prerequisites.md" >}}
 
 ### Build Source
 
