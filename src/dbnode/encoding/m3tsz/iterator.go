@@ -153,6 +153,10 @@ func (it *readerIterator) readNextValue() {
 	}
 
 	// inlined readIntValDiff()
+	if it.sig == 64 {
+		it.readIntValDiffSlow()
+		return
+	}
 	bits := it.readBits(it.sig + 1)
 	sign := -1.0
 	if (bits >> it.sig) == opcodeNegative {
@@ -181,6 +185,11 @@ func (it *readerIterator) readIntSigMult() {
 }
 
 func (it *readerIterator) readIntValDiff() {
+	// check if we can read both sign bit and digits in one read
+	if it.sig == 64 {
+		it.readIntValDiffSlow()
+		return
+	}
 	// read both sign bit and digits in one read
 	bits := it.readBits(it.sig + 1)
 	sign := -1.0
@@ -190,6 +199,15 @@ func (it *readerIterator) readIntValDiff() {
 		bits ^= uint64(1 << it.sig)
 	}
 	it.intVal += sign * float64(bits)
+}
+
+func (it *readerIterator) readIntValDiffSlow() {
+	sign := -1.0
+	if it.readBits(1) == opcodeNegative {
+		sign = 1.0
+	}
+
+	it.intVal += sign * float64(it.readBits(it.sig))
 }
 
 func (it *readerIterator) readBits(numBits uint8) (res uint64) {
