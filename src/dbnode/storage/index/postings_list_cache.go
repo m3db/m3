@@ -23,10 +23,12 @@ package index
 import (
 	"bytes"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/cespare/xxhash/v2"
@@ -86,7 +88,35 @@ type PostingsListCache struct {
 	size    int
 	opts    PostingsListCacheOptions
 	metrics *postingsListCacheMetrics
-	logger  *zap.Logger
+
+	registry postingsListCacheRegistry
+
+	logger *zap.Logger
+}
+
+type postingsListCacheRegistry struct {
+	sync.RWMutex
+	eventCh chan postingsListEvent
+	active  map[uuid.Array]map[registryKey]postings.List
+}
+
+type registryKey struct {
+	field       string
+	pattern     string
+	patternType PatternType
+	searchQuery search.Query
+}
+
+type postingsListEventType int
+
+const (
+	addEventType postingsListEventType = iota
+	removeEventType
+)
+
+type postingsListEvent struct {
+	eventType      postingsListEventType
+	cachedPostings *cachedPostings
 }
 
 // NewPostingsListCache creates a new query cache.
@@ -99,28 +129,43 @@ func NewPostingsListCache(
 		return nil, nil, err
 	}
 
-	lru, err := ristretto.NewCache(&ristretto.Config{
+	plc := &PostingsListCache{
+		size: size,
+		opts: opts,
+		registry: postingsListCacheRegistry{
+			eventCh: make(chan postingsListEvent, 4096),
+			active:  make(map[uuid.Array]map[registryKey]postings.List),
+		},
+		metrics: newPostingsListCacheMetrics(opts.InstrumentOptions.MetricsScope()),
+		logger:  opts.InstrumentOptions.Logger(),
+	}
+	plc.lru, err = ristretto.NewCache(&ristretto.Config{
 		NumCounters: int64(10 * size), // number of keys to track frequency of.
 		MaxCost:     int64(size),      // maximum cost of cache.
 		BufferItems: 64,               // number of keys per Get buffer.
 		KeyToHash: func(k interface{}) (uint64, uint64) {
 			return k.(uint64), 0
 		},
+		OnEvict: plc.onEvict,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	plc := &PostingsListCache{
-		size:    size,
-		lru:     lru,
-		opts:    opts,
-		metrics: newPostingsListCacheMetrics(opts.InstrumentOptions.MetricsScope()),
-		logger:  opts.InstrumentOptions.Logger(),
+	closer := plc.startLoop()
+	return plc, closer, nil
+}
+
+func (q *PostingsListCache) onEvict(key, conflict uint64, value interface{}, cost int64) {
+	v, ok := value.(*cachedPostings)
+	if !ok {
+		return
 	}
 
-	closer := plc.startReportLoop()
-	return plc, closer, nil
+	q.registry.eventCh <- postingsListEvent{
+		eventType:      removeEventType,
+		cachedPostings: v,
+	}
 }
 
 // GetRegexp returns the cached results for the provided regexp query, if any.
@@ -188,6 +233,8 @@ type cachedPostings struct {
 	field       string
 	pattern     string
 	patternType PatternType
+	// searchQuery is only set for search queries.
+	searchQuery search.Query
 
 	// value
 	postings postings.List
@@ -215,7 +262,7 @@ func (q *PostingsListCache) PutRegexp(
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, pattern, PatternTypeRegexp, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeRegexp, nil, pl)
 }
 
 // PutTerm updates the LRU with the result of the term query.
@@ -225,7 +272,7 @@ func (q *PostingsListCache) PutTerm(
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, pattern, PatternTypeTerm, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeTerm, nil, pl)
 }
 
 // PutField updates the LRU with the result of the field query.
@@ -234,13 +281,14 @@ func (q *PostingsListCache) PutField(
 	field string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, emptyPattern, PatternTypeField, pl)
+	q.put(segmentUUID, field, emptyPattern, PatternTypeField, nil, pl)
 }
 
 // PutSearch updates the LRU with the result of a search query.
 func (q *PostingsListCache) PutSearch(
 	segmentUUID uuid.UUID,
-	query string,
+	queryStr string,
+	query search.Query,
 	pl postings.List,
 ) {
 	if roaring.IsReadOnlyPostingsList(pl) {
@@ -256,7 +304,7 @@ func (q *PostingsListCache) PutSearch(
 		pl = mutable
 	}
 
-	q.put(segmentUUID, query, emptyPattern, PatternTypeSearch, pl)
+	q.put(segmentUUID, queryStr, emptyPattern, PatternTypeSearch, query, pl)
 }
 
 func (q *PostingsListCache) put(
@@ -264,6 +312,7 @@ func (q *PostingsListCache) put(
 	field string,
 	pattern string,
 	patternType PatternType,
+	searchQuery search.Query,
 	pl postings.List,
 ) {
 	key := keyHash(segmentUUID, field, pattern, patternType)
@@ -272,16 +321,21 @@ func (q *PostingsListCache) put(
 		field:       field,
 		pattern:     pattern,
 		patternType: patternType,
+		searchQuery: searchQuery,
 		postings:    pl,
 	}
 	q.lru.Set(key, value, 1)
 	q.emitCachePutMetrics(patternType)
+	q.registry.eventCh <- postingsListEvent{
+		eventType:      addEventType,
+		cachedPostings: value,
+	}
 }
 
-// startReportLoop starts a background process that will call Report()
+// startLoop starts a background process that will call Report()
 // on a regular basis and returns a function that will end the background
 // process.
-func (q *PostingsListCache) startReportLoop() Closer {
+func (q *PostingsListCache) startLoop() Closer {
 	doneCh := make(chan struct{})
 
 	go func() {
@@ -297,7 +351,106 @@ func (q *PostingsListCache) startReportLoop() Closer {
 		}
 	}()
 
+	go func() {
+		for {
+			// Process first without lock (just wait blindly).
+			var ev postingsListEvent
+			select {
+			case <-doneCh:
+				return
+			case ev = <-q.registry.eventCh:
+			}
+
+			// Now acquire lock and process as many as can while batched.
+			q.registry.Lock()
+			// Process first.
+			q.processEventWithLock(ev)
+			// Process as many while holding lock until no more to read.
+			for more := true; more; {
+				select {
+				case ev = <-q.registry.eventCh:
+					q.processEventWithLock(ev)
+				default:
+					more = false
+				}
+			}
+			q.registry.Unlock()
+		}
+	}()
+
 	return func() { close(doneCh) }
+}
+
+type CachedPattern struct {
+	Field       string
+	Pattern     string
+	PatternType PatternType
+	SearchQuery search.Query
+	Postings    postings.List
+}
+
+func (q *PostingsListCache) CachedPatterns(
+	uuid uuid.UUID,
+	patternType PatternType,
+) []CachedPattern {
+	q.registry.RLock()
+	defer q.registry.RUnlock()
+
+	segmentPostings, ok := q.registry.active[uuid.Array()]
+	if !ok {
+		return nil
+	}
+
+	n := 0
+	for key := range segmentPostings {
+		if patternType == key.patternType {
+			n++
+		}
+	}
+
+	if n == 0 {
+		return nil
+	}
+
+	patterns := make([]CachedPattern, 0, n)
+	for key, value := range segmentPostings {
+		if patternType == key.patternType {
+			patterns = append(patterns, CachedPattern{
+				Field:       key.field,
+				Pattern:     key.pattern,
+				PatternType: key.patternType,
+				SearchQuery: key.searchQuery,
+				Postings:    value,
+			})
+		}
+	}
+
+	return patterns
+}
+
+func (q *PostingsListCache) processEventWithLock(ev postingsListEvent) {
+	uuid := ev.cachedPostings.segmentUUID.Array()
+	key := registryKey{
+		field:       ev.cachedPostings.field,
+		pattern:     ev.cachedPostings.pattern,
+		patternType: ev.cachedPostings.patternType,
+		searchQuery: ev.cachedPostings.searchQuery,
+	}
+	segmentPostings, ok := q.registry.active[uuid]
+	if !ok {
+		segmentPostings = make(map[registryKey]postings.List)
+		q.registry.active[uuid] = segmentPostings
+	}
+
+	switch ev.eventType {
+	case removeEventType:
+		delete(segmentPostings, key)
+		if len(segmentPostings) == 0 {
+			delete(q.registry.active, uuid)
+		}
+	case addEventType:
+		segmentPostings[key] = ev.cachedPostings.postings
+	}
 }
 
 // Report will emit metrics about the status of the cache.

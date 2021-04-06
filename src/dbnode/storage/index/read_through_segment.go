@@ -59,14 +59,7 @@ type ReadThroughSegment struct {
 
 	opts ReadThroughSegmentOptions
 
-	searches readThroughSegmentSearches
-
 	closed bool
-}
-
-type readThroughSegmentSearches struct {
-	sync.RWMutex
-	queries map[string]int
 }
 
 // ReadThroughSegmentCaches is the set of caches
@@ -95,15 +88,12 @@ func NewReadThroughSegment(
 	seg segment.ImmutableSegment,
 	caches ReadThroughSegmentCaches,
 	opts ReadThroughSegmentOptions,
-) segment.Segment {
+) *ReadThroughSegment {
 	return &ReadThroughSegment{
 		segment: seg,
 		opts:    opts,
 		uuid:    uuid.NewUUID(),
 		caches:  caches,
-		searches: readThroughSegmentSearches{
-			queries: make(map[string]int),
-		},
 	}
 }
 
@@ -169,6 +159,28 @@ func (r *ReadThroughSegment) FreeMmap() error {
 // postings lists to cache for queries.
 func (r *ReadThroughSegment) Size() int64 {
 	return r.segment.Size()
+}
+
+func (r *ReadThroughSegment) PutCachedSearchPattern(
+	queryStr string,
+	query search.Query,
+	pl postings.List,
+) {
+	cache := r.caches.SearchPostingsListCache
+	if cache == nil || !r.opts.CacheSearches {
+		return
+	}
+
+	cache.PutSearch(r.uuid, queryStr, query, pl)
+}
+
+func (r *ReadThroughSegment) CachedSearchPatterns() []CachedPattern {
+	cache := r.caches.SearchPostingsListCache
+	if cache == nil || !r.opts.CacheSearches {
+		return nil
+	}
+
+	return cache.CachedPatterns(r.uuid, PatternTypeSearch)
 }
 
 var _ search.ReadThroughSegmentSearcher = (*readThroughSegmentReader)(nil)
@@ -357,37 +369,10 @@ func (s *readThroughSegmentReader) Search(
 		return nil, err
 	}
 
-	s.seg.searches.Lock()
-	count := 1
-	curr, ok := s.seg.searches.queries[queryStr]
-	if !ok {
-		if len(s.seg.searches.queries) >= cache.size {
-			// Delete a random key to make room.
-			for k := range s.seg.searches.queries {
-				delete(s.seg.searches.queries, k)
-				break // Immediately break.
-			}
-			s.seg.searches.queries[queryStr] = count
-		}
-	} else {
-		count = curr + 1
-	}
-	willCache := count > 1
-	if willCache {
-		// Delete out of the seen query count.
-		delete(s.seg.searches.queries, queryStr)
-	} else {
-		// Update seen count.
-		s.seg.searches.queries[queryStr] = count
-	}
-	s.seg.searches.Unlock()
-
-	if willCache {
-		// Only cache the second time seen a recent query since
-		// copying the postings lists into a roaring postings list
-		// can be expensive (in PutSearch).
-		cache.PutSearch(s.uuid, queryStr, pl)
-	}
+	// Only cache the second time seen a recent query since
+	// copying the postings lists into a roaring postings list
+	// can be expensive (in PutSearch).
+	cache.PutSearch(s.uuid, queryStr, query, pl)
 
 	return pl, nil
 }

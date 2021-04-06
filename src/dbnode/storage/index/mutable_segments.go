@@ -113,13 +113,14 @@ func (f *indexedBloomFilter) Write(id []byte) {
 }
 
 type mutableSegmentsMetrics struct {
-	foregroundCompactionPlanRunLatency tally.Timer
-	foregroundCompactionTaskRunLatency tally.Timer
-	backgroundCompactionPlanRunLatency tally.Timer
-	backgroundCompactionTaskRunLatency tally.Timer
-	activeBlockIndexNew                tally.Counter
-	activeBlockGarbageCollectSegment   tally.Counter
-	activeBlockGarbageCollectSeries    tally.Counter
+	foregroundCompactionPlanRunLatency    tally.Timer
+	foregroundCompactionTaskRunLatency    tally.Timer
+	backgroundCompactionPlanRunLatency    tally.Timer
+	backgroundCompactionTaskRunLatency    tally.Timer
+	activeBlockIndexNew                   tally.Counter
+	activeBlockGarbageCollectSegment      tally.Counter
+	activeBlockGarbageCollectSeries       tally.Counter
+	backgroundCompactionRerunCachedSearch tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -134,8 +135,9 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		activeBlockIndexNew: activeBlockScope.Tagged(map[string]string{
 			"result_type": "new",
 		}).Counter("index-result"),
-		activeBlockGarbageCollectSegment: activeBlockScope.Counter("gc-segment"),
-		activeBlockGarbageCollectSeries:  activeBlockScope.Counter("gc-series"),
+		activeBlockGarbageCollectSegment:      activeBlockScope.Counter("gc-segment"),
+		activeBlockGarbageCollectSeries:       activeBlockScope.Counter("gc-series"),
+		backgroundCompactionRerunCachedSearch: backgroundScope.Counter("rerun-cached-search"),
 	}
 }
 
@@ -642,7 +644,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 	wg.Wait()
 }
 
-func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) segment.Segment {
+func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) *ReadThroughSegment {
 	var (
 		plCaches = ReadThroughSegmentCaches{
 			SegmentPostingsListCache: m.opts.PostingsListCache(),
@@ -733,12 +735,73 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		return err
 	}
 
-	var replaceSegment segment.Segment
+	var replaceSeg segment.Segment
 	if !empty {
 		// Add a read through cache for repeated expensive queries against
 		// background compacted segments since they can live for quite some
 		// time and accrue a large set of documents.
-		replaceSegment = m.newReadThroughSegment(compacted)
+		readThroughSeg := m.newReadThroughSegment(compacted)
+		replaceSeg = readThroughSeg
+
+		// NB(r): Before replacing the old segments with the compacted segment
+		// we rebuild all the cached postings lists that the previous segment had
+		// to avoid latency spikes during segment rotation.
+		// Note: There was very obvious peaks of latency (p99 of <500ms spiking
+		// to 8 times that at first replace of large segments after a block
+		// rotation) without this optimization.
+		for _, segment := range segments {
+			prevReadThroughSeg, ok := segment.(*ReadThroughSegment)
+			if !ok {
+				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+					l.Error("failed to cast compacted segment to read through segment")
+				})
+				continue
+			}
+
+			searches := prevReadThroughSeg.CachedSearchPatterns()
+			for _, s := range searches {
+				r, err := readThroughSeg.Reader()
+				if err != nil {
+					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+						l.Error("failed to create read through segment reader")
+					})
+					continue
+				}
+
+				if s.SearchQuery == nil {
+					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+						l.Error("no search query for cached search pattern")
+					})
+					continue
+				}
+
+				searcher, err := s.SearchQuery.Searcher()
+				if err != nil {
+					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+						l.Error("failed to create searcher from cached search pattern")
+					})
+					continue
+				}
+
+				pl, err := searcher.Search(r)
+				if err != nil {
+					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+						l.Error("failed to create searcher from cached search pattern")
+					})
+					continue
+				}
+
+				if err := r.Close(); err != nil {
+					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+						l.Error("failed to close read through segment reader")
+					})
+					continue
+				}
+
+				readThroughSeg.PutCachedSearchPattern(s.Field, s.SearchQuery, pl)
+				m.metrics.backgroundCompactionRerunCachedSearch.Inc(1)
+			}
+		}
 	}
 
 	// Rotate out the replaced frozen segments and add the compacted one.
@@ -746,7 +809,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	defer m.Unlock()
 
 	result := m.addCompactedSegmentFromSegmentsWithLock(m.backgroundSegments,
-		segments, replaceSegment)
+		segments, replaceSeg)
 	m.backgroundSegments = result
 
 	return nil
