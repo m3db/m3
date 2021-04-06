@@ -39,20 +39,20 @@ const (
 
 var (
 	// default time encoding schemes
-	defaultZeroBucket             = NewTimeBucket(0x0, 1, 0)
+	defaultZeroBucket             = newTimeBucket(0x0, 1, 0)
 	defaultNumValueBitsForBuckets = []int{7, 9, 12}
 
 	// TODO(xichen): set more reasonable defaults once we have more knowledge
 	// of the use cases for time units other than seconds.
 	defaultTimeEncodingSchemes = map[xtime.Unit]TimeEncodingScheme{
-		xtime.Second:      NewTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
-		xtime.Millisecond: NewTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
-		xtime.Microsecond: NewTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
-		xtime.Nanosecond:  NewTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
+		xtime.Second:      newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
+		xtime.Millisecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
+		xtime.Microsecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
+		xtime.Nanosecond:  newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
 	}
 
 	// default marker encoding scheme
-	defaultMarkerEncodingScheme = NewMarkerEncodingScheme(
+	defaultMarkerEncodingScheme = newMarkerEncodingScheme(
 		defaultMarkerOpcode,
 		defaultNumMarkerOpcodeBits,
 		defaultNumMarkerValueBits,
@@ -63,7 +63,25 @@ var (
 )
 
 // TimeBucket represents a bucket for encoding time values.
-type TimeBucket struct {
+type TimeBucket interface {
+
+	// Opcode is the opcode prefix used to encode all time values in this range.
+	Opcode() uint64
+
+	// NumOpcodeBits is the number of bits used to write the opcode.
+	NumOpcodeBits() int
+
+	// Min is the minimum time value accepted in this range.
+	Min() int64
+
+	// Max is the maximum time value accepted in this range.
+	Max() int64
+
+	// NumValueBits is the number of bits used to write the time value.
+	NumValueBits() int
+}
+
+type timeBucket struct {
 	min           int64
 	max           int64
 	opcode        uint64
@@ -71,9 +89,9 @@ type TimeBucket struct {
 	numValueBits  int
 }
 
-// NewTimeBucket creates a new time bucket.
-func NewTimeBucket(opcode uint64, numOpcodeBits, numValueBits int) TimeBucket {
-	return TimeBucket{
+// newTimeBucket creates a new time bucket.
+func newTimeBucket(opcode uint64, numOpcodeBits, numValueBits int) TimeBucket {
+	return &timeBucket{
 		opcode:        opcode,
 		numOpcodeBits: numOpcodeBits,
 		numValueBits:  numValueBits,
@@ -82,31 +100,34 @@ func NewTimeBucket(opcode uint64, numOpcodeBits, numValueBits int) TimeBucket {
 	}
 }
 
-// Opcode is the opcode prefix used to encode all time values in this range.
-func (tb *TimeBucket) Opcode() uint64 { return tb.opcode }
-
-// NumOpcodeBits is the number of bits used to write the opcode.
-func (tb *TimeBucket) NumOpcodeBits() int { return tb.numOpcodeBits }
-
-// Min is the minimum time value accepted in this range.
-func (tb *TimeBucket) Min() int64 { return tb.min }
-
-// Max is the maximum time value accepted in this range.
-func (tb *TimeBucket) Max() int64 { return tb.max }
-
-// NumValueBits is the number of bits used to write the time value.
-func (tb *TimeBucket) NumValueBits() int { return tb.numValueBits }
+func (tb *timeBucket) Opcode() uint64     { return tb.opcode }
+func (tb *timeBucket) NumOpcodeBits() int { return tb.numOpcodeBits }
+func (tb *timeBucket) Min() int64         { return tb.min }
+func (tb *timeBucket) Max() int64         { return tb.max }
+func (tb *timeBucket) NumValueBits() int  { return tb.numValueBits }
 
 // TimeEncodingScheme captures information related to time encoding.
-type TimeEncodingScheme struct {
+type TimeEncodingScheme interface {
+
+	// ZeroBucket is time bucket for encoding zero time values.
+	ZeroBucket() TimeBucket
+
+	// Buckets are the ordered time buckets used to encode non-zero, non-default time values.
+	Buckets() []TimeBucket
+
+	// DefaultBucket is the time bucket for catching all other time values not included in the regular buckets.
+	DefaultBucket() TimeBucket
+}
+
+type timeEncodingScheme struct {
 	zeroBucket    TimeBucket
 	buckets       []TimeBucket
 	defaultBucket TimeBucket
 }
 
-// NewTimeEncodingSchemes converts the unit-to-scheme mapping
+// newTimeEncodingSchemes converts the unit-to-scheme mapping
 // to the underlying TimeEncodingSchemes used for lookups.
-func NewTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
+func newTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
 	encodingSchemes := make(TimeEncodingSchemes, xtime.UnitCount())
 	for k, v := range schemes {
 		if !k.IsValid() {
@@ -119,10 +140,10 @@ func NewTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncod
 	return encodingSchemes
 }
 
-// NewTimeEncodingScheme creates a new time encoding scheme.
+// newTimeEncodingScheme creates a new time encoding scheme.
 // NB(xichen): numValueBitsForBuckets should be ordered by value
 // in ascending order (smallest value first).
-func NewTimeEncodingScheme(numValueBitsForBuckets []int, numValueBitsForDefault int) TimeEncodingScheme {
+func newTimeEncodingScheme(numValueBitsForBuckets []int, numValueBitsForDefault int) TimeEncodingScheme {
 	numBuckets := len(numValueBitsForBuckets)
 	buckets := make([]TimeBucket, 0, numBuckets)
 	numOpcodeBits := 1
@@ -130,45 +151,71 @@ func NewTimeEncodingScheme(numValueBitsForBuckets []int, numValueBitsForDefault 
 	i := 0
 	for i < numBuckets {
 		opcode = uint64(1<<uint(i+1)) | opcode
-		buckets = append(buckets, NewTimeBucket(opcode, numOpcodeBits+1, numValueBitsForBuckets[i]))
+		buckets = append(buckets, newTimeBucket(opcode, numOpcodeBits+1, numValueBitsForBuckets[i]))
 		i++
 		numOpcodeBits++
 	}
-	defaultBucket := NewTimeBucket(opcode|0x1, numOpcodeBits, numValueBitsForDefault)
+	defaultBucket := newTimeBucket(opcode|0x1, numOpcodeBits, numValueBitsForDefault)
 
-	return TimeEncodingScheme{
+	return &timeEncodingScheme{
 		zeroBucket:    defaultZeroBucket,
 		buckets:       buckets,
 		defaultBucket: defaultBucket,
 	}
 }
 
-// ZeroBucket is time bucket for encoding zero time values.
-func (tes *TimeEncodingScheme) ZeroBucket() *TimeBucket { return &tes.zeroBucket }
-
-// Buckets are the ordered time buckets used to encode non-zero, non-default time values.
-func (tes *TimeEncodingScheme) Buckets() []TimeBucket { return tes.buckets }
-
-// DefaultBucket is the time bucket for catching all other time values not included in the regular buckets.
-func (tes *TimeEncodingScheme) DefaultBucket() *TimeBucket { return &tes.defaultBucket }
+func (tes *timeEncodingScheme) ZeroBucket() TimeBucket    { return tes.zeroBucket }
+func (tes *timeEncodingScheme) Buckets() []TimeBucket     { return tes.buckets }
+func (tes *timeEncodingScheme) DefaultBucket() TimeBucket { return tes.defaultBucket }
 
 // TimeEncodingSchemes defines the time encoding schemes for different time units.
 type TimeEncodingSchemes []TimeEncodingScheme
 
 // SchemeForUnit returns the corresponding TimeEncodingScheme for the provided unit.
 // Returns false if the unit does not match a scheme or is invalid.
-func (s TimeEncodingSchemes) SchemeForUnit(u xtime.Unit) (*TimeEncodingScheme, bool) {
+func (s TimeEncodingSchemes) SchemeForUnit(u xtime.Unit) (TimeEncodingScheme, bool) {
 	if !u.IsValid() || int(u) >= len(s) {
 		return nil, false
 	}
-	return &s[u], true
+
+	scheme := s[u]
+	if scheme == nil {
+		return nil, false
+	}
+
+	return s[u], true
 }
 
 // Marker represents the markers.
 type Marker byte
 
 // MarkerEncodingScheme captures the information related to marker encoding.
-type MarkerEncodingScheme struct {
+type MarkerEncodingScheme interface {
+
+	// Opcode returns the marker opcode.
+	Opcode() uint64
+
+	// NumOpcodeBits returns the number of bits used for the opcode.
+	NumOpcodeBits() int
+
+	// NumValueBits returns the number of bits used for the marker value.
+	NumValueBits() int
+
+	// EndOfStream returns the end of stream marker.
+	EndOfStream() Marker
+
+	// Annotation returns the annotation marker.
+	Annotation() Marker
+
+	// TimeUnit returns the time unit marker.
+	TimeUnit() Marker
+
+	// Tail will return the tail portion of a stream including the relevant bits
+	// in the last byte along with the end of stream marker.
+	Tail(streamLastByte byte, streamCurrentPosition int) checked.Bytes
+}
+
+type markerEncodingScheme struct {
 	opcode        uint64
 	numOpcodeBits int
 	numValueBits  int
@@ -178,16 +225,15 @@ type MarkerEncodingScheme struct {
 	tails         [256][8]checked.Bytes
 }
 
-// NewMarkerEncodingScheme returns new marker encoding.
-func NewMarkerEncodingScheme(
+func newMarkerEncodingScheme(
 	opcode uint64,
 	numOpcodeBits int,
 	numValueBits int,
 	endOfStream Marker,
 	annotation Marker,
 	timeUnit Marker,
-) *MarkerEncodingScheme {
-	scheme := &MarkerEncodingScheme{
+) MarkerEncodingScheme {
+	scheme := &markerEncodingScheme{
 		opcode:        opcode,
 		numOpcodeBits: numOpcodeBits,
 		numValueBits:  numValueBits,
@@ -214,29 +260,15 @@ func NewMarkerEncodingScheme(
 
 // WriteSpecialMarker writes the marker that marks the start of a special symbol,
 // e.g., the eos marker, the annotation marker, or the time unit marker.
-func WriteSpecialMarker(os OStream, scheme *MarkerEncodingScheme, marker Marker) {
+func WriteSpecialMarker(os OStream, scheme MarkerEncodingScheme, marker Marker) {
 	os.WriteBits(scheme.Opcode(), scheme.NumOpcodeBits())
 	os.WriteBits(uint64(marker), scheme.NumValueBits())
 }
 
-// Opcode returns the marker opcode.
-func (mes *MarkerEncodingScheme) Opcode() uint64 { return mes.opcode }
-
-// NumOpcodeBits returns the number of bits used for the opcode.
-func (mes *MarkerEncodingScheme) NumOpcodeBits() int { return mes.numOpcodeBits }
-
-// NumValueBits returns the number of bits used for the marker value.
-func (mes *MarkerEncodingScheme) NumValueBits() int { return mes.numValueBits }
-
-// EndOfStream returns the end of stream marker.
-func (mes *MarkerEncodingScheme) EndOfStream() Marker { return mes.endOfStream }
-
-// Annotation returns the annotation marker.
-func (mes *MarkerEncodingScheme) Annotation() Marker { return mes.annotation }
-
-// TimeUnit returns the time unit marker.
-func (mes *MarkerEncodingScheme) TimeUnit() Marker { return mes.timeUnit }
-
-// Tail will return the tail portion of a stream including the relevant bits
-// in the last byte along with the end of stream marker.
-func (mes *MarkerEncodingScheme) Tail(b byte, pos int) checked.Bytes { return mes.tails[int(b)][pos-1] }
+func (mes *markerEncodingScheme) Opcode() uint64                     { return mes.opcode }
+func (mes *markerEncodingScheme) NumOpcodeBits() int                 { return mes.numOpcodeBits }
+func (mes *markerEncodingScheme) NumValueBits() int                  { return mes.numValueBits }
+func (mes *markerEncodingScheme) EndOfStream() Marker                { return mes.endOfStream }
+func (mes *markerEncodingScheme) Annotation() Marker                 { return mes.annotation }
+func (mes *markerEncodingScheme) TimeUnit() Marker                   { return mes.timeUnit }
+func (mes *markerEncodingScheme) Tail(b byte, pos int) checked.Bytes { return mes.tails[int(b)][pos-1] }

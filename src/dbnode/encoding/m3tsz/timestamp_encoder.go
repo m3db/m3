@@ -39,10 +39,9 @@ type TimestampEncoder struct {
 	PrevTimeDelta          time.Duration
 	PrevAnnotationChecksum uint64
 
-	TimeUnit xtime.Unit
+	Options encoding.Options
 
-	markerEncodingScheme *encoding.MarkerEncodingScheme
-	timeEncodingSchemes  encoding.TimeEncodingSchemes
+	TimeUnit xtime.Unit
 
 	// Used to keep track of time unit changes that occur directly via the WriteTimeUnit()
 	// API as opposed to indirectly via the WriteTime() API.
@@ -59,9 +58,8 @@ func NewTimestampEncoder(
 	return TimestampEncoder{
 		PrevTime:               start,
 		TimeUnit:               initialTimeUnit(xtime.ToUnixNano(start), timeUnit),
+		Options:                opts,
 		PrevAnnotationChecksum: emptyAnnotationChecksum,
-		markerEncodingScheme:   opts.MarkerEncodingScheme(),
-		timeEncodingSchemes:    opts.TimeEncodingSchemes(),
 	}
 }
 
@@ -128,7 +126,7 @@ func (enc *TimestampEncoder) maybeWriteTimeUnitChange(stream encoding.OStream, t
 		return false
 	}
 
-	scheme := enc.markerEncodingScheme
+	scheme := enc.Options.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(stream, scheme, scheme.TimeUnit())
 	enc.WriteTimeUnit(stream, timeUnit)
 	return true
@@ -160,7 +158,7 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 		return
 	}
 
-	scheme := enc.markerEncodingScheme
+	scheme := enc.Options.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(stream, scheme, scheme.Annotation())
 
 	var buf [binary.MaxVarintLen32]byte
@@ -199,9 +197,9 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 		}
 	}
 
-	tes, exists := enc.timeEncodingSchemes.SchemeForUnit(timeUnit)
+	tes, exists := enc.Options.TimeEncodingSchemes().SchemeForUnit(timeUnit)
 	if !exists {
-		return errNoTimeSchemaForUnit
+		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", timeUnit)
 	}
 
 	if deltaOfDelta == 0 {
