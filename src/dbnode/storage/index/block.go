@@ -236,6 +236,8 @@ func NewBlock(
 		return nil, err
 	}
 
+	cachedSearchesWorkers.Init()
+
 	segs, err := newMutableSegments(
 		md,
 		blockStart,
