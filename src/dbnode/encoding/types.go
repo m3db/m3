@@ -105,10 +105,10 @@ type Options interface {
 	TimeEncodingSchemes() TimeEncodingSchemes
 
 	// SetMarkerEncodingScheme sets the marker encoding scheme.
-	SetMarkerEncodingScheme(value *MarkerEncodingScheme) Options
+	SetMarkerEncodingScheme(value MarkerEncodingScheme) Options
 
 	// MarkerEncodingScheme returns the marker encoding scheme.
-	MarkerEncodingScheme() *MarkerEncodingScheme
+	MarkerEncodingScheme() MarkerEncodingScheme
 
 	// SetEncoderPool sets the encoder pool.
 	SetEncoderPool(value EncoderPool) Options

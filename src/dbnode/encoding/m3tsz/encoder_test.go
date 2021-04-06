@@ -92,7 +92,7 @@ func TestWriteDeltaOfDeltaTimeUnitChanged(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewOStream(nil, false, nil)
-		tsEncoder := NewTimestampEncoder(testStartTime, xtime.Nanosecond, encoding.NewOptions())
+		tsEncoder := NewTimestampEncoder(testStartTime, xtime.Nanosecond, nil)
 		tsEncoder.writeDeltaOfDeltaTimeUnitChanged(stream, 0, input.delta)
 		b, p := stream.RawBytes()
 		require.Equal(t, input.expectedBytes, b)
