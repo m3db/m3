@@ -437,12 +437,14 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 
 	shard := NewMockdatabaseShard(ctrl)
+	shardNotBootstrapped := NewMockdatabaseShard(ctrl)
+	shardNotBootstrapped.EXPECT().IsBootstrapped().Return(false).AnyTimes()
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
 	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
 	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard, shardNotBootstrapped}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
