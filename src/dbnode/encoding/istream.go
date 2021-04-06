@@ -29,15 +29,11 @@ import (
 // IStream encapsulates a readable stream.
 type IStream struct {
 	r         xio.Reader64
+	err       error  // error encountered
 	current   uint64 // current uint64 we are working off of
 	index     int    // current index within data slice
 	remaining uint8  // bits remaining in current to be read
 }
-
-var (
-	_ io.ByteReader = (*IStream)(nil)
-	_ io.Reader     = (*IStream)(nil)
-)
 
 // NewIStream creates a new IStream
 func NewIStream(reader64 xio.Reader64) *IStream {
@@ -71,30 +67,23 @@ func (is *IStream) ReadBit() (Bit, error) {
 
 // ReadBits reads the next Bits.
 func (is *IStream) ReadBits(numBits uint8) (uint64, error) {
-	res := is.current >> (64 - numBits)
-	remaining := is.remaining
-	if numBits <= remaining {
-		// Have enough bits buffered.
-		is.current <<= numBits
-		is.remaining -= numBits
-		return res, nil
+	if is.err != nil {
+		return 0, is.err
 	}
-
+	if numBits <= is.remaining {
+		// Have enough bits buffered.
+		return is.consumeBuffer(numBits), nil
+	}
+	res := readBitsInWord(is.current, numBits)
 	// Not enough bits buffered, read next word from the stream.
-	bitsNeeded := numBits - remaining
-
-	current, n, err := is.r.Read64()
-	if err != nil {
+	bitsNeeded := numBits - is.remaining
+	if err := is.readWordFromStream(); err != nil {
 		return 0, err
 	}
-	n *= 8
-	if n < bitsNeeded {
+	if is.remaining < bitsNeeded {
 		return 0, io.EOF
 	}
-
-	is.current = current << bitsNeeded
-	is.remaining = n - bitsNeeded
-	return res | current>>(64-bitsNeeded), nil
+	return res | is.consumeBuffer(bitsNeeded), nil
 }
 
 // PeekBits looks at the next Bits, but doesn't move the pos.
@@ -124,8 +113,26 @@ func readBitsInWord(w uint64, numBits uint8) uint64 {
 	return w >> (64 - numBits)
 }
 
+// consumeBuffer consumes numBits in is.current.
+func (is *IStream) consumeBuffer(numBits uint8) uint64 {
+	res := readBitsInWord(is.current, numBits)
+	is.current <<= numBits
+	is.remaining -= numBits
+	return res
+}
+
+func (is *IStream) readWordFromStream() error {
+	current, bytes, err := is.r.Read64()
+	is.current = current
+	is.remaining = 8 * bytes
+	is.err = err
+
+	return err
+}
+
 // Reset resets the IStream.
 func (is *IStream) Reset(reader xio.Reader64) {
+	is.err = nil
 	is.current = 0
 	is.remaining = 0
 	is.index = 0
