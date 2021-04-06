@@ -41,19 +41,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/NamespaceGetResponse"
+                $ref: "#/components/schemas/NamespaceGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     post:
       tags:
         - M3DB Namespace
@@ -63,26 +63,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/reference/schemas/NamespaceAddRequest"
+              $ref: "#/components/schemas/NamespaceAddRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/NamespaceGetResponse"
+                $ref: "#/components/schemas/NamespaceGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     put:
       tags:
         - M3DB Namespace
@@ -92,26 +92,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/reference/schemas/NamespaceUpdateRequest"
+              $ref: "#/components/schemas/NamespaceUpdateRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/NamespaceGetResponse"
+                $ref: "#/components/schemas/NamespaceGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   "/services/m3db/namespace/{namespaceID}":
     delete:
       tags:
@@ -130,19 +130,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/DeleteConfirmation"
+                $ref: "#/components/schemas/DeleteConfirmation"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3db/placement:
     get:
       tags:
@@ -155,39 +155,39 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     post:
       tags:
         - M3DB Placement
       description: Add an instance to the placement
       operationId: m3DBPlacementAdd
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementAddRequest"
+        $ref: "#/components/requestBodies/PlacementAddRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     delete:
       tags:
         - M3DB Placement
@@ -199,13 +199,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/DeleteConfirmation"
+                $ref: "#/components/schemas/DeleteConfirmation"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3coordinator/placement:
     get:
       tags:
@@ -219,13 +219,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     post:
       tags:
         - M3Coordinator Placement
@@ -233,26 +233,26 @@ paths:
       description: Add an instance to the placement
       operationId: m3CoordPlacementAdd
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementAddRequest"
+        $ref: "#/components/requestBodies/PlacementAddRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     delete:
       tags:
         - M3Coordinator Placement
@@ -265,13 +265,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/DeleteConfirmation"
+                $ref: "#/components/schemas/DeleteConfirmation"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3aggregator/placement:
     get:
       tags:
@@ -285,13 +285,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     post:
       tags:
         - M3Aggregator Placement
@@ -299,26 +299,26 @@ paths:
       description: Add an M3Agg instance to the placement
       operationId: m3AggPlacementAdd
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementAddRequest"
+        $ref: "#/components/requestBodies/PlacementAddRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
     delete:
       tags:
         - M3Aggregator Placement
@@ -331,13 +331,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/DeleteConfirmation"
+                $ref: "#/components/schemas/DeleteConfirmation"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3db/placement/init:
     post:
       tags:
@@ -345,26 +345,26 @@ paths:
       description: Initialize the M3DB placement
       operationId: m3DBPlacementInit
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementInitRequest"
+        $ref: "#/components/requestBodies/PlacementInitRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3db/placement/replace:
     post:
       tags:
@@ -372,26 +372,26 @@ paths:
       description: Replace an M3DB instance in the placement
       operationId: m3DBPlacementReplace
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementReplaceRequest"
+        $ref: "#/components/requestBodies/PlacementReplaceRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3coordinator/placement/init:
     post:
       tags:
@@ -403,26 +403,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/reference/schemas/PlacementInitRequestM3Coordinator"
+              $ref: "#/components/schemas/PlacementInitRequestM3Coordinator"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3coordinator/placement/replace:
     post:
       tags:
@@ -431,26 +431,26 @@ paths:
       description: Replace an M3Coordinator
       operationId: m3CoordPlacementReplace
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementReplaceRequest"
+        $ref: "#/components/requestBodies/PlacementReplaceRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3aggregator/placement/init:
     post:
       tags:
@@ -459,26 +459,26 @@ paths:
       description: Initialize the M3Agg placement
       operationId: m3AggPlacementInit
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementInitRequest"
+        $ref: "#/components/requestBodies/PlacementInitRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3aggregator/placement/replace:
     post:
       tags:
@@ -487,26 +487,26 @@ paths:
       description: Replace an M3Aggregator
       operationId: m3AggPlacementReplace
       requestBody:
-        $ref: "#/reference/requestBodies/PlacementReplaceRequest"
+        $ref: "#/components/requestBodies/PlacementReplaceRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   "/services/m3db/placement/{instanceID}":
     delete:
       tags:
@@ -525,19 +525,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   "/services/m3coordinator/placement/{instanceID}":
     delete:
       tags:
@@ -557,19 +557,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   "/services/m3aggregator/placement/{instanceID}":
     delete:
       tags:
@@ -589,19 +589,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/PlacementGetResponse"
+                $ref: "#/components/schemas/PlacementGetResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
   /services/m3db/database/create:
     post:
       tags:
@@ -612,43 +612,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/reference/schemas/DatabaseCreateRequest"
+              $ref: "#/components/schemas/DatabaseCreateRequest"
       responses:
         "200":
           description: "OK"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/DatabaseCreateResponse"
+                $ref: "#/components/schemas/DatabaseCreateResponse"
         "404":
           description: "Not found"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
         "500":
           description: "Server error"
           content:
             application/json:
               schema:
-                $ref: "#/reference/schemas/GenericError"
+                $ref: "#/components/schemas/GenericError"
 components:
   requestBodies:
     PlacementAddRequest:
       content:
         application/json:
           schema:
-            $ref: "#/reference/schemas/PlacementAddRequest"
+            $ref: "#/components/schemas/PlacementAddRequest"
     PlacementInitRequest:
       content:
         application/json:
           schema:
-            $ref: "#/reference/schemas/PlacementInitRequest"
+            $ref: "#/components/schemas/PlacementInitRequest"
     PlacementReplaceRequest:
       content:
         application/json:
           schema:
-            $ref: "#/reference/schemas/PlacementReplaceRequest"
+            $ref: "#/components/schemas/PlacementReplaceRequest"
   schemas:
     NamespaceAddRequest:
       type: object
@@ -656,7 +656,7 @@ components:
         name:
           type: string
         options:
-          $ref: "#/reference/schemas/NamespaceOptions"
+          $ref: "#/components/schemas/NamespaceOptions"
     NamespaceUpdateRequest:
       type: object
       properties:
@@ -671,7 +671,7 @@ components:
                 retentionPeriodDuration:
                   type: string
             runtimeOptions:
-              $ref: "#/reference/schemas/NamespaceRuntimeOptions"
+              $ref: "#/components/schemas/NamespaceRuntimeOptions"
     NamespaceOptions:
       type: object
       properties:
@@ -686,13 +686,13 @@ components:
         repairEnabled:
           type: boolean
         retentionOptions:
-          $ref: "#/reference/schemas/RetentionOptions"
+          $ref: "#/components/schemas/RetentionOptions"
         snapshotEnabled:
           type: boolean
         indexOptions:
-          $ref: "#/reference/schemas/IndexOptions"
+          $ref: "#/components/schemas/IndexOptions"
         runtimeOptions:
-          $ref: "#/reference/schemas/NamespaceRuntimeOptions"
+          $ref: "#/components/schemas/NamespaceRuntimeOptions"
     RetentionOptions:
       type: object
       properties:
@@ -728,14 +728,14 @@ components:
       type: object
       properties:
         registry:
-          $ref: "#/reference/schemas/NamespaceRegistry"
+          $ref: "#/components/schemas/NamespaceRegistry"
     NamespaceRegistry:
       type: object
       properties:
         namespaces:
           type: object
           additionalProperties:
-            $ref: "#/reference/schemas/NamespaceOptions"
+            $ref: "#/components/schemas/NamespaceOptions"
     DeleteConfirmation:
       type: object
       properties:
@@ -745,7 +745,7 @@ components:
       type: object
       properties:
         placement:
-          $ref: "#/reference/schemas/Placement"
+          $ref: "#/components/schemas/Placement"
         version:
           type: integer
           format: int32
@@ -755,7 +755,7 @@ components:
         instances:
           type: object
           additionalProperties:
-            $ref: "#/reference/schemas/Instance"
+            $ref: "#/components/schemas/Instance"
         replicaFactor:
           type: integer
         numShards:
@@ -785,7 +785,7 @@ components:
         shards:
           type: array
           items:
-            $ref: "#/reference/schemas/Shard"
+            $ref: "#/components/schemas/Shard"
         shardSetId:
           type: integer
         hostname:
@@ -815,7 +815,7 @@ components:
         id:
           type: integer
         state:
-          $ref: "#/reference/schemas/ShardState"
+          $ref: "#/components/schemas/ShardState"
         sourceId:
           type: string
         cutoverNanos:
@@ -836,7 +836,7 @@ components:
         instances:
           type: array
           items:
-            $ref: "#/reference/schemas/InstanceRequest"
+            $ref: "#/components/schemas/InstanceRequest"
         force:
           type: boolean
     PlacementInitRequest:
@@ -845,7 +845,7 @@ components:
         instances:
           type: array
           items:
-            $ref: "#/reference/schemas/InstanceRequest"
+            $ref: "#/components/schemas/InstanceRequest"
         numShards:
           type: integer
           format: int32
@@ -862,7 +862,7 @@ components:
         candidates:
           type: array
           items:
-            $ref: "#/reference/schemas/InstanceRequest"
+            $ref: "#/components/schemas/InstanceRequest"
         force:
           type: boolean
     PlacementInitRequestM3Coordinator:
@@ -871,7 +871,7 @@ components:
         instances:
           type: array
           items:
-            $ref: "#/reference/schemas/InstanceRequest"
+            $ref: "#/components/schemas/InstanceRequest"
     GenericError:
       type: object
       properties:
@@ -898,11 +898,11 @@ components:
         retentionTime:
           type: string
         blockSize:
-          $ref: "#/reference/schemas/BlockSize"
+          $ref: "#/components/schemas/BlockSize"
         hosts:
           type: array
           items:
-            $ref: "#/reference/schemas/Host"
+            $ref: "#/components/schemas/Host"
     BlockSize:
       type: object
       properties:
@@ -933,6 +933,6 @@ components:
       type: object
       properties:
         namespace:
-          $ref: "#/reference/schemas/NamespaceGetResponse"
+          $ref: "#/components/schemas/NamespaceGetResponse"
         placement:
-          $ref: "#/reference/schemas/PlacementGetResponse"
+          $ref: "#/components/schemas/PlacementGetResponse"
