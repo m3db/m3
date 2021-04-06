@@ -13,3 +13,9 @@ func TestGetFileSystemStats(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEqual(t, uint64(0), stats.Total)
 }
+
+func TestGetDirectoryStats(t *testing.T) {
+	stats, err := GetDirectoryStats("/etc")
+	assert.Nil(t, err)
+	assert.NotEqual(t, uint64(0), stats.Size)
+}

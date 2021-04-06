@@ -10,6 +10,7 @@ import (
 
 func TestFileSystemMetricsReport(t *testing.T) {
 	testScope := tally.NewTestScope("", nil)
+
 	every := 10 * time.Millisecond
 	opts := NewOptions().SetMetricsScope(testScope).SetReportInterval(every)
 
@@ -23,8 +24,9 @@ func TestFileSystemMetricsReport(t *testing.T) {
 	availBytes, ok := testScope.Snapshot().Gauges()["filesystem.avail_bytes+"]
 	assert.True(t, ok)
 	assert.NotEqual(t, 0, availBytes.Value())
-	numErrors, ok := testScope.Snapshot().Counters()["filesystem.num_api_errors+"]
+	numErrors, ok := testScope.Snapshot().Counters()["filesystem.num_fs_api_errors+"]
 	assert.True(t, ok)
 	assert.Equal(t, int64(0), numErrors.Value())
+
 	assert.Nil(t, fsReporter.Stop())
 }
