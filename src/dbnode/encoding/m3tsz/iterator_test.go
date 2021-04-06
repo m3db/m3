@@ -361,6 +361,7 @@ func TestReaderIteratorNextWithUnexpectedTimeUnit(t *testing.T) {
 }
 
 func TestReaderIteratorDecodingRegression(t *testing.T) {
+	t.Skip("to be removed in a follow-up PR")
 	// This reproduces the regression that was introduced in
 	// https://github.com/m3db/m3/commit/abad1bb2e9a4de18afcb9a29e87fa3a39a694ef4
 	// by failing decoding (returns unexpected EOF error after the first call to Next()).
