@@ -452,9 +452,9 @@ func (d *db) Options() Options {
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
-	d.Lock()
+	d.RLock()
 	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-	d.Unlock()
+	d.RUnlock()
 
 	if receivedNewShards {
 		// We need to disable file ops so that warm/cold flush is not running during shards update.
