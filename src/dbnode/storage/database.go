@@ -453,24 +453,25 @@ func (d *db) Options() Options {
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
-	defer d.Unlock()
-
 	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
+	d.Unlock()
 
-	d.shardSet = shardSet
 	if receivedNewShards {
-		d.lastReceivedNewShards = d.nowFn()
 		// We need to disable file ops so that warm/cold flush is not running during shards update.
 		// Bootstrap will enable file ops when it completes.
 		d.mediator.DisableFileOpsAndWait()
 	}
 
+	d.Lock()
+	defer d.Unlock()
+	d.shardSet = shardSet
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
 	}
 
 	if receivedNewShards {
+		d.lastReceivedNewShards = d.nowFn()
 		// Only trigger a bootstrap if the node received new shards otherwise
 		// the nodes will perform lots of small bootstraps (that accomplish nothing)
 		// during topology changes as other nodes mark their shards as available.
@@ -478,7 +479,7 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 		// These small bootstraps can significantly delay topology changes as they prevent
 		// the nodes from marking themselves as bootstrapped and durable, for example.
 		if !d.queueBootstrapWithLock() {
-			// enable file ops if bootstrap was not queued.
+			// Enable file ops if bootstrap was not queued.
 			d.mediator.EnableFileOps()
 		}
 	}
