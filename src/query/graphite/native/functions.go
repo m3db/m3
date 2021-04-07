@@ -538,6 +538,11 @@ func (call *functionCall) Arguments() []ArgumentASTNode {
 func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	values := make([]reflect.Value, len(call.in))
 	for i, param := range call.in {
+		// Optimization to skip fetching series for a unary context shift
+		// operation since they'll refetch after shifting.
+		// Note: You can call WithoutUnaryContextShifterSkipFetchOptimization()
+		// after registering a function if you need a unary context shift
+		// operation to have series for the initial time window fetched.
 		if call.f.out == unaryContextShifterPtrType &&
 			!call.f.disableUnaryContextShiftFetchOptimization &&
 			(call.f.in[i] == singlePathSpecType || call.f.in[i] == multiplePathSpecsType) {
