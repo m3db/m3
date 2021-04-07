@@ -127,13 +127,7 @@ func newCleanupManager(
 	}
 }
 
-func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
-	// Don't perform any cleanup if we are not boostrapped yet.
-	if !isBootstrapped {
-		m.logger.Debug("database is still bootstrapping, terminating cleanup")
-		return nil
-	}
-
+func (m *cleanupManager) WarmFlushCleanup(t time.Time) error {
 	m.Lock()
 	m.warmFlushCleanupInProgress = true
 	m.Unlock()
@@ -178,13 +172,7 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) erro
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
-	// Don't perform any cleanup if we are not boostrapped yet.
-	if !isBootstrapped {
-		m.logger.Debug("database is still bootstrapping, terminating cleanup")
-		return nil
-	}
-
+func (m *cleanupManager) ColdFlushCleanup(t time.Time) error {
 	m.Lock()
 	m.coldFlushCleanupInProgress = true
 	m.Unlock()

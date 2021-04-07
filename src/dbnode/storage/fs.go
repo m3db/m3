@@ -154,11 +154,22 @@ func (m *fileSystemManager) Run(
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
+		defer func() {
+			m.Lock()
+			m.status = fileOpNotStarted
+			m.Unlock()
+		}()
+
+		if !m.database.IsBootstrapped() {
+			m.log.Debug("database is still bootstrapping, terminating warm flush")
+			return
+		}
+
 		// NB(r): Use invariant here since flush errors were introduced
 		// and not caught in CI or integration tests.
 		// When an invariant occurs in CI tests it panics so as to fail
 		// the build.
-		if err := m.WarmFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
+		if err := m.WarmFlushCleanup(t); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
 					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
@@ -170,9 +181,6 @@ func (m *fileSystemManager) Run(
 					l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
 				})
 		}
-		m.Lock()
-		m.status = fileOpNotStarted
-		m.Unlock()
 	}
 
 	if runType == syncRun {

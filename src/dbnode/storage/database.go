@@ -460,8 +460,8 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.shardSet = shardSet
 	if receivedNewShards {
 		d.lastReceivedNewShards = d.nowFn()
-		// we need to disable file ops so that warm/cold flush is not running during shards update.
-		// bootstrap will enable file ops when it completes.
+		// We need to disable file ops so that warm/cold flush is not running during shards update.
+		// Bootstrap will enable file ops when it completes.
 		d.mediator.DisableFileOpsAndWait()
 	}
 

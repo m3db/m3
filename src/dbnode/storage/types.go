@@ -850,10 +850,10 @@ type databaseFlushManager interface {
 // and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
 	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
-	WarmFlushCleanup(t time.Time, isBootstrapped bool) error
+	WarmFlushCleanup(t time.Time) error
 
 	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
-	ColdFlushCleanup(t time.Time, isBootstrapped bool) error
+	ColdFlushCleanup(t time.Time) error
 
 	// Report reports runtime information.
 	Report()
