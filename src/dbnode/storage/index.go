@@ -921,46 +921,24 @@ func (i *nsIndex) Bootstrapped() bool {
 	return result
 }
 
-func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
-	var (
-		multiErr                   xerrors.MultiError
-		result                     = namespaceIndexTickResult{}
-		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, startTime)
-	)
+func (i *nsIndex) Tick(
+	c context.Cancellable,
+	startTime time.Time,
+) (namespaceIndexTickResult, error) {
+	var result namespaceIndexTickResult
 
-	i.state.Lock()
-	sealedBlocks := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
-	defer func() {
-		i.updateBlockStartsWithLock()
-		activeBlock := i.inMemoryBlock
-		i.state.Unlock()
-		// Notify in memory block of sealed blocks
-		// and make sure to do this out of the lock since
-		// this can take a considerable amount of time
-		// and is an expensive task that doesn't require
-		// holding the index lock.
-		_ = activeBlock.InMemoryBlockNotifySealedBlocks(sealedBlocks)
-		i.metrics.blocksNotifySealed.Inc(int64(len(sealedBlocks)))
-		i.metrics.tick.Inc(1)
-	}()
+	// First collect blocks and acquire lock to remove those that need removing
+	// but then release lock so can Tick and do other expensive tasks
+	// such as notify of sealed blocks.
+	tickingBlocks, multiErr := i.tickingBlocks(startTime)
 
-	result.NumBlocks = int64(len(i.state.blocksByTime))
-	for blockStart, block := range i.state.blocksByTime {
+	result.NumBlocks = int64(tickingBlocks.totalBlocks)
+	for _, block := range tickingBlocks.tickingBlocks {
 		if c.IsCancelled() {
 			multiErr = multiErr.Add(errDbIndexTerminatingTickCancellation)
 			return result, multiErr.FinalError()
 		}
 
-		// drop any blocks past the retention period
-		if blockStart.ToTime().Before(earliestBlockStartToRetain) {
-			multiErr = multiErr.Add(block.Close())
-			delete(i.state.blocksByTime, blockStart)
-			result.NumBlocksEvicted++
-			result.NumBlocks--
-			continue
-		}
-
-		// tick any blocks we're going to retain
 		blockTickResult, tickErr := block.Tick(c)
 		multiErr = multiErr.Add(tickErr)
 		result.NumSegments += blockTickResult.NumSegments
@@ -968,20 +946,9 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		result.NumSegmentsMutable += blockTickResult.NumSegmentsMutable
 		result.NumTotalDocs += blockTickResult.NumDocs
 		result.FreeMmap += blockTickResult.FreeMmap
-
-		// seal any blocks that are sealable
-		if !blockStart.ToTime().After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
-			multiErr = multiErr.Add(block.Seal())
-			result.NumBlocksSealed++
-		}
-
-		if block.IsSealed() {
-			sealedBlocks = append(sealedBlocks, blockStart)
-		}
 	}
 
-	block := i.inMemoryBlock
-	blockTickResult, tickErr := block.Tick(c)
+	blockTickResult, tickErr := tickingBlocks.activeBlock.Tick(c)
 	multiErr = multiErr.Add(tickErr)
 	result.NumSegments += blockTickResult.NumSegments
 	result.NumSegmentsBootstrapped += blockTickResult.NumSegmentsBootstrapped
@@ -989,7 +956,72 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 	result.NumTotalDocs += blockTickResult.NumDocs
 	result.FreeMmap += blockTickResult.FreeMmap
 
+	// Notify in memory block of sealed blocks
+	// and make sure to do this out of the lock since
+	// this can take a considerable amount of time
+	// and is an expensive task that doesn't require
+	// holding the index lock.
+	_ = tickingBlocks.activeBlock.InMemoryBlockNotifySealedBlocks(tickingBlocks.sealedBlocks)
+	i.metrics.blocksNotifySealed.Inc(int64(len(tickingBlocks.sealedBlocks)))
+	i.metrics.tick.Inc(1)
+
 	return result, multiErr.FinalError()
+}
+
+type tickingBlocksResult struct {
+	totalBlocks   int
+	evictedBlocks int
+	activeBlock   index.Block
+	tickingBlocks []index.Block
+	sealedBlocks  []xtime.UnixNano
+}
+
+func (i *nsIndex) tickingBlocks(
+	startTime time.Time,
+) (tickingBlocksResult, xerrors.MultiError) {
+	multiErr := xerrors.NewMultiError()
+	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(
+		i.retentionPeriod, i.blockSize, startTime)
+	evictedBlocks := 0
+
+	i.state.Lock()
+	activeBlock := i.inMemoryBlock
+	tickingBlocks := make([]index.Block, 0, len(i.state.blocksByTime))
+	sealedBlocks := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
+	defer func() {
+		i.updateBlockStartsWithLock()
+		i.state.Unlock()
+	}()
+
+	for blockStart, block := range i.state.blocksByTime {
+		// Drop any blocks past the retention period.
+		if blockStart.ToTime().Before(earliestBlockStartToRetain) {
+			multiErr = multiErr.Add(block.Close())
+			delete(i.state.blocksByTime, blockStart)
+			evictedBlocks++
+			continue
+		}
+
+		// Tick any blocks we're going to retain, but don't tick inline here
+		// we'll do this out of the block.
+		tickingBlocks = append(tickingBlocks, block)
+
+		// Seal any blocks that are sealable while holding lock (seal is fast).
+		if !blockStart.ToTime().After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
+			multiErr = multiErr.Add(block.Seal())
+		}
+
+		if block.IsSealed() {
+			sealedBlocks = append(sealedBlocks, blockStart)
+		}
+	}
+
+	return tickingBlocksResult{
+		totalBlocks:   len(i.state.blocksByTime),
+		activeBlock:   activeBlock,
+		tickingBlocks: tickingBlocks,
+		sealedBlocks:  sealedBlocks,
+	}, multiErr
 }
 
 func (i *nsIndex) WarmFlush(
