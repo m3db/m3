@@ -494,6 +494,7 @@ func (n *dbNamespace) assignShardSet(
 		incoming = make(map[uint32]struct{}, len(shardSet.All()))
 		existing []databaseShard
 		closing  []databaseShard
+		created  = make([]uint32, 0, len(shardSet.All()))
 	)
 	for _, shard := range shardSet.AllIDs() {
 		incoming[shard] = struct{}{}
@@ -525,6 +526,7 @@ func (n *dbNamespace) assignShardSet(
 		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 			opts.needsBootstrap, n.opts, n.seriesOpts)
+		created = append(created, shard)
 		// NB(bodu): We only record shard add metrics for shards created in non
 		// initial assignments.
 		if !opts.initialAssignment {
@@ -540,6 +542,14 @@ func (n *dbNamespace) assignShardSet(
 	}
 	if mgr := n.namespaceReaderMgr; mgr != nil {
 		mgr.assignShardSet(shardSet)
+	}
+
+	if len(created) > 0 {
+		n.log.Info("created new shards",
+			zap.Int("shards", len(created)),
+			zap.Uint32s("shardIds", created),
+			zap.Bool("needsBootstrap", opts.needsBootstrap),
+			zap.Bool("initialAssignment", opts.initialAssignment))
 	}
 
 	n.Unlock()
