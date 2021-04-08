@@ -160,22 +160,28 @@ func (m *fileSystemManager) Run(
 			m.Unlock()
 		}()
 
-		if !m.database.IsBootstrapped() {
-			m.log.Debug("database is still bootstrapping, terminating warm flush")
+		namespaces, err := m.database.OwnedNamespaces()
+		if err != nil {
+			m.log.Debug("error when getting namespaces", zap.Error(err))
 			return
+		}
+
+		bootstrappedNamespaces := make([]databaseNamespace, 0, len(namespaces))
+		for _, namespace := range namespaces {
+			bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t))
 		}
 
 		// NB(r): Use invariant here since flush errors were introduced
 		// and not caught in CI or integration tests.
 		// When an invariant occurs in CI tests it panics so as to fail
 		// the build.
-		if err := m.WarmFlushCleanup(t); err != nil {
+		if err := m.WarmFlushCleanup(t, bootstrappedNamespaces); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
 					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
 				})
 		}
-		if err := m.Flush(t); err != nil {
+		if err := m.Flush(t, bootstrappedNamespaces); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
 					l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))

@@ -107,9 +107,15 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
-	if !m.database.IsBootstrapped() {
-		m.log.Debug("database is still bootstrapping, terminating cold flush")
-		return true
+	namespaces, err := m.database.OwnedNamespaces()
+	if err != nil {
+		m.log.Debug("error when getting namespaces", zap.Error(err))
+		return false
+	}
+
+	bootstrappedNamespaces := make([]databaseNamespace, 0, len(namespaces))
+	for _, namespace := range namespaces {
+		bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t))
 	}
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
@@ -117,13 +123,13 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	// and not caught in CI or integration tests.
 	// When an invariant occurs in CI tests it panics so as to fail
 	// the build.
-	if err := m.ColdFlushCleanup(t); err != nil {
+	if err := m.ColdFlushCleanup(t, bootstrappedNamespaces); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
 				l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
 			})
 	}
-	if err := m.trackedColdFlush(); err != nil {
+	if err := m.trackedColdFlush(bootstrappedNamespaces); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
 				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
@@ -133,7 +139,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	return true
 }
 
-func (m *coldFlushManager) trackedColdFlush() error {
+func (m *coldFlushManager) trackedColdFlush(namespaces []databaseNamespace) error {
 	// The cold flush process will persist any data that has been "loaded" into memory via
 	// the Load() API but has not yet been persisted durably. As a result, if the cold flush
 	// process completes without error, then we want to "decrement" the number of tracked bytes
@@ -157,7 +163,7 @@ func (m *coldFlushManager) trackedColdFlush() error {
 	memTracker := m.opts.MemoryTracker()
 	memTracker.MarkLoadedAsPending()
 
-	if err := m.coldFlush(); err != nil {
+	if err := m.coldFlush(namespaces); err != nil {
 		return err
 	}
 
@@ -167,12 +173,7 @@ func (m *coldFlushManager) trackedColdFlush() error {
 	return nil
 }
 
-func (m *coldFlushManager) coldFlush() error {
-	namespaces, err := m.database.OwnedNamespaces()
-	if err != nil {
-		return err
-	}
-
+func (m *coldFlushManager) coldFlush(namespaces []databaseNamespace) error {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
 		return err
@@ -204,7 +205,7 @@ func (m *coldFlushManager) Report() {
 }
 
 func (m *coldFlushManager) shouldRunWithLock() bool {
-	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
+	return m.enabled && m.status != fileOpInProgress
 }
 
 type coldFlushNsOpts struct {

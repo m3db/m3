@@ -117,7 +117,7 @@ func newFlushManager(
 	}
 }
 
-func (m *flushManager) Flush(startTime time.Time) error {
+func (m *flushManager) Flush(startTime time.Time, namespaces []databaseNamespace) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
 	if m.state != flushManagerIdle {
@@ -128,11 +128,6 @@ func (m *flushManager) Flush(startTime time.Time) error {
 	m.Unlock()
 
 	defer m.setState(flushManagerIdle)
-
-	namespaces, err := m.database.OwnedNamespaces()
-	if err != nil {
-		return err
-	}
 
 	// Perform two separate loops through all the namespaces so that we can
 	// emit better gauges, i.e. all the flushing for all the namespaces happens
@@ -145,7 +140,7 @@ func (m *flushManager) Flush(startTime time.Time) error {
 	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
 	// the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
+	if err := m.dataWarmFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 

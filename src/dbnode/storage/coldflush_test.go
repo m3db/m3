@@ -109,10 +109,9 @@ func TestColdFlushManagerFlushDoneFlushError(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().OwnedNamespaces().Return(nil, nil)
 
 	cfm := newColdFlushManager(db, mockPersistManager, testOpts).(*coldFlushManager)
 	cfm.pm = mockPersistManager
 
-	require.EqualError(t, fakeErr, cfm.coldFlush().Error())
+	require.EqualError(t, fakeErr, cfm.coldFlush([]databaseNamespace{}).Error())
 }

@@ -319,7 +319,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				return nil
 			}
 
-			err := cleanup(mgr, ts)
+			err := cleanup(mgr, ts, namespaces)
 			if tc.expectErr {
 				require.Error(t, err)
 			} else {
@@ -362,7 +362,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
 	idx.EXPECT().CleanupDuplicateFileSets().Return(nil)
-	require.NoError(t, cleanup(mgr, ts))
+	require.NoError(t, cleanup(mgr, ts, nses))
 }
 
 // Test NS doesn't cleanup when flag is present
@@ -395,7 +395,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, cleanup(mgr, ts))
+	require.NoError(t, cleanup(mgr, ts, namespaces))
 }
 
 func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
@@ -408,14 +408,12 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 
 	shard := NewMockdatabaseShard(ctrl)
-	shardNotBootstrapped := NewMockdatabaseShard(ctrl)
-	shardNotBootstrapped.EXPECT().IsBootstrapped().Return(false).AnyTimes()
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
 	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
 	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	ns.EXPECT().OwnedShards().Return([]databaseShard{shard, shardNotBootstrapped}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
@@ -424,7 +422,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
-	require.NoError(t, cleanup(mgr, ts))
+	require.NoError(t, cleanup(mgr, ts, namespaces))
 }
 
 type deleteInactiveDirectoriesCall struct {
@@ -464,7 +462,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	}
 	mgr.deleteInactiveDirectoriesFn = deleteInactiveDirectoriesFn
 
-	require.NoError(t, cleanup(mgr, ts))
+	require.NoError(t, cleanup(mgr, ts, namespaces))
 
 	expectedCalls := []deleteInactiveDirectoriesCall{
 		deleteInactiveDirectoriesCall{
@@ -493,25 +491,6 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	}
 }
 
-func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ts := timeFor(36000)
-
-	db := NewMockdatabase(ctrl)
-	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
-	db.EXPECT().Open().Return(nil)
-	db.EXPECT().Terminate().Return(nil)
-	db.EXPECT().OwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()
-
-	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
-	require.NoError(t, db.Open())
-	require.NoError(t, db.Terminate())
-
-	require.Error(t, cleanup(mgr, ts))
-}
-
 func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }
@@ -537,9 +516,10 @@ func newFakeActiveLogs(activeLogs persist.CommitLogFiles) fakeActiveLogs {
 func cleanup(
 	mgr databaseCleanupManager,
 	t time.Time,
+	namespaces []databaseNamespace,
 ) error {
 	multiErr := xerrors.NewMultiError()
-	multiErr = multiErr.Add(mgr.WarmFlushCleanup(t))
-	multiErr = multiErr.Add(mgr.ColdFlushCleanup(t))
+	multiErr = multiErr.Add(mgr.WarmFlushCleanup(t, namespaces))
+	multiErr = multiErr.Add(mgr.ColdFlushCleanup(t, namespaces))
 	return multiErr.FinalError()
 }

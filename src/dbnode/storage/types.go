@@ -835,7 +835,7 @@ type BootstrapResult struct {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(startTime time.Time) error
+	Flush(startTime time.Time, namespaces []databaseNamespace) error
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
@@ -850,10 +850,10 @@ type databaseFlushManager interface {
 // and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
 	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
-	WarmFlushCleanup(t time.Time) error
+	WarmFlushCleanup(t time.Time, namespaces []databaseNamespace) error
 
 	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
-	ColdFlushCleanup(t time.Time) error
+	ColdFlushCleanup(t time.Time, namespaces []databaseNamespace) error
 
 	// Report reports runtime information.
 	Report()
@@ -862,7 +862,7 @@ type databaseCleanupManager interface {
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time) error
+	Flush(startTime time.Time, namespaces []databaseNamespace) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status.

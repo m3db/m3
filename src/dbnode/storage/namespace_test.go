@@ -601,12 +601,12 @@ func testNamespaceBootstrapUnfulfilledShards(
 	require.Error(t, ns.Bootstrap(ctx, nsResult))
 }
 
-func TestNamespaceFlushNotBootstrapped(t *testing.T) {
+/*func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	require.Equal(t, errNamespaceNotBootstrapped, ns.WarmFlush(time.Now(), nil))
 	require.Equal(t, errNamespaceNotBootstrapped, ns.ColdFlush(nil))
-}
+}*/
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	ns, close := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
@@ -689,7 +689,7 @@ type snapshotTestCase struct {
 	isBootstrapped                bool
 }
 
-func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
+/*func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -704,7 +704,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
 	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
-}
+}*/
 
 func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{

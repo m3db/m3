@@ -1141,11 +1141,11 @@ func (n *dbNamespace) WarmFlush(
 	callStart := n.nowFn()
 
 	n.RLock()
-	if n.bootstrapState != Bootstrapped {
+	/*	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.flushWarmData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
-	}
+	}*/
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
@@ -1255,11 +1255,11 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	callStart := n.nowFn()
 
 	n.RLock()
-	if n.bootstrapState != Bootstrapped {
+	/*	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
-	}
+	}*/
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
@@ -1342,13 +1342,13 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	callStart := n.nowFn()
-	n.RLock()
-	if n.bootstrapState != Bootstrapped {
-		n.RUnlock()
-		n.metrics.flushIndex.ReportError(n.nowFn().Sub(callStart))
-		return errNamespaceNotBootstrapped
-	}
-	n.RUnlock()
+	/*	n.RLock()
+		if n.bootstrapState != Bootstrapped {
+			n.RUnlock()
+			n.metrics.flushIndex.ReportError(n.nowFn().Sub(callStart))
+			return errNamespaceNotBootstrapped
+		}
+		n.RUnlock()*/
 
 	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
 		n.metrics.flushIndex.ReportSuccess(n.nowFn().Sub(callStart))
@@ -1372,11 +1372,11 @@ func (n *dbNamespace) Snapshot(
 
 	var nsCtx namespace.Context
 	n.RLock()
-	if n.bootstrapState != Bootstrapped {
+	/*	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
-	}
+	}*/
 	nsCtx = n.nsContextWithRLock()
 	n.RUnlock()
 
@@ -1443,7 +1443,7 @@ func (n *dbNamespace) needsFlushWithLock(
 	// instead relying on the databaseFlushManager to ensure atomicity of flushes.
 
 	// Check for not started or failed that might need a flush
-	for _, shard := range n.shards {
+	for _, shard := range n.OwnedShards() {
 		if shard == nil {
 			continue
 		}
@@ -1822,4 +1822,43 @@ func (n *dbNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 		return doc.Metadata{}, false, err
 	}
 	return shard.DocRef(id)
+}
+
+type bootstrappedNamespace struct {
+	databaseNamespace
+	dbShards []databaseShard
+	shards   []Shard
+}
+
+func newBootstrappedNamespace(ns databaseNamespace, t time.Time) databaseNamespace {
+	ownedShards := ns.OwnedShards()
+	dbShards := make([]databaseShard, 0, len(ownedShards))
+	shards := make([]Shard, 0, len(ownedShards))
+	for _, shard := range ownedShards {
+		if shard.IsBootstrapped() {
+			_, err := shard.FlushState(t)
+			if err != nil {
+				// shard's flush state is not initialised, skipping.
+				continue
+			}
+			dbShards = append(dbShards, shard)
+			shards = append(shards, shard)
+		}
+	}
+
+	return &bootstrappedNamespace{
+		databaseNamespace: ns,
+		dbShards:          dbShards,
+		shards:            shards,
+	}
+}
+
+// OwnedShards returns only bootstrapped shards.
+func (bn *bootstrappedNamespace) OwnedShards() []databaseShard {
+	return bn.dbShards
+}
+
+// Shards returns only bootstrapped shards.
+func (bn *bootstrappedNamespace) Shards() []Shard {
+	return bn.shards
 }

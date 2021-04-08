@@ -2891,17 +2891,17 @@ func (m *MockdatabaseFlushManager) EXPECT() *MockdatabaseFlushManagerMockRecorde
 }
 
 // Flush mocks base method
-func (m *MockdatabaseFlushManager) Flush(startTime time.Time) error {
+func (m *MockdatabaseFlushManager) Flush(startTime time.Time, namespaces []databaseNamespace) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", startTime)
+	ret := m.ctrl.Call(m, "Flush", startTime, namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Flush indicates an expected call of Flush
-func (mr *MockdatabaseFlushManagerMockRecorder) Flush(startTime interface{}) *gomock.Call {
+func (mr *MockdatabaseFlushManagerMockRecorder) Flush(startTime, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), startTime)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), startTime, namespaces)
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
@@ -2955,31 +2955,31 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 }
 
 // WarmFlushCleanup mocks base method
-func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time) error {
+func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time, namespaces []databaseNamespace) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WarmFlushCleanup indicates an expected call of WarmFlushCleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t, namespaces)
 }
 
 // ColdFlushCleanup mocks base method
-func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time) error {
+func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time, namespaces []databaseNamespace) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ColdFlushCleanup indicates an expected call of ColdFlushCleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) ColdFlushCleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseCleanupManagerMockRecorder) ColdFlushCleanup(t, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).ColdFlushCleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).ColdFlushCleanup), t, namespaces)
 }
 
 // Report mocks base method
@@ -3018,17 +3018,17 @@ func (m *MockdatabaseFileSystemManager) EXPECT() *MockdatabaseFileSystemManagerM
 }
 
 // Flush mocks base method
-func (m *MockdatabaseFileSystemManager) Flush(t time.Time) error {
+func (m *MockdatabaseFileSystemManager) Flush(startTime time.Time, namespaces []databaseNamespace) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", t)
+	ret := m.ctrl.Call(m, "Flush", startTime, namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Flush indicates an expected call of Flush
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Flush(t interface{}) *gomock.Call {
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Flush(startTime, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Flush), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Flush), startTime, namespaces)
 }
 
 // Disable mocks base method
@@ -3138,31 +3138,31 @@ func (m *MockdatabaseColdFlushManager) EXPECT() *MockdatabaseColdFlushManagerMoc
 }
 
 // WarmFlushCleanup mocks base method
-func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time) error {
+func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time, namespaces []databaseNamespace) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WarmFlushCleanup indicates an expected call of WarmFlushCleanup
-func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t, namespaces)
 }
 
 // ColdFlushCleanup mocks base method
-func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time) error {
+func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time, namespaces []databaseNamespace) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ColdFlushCleanup indicates an expected call of ColdFlushCleanup
-func (mr *MockdatabaseColdFlushManagerMockRecorder) ColdFlushCleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseColdFlushManagerMockRecorder) ColdFlushCleanup(t, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).ColdFlushCleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).ColdFlushCleanup), t, namespaces)
 }
 
 // Report mocks base method

@@ -77,6 +77,7 @@ func TestFileSystemManagerRun(t *testing.T) {
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	database.EXPECT().OwnedNamespaces().Return([]databaseNamespace{}, nil)
 
 	fm := NewMockdatabaseFlushManager(ctrl)
 	cm := NewMockdatabaseCleanupManager(ctrl)
@@ -87,7 +88,7 @@ func TestFileSystemManagerRun(t *testing.T) {
 
 	ts := time.Now()
 	gomock.InOrder(
-		cm.EXPECT().WarmFlushCleanup(ts).Return(errors.New("foo")),
+		cm.EXPECT().WarmFlushCleanup(ts, gomock.Any()).Return(errors.New("foo")),
 	)
 
 	defer instrument.SetShouldPanicEnvironmentVariable(true)()
