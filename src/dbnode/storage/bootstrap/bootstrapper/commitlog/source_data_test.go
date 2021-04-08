@@ -23,6 +23,7 @@ package commitlog
 import (
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,8 +51,10 @@ import (
 
 var (
 	testNamespaceID    = ident.StringID("commitlog_test_ns")
-	testDefaultRunOpts = bootstrap.NewRunOptions().
-				SetInitialTopologyState(&topology.StateSnapshot{})
+	testDefaultRunOpts = bootstrap.NewRunOptions().SetInitialTopologyState(&topology.StateSnapshot{})
+
+	shortAnnotation = ts.Annotation("annot")
+	longAnnotation  = ts.Annotation(strings.Repeat("x", ts.OptimizedAnnotationLen*3))
 )
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
@@ -116,12 +119,12 @@ func TestReadOnlyOnce(t *testing.T) {
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := testValues{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
-		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, shortAnnotation},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, longAnnotation},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, longAnnotation},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, shortAnnotation},
 		// "baz" is in shard 2 and should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, shortAnnotation},
 	}
 
 	var commitLogReads int
@@ -201,8 +204,8 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := testValues{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, longAnnotation},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, shortAnnotation},
 		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
 		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
 		// "baz" is in shard 2 and should not be returned
@@ -251,9 +254,9 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := testValues{
-		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
+		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, shortAnnotation},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, nil},
+		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, longAnnotation},
 		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, nil},
 		{foo, start, 5.0, xtime.Second, nil},
 	}
@@ -361,9 +364,9 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 
 		foo             = ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 		commitLogValues = testValues{
-			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
+			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, shortAnnotation},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
-			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
+			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, longAnnotation},
 		}
 	)
 	if setAnn != nil {

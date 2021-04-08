@@ -179,6 +179,7 @@ type mockWorkerPool struct {
 	hook func(ctx context.Context)
 }
 
+
 func newMockWorkerPool() *mockWorkerPool {
 	return &mockWorkerPool{}
 }
@@ -215,4 +216,8 @@ func (p *mockWorkerPool) GoWithContext(ctx context.Context, work xsync.Work) boo
 	p.hookRun(ctx)
 	go func() { work() }()
 	return true
+}
+
+func (p *mockWorkerPool) FastContextCheck(batchSize int) xsync.PooledWorkerPool {
+	return p
 }

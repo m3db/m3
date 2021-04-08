@@ -231,6 +231,8 @@ linters:
     - dogsled
     # There are functions with complexity required.
     - gocyclo
+    # Doesn't buy us much being super opinionated on how to name test functions.
+    - thelper
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck

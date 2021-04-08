@@ -796,13 +796,17 @@ func effectiveXFF(windowPoints, nans int, xFilesFactor float64) bool {
 	return float64(windowPoints-nans)/float64(windowPoints) >= xFilesFactor
 }
 
-// windowSizeFunc calculates window size for moving average calculation
-type windowSizeFunc func(stepSize int) int
-
+// nolint: lll
 type windowSizeParsed struct {
-	deltaValue     time.Duration
-	stringValue    string
-	windowSizeFunc windowSizeFunc
+	deltaValue  time.Duration
+	stringValue string
+	// exponentialMovingAverageConstant is the exponential moving average
+	// constant used by exponentialMovingAvarage which differs by how
+	// the window size was specified (whether string or number for multiplying
+	// max resolution/step of all the series).
+	// See:
+	// https://github.com/graphite-project/graphite-web/blob/f1acda6590627dabccf877ed309f28b7a7263374/webapp/graphite/render/functions.py#L1370-L1376
+	exponentialMovingAverageConstant float64
 }
 
 func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (windowSizeParsed, error) {
@@ -820,12 +824,17 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 				interval))
 			return windowSize, err
 		}
-		windowSize.windowSizeFunc = func(stepSize int) int {
-			return int(int64(windowSize.deltaValue/time.Millisecond) / int64(stepSize))
-		}
 		windowSize.stringValue = fmt.Sprintf("%q", windowSizeValue)
 		windowSize.deltaValue = interval
+		windowSize.exponentialMovingAverageConstant = 2.0 / (1.0 + float64(int(interval/time.Second)))
 	case float64:
+		if len(input.Values) == 0 {
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
+				"windowSize is an int but no timeseries in time window to multiply resolution by %T",
+				windowSizeValue))
+			return windowSize, err
+		}
+
 		windowSizeInt := int(windowSizeValue)
 		if windowSizeInt <= 0 {
 			err := xerrors.NewInvalidParamsError(fmt.Errorf(
@@ -833,13 +842,13 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 				windowSizeInt))
 			return windowSize, err
 		}
-		windowSize.windowSizeFunc = func(_ int) int { return windowSizeInt }
 		windowSize.stringValue = fmt.Sprintf("%d", windowSizeInt)
 		maxStepSize := input.Values[0].MillisPerStep()
 		for i := 1; i < len(input.Values); i++ {
 			maxStepSize = int(math.Max(float64(maxStepSize), float64(input.Values[i].MillisPerStep())))
 		}
 		windowSize.deltaValue = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
+		windowSize.exponentialMovingAverageConstant = 2.0 / (1.0 + float64(windowSizeInt))
 	default:
 		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"windowSize must be either a string or an int but instead is a %T",
@@ -859,7 +868,7 @@ func exponentialMovingAverage(
 	ctx *common.Context,
 	input singlePathSpec,
 	windowSize genericInterface,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize,
 		"exponentialMovingAverage", defaultXFilesFactor,
 		newExponentialMovingAverageImpl())
@@ -868,8 +877,7 @@ func exponentialMovingAverage(
 var _ movingImpl = (*exponentialMovingAverageImpl)(nil)
 
 type exponentialMovingAverageImpl struct {
-	bootstrap   *ts.Series
-	offset      int
+	curr        movingImplResetOptions
 	ema         float64
 	emaConstant float64
 }
@@ -879,13 +887,12 @@ func newExponentialMovingAverageImpl() *exponentialMovingAverageImpl {
 }
 
 func (impl *exponentialMovingAverageImpl) Reset(opts movingImplResetOptions) error {
-	impl.emaConstant = 2.0 / (float64(opts.WindowPoints) + 1.0)
+	impl.curr = opts
+	// EMA constant is based on window size seconds or num steps, see
+	// parseWindowSize and returned type windowSizeParsed for more details.
+	impl.emaConstant = opts.WindowSize.exponentialMovingAverageConstant
 
-	numSteps := opts.Original.Len()
-	impl.bootstrap = opts.Bootstrap
-	impl.offset = impl.bootstrap.Len() - numSteps
-
-	firstWindow, err := impl.bootstrap.Slice(0, impl.offset)
+	firstWindow, err := impl.curr.Series.Slice(0, impl.curr.WindowPoints)
 	if err != nil {
 		return err
 	}
@@ -910,18 +917,28 @@ func (impl *exponentialMovingAverageImpl) Evaluate(
 ) {
 	if i == 0 {
 		// First value is the first moving average value.
-		values.SetValueAt(i, impl.ema)
+		// Note: roundTo rounds to 6 decimal places to match graphite rounding.
+		values.SetValueAt(i, roundTo(impl.ema, 6))
 		return
 	}
 
-	curr := impl.bootstrap.ValueAt(i + impl.offset)
+	curr := math.NaN()
+	if idx := i + impl.curr.WindowPoints; idx < impl.curr.Series.Len() {
+		curr = impl.curr.Series.ValueAt(idx)
+	}
+
 	if !math.IsNaN(curr) {
 		// Formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous).
 		impl.ema = impl.emaConstant*curr + (1-impl.emaConstant)*impl.ema
-		values.SetValueAt(i, impl.ema)
+		// Note: roundTo rounds to 6 decimal places to match graphite rounding.
+		values.SetValueAt(i, roundTo(impl.ema, 6))
 	} else {
 		values.SetValueAt(i, math.NaN())
 	}
+}
+
+func roundTo(n float64, decimals uint32) float64 {
+	return math.Round(n*math.Pow(10, float64(decimals))) / math.Pow(10, float64(decimals))
 }
 
 // totalFunc takes an index and returns a total value for that index
@@ -1657,7 +1674,8 @@ func combineBootstrapWithOriginal(
 	for i, bootstrap := range bootstrapList {
 		original := seriesList.Values[i]
 		if bootstrap.MillisPerStep() < original.MillisPerStep() {
-			bootstrap, err = bootstrap.IntersectAndResize(bootstrap.StartTime(), bootstrap.EndTime(), original.MillisPerStep(), original.ConsolidationFunc())
+			bootstrap, err = bootstrap.IntersectAndResize(bootstrap.StartTime(), bootstrap.EndTime(),
+				original.MillisPerStep(), original.ConsolidationFunc())
 			if err != nil {
 				return ts.NewSeriesList(), err
 			}
@@ -2107,9 +2125,9 @@ type movingImpl interface {
 }
 
 type movingImplResetOptions struct {
-	Original     *ts.Series
-	Bootstrap    *ts.Series
+	Series       *ts.Series
 	WindowPoints int
+	WindowSize   windowSizeParsed
 }
 
 // Ensure movingImplementationFn implements movingImpl.
@@ -2184,6 +2202,9 @@ func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 	}
 }
 
+// newMovingBinaryTransform requires that functions are registered with
+// WithoutUnaryContextShifterSkipFetchOptimization() during function
+// registration.
 func newMovingBinaryTransform(
 	ctx *common.Context,
 	input singlePathSpec,
@@ -2191,11 +2212,7 @@ func newMovingBinaryTransform(
 	movingFunctionName string,
 	xFilesFactor float64,
 	impl movingImpl,
-) (*binaryContextShifter, error) {
-	if len(input.Values) == 0 {
-		return nil, nil
-	}
-
+) (*unaryContextShifter, error) {
 	windowSize, err := parseWindowSize(windowSizeValue, input)
 	if err != nil {
 		return nil, err
@@ -2213,31 +2230,12 @@ func newMovingBinaryTransform(
 		return childCtx
 	}
 
-	originalStart, originalEnd := ctx.StartTime, ctx.EndTime
-	bootstrapStartTime, bootstrapEndTime := originalStart.Add(-interval), originalStart
-	return &binaryContextShifter{
+	return &unaryContextShifter{
 		ContextShiftFunc: contextShiftingFn,
-		BinaryTransformer: func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
-			bootstrapList, err := combineBootstrapWithOriginal(ctx,
-				bootstrapStartTime, bootstrapEndTime,
-				ctx.StartTime, ctx.EndTime,
-				bootstrapped, singlePathSpec(original))
-			if err != nil {
-				return ts.NewSeriesList(), err
-			}
-
-			results := make([]*ts.Series, 0, original.Len())
+		UnaryTransformer: func(bootstrapped ts.SeriesList) (ts.SeriesList, error) {
+			results := make([]*ts.Series, 0, bootstrapped.Len())
 			maxWindowPoints := 0
-			for i := range bootstrapList.Values {
-				var series *ts.Series
-				if i < original.Len() {
-					// Existing series exists, prefer that resolution.
-					series = original.Values[i]
-				} else {
-					// No existing series use resolution from bootstrapped.
-					series = bootstrapList.Values[i]
-				}
-
+			for _, series := range bootstrapped.Values {
 				windowPoints := windowPointsLength(series, interval)
 				if windowPoints <= 0 {
 					err := xerrors.NewInvalidParamsError(fmt.Errorf(
@@ -2251,58 +2249,53 @@ func newMovingBinaryTransform(
 			}
 
 			windowPoints := make([]float64, maxWindowPoints)
-			for i, bootstrap := range bootstrapList.Values {
-				var series *ts.Series
-				if i < original.Len() {
-					// Existing series exists, prefer that.
-					series = original.Values[i]
-				} else {
-					// No existing series, use an intersected
-					// version of the bootstrapped series as a
-					// reference for values to compute.
-					series, err = bootstrap.IntersectAndResize(originalStart,
-						originalEnd, bootstrap.MillisPerStep(), bootstrap.ConsolidationFunc())
-					if err != nil {
-						return ts.NewSeriesList(), err
-					}
-				}
+			for _, series := range bootstrapped.Values {
 				currWindowPoints := windowPointsLength(series, interval)
 				window := windowPoints[:currWindowPoints]
 				util.Memset(window, math.NaN())
 
-				numSteps := series.Len()
-				offset := bootstrap.Len() - numSteps
+				step := time.Duration(series.MillisPerStep()) * time.Millisecond
+				newStartTime := series.StartTime().Add(step * time.Duration(currWindowPoints))
+				numSteps := series.Len() - currWindowPoints
+				if numSteps < 1 {
+					// No values in range.
+					continue
+				}
+
 				vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 
 				if err := impl.Reset(movingImplResetOptions{
-					Original:     series,
-					Bootstrap:    bootstrap,
+					Series:       series,
 					WindowPoints: currWindowPoints,
+					WindowSize:   windowSize,
 				}); err != nil {
 					return ts.SeriesList{}, err
 				}
+
 				for i := 0; i < numSteps; i++ {
-					for j := i + offset - currWindowPoints; j < i+offset; j++ {
-						if j < 0 || j >= bootstrap.Len() {
+					for j := i; j < i+currWindowPoints; j++ {
+						if j >= series.Len() {
 							continue
 						}
 
-						idx := j - i - offset + currWindowPoints
+						idx := j - i
 						if idx < 0 || idx > len(window)-1 {
 							continue
 						}
 
-						window[idx] = bootstrap.ValueAt(j)
+						window[idx] = series.ValueAt(j)
 					}
 					impl.Evaluate(window, vals, currWindowPoints, i, xFilesFactor)
 				}
+
 				name := fmt.Sprintf("%s(%s,%s)", movingFunctionName, series.Name(), windowSize.stringValue)
-				newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+
+				newSeries := ts.NewSeries(ctx, name, newStartTime, vals)
 				results = append(results, newSeries)
 			}
 
-			original.Values = results
-			return original, nil
+			bootstrapped.Values = results
+			return bootstrapped, nil
 		},
 	}, nil
 }
@@ -2313,7 +2306,7 @@ func movingMedian(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", xFilesFactor,
 		movingImplementationFn(movingMedianHelper))
 }
@@ -2324,7 +2317,7 @@ func movingSum(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", xFilesFactor,
 		movingImplementationFn(movingSumHelper))
 }
@@ -2335,7 +2328,7 @@ func movingAverage(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingAverage", xFilesFactor,
 		movingImplementationFn(movingAverageHelper))
 }
@@ -2346,7 +2339,7 @@ func movingMax(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", xFilesFactor,
 		movingImplementationFn(movingMaxHelper))
 }
@@ -2357,7 +2350,7 @@ func movingMin(
 	input singlePathSpec,
 	windowSize genericInterface,
 	xFilesFactor float64,
-) (*binaryContextShifter, error) {
+) (*unaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", xFilesFactor,
 		movingImplementationFn(movingMinHelper))
 }
@@ -2599,7 +2592,8 @@ func init() {
 	MustRegisterFunction(divideSeries)
 	MustRegisterFunction(divideSeriesLists)
 	MustRegisterFunction(exclude)
-	MustRegisterFunction(exponentialMovingAverage)
+	MustRegisterFunction(exponentialMovingAverage).
+		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
@@ -2644,21 +2638,31 @@ func init() {
 	MustRegisterFunction(minSeries)
 	MustRegisterFunction(minimumAbove)
 	MustRegisterFunction(mostDeviant)
-	MustRegisterFunction(movingAverage).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingMedian).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingSum).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingMax).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingMin).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
+	MustRegisterFunction(movingAverage).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingMedian).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingSum).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingMax).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingMin).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue

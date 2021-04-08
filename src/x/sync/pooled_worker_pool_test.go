@@ -228,3 +228,20 @@ func TestPooledWorkerPoolSizeTooSmall(t *testing.T) {
 	_, err := NewPooledWorkerPool(0, NewPooledWorkerPoolOptions())
 	require.Error(t, err)
 }
+
+func TestPooledWorkerFast(t *testing.T) {
+	wp, err := NewPooledWorkerPool(1, NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	wp.Init()
+
+	fast := wp.FastContextCheck(3)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.False(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
+	require.False(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
+}

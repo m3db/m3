@@ -1349,6 +1349,48 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 				},
 			},
 		},
+		//nolint:dupl
+		{
+			id:            "rtagName1=rtagValue3,rtagName2=rtagValue2,rtagName3=rtagValue3",
+			matchFrom:     100000,
+			matchTo:       110000,
+			expireAtNanos: 120000,
+			keepOriginal:  false,
+			forExistingIDResult: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 100000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName9|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtageName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	as := newActiveRuleSet(
@@ -2497,6 +2539,48 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 											policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
 											policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		//nolint:dupl
+		{
+			id:            "rtagName1=rtagValue3,rtagName2=rtagValue2,rtagName3=rtagValue3",
+			matchFrom:     100000,
+			matchTo:       110000,
+			expireAtNanos: 120000,
+			keepOriginal:  false,
+			forExistingIDResult: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 100000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName9|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtageName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
 									},
 								},
 							},
@@ -3768,6 +3852,14 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		testTagsFilterOptions(),
 	)
 	require.NoError(t, err)
+	filter3, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{
+			"rtagName1": filters.FilterValue{Pattern: "rtagValue3"},
+		},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
 
 	rr1, err := pipeline.NewRollupOp(
 		pipeline.GroupByRollupType,
@@ -3851,6 +3943,14 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		"rName83",
 		[]string{"rtagName1"},
 		aggregation.MustCompressTypes(aggregation.Min),
+	)
+	require.NoError(t, err)
+
+	rr9, err := pipeline.NewRollupOp(
+		pipeline.ExcludeByRollupType,
+		"rName9",
+		[]string{"rtagName1"},
+		aggregation.MustCompressTypes(aggregation.Last),
 	)
 	require.NoError(t, err)
 
@@ -4227,5 +4327,43 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		},
 	}
 
-	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3, rollupRule4, rollupRule5, rollupRule6, rollupRule7, rollupRule8}
+	rollupRule9 := &rollupRule{
+		uuid: "rollupRule9",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:               "rollupRule9.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       100000,
+				filter:             filter3,
+				lastUpdatedAtNanos: 105000,
+				lastUpdatedBy:      "test",
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr9,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return []*rollupRule{
+		rollupRule1,
+		rollupRule2,
+		rollupRule3,
+		rollupRule4,
+		rollupRule5,
+		rollupRule6,
+		rollupRule7,
+		rollupRule8,
+		rollupRule9,
+	}
 }

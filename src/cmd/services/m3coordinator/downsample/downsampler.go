@@ -127,6 +127,10 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 	if logger.Check(zapcore.DebugLevel, "debug") != nil {
 		debugLogging = true
 	}
+	scope := opts.InstrumentOptions.MetricsScope().SubScope("metrics_appender")
+	metrics := metricsAppenderMetrics{
+		processedCount: scope.Counter("processed_count"),
+	}
 
 	return metricsAppenderOptions{
 		agg:                    agg.aggregator,
@@ -138,6 +142,7 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		debugLogging:           debugLogging,
 		logger:                 logger,
 		untimedRollups:         agg.untimedRollups,
+		metrics:                metrics,
 	}
 }
 
