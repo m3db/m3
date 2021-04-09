@@ -156,6 +156,150 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	require.NoError(t, idx.CleanupDuplicateFileSets())
 }
 
+func TestNamespaceIndexCleanupDuplicateFilesets_GroupingByBlockStartAndVolume(t *testing.T) {
+	blockStart1 := time.Now().Truncate(2 * time.Hour)
+	blockStart2 := blockStart1.Add(-2 * time.Hour)
+
+	filesets := []struct {
+		blockStart   time.Time
+		volumeType   string
+		volumeIndex  int
+		shouldRemove bool
+	}{
+		{
+			blockStart:   blockStart1,
+			volumeType:   "default",
+			volumeIndex:  0,
+			shouldRemove: false,
+		},
+		{
+			blockStart:   blockStart1,
+			volumeType:   "extra",
+			volumeIndex:  1,
+			shouldRemove: false,
+		},
+		{
+			blockStart:   blockStart1,
+			volumeType:   "extra",
+			volumeIndex:  0,
+			shouldRemove: true,
+		},
+		{
+			blockStart:   blockStart2,
+			volumeType:   "default",
+			volumeIndex:  1,
+			shouldRemove: true,
+		},
+		{
+			blockStart:   blockStart2,
+			volumeType:   "default",
+			volumeIndex:  2,
+			shouldRemove: false,
+		},
+		{
+			blockStart:   blockStart2,
+			volumeType:   "default",
+			volumeIndex:  0,
+			shouldRemove: true,
+		},
+	}
+
+	expectedFilesToRemove := make([]string, 0)
+	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
+	for _, fileset := range filesets {
+		shards := []uint32{1, 2}
+		infoFile := readIndexInfoFileResult(fileset.blockStart, fileset.volumeType, fileset.volumeIndex, shards)
+		infoFiles = append(infoFiles, infoFile)
+		if fileset.shouldRemove {
+			expectedFilesToRemove = append(expectedFilesToRemove, infoFile.AbsoluteFilePaths...)
+		}
+	}
+
+	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+	idx := nsIdx.(*nsIndex)
+	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+	idx.deleteFilesFn = func(s []string) error {
+		require.Len(t, s, len(expectedFilesToRemove))
+		for _, e := range expectedFilesToRemove {
+			assert.Contains(t, s, e)
+		}
+		return nil
+	}
+	require.NoError(t, idx.CleanupDuplicateFileSets())
+}
+
+func TestNamespaceIndexCleanupDuplicateFilesets_ChangingShardList(t *testing.T) {
+	shardLists := []struct {
+		shards       []uint32
+		shouldRemove bool
+	}{
+		{
+			shards:       []uint32{1, 2},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 2, 3},
+			shouldRemove: false,
+		},
+		{
+			shards:       []uint32{1, 2, 4},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 2, 4},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 5},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 2, 4, 5},
+			shouldRemove: false,
+		},
+		{
+			shards:       []uint32{1, 2},
+			shouldRemove: false,
+		},
+	}
+
+	blockStart := time.Now().Truncate(2 * time.Hour)
+	expectedFilesToRemove := make([]string, 0)
+	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
+	for i, shardList := range shardLists {
+		infoFile := readIndexInfoFileResult(blockStart, "default", i, shardList.shards)
+		infoFiles = append(infoFiles, infoFile)
+		if shardList.shouldRemove {
+			expectedFilesToRemove = append(expectedFilesToRemove, infoFile.AbsoluteFilePaths...)
+		}
+	}
+
+	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+	idx := nsIdx.(*nsIndex)
+	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+	idx.deleteFilesFn = func(s []string) error {
+		require.Len(t, s, len(expectedFilesToRemove))
+		for _, e := range expectedFilesToRemove {
+			assert.Contains(t, s, e)
+		}
+		return nil
+	}
+
+	require.NoError(t, idx.CleanupDuplicateFileSets())
+}
+
 func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
 	nsIdx, err := newNamespaceIndex(md,
@@ -610,6 +754,31 @@ func verifyFlushForShards(
 	require.Equal(t, numBlocks, persistClosedTimes)
 	require.Equal(t, numBlocks, persistCalledTimes)
 	require.Equal(t, expectedDocs, actualDocs)
+}
+
+func readIndexInfoFileResult(
+	blockStart time.Time,
+	volumeType string,
+	volumeIndex int,
+	shards []uint32,
+) fs.ReadIndexInfoFileResult {
+	filenames := []string{
+		fmt.Sprintf("fileset-%v-%v-segement-1.db", blockStart.UnixNano(), volumeIndex),
+		fmt.Sprintf("fileset-%v-%v-segement-2.db", blockStart.UnixNano(), volumeIndex),
+	}
+	return fs.ReadIndexInfoFileResult{
+		ID: fs.FileSetFileIdentifier{
+			VolumeIndex: volumeIndex,
+		},
+		Info: indexpb.IndexVolumeInfo{
+			BlockStart: blockStart.UnixNano(),
+			Shards:     shards,
+			IndexVolumeType: &protobuftypes.StringValue{
+				Value: volumeType,
+			},
+		},
+		AbsoluteFilePaths: filenames,
+	}
 }
 
 type testIndex struct {

@@ -2123,7 +2123,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 		segmentsOrderByVolumeIndexByVolumeType[volumeType] = append(segmentsOrderByVolumeIndexByVolumeType[volumeType], seg)
 	}
 
-	// Ensure that segments are soroted by volume index.
+	// Ensure that segments are sorted by volume index.
 	for _, segmentsOrderByVolumeIndexByVolumeType := range segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart {
 		for _, segs := range segmentsOrderByVolumeIndexByVolumeType {
 			sort.SliceStable(segs, func(i, j int) bool {
@@ -2137,20 +2137,18 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 	filesToDelete := make([]string, 0)
 	for _, segmentsOrderByVolumeIndexByVolumeType := range segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart {
 		for _, segmentsOrderByVolumeIndex := range segmentsOrderByVolumeIndexByVolumeType {
-			shardTimeRangesCovered := result.NewShardTimeRanges()
-			currSegments := make([]fs.Segments, 0)
+			segmentsToKeep := make([]fs.Segments, 0)
 			for _, seg := range segmentsOrderByVolumeIndex {
-				if seg.ShardTimeRanges().IsSuperset(shardTimeRangesCovered) {
-					// Mark dupe segments for deletion.
-					for _, currSeg := range currSegments {
-						filesToDelete = append(filesToDelete, currSeg.AbsoluteFilePaths()...)
+				for len(segmentsToKeep) > 0 {
+					idx := len(segmentsToKeep) - 1
+					if previous := segmentsToKeep[idx]; seg.ShardTimeRanges().IsSuperset(previous.ShardTimeRanges()) {
+						filesToDelete = append(filesToDelete, previous.AbsoluteFilePaths()...)
+						segmentsToKeep = segmentsToKeep[:idx]
+					} else {
+						break
 					}
-					currSegments = []fs.Segments{seg}
-					shardTimeRangesCovered = seg.ShardTimeRanges().Copy()
-					continue
 				}
-				currSegments = append(currSegments, seg)
-				shardTimeRangesCovered.AddRanges(seg.ShardTimeRanges())
+				segmentsToKeep = append(segmentsToKeep, seg)
 			}
 		}
 	}
