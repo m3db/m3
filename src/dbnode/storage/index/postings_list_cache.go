@@ -323,13 +323,18 @@ func (q *PostingsListCache) put(
 	searchQuery search.Query,
 	pl postings.List,
 ) {
+	var searchQueryProto *querypb.Query
+	if searchQuery != nil {
+		searchQueryProto = searchQuery.ToProto()
+	}
+
 	key := keyHash(segmentUUID, field, pattern, patternType)
 	value := &cachedPostings{
 		segmentUUID: segmentUUID,
 		field:       field,
 		pattern:     pattern,
 		patternType: patternType,
-		searchQuery: searchQuery.ToProto(),
+		searchQuery: searchQueryProto,
 		postings:    pl,
 	}
 	q.lru.Set(key, value, 1)
