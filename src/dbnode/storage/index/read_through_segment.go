@@ -179,16 +179,18 @@ type CachedSearchPatternsResult struct {
 	CachedPatternsResult  CachedPatternsResult
 }
 
-func (r *ReadThroughSegment) CachedSearchPatterns() ([]CachedPattern, CachedSearchPatternsResult) {
+func (r *ReadThroughSegment) CachedSearchPatterns(
+	fn CachedPatternForEachFn,
+) CachedSearchPatternsResult {
 	cache := r.caches.SearchPostingsListCache
 	if cache == nil || !r.opts.CacheSearches {
-		return nil, CachedSearchPatternsResult{
+		return CachedSearchPatternsResult{
 			CacheSearchesDisabled: true,
 		}
 	}
 
-	patterns, result := cache.CachedPatterns(r.uuid, PatternTypeSearch)
-	return patterns, CachedSearchPatternsResult{
+	result := cache.CachedPatterns(r.uuid, PatternTypeSearch, fn)
+	return CachedSearchPatternsResult{
 		CachedPatternsResult: result,
 	}
 }

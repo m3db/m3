@@ -153,7 +153,7 @@ func (i *termsIterFromSegments) Next() bool {
 			continue
 		}
 
-		// We have to taken into account the offset and duplicates
+		// We have to take into account offset and duplicates/skips.
 		var (
 			iter            = list.Iterator()
 			negativeOffsets = termsKeyIter.segment.negativeOffsets

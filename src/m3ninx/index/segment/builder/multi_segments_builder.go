@@ -21,6 +21,7 @@
 package builder
 
 import (
+	"fmt"
 	"io"
 	"sort"
 
@@ -186,6 +187,25 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 	b.termsIter.reset(b.segments)
 
 	return nil
+}
+
+func (b *builderFromSegments) SegmentMetadatas() ([]segment.SegmentsBuilderSegmentMetadata, error) {
+	n := len(b.segments)
+	if n < 1 {
+		return nil, fmt.Errorf("segments empty: length=%d", n)
+	}
+
+	result := make([]segment.SegmentsBuilderSegmentMetadata, 0, n)
+	for _, s := range b.segments {
+		result = append(result, segment.SegmentsBuilderSegmentMetadata{
+			Segment:         s.segment,
+			Offset:          s.offset,
+			NegativeOffsets: s.negativeOffsets,
+			Skips:           s.skips,
+		})
+	}
+
+	return result, nil
 }
 
 func (b *builderFromSegments) Docs() []doc.Metadata {

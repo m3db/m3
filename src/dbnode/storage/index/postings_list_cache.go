@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -97,14 +98,19 @@ type PostingsListCache struct {
 type postingsListCacheRegistry struct {
 	sync.RWMutex
 	eventCh chan postingsListEvent
-	active  map[uuid.Array]map[registryKey]postings.List
+	active  map[uuid.Array]map[registryKey]registryValue
 }
 
 type registryKey struct {
-	field       string
-	pattern     string
-	patternType PatternType
-	searchQuery search.Query
+	field          string
+	pattern        string
+	patternType    PatternType
+	searchQueryKey string
+}
+
+type registryValue struct {
+	searchQuery *querypb.Query
+	postings    postings.List
 }
 
 type postingsListEventType int
@@ -134,7 +140,7 @@ func NewPostingsListCache(
 		opts: opts,
 		registry: postingsListCacheRegistry{
 			eventCh: make(chan postingsListEvent, 4096),
-			active:  make(map[uuid.Array]map[registryKey]postings.List),
+			active:  make(map[uuid.Array]map[registryKey]registryValue),
 		},
 		metrics: newPostingsListCacheMetrics(opts.InstrumentOptions.MetricsScope()),
 		logger:  opts.InstrumentOptions.Logger(),
@@ -233,11 +239,13 @@ type cachedPostings struct {
 	field       string
 	pattern     string
 	patternType PatternType
-	// searchQuery is only set for search queries.
-	searchQuery search.Query
 
 	// value
 	postings postings.List
+	// searchQueryKey is only set for search queries.
+	searchQueryKey string
+	// searchQuery is only set for search queries.
+	searchQuery *querypb.Query
 }
 
 func keyHash(
@@ -291,10 +299,10 @@ func (q *PostingsListCache) PutSearch(
 	query search.Query,
 	pl postings.List,
 ) {
-	if roaring.IsReadOnlyPostingsList(pl) {
+	if roaring.IsComplexReadOnlyPostingsList(pl) {
 		// Copy into mutable postings list since it's expensive to read from
-		// a read only postings list over and over again (it's lazily
-		// evaluated from for allocation purposes).
+		// a complex read only postings list over and over again (it's lazily
+		// evaluated over many individual bitmaps for allocation purposes).
 		mutable := q.opts.PostingsListPool.Get()
 		if err := mutable.AddIterator(pl.Iterator()); err != nil {
 			q.metrics.pooledGetErrAddIter.Inc(1)
@@ -321,7 +329,7 @@ func (q *PostingsListCache) put(
 		field:       field,
 		pattern:     pattern,
 		patternType: patternType,
-		searchQuery: searchQuery,
+		searchQuery: searchQuery.ToProto(),
 		postings:    pl,
 	}
 	q.lru.Set(key, value, 1)
@@ -382,11 +390,12 @@ func (q *PostingsListCache) startLoop() Closer {
 }
 
 type CachedPattern struct {
-	Field       string
-	Pattern     string
-	PatternType PatternType
-	SearchQuery search.Query
-	Postings    postings.List
+	Field          string
+	Pattern        string
+	PatternType    PatternType
+	SearchQueryKey string
+	SearchQuery    *querypb.Query
+	Postings       postings.List
 }
 
 type CachedPatternsResult struct {
@@ -395,10 +404,13 @@ type CachedPatternsResult struct {
 	MatchedPatterns int
 }
 
+type CachedPatternForEachFn func(CachedPattern)
+
 func (q *PostingsListCache) CachedPatterns(
 	uuid uuid.UUID,
 	patternType PatternType,
-) ([]CachedPattern, CachedPatternsResult) {
+	fn CachedPatternForEachFn,
+) CachedPatternsResult {
 	var result CachedPatternsResult
 
 	q.registry.RLock()
@@ -406,7 +418,7 @@ func (q *PostingsListCache) CachedPatterns(
 
 	segmentPostings, ok := q.registry.active[uuid.Array()]
 	if !ok {
-		return nil, result
+		return result
 	}
 
 	result.InRegistry = true
@@ -416,37 +428,40 @@ func (q *PostingsListCache) CachedPatterns(
 		}
 	}
 	if result.TotalPatterns == 0 {
-		return nil, CachedPatternsResult{}
+		return CachedPatternsResult{}
 	}
 
-	patterns := make([]CachedPattern, 0, result.TotalPatterns)
 	for key, value := range segmentPostings {
 		if patternType == key.patternType {
-			patterns = append(patterns, CachedPattern{
-				Field:       key.field,
-				Pattern:     key.pattern,
-				PatternType: key.patternType,
-				SearchQuery: key.searchQuery,
-				Postings:    value,
+			fn(CachedPattern{
+				Field:          key.field,
+				Pattern:        key.pattern,
+				PatternType:    key.patternType,
+				SearchQueryKey: key.searchQueryKey,
+				SearchQuery:    value.searchQuery,
+				Postings:       value.postings,
 			})
 			result.MatchedPatterns++
 		}
 	}
 
-	return patterns, result
+	return result
 }
 
 func (q *PostingsListCache) processEventWithLock(ev postingsListEvent) {
 	uuid := ev.cachedPostings.segmentUUID.Array()
 	key := registryKey{
-		field:       ev.cachedPostings.field,
-		pattern:     ev.cachedPostings.pattern,
-		patternType: ev.cachedPostings.patternType,
+		field:          ev.cachedPostings.field,
+		pattern:        ev.cachedPostings.pattern,
+		patternType:    ev.cachedPostings.patternType,
+		searchQueryKey: ev.cachedPostings.searchQueryKey,
+	}
+	value := registryValue{
 		searchQuery: ev.cachedPostings.searchQuery,
 	}
 	segmentPostings, ok := q.registry.active[uuid]
 	if !ok {
-		segmentPostings = make(map[registryKey]postings.List)
+		segmentPostings = make(map[registryKey]registryValue)
 		q.registry.active[uuid] = segmentPostings
 	}
 
@@ -457,7 +472,7 @@ func (q *PostingsListCache) processEventWithLock(ev postingsListEvent) {
 			delete(q.registry.active, uuid)
 		}
 	case addEventType:
-		segmentPostings[key] = ev.cachedPostings.postings
+		segmentPostings[key] = value
 	}
 }
 

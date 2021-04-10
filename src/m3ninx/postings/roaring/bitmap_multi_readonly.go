@@ -85,6 +85,13 @@ func IsReadOnlyPostingsList(pl postings.List) bool {
 	return ok
 }
 
+// IsComplexReadOnlyPostingsList returns whether a postings list is a complex
+// read only bitmap derived from other bitmaps or not.
+func IsComplexReadOnlyPostingsList(pl postings.List) bool {
+	_, ok := pl.(*multiBitmap)
+	return ok
+}
+
 var _ postings.List = (*multiBitmap)(nil)
 var _ readOnlyIterable = (*multiBitmap)(nil)
 

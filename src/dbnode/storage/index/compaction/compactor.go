@@ -101,6 +101,12 @@ func NewCompactor(
 	}, nil
 }
 
+// CompactResult is the result of a call to compact.
+type CompactResult struct {
+	Compacted        fst.Segment
+	SegmentMetadatas []segment.SegmentsBuilderSegmentMetadata
+}
+
 // Compact will take a set of segments and compact them into an immutable
 // FST segment, if there is a single mutable segment it can directly be
 // converted into an FST segment, otherwise an intermediary mutable segment
@@ -113,21 +119,34 @@ func (c *Compactor) Compact(
 	filter segment.DocumentsFilter,
 	filterCounter tally.Counter,
 	reporterOptions mmap.ReporterOptions,
-) (fst.Segment, error) {
+) (CompactResult, error) {
 	c.Lock()
 	defer c.Unlock()
 
 	if c.closed {
-		return nil, errCompactorClosed
+		return CompactResult{}, errCompactorClosed
 	}
 
 	c.builder.Reset()
 	c.builder.SetFilter(filter, filterCounter)
 	if err := c.builder.AddSegments(segs); err != nil {
-		return nil, err
+		return CompactResult{}, err
 	}
 
-	return c.compactFromBuilderWithLock(c.builder, reporterOptions)
+	metas, err := c.builder.SegmentMetadatas()
+	if err != nil {
+		return CompactResult{}, err
+	}
+
+	compacted, err := c.compactFromBuilderWithLock(c.builder, reporterOptions)
+	if err != nil {
+		return CompactResult{}, err
+	}
+
+	return CompactResult{
+		Compacted:        compacted,
+		SegmentMetadatas: metas,
+	}, nil
 }
 
 // CompactUsingBuilder compacts segments together using a provided segment builder.

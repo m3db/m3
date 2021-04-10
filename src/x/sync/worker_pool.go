@@ -69,6 +69,10 @@ func (p *workerPool) PutToken() {
 	p.workCh <- struct{}{}
 }
 
+func (p *workerPool) Size() int {
+	return cap(p.workCh)
+}
+
 func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
 	// Attempt to try writing without allocating a ticker.
 	select {

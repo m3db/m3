@@ -91,6 +91,9 @@ type WorkerPool interface {
 
 	// PutToken returns a token reserved by GetToken.
 	PutToken()
+
+	// Size returns the size of the worker pool.
+	Size() int
 }
 
 // PooledWorkerPoolOptions is the options for a PooledWorkerPool.

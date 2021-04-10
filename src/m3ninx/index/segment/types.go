@@ -228,6 +228,25 @@ type SegmentsBuilder interface {
 
 	// AddSegments adds segments to build from.
 	AddSegments(segments []Segment) error
+
+	// SegmentMetadatas returns the segment builder segment metadata.
+	SegmentMetadatas() ([]SegmentsBuilderSegmentMetadata, error)
+}
+
+// SegmentsBuilderSegmentMetadata is a set of metadata about a segment
+// that was used to build a compacted segment.
+type SegmentsBuilderSegmentMetadata struct {
+	Segment Segment
+	Offset  postings.ID
+	// NegativeOffsets is a lookup of document IDs are duplicates or should be skipped,
+	// that is documents that are already contained by other segments or should
+	// not be included in the output segment and hence should not be returned
+	// when looking up documents. If this is the case offset is -1.
+	// If a document ID is not a duplicate or skipped then the offset is
+	// the shift that should be applied when translating this postings ID
+	// to the result postings ID.
+	NegativeOffsets []int64
+	Skips           int64
 }
 
 // DocumentsFilter is a documents filter.

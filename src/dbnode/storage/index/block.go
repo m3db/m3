@@ -148,7 +148,7 @@ type block struct {
 	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
 	querySegmentsWorkers            xsync.WorkerPool
-	cachedSearchesWorkers           xsync.PooledWorkerPool
+	cachedSearchesWorkers           xsync.WorkerPool
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -227,15 +227,7 @@ func NewBlock(
 	iopts = iopts.SetMetricsScope(scope)
 
 	cpus := int(math.Max(1, math.Ceil(0.25*float64(runtime.NumCPU()))))
-	poolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetGrowOnDemand(false).
-		SetNumShards(1).
-		SetInstrumentOptions(iopts.SetMetricsScope(iopts.MetricsScope().SubScope("cached-searches")))
-	cachedSearchesWorkers, err := xsync.NewPooledWorkerPool(cpus, poolOpts)
-	if err != nil {
-		return nil, err
-	}
-
+	cachedSearchesWorkers := xsync.NewWorkerPool(cpus)
 	cachedSearchesWorkers.Init()
 
 	segs, err := newMutableSegments(
