@@ -463,6 +463,7 @@ func (q *PostingsListCache) processEventWithLock(ev postingsListEvent) {
 	}
 	value := registryValue{
 		searchQuery: ev.cachedPostings.searchQuery,
+		postings:    ev.cachedPostings.postings,
 	}
 	segmentPostings, ok := q.registry.active[uuid]
 	if !ok {
