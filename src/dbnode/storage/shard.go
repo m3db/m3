@@ -1973,6 +1973,7 @@ func (s *dbShard) initializeFlushStates() {
 	defer func() {
 		s.flushState.Lock()
 		s.flushState.initialized = true
+		s.logger.Info("shard flush states initialized", zap.Uint32("shard", s.ID()))
 		s.flushState.Unlock()
 	}()
 
@@ -2063,6 +2064,9 @@ func (s *dbShard) Bootstrap(
 
 	s.Lock()
 	s.bootstrapState = Bootstrapped
+	s.logger.Info("shard bootstrapped",
+		zap.Uint32("shard", s.ID()),
+		zap.Bool("flushStateInitialized", s.flushState.initialized))
 	s.Unlock()
 
 	return multiErr.FinalError()
@@ -2307,7 +2311,8 @@ func (s *dbShard) ColdFlush(
 
 	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
-		return shardColdFlush{}, errFlushStateIsNotInitialized
+		return shardColdFlush{}, xerrors.Wrapf(errFlushStateIsNotInitialized,
+			"cold flush shard (%d) state not initialised", s.ID())
 	}
 
 	var (

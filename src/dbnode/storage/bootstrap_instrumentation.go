@@ -133,25 +133,28 @@ func newBootstrapRetriesMetrics(scope tally.Scope) bootstrapRetriesMetrics {
 }
 
 type bootstrapInstrumentation struct {
-	opts          Options
-	scope         tally.Scope
-	log           *zap.Logger
-	nowFn         clock.NowFn
-	status        tally.Gauge
-	durableStatus tally.Gauge
-	numRetries    bootstrapRetriesMetrics
+	opts              Options
+	scope             tally.Scope
+	log               *zap.Logger
+	nowFn             clock.NowFn
+	status            tally.Gauge
+	durableStatus     tally.Gauge
+	numRetries        bootstrapRetriesMetrics
+	start             time.Time
+	bootstrapDuration tally.Timer
 }
 
 func newBootstrapInstrumentation(opts Options) *bootstrapInstrumentation {
 	scope := opts.InstrumentOptions().MetricsScope()
 	return &bootstrapInstrumentation{
-		opts:          opts,
-		scope:         scope,
-		log:           opts.InstrumentOptions().Logger(),
-		nowFn:         opts.ClockOptions().NowFn(),
-		status:        scope.Gauge("bootstrapped"),
-		durableStatus: scope.Gauge("bootstrapped-durable"),
-		numRetries:    newBootstrapRetriesMetrics(scope),
+		opts:              opts,
+		scope:             scope,
+		log:               opts.InstrumentOptions().Logger(),
+		nowFn:             opts.ClockOptions().NowFn(),
+		status:            scope.Gauge("bootstrapped"),
+		durableStatus:     scope.Gauge("bootstrapped-durable"),
+		numRetries:        newBootstrapRetriesMetrics(scope),
+		bootstrapDuration: scope.Timer("bootstrap-duration-full"),
 	}
 }
 
@@ -190,4 +193,19 @@ func (i *bootstrapInstrumentation) setIsBootstrappedAndDurable(isBootstrappedAnd
 		status = 1
 	}
 	i.durableStatus.Update(status)
+}
+
+func (i *bootstrapInstrumentation) bootstrapStarted() {
+	i.log.Info("bootstrap started")
+	i.start = i.nowFn()
+}
+
+func (i *bootstrapInstrumentation) bootstrapCompleted() {
+	duration := i.nowFn().Sub(i.start)
+	i.bootstrapDuration.Record(duration)
+	i.log.Info("bootstrap completed successfully", zap.Duration("took", duration))
+}
+
+func (i *bootstrapInstrumentation) fileOpsDisabled() {
+	i.log.Info("fileOps disabled")
 }

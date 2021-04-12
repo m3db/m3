@@ -93,11 +93,14 @@ func (m *coldFlushManager) Status() fileOpStatus {
 }
 
 func (m *coldFlushManager) Run(t time.Time) bool {
-	m.Lock()
+	m.RLock()
 	if !m.shouldRunWithLock() {
-		m.Unlock()
+		m.RUnlock()
 		return false
 	}
+	m.RUnlock()
+
+	m.Lock()
 	m.status = fileOpInProgress
 	m.Unlock()
 
@@ -107,15 +110,22 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
+	m.log.Info("starting cold flush")
+
 	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
-		m.log.Debug("error when getting namespaces", zap.Error(err))
+		m.log.Warn("error when getting namespaces", zap.Error(err))
 		return false
+	}
+
+	if len(namespaces) == 0 {
+		m.log.Warn("no namespaces so skip flush", zap.Error(err))
+		return true
 	}
 
 	bootstrappedNamespaces := make([]databaseNamespace, 0, len(namespaces))
 	for _, namespace := range namespaces {
-		bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t))
+		bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t, m.log))
 	}
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
@@ -135,7 +145,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
 			})
 	}
-
+	m.log.Info("finished cold flush")
 	return true
 }
 

@@ -546,8 +546,8 @@ func (n *dbNamespace) assignShardSet(
 
 	if len(created) > 0 {
 		n.log.Info("created new shards",
-			zap.Int("shards", len(created)),
-			zap.Uint32s("shardIds", created),
+			zap.Int("numShards", len(created)),
+			zap.Uint32s("shards", created),
 			zap.Bool("needsBootstrap", opts.needsBootstrap),
 			zap.Bool("initialAssignment", opts.initialAssignment))
 	}
@@ -1055,7 +1055,7 @@ func (n *dbNamespace) Bootstrap(
 		}
 		if !bootstrapped {
 			// NB(r): Not bootstrapped in this bootstrap run.
-			n.log.Warn("skipping not bootstrapped shard",
+			n.log.Info("skipping already bootstrapped shard",
 				zap.Uint32("shard", shardID),
 				zap.Stringer("namespace", n.id))
 			continue
@@ -1182,7 +1182,7 @@ func (n *dbNamespace) WarmFlush(
 
 		flushState, err := shard.FlushState(blockStart)
 		if err != nil {
-			return err
+			return xerrors.Wrapf(err, "shard [%d] flush state not initialised", shard.ID())
 		}
 		// skip flushing if the shard has already flushed data for the `blockStart`
 		if flushState.WarmStatus == fileOpSuccess {
@@ -1313,12 +1313,12 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	multiErr := xerrors.NewMultiError()
 	shardColdFlushes := make([]ShardColdFlush, 0, len(shards))
 	for _, shard := range shards {
-		if !shard.IsBootstrapped() {
-			n.log.
-				With(zap.Uint32("shard", shard.ID())).
-				Debug("skipping cold flush due to shard not bootstrapped yet")
-			continue
-		}
+		/*		if !shard.IsBootstrapped() {
+				n.log.
+					With(zap.Uint32("shard", shard.ID())).
+					Debug("skipping cold flush due to shard not bootstrapped yet")
+				continue
+			}*/
 		shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
@@ -1460,7 +1460,8 @@ func (n *dbNamespace) needsFlushWithLock(
 		for _, blockStart := range blockStarts {
 			flushState, err := shard.FlushState(blockStart)
 			if err != nil {
-				return false, err
+				return false, xerrors.Wrapf(err, "shard's [%d] flush state not initialised",
+					shard.ID())
 			}
 			if flushState.WarmStatus != fileOpSuccess {
 				return true, nil
@@ -1836,14 +1837,17 @@ func (n *dbNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 
 type bootstrappedNamespace struct {
 	databaseNamespace
-	dbShards []databaseShard
-	shards   []Shard
+	dbShards  []databaseShard
+	shards    []Shard
+	shardsIds []uint32
+	log       *zap.Logger
 }
 
-func newBootstrappedNamespace(ns databaseNamespace, t time.Time) databaseNamespace {
+func newBootstrappedNamespace(ns databaseNamespace, t time.Time, log *zap.Logger) databaseNamespace {
 	ownedShards := ns.OwnedShards()
-	dbShards := make([]databaseShard, 0, len(ownedShards))
+	databaseShards := make([]databaseShard, 0, len(ownedShards))
 	shards := make([]Shard, 0, len(ownedShards))
+	shardIds := make([]uint32, 0, len(ownedShards))
 	for _, shard := range ownedShards {
 		if shard.IsBootstrapped() {
 			_, err := shard.FlushState(t)
@@ -1851,24 +1855,35 @@ func newBootstrappedNamespace(ns databaseNamespace, t time.Time) databaseNamespa
 				// shard's flush state is not initialised, skipping.
 				continue
 			}
-			dbShards = append(dbShards, shard)
+			databaseShards = append(databaseShards, shard)
 			shards = append(shards, shard)
+			shardIds = append(shardIds, shard.ID())
 		}
 	}
 
+	log.Info("flushing shards", zap.Uint32s("shards", shardIds))
+
 	return &bootstrappedNamespace{
 		databaseNamespace: ns,
-		dbShards:          dbShards,
+		dbShards:          databaseShards,
 		shards:            shards,
+		shardsIds:         shardIds,
+		log:               log,
 	}
 }
 
 // OwnedShards returns only bootstrapped shards.
 func (bn *bootstrappedNamespace) OwnedShards() []databaseShard {
+	bn.log.Info("returning owned shards", zap.Uint32s("shards", bn.shardsIds))
 	return bn.dbShards
 }
 
 // Shards returns only bootstrapped shards.
 func (bn *bootstrappedNamespace) Shards() []Shard {
+	bn.log.Info("returning shards", zap.Uint32s("shards", bn.shardsIds))
 	return bn.shards
+}
+
+func (bn *bootstrappedNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) (bool, error) {
+	return bn.databaseNamespace.NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd)
 }

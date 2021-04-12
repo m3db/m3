@@ -673,7 +673,8 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(testShardIDs[0].ID()).AnyTimes()
-	shard.EXPECT().IsBootstrapped().Return(false)
+	shard.EXPECT().IsBootstrapped().Return(false).AnyTimes()
+	shard.EXPECT().FlushState(blockStart).Return(fileOpState{}, errFlushStateIsNotInitialized).AnyTimes()
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	require.NoError(t, ns.WarmFlush(blockStart, nil))

@@ -327,8 +327,9 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
 	var loopErr error
+	namespace := ns
 	return filterTimes(candidateTimes, func(t time.Time) bool {
-		needsFlush, err := ns.NeedsFlush(t, t)
+		needsFlush, err := namespace.NeedsFlush(t, t)
 		if err != nil {
 			loopErr = err
 			return false

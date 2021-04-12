@@ -77,7 +77,9 @@ func TestFileSystemManagerRun(t *testing.T) {
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
-	database.EXPECT().OwnedNamespaces().Return([]databaseNamespace{}, nil)
+	namespace := NewMockdatabaseNamespace(ctrl)
+	namespace.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	database.EXPECT().OwnedNamespaces().Return([]databaseNamespace{namespace}, nil)
 
 	fm := NewMockdatabaseFlushManager(ctrl)
 	cm := NewMockdatabaseCleanupManager(ctrl)

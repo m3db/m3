@@ -162,13 +162,17 @@ func (m *fileSystemManager) Run(
 
 		namespaces, err := m.database.OwnedNamespaces()
 		if err != nil {
-			m.log.Debug("error when getting namespaces", zap.Error(err))
+			m.log.Warn("error when getting namespaces", zap.Error(err))
+			return
+		}
+
+		if len(namespaces) == 0 {
 			return
 		}
 
 		bootstrappedNamespaces := make([]databaseNamespace, 0, len(namespaces))
 		for _, namespace := range namespaces {
-			bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t))
+			bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t, m.log))
 		}
 
 		// NB(r): Use invariant here since flush errors were introduced
@@ -187,8 +191,9 @@ func (m *fileSystemManager) Run(
 					l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
 				})
 		}
+		m.log.Info("finished flush")
 	}
-
+	m.log.Info("starting flush")
 	if runType == syncRun {
 		flushFn()
 	} else {

@@ -133,10 +133,12 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		m.state = Bootstrapping
 	}
 	m.Unlock()
+	m.instrumentation.bootstrapStarted()
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
-	m.mediator.DisableFileOpsAndWait()
-	defer m.mediator.EnableFileOps()
+	//m.mediator.DisableFileOpsAndWait()
+	//m.instrumentation.fileOpsDisabled()
+	//defer m.mediator.EnableFileOps()
 
 	// Keep performing bootstraps until none pending and no error returned.
 	var result BootstrapResult
@@ -184,6 +186,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	m.Lock()
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	m.state = Bootstrapped
+	m.instrumentation.bootstrapCompleted()
 	m.Unlock()
 	return result, nil
 }

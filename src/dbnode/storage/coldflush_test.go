@@ -28,6 +28,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,11 +56,23 @@ func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
 		<-doneCh
 	}).Return(mockFlushPersist, nil)
 
+	nsOpts := namespaceOptions
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
 	db.EXPECT().IsBootstrapped().Return(true).AnyTimes()
-	db.EXPECT().OwnedNamespaces().Return(nil, nil).AnyTimes()
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+	ns.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
+	ns.EXPECT().ColdFlush(mockFlushPersist).Return(nil).AnyTimes()
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	shard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{}, nil).AnyTimes()
+	shard.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil).AnyTimes()
+	shard.EXPECT().CleanupCompactedFileSets().Return(nil).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return([]databaseNamespace{ns}, nil).AnyTimes()
 
 	cfm := newColdFlushManager(db, mockPersistManager, testOpts).(*coldFlushManager)
 	cfm.pm = mockPersistManager
