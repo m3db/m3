@@ -156,7 +156,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	require.NoError(t, idx.CleanupDuplicateFileSets())
 }
 
-func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolume(t *testing.T) {
+func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolumeType(t *testing.T) {
 	blockStart1 := time.Now().Truncate(2 * time.Hour)
 	blockStart2 := blockStart1.Add(-2 * time.Hour)
 
