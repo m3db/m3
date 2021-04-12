@@ -58,7 +58,7 @@ type forwardedFollowerFlusherMetrics struct {
 	numForwardedTimesNotFound tally.Counter
 	kvUpdates                 tally.Counter
 	flushWindowsNotEnded      tally.Counter
-	windowNeverFlushed        tally.Counter
+	windowsNeverFlushed       tally.Counter
 }
 
 func newForwardedFlusherMetrics(scope tally.Scope) forwardedFollowerFlusherMetrics {
@@ -69,7 +69,7 @@ func newForwardedFlusherMetrics(scope tally.Scope) forwardedFollowerFlusherMetri
 		numForwardedTimesNotFound: scope.Counter("num-forwarded-times-not-found"),
 		kvUpdates:                 scope.Counter("kv-updates"),
 		flushWindowsNotEnded:      scope.Counter("flush-windows-not-ended"),
-		windowNeverFlushed:        scope.Counter("windows-never-flushed"),
+		windowsNeverFlushed:       scope.Counter("windows-never-flushed"),
 	}
 }
 
@@ -269,6 +269,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 			now,
 			int(shardID),
 			shardFlushTimes.ForwardedByResolution,
+			mgr.metrics.forwarded,
 		) {
 			return false
 		}
@@ -292,7 +293,7 @@ func (mgr *followerFlushManager) canLead(
 				zap.Stringer("windowSize", windowSize),
 				zap.Stringer("flusherType", flusherType),
 				zap.Int("shardID", shardID))
-			mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
+			metrics.windowsNeverFlushed.Inc(1)
 
 			if mgr.canLeadNotFlushed(now, windowSize, flusherType) {
 				continue
@@ -317,6 +318,7 @@ func (mgr *followerFlushManager) canLeadForwarded(
 	now time.Time,
 	shardID int,
 	flushTimes map[int64]*schema.ForwardedFlushTimesForResolution,
+	metrics forwardedFollowerFlusherMetrics,
 ) bool {
 	// Check that the forwarded metrics have been flushed past the process start
 	// time, meaning the forwarded metrics that didn't make to the process have been
@@ -325,7 +327,7 @@ func (mgr *followerFlushManager) canLeadForwarded(
 		if fbr == nil {
 			mgr.logger.Warn("ForwardedByResolution is nil",
 				zap.Int("shardID", shardID))
-			mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
+			metrics.nilForwardedTimes.Inc(1)
 			return false
 		}
 		// Since the timestamps of the forwarded metrics are aligned to the resolution
@@ -346,7 +348,7 @@ func (mgr *followerFlushManager) canLeadForwarded(
 					zap.Stringer("flusherType", forwardedMetricListType),
 					zap.Int("shardID", shardID),
 					zap.Int32("numForwardedTimes", numForwardedTimes))
-				mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
+				metrics.windowsNeverFlushed.Inc(1)
 
 				if mgr.canLeadNotFlushed(now, windowSize, forwardedMetricListType) {
 					continue
@@ -356,7 +358,7 @@ func (mgr *followerFlushManager) canLeadForwarded(
 			}
 
 			if lastFlushedNanos <= waitTillFlushedTime.UnixNano() {
-				mgr.metrics.forwarded.flushWindowsNotEnded.Inc(1)
+				metrics.flushWindowsNotEnded.Inc(1)
 				return false
 			}
 		}
