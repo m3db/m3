@@ -63,6 +63,7 @@ const (
 
 	reportLoopInterval = 10 * time.Second
 	emptyPattern       = ""
+	lruTTL             = 15 * time.Minute
 )
 
 // PostingsListCacheOptions is the options struct for the query cache.
@@ -292,13 +293,21 @@ func (q *PostingsListCache) PutField(
 	q.put(segmentUUID, field, emptyPattern, PatternTypeField, nil, pl)
 }
 
+// PutSearchResult describes the put search operation result and if
+// the postings were copied into an optimized form for faster iteration.
+type PutSearchResult struct {
+	Optimized         bool
+	OptimizedPostings postings.List
+}
+
 // PutSearch updates the LRU with the result of a search query.
 func (q *PostingsListCache) PutSearch(
 	segmentUUID uuid.UUID,
 	queryStr string,
 	query search.Query,
 	pl postings.List,
-) {
+) PutSearchResult {
+	var result PutSearchResult
 	if roaring.IsComplexReadOnlyPostingsList(pl) {
 		// Copy into mutable postings list since it's expensive to read from
 		// a complex read only postings list over and over again (it's lazily
@@ -309,10 +318,14 @@ func (q *PostingsListCache) PutSearch(
 			q.logger.Error("unable to add postings iter", zap.Error(err))
 			return
 		}
+		result.Optimized = true
+		result.OptimizedPostings = mutable
 		pl = mutable
 	}
 
 	q.put(segmentUUID, queryStr, emptyPattern, PatternTypeSearch, query, pl)
+
+	return result
 }
 
 func (q *PostingsListCache) put(
@@ -337,7 +350,7 @@ func (q *PostingsListCache) put(
 		searchQuery: searchQueryProto,
 		postings:    pl,
 	}
-	q.lru.Set(key, value, 1)
+	q.lru.SetWithTTL(key, value, 1, lruTTL)
 	q.emitCachePutMetrics(patternType)
 	q.registry.eventCh <- postingsListEvent{
 		eventType:      addEventType,
@@ -411,9 +424,13 @@ type CachedPatternsResult struct {
 
 type CachedPatternForEachFn func(CachedPattern)
 
+type CachedPatternsQuery struct {
+	PatternType *PatternType
+}
+
 func (q *PostingsListCache) CachedPatterns(
 	uuid uuid.UUID,
-	patternType PatternType,
+	query CachedPatternsQuery,
 	fn CachedPatternForEachFn,
 ) CachedPatternsResult {
 	var result CachedPatternsResult
@@ -427,27 +444,21 @@ func (q *PostingsListCache) CachedPatterns(
 	}
 
 	result.InRegistry = true
-	for key := range segmentPostings {
-		if patternType == key.patternType {
-			result.TotalPatterns++
-		}
-	}
-	if result.TotalPatterns == 0 {
-		return CachedPatternsResult{}
-	}
-
+	result.TotalPatterns = len(segmentPostings)
 	for key, value := range segmentPostings {
-		if patternType == key.patternType {
-			fn(CachedPattern{
-				Field:          key.field,
-				Pattern:        key.pattern,
-				PatternType:    key.patternType,
-				SearchQueryKey: key.searchQueryKey,
-				SearchQuery:    value.searchQuery,
-				Postings:       value.postings,
-			})
-			result.MatchedPatterns++
+		if v := query.PatternType; v != nil && *v != key.patternType {
+			continue
 		}
+
+		fn(CachedPattern{
+			Field:          key.field,
+			Pattern:        key.pattern,
+			PatternType:    key.patternType,
+			SearchQueryKey: key.searchQueryKey,
+			SearchQuery:    value.searchQuery,
+			Postings:       value.postings,
+		})
+		result.MatchedPatterns++
 	}
 
 	return result
@@ -480,6 +491,8 @@ func (q *PostingsListCache) processEventWithLock(ev postingsListEvent) {
 	case addEventType:
 		segmentPostings[key] = value
 	}
+
+	q.emitRegistryMetrics(ev.cachedPostings.patternType, ev.eventType)
 }
 
 // Report will emit metrics about the status of the cache.
@@ -520,6 +533,31 @@ func (q *PostingsListCache) emitCachePutMetrics(patternType PatternType) {
 		q.metrics.search.puts.Inc(1)
 	default:
 		q.metrics.unknown.puts.Inc(1) // should never happen
+	}
+}
+
+func (q *PostingsListCache) emitRegistryMetrics(
+	patternType PatternType,
+	eventType postingsListEventType,
+) {
+	var method *postingsListCacheMethodMetrics
+	switch patternType {
+	case PatternTypeRegexp:
+		method = q.metrics.regexp
+	case PatternTypeTerm:
+		method = q.metrics.term
+	case PatternTypeField:
+		method = q.metrics.field
+	case PatternTypeSearch:
+		method = q.metrics.search
+	default:
+		method = q.metrics.unknown // should never happen
+	}
+	switch eventType {
+	case removeEventType:
+		method.registryRemoves.Inc(1)
+	case addEventType:
+		method.registryAdds.Inc(1)
 	}
 }
 
@@ -570,15 +608,19 @@ func newPostingsListCacheMetrics(scope tally.Scope) *postingsListCacheMetrics {
 }
 
 type postingsListCacheMethodMetrics struct {
-	hits   tally.Counter
-	misses tally.Counter
-	puts   tally.Counter
+	hits            tally.Counter
+	misses          tally.Counter
+	puts            tally.Counter
+	registryAdds    tally.Counter
+	registryRemoves tally.Counter
 }
 
 func newPostingsListCacheMethodMetrics(scope tally.Scope) *postingsListCacheMethodMetrics {
 	return &postingsListCacheMethodMetrics{
-		hits:   scope.Counter("hits"),
-		misses: scope.Counter("misses"),
-		puts:   scope.Counter("puts"),
+		hits:            scope.Counter("hits"),
+		misses:          scope.Counter("misses"),
+		puts:            scope.Counter("puts"),
+		registryAdds:    scope.Counter("registry_adds"),
+		registryRemoves: scope.Counter("registry_removes"),
 	}
 }

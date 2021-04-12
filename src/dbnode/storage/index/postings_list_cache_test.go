@@ -71,7 +71,7 @@ func init() {
 
 		testPlEntries = append(testPlEntries, testEntry{
 			segmentUUID:  segmentUUID,
-			key:          newKey(field, pattern, patternType),
+			key:          keyHash(segmentUUID, field, pattern, patternType),
 			postingsList: pl,
 		})
 	}
@@ -79,7 +79,7 @@ func init() {
 
 type testEntry struct {
 	segmentUUID  uuid.UUID
-	key          key
+	key          uint64
 	postingsList postings.List
 }
 
@@ -273,70 +273,70 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 	}
 }
 
-func putEntry(t *testing.T, cache *PostingsListCache, i int) {
+func putEntry(t *testing.T, cache *PostingsListCache, entry testEntry) {
 	// Do each put twice to test the logic that avoids storing
 	// multiple entries for the same value.
 	switch testPlEntries[i].key.patternType {
 	case PatternTypeRegexp:
 		cache.PutRegexp(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
-			testPlEntries[i].postingsList,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.key.pattern,
+			entry.postingsList,
 		)
 		cache.PutRegexp(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
-			testPlEntries[i].postingsList,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.key.pattern,
+			entry.postingsList,
 		)
 	case PatternTypeTerm:
 		cache.PutTerm(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
-			testPlEntries[i].postingsList,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.key.pattern,
+			entry.postingsList,
 		)
 		cache.PutTerm(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
-			testPlEntries[i].postingsList,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.key.pattern,
+			entry.postingsList,
 		)
 	case PatternTypeField:
 		cache.PutField(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].postingsList,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.postingsList,
 		)
 		cache.PutField(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].postingsList,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.postingsList,
 		)
 	default:
 		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.patternType)
 	}
 }
 
-func getEntry(t *testing.T, cache *PostingsListCache, i int) (postings.List, bool) {
+func getEntry(t *testing.T, cache *PostingsListCache, entry testEntry) (postings.List, bool) {
 	switch testPlEntries[i].key.patternType {
 	case PatternTypeRegexp:
 		return cache.GetRegexp(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.key.pattern,
 		)
 	case PatternTypeTerm:
 		return cache.GetTerm(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			entry.segmentUUID,
+			entry.key.field,
+			entry.key.pattern,
 		)
 	case PatternTypeField:
 		return cache.GetField(
-			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
+			entry.segmentUUID,
+			entry.key.field,
 		)
 	default:
 		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.patternType)
@@ -344,9 +344,11 @@ func getEntry(t *testing.T, cache *PostingsListCache, i int) (postings.List, boo
 	return nil, false
 }
 
-func requireExpectedOrder(t *testing.T, plCache *PostingsListCache, expectedOrder []testEntry) {
-	for i, key := range plCache.lru.keys() {
-		require.Equal(t, expectedOrder[i].key, key)
+func requireContains(t *testing.T, plCache *PostingsListCache, values []testEntry) {
+	// Wait for registry to catchup.
+	for _, value := range values {
+		_, ok := getEntry(t, plCache, value)
+		require.True(t, ok)
 	}
 }
 

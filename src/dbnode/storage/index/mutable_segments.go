@@ -126,23 +126,25 @@ func (f *indexedBloomFilter) Write(id []byte) {
 }
 
 type mutableSegmentsMetrics struct {
-	foregroundCompactionPlanRunLatency                        tally.Timer
-	foregroundCompactionTaskRunLatency                        tally.Timer
-	backgroundCompactionPlanRunLatency                        tally.Timer
-	backgroundCompactionTaskRunLatency                        tally.Timer
-	activeBlockIndexNew                                       tally.Counter
-	activeBlockGarbageCollectSegment                          tally.Counter
-	activeBlockGarbageCollectSeries                           tally.Counter
-	activeBlockGarbageCollectEmptySegment                     tally.Counter
-	activeBlockGarbageCollectCachedSearchesDisabled           tally.Counter
-	activeBlockGarbageCollectCachedSearchesInRegistry         tally.Counter
-	activeBlockGarbageCollectCachedSearchesNotInRegistry      tally.Counter
-	activeBlockGarbageCollectCachedSearchesTotal              tally.Histogram
-	activeBlockGarbageCollectCachedSearchesMatched            tally.Histogram
-	activeBlockGarbageCollectReconstructCachedSearchSuccess   tally.Counter
-	activeBlockGarbageCollectReconstructCachedSearchError     tally.Counter
-	activeBlockGarbageCollectReconstructCachedSearchCacheHit  tally.Counter
-	activeBlockGarbageCollectReconstructCachedSearchCacheMiss tally.Counter
+	foregroundCompactionPlanRunLatency                          tally.Timer
+	foregroundCompactionTaskRunLatency                          tally.Timer
+	backgroundCompactionPlanRunLatency                          tally.Timer
+	backgroundCompactionTaskRunLatency                          tally.Timer
+	activeBlockIndexNew                                         tally.Counter
+	activeBlockGarbageCollectSegment                            tally.Counter
+	activeBlockGarbageCollectSeries                             tally.Counter
+	activeBlockGarbageCollectEmptySegment                       tally.Counter
+	activeBlockGarbageCollectCachedSearchesDisabled             tally.Counter
+	activeBlockGarbageCollectCachedSearchesInRegistry           tally.Counter
+	activeBlockGarbageCollectCachedSearchesNotInRegistry        tally.Counter
+	activeBlockGarbageCollectCachedSearchesTotal                tally.Histogram
+	activeBlockGarbageCollectCachedSearchesMatched              tally.Histogram
+	activeBlockGarbageCollectReconstructCachedSearchEvalSkip    tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchEvalAttempt tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchSuccess     tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchError       tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchCacheHit    tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchCacheMiss   tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -171,6 +173,12 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 			append(tally.ValueBuckets{0, 1}, tally.MustMakeExponentialValueBuckets(2, 2, 12)...)),
 		activeBlockGarbageCollectCachedSearchesMatched: backgroundScope.Histogram("gc-cached-searches-matched",
 			append(tally.ValueBuckets{0, 1}, tally.MustMakeExponentialValueBuckets(2, 2, 12)...)),
+		activeBlockGarbageCollectReconstructCachedSearchEvalSkip: backgroundScope.Tagged(map[string]string{
+			"eval_type": "skip",
+		}).Counter("gc-reconstruct-cached-search"),
+		activeBlockGarbageCollectReconstructCachedSearchEvalAttempt: backgroundScope.Tagged(map[string]string{
+			"eval_type": "attempt",
+		}).Counter("gc-reconstruct-cached-search"),
 		activeBlockGarbageCollectReconstructCachedSearchSuccess: backgroundScope.Tagged(map[string]string{
 			"result_type": "success",
 		}).Counter("gc-reconstruct-cached-search"),
@@ -973,8 +981,11 @@ func (m *mutableSegments) populateCachedSearches(
 			// expensive computation and we're not getting the benefit from
 			// running the computation anyway since these aren't searches
 			// that were cached in the largest segments we just compacted.
+			m.metrics.activeBlockGarbageCollectReconstructCachedSearchEvalSkip.Inc(1)
 			continue
 		}
+
+		m.metrics.activeBlockGarbageCollectReconstructCachedSearchEvalAttempt.Inc(1)
 
 		// Control concurrency by taking and returning token from worker pool.
 		w := <-workers

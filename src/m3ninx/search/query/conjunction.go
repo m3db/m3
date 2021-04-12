@@ -60,6 +60,14 @@ func NewConjunctionQuery(queries []search.Query) search.Query {
 		ns = ns[1:]
 	}
 
+	// Cause a sort of the queries/negations for deterministic cache key.
+	sort.Slice(qs, func(i, j int) bool {
+		return qs[i].String() < qs[j].String()
+	})
+	sort.Slice(ns, func(i, j int) bool {
+		return ns[i].String() < ns[j].String()
+	})
+
 	q := &ConjuctionQuery{
 		queries:   qs,
 		negations: ns,

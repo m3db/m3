@@ -189,7 +189,10 @@ func (r *ReadThroughSegment) CachedSearchPatterns(
 		}
 	}
 
-	result := cache.CachedPatterns(r.uuid, PatternTypeSearch, fn)
+	patternType := PatternTypeSearch
+	result := cache.CachedPatterns(r.uuid, CachedPatternsQuery{
+		PatternType: &patternType,
+	}, fn)
 	return CachedSearchPatternsResult{
 		CachedPatternsResult: result,
 	}
@@ -381,7 +384,13 @@ func (s *readThroughSegmentReader) Search(
 		return nil, err
 	}
 
-	cache.PutSearch(s.uuid, queryStr, query, pl)
+	result := cache.PutSearch(s.uuid, queryStr, query, pl)
+	if result.Optimized {
+		// If the result was optimized for faster iteration speed when
+		// retrieved from cache, then use that for the response for this
+		// query too.
+		pl = result.OptimizedPostings
+	}
 
 	return pl, nil
 }

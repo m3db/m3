@@ -48,6 +48,10 @@ func NewDisjunctionQuery(queries []search.Query) search.Query {
 
 		qs = append(qs, query)
 	}
+	// Cause a sort of the queries/negations for deterministic cache key.
+	sort.Slice(qs, func(i, j int) bool {
+		return qs[i].String() < qs[j].String()
+	})
 	q := &DisjuctionQuery{
 		queries: qs,
 	}
