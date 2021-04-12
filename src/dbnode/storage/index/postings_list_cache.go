@@ -315,8 +315,11 @@ func (q *PostingsListCache) PutSearch(
 		mutable := q.opts.PostingsListPool.Get()
 		if err := mutable.AddIterator(pl.Iterator()); err != nil {
 			q.metrics.pooledGetErrAddIter.Inc(1)
-			q.logger.Error("unable to add postings iter", zap.Error(err))
-			return
+			iopts := q.opts.InstrumentOptions
+			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+				l.Error("unable to add postings iter", zap.Error(err))
+			})
+			return result
 		}
 		result.Optimized = true
 		result.OptimizedPostings = mutable

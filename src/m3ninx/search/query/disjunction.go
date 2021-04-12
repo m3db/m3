@@ -21,6 +21,7 @@
 package query
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
