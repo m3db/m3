@@ -156,7 +156,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	require.NoError(t, idx.CleanupDuplicateFileSets())
 }
 
-func TestNamespaceIndexCleanupDuplicateFilesets_GroupingByBlockStartAndVolume(t *testing.T) {
+func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolume(t *testing.T) {
 	blockStart1 := time.Now().Truncate(2 * time.Hour)
 	blockStart2 := blockStart1.Add(-2 * time.Hour)
 
@@ -208,7 +208,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_GroupingByBlockStartAndVolume(t 
 	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
 	for _, fileset := range filesets {
 		shards := []uint32{1, 2}
-		infoFile := readIndexInfoFileResult(fileset.blockStart, fileset.volumeType, fileset.volumeIndex, shards)
+		infoFile := newReadIndexInfoFileResult(fileset.blockStart, fileset.volumeType, fileset.volumeIndex, shards)
 		infoFiles = append(infoFiles, infoFile)
 		if fileset.shouldRemove {
 			expectedFilesToRemove = append(expectedFilesToRemove, infoFile.AbsoluteFilePaths...)
@@ -273,7 +273,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_ChangingShardList(t *testing.T) 
 	expectedFilesToRemove := make([]string, 0)
 	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
 	for i, shardList := range shardLists {
-		infoFile := readIndexInfoFileResult(blockStart, "default", i, shardList.shards)
+		infoFile := newReadIndexInfoFileResult(blockStart, "default", i, shardList.shards)
 		infoFiles = append(infoFiles, infoFile)
 		if shardList.shouldRemove {
 			expectedFilesToRemove = append(expectedFilesToRemove, infoFile.AbsoluteFilePaths...)
@@ -756,7 +756,7 @@ func verifyFlushForShards(
 	require.Equal(t, expectedDocs, actualDocs)
 }
 
-func readIndexInfoFileResult(
+func newReadIndexInfoFileResult(
 	blockStart time.Time,
 	volumeType string,
 	volumeIndex int,
