@@ -306,6 +306,13 @@ func (mgr *followerFlushManager) canLead(
 			windowEndAt = windowEndAt.Add(windowSize)
 		}
 		if lastFlushedNanos < windowEndAt.UnixNano() {
+			mgr.logger.Info("flushWindowsNotEnded",
+				zap.Int64("lastFlushedNanos", lastFlushedNanos),
+				zap.Duration("windowSize", windowSize),
+				zap.Time("mgr.openedAt", mgr.openedAt),
+				zap.Time("windowEndAt", windowEndAt),
+				zap.Stringer("flusherType", flusherType),
+				zap.Int("shardID", shardID))
 			metrics.flushWindowsNotEnded.Inc(1)
 			return false
 		}
