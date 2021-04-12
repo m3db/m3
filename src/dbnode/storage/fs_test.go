@@ -78,7 +78,11 @@ func TestFileSystemManagerRun(t *testing.T) {
 	database := newMockdatabase(ctrl)
 	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	namespace := NewMockdatabaseNamespace(ctrl)
-	namespace.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	shard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{}, nil).AnyTimes()
+	namespace.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	database.EXPECT().OwnedNamespaces().Return([]databaseNamespace{namespace}, nil)
 
 	fm := NewMockdatabaseFlushManager(ctrl)

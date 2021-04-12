@@ -118,14 +118,10 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		return false
 	}
 
-	if len(namespaces) == 0 {
-		m.log.Warn("no namespaces so skip flush", zap.Error(err))
+	bootstrappedNamespaces := newBootstrappedNamespaces(namespaces, t, m.log)
+	if len(bootstrappedNamespaces) == 0 {
+		m.log.Warn("no bootstrapped namespaces so skip flush", zap.Error(err))
 		return true
-	}
-
-	bootstrappedNamespaces := make([]databaseNamespace, 0, len(namespaces))
-	for _, namespace := range namespaces {
-		bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t, m.log))
 	}
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.

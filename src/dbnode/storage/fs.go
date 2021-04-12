@@ -166,13 +166,10 @@ func (m *fileSystemManager) Run(
 			return
 		}
 
-		if len(namespaces) == 0 {
+		bootstrappedNamespaces := newBootstrappedNamespaces(namespaces, t, m.log)
+		if len(bootstrappedNamespaces) == 0 {
+			m.log.Warn("no bootstrapped namespaces so skip flush", zap.Error(err))
 			return
-		}
-
-		bootstrappedNamespaces := make([]databaseNamespace, 0, len(namespaces))
-		for _, namespace := range namespaces {
-			bootstrappedNamespaces = append(bootstrappedNamespaces, newBootstrappedNamespace(namespace, t, m.log))
 		}
 
 		// NB(r): Use invariant here since flush errors were introduced

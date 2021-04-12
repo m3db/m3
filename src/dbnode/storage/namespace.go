@@ -1843,6 +1843,17 @@ type bootstrappedNamespace struct {
 	log       *zap.Logger
 }
 
+func newBootstrappedNamespaces(nses []databaseNamespace, t time.Time, log *zap.Logger) []databaseNamespace {
+	namespaces := make([]databaseNamespace, 0, len(nses))
+	for _, ns := range nses {
+		bn := newBootstrappedNamespace(ns, t, log)
+		if len(bn.OwnedShards()) > 0 {
+			namespaces = append(namespaces, bn)
+		}
+	}
+	return namespaces
+}
+
 func newBootstrappedNamespace(ns databaseNamespace, t time.Time, log *zap.Logger) databaseNamespace {
 	ownedShards := ns.OwnedShards()
 	databaseShards := make([]databaseShard, 0, len(ownedShards))
