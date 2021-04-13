@@ -43,6 +43,7 @@ var (
 	// Filled in by init().
 	testPlEntries               []testEntry
 	testPostingListCacheOptions = PostingsListCacheOptions{
+		PostingsListPool:  postings.NewPool(nil, roaring.NewPostingsList),
 		InstrumentOptions: instrument.NewOptions(),
 	}
 )

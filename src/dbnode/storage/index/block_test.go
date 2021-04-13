@@ -387,7 +387,9 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 	cancellable.Cancel()
 
 	_, err = b.Query(context.NewContext(), cancellable,
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts),
+		emptyLogFields)
 	require.Error(t, err)
 	require.Equal(t, errCancelledQuery, err)
 }
@@ -407,7 +409,9 @@ func TestBlockQueryExecutorError(t *testing.T) {
 	}
 
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts),
+		emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -430,7 +434,9 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	seg.EXPECT().Reader().Return(nil, randErr)
 
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts),
+		emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -470,7 +476,9 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	seg3.EXPECT().Reader().Return(nil, randErr)
 
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts),
+		emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -497,7 +505,9 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 		exec.EXPECT().Close(),
 	)
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts),
+		emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -534,7 +544,8 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 
 	_, err = b.Query(ctx, xresource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{},
-		NewQueryResults(nil, QueryResultsOptions{}, testOpts), emptyLogFields)
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts),
+		emptyLogFields)
 	require.Error(t, err)
 
 	// NB(r): Make sure to call finalizers blockingly (to finish

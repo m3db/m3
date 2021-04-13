@@ -23,6 +23,16 @@ package index
 // Keys returns a slice of the keys in the cache, from oldest to newest. Used for
 // testing only.
 func (c *postingsListLRU) keys() []key {
+	var keys []key
+	for _, shard := range c.shards {
+		keys = append(keys, shard.keys()...)
+	}
+	return keys
+}
+
+// Keys returns a slice of the keys in the cache, from oldest to newest. Used for
+// testing only.
+func (c *postingsListLRUShard) keys() []key {
 	keys := make([]key, 0, len(c.items))
 	for ent := c.evictList.Back(); ent != nil; ent = ent.Prev() {
 		entry := ent.Value.(*entry)

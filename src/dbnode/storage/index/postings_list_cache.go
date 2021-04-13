@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
@@ -30,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/instrument"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -100,7 +100,11 @@ func NewPostingsListCache(
 		return nil, nil, err
 	}
 
-	lru, err := newPostingsListLRU(size)
+	lru, err := newPostingsListLRU(postingsListLRUOptions{
+		size: size,
+		// Use ~1000 items per shard.
+		shards: int(math.Ceil(float64(size) / 1000)),
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -179,21 +183,6 @@ type cachedPostings struct {
 	searchQueryKey string
 	// searchQuery is only set for search queries.
 	searchQuery *querypb.Query
-}
-
-func keyHash(
-	segmentUUID uuid.UUID,
-	field string,
-	pattern string,
-	patternType PatternType,
-) uint64 {
-	var h xxhash.Digest
-	h.Reset()
-	_, _ = h.Write(segmentUUID)
-	_, _ = h.WriteString(field)
-	_, _ = h.WriteString(pattern)
-	_, _ = h.WriteString(string(patternType))
-	return h.Sum64()
 }
 
 // PutRegexp updates the LRU with the result of the regexp query.
@@ -345,16 +334,29 @@ func (q *PostingsListCache) CachedPatterns(
 ) CachedPatternsResult {
 	var result CachedPatternsResult
 
-	q.lru.RLock()
-	defer q.lru.RUnlock()
+	for _, shard := range q.lru.shards {
+		shard.RLock()
+		result = shardCachedPatternsWithRLock(uuid, query, fn, shard, result)
+		shard.RUnlock()
+	}
 
-	segmentPostings, ok := q.lru.items[uuid.Array()]
+	return result
+}
+
+func shardCachedPatternsWithRLock(
+	uuid uuid.UUID,
+	query CachedPatternsQuery,
+	fn CachedPatternForEachFn,
+	shard *postingsListLRUShard,
+	result CachedPatternsResult,
+) CachedPatternsResult {
+	segmentPostings, ok := shard.items[uuid.Array()]
 	if !ok {
 		return result
 	}
 
 	result.InRegistry = true
-	result.TotalPatterns = len(segmentPostings)
+	result.TotalPatterns += len(segmentPostings)
 	for key, value := range segmentPostings {
 		if v := query.PatternType; v != nil && *v != key.patternType {
 			continue

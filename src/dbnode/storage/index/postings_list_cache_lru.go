@@ -23,8 +23,10 @@ package index
 import (
 	"container/list"
 	"errors"
+	"math"
 	"sync"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/pborman/uuid"
 )
 
@@ -58,6 +60,11 @@ import (
 // LRU. The specialization has the additional nice property that we don't need to allocate everytime
 // we add an item to the LRU due to the interface{} conversion.
 type postingsListLRU struct {
+	shards    []*postingsListLRUShard
+	numShards uint64
+}
+
+type postingsListLRUShard struct {
 	sync.RWMutex
 	size      int
 	evictList *list.List
@@ -77,21 +84,98 @@ type key struct {
 	patternType PatternType
 }
 
+type postingsListLRUOptions struct {
+	size   int
+	shards int
+}
+
 // newPostingsListLRU constructs an LRU of the given size.
-func newPostingsListLRU(size int) (*postingsListLRU, error) {
+func newPostingsListLRU(opts postingsListLRUOptions) (*postingsListLRU, error) {
+	size, shards := opts.size, opts.shards
 	if size <= 0 {
-		return nil, errors.New("Must provide a positive size")
+		return nil, errors.New("must provide a positive size")
+	}
+	if shards <= 0 {
+		return nil, errors.New("must provide a positive shards")
+	}
+
+	lruShards := make([]*postingsListLRUShard, 0, shards)
+	for i := 0; i < shards; i++ {
+		lruShard := newPostingsListLRUShard(int(math.Ceil(float64(size) / float64(shards))))
+		lruShards = append(lruShards, lruShard)
 	}
 
 	return &postingsListLRU{
-		size:      size,
-		evictList: list.New(),
-		items:     make(map[uuid.Array]map[key]*list.Element),
+		shards:    lruShards,
+		numShards: uint64(len(lruShards)),
 	}, nil
 }
 
-// Add adds a value to the cache. Returns true if an eviction occurred.
+// newPostingsListLRU constructs an LRU of the given size.
+func newPostingsListLRUShard(size int) *postingsListLRUShard {
+	return &postingsListLRUShard{
+		size:      size,
+		evictList: list.New(),
+		items:     make(map[uuid.Array]map[key]*list.Element),
+	}
+}
+
+func (c *postingsListLRU) shard(
+	segmentUUID uuid.UUID,
+	field, pattern string,
+	patternType PatternType,
+) *postingsListLRUShard {
+	idx := hashKey(segmentUUID, field, pattern, patternType) % c.numShards
+	return c.shards[idx]
+}
+
 func (c *postingsListLRU) Add(
+	segmentUUID uuid.UUID,
+	field string,
+	pattern string,
+	patternType PatternType,
+	cachedPostings *cachedPostings,
+) bool {
+	shard := c.shard(segmentUUID, field, pattern, patternType)
+	return shard.Add(segmentUUID, field, pattern, patternType, cachedPostings)
+}
+
+func (c *postingsListLRU) Get(
+	segmentUUID uuid.UUID,
+	field string,
+	pattern string,
+	patternType PatternType,
+) (*cachedPostings, bool) {
+	shard := c.shard(segmentUUID, field, pattern, patternType)
+	return shard.Get(segmentUUID, field, pattern, patternType)
+}
+
+func (c *postingsListLRU) Remove(
+	segmentUUID uuid.UUID,
+	field string,
+	pattern string,
+	patternType PatternType,
+) bool {
+	shard := c.shard(segmentUUID, field, pattern, patternType)
+	return shard.Remove(segmentUUID, field, pattern, patternType)
+}
+
+func (c *postingsListLRU) PurgeSegment(segmentUUID uuid.UUID) {
+	for _, shard := range c.shards {
+		shard.PurgeSegment(segmentUUID)
+	}
+}
+
+func (c *postingsListLRU) Len() int {
+	n := 0
+	for _, shard := range c.shards {
+		n += shard.Len()
+	}
+	return n
+}
+
+// Add adds a value to the cache. Returns true if an eviction occurred.
+func (c *postingsListLRUShard) Add(
 	segmentUUID uuid.UUID,
 	field string,
 	pattern string,
@@ -142,7 +226,7 @@ func (c *postingsListLRU) Add(
 }
 
 // Get looks up a key's value from the cache.
-func (c *postingsListLRU) Get(
+func (c *postingsListLRUShard) Get(
 	segmentUUID uuid.UUID,
 	field string,
 	pattern string,
@@ -170,7 +254,7 @@ func (c *postingsListLRU) Get(
 
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
-func (c *postingsListLRU) Remove(
+func (c *postingsListLRUShard) Remove(
 	segmentUUID uuid.UUID,
 	field string,
 	pattern string,
@@ -191,7 +275,7 @@ func (c *postingsListLRU) Remove(
 	return false
 }
 
-func (c *postingsListLRU) PurgeSegment(segmentUUID uuid.UUID) {
+func (c *postingsListLRUShard) PurgeSegment(segmentUUID uuid.UUID) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -203,14 +287,14 @@ func (c *postingsListLRU) PurgeSegment(segmentUUID uuid.UUID) {
 }
 
 // Len returns the number of items in the cache.
-func (c *postingsListLRU) Len() int {
+func (c *postingsListLRUShard) Len() int {
 	c.RLock()
 	defer c.RUnlock()
 	return c.evictList.Len()
 }
 
 // removeOldest removes the oldest item from the cache.
-func (c *postingsListLRU) removeOldest() {
+func (c *postingsListLRUShard) removeOldest() {
 	ent := c.evictList.Back()
 	if ent != nil {
 		c.removeElement(ent)
@@ -218,7 +302,7 @@ func (c *postingsListLRU) removeOldest() {
 }
 
 // removeElement is used to remove a given list element from the cache
-func (c *postingsListLRU) removeElement(e *list.Element) {
+func (c *postingsListLRUShard) removeElement(e *list.Element) {
 	c.evictList.Remove(e)
 	entry := e.Value.(*entry)
 
@@ -232,4 +316,19 @@ func (c *postingsListLRU) removeElement(e *list.Element) {
 
 func newKey(field, pattern string, patternType PatternType) key {
 	return key{field: field, pattern: pattern, patternType: patternType}
+}
+
+func hashKey(
+	segmentUUID uuid.UUID,
+	field string,
+	pattern string,
+	patternType PatternType,
+) uint64 {
+	var h xxhash.Digest
+	h.Reset()
+	_, _ = h.Write(segmentUUID)
+	_, _ = h.WriteString(field)
+	_, _ = h.WriteString(pattern)
+	_, _ = h.WriteString(string(patternType))
+	return h.Sum64()
 }
