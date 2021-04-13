@@ -71,8 +71,8 @@ func newSeriesTestOptions() Options {
 		SetRetentionOptions(opts.
 			RetentionOptions().
 			SetBlockSize(2 * time.Minute).
-			SetBufferFuture(10 * time.Second).
-			SetBufferPast(10 * time.Second).
+			SetBufferFuture(90 * time.Second).
+			SetBufferPast(90 * time.Second).
 			SetRetentionPeriod(time.Hour)).
 		SetDatabaseBlockOptions(opts.
 			DatabaseBlockOptions().
@@ -325,10 +325,10 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blockStates                  = BootstrappedBlockStateSnapshot{
 					Snapshot: map[xtime.UnixNano]BlockState{
 						// Exercise both code paths.
-						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): {
 							WarmRetrievable: true,
 						},
-						xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart): {
 							WarmRetrievable: false,
 						},
 					},
@@ -641,11 +641,11 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(blockStart): BlockState{
+			xtime.ToUnixNano(blockStart): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -704,7 +704,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -737,7 +737,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -792,7 +792,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -832,7 +832,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -887,7 +887,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -907,7 +907,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
