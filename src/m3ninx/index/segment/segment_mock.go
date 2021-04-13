@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 
 	"github.com/golang/mock/gomock"
+	"github.com/uber-go/tally"
 )
 
 // MockSegment is a mock of Segment interface
@@ -196,6 +197,21 @@ func (mr *MockReaderMockRecorder) Metadata(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockReader)(nil).Metadata), id)
 }
 
+// NumDocs mocks base method
+func (m *MockReader) NumDocs() (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumDocs")
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NumDocs indicates an expected call of NumDocs
+func (mr *MockReaderMockRecorder) NumDocs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumDocs", reflect.TypeOf((*MockReader)(nil).NumDocs))
+}
+
 // Doc mocks base method
 func (m *MockReader) Doc(id postings.ID) (doc.Document, error) {
 	m.ctrl.T.Helper()
@@ -358,6 +374,21 @@ func (m *MockReader) Terms(field []byte) (TermsIterator, error) {
 func (mr *MockReaderMockRecorder) Terms(field interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockReader)(nil).Terms), field)
+}
+
+// FieldsPostingsList mocks base method
+func (m *MockReader) FieldsPostingsList() (FieldsPostingsListIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockReaderMockRecorder) FieldsPostingsList() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockReader)(nil).FieldsPostingsList))
 }
 
 // ContainsField mocks base method
@@ -1803,6 +1834,18 @@ func (mr *MockSegmentsBuilderMockRecorder) AllDocs() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllDocs", reflect.TypeOf((*MockSegmentsBuilder)(nil).AllDocs))
 }
 
+// SetFilter mocks base method
+func (m *MockSegmentsBuilder) SetFilter(keep DocumentsFilter, filterCount tally.Counter) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFilter", keep, filterCount)
+}
+
+// SetFilter indicates an expected call of SetFilter
+func (mr *MockSegmentsBuilderMockRecorder) SetFilter(keep, filterCount interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFilter", reflect.TypeOf((*MockSegmentsBuilder)(nil).SetFilter), keep, filterCount)
+}
+
 // AddSegments mocks base method
 func (m *MockSegmentsBuilder) AddSegments(segments []Segment) error {
 	m.ctrl.T.Helper()
@@ -1815,4 +1858,56 @@ func (m *MockSegmentsBuilder) AddSegments(segments []Segment) error {
 func (mr *MockSegmentsBuilderMockRecorder) AddSegments(segments interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSegments", reflect.TypeOf((*MockSegmentsBuilder)(nil).AddSegments), segments)
+}
+
+// SegmentMetadatas mocks base method
+func (m *MockSegmentsBuilder) SegmentMetadatas() ([]SegmentsBuilderSegmentMetadata, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentMetadatas")
+	ret0, _ := ret[0].([]SegmentsBuilderSegmentMetadata)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SegmentMetadatas indicates an expected call of SegmentMetadatas
+func (mr *MockSegmentsBuilderMockRecorder) SegmentMetadatas() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadatas", reflect.TypeOf((*MockSegmentsBuilder)(nil).SegmentMetadatas))
+}
+
+// MockDocumentsFilter is a mock of DocumentsFilter interface
+type MockDocumentsFilter struct {
+	ctrl     *gomock.Controller
+	recorder *MockDocumentsFilterMockRecorder
+}
+
+// MockDocumentsFilterMockRecorder is the mock recorder for MockDocumentsFilter
+type MockDocumentsFilterMockRecorder struct {
+	mock *MockDocumentsFilter
+}
+
+// NewMockDocumentsFilter creates a new mock instance
+func NewMockDocumentsFilter(ctrl *gomock.Controller) *MockDocumentsFilter {
+	mock := &MockDocumentsFilter{ctrl: ctrl}
+	mock.recorder = &MockDocumentsFilterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockDocumentsFilter) EXPECT() *MockDocumentsFilterMockRecorder {
+	return m.recorder
+}
+
+// Contains mocks base method
+func (m *MockDocumentsFilter) Contains(d doc.Metadata) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Contains", d)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Contains indicates an expected call of Contains
+func (mr *MockDocumentsFilterMockRecorder) Contains(d interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Contains", reflect.TypeOf((*MockDocumentsFilter)(nil).Contains), d)
 }

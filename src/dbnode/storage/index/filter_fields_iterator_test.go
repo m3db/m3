@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -69,10 +70,14 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 		r.EXPECT().ContainsField([]byte("c")).Return(false, nil),
 	)
 	require.True(t, iter.Next())
-	require.Equal(t, "a", string(iter.Current()))
+	require.Equal(t, "a", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
+}
+
+func iterCurrTerm(term []byte, _ postings.List) string {
+	return string(term)
 }
 
 func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
@@ -90,7 +95,7 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 		r.EXPECT().ContainsField([]byte("c")).Return(false, nil),
 	)
 	require.True(t, iter.Next())
-	require.Equal(t, "b", string(iter.Current()))
+	require.Equal(t, "b", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -111,7 +116,7 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
 	)
 	require.True(t, iter.Next())
-	require.Equal(t, "c", string(iter.Current()))
+	require.Equal(t, "c", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -132,11 +137,11 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
 	)
 	require.True(t, iter.Next())
-	require.Equal(t, "a", string(iter.Current()))
+	require.Equal(t, "a", iterCurrTerm(iter.Current()))
 	require.True(t, iter.Next())
-	require.Equal(t, "b", string(iter.Current()))
+	require.Equal(t, "b", iterCurrTerm(iter.Current()))
 	require.True(t, iter.Next())
-	require.Equal(t, "c", string(iter.Current()))
+	require.Equal(t, "c", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -157,9 +162,9 @@ func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
 		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
 	)
 	require.True(t, iter.Next())
-	require.Equal(t, "a", string(iter.Current()))
+	require.Equal(t, "a", iterCurrTerm(iter.Current()))
 	require.True(t, iter.Next())
-	require.Equal(t, "c", string(iter.Current()))
+	require.Equal(t, "c", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())

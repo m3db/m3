@@ -205,6 +205,21 @@ func (mr *MockReaderMockRecorder) MetadataIterator(arg0 interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MetadataIterator", reflect.TypeOf((*MockReader)(nil).MetadataIterator), arg0)
 }
 
+// NumDocs mocks base method
+func (m *MockReader) NumDocs() (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumDocs")
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NumDocs indicates an expected call of NumDocs
+func (mr *MockReaderMockRecorder) NumDocs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumDocs", reflect.TypeOf((*MockReader)(nil).NumDocs))
+}
+
 // MockDocRetriever is a mock of DocRetriever interface
 type MockDocRetriever struct {
 	ctrl     *gomock.Controller
@@ -241,6 +256,21 @@ func (m *MockDocRetriever) Doc(arg0 postings.ID) (doc.Document, error) {
 func (mr *MockDocRetrieverMockRecorder) Doc(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockDocRetriever)(nil).Doc), arg0)
+}
+
+// NumDocs mocks base method
+func (m *MockDocRetriever) NumDocs() (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumDocs")
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NumDocs indicates an expected call of NumDocs
+func (mr *MockDocRetrieverMockRecorder) NumDocs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumDocs", reflect.TypeOf((*MockDocRetriever)(nil).NumDocs))
 }
 
 // MockMetadataRetriever is a mock of MetadataRetriever interface

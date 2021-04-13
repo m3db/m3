@@ -97,6 +97,7 @@ type mutableSegments struct {
 
 	sealedBlockStarts          map[xtime.UnixNano]struct{}
 	backgroundCompactGCPending bool
+	backgroundCompactDisable   bool
 
 	metrics mutableSegmentsMetrics
 	logger  *zap.Logger
@@ -141,10 +142,10 @@ type mutableSegmentsMetrics struct {
 	activeBlockGarbageCollectCachedSearchesMatched              tally.Histogram
 	activeBlockGarbageCollectReconstructCachedSearchEvalSkip    tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchEvalAttempt tally.Counter
-	activeBlockGarbageCollectReconstructCachedSearchSuccess     tally.Counter
-	activeBlockGarbageCollectReconstructCachedSearchError       tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchCacheHit    tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchCacheMiss   tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchExecSuccess tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchExecError   tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -175,22 +176,22 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 			append(tally.ValueBuckets{0, 1}, tally.MustMakeExponentialValueBuckets(2, 2, 12)...)),
 		activeBlockGarbageCollectReconstructCachedSearchEvalSkip: backgroundScope.Tagged(map[string]string{
 			"eval_type": "skip",
-		}).Counter("gc-reconstruct-cached-search"),
+		}).Counter("gc-reconstruct-cached-search-eval"),
 		activeBlockGarbageCollectReconstructCachedSearchEvalAttempt: backgroundScope.Tagged(map[string]string{
 			"eval_type": "attempt",
-		}).Counter("gc-reconstruct-cached-search"),
-		activeBlockGarbageCollectReconstructCachedSearchSuccess: backgroundScope.Tagged(map[string]string{
-			"result_type": "success",
-		}).Counter("gc-reconstruct-cached-search"),
-		activeBlockGarbageCollectReconstructCachedSearchError: backgroundScope.Tagged(map[string]string{
-			"result_type": "error",
-		}).Counter("gc-reconstruct-cached-search"),
+		}).Counter("gc-reconstruct-cached-search-eval"),
 		activeBlockGarbageCollectReconstructCachedSearchCacheHit: backgroundScope.Tagged(map[string]string{
 			"result_type": "cache_hit",
 		}).Counter("gc-reconstruct-cached-search-cache-result"),
 		activeBlockGarbageCollectReconstructCachedSearchCacheMiss: backgroundScope.Tagged(map[string]string{
 			"result_type": "cache_miss",
 		}).Counter("gc-reconstruct-cached-search-cache-result"),
+		activeBlockGarbageCollectReconstructCachedSearchExecSuccess: backgroundScope.Tagged(map[string]string{
+			"result_type": "success",
+		}).Counter("gc-reconstruct-cached-search-exec-result"),
+		activeBlockGarbageCollectReconstructCachedSearchExecError: backgroundScope.Tagged(map[string]string{
+			"result_type": "error",
+		}).Counter("gc-reconstruct-cached-search-exec-result"),
 	}
 }
 
@@ -470,10 +471,17 @@ func (m *mutableSegments) Close() {
 }
 
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {
+	if m.backgroundCompactDisable {
+		return
+	}
 	if m.compact.compactingBackgroundStandard {
 		return
 	}
 
+	m.backgroundCompactWithLock()
+}
+
+func (m *mutableSegments) backgroundCompactWithLock() {
 	// Create a logical plan.
 	segs := make([]compaction.Segment, 0, len(m.backgroundSegments))
 	for _, seg := range m.backgroundSegments {
@@ -951,10 +959,10 @@ func (m *mutableSegments) populateCachedSearches(
 			return func() error {
 				e := fn()
 				if e != nil {
-					m.metrics.activeBlockGarbageCollectReconstructCachedSearchError.Inc(1)
+					m.metrics.activeBlockGarbageCollectReconstructCachedSearchExecError.Inc(1)
 					return e
 				}
-				m.metrics.activeBlockGarbageCollectReconstructCachedSearchSuccess.Inc(1)
+				m.metrics.activeBlockGarbageCollectReconstructCachedSearchExecSuccess.Inc(1)
 				return nil
 			}
 		}

@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/sync"
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -70,6 +71,36 @@ func NewMockBaseResults(ctrl *gomock.Controller) *MockBaseResults {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockBaseResults) EXPECT() *MockBaseResultsMockRecorder {
 	return m.recorder
+}
+
+// EnforceLimits mocks base method
+func (m *MockBaseResults) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockBaseResultsMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockBaseResults)(nil).EnforceLimits))
+}
+
+// AddDocuments mocks base method
+func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDocuments", batch)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockBaseResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockBaseResults)(nil).AddDocuments), batch)
 }
 
 // Namespace mocks base method
@@ -114,34 +145,19 @@ func (mr *MockBaseResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockBaseResults)(nil).TotalDocsCount))
 }
 
-// EnforceLimits mocks base method
-func (m *MockBaseResults) EnforceLimits() bool {
+// NonConcurrentBuilder mocks base method
+func (m *MockBaseResults) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnforceLimits")
-	ret0, _ := ret[0].(bool)
-	return ret0
+	ret := m.ctrl.Call(m, "NonConcurrentBuilder")
+	ret0, _ := ret[0].(BaseResultsBuilder)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
-// EnforceLimits indicates an expected call of EnforceLimits
-func (mr *MockBaseResultsMockRecorder) EnforceLimits() *gomock.Call {
+// NonConcurrentBuilder indicates an expected call of NonConcurrentBuilder
+func (mr *MockBaseResultsMockRecorder) NonConcurrentBuilder() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockBaseResults)(nil).EnforceLimits))
-}
-
-// AddDocuments mocks base method
-func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddDocuments", batch)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// AddDocuments indicates an expected call of AddDocuments
-func (mr *MockBaseResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockBaseResults)(nil).AddDocuments), batch)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NonConcurrentBuilder", reflect.TypeOf((*MockBaseResults)(nil).NonConcurrentBuilder))
 }
 
 // Finalize mocks base method
@@ -154,6 +170,59 @@ func (m *MockBaseResults) Finalize() {
 func (mr *MockBaseResultsMockRecorder) Finalize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockBaseResults)(nil).Finalize))
+}
+
+// MockBaseResultsBuilder is a mock of BaseResultsBuilder interface
+type MockBaseResultsBuilder struct {
+	ctrl     *gomock.Controller
+	recorder *MockBaseResultsBuilderMockRecorder
+}
+
+// MockBaseResultsBuilderMockRecorder is the mock recorder for MockBaseResultsBuilder
+type MockBaseResultsBuilderMockRecorder struct {
+	mock *MockBaseResultsBuilder
+}
+
+// NewMockBaseResultsBuilder creates a new mock instance
+func NewMockBaseResultsBuilder(ctrl *gomock.Controller) *MockBaseResultsBuilder {
+	mock := &MockBaseResultsBuilder{ctrl: ctrl}
+	mock.recorder = &MockBaseResultsBuilderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockBaseResultsBuilder) EXPECT() *MockBaseResultsBuilderMockRecorder {
+	return m.recorder
+}
+
+// EnforceLimits mocks base method
+func (m *MockBaseResultsBuilder) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockBaseResultsBuilderMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockBaseResultsBuilder)(nil).EnforceLimits))
+}
+
+// AddDocuments mocks base method
+func (m *MockBaseResultsBuilder) AddDocuments(batch []doc.Document) (int, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDocuments", batch)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockBaseResultsBuilderMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockBaseResultsBuilder)(nil).AddDocuments), batch)
 }
 
 // MockQueryResults is a mock of QueryResults interface
@@ -177,6 +246,36 @@ func NewMockQueryResults(ctrl *gomock.Controller) *MockQueryResults {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockQueryResults) EXPECT() *MockQueryResultsMockRecorder {
 	return m.recorder
+}
+
+// EnforceLimits mocks base method
+func (m *MockQueryResults) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockQueryResultsMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockQueryResults)(nil).EnforceLimits))
+}
+
+// AddDocuments mocks base method
+func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDocuments", batch)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockQueryResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockQueryResults)(nil).AddDocuments), batch)
 }
 
 // Namespace mocks base method
@@ -221,34 +320,19 @@ func (mr *MockQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockQueryResults)(nil).TotalDocsCount))
 }
 
-// EnforceLimits mocks base method
-func (m *MockQueryResults) EnforceLimits() bool {
+// NonConcurrentBuilder mocks base method
+func (m *MockQueryResults) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnforceLimits")
-	ret0, _ := ret[0].(bool)
-	return ret0
+	ret := m.ctrl.Call(m, "NonConcurrentBuilder")
+	ret0, _ := ret[0].(BaseResultsBuilder)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
-// EnforceLimits indicates an expected call of EnforceLimits
-func (mr *MockQueryResultsMockRecorder) EnforceLimits() *gomock.Call {
+// NonConcurrentBuilder indicates an expected call of NonConcurrentBuilder
+func (mr *MockQueryResultsMockRecorder) NonConcurrentBuilder() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockQueryResults)(nil).EnforceLimits))
-}
-
-// AddDocuments mocks base method
-func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddDocuments", batch)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// AddDocuments indicates an expected call of AddDocuments
-func (mr *MockQueryResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockQueryResults)(nil).AddDocuments), batch)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NonConcurrentBuilder", reflect.TypeOf((*MockQueryResults)(nil).NonConcurrentBuilder))
 }
 
 // Finalize mocks base method
@@ -373,6 +457,36 @@ func (m *MockAggregateResults) EXPECT() *MockAggregateResultsMockRecorder {
 	return m.recorder
 }
 
+// EnforceLimits mocks base method
+func (m *MockAggregateResults) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockAggregateResultsMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockAggregateResults)(nil).EnforceLimits))
+}
+
+// AddDocuments mocks base method
+func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDocuments", batch)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockAggregateResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockAggregateResults)(nil).AddDocuments), batch)
+}
+
 // Namespace mocks base method
 func (m *MockAggregateResults) Namespace() ident.ID {
 	m.ctrl.T.Helper()
@@ -415,34 +529,19 @@ func (mr *MockAggregateResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockAggregateResults)(nil).TotalDocsCount))
 }
 
-// EnforceLimits mocks base method
-func (m *MockAggregateResults) EnforceLimits() bool {
+// NonConcurrentBuilder mocks base method
+func (m *MockAggregateResults) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnforceLimits")
-	ret0, _ := ret[0].(bool)
-	return ret0
+	ret := m.ctrl.Call(m, "NonConcurrentBuilder")
+	ret0, _ := ret[0].(BaseResultsBuilder)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
-// EnforceLimits indicates an expected call of EnforceLimits
-func (mr *MockAggregateResultsMockRecorder) EnforceLimits() *gomock.Call {
+// NonConcurrentBuilder indicates an expected call of NonConcurrentBuilder
+func (mr *MockAggregateResultsMockRecorder) NonConcurrentBuilder() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockAggregateResults)(nil).EnforceLimits))
-}
-
-// AddDocuments mocks base method
-func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddDocuments", batch)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// AddDocuments indicates an expected call of AddDocuments
-func (mr *MockAggregateResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockAggregateResults)(nil).AddDocuments), batch)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NonConcurrentBuilder", reflect.TypeOf((*MockAggregateResults)(nil).NonConcurrentBuilder))
 }
 
 // Finalize mocks base method
@@ -707,6 +806,61 @@ func (mr *MockOnIndexSeriesMockRecorder) NeedsIndexUpdate(indexBlockStartForWrit
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsIndexUpdate", reflect.TypeOf((*MockOnIndexSeries)(nil).NeedsIndexUpdate), indexBlockStartForWrite)
 }
 
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize mocks base method
+func (m *MockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart time0.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IfAlreadyIndexedMarkIndexSuccessAndFinalize", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize indicates an expected call of IfAlreadyIndexedMarkIndexSuccessAndFinalize
+func (mr *MockOnIndexSeriesMockRecorder) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IfAlreadyIndexedMarkIndexSuccessAndFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).IfAlreadyIndexedMarkIndexSuccessAndFinalize), blockStart)
+}
+
+// RemoveIndexedForBlockStarts mocks base method
+func (m *MockOnIndexSeries) RemoveIndexedForBlockStarts(blockStarts map[time0.UnixNano]struct{}) RemoveIndexedForBlockStartsResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveIndexedForBlockStarts", blockStarts)
+	ret0, _ := ret[0].(RemoveIndexedForBlockStartsResult)
+	return ret0
+}
+
+// RemoveIndexedForBlockStarts indicates an expected call of RemoveIndexedForBlockStarts
+func (mr *MockOnIndexSeriesMockRecorder) RemoveIndexedForBlockStarts(blockStarts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveIndexedForBlockStarts", reflect.TypeOf((*MockOnIndexSeries)(nil).RemoveIndexedForBlockStarts), blockStarts)
+}
+
+// RelookupAndIncrementReaderWriterCount mocks base method
+func (m *MockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RelookupAndIncrementReaderWriterCount")
+	ret0, _ := ret[0].(OnIndexSeries)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// RelookupAndIncrementReaderWriterCount indicates an expected call of RelookupAndIncrementReaderWriterCount
+func (mr *MockOnIndexSeriesMockRecorder) RelookupAndIncrementReaderWriterCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelookupAndIncrementReaderWriterCount", reflect.TypeOf((*MockOnIndexSeries)(nil).RelookupAndIncrementReaderWriterCount))
+}
+
+// DecrementReaderWriterCount mocks base method
+func (m *MockOnIndexSeries) DecrementReaderWriterCount() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DecrementReaderWriterCount")
+}
+
+// DecrementReaderWriterCount indicates an expected call of DecrementReaderWriterCount
+func (mr *MockOnIndexSeriesMockRecorder) DecrementReaderWriterCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecrementReaderWriterCount", reflect.TypeOf((*MockOnIndexSeries)(nil).DecrementReaderWriterCount))
+}
+
 // MockBlock is a mock of Block interface
 type MockBlock struct {
 	ctrl     *gomock.Controller
@@ -728,6 +882,20 @@ func NewMockBlock(ctrl *gomock.Controller) *MockBlock {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 	return m.recorder
+}
+
+// InMemoryBlockNotifySealedBlocks mocks base method
+func (m *MockBlock) InMemoryBlockNotifySealedBlocks(sealed []time0.UnixNano) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InMemoryBlockNotifySealedBlocks", sealed)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InMemoryBlockNotifySealedBlocks indicates an expected call of InMemoryBlockNotifySealedBlocks
+func (mr *MockBlockMockRecorder) InMemoryBlockNotifySealedBlocks(sealed interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InMemoryBlockNotifySealedBlocks", reflect.TypeOf((*MockBlock)(nil).InMemoryBlockNotifySealedBlocks), sealed)
 }
 
 // StartTime mocks base method
@@ -846,6 +1014,20 @@ func (mr *MockBlockMockRecorder) Stats(reporter interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockBlock)(nil).Stats), reporter)
 }
 
+// IsOpen mocks base method
+func (m *MockBlock) IsOpen() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOpen")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOpen indicates an expected call of IsOpen
+func (mr *MockBlockMockRecorder) IsOpen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpen", reflect.TypeOf((*MockBlock)(nil).IsOpen))
+}
+
 // Seal mocks base method
 func (m *MockBlock) Seal() error {
 	m.ctrl.T.Helper()
@@ -931,9 +1113,11 @@ func (mr *MockBlockMockRecorder) EvictColdMutableSegments() *gomock.Call {
 }
 
 // RotateColdMutableSegments mocks base method
-func (m *MockBlock) RotateColdMutableSegments() {
+func (m *MockBlock) RotateColdMutableSegments() error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RotateColdMutableSegments")
+	ret := m.ctrl.Call(m, "RotateColdMutableSegments")
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RotateColdMutableSegments indicates an expected call of RotateColdMutableSegments
@@ -1625,6 +1809,34 @@ func (mr *MockOptionsMockRecorder) PostingsListCache() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostingsListCache", reflect.TypeOf((*MockOptions)(nil).PostingsListCache))
 }
 
+// SetSearchPostingsListCache mocks base method
+func (m *MockOptions) SetSearchPostingsListCache(value *PostingsListCache) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSearchPostingsListCache", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSearchPostingsListCache indicates an expected call of SetSearchPostingsListCache
+func (mr *MockOptionsMockRecorder) SetSearchPostingsListCache(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSearchPostingsListCache", reflect.TypeOf((*MockOptions)(nil).SetSearchPostingsListCache), value)
+}
+
+// SearchPostingsListCache mocks base method
+func (m *MockOptions) SearchPostingsListCache() *PostingsListCache {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchPostingsListCache")
+	ret0, _ := ret[0].(*PostingsListCache)
+	return ret0
+}
+
+// SearchPostingsListCache indicates an expected call of SearchPostingsListCache
+func (mr *MockOptionsMockRecorder) SearchPostingsListCache() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchPostingsListCache", reflect.TypeOf((*MockOptions)(nil).SearchPostingsListCache))
+}
+
 // SetReadThroughSegmentOptions mocks base method
 func (m *MockOptions) SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options {
 	m.ctrl.T.Helper()
@@ -1763,4 +1975,60 @@ func (m *MockOptions) QueryLimits() limits.QueryLimits {
 func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
+}
+
+// SetQueryBlockWorkerPool mocks base method
+func (m *MockOptions) SetQueryBlockWorkerPool(value sync.WorkerPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetQueryBlockWorkerPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetQueryBlockWorkerPool indicates an expected call of SetQueryBlockWorkerPool
+func (mr *MockOptionsMockRecorder) SetQueryBlockWorkerPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryBlockWorkerPool", reflect.TypeOf((*MockOptions)(nil).SetQueryBlockWorkerPool), value)
+}
+
+// QueryBlockWorkerPool mocks base method
+func (m *MockOptions) QueryBlockWorkerPool() sync.WorkerPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryBlockWorkerPool")
+	ret0, _ := ret[0].(sync.WorkerPool)
+	return ret0
+}
+
+// QueryBlockWorkerPool indicates an expected call of QueryBlockWorkerPool
+func (mr *MockOptionsMockRecorder) QueryBlockWorkerPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryBlockWorkerPool", reflect.TypeOf((*MockOptions)(nil).QueryBlockWorkerPool))
+}
+
+// SetQueryBlockSegmentWorkerPool mocks base method
+func (m *MockOptions) SetQueryBlockSegmentWorkerPool(value sync.WorkerPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetQueryBlockSegmentWorkerPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetQueryBlockSegmentWorkerPool indicates an expected call of SetQueryBlockSegmentWorkerPool
+func (mr *MockOptionsMockRecorder) SetQueryBlockSegmentWorkerPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryBlockSegmentWorkerPool", reflect.TypeOf((*MockOptions)(nil).SetQueryBlockSegmentWorkerPool), value)
+}
+
+// QueryBlockSegmentWorkerPool mocks base method
+func (m *MockOptions) QueryBlockSegmentWorkerPool() sync.WorkerPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryBlockSegmentWorkerPool")
+	ret0, _ := ret[0].(sync.WorkerPool)
+	return ret0
+}
+
+// QueryBlockSegmentWorkerPool indicates an expected call of QueryBlockSegmentWorkerPool
+func (mr *MockOptionsMockRecorder) QueryBlockSegmentWorkerPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryBlockSegmentWorkerPool", reflect.TypeOf((*MockOptions)(nil).QueryBlockSegmentWorkerPool))
 }

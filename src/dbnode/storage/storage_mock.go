@@ -55,7 +55,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	sync0 "github.com/m3db/m3/src/x/sync"
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -4620,34 +4619,6 @@ func (m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadata
 func (mr *MockOptionsMockRecorder) FetchBlocksMetadataResultsPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlocksMetadataResultsPool))
-}
-
-// SetQueryIDsWorkerPool mocks base method
-func (m *MockOptions) SetQueryIDsWorkerPool(value sync0.WorkerPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQueryIDsWorkerPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetQueryIDsWorkerPool indicates an expected call of SetQueryIDsWorkerPool
-func (mr *MockOptionsMockRecorder) SetQueryIDsWorkerPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryIDsWorkerPool", reflect.TypeOf((*MockOptions)(nil).SetQueryIDsWorkerPool), value)
-}
-
-// QueryIDsWorkerPool mocks base method
-func (m *MockOptions) QueryIDsWorkerPool() sync0.WorkerPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryIDsWorkerPool")
-	ret0, _ := ret[0].(sync0.WorkerPool)
-	return ret0
-}
-
-// QueryIDsWorkerPool indicates an expected call of QueryIDsWorkerPool
-func (mr *MockOptionsMockRecorder) QueryIDsWorkerPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDsWorkerPool", reflect.TypeOf((*MockOptions)(nil).QueryIDsWorkerPool))
 }
 
 // SetWriteBatchPool mocks base method

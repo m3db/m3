@@ -1774,13 +1774,13 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
 	require.Equal(t, 2, len(b.mutableSegments.backgroundSegments))
-	require.True(t, b.mutableSegments.compact.compactingBackground)
+	require.True(t, b.mutableSegments.compact.compactingBackgroundStandard)
 	b.mutableSegments.Unlock()
 
 	// Wait for compaction to finish
 	for {
 		b.mutableSegments.RLock()
-		compacting := b.mutableSegments.compact.compactingBackground
+		compacting := b.mutableSegments.compact.compactingBackgroundStandard
 		b.mutableSegments.RUnlock()
 		if !compacting {
 			break
@@ -2240,4 +2240,38 @@ func testDoc3() doc.Metadata {
 			},
 		},
 	}
+}
+
+func testDocN(n int) doc.Metadata {
+	return doc.Metadata{
+		ID: []byte(fmt.Sprintf("doc-%d", n)),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name: []byte("bucket-0"),
+				Value: moduloByteStr([]string{
+					"one",
+					"two",
+					"three",
+				}, n),
+			},
+			{
+				Name: []byte("bucket-1"),
+				Value: moduloByteStr([]string{
+					"one",
+					"two",
+					"three",
+					"four",
+					"five",
+				}, n),
+			},
+		},
+	}
+}
+
+func moduloByteStr(strs []string, n int) []byte {
+	return []byte(strs[n%len(strs)])
 }

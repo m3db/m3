@@ -123,6 +123,19 @@ func (r *ReadThroughSegment) Close() error {
 
 	r.closed = true
 
+	if cache := r.caches.SegmentPostingsListCache; cache != nil {
+		// Purge segments from the cache before closing the segment to avoid
+		// temporarily having postings lists in the cache whose underlying
+		// bytes are no longer mmap'd.
+		cache.PurgeSegment(r.uuid)
+	}
+	if cache := r.caches.SearchPostingsListCache; cache != nil {
+		// Purge segments from the cache before closing the segment to avoid
+		// temporarily having postings lists in the cache whose underlying
+		// bytes are no longer mmap'd.
+		cache.PurgeSegment(r.uuid)
+	}
+
 	return r.segment.Close()
 }
 
