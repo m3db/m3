@@ -1,14 +1,9 @@
 ---
-title: Setting up M3 Aggregator
-menuTitle: M3Aggregator
+title: Aggregate Metrics with M3 Aggregator
 weight: 5
 ---
 
-## Introduction
-
-`m3aggregator` is used to cluster stateful downsampling and rollup of metrics before they are store in M3DB. The M3 Coordinator also performs this role but is not cluster aware. This means metrics will not get aggregated properly if you send metrics in round robin fashion to multiple M3 Coordinators for the same metrics ingestion source (e.g. Prometheus server).
-
-Similar to M3DB, `m3aggregator` supports clustering and replication by default. This means that metrics are correctly routed to the instance(s) responsible for aggregating each metric and multiple `m3aggregator` replicas can be configured such that there are no single points of failure for aggregation.
+{{< fileinclude file="m3aggregator_intro.md" >}}
 
 ## Configuration
 

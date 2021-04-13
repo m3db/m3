@@ -2202,6 +2202,9 @@ func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 	}
 }
 
+// newMovingBinaryTransform requires that functions are registered with
+// WithoutUnaryContextShifterSkipFetchOptimization() during function
+// registration.
 func newMovingBinaryTransform(
 	ctx *common.Context,
 	input singlePathSpec,
@@ -2589,7 +2592,8 @@ func init() {
 	MustRegisterFunction(divideSeries)
 	MustRegisterFunction(divideSeriesLists)
 	MustRegisterFunction(exclude)
-	MustRegisterFunction(exponentialMovingAverage)
+	MustRegisterFunction(exponentialMovingAverage).
+		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
@@ -2634,21 +2638,31 @@ func init() {
 	MustRegisterFunction(minSeries)
 	MustRegisterFunction(minimumAbove)
 	MustRegisterFunction(mostDeviant)
-	MustRegisterFunction(movingAverage).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingMedian).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingSum).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingMax).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
-	MustRegisterFunction(movingMin).WithDefaultParams(map[uint8]interface{}{
-		3: defaultXFilesFactor, // XFilesFactor
-	})
+	MustRegisterFunction(movingAverage).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingMedian).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingSum).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingMax).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingMin).
+		WithDefaultParams(map[uint8]interface{}{
+			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue

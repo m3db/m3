@@ -235,6 +235,8 @@ type Function struct {
 	defaults map[uint8]interface{}
 	out      reflect.Type
 	variadic bool
+
+	disableUnaryContextShiftFetchOptimization bool
 }
 
 // WithDefaultParams provides default parameters for functions
@@ -245,6 +247,23 @@ func (f *Function) WithDefaultParams(defaultParams map[uint8]interface{}) *Funct
 		}
 	}
 	f.defaults = defaultParams
+	return f
+}
+
+// WithoutUnaryContextShifterSkipFetchOptimization allows a function to skip
+// the optimization that avoids fetching data for the first execution phase
+// of a unary context shifted function (where it is called the first time
+// without any series populated as input to the function and relies on
+// execution of the unary context shifter with the shifted series solely).
+// Note: This is useful for the "movingX" family of functions that require
+// that require actually seeing what the step size is sometimes of the series
+// from the first phase of execution to determine how much to look back for the
+// context shift phase.
+func (f *Function) WithoutUnaryContextShifterSkipFetchOptimization() *Function {
+	if f.out != unaryContextShifterPtrType {
+		panic("Skip fetch optimization only available to unary context shifters")
+	}
+	f.disableUnaryContextShiftFetchOptimization = true
 	return f
 }
 
@@ -519,6 +538,17 @@ func (call *functionCall) Arguments() []ArgumentASTNode {
 func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	values := make([]reflect.Value, len(call.in))
 	for i, param := range call.in {
+		// Optimization to skip fetching series for a unary context shift
+		// operation since they'll refetch after shifting.
+		// Note: You can call WithoutUnaryContextShifterSkipFetchOptimization()
+		// after registering a function if you need a unary context shift
+		// operation to have series for the initial time window fetched.
+		if call.f.out == unaryContextShifterPtrType &&
+			!call.f.disableUnaryContextShiftFetchOptimization &&
+			(call.f.in[i] == singlePathSpecType || call.f.in[i] == multiplePathSpecsType) {
+			values[i] = reflect.ValueOf(singlePathSpec{}) // fake parameter
+			continue
+		}
 		value, err := param.Evaluate(ctx)
 		if err != nil {
 			return reflect.Value{}, err

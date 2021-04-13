@@ -243,6 +243,7 @@ func (c *grpcClient) FetchProm(
 	}
 
 	return storage.SeriesIteratorsToPromResult(
+		ctx,
 		result,
 		c.opts.ReadWorkerPool(),
 		c.opts.TagOptions())
