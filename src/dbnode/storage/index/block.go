@@ -1154,7 +1154,7 @@ func (b *block) EvictColdMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
 	if b.state != blockStateSealed {
-		return fmt.Errorf("unable to evict cold mutable segments, block must be sealed, found: %v", b.state)
+		return xerrors.NewRetryableError(fmt.Errorf("unable to evict cold mutable segments, block must be sealed, found: %v", b.state))
 	}
 
 	// Evict/remove all but the most recent cold mutable segment (That is the one we are actively writing to).

@@ -38,22 +38,22 @@ var (
 	errNamespaceIsBootstrapping = errors.New("namespace is bootstrapping")
 
 	// errNamespaceNotBootstrapped raised when trying to flush/snapshot data for a namespace that's not yet bootstrapped.
-	errNamespaceNotBootstrapped = errors.New("namespace is not yet bootstrapped")
+	errNamespaceNotBootstrapped = xerrors.NewRetryableError(errors.New("namespace is not yet bootstrapped"))
 
 	// errShardIsBootstrapping raised when trying to bootstrap a shard that's being bootstrapped.
 	errShardIsBootstrapping = errors.New("shard is bootstrapping")
 
 	// errShardNotBootstrappedToFlush raised when trying to flush data for a shard that's not yet bootstrapped.
-	errShardNotBootstrappedToFlush = errors.New("shard is not yet bootstrapped to flush")
+	errShardNotBootstrappedToFlush = xerrors.NewRetryableError(errors.New("shard is not yet bootstrapped to flush"))
 
 	// errShardNotBootstrappedToSnapshot raised when trying to snapshot data for a shard that's not yet bootstrapped.
-	errShardNotBootstrappedToSnapshot = errors.New("shard is not yet bootstrapped to snapshot")
+	errShardNotBootstrappedToSnapshot = xerrors.NewRetryableError(errors.New("shard is not yet bootstrapped to snapshot"))
 
 	// errShardNotBootstrappedToRead raised when trying to read data for a shard that's not yet bootstrapped.
-	errShardNotBootstrappedToRead = errors.New("shard is not yet bootstrapped to read")
+	errShardNotBootstrappedToRead = xerrors.NewRetryableError(errors.New("shard is not yet bootstrapped to read"))
 
 	// errIndexNotBootstrappedToRead raised when trying to read the index before being bootstrapped.
-	errIndexNotBootstrappedToRead = errors.New("index is not yet bootstrapped to read")
+	errIndexNotBootstrappedToRead = xerrors.NewRetryableError(errors.New("index is not yet bootstrapped to read"))
 
 	// errBootstrapEnqueued raised when trying to bootstrap and bootstrap becomes enqueued.
 	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")

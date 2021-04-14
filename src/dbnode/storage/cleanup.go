@@ -127,7 +127,7 @@ func newCleanupManager(
 	}
 }
 
-func (m *cleanupManager) WarmFlushCleanup(t time.Time, namespaces []databaseNamespace) error {
+func (m *cleanupManager) WarmFlushCleanup(t time.Time, namespaces *flushableNamespaces) error {
 	m.Lock()
 	m.warmFlushCleanupInProgress = true
 	m.Unlock()
@@ -140,34 +140,34 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time, namespaces []databaseName
 
 	multiErr := xerrors.NewMultiError()
 	if err := m.cleanupExpiredIndexFiles(t, namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
+		multiErr = multiErr.Add(xerrors.Wrapf(err,
 			"encountered errors when cleaning up index files for %v: %v", t, err))
 	}
 
 	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
+		multiErr = multiErr.Add(xerrors.Wrapf(err,
 			"encountered errors when cleaning up index files for %v: %v", t, err))
 	}
 
 	if err := m.deleteInactiveDataSnapshotFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
+		multiErr = multiErr.Add(xerrors.Wrapf(err,
 			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
 	}
 
 	if err := m.deleteInactiveNamespaceFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
+		multiErr = multiErr.Add(xerrors.Wrapf(err,
 			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
 	}
 
 	if err := m.cleanupSnapshotsAndCommitlogs(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
+		multiErr = multiErr.Add(xerrors.Wrapf(err,
 			"encountered errors when cleaning up snapshot and commitlog files: %v", err))
 	}
 
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) ColdFlushCleanup(t time.Time, namespaces []databaseNamespace) error {
+func (m *cleanupManager) ColdFlushCleanup(t time.Time, namespaces *flushableNamespaces) error {
 	m.Lock()
 	m.coldFlushCleanupInProgress = true
 	m.Unlock()
@@ -180,12 +180,12 @@ func (m *cleanupManager) ColdFlushCleanup(t time.Time, namespaces []databaseName
 
 	multiErr := xerrors.NewMultiError()
 	if err := m.cleanupDataFiles(t, namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
+		multiErr = multiErr.Add(xerrors.Wrapf(err,
 			"encountered errors when cleaning up data files for %v: %v", t, err))
 	}
 
 	if err := m.deleteInactiveDataFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
+		multiErr = multiErr.Add(xerrors.Wrapf(err,
 			"encountered errors when deleting inactive data files for %v: %v", t, err))
 	}
 
@@ -210,12 +210,12 @@ func (m *cleanupManager) Report() {
 	}
 }
 
-func (m *cleanupManager) deleteInactiveNamespaceFiles(namespaces []databaseNamespace) error {
+func (m *cleanupManager) deleteInactiveNamespaceFiles(namespaces *flushableNamespaces) error {
 	var namespaceDirNames []string
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	dataDirPath := fs.DataDirPath(filePathPrefix)
 
-	for _, n := range namespaces {
+	for n := range namespaces.all {
 		namespaceDirNames = append(namespaceDirNames, n.ID().String())
 	}
 
@@ -224,23 +224,26 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles(namespaces []databaseNames
 
 // deleteInactiveDataFiles will delete data files for shards that the node no longer owns
 // which can occur in the case of topology changes
-func (m *cleanupManager) deleteInactiveDataFiles(namespaces []databaseNamespace) error {
+func (m *cleanupManager) deleteInactiveDataFiles(namespaces *flushableNamespaces) error {
 	return m.deleteInactiveDataFileSetFiles(fs.NamespaceDataDirPath, namespaces)
 }
 
 // deleteInactiveDataSnapshotFiles will delete snapshot files for shards that the node no longer owns
 // which can occur in the case of topology changes
-func (m *cleanupManager) deleteInactiveDataSnapshotFiles(namespaces []databaseNamespace) error {
+func (m *cleanupManager) deleteInactiveDataSnapshotFiles(namespaces *flushableNamespaces) error {
 	return m.deleteInactiveDataFileSetFiles(fs.NamespaceSnapshotsDirPath, namespaces)
 }
 
-func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn func(string, ident.ID) string, namespaces []databaseNamespace) error {
+func (m *cleanupManager) deleteInactiveDataFileSetFiles(
+	filesetFilesDirPathFn func(string, ident.ID) string,
+	namespaces *flushableNamespaces,
+) error {
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	for _, n := range namespaces {
+	for n, shards := range namespaces.all {
 		var activeShards []string
 		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
-		for _, s := range n.OwnedShards() {
+		for _, s := range shards {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
 		}
@@ -250,23 +253,22 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupDataFiles(t time.Time, namespaces []databaseNamespace) error {
+func (m *cleanupManager) cleanupDataFiles(t time.Time, namespaces *flushableNamespaces) error {
 	multiErr := xerrors.NewMultiError()
-	for _, n := range namespaces {
+	for n, shards := range namespaces.bootstrapped {
 		if !n.Options().CleanupEnabled() {
 			continue
 		}
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
-		shards := n.OwnedShards()
 		multiErr = multiErr.Add(m.cleanupExpiredNamespaceDataFiles(earliestToRetain, shards))
 		multiErr = multiErr.Add(m.cleanupCompactedNamespaceDataFiles(shards))
 	}
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []databaseNamespace) error {
+func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces *flushableNamespaces) error {
 	multiErr := xerrors.NewMultiError()
-	for _, n := range namespaces {
+	for n := range namespaces.bootstrapped {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
 			continue
 		}
@@ -280,9 +282,9 @@ func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []data
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespace) error {
+func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces *flushableNamespaces) error {
 	multiErr := xerrors.NewMultiError()
-	for _, n := range namespaces {
+	for n := range namespaces.bootstrapped {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
 			continue
 		}
@@ -348,7 +350,7 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 //     9. Delete all corrupt commitlog files (ignoring any commitlog files being actively written to.)
 //
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
-func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseNamespace) (finalErr error) {
+func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces *flushableNamespaces) (finalErr error) {
 	logger := m.opts.InstrumentOptions().Logger().With(
 		zap.String("comment",
 			"partial/corrupt files are expected as result of a restart (this is ok)"),
@@ -401,11 +403,11 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 		finalErr = multiErr.FinalError()
 	}()
 
-	for _, ns := range namespaces {
-		for _, s := range ns.OwnedShards() {
+	for ns, shards := range namespaces.bootstrapped {
+		for _, s := range shards {
 			shardSnapshots, err := m.snapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID(), s.ID())
 			if err != nil {
-				multiErr = multiErr.Add(fmt.Errorf("err reading snapshot files for ns: %s and shard: %d, err: %v", ns.ID(), s.ID(), err))
+				multiErr = multiErr.Add(xerrors.NewRetryableError(xerrors.Wrapf(err, "err reading snapshot files for ns: %s and shard: %d, err: %v", ns.ID(), s.ID(), err)))
 				continue
 			}
 

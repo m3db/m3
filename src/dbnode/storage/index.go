@@ -74,11 +74,11 @@ import (
 )
 
 var (
-	errDbIndexAlreadyClosed               = errors.New("database index has already been closed")
-	errDbIndexUnableToWriteClosed         = errors.New("unable to write to database index, already closed")
-	errDbIndexUnableToQueryClosed         = errors.New("unable to query database index, already closed")
-	errDbIndexUnableToFlushClosed         = errors.New("unable to flush database index, already closed")
-	errDbIndexUnableToCleanupClosed       = errors.New("unable to cleanup database index, already closed")
+	errDbIndexAlreadyClosed               = xerrors.NewRetryableError(errors.New("database index has already been closed"))
+	errDbIndexUnableToWriteClosed         = xerrors.NewRetryableError(errors.New("unable to write to database index, already closed"))
+	errDbIndexUnableToQueryClosed         = xerrors.NewRetryableError(errors.New("unable to query database index, already closed"))
+	errDbIndexUnableToFlushClosed         = xerrors.NewRetryableError(errors.New("unable to flush database index, already closed"))
+	errDbIndexUnableToCleanupClosed       = xerrors.NewRetryableError(errors.New("unable to cleanup database index, already closed"))
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
 	errDbIndexDoNotIndexSeries            = errors.New("series matched do not index fields")

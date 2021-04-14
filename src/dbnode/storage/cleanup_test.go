@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -297,11 +298,12 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				ns := NewMockdatabaseNamespace(ctrl)
 				ns.EXPECT().ID().Return(ident.StringID(fmt.Sprintf("ns%d", i))).AnyTimes()
 				ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-				ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+				ns.EXPECT().NeedsFlush(shards, gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 				ns.EXPECT().OwnedShards().Return(shards).AnyTimes()
 				namespaces = append(namespaces, ns)
 			}
 
+			flushNamespaces := newFlushableNamespaces(namespaces)
 			db := newMockdatabase(ctrl, namespaces...)
 			db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 			mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
@@ -319,13 +321,15 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				return nil
 			}
 
-			err := cleanup(mgr, ts, namespaces)
+			err := cleanup(mgr, ts, flushNamespaces)
 			if tc.expectErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
 
+			sort.Strings(deletedFiles)
+			sort.Strings(tc.expectedDeletedFiles)
 			require.Equal(t, tc.expectedDeletedFiles, deletedFiles)
 		})
 	}
@@ -349,20 +353,21 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 
-	idx := NewMockNamespaceIndex(ctrl)
-	ns.EXPECT().Index().Times(2).Return(idx, nil)
+	//idx := NewMockNamespaceIndex(ctrl)
+	//ns.EXPECT().Index().Times(2).Return(idx, nil)
 
 	nses := []databaseNamespace{ns}
+	flushNamespaces := newFlushableNamespaces(nses)
 	db := newMockdatabase(ctrl, ns)
 	db.EXPECT().OwnedNamespaces().Return(nses, nil).AnyTimes()
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
-	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
-	idx.EXPECT().CleanupDuplicateFileSets().Return(nil)
-	require.NoError(t, cleanup(mgr, ts, nses))
+	//idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
+	//idx.EXPECT().CleanupDuplicateFileSets().Return(nil)
+	require.NoError(t, cleanup(mgr, ts, flushNamespaces))
 }
 
 // Test NS doesn't cleanup when flag is present
@@ -379,9 +384,10 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	for range namespaces {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 		namespaces = append(namespaces, ns)
 	}
+	flushNamespaces := newFlushableNamespaces(namespaces)
 	db := newMockdatabase(ctrl, namespaces...)
 	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
@@ -395,7 +401,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, cleanup(mgr, ts, namespaces))
+	require.NoError(t, cleanup(mgr, ts, flushNamespaces))
 }
 
 func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
@@ -415,14 +421,15 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
+	flushNamespaces := newFlushableNamespaces(namespaces)
 
 	db := newMockdatabase(ctrl, namespaces...)
 	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
-	require.NoError(t, cleanup(mgr, ts, namespaces))
+	require.NoError(t, cleanup(mgr, ts, flushNamespaces))
 }
 
 type deleteInactiveDirectoriesCall struct {
@@ -445,8 +452,9 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
+	flushNamespaces := newFlushableNamespaces(namespaces)
 
 	db := newMockdatabase(ctrl, namespaces...)
 	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
@@ -462,18 +470,18 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	}
 	mgr.deleteInactiveDirectoriesFn = deleteInactiveDirectoriesFn
 
-	require.NoError(t, cleanup(mgr, ts, namespaces))
+	require.NoError(t, cleanup(mgr, ts, flushNamespaces))
 
 	expectedCalls := []deleteInactiveDirectoriesCall{
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "data/nsID",
 			activeDirNames: []string{"0"},
 		},
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "snapshots/nsID",
 			activeDirNames: []string{"0"},
 		},
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "data",
 			activeDirNames: []string{"nsID"},
 		},
@@ -516,7 +524,7 @@ func newFakeActiveLogs(activeLogs persist.CommitLogFiles) fakeActiveLogs {
 func cleanup(
 	mgr databaseCleanupManager,
 	t time.Time,
-	namespaces []databaseNamespace,
+	namespaces *flushableNamespaces,
 ) error {
 	multiErr := xerrors.NewMultiError()
 	multiErr = multiErr.Add(mgr.WarmFlushCleanup(t, namespaces))

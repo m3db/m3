@@ -282,6 +282,9 @@ type Namespace interface {
 	// Shards returns the shard description.
 	Shards() []Shard
 
+	// BootstrappedShards returns bootstrapped shard descriptions.
+	BootstrappedShards() []Shard
+
 	// ReadableShardAt returns a readable (bootstrapped) shard by id.
 	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 
@@ -350,6 +353,9 @@ type databaseNamespace interface {
 
 	// OwnedShards returns the database shards.
 	OwnedShards() []databaseShard
+
+	// OwnedBootstrappedShards returns bootstrapped database shards.
+	OwnedBootstrappedShards() []databaseShard
 
 	// Tick performs any regular maintenance operations.
 	Tick(c context.Cancellable, startTime time.Time) error
@@ -424,25 +430,21 @@ type databaseNamespace interface {
 	Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
-	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
+	WarmFlush(shards []databaseShard, blockStart time.Time, flushPersist persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
-	FlushIndex(
-		flush persist.IndexFlush,
-	) error
+	FlushIndex(shards []databaseShard, flush persist.IndexFlush) error
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
-	ColdFlush(
-		flush persist.FlushPreparer,
-	) error
+	ColdFlush(shards []databaseShard, flushPersist persist.FlushPreparer) error
 
 	// Snapshot snapshots unflushed in-memory WarmWrites.
-	Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error
+	Snapshot(shards []databaseShard, blockStart time.Time, snapshotTime time.Time, flush persist.SnapshotPreparer) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
-	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) (bool, error)
+	NeedsFlush(shards []databaseShard, alignedInclusiveStart, alignedInclusiveEnd time.Time) (bool, error)
 
 	// Truncate truncates the in-memory data for this namespace.
 	Truncate() (int64, error)
@@ -835,7 +837,7 @@ type BootstrapResult struct {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(startTime time.Time, namespaces []databaseNamespace) error
+	Flush(startTime time.Time, namespaces *flushableNamespaces) error
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
@@ -850,10 +852,10 @@ type databaseFlushManager interface {
 // and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
 	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
-	WarmFlushCleanup(t time.Time, namespaces []databaseNamespace) error
+	WarmFlushCleanup(t time.Time, namespaces *flushableNamespaces) error
 
 	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
-	ColdFlushCleanup(t time.Time, namespaces []databaseNamespace) error
+	ColdFlushCleanup(t time.Time, namespaces *flushableNamespaces) error
 
 	// Report reports runtime information.
 	Report()
@@ -862,7 +864,7 @@ type databaseCleanupManager interface {
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(startTime time.Time, namespaces []databaseNamespace) error
+	Flush(startTime time.Time, namespaces *flushableNamespaces) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status.
@@ -998,7 +1000,7 @@ type ColdFlushNsOpts interface {
 
 // OnColdFlush can perform work each time a series is flushed.
 type OnColdFlush interface {
-	ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts) (OnColdFlushNamespace, error)
+	ColdFlushNamespace(ns Namespace, shards []Shard, opts ColdFlushNsOpts) (OnColdFlushNamespace, error)
 }
 
 // OnColdFlushNamespace performs work on a per namespace level.

@@ -300,7 +300,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	_, err = ns.ReadEncoded(ctx, id, start, end)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead, err)
 }
 
 func TestNamespaceFetchWideEntryShardNotOwned(t *testing.T) {
@@ -342,7 +342,7 @@ func TestNamespaceFetchWideEntryShardOwned(t *testing.T) {
 	_, err = ns.FetchWideEntry(ctx, id, start, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead, err)
 }
 
 func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
@@ -382,7 +382,7 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	_, err = ns.FetchBlocks(ctx, testShardIDs[0].ID(), ident.StringID("foo"), nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead, err)
 }
 
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
@@ -614,8 +614,8 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	defer close()
 
 	ns.bootstrapState = Bootstrapped
-	require.NoError(t, ns.WarmFlush(time.Now(), nil))
-	require.NoError(t, ns.ColdFlush(nil))
+	require.NoError(t, ns.WarmFlush(nil, time.Now(), nil))
+	require.NoError(t, ns.ColdFlush([]databaseShard{}, nil))
 }
 
 func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
@@ -624,8 +624,8 @@ func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
 
 	ns.bootstrapState = Bootstrapped
 	ns.SetReadOnly(true)
-	require.NoError(t, ns.WarmFlush(time.Now(), nil))
-	require.NoError(t, ns.ColdFlush(nil))
+	require.NoError(t, ns.WarmFlush(nil, time.Now(), nil))
+	require.NoError(t, ns.ColdFlush([]databaseShard{}, nil))
 }
 
 func TestNamespaceFlushSkipFlushed(t *testing.T) {
@@ -655,10 +655,10 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.NoError(t, ns.WarmFlush(blockStart, nil))
+	require.NoError(t, ns.WarmFlush(ns.shards, blockStart, nil))
 }
 
-func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
+func TestNamespaceFlushStateError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -669,16 +669,19 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	defer closer()
 
 	ns.bootstrapState = Bootstrapped
+	ns.nopts = ns.nopts.SetColdWritesEnabled(true)
 	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(testShardIDs[0].ID()).AnyTimes()
 	shard.EXPECT().IsBootstrapped().Return(false).AnyTimes()
 	shard.EXPECT().FlushState(blockStart).Return(fileOpState{}, errFlushStateIsNotInitialized).AnyTimes()
+	shard.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, errShardNotBootstrappedToFlush)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	require.NoError(t, ns.WarmFlush(blockStart, nil))
-	require.NoError(t, ns.ColdFlush(nil))
+	require.Error(t, ns.WarmFlush(ns.shards, blockStart, nil))
+	require.Error(t, ns.ColdFlush(ns.shards, nil))
 }
 
 type snapshotTestCase struct {
@@ -765,7 +768,7 @@ func TestNamespaceSnapshotShardSkipNotBootstrapped(t *testing.T) {
 			isBootstrapped:   false,
 		},
 	}
-	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
 func testSnapshotWithShardSnapshotErrs(
@@ -810,7 +813,7 @@ func testSnapshotWithShardSnapshotErrs(
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
 	}
 
-	return ns.Snapshot(blockStart, now, nil)
+	return ns.Snapshot(ns.shards, blockStart, now, nil)
 }
 
 func TestNamespaceTruncate(t *testing.T) {
@@ -1040,10 +1043,10 @@ func TestNamespaceNeedsFlushRange(t *testing.T) {
 
 	setShardExpects(ns, ctrl, inputCases)
 
-	assertNeedsFlush(t, ns, t0, t0, false)
-	assertNeedsFlush(t, ns, t0, t1, true)
-	assertNeedsFlush(t, ns, t1, t1, true)
-	assertNeedsFlush(t, ns, t1, t0, false)
+	assertNeedsFlush(t, ns, ns.shards, t0, t0, false)
+	assertNeedsFlush(t, ns, ns.shards, t0, t1, true)
+	assertNeedsFlush(t, ns, ns.shards, t1, t1, true)
+	assertNeedsFlush(t, ns, ns.shards, t1, t0, false)
 }
 
 func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
@@ -1070,14 +1073,14 @@ func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
-	assertNeedsFlush(t, ns, t0, t0, true)
-	assertNeedsFlush(t, ns, t1, t1, true)
-	assertNeedsFlush(t, ns, t2, t2, true)
-	assertNeedsFlush(t, ns, t0, t1, true)
-	assertNeedsFlush(t, ns, t0, t2, true)
-	assertNeedsFlush(t, ns, t1, t2, true)
-	assertNeedsFlush(t, ns, t2, t1, false)
-	assertNeedsFlush(t, ns, t2, t0, false)
+	assertNeedsFlush(t, ns, ns.shards, t0, t0, true)
+	assertNeedsFlush(t, ns, ns.shards, t1, t1, true)
+	assertNeedsFlush(t, ns, ns.shards, t2, t2, true)
+	assertNeedsFlush(t, ns, ns.shards, t0, t1, true)
+	assertNeedsFlush(t, ns, ns.shards, t0, t2, true)
+	assertNeedsFlush(t, ns, ns.shards, t1, t2, true)
+	assertNeedsFlush(t, ns, ns.shards, t2, t1, false)
+	assertNeedsFlush(t, ns, ns.shards, t2, t0, false)
 }
 
 func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
@@ -1104,14 +1107,14 @@ func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
-	assertNeedsFlush(t, ns, t0, t0, true)
-	assertNeedsFlush(t, ns, t1, t1, false)
-	assertNeedsFlush(t, ns, t2, t2, true)
-	assertNeedsFlush(t, ns, t0, t1, true)
-	assertNeedsFlush(t, ns, t0, t2, true)
-	assertNeedsFlush(t, ns, t1, t2, true)
-	assertNeedsFlush(t, ns, t2, t1, false)
-	assertNeedsFlush(t, ns, t2, t0, false)
+	assertNeedsFlush(t, ns, ns.shards, t0, t0, true)
+	assertNeedsFlush(t, ns, ns.shards, t1, t1, false)
+	assertNeedsFlush(t, ns, ns.shards, t2, t2, true)
+	assertNeedsFlush(t, ns, ns.shards, t0, t1, true)
+	assertNeedsFlush(t, ns, ns.shards, t0, t2, true)
+	assertNeedsFlush(t, ns, ns.shards, t1, t2, true)
+	assertNeedsFlush(t, ns, ns.shards, t2, t1, false)
+	assertNeedsFlush(t, ns, ns.shards, t2, t0, false)
 }
 
 func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
@@ -1152,7 +1155,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	assertNeedsFlush(t, ns, blockStart, blockStart, false)
+	assertNeedsFlush(t, ns, ns.shards, blockStart, blockStart, false)
 }
 
 func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
@@ -1206,7 +1209,7 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	assertNeedsFlush(t, ns, blockStart, blockStart, true)
+	assertNeedsFlush(t, ns, ns.shards, blockStart, blockStart, true)
 }
 
 func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
@@ -1259,7 +1262,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	assertNeedsFlush(t, ns, blockStart, blockStart, true)
+	assertNeedsFlush(t, ns, ns.shards, blockStart, blockStart, true)
 }
 
 func TestNamespaceCloseWillCloseShard(t *testing.T) {
@@ -1622,7 +1625,6 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	mockOnColdFlushNs.EXPECT().Done().Return(nil)
 	mockOnColdFlush := NewMockOnColdFlush(ctrl)
 	cfOpts := NewColdFlushNsOpts(false)
-	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any(), cfOpts).Return(mockOnColdFlushNs, nil)
 	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
 
 	targetShard0 := NewMockdatabaseShard(ctrl)
@@ -1644,6 +1646,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		AggregateTiles(ctx, sourceNs, targetNs, shard1ID, mockOnColdFlushNs, opts).
 		Return(int64(2), nil)
 
+	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any(), []Shard{targetShard0, targetShard1}, cfOpts).
+		Return(mockOnColdFlushNs, nil)
 	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 
 	require.NoError(t, err)
@@ -1689,9 +1693,6 @@ func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
 	targetShard0.EXPECT().IsBootstrapped().Return(false)
 	targetShard1.EXPECT().IsBootstrapped().Return(false)
 
-	targetShard0.EXPECT().ID().Return(uint32(10))
-	targetShard1.EXPECT().ID().Return(uint32(11))
-
 	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 
 	require.NoError(t, err)
@@ -1714,8 +1715,8 @@ func waitForStats(
 	wg.Wait()
 }
 
-func assertNeedsFlush(t *testing.T, ns *dbNamespace, t0, t1 time.Time, assertTrue bool) {
-	needsFlush, err := ns.NeedsFlush(t0, t1)
+func assertNeedsFlush(t *testing.T, ns *dbNamespace, shards []databaseShard, t0, t1 time.Time, assertTrue bool) {
+	needsFlush, err := ns.NeedsFlush(shards, t0, t1)
 	require.NoError(t, err)
 	require.Equal(t, assertTrue, needsFlush)
 }

@@ -365,7 +365,7 @@ func DeleteFiles(filePaths []string) error {
 	multiErr := xerrors.NewMultiError()
 	for _, file := range filePaths {
 		if err := os.Remove(file); err != nil {
-			detailedErr := fmt.Errorf("failed to remove file %s: %v", file, err)
+			detailedErr := xerrors.Wrapf(err, "failed to remove file %s: %v", file, err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}
@@ -378,7 +378,7 @@ func DeleteDirectories(dirPaths []string) error {
 	multiErr := xerrors.NewMultiError()
 	for _, dir := range dirPaths {
 		if err := os.RemoveAll(dir); err != nil {
-			detailedErr := fmt.Errorf("failed to remove dir %s: %v", dir, err)
+			detailedErr := xerrors.Wrapf(err, "failed to remove dir %s: %v", dir, err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

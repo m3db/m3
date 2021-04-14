@@ -172,7 +172,21 @@ func (e retryableError) InnerError() error {
 
 // IsRetryableError returns true if this is a retryable error.
 func IsRetryableError(err error) bool {
-	return GetInnerRetryableError(err) != nil
+	isRetryable := GetInnerRetryableError(err) != nil
+	if isRetryable {
+		return true
+	}
+
+	multiError, ok := GetInnerMultiError(err)
+	if ok {
+		for _, e := range multiError.Errors() {
+			if !IsRetryableError(e) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // GetInnerRetryableError returns an inner retryable error

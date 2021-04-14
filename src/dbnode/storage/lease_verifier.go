@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/pkg/errors"
 )
 
 type flushStateRetriever interface {
@@ -50,7 +51,7 @@ func (v *leaseVerifier) VerifyLease(
 	flushState, err := v.flushStateRetriever.FlushState(
 		descriptor.Namespace, uint32(descriptor.Shard), descriptor.BlockStart)
 	if err != nil {
-		return fmt.Errorf(
+		return errors.Wrapf(err,
 			"err retrieving flushState for lease verification, ns: %s, shard: %d, blockStart: %s, err: %v",
 			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), err)
 	}
@@ -75,7 +76,7 @@ func (v *leaseVerifier) LatestState(descriptor block.LeaseDescriptor) (block.Lea
 	flushState, err := v.flushStateRetriever.FlushState(
 		descriptor.Namespace, descriptor.Shard, descriptor.BlockStart)
 	if err != nil {
-		return block.LeaseState{}, fmt.Errorf(
+		return block.LeaseState{}, errors.Wrapf(err,
 			"err retrieving flushState for LatestState, ns: %s, shard: %d, blockStart: %s, err: %v",
 			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), err)
 	}

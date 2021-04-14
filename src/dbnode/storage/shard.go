@@ -446,7 +446,7 @@ func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 }
 
 func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot {
-	bootstrapped := s.bootstrapState == Bootstrapped
+	bootstrapped := s.bootstrapState == Bootstrapped && s.state == dbShardStateOpen
 	if !bootstrapped {
 		// Needs to be bootstrapped.
 		return series.NewShardBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
@@ -644,7 +644,10 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 }
 
 func (s *dbShard) IsBootstrapped() bool {
-	return s.BootstrapState() == Bootstrapped
+	s.RLock()
+	isBootstrappedAndOpen := s.bootstrapState == Bootstrapped && !s.isClosingWithLock()
+	s.RUnlock()
+	return isBootstrappedAndOpen
 }
 
 func (s *dbShard) Close() error {
@@ -2079,14 +2082,11 @@ func (s *dbShard) LoadBlocks(
 		return errTriedToLoadNilSeries
 	}
 
-	s.Lock()
-	// Don't allow loads until the shard is bootstrapped because the shard flush states need to be
-	// bootstrapped in order to safely load blocks. This also keeps things simpler to reason about.
-	if s.bootstrapState != Bootstrapped {
-		s.Unlock()
+	if !s.IsBootstrapped() {
+		// Don't allow loads until the shard is bootstrapped because the shard flush states need to be
+		// bootstrapped in order to safely load blocks. This also keeps things simpler to reason about.
 		return errShardIsNotBootstrapped
 	}
-	s.Unlock()
 
 	memTracker := s.opts.MemoryTracker()
 	estimatedSize := result.EstimateMapBytesSize(seriesToLoad)
@@ -2225,12 +2225,9 @@ func (s *dbShard) WarmFlush(
 	nsCtx namespace.Context,
 ) error {
 	// We don't flush data when the shard is still bootstrapping
-	s.RLock()
-	if s.bootstrapState != Bootstrapped {
-		s.RUnlock()
+	if !s.IsBootstrapped() {
 		return errShardNotBootstrappedToFlush
 	}
-	s.RUnlock()
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
@@ -2282,7 +2279,7 @@ func (s *dbShard) WarmFlush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markWarmFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+	return s.markWarmFlushStateSuccessOrError(blockStart, multiErr.LastError())
 }
 
 func (s *dbShard) ColdFlush(
@@ -2292,11 +2289,11 @@ func (s *dbShard) ColdFlush(
 	onFlushSeries persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
 	// We don't flush data when the shard is still bootstrapping.
-	s.RLock()
-	if s.bootstrapState != Bootstrapped {
-		s.RUnlock()
+	if !s.IsBootstrapped() {
 		return shardColdFlush{}, errShardNotBootstrappedToFlush
 	}
+
+	s.RLock()
 	// Use blockStatesSnapshotWithRLock to avoid having to re-acquire read lock.
 	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
@@ -2418,13 +2415,9 @@ func (s *dbShard) Snapshot(
 	nsCtx namespace.Context,
 ) (ShardSnapshotResult, error) {
 	// We don't snapshot data when the shard is still bootstrapping
-	s.RLock()
-	if s.bootstrapState != Bootstrapped {
-		s.RUnlock()
+	if !s.IsBootstrapped() {
 		return ShardSnapshotResult{}, errShardNotBootstrappedToSnapshot
 	}
-
-	s.RUnlock()
 
 	// Record per-shard snapshot latency, not many shards so safe
 	// to use a timer.
@@ -2613,7 +2606,7 @@ func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	expired, err := s.filesetPathsBeforeFn(filePathPrefix, s.namespace.ID(), s.ID(), earliestToRetain)
 	if err != nil {
-		return fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
+		return xerrors.Wrapf(err, "encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
 			filePathPrefix, s.namespace.ID(), s.ID(), err)
 	}
 
@@ -2624,7 +2617,7 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	filesets, err := s.filesetsFn(filePathPrefix, s.namespace.ID(), s.ID())
 	if err != nil {
-		return fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
+		return xerrors.Wrapf(err, "encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
 			filePathPrefix, s.namespace.ID(), s.ID(), err)
 	}
 

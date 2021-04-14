@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -39,10 +41,6 @@ func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 
-	database.EXPECT().IsBootstrapped().Return(false)
-	require.False(t, mgr.shouldRunWithLock())
-
-	database.EXPECT().IsBootstrapped().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
 }
 
@@ -52,7 +50,6 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
-	database.EXPECT().IsBootstrapped().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
 	mgr.status = fileOpInProgress
 	require.False(t, mgr.shouldRunWithLock())
@@ -64,7 +61,6 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
-	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	require.True(t, mgr.shouldRunWithLock())
 	require.NotEqual(t, fileOpInProgress, mgr.Disable())
 	require.False(t, mgr.shouldRunWithLock())
@@ -82,6 +78,7 @@ func TestFileSystemManagerRun(t *testing.T) {
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	shard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{}, nil).AnyTimes()
+	namespace.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
 	namespace.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	database.EXPECT().OwnedNamespaces().Return([]databaseNamespace{namespace}, nil)
 
@@ -99,4 +96,34 @@ func TestFileSystemManagerRun(t *testing.T) {
 
 	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 	require.Panics(t, func() { mgr.Run(ts, syncRun, noForce) })
+}
+
+func TestFileSystemManagerIgnoreRetryableError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	database := newMockdatabase(ctrl)
+	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	namespace := NewMockdatabaseNamespace(ctrl)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	shard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{}, nil).AnyTimes()
+	namespace.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
+	namespace.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	database.EXPECT().OwnedNamespaces().Return([]databaseNamespace{namespace}, nil)
+
+	fm := NewMockdatabaseFlushManager(ctrl)
+	cm := NewMockdatabaseCleanupManager(ctrl)
+	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
+	mgr := fsm.(*fileSystemManager)
+	mgr.databaseFlushManager = fm
+	mgr.databaseCleanupManager = cm
+
+	ts := time.Now()
+	gomock.InOrder(
+		cm.EXPECT().WarmFlushCleanup(ts, gomock.Any()).Return(xerrors.NewRetryableError(errors.New("cleanup error"))),
+		fm.EXPECT().Flush(gomock.Any(), gomock.Any()).Return(xerrors.NewRetryableError(errors.New("flush error"))),
+	)
+
+	require.True(t, mgr.Run(ts, syncRun, noForce))
 }

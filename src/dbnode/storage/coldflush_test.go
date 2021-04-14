@@ -28,6 +28,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/persist"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,6 @@ func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
-	ns.EXPECT().ColdFlush(mockFlushPersist).Return(nil).AnyTimes()
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
@@ -72,6 +72,7 @@ func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	shard.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil).AnyTimes()
 	shard.EXPECT().CleanupCompactedFileSets().Return(nil).AnyTimes()
 	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().ColdFlush([]databaseShard{shard}, mockFlushPersist).Return(nil).AnyTimes()
 	db.EXPECT().OwnedNamespaces().Return([]databaseNamespace{ns}, nil).AnyTimes()
 
 	cfm := newColdFlushManager(db, mockPersistManager, testOpts).(*coldFlushManager)
@@ -127,5 +128,41 @@ func TestColdFlushManagerFlushDoneFlushError(t *testing.T) {
 	cfm := newColdFlushManager(db, mockPersistManager, testOpts).(*coldFlushManager)
 	cfm.pm = mockPersistManager
 
-	require.EqualError(t, fakeErr, cfm.coldFlush([]databaseNamespace{}).Error())
+	flushNamespaces := newFlushableNamespaces([]databaseNamespace{})
+	require.EqualError(t, fakeErr, cfm.coldFlush(flushNamespaces).Error())
+}
+
+func TestColdFlushManagerIgnoreRetryableError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		retryableError     = xerrors.NewRetryableError(errors.New("fake error while marking flush done"))
+		mockPersistManager = persist.NewMockManager(ctrl)
+		mockFlushPersist   = persist.NewMockFlushPreparer(ctrl)
+	)
+
+	mockFlushPersist.EXPECT().DoneFlush().Return(retryableError)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
+
+	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(false).AnyTimes()
+
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
+
+	nses := []databaseNamespace{ns}
+
+	db := newMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testOpts).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(nses, nil).AnyTimes()
+
+	cfm := newColdFlushManager(db, mockPersistManager, testOpts).(*coldFlushManager)
+	cfm.pm = mockPersistManager
+
+	require.True(t, cfm.Run(time.Now()))
 }

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -166,27 +167,41 @@ func (m *fileSystemManager) Run(
 			return
 		}
 
-		bootstrappedNamespaces := newBootstrappedNamespaces(namespaces, t, m.log)
-		if len(bootstrappedNamespaces) == 0 {
-			m.log.Warn("no bootstrapped namespaces so skip flush", zap.Error(err))
+		flushNamespaces := newFlushableNamespaces(namespaces)
+		if flushNamespaces.isEmpty() {
+			m.log.Debug("no flushable namespaces so skip flush")
 			return
+		}
+
+		for namespace, shards := range flushNamespaces.bootstrapped {
+			m.log.Info("starting warm flush",
+				zap.String("namespace", namespace.ID().String()),
+				zap.Uint32s("shards", toShardIds(shards)))
 		}
 
 		// NB(r): Use invariant here since flush errors were introduced
 		// and not caught in CI or integration tests.
 		// When an invariant occurs in CI tests it panics so as to fail
 		// the build.
-		if err := m.WarmFlushCleanup(t, bootstrappedNamespaces); err != nil {
-			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
-				})
+		if err := m.WarmFlushCleanup(t, flushNamespaces); err != nil {
+			if errors.IsRetryableError(err) {
+				m.log.Warn("retryable error during warm flush cleanup", zap.Error(err))
+			} else {
+				instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+					func(l *zap.Logger) {
+						l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
+					})
+			}
 		}
-		if err := m.Flush(t, bootstrappedNamespaces); err != nil {
-			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
-				})
+		if err := m.Flush(t, flushNamespaces); err != nil {
+			if errors.IsRetryableError(err) {
+				m.log.Warn("retryable error during warm flush", zap.Error(err))
+			} else {
+				instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+					func(l *zap.Logger) {
+						l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
+					})
+			}
 		}
 		m.log.Info("finished flush")
 	}
@@ -205,5 +220,5 @@ func (m *fileSystemManager) Report() {
 }
 
 func (m *fileSystemManager) shouldRunWithLock() bool {
-	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
+	return m.enabled && m.status != fileOpInProgress
 }

@@ -93,14 +93,11 @@ func (m *coldFlushManager) Status() fileOpStatus {
 }
 
 func (m *coldFlushManager) Run(t time.Time) bool {
-	m.RLock()
+	m.Lock()
 	if !m.shouldRunWithLock() {
-		m.RUnlock()
+		m.Unlock()
 		return false
 	}
-	m.RUnlock()
-
-	m.Lock()
 	m.status = fileOpInProgress
 	m.Unlock()
 
@@ -110,18 +107,22 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
-	m.log.Info("starting cold flush")
-
 	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		m.log.Warn("error when getting namespaces", zap.Error(err))
 		return false
 	}
 
-	bootstrappedNamespaces := newBootstrappedNamespaces(namespaces, t, m.log)
-	if len(bootstrappedNamespaces) == 0 {
-		m.log.Warn("no bootstrapped namespaces so skip flush", zap.Error(err))
+	flushNamespaces := newFlushableNamespaces(namespaces)
+	if flushNamespaces.isEmpty() {
+		m.log.Debug("no flushable namespaces, skipping cold flush")
 		return true
+	}
+
+	for namespace, shards := range flushNamespaces.bootstrapped {
+		m.log.Info("starting cold flush",
+			zap.String("namespace", namespace.ID().String()),
+			zap.Uint32s("shards", toShardIds(shards)))
 	}
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
@@ -129,23 +130,30 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	// and not caught in CI or integration tests.
 	// When an invariant occurs in CI tests it panics so as to fail
 	// the build.
-	if err := m.ColdFlushCleanup(t, bootstrappedNamespaces); err != nil {
-		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
-			func(l *zap.Logger) {
-				l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
-			})
+	if err := m.ColdFlushCleanup(t, flushNamespaces); err != nil {
+		if xerrors.IsRetryableError(err) {
+			m.log.Warn("retryable error during cold flush cleanup", zap.Error(err))
+		} else {
+			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
+				})
+		}
 	}
-	if err := m.trackedColdFlush(bootstrappedNamespaces); err != nil {
-		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
-			func(l *zap.Logger) {
-				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
-			})
+	if err := m.trackedColdFlush(flushNamespaces); err != nil {
+		if xerrors.IsRetryableError(err) {
+			m.log.Warn("retryable error during cold flush", zap.Error(err))
+		} else {
+			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
+				})
+		}
 	}
-	m.log.Info("finished cold flush")
 	return true
 }
 
-func (m *coldFlushManager) trackedColdFlush(namespaces []databaseNamespace) error {
+func (m *coldFlushManager) trackedColdFlush(namespaces *flushableNamespaces) error {
 	// The cold flush process will persist any data that has been "loaded" into memory via
 	// the Load() API but has not yet been persisted durably. As a result, if the cold flush
 	// process completes without error, then we want to "decrement" the number of tracked bytes
@@ -179,15 +187,15 @@ func (m *coldFlushManager) trackedColdFlush(namespaces []databaseNamespace) erro
 	return nil
 }
 
-func (m *coldFlushManager) coldFlush(namespaces []databaseNamespace) error {
+func (m *coldFlushManager) coldFlush(namespaces *flushableNamespaces) error {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
 		return err
 	}
 
 	multiErr := xerrors.NewMultiError()
-	for _, ns := range namespaces {
-		if err = ns.ColdFlush(flushPersist); err != nil {
+	for ns, shards := range namespaces.bootstrapped {
+		if err = ns.ColdFlush(shards, flushPersist); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
