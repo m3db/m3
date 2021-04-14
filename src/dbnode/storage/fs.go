@@ -165,6 +165,8 @@ func (m *fileSystemManager) Run(
 			return
 		}
 
+		m.log.Info("starting warm flush")
+
 		// NB(r): Use invariant here since flush errors were introduced
 		// and not caught in CI or integration tests.
 		// When an invariant occurs in CI tests it panics so as to fail
@@ -181,6 +183,7 @@ func (m *fileSystemManager) Run(
 					l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
 				})
 		}
+		m.log.Info("completed warm flush")
 	}
 
 	if runType == syncRun {

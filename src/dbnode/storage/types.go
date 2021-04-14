@@ -988,6 +988,10 @@ type databaseMediator interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
+
+	// EnqueueMutuallyExclusiveFn enqueues function to be executed mutually exclusively,
+	// when file operations are idle.
+	EnqueueMutuallyExclusiveFn(fn func()) error
 }
 
 // ColdFlushNsOpts are options for OnColdFlush.ColdFlushNamespace.

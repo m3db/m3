@@ -112,6 +112,8 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		return true
 	}
 
+	m.log.Info("starting cold flush")
+
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	// NB(r): Use invariant here since flush errors were introduced
 	// and not caught in CI or integration tests.
@@ -129,7 +131,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
 			})
 	}
-
+	m.log.Info("completed cold flush")
 	return true
 }
 
