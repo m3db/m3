@@ -40,6 +40,7 @@ type samplesAppender struct {
 	clientRemote            client.Client
 	processedCountNonRollup tally.Counter
 	processedCountRollup    tally.Counter
+	operationsCount         tally.Counter
 
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
@@ -151,18 +152,28 @@ func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
 }
 
 func (a *samplesAppender) emitMetrics() {
-	a.processedCountNonRollup.Inc(int64(len(a.stagedMetadatas)))
-
 	for _, metadata := range a.stagedMetadatas {
-		// For each metadata check the number of pipeline operations and add
-		// them as processed by rollup. If there are more than a single
-		// operation then consider them.
-		numOperations := 0
+		// Separate out the rollup and non-rollup processed counts. For rollups
+		// additionally emit a metric that indicates the number of non-rollup
+		// operations in the rules.
+		var (
+			numOperations = 0
+			isRollup      bool
+		)
 		for _, pipeline := range metadata.Pipelines {
+			if pipeline.IsAnyRollupRules() {
+				isRollup = true
+			}
 			numOperations += len(pipeline.Pipeline.Operations)
 		}
+		if isRollup {
+			a.processedCountRollup.Inc(1)
+		} else {
+			a.processedCountNonRollup.Inc(1)
+		}
+		// This includes operations other than the actual rollup.
 		if numOperations > 1 {
-			a.processedCountRollup.Inc(int64(numOperations - 1))
+			a.operationsCount.Inc(int64(numOperations - 1))
 		}
 	}
 }
