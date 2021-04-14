@@ -77,7 +77,8 @@ func (p *metricsAppenderPool) Put(v *metricsAppender) {
 }
 
 type metricsAppenderMetrics struct {
-	processedCount tally.Counter
+	processedCountNonRollup tally.Counter
+	processedCountRollup    tally.Counter
 }
 
 type metricsAppender struct {
@@ -409,11 +410,12 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		a.debugLogMatch("downsampler applying matched rollup rule",
 			debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
 		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:              a.agg,
-			clientRemote:     a.clientRemote,
-			processedCounter: a.metrics.processedCount,
-			unownedID:        rollup.ID,
-			stagedMetadatas:  rollup.Metadatas,
+			agg:                     a.agg,
+			clientRemote:            a.clientRemote,
+			processedCountNonRollup: a.metrics.processedCountNonRollup,
+			processedCountRollup:    a.metrics.processedCountRollup,
+			unownedID:               rollup.ID,
+			stagedMetadatas:         rollup.Metadatas,
 		})
 		if a.untimedRollups {
 			dropTimestamp = true
@@ -566,11 +568,12 @@ func (a *metricsAppender) newSamplesAppender(
 		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
 	return samplesAppender{
-		agg:              a.agg,
-		clientRemote:     a.clientRemote,
-		processedCounter: a.metrics.processedCount,
-		unownedID:        data.Bytes(),
-		stagedMetadatas:  []metadata.StagedMetadata{sm},
+		agg:                     a.agg,
+		clientRemote:            a.clientRemote,
+		processedCountNonRollup: a.metrics.processedCountNonRollup,
+		processedCountRollup:    a.metrics.processedCountRollup,
+		unownedID:               data.Bytes(),
+		stagedMetadatas:         []metadata.StagedMetadata{sm},
 	}, nil
 }
 

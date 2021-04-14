@@ -107,7 +107,8 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 			matcher:                matcher,
 			agg:                    agg,
 			metrics: metricsAppenderMetrics{
-				processedCount: tally.NoopScope.Counter("test-counter"),
+				processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
+				processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
 			},
 		})
 		name := []byte(fmt.Sprint("foo", i))

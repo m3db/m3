@@ -36,9 +36,10 @@ import (
 
 // samplesAppender must have one of agg or client set
 type samplesAppender struct {
-	agg              aggregator.Aggregator
-	clientRemote     client.Client
-	processedCounter tally.Counter
+	agg                     aggregator.Aggregator
+	clientRemote            client.Client
+	processedCountNonRollup tally.Counter
+	processedCountRollup    tally.Counter
 
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
@@ -150,7 +151,20 @@ func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
 }
 
 func (a *samplesAppender) emitMetrics() {
-	a.processedCounter.Inc(int64(len(a.stagedMetadatas)))
+	a.processedCountNonRollup.Inc(int64(len(a.stagedMetadatas)))
+
+	for _, metadata := range a.stagedMetadatas {
+		// For each metadata check the number of pipeline operations and add
+		// them as processed by rollup. If there are more than a single
+		// operation then consider them.
+		numOperations := 0
+		for _, pipeline := range metadata.Pipelines {
+			numOperations += len(pipeline.Pipeline.Operations)
+		}
+		if numOperations > 1 {
+			a.processedCountRollup.Inc(int64(numOperations - 1))
+		}
+	}
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender.
