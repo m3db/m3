@@ -13,6 +13,7 @@ coordinator:
       timeKey: ts
       nameKey: logger
       callerKey: caller
+      functionKey: ""
       stacktraceKey: stacktrace
       lineEnding: "\n"
       levelEncoder: lowercase
