@@ -22,6 +22,7 @@ package client
 
 import (
 	gocontext "context"
+	"github.com/uber/tchannel-go/thrift"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
@@ -704,7 +705,16 @@ type Options interface {
 
 	// NamespaceInitializer returns the NamespaceInitializer.
 	NamespaceInitializer() namespace.Initializer
+
+	// SetThriftContextFn sets the retrier for streaming blocks.
+	SetThriftContextFn(value ThriftContextFn) Options
+
+	// ThriftContextFn returns the retrier for streaming blocks.
+	ThriftContextFn() ThriftContextFn
 }
+
+// ThriftContextFn turns a context into a thrift context for a thrift call.
+type ThriftContextFn func(gocontext.Context) thrift.Context
 
 // AdminOptions is a set of administration client options.
 type AdminOptions interface {

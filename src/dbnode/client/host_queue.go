@@ -860,7 +860,7 @@ func (q *queue) asyncFetchV2(
 
 func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 	// All fetch tagged calls are required to provide a context with a deadline.
-	ctx, err := q.mustWrapContext(op.context, "fetchTagged")
+	ctx, err := q.mustWrapAndCheckContext(op.context, "fetchTagged")
 	if err != nil {
 		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 		return
@@ -905,7 +905,7 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 
 func (q *queue) asyncAggregate(op *aggregateOp) {
 	// All aggregate calls are required to provide a context with a deadline.
-	ctx, err := q.mustWrapContext(op.context, "aggregate")
+	ctx, err := q.mustWrapAndCheckContext(op.context, "aggregate")
 	if err != nil {
 		op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
 		return
@@ -973,7 +973,7 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 	})
 }
 
-func (q *queue) mustWrapContext(
+func (q *queue) mustWrapAndCheckContext(
 	callingContext context.Context,
 	method string,
 ) (thrift.Context, error) {
@@ -981,13 +981,29 @@ func (q *queue) mustWrapContext(
 		return nil, fmt.Errorf(
 			"%w in host queue: method=%s", ErrCallMissingContext, method)
 	}
+
 	// Use the original context for the call.
 	_, ok := callingContext.Deadline()
 	if !ok {
 		return nil, fmt.Errorf(
 			"%w in host queue: method=%s", ErrCallWithoutDeadline, method)
 	}
-	return thrift.Wrap(callingContext), nil
+
+	// Create thrift context.
+	newThriftContext := q.opts.ThriftContextFn()
+	ctx := newThriftContext(callingContext)
+
+	// Check the cancellation so that we don't attempt operations
+	// on cancelled contexts.
+	select {
+	case <-ctx.Done():
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return nil, context.DeadlineExceeded
+	default:
+		return ctx, nil
+	}
 }
 
 func (q *queue) Len() int {

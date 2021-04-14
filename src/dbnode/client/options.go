@@ -21,6 +21,7 @@
 package client
 
 import (
+	gocontext "context"
 	"errors"
 	"math"
 	"runtime"
@@ -223,6 +224,11 @@ var (
 		IdleCheckInterval: 5 * time.Minute,
 	}
 
+	// defaultThriftContextFn is the default thrift context function.
+	defaultThriftContextFn = func(ctx gocontext.Context) thrift.Context {
+		return thrift.Wrap(ctx)
+	}
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
@@ -292,6 +298,7 @@ type options struct {
 	iterationOptions                        index.IterationOptions
 	writeTimestampOffset                    time.Duration
 	namespaceInitializer                    namespace.Initializer
+	thriftContextFn                         ThriftContextFn
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -433,6 +440,7 @@ func newOptions() *options {
 		asyncTopologyInitializers:               []topology.Initializer{},
 		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
 		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
+		thriftContextFn:                         defaultThriftContextFn,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -1122,4 +1130,14 @@ func (o *options) SetNamespaceInitializer(value namespace.Initializer) Options {
 
 func (o *options) NamespaceInitializer() namespace.Initializer {
 	return o.namespaceInitializer
+}
+
+func (o *options) SetThriftContextFn(value ThriftContextFn) Options {
+	opts := *o
+	opts.thriftContextFn = value
+	return &opts
+}
+
+func (o *options) ThriftContextFn() ThriftContextFn {
+	return o.thriftContextFn
 }
