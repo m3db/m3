@@ -53,7 +53,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topi
 }'
 ```
 
-#### Add m3aggregagtor consumer group to ingest topic
+#### Add m3aggregator consumer group to ingest topic
 
 Add the `m3aggregator` placement to receive traffic from the topic (make sure to set message TTL to match your desired maximum in memory retry message buffer):
 ```shell
