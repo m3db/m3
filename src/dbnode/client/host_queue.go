@@ -267,10 +267,6 @@ func (q *queue) drain() {
 				} else {
 					q.asyncFetch(v)
 				}
-			case *fetchTaggedOp:
-				q.asyncFetchTagged(v)
-			case *aggregateOp:
-				q.asyncAggregate(v)
 			case *truncateOp:
 				q.asyncTruncate(v)
 			default:
@@ -870,8 +866,14 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		return
 	}
 
+	// Note: No worker pool required for fetch tagged queries, they do
+	// not benefit from goroutine re-use the same way the write
+	// code path does which frequently runs into stack splitting due to
+	// how deep the stacks are in the write code path.
+	// Context on stack splitting (a lot of other material out there too):
+	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
-	q.workerPool.GoWithContext(ctx, func() {
+	go func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			op.decRef()
@@ -898,7 +900,7 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			response: result,
 		}, err)
 		cleanup()
-	})
+	}()
 }
 
 func (q *queue) asyncAggregate(op *aggregateOp) {
@@ -909,8 +911,14 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 		return
 	}
 
+	// Note: No worker pool required for aggregate queries, they do
+	// not benefit from goroutine re-use the same way the write
+	// code path does which frequently runs into stack splitting due to
+	// how deep the stacks are in the write code path.
+	// Context on stack splitting (a lot of other material out there too):
+	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
-	q.workerPool.GoWithContext(ctx, func() {
+	go func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			op.decRef()
@@ -937,7 +945,7 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			response: result,
 		}, err)
 		cleanup()
-	})
+	}()
 }
 
 func (q *queue) asyncTruncate(op *truncateOp) {
@@ -989,24 +997,47 @@ func (q *queue) Len() int {
 	return v
 }
 
+func (q *queue) validateOpenWithLock() error {
+	if q.status != statusOpen {
+		return errQueueNotOpen(q.host.ID())
+	}
+	return nil
+}
+
 func (q *queue) Enqueue(o op) error {
 	switch sOp := o.(type) {
-	case *fetchBatchOp:
-		// Need to take ownership if its a fetch batch op
-		sOp.IncRef()
 	case *fetchTaggedOp:
 		// Need to take ownership if its a fetch tagged op
 		sOp.incRef()
+		// No queueing for fetchTagged op
+		q.RLock()
+		defer q.RUnlock()
+		if err := q.validateOpenWithLock(); err != nil {
+			return err
+		}
+		q.asyncFetchTagged(sOp)
+		return nil
 	case *aggregateOp:
 		// Need to take ownership if its an aggregate op
 		sOp.incRef()
+		// No queueing for aggregate op
+		q.RLock()
+		defer q.RUnlock()
+		if err := q.validateOpenWithLock(); err != nil {
+			return err
+		}
+		q.asyncAggregate(sOp)
+		return nil
+	case *fetchBatchOp:
+		// Need to take ownership if its a fetch batch op
+		sOp.IncRef()
 	}
 
 	var needsDrain []op
 	q.Lock()
-	if q.status != statusOpen {
+	if err := q.validateOpenWithLock(); err != nil {
 		q.Unlock()
-		return errQueueNotOpen(q.host.ID())
+		return err
 	}
 	q.ops = append(q.ops, o)
 	q.opsSumSize += o.Size()
