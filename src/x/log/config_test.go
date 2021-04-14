@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,11 +25,14 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 )
 
-func TestLoggingConfiguration(t *testing.T) {
+func TestLoggerConfiguration(t *testing.T) {
 	tmpfile, err := ioutil.TempFile("", "logtest")
 	require.NoError(t, err)
 
@@ -59,4 +62,61 @@ func TestLoggingConfiguration(t *testing.T) {
 	require.True(t, strings.Contains(data, `"msg":"this should appear"`))
 	require.True(t, strings.Contains(data, `"my-field":"my-val"`))
 	require.True(t, strings.Contains(data, `"level":"error"`))
+}
+
+func TestLoggerEncoderConfiguraion(t *testing.T) {
+	logTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	logEntry := zapcore.Entry{
+		LoggerName: "main",
+		Level:      zapcore.InfoLevel,
+		Message:    `hello`,
+		Time:       logTime,
+		Stack:      "fake-stack",
+		Caller:     zapcore.EntryCaller{Defined: true, File: "foo.go", Line: 42, Function: "foo.Foo"},
+	}
+
+	tests := []struct {
+		name     string
+		cfg      encoderConfig
+		expected string
+	}{
+		{
+			name: "empty encoder config",
+			cfg:  encoderConfig{},
+			expected: `{"level":"info","ts":0,"logger":"main","caller":"foo.go:42","msg":"hello",` +
+				`"stacktrace":"fake-stack"}` + zapcore.DefaultLineEnding,
+		},
+		{
+			name: "encoder custom",
+			cfg: encoderConfig{
+				MessageKey:     "M",
+				LevelKey:       "L",
+				TimeKey:        "T",
+				NameKey:        "N",
+				CallerKey:      "C",
+				FunctionKey:    "F",
+				StacktraceKey:  "S",
+				LineEnding:     "\r\n",
+				EncodeLevel:    "capital",
+				EncodeTime:     "rfc3339nano",
+				EncodeDuration: "string",
+				EncodeCaller:   "short",
+				EncodeName:     "full",
+			},
+			expected: `{"L":"INFO","T":"1970-01-01T00:00:00Z","N":"main","C":"foo.go:42","F":"foo.Foo","M":"hello",` +
+				`"S":"fake-stack"}` + "\r\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logCfg := Configuration{
+				EncoderConfig: tt.cfg,
+			}
+			ec := logCfg.newEncoderConfig()
+			json := zapcore.NewJSONEncoder(ec)
+			jsonOut, jsonErr := json.EncodeEntry(logEntry, nil)
+			assert.NoError(t, jsonErr, "Unexpected error JSON-encoding entry")
+			assert.Equal(t, tt.expected, jsonOut.String())
+		})
+	}
 }
