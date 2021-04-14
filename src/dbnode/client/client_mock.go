@@ -2736,6 +2736,34 @@ func (mr *MockOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).NamespaceInitializer))
 }
 
+// SetThriftContextFn mocks base method
+func (m *MockOptions) SetThriftContextFn(value ThriftContextFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetThriftContextFn", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetThriftContextFn indicates an expected call of SetThriftContextFn
+func (mr *MockOptionsMockRecorder) SetThriftContextFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThriftContextFn", reflect.TypeOf((*MockOptions)(nil).SetThriftContextFn), value)
+}
+
+// ThriftContextFn mocks base method
+func (m *MockOptions) ThriftContextFn() ThriftContextFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ThriftContextFn")
+	ret0, _ := ret[0].(ThriftContextFn)
+	return ret0
+}
+
+// ThriftContextFn indicates an expected call of ThriftContextFn
+func (mr *MockOptionsMockRecorder) ThriftContextFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ThriftContextFn", reflect.TypeOf((*MockOptions)(nil).ThriftContextFn))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -4353,6 +4381,34 @@ func (m *MockAdminOptions) NamespaceInitializer() namespace.Initializer {
 func (mr *MockAdminOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockAdminOptions)(nil).NamespaceInitializer))
+}
+
+// SetThriftContextFn mocks base method
+func (m *MockAdminOptions) SetThriftContextFn(value ThriftContextFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetThriftContextFn", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetThriftContextFn indicates an expected call of SetThriftContextFn
+func (mr *MockAdminOptionsMockRecorder) SetThriftContextFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThriftContextFn", reflect.TypeOf((*MockAdminOptions)(nil).SetThriftContextFn), value)
+}
+
+// ThriftContextFn mocks base method
+func (m *MockAdminOptions) ThriftContextFn() ThriftContextFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ThriftContextFn")
+	ret0, _ := ret[0].(ThriftContextFn)
+	return ret0
+}
+
+// ThriftContextFn indicates an expected call of ThriftContextFn
+func (mr *MockAdminOptionsMockRecorder) ThriftContextFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ThriftContextFn", reflect.TypeOf((*MockAdminOptions)(nil).ThriftContextFn))
 }
 
 // SetOrigin mocks base method
