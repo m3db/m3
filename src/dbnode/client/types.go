@@ -22,8 +22,10 @@ package client
 
 import (
 	gocontext "context"
-	"github.com/uber/tchannel-go/thrift"
 	"time"
+
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -44,8 +46,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber/tchannel-go"
 )
 
 // Client can create sessions to write and read to a cluster.

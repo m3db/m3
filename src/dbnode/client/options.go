@@ -21,11 +21,13 @@
 package client
 
 import (
-	gocontext "context"
 	"errors"
 	"math"
 	"runtime"
 	"time"
+
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -47,9 +49,6 @@ import (
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
@@ -225,9 +224,7 @@ var (
 	}
 
 	// defaultThriftContextFn is the default thrift context function.
-	defaultThriftContextFn = func(ctx gocontext.Context) thrift.Context {
-		return thrift.Wrap(ctx)
-	}
+	defaultThriftContextFn = thrift.Wrap
 
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
