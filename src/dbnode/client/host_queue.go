@@ -859,13 +859,6 @@ func (q *queue) asyncFetchV2(
 }
 
 func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
-	// All fetch tagged calls are required to provide a context with a deadline.
-	ctx, err := q.mustWrapAndCheckContext(op.context, "fetchTagged")
-	if err != nil {
-		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-		return
-	}
-
 	// Note: No worker pool required for fetch tagged queries, they do
 	// not benefit from goroutine re-use the same way the write
 	// code path does which frequently runs into stack splitting due to
@@ -873,25 +866,33 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 	// Context on stack splitting (a lot of other material out there too):
 	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
+
+	// NB(r): Need to perform any completion function in async
+	// goroutine since caller may hold the lock while enqueing the op
+	// which is required to access the completion fn with op.CompletionFn().
 	go func() {
-		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := func() {
+		defer func() {
 			op.decRef()
 			q.Done()
+		}()
+
+		// All fetch tagged calls are required to provide a context with a deadline.
+		ctx, err := q.mustWrapAndCheckContext(op.context, "fetchTagged")
+		if err != nil {
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			return
 		}
 
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
@@ -899,18 +900,10 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			host:     q.host,
 			response: result,
 		}, err)
-		cleanup()
 	}()
 }
 
 func (q *queue) asyncAggregate(op *aggregateOp) {
-	// All aggregate calls are required to provide a context with a deadline.
-	ctx, err := q.mustWrapAndCheckContext(op.context, "aggregate")
-	if err != nil {
-		op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-		return
-	}
-
 	// Note: No worker pool required for aggregate queries, they do
 	// not benefit from goroutine re-use the same way the write
 	// code path does which frequently runs into stack splitting due to
@@ -918,25 +911,33 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 	// Context on stack splitting (a lot of other material out there too):
 	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
+
+	// NB(r): Need to perform any completion function in async
+	// goroutine since caller may hold the lock while enqueing the op
+	// which is required to access the completion fn with op.CompletionFn().
 	go func() {
-		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := func() {
+		defer func() {
 			op.decRef()
 			q.Done()
+		}()
+
+		// All aggregate calls are required to provide a context with a deadline.
+		ctx, err := q.mustWrapAndCheckContext(op.context, "aggregate")
+		if err != nil {
+			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
+			return
 		}
 
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
 		result, err := client.AggregateRaw(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
@@ -944,7 +945,6 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			host:     q.host,
 			response: result,
 		}, err)
-		cleanup()
 	}()
 }
 
@@ -991,19 +991,7 @@ func (q *queue) mustWrapAndCheckContext(
 
 	// Create thrift context.
 	newThriftContext := q.opts.ThriftContextFn()
-	ctx := newThriftContext(callingContext)
-
-	// Check the cancellation so that we don't attempt operations
-	// on cancelled contexts.
-	select {
-	case <-ctx.Done():
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		return nil, context.DeadlineExceeded
-	default:
-		return ctx, nil
-	}
+	return newThriftContext(callingContext), nil
 }
 
 func (q *queue) Len() int {
@@ -1027,22 +1015,24 @@ func (q *queue) Enqueue(o op) error {
 		sOp.incRef()
 		// No queueing for fetchTagged op
 		q.RLock()
-		defer q.RUnlock()
 		if err := q.validateOpenWithLock(); err != nil {
+			q.RUnlock()
 			return err
 		}
 		q.asyncFetchTagged(sOp)
+		q.RUnlock()
 		return nil
 	case *aggregateOp:
 		// Need to take ownership if its an aggregate op
 		sOp.incRef()
 		// No queueing for aggregate op
 		q.RLock()
-		defer q.RUnlock()
 		if err := q.validateOpenWithLock(); err != nil {
+			q.RUnlock()
 			return err
 		}
 		q.asyncAggregate(sOp)
+		q.RUnlock()
 		return nil
 	case *fetchBatchOp:
 		// Need to take ownership if its a fetch batch op

@@ -4394,7 +4394,7 @@ func (m *MockAdminOptions) SetThriftContextFn(value ThriftContextFn) Options {
 // SetThriftContextFn indicates an expected call of SetThriftContextFn
 func (mr *MockAdminOptionsMockRecorder) SetThriftContextFn(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThriftContextFn", reflect.TypeOf((*MockOptions)(nil).SetThriftContextFn), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThriftContextFn", reflect.TypeOf((*MockAdminOptions)(nil).SetThriftContextFn), value)
 }
 
 // ThriftContextFn mocks base method
@@ -4408,7 +4408,7 @@ func (m *MockAdminOptions) ThriftContextFn() ThriftContextFn {
 // ThriftContextFn indicates an expected call of ThriftContextFn
 func (mr *MockAdminOptionsMockRecorder) ThriftContextFn() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ThriftContextFn", reflect.TypeOf((*MockOptions)(nil).ThriftContextFn))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ThriftContextFn", reflect.TypeOf((*MockAdminOptions)(nil).ThriftContextFn))
 }
 
 // SetOrigin mocks base method
