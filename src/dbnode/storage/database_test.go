@@ -478,8 +478,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 		fn()
 		return nil
 	})
-	mediator.EXPECT().Bootstrap(gomock.Any()).DoAndReturn(func(wg *sync.WaitGroup) (BootstrapResult, error) {
-		wg.Done()
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
 		return BootstrapResult{}, nil
 	})
 	d.mediator = mediator
@@ -495,10 +494,11 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().Bootstrap(gomock.Any()).DoAndReturn(func(wgBs *sync.WaitGroup) (BootstrapResult, error) {
-		wgBs.Done()
+	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
+		asyncResult := newBootstrapAsyncResult()
+		asyncResult.bootstrapStarted = &wg
 		wg.Done()
-		return BootstrapResult{}, nil
+		return asyncResult
 	})
 
 	d.AssignShardSet(shardSet)

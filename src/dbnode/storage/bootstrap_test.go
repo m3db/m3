@@ -39,6 +39,14 @@ import (
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
+	testDatabaseBootstrapWithBootstrapError(t, false)
+}
+
+func TestDatabaseBootstrapEnqueueWithBootstrapError(t *testing.T) {
+	testDatabaseBootstrapWithBootstrapError(t, true)
+}
+
+func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
@@ -88,12 +96,16 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	require.Equal(t, BootstrapNotStarted, bsm.state)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	result, err := bsm.Bootstrap(&wg)
+	var result BootstrapResult
+	if async {
+		asyncResult := bsm.BootstrapEnqueue()
+		asyncResult.WaitForStart()
+		result = asyncResult.Result()
+	} else {
+		result, err = bsm.Bootstrap()
+		require.NoError(t, err)
+	}
 
-	wg.Wait()
-	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, bsm.state)
 	require.Equal(t, 1, len(result.ErrorsBootstrap))
 	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
@@ -133,10 +145,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			defer wg.Done()
 
 			// Enqueue the second bootstrap
-			var wgBs sync.WaitGroup
-			wgBs.Add(1)
-			_, err := bsm.Bootstrap(&wgBs)
-			wgBs.Wait()
+			_, err := bsm.Bootstrap()
 			assert.Error(t, err)
 			assert.Equal(t, errBootstrapEnqueued, err)
 			assert.False(t, bsm.IsBootstrapped())
@@ -156,10 +165,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 		Return([]databaseNamespace{ns}, nil).
 		Times(2)
 
-	var wgBs sync.WaitGroup
-	wgBs.Add(1)
-	_, err = bsm.Bootstrap(&wgBs)
-	wgBs.Wait()
+	_, err = bsm.Bootstrap()
 	require.Nil(t, err)
 }
 
@@ -212,10 +218,7 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 				defer wg.Done()
 
 				// Enqueue the second bootstrap
-				var wgBs sync.WaitGroup
-				wgBs.Add(1)
-				_, err := bsm.Bootstrap(&wgBs)
-				wgBs.Wait()
+				_, err := bsm.Bootstrap()
 				assert.Error(t, err)
 				assert.Equal(t, errBootstrapEnqueued, err)
 				assert.False(t, bsm.IsBootstrapped())
@@ -237,9 +240,6 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 		Return(namespaces, nil).
 		Times(2)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	_, err := bsm.Bootstrap(&wg)
-	wg.Wait()
+	_, err := bsm.Bootstrap()
 	require.Nil(t, err)
 }

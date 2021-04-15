@@ -539,19 +539,12 @@ func (d *db) queueBootstrapWithLock() {
 	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
-	var wg sync.WaitGroup
 	if d.bootstraps > 0 {
-		wg.Add(1)
-		// NB(r): Trigger another bootstrap, if already bootstrapping this will
-		// enqueue a new bootstrap to execute before the current bootstrap
-		// completes.
-		go func() {
-			if result, err := d.mediator.Bootstrap(&wg); err != nil && !result.AlreadyBootstrapping {
-				d.log.Error("error bootstrapping", zap.Error(err))
-			}
-		}()
+		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
+		// NB(linasn): We need to wait for the bootstrap to start and set it's state to Bootstrapping in order
+		// to safely run fileOps in mediator later.
+		bootstrapAsyncResult.WaitForStart()
 	}
-	wg.Wait()
 }
 
 func (d *db) Namespace(id ident.ID) (Namespace, bool) {
@@ -1133,9 +1126,7 @@ func (d *db) Bootstrap() error {
 	d.Lock()
 	d.bootstraps++
 	d.Unlock()
-	var wg sync.WaitGroup
-	wg.Add(1)
-	_, err := d.mediator.Bootstrap(&wg)
+	_, err := d.mediator.Bootstrap()
 	return err
 }
 

@@ -820,7 +820,10 @@ type databaseBootstrapManager interface {
 	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
-	Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error)
+	Bootstrap() (BootstrapResult, error)
+
+	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
+	BootstrapEnqueue() *BootstrapAsyncResult
 
 	// Report reports runtime information.
 	Report()
@@ -830,6 +833,37 @@ type databaseBootstrapManager interface {
 type BootstrapResult struct {
 	ErrorsBootstrap      []error
 	AlreadyBootstrapping bool
+}
+
+// BootstrapAsyncResult is a bootstrap async result.
+type BootstrapAsyncResult struct {
+	bootstrapStarted   *sync.WaitGroup
+	bootstrapCompleted *sync.WaitGroup
+	bootstrapResultFn  func() BootstrapResult
+}
+
+func newBootstrapAsyncResult() *BootstrapAsyncResult {
+	var (
+		wgStarted   sync.WaitGroup
+		wgCompleted sync.WaitGroup
+	)
+	wgStarted.Add(1)
+	wgCompleted.Add(1)
+	return &BootstrapAsyncResult{
+		bootstrapStarted:   &wgStarted,
+		bootstrapCompleted: &wgCompleted,
+	}
+}
+
+// Result will wait for bootstrap to complete and return BootstrapResult.
+func (b *BootstrapAsyncResult) Result() BootstrapResult {
+	b.bootstrapCompleted.Wait()
+	return b.bootstrapResultFn()
+}
+
+// WaitForStart waits until bootstrap has been started.
+func (b *BootstrapAsyncResult) WaitForStart() {
+	b.bootstrapStarted.Wait()
 }
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
@@ -979,7 +1013,10 @@ type databaseMediator interface {
 	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap bootstraps the database with file operations performed at the end.
-	Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error)
+	Bootstrap() (BootstrapResult, error)
+
+	// BootstrapEnqueue bootstraps the database asynchronously with file operations performed at the end.
+	BootstrapEnqueue() *BootstrapAsyncResult
 
 	// DisableFileOpsAndWait disables file operations.
 	DisableFileOpsAndWait()

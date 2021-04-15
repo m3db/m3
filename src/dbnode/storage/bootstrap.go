@@ -26,10 +26,13 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -116,7 +119,25 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) 
 	return bsTime, bsTime > 0
 }
 
-func (m *bootstrapManager) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error) {
+func (m *bootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
+	bootstrapAsyncResult := newBootstrapAsyncResult()
+	go func(r *BootstrapAsyncResult) {
+		if result, err := m.startBootstrap(r); err != nil && !result.AlreadyBootstrapping {
+			instrument.EmitAndLogInvariantViolation(m.instrumentation.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("error bootstrapping", zap.Error(err))
+				})
+		}
+	}(bootstrapAsyncResult)
+	return bootstrapAsyncResult
+}
+
+func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
+	bootstrapAsyncResult := newBootstrapAsyncResult()
+	return m.startBootstrap(bootstrapAsyncResult)
+}
+
+func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (BootstrapResult, error) {
 	m.Lock()
 	switch m.state {
 	case Bootstrapping:
@@ -128,7 +149,8 @@ func (m *bootstrapManager) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (Bootst
 		// reshard occurs and we need to bootstrap more shards.
 		m.hasPending = true
 		m.Unlock()
-		wgBootstrapStarted.Done()
+		asyncResult.bootstrapStarted.Done()
+		asyncResult.bootstrapCompleted.Done()
 		return BootstrapResult{AlreadyBootstrapping: true}, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
@@ -139,7 +161,7 @@ func (m *bootstrapManager) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (Bootst
 	m.mediator.DisableFileOpsAndWait()
 	defer m.mediator.EnableFileOps()
 
-	wgBootstrapStarted.Done()
+	asyncResult.bootstrapStarted.Done()
 
 	// Keep performing bootstraps until none pending and no error returned.
 	var result BootstrapResult
@@ -188,6 +210,10 @@ func (m *bootstrapManager) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (Bootst
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	m.state = Bootstrapped
 	m.Unlock()
+	asyncResult.bootstrapResultFn = func() BootstrapResult {
+		return result
+	}
+	asyncResult.bootstrapCompleted.Done()
 	return result, nil
 }
 

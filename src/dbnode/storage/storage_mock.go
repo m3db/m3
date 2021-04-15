@@ -2841,18 +2841,32 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) LastBootstrapCompletionTime(
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseBootstrapManager) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error) {
+func (m *MockdatabaseBootstrapManager) Bootstrap() (BootstrapResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", wgBootstrapStarted)
+	ret := m.ctrl.Call(m, "Bootstrap")
 	ret0, _ := ret[0].(BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap(wgBootstrapStarted interface{}) *gomock.Call {
+func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Bootstrap), wgBootstrapStarted)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Bootstrap))
+}
+
+// BootstrapEnqueue mocks base method
+func (m *MockdatabaseBootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapEnqueue")
+	ret0, _ := ret[0].(*BootstrapAsyncResult)
+	return ret0
+}
+
+// BootstrapEnqueue indicates an expected call of BootstrapEnqueue
+func (mr *MockdatabaseBootstrapManagerMockRecorder) BootstrapEnqueue() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).BootstrapEnqueue))
 }
 
 // Report mocks base method
@@ -3570,18 +3584,32 @@ func (mr *MockdatabaseMediatorMockRecorder) LastBootstrapCompletionTime() *gomoc
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseMediator) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error) {
+func (m *MockdatabaseMediator) Bootstrap() (BootstrapResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", wgBootstrapStarted)
+	ret := m.ctrl.Call(m, "Bootstrap")
 	ret0, _ := ret[0].(BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseMediatorMockRecorder) Bootstrap(wgBootstrapStarted interface{}) *gomock.Call {
+func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap), wgBootstrapStarted)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap))
+}
+
+// BootstrapEnqueue mocks base method
+func (m *MockdatabaseMediator) BootstrapEnqueue() *BootstrapAsyncResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapEnqueue")
+	ret0, _ := ret[0].(*BootstrapAsyncResult)
+	return ret0
+}
+
+// BootstrapEnqueue indicates an expected call of BootstrapEnqueue
+func (mr *MockdatabaseMediatorMockRecorder) BootstrapEnqueue() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseMediator)(nil).BootstrapEnqueue))
 }
 
 // DisableFileOpsAndWait mocks base method

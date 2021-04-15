@@ -510,7 +510,7 @@ func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options, ma
 		nowFn:         nowFn,
 		iOpts:         iOpts,
 		numMaxWaiters: maxWaiters,
-		releaseCh:     make(chan time.Time, 0),
+		releaseCh:     make(chan time.Time),
 		externalFnCh:  make(chan func(), defaultExternalChannelSize),
 	}
 }
