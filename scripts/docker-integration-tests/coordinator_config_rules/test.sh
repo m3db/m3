@@ -7,7 +7,7 @@ REVISION=$(git rev-parse HEAD)
 SCRIPT_PATH="$M3_PATH"/scripts/docker-integration-tests/coordinator_config_rules
 COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
-PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
+PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.4.3
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 export REVISION
 
