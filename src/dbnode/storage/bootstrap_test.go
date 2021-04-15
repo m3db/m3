@@ -88,8 +88,11 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	require.Equal(t, BootstrapNotStarted, bsm.state)
 
-	result, err := bsm.Bootstrap()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	result, err := bsm.Bootstrap(&wg)
 
+	wg.Wait()
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, bsm.state)
 	require.Equal(t, 1, len(result.ErrorsBootstrap))
@@ -130,7 +133,10 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			defer wg.Done()
 
 			// Enqueue the second bootstrap
-			_, err := bsm.Bootstrap()
+			var wgBs sync.WaitGroup
+			wgBs.Add(1)
+			_, err := bsm.Bootstrap(&wgBs)
+			wgBs.Wait()
 			assert.Error(t, err)
 			assert.Equal(t, errBootstrapEnqueued, err)
 			assert.False(t, bsm.IsBootstrapped())
@@ -150,7 +156,10 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 		Return([]databaseNamespace{ns}, nil).
 		Times(2)
 
-	_, err = bsm.Bootstrap()
+	var wgBs sync.WaitGroup
+	wgBs.Add(1)
+	_, err = bsm.Bootstrap(&wgBs)
+	wgBs.Wait()
 	require.Nil(t, err)
 }
 
@@ -203,7 +212,10 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 				defer wg.Done()
 
 				// Enqueue the second bootstrap
-				_, err := bsm.Bootstrap()
+				var wgBs sync.WaitGroup
+				wgBs.Add(1)
+				_, err := bsm.Bootstrap(&wgBs)
+				wgBs.Wait()
 				assert.Error(t, err)
 				assert.Equal(t, errBootstrapEnqueued, err)
 				assert.False(t, bsm.IsBootstrapped())
@@ -225,6 +237,9 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 		Return(namespaces, nil).
 		Times(2)
 
-	_, err := bsm.Bootstrap()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	_, err := bsm.Bootstrap(&wg)
+	wg.Wait()
 	require.Nil(t, err)
 }

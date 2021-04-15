@@ -820,7 +820,7 @@ type databaseBootstrapManager interface {
 	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
-	Bootstrap() (BootstrapResult, error)
+	Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error)
 
 	// Report reports runtime information.
 	Report()
@@ -979,7 +979,7 @@ type databaseMediator interface {
 	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap bootstraps the database with file operations performed at the end.
-	Bootstrap() (BootstrapResult, error)
+	Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error)
 
 	// DisableFileOpsAndWait disables file operations.
 	DisableFileOpsAndWait()

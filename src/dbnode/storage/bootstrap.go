@@ -116,7 +116,7 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) 
 	return bsTime, bsTime > 0
 }
 
-func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
+func (m *bootstrapManager) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error) {
 	m.Lock()
 	switch m.state {
 	case Bootstrapping:
@@ -128,6 +128,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		// reshard occurs and we need to bootstrap more shards.
 		m.hasPending = true
 		m.Unlock()
+		wgBootstrapStarted.Done()
 		return BootstrapResult{AlreadyBootstrapping: true}, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
@@ -137,6 +138,8 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// the impact of file operations on bootstrapping performance
 	m.mediator.DisableFileOpsAndWait()
 	defer m.mediator.EnableFileOps()
+
+	wgBootstrapStarted.Done()
 
 	// Keep performing bootstraps until none pending and no error returned.
 	var result BootstrapResult

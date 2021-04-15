@@ -2841,18 +2841,18 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) LastBootstrapCompletionTime(
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseBootstrapManager) Bootstrap() (BootstrapResult, error) {
+func (m *MockdatabaseBootstrapManager) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap")
+	ret := m.ctrl.Call(m, "Bootstrap", wgBootstrapStarted)
 	ret0, _ := ret[0].(BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap() *gomock.Call {
+func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap(wgBootstrapStarted interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Bootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Bootstrap), wgBootstrapStarted)
 }
 
 // Report mocks base method
@@ -3344,6 +3344,41 @@ func (mr *MockBackgroundProcessMockRecorder) Report() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockBackgroundProcess)(nil).Report))
 }
 
+// MockFileOpsProcess is a mock of FileOpsProcess interface
+type MockFileOpsProcess struct {
+	ctrl     *gomock.Controller
+	recorder *MockFileOpsProcessMockRecorder
+}
+
+// MockFileOpsProcessMockRecorder is the mock recorder for MockFileOpsProcess
+type MockFileOpsProcessMockRecorder struct {
+	mock *MockFileOpsProcess
+}
+
+// NewMockFileOpsProcess creates a new mock instance
+func NewMockFileOpsProcess(ctrl *gomock.Controller) *MockFileOpsProcess {
+	mock := &MockFileOpsProcess{ctrl: ctrl}
+	mock.recorder = &MockFileOpsProcessMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockFileOpsProcess) EXPECT() *MockFileOpsProcessMockRecorder {
+	return m.recorder
+}
+
+// Start mocks base method
+func (m *MockFileOpsProcess) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start
+func (mr *MockFileOpsProcessMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockFileOpsProcess)(nil).Start))
+}
+
 // MockdatabaseRepairer is a mock of databaseRepairer interface
 type MockdatabaseRepairer struct {
 	ctrl     *gomock.Controller
@@ -3535,18 +3570,18 @@ func (mr *MockdatabaseMediatorMockRecorder) LastBootstrapCompletionTime() *gomoc
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseMediator) Bootstrap() (BootstrapResult, error) {
+func (m *MockdatabaseMediator) Bootstrap(wgBootstrapStarted *sync.WaitGroup) (BootstrapResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap")
+	ret := m.ctrl.Call(m, "Bootstrap", wgBootstrapStarted)
 	ret0, _ := ret[0].(BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
+func (mr *MockdatabaseMediatorMockRecorder) Bootstrap(wgBootstrapStarted interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap), wgBootstrapStarted)
 }
 
 // DisableFileOpsAndWait mocks base method
