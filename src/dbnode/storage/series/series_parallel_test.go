@@ -27,20 +27,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3/src/x/test"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	xtest "github.com/m3db/m3/src/x/test"
-	"github.com/stretchr/testify/require"
 )
 
-// TestSeriesWriteReadParallel is a regression test that was added to capture panics that might
-// arise when many parallel writes and reads are happening at the same time.
+// TestSeriesWriteReadParallel is a regression test that was added to capture
+// panics that might arise when many parallel writes and reads are happening
+// at the same time.
 func TestSeriesWriteReadParallel(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
@@ -56,7 +57,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		numWorkers        = 100
 		numStepsPerWorker = numWorkers * 100
 		opts              = newSeriesTestOptions()
-		curr              = time.Now()
+		start             = time.Now()
 		series            = NewDatabaseSeries(DatabaseSeriesOptions{
 			ID:             ident.StringID("foo"),
 			UniqueIndex:    1,
@@ -77,8 +78,8 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		for i := 0; i < numStepsPerWorker; i++ {
-			wasWritten, _, err := series.Write(
-				ctx, curr.Add(time.Duration(i)*time.Nanosecond), float64(i), xtime.Second, nil, WriteOptions{})
+			wasWritten, _, err := series.Write(ctx, time.Now(), float64(i),
+				xtime.Nanosecond, nil, WriteOptions{})
 			if err != nil {
 				panic(err)
 			}
@@ -94,7 +95,9 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < numStepsPerWorker; i++ {
-				_, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute), namespace.Context{})
+				now := time.Now()
+				_, err := series.ReadEncoded(ctx, start.Add(-time.Minute),
+					now.Add(time.Minute), namespace.Context{})
 				if err != nil {
 					panic(err)
 				}

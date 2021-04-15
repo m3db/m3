@@ -30,31 +30,32 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-func TestLookbackLimitPermitIncBy(t *testing.T) {
+func TestLookbackLimitPermit(t *testing.T) {
 	lookbackLimit := newTestLookbackLimit()
-	manager := newManager(t, lookbackLimit, 2)
+	manager := newManager(t, lookbackLimit)
 
 	ctx := context.NewBackground()
-	permits := manager.NewPermits(ctx)
+	permits, err := manager.NewPermits(ctx)
+	require.NoError(t, err)
 
 	require.Equal(t, 0, lookbackLimit.count)
 
-	require.NoError(t, permits.Acquire(ctx))
-	require.Equal(t, 2, lookbackLimit.count)
-
-	_, err := permits.TryAcquire(ctx)
+	_, err = permits.Acquire(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 4, lookbackLimit.count)
+	require.Equal(t, 1, lookbackLimit.count)
+
+	_, err = permits.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 2, lookbackLimit.count)
 }
 
-func newManager(t *testing.T, limit limits.LookbackLimit, incBy int) *LookbackLimitPermitManager {
+func newManager(t *testing.T, limit limits.LookbackLimit) *LookbackLimitPermitManager {
 	t.Helper()
 	mgr := NewLookbackLimitPermitsManager(
 		"test-limit",
 		limits.DefaultLookbackLimitOptions(),
 		instrument.NewTestOptions(t),
 		limits.NewOptions().SourceLoggerBuilder(),
-		incBy,
 	)
 	mgr.Limit = limit
 

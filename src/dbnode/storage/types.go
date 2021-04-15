@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -54,7 +53,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -461,14 +459,14 @@ type databaseNamespace interface {
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (result SeriesReadWriteRef, owned bool, err error)
+	) (result bootstrap.SeriesRefResolver, owned bool, err error)
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
@@ -479,21 +477,6 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 	) (int64, error)
-}
-
-// SeriesReadWriteRef is a read/write reference for a series,
-// must make sure to release
-type SeriesReadWriteRef struct {
-	// Series reference for read/writing.
-	Series bootstrap.SeriesRef
-	// UniqueIndex is the unique index of the series (as applicable).
-	UniqueIndex uint64
-	// Shard is the shard of the series.
-	Shard uint32
-	// ReleaseReadWriteRef must be called after using the series ref
-	// to release the reference count to the series so it can
-	// be expired by the owning shard eventually.
-	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
 }
 
 // Shard is a time series database shard.
@@ -658,13 +641,13 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (bootstrap.SeriesRefResolver, error)
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Metadata, bool, error)
@@ -1007,9 +990,15 @@ type databaseMediator interface {
 	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
 }
 
+// ColdFlushNsOpts are options for OnColdFlush.ColdFlushNamespace.
+type ColdFlushNsOpts interface {
+	// ReuseResources enables reuse of per-namespace reusable resources.
+	ReuseResources() bool
+}
+
 // OnColdFlush can perform work each time a series is flushed.
 type OnColdFlush interface {
-	ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error)
+	ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts) (OnColdFlushNamespace, error)
 }
 
 // OnColdFlushNamespace performs work on a per namespace level.
@@ -1216,12 +1205,6 @@ type Options interface {
 
 	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool.
 	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
-
-	// SetQueryIDsWorkerPool sets the QueryIDs worker pool.
-	SetQueryIDsWorkerPool(value xsync.WorkerPool) Options
-
-	// QueryIDsWorkerPool returns the QueryIDs worker pool.
-	QueryIDsWorkerPool() xsync.WorkerPool
 
 	// SetWriteBatchPool sets the WriteBatch pool.
 	SetWriteBatchPool(value *writes.WriteBatchPool) Options

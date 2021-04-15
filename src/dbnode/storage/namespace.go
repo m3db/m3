@@ -741,19 +741,19 @@ func (n *dbNamespace) WritePendingIndexInserts(
 	return n.reverseIndex.WritePending(pending)
 }
 
-func (n *dbNamespace) SeriesReadWriteRef(
+func (n *dbNamespace) SeriesRefResolver(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, bool, error) {
+) (bootstrap.SeriesRefResolver, bool, error) {
 	n.RLock()
 	shard, owned, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	if err != nil {
-		return SeriesReadWriteRef{}, owned, err
+		return nil, owned, err
 	}
-	res, err := shard.SeriesReadWriteRef(id, tags)
-	return res, true, err
+	resolver, err := shard.SeriesRefResolver(id, tags)
+	return resolver, true, err
 }
 
 func (n *dbNamespace) QueryIDs(
@@ -1060,6 +1060,15 @@ func (n *dbNamespace) Bootstrap(
 			continue
 		}
 
+		// Check if there are unfulfilled ranges
+		if ranges, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+			continue
+		} else if n.reverseIndex != nil {
+			if ranges, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+				continue
+			}
+		}
+
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
@@ -1279,7 +1288,8 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		}
 	}
 
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	cfOpts := NewColdFlushNsOpts(true)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
@@ -1290,6 +1300,12 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	multiErr := xerrors.NewMultiError()
 	shardColdFlushes := make([]ShardColdFlush, 0, len(shards))
 	for _, shard := range shards {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping cold flush due to shard not bootstrapped yet")
+			continue
+		}
 		shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
@@ -1375,6 +1391,12 @@ func (n *dbNamespace) Snapshot(
 		multiErr      xerrors.MultiError
 	)
 	for _, shard := range n.OwnedShards() {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping snapshot due to shard not bootstrapped yet")
+			continue
+		}
 		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
@@ -1734,7 +1756,8 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	// Cold flusher builds the reverse index for target (current) ns.
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	cfOpts := NewColdFlushNsOpts(false)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		return 0, err
 	}
@@ -1743,6 +1766,7 @@ func (n *dbNamespace) aggregateTiles(
 		processedTileCount int64
 		aggregationSuccess bool
 	)
+
 	defer func() {
 		if aggregationSuccess {
 			return
@@ -1753,7 +1777,15 @@ func (n *dbNamespace) aggregateTiles(
 				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
 		}
 	}()
+
 	for _, targetShard := range n.OwnedShards() {
+		if !targetShard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", targetShard.ID())).
+				Debug("skipping aggregateTiles due to shard not bootstrapped")
+			continue
+		}
+
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
 			ctx, sourceNs, n, targetShard.ID(), onColdFlushNs, opts)
 

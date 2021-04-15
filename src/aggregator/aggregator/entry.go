@@ -58,10 +58,16 @@ var (
 	errEmptyMetadatas              = errors.New("empty metadata list")
 	errNoApplicableMetadata        = errors.New("no applicable metadata")
 	errNoPipelinesInMetadata       = errors.New("no pipelines in metadata")
-	errTooFarInTheFuture           = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
-	errTooFarInThePast             = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
-	errArrivedTooLate              = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
-	errTimestampFormat             = time.RFC822Z
+	errOnlyDefaultStagedMetadata   = xerrors.NewInvalidParamsError(
+		errors.New("only default staged metadata provided"),
+	)
+	errOnlyDropPolicyStagedMetadata = xerrors.NewInvalidParamsError(
+		errors.New("only drop policy staged metadata provided"),
+	)
+	errTooFarInTheFuture = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
+	errTooFarInThePast   = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
+	errArrivedTooLate    = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
+	errTimestampFormat   = time.RFC822Z
 )
 
 type rateLimitEntryMetrics struct {
@@ -146,11 +152,14 @@ type entryMetrics struct {
 	forwarded forwardedEntryMetrics
 }
 
-func newEntryMetrics(scope tally.Scope) entryMetrics {
+// NewEntryMetrics creates new entry metrics.
+//nolint:golint,revive
+func NewEntryMetrics(scope tally.Scope) *entryMetrics {
+	scope = scope.SubScope("entry")
 	untimedEntryScope := scope.Tagged(map[string]string{"entry-type": "untimed"})
 	timedEntryScope := scope.Tagged(map[string]string{"entry-type": "timed"})
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
-	return entryMetrics{
+	return &entryMetrics{
 		untimed:   newUntimedEntryMetrics(untimedEntryScope),
 		timed:     newTimedEntryMetrics(timedEntryScope),
 		forwarded: newForwardedEntryMetrics(forwardedEntryScope),
@@ -168,28 +177,33 @@ func newEntryMetrics(scope tally.Scope) entryMetrics {
 type Entry struct {
 	sync.RWMutex
 
-	closed              bool
-	opts                Options
-	rateLimiter         *rate.Limiter
-	hasDefaultMetadatas bool
-	cutoverNanos        int64
-	lists               *metricLists
-	numWriters          int32
-	lastAccessNanos     int64
-	aggregations        aggregationValues
-	metrics             entryMetrics
+	opts            Options
+	rateLimiter     *rate.Limiter
+	cutoverNanos    int64
+	lists           *metricLists
+	lastAccessNanos int64
+	aggregations    aggregationValues
+	metrics         *entryMetrics
 	// The entry keeps a decompressor to reuse the bitset in it, so we can
 	// save some heap allocations.
-	decompressor aggregation.IDDecompressor
-	nowFn        clock.NowFn
+	decompressor        aggregation.IDDecompressor
+	nowFn               clock.NowFn
+	numWriters          int32
+	closed              bool
+	hasDefaultMetadatas bool
 }
 
 // NewEntry creates a new entry.
 func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *Entry {
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("entry")
+	scope := opts.InstrumentOptions().MetricsScope()
+	return NewEntryWithMetrics(lists, NewEntryMetrics(scope), runtimeOpts, opts)
+}
+
+// NewEntryWithMetrics creates a new entry.
+func NewEntryWithMetrics(lists *metricLists, metrics *entryMetrics, runtimeOpts runtime.Options, opts Options) *Entry {
 	e := &Entry{
 		aggregations: make(aggregationValues, 0, initialAggregationCapacity),
-		metrics:      newEntryMetrics(scope),
+		metrics:      metrics,
 		decompressor: aggregation.NewPooledIDDecompressor(opts.AggregationTypesOptions().TypesPool()),
 		rateLimiter:  rate.NewLimiter(0),
 		nowFn:        opts.ClockOptions().NowFn(),
@@ -276,6 +290,10 @@ func (e *Entry) AddTimedWithStagedMetadatas(
 ) error {
 	if err := e.applyValueRateLimit(1, e.metrics.timed.rateLimit); err != nil {
 		return err
+	}
+	// Must have at least one metadata. addTimed further confirms that this metadata isn't the default metadata.
+	if len(metas) == 0 {
+		return errEmptyMetadatas
 	}
 	return e.addTimed(metric, metadata.TimedMetadata{}, metas)
 }
@@ -679,9 +697,20 @@ func (e *Entry) addTimed(
 	}
 
 	// Only apply processing of staged metadatas if has sent staged metadatas
-	// that isn't the default staged metadatas.
+	// that isn't the default staged metadatas. The default staged metadata
+	// would not produce a meaningful aggregation, so we error out in that case.
 	hasDefaultMetadatas := stagedMetadatas.IsDefault()
-	if len(stagedMetadatas) > 0 && !hasDefaultMetadatas {
+	if len(stagedMetadatas) > 0 {
+		if hasDefaultMetadatas {
+			e.RUnlock()
+			timeLock.RUnlock()
+			return errOnlyDefaultStagedMetadata
+		} else if stagedMetadatas.IsDropPolicySet() {
+			e.RUnlock()
+			timeLock.RUnlock()
+			return errOnlyDropPolicyStagedMetadata
+		}
+
 		sm, err := e.activeStagedMetadataWithLock(currTime, stagedMetadatas)
 		if err != nil {
 			e.RUnlock()
@@ -772,7 +801,7 @@ func (e *Entry) addTimed(
 		return err
 	}
 
-	// Update metatadata if not exists, and add metric.
+	// Update metadata if not exists, and add metric.
 	if err := e.updateTimedMetadataWithLock(metric, metadata); err != nil {
 		e.Unlock()
 		timeLock.RUnlock()
@@ -801,9 +830,9 @@ func (e *Entry) checkTimestampForTimedMetric(
 		timestamp := time.Unix(0, metricTimeNanos)
 		futureLimit := time.Unix(0, currNanos+timedBufferFuture.Nanoseconds())
 		err := fmt.Errorf("datapoint for aggregation too far in future: "+
-			"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
+			"off_by=%s, timestamp=%s, future_limit=%s, "+
 			"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
-			metric.ID, timestamp.Sub(futureLimit).String(),
+			timestamp.Sub(futureLimit).String(),
 			timestamp.Format(errTimestampFormat),
 			futureLimit.Format(errTimestampFormat),
 			timestamp.UnixNano(), futureLimit.UnixNano())
@@ -820,9 +849,9 @@ func (e *Entry) checkTimestampForTimedMetric(
 		timestamp := time.Unix(0, metricTimeNanos)
 		pastLimit := time.Unix(0, currNanos-timedBufferPast.Nanoseconds())
 		err := fmt.Errorf("datapoint for aggregation too far in past: "+
-			"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
+			"off_by=%s, timestamp=%s, past_limit=%s, "+
 			"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
-			metric.ID, pastLimit.Sub(timestamp).String(),
+			pastLimit.Sub(timestamp).String(),
 			timestamp.Format(errTimestampFormat),
 			pastLimit.Format(errTimestampFormat),
 			timestamp.UnixNano(), pastLimit.UnixNano())
@@ -864,7 +893,7 @@ func (e *Entry) addTimedWithLock(
 	metric aggregated.Metric,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value)
+	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation)
 }
 
 func (e *Entry) addTimedWithStagedMetadatasAndLock(
@@ -873,7 +902,7 @@ func (e *Entry) addTimedWithStagedMetadatasAndLock(
 	timestamp := time.Unix(0, metric.TimeNanos)
 	multiErr := xerrors.NewMultiError()
 	for i := range e.aggregations {
-		if err := e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value); err != nil {
+		if err := e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -1027,7 +1056,7 @@ func (e *Entry) addForwardedWithLock(
 	sourceID uint32,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, sourceID)
+	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, metric.Annotation, sourceID)
 	if err == errDuplicateForwardingSource {
 		// Duplicate forwarding sources may occur during a leader re-election and is not
 		// considered an external facing error. Hence, we record it and move on.

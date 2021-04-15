@@ -30,18 +30,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
@@ -73,8 +72,16 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		hostQueueWorkerPools     []*mockWorkerPool
-		hostQueueWorkerPoolsLock sync.Mutex
+		intercept       func()
+		interceptLock   sync.Mutex
+		thriftContextFn = client.ThriftContextFn(func(ctx context.Context) thrift.Context {
+			interceptLock.Lock()
+			if intercept != nil {
+				intercept()
+			}
+			interceptLock.Unlock()
+			return thrift.Wrap(ctx)
+		})
 	)
 
 	testOpts := NewTestOptions(t).
@@ -82,16 +89,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 		SetWriteNewSeriesAsync(true).
 		SetCustomClientAdminOptions([]client.CustomAdminOption{
 			client.CustomAdminOption(func(opts client.AdminOptions) client.AdminOptions {
-				return opts.SetHostQueueNewPooledWorkerFn(func(
-					opts xsync.NewPooledWorkerOptions,
-				) (xsync.PooledWorkerPool, error) {
-					mocked := newMockWorkerPool()
-					hostQueueWorkerPoolsLock.Lock()
-					hostQueueWorkerPools = append(hostQueueWorkerPools, mocked)
-					hostQueueWorkerPoolsLock.Unlock()
-
-					return mocked, nil
-				}).(client.AdminOptions)
+				return opts.SetThriftContextFn(thriftContextFn).(client.AdminOptions)
 			}),
 		})
 
@@ -147,21 +145,18 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 	ctx, cancel := context.WithCancel(ContextWithDefaultTimeout())
 
 	var (
-		once      sync.Once
-		intercept = func() {
+		once          sync.Once
+		interceptExec = func() {
 			defer wg.Done()
 			log.Info("host queue worker enqueued, cancelling context")
 			cancel()
 		}
 	)
-	hostQueueWorkerPoolsLock.Lock()
-	for _, workers := range hostQueueWorkerPools {
-		workers.hookSet(func(ctx context.Context) {
-			assert.NotNil(t, ctx, "host queue worker pool context not set")
-			once.Do(intercept)
-		})
+	interceptLock.Lock()
+	intercept = func() {
+		once.Do(interceptExec)
 	}
-	hostQueueWorkerPoolsLock.Unlock()
+	interceptLock.Unlock()
 
 	_, _, err = session.FetchTagged(ctx, md.ID(), query, queryOpts)
 	// Expect error since we cancelled the context.
@@ -170,49 +165,4 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 
 	require.True(t, strings.Contains(err.Error(), "ErrCodeCancelled"),
 		fmt.Sprintf("actual error: %s\n", err.Error()))
-}
-
-var _ xsync.PooledWorkerPool = (*mockWorkerPool)(nil)
-
-type mockWorkerPool struct {
-	sync.RWMutex
-	hook func(ctx context.Context)
-}
-
-func newMockWorkerPool() *mockWorkerPool {
-	return &mockWorkerPool{}
-}
-
-func (p *mockWorkerPool) Init() {}
-
-func (p *mockWorkerPool) hookSet(hook func(ctx context.Context)) {
-	p.Lock()
-	defer p.Unlock()
-	p.hook = hook
-}
-
-func (p *mockWorkerPool) hookRun(ctx context.Context) {
-	p.RLock()
-	defer p.RUnlock()
-	if p.hook == nil {
-		return
-	}
-	p.hook(ctx)
-}
-
-func (p *mockWorkerPool) Go(work xsync.Work) {
-	p.hookRun(nil)
-	go func() { work() }()
-}
-
-func (p *mockWorkerPool) GoWithTimeout(work xsync.Work, timeout time.Duration) bool {
-	p.hookRun(nil)
-	go func() { work() }()
-	return true
-}
-
-func (p *mockWorkerPool) GoWithContext(ctx context.Context, work xsync.Work) bool {
-	p.hookRun(ctx)
-	go func() { work() }()
-	return true
 }

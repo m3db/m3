@@ -29,13 +29,13 @@ import (
 
 // Timer aggregates timer values. Timer APIs are not thread-safe.
 type Timer struct {
-	Options
-
-	lastAt time.Time
-	count  int64     // Number of values received.
-	sum    float64   // Sum of the values.
-	sumSq  float64   // Sum of squared values.
-	stream cm.Stream // Stream of values received.
+	lastAt                   time.Time
+	count                    int64      // Number of values received.
+	sum                      float64    // Sum of the values.
+	sumSq                    float64    // Sum of squared values.
+	stream                   *cm.Stream // Stream of values received.
+	annotation               []byte
+	hasExpensiveAggregations bool
 }
 
 // NewTimer creates a new timer
@@ -43,24 +43,44 @@ func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
 	stream := streamOpts.StreamPool().Get()
 	stream.ResetSetData(quantiles)
 	return Timer{
-		Options: opts,
-		stream:  stream,
+		hasExpensiveAggregations: opts.HasExpensiveAggregations,
+		stream:                   stream,
 	}
 }
 
 // Add adds a timer value.
-func (t *Timer) Add(timestamp time.Time, value float64) {
-	t.recordLastAt(timestamp)
-	t.addValue(value)
+func (t *Timer) Add(timestamp time.Time, value float64, annotation []byte) {
+	// Keep the last annotation which was set.
+	if len(annotation) > 0 {
+		if cap(t.annotation) < len(annotation) {
+			// Twice as long in case another one comes in
+			// and we could avoid realloc as long as less than this first alloc.
+			t.annotation = make([]byte, 0, 2*len(annotation))
+		}
+		// Reuse any previous allocation while taking a copy.
+		t.annotation = append(t.annotation[:0], annotation...)
+	}
+	t.AddBatch(timestamp, []float64{value})
 }
 
 // AddBatch adds a batch of timer values.
 func (t *Timer) AddBatch(timestamp time.Time, values []float64) {
 	// Record last at just once.
 	t.recordLastAt(timestamp)
-	for _, v := range values {
-		t.addValue(v)
+	t.count += int64(len(values))
+
+	if t.hasExpensiveAggregations {
+		for _, v := range values {
+			t.sum += v
+			t.sumSq += v * v
+		}
+	} else {
+		for _, v := range values {
+			t.sum += v
+		}
 	}
+
+	t.stream.AddBatch(values)
 }
 
 func (t *Timer) recordLastAt(timestamp time.Time) {
@@ -69,16 +89,6 @@ func (t *Timer) recordLastAt(timestamp time.Time) {
 		// after the wall clock timestamp of previous values, not
 		// the arrival time (i.e. order received).
 		t.lastAt = timestamp
-	}
-}
-
-func (t *Timer) addValue(value float64) {
-	t.count++
-	t.sum += value
-	t.stream.Add(value)
-
-	if t.HasExpensiveAggregations {
-		t.sumSq += value * value
 	}
 }
 
@@ -148,6 +158,11 @@ func (t *Timer) ValueOf(aggType aggregation.Type) float64 {
 		return t.Stdev()
 	}
 	return 0
+}
+
+// Annotation returns the annotation associated with the timer.
+func (t *Timer) Annotation() []byte {
+	return t.annotation
 }
 
 // Close closes the timer.

@@ -80,6 +80,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -90,13 +91,12 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/m3dbx/vellum/levenshtein"
 	"github.com/m3dbx/vellum/levenshtein2"
 	"github.com/m3dbx/vellum/regexp"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
@@ -235,7 +235,7 @@ func Run(runOpts RunOptions) {
 	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
 	fslock, err := createAndAcquireLockfile(lockPath, newDirectoryMode)
 	if err != nil {
-		logger.Fatal("could not acqurie lock", zap.String("path", lockPath), zap.Error(err))
+		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
 	// nolint: errcheck
 	defer fslock.releaseLockfile()
@@ -371,14 +371,6 @@ func Run(runOpts RunOptions) {
 
 	opentracing.SetGlobalTracer(tracer)
 
-	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
-		queryIDsWorkerPool.Init()
-		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
-	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
-	}
-
 	// Set global index options.
 	if n := cfg.Index.RegexpDFALimitOrDefault(); n > 0 {
 		regexp.SetStateLimit(n)
@@ -477,13 +469,23 @@ func Run(runOpts RunOptions) {
 		diskSeriesReadLimit,
 		iOpts,
 		limitOpts.SourceLoggerBuilder(),
-		runOpts.Config.FetchTagged.SeriesBlocksPerBatchOrDefault(),
 	)
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
 
-	opts = opts.SetPermitsOptions(opts.PermitsOptions().
-		SetSeriesReadPermitsManager(seriesReadPermits))
+	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
+	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
+	if cfg.Index.MaxQueryIDsConcurrency > 0 {
+		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
+	} else {
+		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
+	}
+	maxWorkerTime := time.Second
+	if cfg.Index.MaxWorkerTime > 0 {
+		maxWorkerTime = cfg.Index.MaxWorkerTime
+	}
+	opts = opts.SetPermitsOptions(permitOptions.SetIndexQueryPermitsManager(
+		permits.NewFixedPermitsManager(maxIdxConcurrency, int64(maxWorkerTime), iOpts)))
 
 	// Setup postings list cache.
 	var (
@@ -525,6 +527,7 @@ func Run(runOpts RunOptions) {
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
+
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -746,7 +749,6 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
 		SetQueryLimits(queryLimits).
-		SetFetchTaggedSeriesBlocksPerBatch(cfg.FetchTagged.SeriesBlocksPerBatchOrDefault()).
 		SetPermitsOptions(opts.PermitsOptions())
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
@@ -869,7 +871,7 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iOpts, tchannelOpts, syncCfg.TopologyInitializer,
+		cfg.Client, opts.ClockOptions(), iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 		syncCfg.KVStore, logger, runOpts.CustomOptions)
 	if err != nil {
@@ -883,6 +885,7 @@ func Run(runOpts RunOptions) {
 	documentsBuilderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
@@ -905,7 +908,7 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iOpts, tchannelOpts, topologyInitializer,
+				clientCfg, opts.ClockOptions(), iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 				syncCfg.KVStore, logger, runOpts.CustomOptions)
 			if err != nil {
@@ -1509,11 +1512,11 @@ func withEncodingAndPoolingOptions(
 	iOpts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
-	// Set the max bytes pool byte slice alloc size for the thrift pooling.
-	thriftBytesAllocSize := policy.ThriftBytesPoolAllocSizeOrDefault()
-	logger.Info("set thrift bytes pool alloc size",
-		zap.Int("size", thriftBytesAllocSize))
-	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
+	// Set the byte slice capacities for the thrift pooling.
+	thriftBytesAllocSizes := policy.ThriftBytesPoolAllocSizesOrDefault()
+	logger.Info("set thrift bytes pool slice sizes",
+		zap.Ints("sizes", thriftBytesAllocSizes))
+	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSizes...)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("bytes-pool")))
@@ -1532,7 +1535,7 @@ func withEncodingAndPoolingOptions(
 
 		logger.Info("bytes pool configured",
 			zap.Int("capacity", bucket.CapacityOrDefault()),
-			zap.Int("size", bucket.SizeOrDefault()),
+			zap.Int("size", int(bucket.SizeOrDefault())),
 			zap.Float64("refillLowWaterMark", bucket.RefillLowWaterMarkOrDefault()),
 			zap.Float64("refillHighWaterMark", bucket.RefillHighWaterMarkOrDefault()))
 	}
@@ -1845,6 +1848,7 @@ func withEncodingAndPoolingOptions(
 
 func newAdminClient(
 	config client.Configuration,
+	clockOpts clock.Options,
 	iOpts instrument.Options,
 	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
@@ -1890,6 +1894,7 @@ func newAdminClient(
 	options = append(options, custom...)
 	m3dbClient, err := config.NewAdminClient(
 		client.ConfigurationParameters{
+			ClockOptions: clockOpts,
 			InstrumentOptions: iOpts.
 				SetMetricsScope(iOpts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topologyInitializer,
@@ -1919,7 +1924,7 @@ func poolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1928,6 +1933,8 @@ func poolOptions(
 				SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1947,7 +1954,7 @@ func capacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1955,6 +1962,8 @@ func capacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1974,7 +1983,7 @@ func maxCapacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1982,6 +1991,8 @@ func maxCapacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))

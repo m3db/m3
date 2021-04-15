@@ -382,19 +382,19 @@ func TestLimitedReturnedDataVector(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := *r
-			limited, data := handler.limitReturnedData("", &result, &storage.FetchOptions{
+			limited := handler.limitReturnedData("", &result, &storage.FetchOptions{
 				ReturnedSeriesLimit:     test.maxSeries,
 				ReturnedDatapointsLimit: test.maxDatapoints,
 			})
-			require.Equal(t, test.expectedLimited, limited)
+			require.Equal(t, test.expectedLimited, limited.Limited)
 
 			seriesCount := len(result.Value.(promql.Vector))
 
-			if limited {
+			if limited.Limited {
 				require.Equal(t, test.expectedSeries, seriesCount)
-				require.Equal(t, test.expectedSeries, data.Series)
-				require.Equal(t, test.expectedTotalSeries, data.TotalSeries)
-				require.Equal(t, test.expectedDatapoints, data.Datapoints)
+				require.Equal(t, test.expectedSeries, limited.Series)
+				require.Equal(t, test.expectedTotalSeries, limited.TotalSeries)
+				require.Equal(t, test.expectedDatapoints, limited.Datapoints)
 			} else {
 				// Full results
 				require.Equal(t, 3, seriesCount)
@@ -530,11 +530,11 @@ func TestLimitedReturnedDataMatrix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := *r
-			limited, data := handler.limitReturnedData("", &result, &storage.FetchOptions{
+			limited := handler.limitReturnedData("", &result, &storage.FetchOptions{
 				ReturnedSeriesLimit:     test.maxSeries,
 				ReturnedDatapointsLimit: test.maxDatapoints,
 			})
-			require.Equal(t, test.expectedLimited, limited)
+			require.Equal(t, test.expectedLimited, limited.Limited)
 
 			m := result.Value.(promql.Matrix)
 			seriesCount := len(m)
@@ -543,12 +543,12 @@ func TestLimitedReturnedDataMatrix(t *testing.T) {
 				datapointCount += len(d.Points)
 			}
 
-			if limited {
+			if limited.Limited {
 				require.Equal(t, test.expectedSeries, seriesCount, "series count")
 				require.Equal(t, test.expectedDatapoints, datapointCount, "datapoint count")
-				require.Equal(t, test.expectedSeries, data.Series, "series")
-				require.Equal(t, test.expectedTotalSeries, data.TotalSeries, "total series")
-				require.Equal(t, test.expectedDatapoints, data.Datapoints, "datapoints")
+				require.Equal(t, test.expectedSeries, limited.Series, "series")
+				require.Equal(t, test.expectedTotalSeries, limited.TotalSeries, "total series")
+				require.Equal(t, test.expectedDatapoints, limited.Datapoints, "datapoints")
 			} else {
 				// Full results
 				require.Equal(t, 3, seriesCount, "expect full series")

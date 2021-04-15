@@ -41,6 +41,7 @@ require (
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
+	github.com/klauspost/compress v1.11.8
 	github.com/leanovate/gopter v0.2.8
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
@@ -86,7 +87,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
-	github.com/uber-go/tally v3.3.13+incompatible
+	github.com/uber-go/tally v3.3.17+incompatible
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
 	github.com/uber/tchannel-go v1.20.1
@@ -103,7 +104,7 @@ require (
 	go.uber.org/atomic v1.6.0
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
-	go.uber.org/zap v1.13.0
+	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
@@ -121,8 +122,8 @@ require (
 	gotest.tools v2.2.0+incompatible
 )
 
-// branch 0.9.3-pool-read-binary-3
-replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
+// branch 0.9.3-patch
+replace github.com/apache/thrift => github.com/m3dbx/thrift v0.0.0-20210326170526-6e3eef8b4a26
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods

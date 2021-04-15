@@ -46,7 +46,7 @@ import (
 func TestFetch(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	b := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 	source := (&FetchOp{}).Node(c, mockStorage,
@@ -115,7 +115,7 @@ func TestOffsetFetch(t *testing.T) {
 
 	store.EXPECT().FetchBlocks(gomock.Any(), qMatcher, optsMatcher)
 
-	c, _ := executor.NewControllerWithSink(parser.NodeID(1))
+	c, _ := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.Node(c, store, opts)
 
 	err := node.Execute(models.NoopQueryContext())
@@ -125,7 +125,7 @@ func TestOffsetFetch(t *testing.T) {
 func TestFetchWithRestrictFetch(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	b := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 	source := (&FetchOp{}).Node(c, mockStorage,

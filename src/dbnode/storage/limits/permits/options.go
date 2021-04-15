@@ -20,14 +20,29 @@
 
 package permits
 
+import (
+	"time"
+
+	"github.com/m3db/m3/src/x/instrument"
+)
+
 type options struct {
 	seriesReadManager Manager
+	indexQueryManager Manager
 }
 
 // NewOptions return a new set of default permit managers.
 func NewOptions() Options {
+	// provide some defaults to exercise parallel processing in tests.
 	return &options{
-		seriesReadManager: NewNoOpPermitsManager(),
+		seriesReadManager: NewFixedPermitsManager(
+			100000,
+			100,
+			instrument.NewOptions()),
+		indexQueryManager: NewFixedPermitsManager(
+			8,
+			int64(time.Millisecond*10),
+			instrument.NewOptions()),
 	}
 }
 
@@ -41,4 +56,14 @@ func (o *options) SetSeriesReadPermitsManager(value Manager) Options {
 // SeriesReadPermitsManager returns the series read permits manager.
 func (o *options) SeriesReadPermitsManager() Manager {
 	return o.seriesReadManager
+}
+
+func (o *options) IndexQueryPermitsManager() Manager {
+	return o.indexQueryManager
+}
+
+func (o *options) SetIndexQueryPermitsManager(value Manager) Options {
+	opts := *o
+	opts.indexQueryManager = value
+	return &opts
 }

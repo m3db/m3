@@ -26,6 +26,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
@@ -46,9 +49,6 @@ import (
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
@@ -223,6 +223,9 @@ var (
 		IdleCheckInterval: 5 * time.Minute,
 	}
 
+	// defaultThriftContextFn is the default thrift context function.
+	defaultThriftContextFn = thrift.Wrap
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
@@ -292,6 +295,7 @@ type options struct {
 	iterationOptions                        index.IterationOptions
 	writeTimestampOffset                    time.Duration
 	namespaceInitializer                    namespace.Initializer
+	thriftContextFn                         ThriftContextFn
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -323,7 +327,7 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 
 func defaultNewConnectionFn(
 	channelName string, address string, clientOpts Options,
-) (PooledChannel, rpc.TChanNode, error) {
+) (Channel, rpc.TChanNode, error) {
 	// NB(r): Keep ref to a local channel options since it's actually modified
 	// by TChannel itself to set defaults.
 	var opts *tchannel.ChannelOptions
@@ -433,6 +437,7 @@ func newOptions() *options {
 		asyncTopologyInitializers:               []topology.Initializer{},
 		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
 		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
+		thriftContextFn:                         defaultThriftContextFn,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -1122,4 +1127,14 @@ func (o *options) SetNamespaceInitializer(value namespace.Initializer) Options {
 
 func (o *options) NamespaceInitializer() namespace.Initializer {
 	return o.namespaceInitializer
+}
+
+func (o *options) SetThriftContextFn(value ThriftContextFn) Options {
+	opts := *o
+	opts.thriftContextFn = value
+	return &opts
+}
+
+func (o *options) ThriftContextFn() ThriftContextFn {
+	return o.thriftContextFn
 }

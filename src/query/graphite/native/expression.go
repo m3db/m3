@@ -21,18 +21,20 @@
 package native
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
-	errTopLevelFunctionMustReturnTimeSeries = errors.NewInvalidParamsError(errors.New("top-level functions must return timeseries data"))
+	errTopLevelFunctionMustReturnTimeSeries = xerrors.NewInvalidParamsError(
+		errors.New("top-level functions must return timeseries data"))
 )
 
 // An Expression is a metric query expression
@@ -147,7 +149,7 @@ type funcExpression struct {
 
 // newFuncExpression creates a new expressioon based on the given function call
 func newFuncExpression(call *functionCall) (Expression, error) {
-	if !(call.f.out == seriesListType || call.f.out == unaryContextShifterPtrType || call.f.out == binaryContextShifterPtrType) {
+	if !(call.f.out == seriesListType || call.f.out == unaryContextShifterPtrType) {
 		return nil, errTopLevelFunctionMustReturnTimeSeries
 	}
 

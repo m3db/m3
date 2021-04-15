@@ -90,7 +90,7 @@ func (h *SetHandler) ServeHTTP(
 	serviceOpts := handleroptions.NewServiceOptions(svc,
 		r.Header, h.m3AggServiceOptions)
 	service, _, err := ServiceWithAlgo(h.clusterClient,
-		serviceOpts, h.nowFn(), nil)
+		serviceOpts, h.config.ClusterManagement.Placement, h.nowFn(), nil)
 	if err != nil {
 		logger.Error("unable to create placement service", zap.Error(err))
 		xhttp.WriteError(w, err)

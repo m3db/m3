@@ -31,18 +31,25 @@ import (
 // lookback limits to more precise permits implementations.
 type LookbackLimitPermitManager struct {
 	Limit limits.LookbackLimit
-	incBy int
 }
 
-type lookbackLimitPermit struct {
+// LookbackLimitPermit is a permit modeled on top of lookback-based query limits.
+// On acquisition, the permit increments the underlying limit. Before costly code
+// paths, callers can check the limit to see if requests should be allowed to
+// proceed.
+type LookbackLimitPermit struct {
 	limit  limits.LookbackLimit
 	source []byte
-	incBy  int
 }
 
 var _ Manager = (*LookbackLimitPermitManager)(nil)
 
-var _ Permits = (*lookbackLimitPermit)(nil)
+var (
+	_ Permits = (*LookbackLimitPermit)(nil)
+	// use a single permit for everybody to avoid allocations. since limits don't track quotas it's fine
+	// to share the same instance.
+	singlePermit = &limitPermit{}
+)
 
 // NewLookbackLimitPermitsManager builds a new lookback limit permits manager.
 func NewLookbackLimitPermitsManager(
@@ -50,7 +57,6 @@ func NewLookbackLimitPermitsManager(
 	opts limits.LookbackLimitOptions,
 	instrumentOpts instrument.Options,
 	sourceLoggerBuilder limits.SourceLoggerBuilder,
-	incBy int,
 ) *LookbackLimitPermitManager {
 	lookbackLimit := limits.NewLookbackLimit(name, opts, instrumentOpts, sourceLoggerBuilder)
 
@@ -58,18 +64,21 @@ func NewLookbackLimitPermitsManager(
 	// lookback functions which are not part of the Permits interface.
 	return &LookbackLimitPermitManager{
 		Limit: lookbackLimit,
-		incBy: incBy,
 	}
 }
 
 // NewPermits returns a new set of permits.
-func (p *LookbackLimitPermitManager) NewPermits(ctx context.Context) Permits {
+func (p *LookbackLimitPermitManager) NewPermits(ctx context.Context) (Permits, error) {
 	s := sourceFromContext(ctx)
-	return &lookbackLimitPermit{
+	// Ensure currently under limit.
+	if err := p.Limit.Inc(0, s); err != nil {
+		return nil, limits.NewQueryLimitExceededError(err.Error())
+	}
+
+	return &LookbackLimitPermit{
 		limit:  p.Limit,
 		source: s,
-		incBy:  p.incBy,
-	}
+	}, nil
 }
 
 // Start starts background handling of the lookback limit for the permits.
@@ -82,16 +91,19 @@ func (p *LookbackLimitPermitManager) Stop() {
 	p.Limit.Stop()
 }
 
-func (p *lookbackLimitPermit) Acquire(_ context.Context) error {
-	return p.limit.Inc(p.incBy, p.source)
+// Acquire increments the underlying querying limit.
+func (p *LookbackLimitPermit) Acquire(context.Context) (Permit, error) {
+	return singlePermit, p.limit.Inc(1, p.source)
 }
 
-func (p *lookbackLimitPermit) TryAcquire(_ context.Context) (bool, error) {
-	err := p.limit.Inc(p.incBy, p.source)
-	return err != nil, err
+// TryAcquire increments the underlying querying limit. Functionally equivalent
+// to Acquire.
+func (p *LookbackLimitPermit) TryAcquire(context.Context) (Permit, error) {
+	return singlePermit, p.limit.Inc(1, p.source)
 }
 
-func (p *lookbackLimitPermit) Release() {
+// Release is a no-op in this implementation.
+func (p *LookbackLimitPermit) Release(_ Permit) {
 }
 
 func sourceFromContext(ctx context.Context) []byte {
@@ -101,4 +113,23 @@ func sourceFromContext(ctx context.Context) []byte {
 		return nil
 	}
 	return parsed
+}
+
+type limitPermit struct{}
+
+func (l limitPermit) PostRelease() {
+}
+
+func (l limitPermit) PreAcquire() {
+}
+
+func (l limitPermit) AllowedQuota() int64 {
+	return 1
+}
+
+func (l limitPermit) QuotaRemaining() int64 {
+	return 0
+}
+
+func (l limitPermit) Use(_ int64) {
 }

@@ -69,7 +69,10 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 
 	setupOpts := []BootstrappableTestSetupOptions{
 		{DisablePeersBootstrapper: true},
-		{DisablePeersBootstrapper: false},
+		{
+			DisableCommitLogBootstrapper: true,
+			DisablePeersBootstrapper:     false,
+		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

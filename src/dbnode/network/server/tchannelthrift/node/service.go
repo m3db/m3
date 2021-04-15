@@ -823,8 +823,11 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 	return iter, err
 }
 
-func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest, instrumentClose func(error)) (
-	FetchTaggedResultsIter, error) {
+func (s *service) fetchTaggedIter(
+	ctx context.Context,
+	req *rpc.FetchTaggedRequest,
+	instrumentClose func(error),
+) (FetchTaggedResultsIter, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -844,6 +847,11 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		return nil, convert.ToRPCError(err)
 	}
 
+	permits, err := s.seriesReadPermits.NewPermits(ctx)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
 	tagEncoder := s.pools.tagEncoder.Get()
 	ctx.RegisterFinalizer(tagEncoder)
 
@@ -857,13 +865,12 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
-		blockPermits:    s.seriesReadPermits.NewPermits(ctx),
+		blockPermits:    permits,
 		totalDocsCount:  queryResult.Results.TotalDocsCount(),
 		nowFn:           s.nowFn,
 		fetchStart:      startTime,
 		dataReadMetrics: s.metrics.queryTimingDataRead,
 		totalMetrics:    s.metrics.queryTimingFetchTagged,
-		blocksPerBatch:  s.opts.FetchTaggedSeriesBlocksPerBatch(),
 		seriesBlocks:    s.metrics.fetchTaggedSeriesBlocks,
 	}), nil
 }
@@ -904,8 +911,8 @@ type fetchTaggedResultsIter struct {
 	blockReadIdx      int
 	cur               IDResult
 	err               error
-	batchesAcquired   int
-	blocksAvailable   int
+	permits           []permits.Permit
+	unreleasedQuota   int64
 	dataReadStart     time.Time
 	totalSeriesBlocks int
 }
@@ -921,7 +928,6 @@ type fetchTaggedResultsIterOpts struct {
 	iOpts           instrument.Options
 	instrumentClose func(error)
 	blockPermits    permits.Permits
-	blocksPerBatch  int
 	nowFn           clock.NowFn
 	fetchStart      time.Time
 	totalDocsCount  int
@@ -931,15 +937,11 @@ type fetchTaggedResultsIterOpts struct {
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
-	if opts.blocksPerBatch == 0 {
-		// NB(nate): if blocksPerBatch is unset, set blocksPerBatch to 1 (i.e. acquire a permit
-		// for each block as opposed to acquiring in bulk).
-		opts.blocksPerBatch = 1
-	}
 	return &fetchTaggedResultsIter{
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
 		dataReadStart:              opts.nowFn(),
+		permits:                    make([]permits.Permit, 0),
 	}
 }
 
@@ -983,7 +985,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 		}
 	} else {
 		// release the permits and memory from the previous block readers.
-		i.releaseAll(i.idx - 1)
+		i.releaseQuotaUsed(i.idx - 1)
 		i.idResults[i.idx-1].blockReaders = nil
 	}
 
@@ -1028,37 +1030,45 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 
 // acquire a block permit for a series ID. returns true if a permit is available.
 func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, error) {
-	if i.blocksAvailable > 0 {
-		i.blocksAvailable--
-	} else {
+	var curPermit permits.Permit
+	if len(i.permits) > 0 {
+		curPermit = i.permits[len(i.permits)-1]
+	}
+	if curPermit == nil || curPermit.QuotaRemaining() <= 0 {
 		if i.idx == idx {
 			// block acquiring if we need the block readers to fulfill the current fetch.
-			if err := i.blockPermits.Acquire(ctx); err != nil {
-				return false, err
-			}
-		} else {
-			// don't block if we are prefetching for a future seriesID.
-			acquired, err := i.blockPermits.TryAcquire(ctx)
+			permit, err := i.blockPermits.Acquire(ctx)
 			if err != nil {
 				return false, err
 			}
-			if !acquired {
+			i.permits = append(i.permits, permit)
+			curPermit = permit
+		} else {
+			// don't block if we are prefetching for a future seriesID.
+			permit, err := i.blockPermits.TryAcquire(ctx)
+			if err != nil {
+				return false, err
+			}
+			if permit == nil {
 				return false, nil
 			}
+			i.permits = append(i.permits, permit)
+			curPermit = permit
 		}
-		i.batchesAcquired++
-		i.blocksAvailable = i.blocksPerBatch - 1
 	}
-	i.idResults[idx].blocksAcquired++
+	curPermit.Use(1)
+	i.idResults[idx].quotaUsed++
 	return true, nil
 }
 
 // release all the block permits acquired by a series ID that has been processed.
-func (i *fetchTaggedResultsIter) releaseAll(idx int) {
-	// Note: the actual batch permits are not released until the query completely finishes and the iterator
-	// closes.
-	for n := 0; n < i.idResults[idx].blocksAcquired; n++ {
-		i.blocksAvailable++
+func (i *fetchTaggedResultsIter) releaseQuotaUsed(idx int) {
+	i.unreleasedQuota += i.idResults[idx].quotaUsed
+	for i.unreleasedQuota > 0 && i.unreleasedQuota >= i.permits[0].AllowedQuota() {
+		p := i.permits[0]
+		i.blockPermits.Release(p)
+		i.unreleasedQuota -= p.AllowedQuota()
+		i.permits = i.permits[1:]
 	}
 }
 
@@ -1073,20 +1083,17 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
 
-	queryRange := i.queryOpts.EndExclusive.Sub(i.queryOpts.StartInclusive)
 	now := i.nowFn()
 	dataReadTime := now.Sub(i.dataReadStart)
-	i.dataReadMetrics.ByRange.Record(queryRange, dataReadTime)
 	i.dataReadMetrics.ByDocs.Record(i.totalDocsCount, dataReadTime)
 
 	totalFetchTime := now.Sub(i.fetchStart)
-	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
 	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
 
 	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
 
-	for n := 0; n < i.batchesAcquired; n++ {
-		i.blockPermits.Release()
+	for _, p := range i.permits {
+		i.blockPermits.Release(p)
 	}
 }
 
@@ -1111,7 +1118,7 @@ type idResult struct {
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
-	blocksAcquired   int
+	quotaUsed        int64
 	iOpts            instrument.Options
 }
 
@@ -1195,8 +1202,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregate
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
 	queryTiming.ByDocs.Record(size, duration)
 
 	return response, nil
@@ -1250,8 +1255,6 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregateRaw
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
 	queryTiming.ByDocs.Record(size, duration)
 
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))

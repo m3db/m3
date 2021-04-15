@@ -49,6 +49,11 @@ func IsResourceExhaustedErrorFlag(err *rpc.Error) bool {
 	return err != nil && err.Flags&int64(rpc.ErrorFlags_RESOURCE_EXHAUSTED) != 0
 }
 
+// IsTimeoutError returns whether the error is an internal error due to a timeout.
+func IsTimeoutError(err *rpc.Error) bool {
+	return err != nil && err.Flags&int64(rpc.ErrorFlags_SERVER_TIMEOUT) != 0
+}
+
 // NewInternalError creates a new internal error
 func NewInternalError(err error) *rpc.Error {
 	return newError(rpc.ErrorType_INTERNAL_ERROR, err, int64(rpc.ErrorFlags_NONE))
@@ -62,6 +67,11 @@ func NewBadRequestError(err error) *rpc.Error {
 // NewResourceExhaustedError creates a new resource exhausted error.
 func NewResourceExhaustedError(err error) *rpc.Error {
 	return newError(rpc.ErrorType_BAD_REQUEST, err, int64(rpc.ErrorFlags_RESOURCE_EXHAUSTED))
+}
+
+// NewTimeoutError creates a new timeout error.
+func NewTimeoutError(err error) *rpc.Error {
+	return newError(rpc.ErrorType_INTERNAL_ERROR, err, int64(rpc.ErrorFlags_SERVER_TIMEOUT))
 }
 
 // NewWriteBatchRawError creates a new write batch error

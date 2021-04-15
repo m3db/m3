@@ -66,12 +66,14 @@ type ResponseVerifier func(int, map[string][]string, string, error) error
 type Coordinator interface {
 	Admin
 
+	// ApplyKVUpdate applies a KV update.
+	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// WriteProm writes a prometheus metric.
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
-	RunQuery(verifier ResponseVerifier, query string) error
+	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
 }
 
 // Admin is a wrapper for admin functions.
@@ -84,6 +86,10 @@ type Admin interface {
 	WaitForNamespace(name string) error
 	// AddNamespace adds a namespace.
 	AddNamespace(admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error)
+	// UpdateNamespace updates the namespace.
+	UpdateNamespace(admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error)
+	// DeleteNamespace removes the namespace.
+	DeleteNamespace(namespaceID string) error
 	// CreateDatabase creates a database.
 	CreateDatabase(admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error)
 	// GetPlacement gets placements.
@@ -276,7 +282,7 @@ func (c *coordinator) CreateDatabase(
 		zapMethod("createDatabase"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	resp, err := makePostRequest(logger, url, &addRequest)
+	resp, err := makeRequest(logger, url, http.MethodPost, &addRequest)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.DatabaseCreateResponse{}, err
@@ -312,7 +318,7 @@ func (c *coordinator) AddNamespace(
 		zapMethod("addNamespace"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	resp, err := makePostRequest(logger, url, &addRequest)
+	resp, err := makeRequest(logger, url, http.MethodPost, &addRequest)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
@@ -331,18 +337,59 @@ func (c *coordinator) AddNamespace(
 	return response, nil
 }
 
+func (c *coordinator) UpdateNamespace(
+	req admin.NamespaceUpdateRequest,
+) (admin.NamespaceGetResponse, error) {
+	if c.resource.closed {
+		return admin.NamespaceGetResponse{}, errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace")
+	logger := c.resource.logger.With(
+		zapMethod("updateNamespace"), zap.String("url", url),
+		zap.String("request", req.String()))
+
+	resp, err := makeRequest(logger, url, http.MethodPut, &req)
+	if err != nil {
+		logger.Error("failed to update namespace", zap.Error(err))
+		return admin.NamespaceGetResponse{}, err
+	}
+
+	var response admin.NamespaceGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		return admin.NamespaceGetResponse{}, err
+	}
+
+	return response, nil
+}
+
 func (c *coordinator) setNamespaceReady(name string) error {
 	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace/ready")
 	logger := c.resource.logger.With(
 		zapMethod("setNamespaceReady"), zap.String("url", url),
 		zap.String("namespace", name))
 
-	_, err := makePostRequest(logger, url, // nolint: bodyclose
+	_, err := makeRequest(logger, url, http.MethodPost, // nolint: bodyclose
 		&admin.NamespaceReadyRequest{
 			Name:  name,
 			Force: true,
 		})
 	return err
+}
+
+func (c *coordinator) DeleteNamespace(namespaceID string) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace/"+namespaceID)
+	logger := c.resource.logger.With(zapMethod("deleteNamespace"), zap.String("url", url))
+
+	if _, err := makeRequest(logger, url, http.MethodDelete, nil); err != nil { // nolint: bodyclose
+		logger.Error("failed to delete namespace", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (c *coordinator) WriteCarbon(
@@ -441,15 +488,17 @@ func (c *coordinator) WriteProm(name string, tags map[string]string, samples []p
 	return nil
 }
 
-func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.Response, error) {
+func makeRequest(logger *zap.Logger, url string, method string, body proto.Message) (*http.Response, error) {
 	data := bytes.NewBuffer(nil)
-	if err := (&jsonpb.Marshaler{}).Marshal(data, body); err != nil {
-		logger.Error("failed to marshal", zap.Error(err))
+	if body != nil {
+		if err := (&jsonpb.Marshaler{}).Marshal(data, body); err != nil {
+			logger.Error("failed to marshal", zap.Error(err))
 
-		return nil, fmt.Errorf("failed to marshal: %w", err)
+			return nil, fmt.Errorf("failed to marshal: %w", err)
+		}
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
+	req, err := http.NewRequestWithContext(context.Background(), method, url, data)
 	if err != nil {
 		logger.Error("failed to construct request", zap.Error(err))
 
@@ -461,8 +510,45 @@ func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.
 	return http.DefaultClient.Do(req)
 }
 
+func (c *coordinator) ApplyKVUpdate(update string) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/kvstore")
+
+	logger := c.resource.logger.With(
+		zapMethod("ApplyKVUpdate"), zap.String("url", url),
+		zap.String("update", update))
+
+	data := bytes.NewBuffer([]byte(update))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
+	if err != nil {
+		logger.Error("failed to construct request", zap.Error(err))
+		return fmt.Errorf("failed to construct request: %w", err)
+	}
+
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error("failed to apply request", zap.Error(err))
+		return fmt.Errorf("failed to apply request: %w", err)
+	}
+
+	bs, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("failed to read body", zap.Error(err))
+		return fmt.Errorf("failed to read body: %w", err)
+	}
+
+	logger.Info("applied KV update", zap.ByteString("response", bs))
+	_ = resp.Body.Close()
+	return nil
+}
+
 func (c *coordinator) query(
-	verifier ResponseVerifier, query string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -470,9 +556,18 @@ func (c *coordinator) query(
 
 	url := c.resource.getURL(7201, query)
 	logger := c.resource.logger.With(
-		zapMethod("query"), zap.String("url", url))
+		zapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
 	logger.Info("running")
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	if headers != nil {
+		req.Header = headers
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err))
 		return err
@@ -485,7 +580,7 @@ func (c *coordinator) query(
 }
 
 func (c *coordinator) RunQuery(
-	verifier ResponseVerifier, query string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -494,7 +589,7 @@ func (c *coordinator) RunQuery(
 	logger := c.resource.logger.With(zapMethod("runQuery"),
 		zap.String("query", query))
 	err := c.resource.pool.Retry(func() error {
-		err := c.query(verifier, query)
+		err := c.query(verifier, query, headers)
 		if err != nil {
 			logger.Info("retrying", zap.Error(err))
 		}

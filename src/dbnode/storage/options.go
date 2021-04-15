@@ -23,8 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"math"
-	"runtime"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -52,7 +50,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -159,7 +156,6 @@ type options struct {
 	identifierPool                  ident.Pool
 	fetchBlockMetadataResultsPool   block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool  block.FetchBlocksMetadataResultsPool
-	queryIDsWorkerPool              xsync.WorkerPool
 	writeBatchPool                  *writes.WriteBatchPool
 	bufferBucketPool                *series.BufferBucketPool
 	bufferBucketVersionsPool        *series.BufferBucketVersionsPool
@@ -196,10 +192,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
-
-	// Default to using half of the available cores for querying IDs
-	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
-	queryIDsWorkerPool.Init()
 
 	writeBatchPool := writes.NewWriteBatchPool(poolOpts, nil, nil)
 	writeBatchPool.Init()
@@ -245,7 +237,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		}),
 		fetchBlockMetadataResultsPool:   block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool:  block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
-		queryIDsWorkerPool:              queryIDsWorkerPool,
 		writeBatchPool:                  writeBatchPool,
 		bufferBucketVersionsPool:        series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:                series.NewBufferBucketPool(poolOpts),
@@ -328,6 +319,7 @@ func (o *options) Validate() error {
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
+	opts.blockOpts = opts.blockOpts.SetClockOptions(value)
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
 	opts.indexOpts = opts.indexOpts.SetClockOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
@@ -703,16 +695,6 @@ func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResu
 	return o.fetchBlocksMetadataResultsPool
 }
 
-func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {
-	opts := *o
-	opts.queryIDsWorkerPool = value
-	return &opts
-}
-
-func (o *options) QueryIDsWorkerPool() xsync.WorkerPool {
-	return o.queryIDsWorkerPool
-}
-
 func (o *options) SetWriteBatchPool(value *writes.WriteBatchPool) Options {
 	opts := *o
 	opts.writeBatchPool = value
@@ -939,7 +921,7 @@ func (o *options) TileAggregator() TileAggregator {
 
 type noOpColdFlush struct{}
 
-func (n *noOpColdFlush) ColdFlushNamespace(Namespace) (OnColdFlushNamespace, error) {
+func (n *noOpColdFlush) ColdFlushNamespace(Namespace, ColdFlushNsOpts) (OnColdFlushNamespace, error) {
 	return &persist.NoOpColdFlushNamespace{}, nil
 }
 

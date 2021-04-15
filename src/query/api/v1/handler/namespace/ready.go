@@ -126,6 +126,16 @@ func (h *ReadyHandler) ready(
 	req *admin.NamespaceReadyRequest,
 	opts handleroptions.ServiceOptions,
 ) (bool, error) {
+	// NB(nate): Readying a namespace only applies to namespaces created dynamically. As such,
+	// ensure that any calls to the ready endpoint simply return true when using static configuration
+	// as namespaces are ready by default in this case.
+	if h.clusters != nil && h.clusters.ConfigType() == m3.ClusterConfigTypeStatic {
+		h.instrumentOpts.Logger().Debug(
+			"/namespace/ready endpoint not supported for statically configured namespaces.",
+		)
+		return true, nil
+	}
+
 	// Fetch existing namespace metadata.
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {

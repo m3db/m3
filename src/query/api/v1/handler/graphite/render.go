@@ -32,11 +32,11 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/native"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
@@ -214,7 +214,9 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	handleroptions.AddResponseHeaders(w, meta, fetchOpts)
+	if err := handleroptions.AddResponseHeaders(w, meta, fetchOpts, nil, nil); err != nil {
+		return err
+	}
 
 	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,

@@ -40,8 +40,9 @@ var (
 
 // Counter is a counter containing the counter ID and the counter value.
 type Counter struct {
-	ID    id.RawID
-	Value int64
+	ID         id.RawID
+	Value      int64
+	Annotation []byte
 }
 
 // ToUnion converts the counter to a metric union.
@@ -50,6 +51,7 @@ func (c Counter) ToUnion() MetricUnion {
 		Type:       metric.CounterType,
 		ID:         c.ID,
 		CounterVal: c.Value,
+		Annotation: c.Annotation,
 	}
 }
 
@@ -67,8 +69,9 @@ func (c *Counter) FromProto(pb metricpb.Counter) {
 
 // BatchTimer is a timer containing the timer ID and a list of timer values.
 type BatchTimer struct {
-	ID     id.RawID
-	Values []float64
+	ID         id.RawID
+	Values     []float64
+	Annotation []byte
 }
 
 // ToUnion converts the batch timer to a metric union.
@@ -77,6 +80,7 @@ func (t BatchTimer) ToUnion() MetricUnion {
 		Type:          metric.TimerType,
 		ID:            t.ID,
 		BatchTimerVal: t.Values,
+		Annotation:    t.Annotation,
 	}
 }
 
@@ -94,16 +98,18 @@ func (t *BatchTimer) FromProto(pb metricpb.BatchTimer) {
 
 // Gauge is a gauge containing the gauge ID and the value at certain time.
 type Gauge struct {
-	ID    id.RawID
-	Value float64
+	ID         id.RawID
+	Value      float64
+	Annotation []byte
 }
 
 // ToUnion converts the gauge to a metric union.
 func (g Gauge) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:     metric.GaugeType,
-		ID:       g.ID,
-		GaugeVal: g.Value,
+		Type:       metric.GaugeType,
+		ID:         g.ID,
+		GaugeVal:   g.Value,
+		Annotation: g.Annotation,
 	}
 }
 
@@ -230,6 +236,7 @@ type MetricUnion struct {
 	BatchTimerVal []float64
 	GaugeVal      float64
 	TimerValPool  pool.FloatsPool
+	Annotation    []byte
 }
 
 var emptyMetricUnion MetricUnion
@@ -255,10 +262,16 @@ func (m *MetricUnion) String() string {
 func (m *MetricUnion) Reset() { *m = emptyMetricUnion }
 
 // Counter returns the counter metric.
-func (m *MetricUnion) Counter() Counter { return Counter{ID: m.ID, Value: m.CounterVal} }
+func (m *MetricUnion) Counter() Counter {
+	return Counter{ID: m.ID, Value: m.CounterVal, Annotation: m.Annotation}
+}
 
 // BatchTimer returns the batch timer metric.
-func (m *MetricUnion) BatchTimer() BatchTimer { return BatchTimer{ID: m.ID, Values: m.BatchTimerVal} }
+func (m *MetricUnion) BatchTimer() BatchTimer {
+	return BatchTimer{ID: m.ID, Values: m.BatchTimerVal, Annotation: m.Annotation}
+}
 
 // Gauge returns the gauge metric.
-func (m *MetricUnion) Gauge() Gauge { return Gauge{ID: m.ID, Value: m.GaugeVal} }
+func (m *MetricUnion) Gauge() Gauge {
+	return Gauge{ID: m.ID, Value: m.GaugeVal, Annotation: m.Annotation}
+}

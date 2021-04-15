@@ -56,7 +56,7 @@ func (tu Unit) Value() (time.Duration, error) {
 	if tu < 1 || int(tu) >= unitCount {
 		return 0, errUnrecognizedTimeUnit
 	}
-	return time.Duration(unitsToDuration[tu]), nil
+	return unitsToDuration[tu], nil
 }
 
 // Count returns the number of units contained within the duration.
@@ -108,11 +108,18 @@ func (tu Unit) String() string {
 
 // UnitFromDuration creates a time unit from a time duration.
 func UnitFromDuration(d time.Duration) (Unit, error) {
-	if unit, found := durationsToUnit[d]; found {
-		return unit, nil
+	i := 0
+	// TODO: remove this once we're on go 1.16+, as for loops prevent inlining with older compilers
+For:
+	if i >= len(unitLookupArray) {
+		return None, errConvertDurationToUnit
 	}
 
-	return None, errConvertDurationToUnit
+	if unitLookupArray[i].duration == d {
+		return unitLookupArray[i].unit, nil
+	}
+	i++
+	goto For
 }
 
 // DurationFromUnit creates a time duration from a time unit.
@@ -184,12 +191,18 @@ var (
 		Day:         time.Hour * 24,
 		Year:        time.Hour * 24 * 365,
 	}
-	durationsToUnit = make(map[time.Duration]Unit)
 
 	unitCount = len(unitsToDuration)
 
 	unitsByDurationDesc []Unit
 )
+
+type unitLookupEntry struct {
+	duration time.Duration
+	unit     Unit
+}
+
+var unitLookupArray []unitLookupEntry
 
 // byDurationDesc sorts time units by their durations in descending order.
 // The order is undefined if the units are invalid.
@@ -206,13 +219,15 @@ func (b byDurationDesc) Less(i, j int) bool {
 
 func init() {
 	unitsByDurationDesc = make([]Unit, 0, unitCount)
+	unitLookupArray = make([]unitLookupEntry, 0, unitCount)
+
 	for u, d := range unitsToDuration {
 		unit := Unit(u)
 		if unit == None {
 			continue
 		}
 
-		durationsToUnit[d] = unit
+		unitLookupArray = append(unitLookupArray, unitLookupEntry{unit: unit, duration: d})
 		unitsByDurationDesc = append(unitsByDurationDesc, unit)
 	}
 	sort.Sort(byDurationDesc(unitsByDurationDesc))

@@ -490,8 +490,115 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
+	// do not panic for invariant violation to test some shards are still bootstrapped.
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	require.Error(t, ns.Bootstrap(ctx, nsResult))
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
+}
+
+func TestNamespaceBootstrapUnfulfilledShards(t *testing.T) {
+	unfulfilledRangeForShards := func(ids ...uint32) result.IndexBootstrapResult {
+		var (
+			unfulfilledRange = result.NewIndexBootstrapResult()
+			unfulfilledTo    = time.Now().Truncate(time.Hour)
+			unfulfilledFrom  = unfulfilledTo.Add(-time.Hour)
+		)
+		unfulfilledRange.SetUnfulfilled(result.NewShardTimeRangesFromRange(
+			unfulfilledFrom, unfulfilledTo, ids...))
+		return unfulfilledRange
+	}
+
+	shardIDs := []uint32{0, 1}
+	tests := []struct {
+		name                string
+		withIndex           bool
+		unfulfilledShardIDs []uint32
+		nsResult            bootstrap.NamespaceResult
+	}{
+		{
+			name:                "no index, unfulfilled data",
+			withIndex:           false,
+			unfulfilledShardIDs: []uint32{0},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult: unfulfilledRangeForShards(0),
+				Shards:     shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled data",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{0, 1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(0, 1),
+				IndexResult: unfulfilledRangeForShards(),
+				Shards:      shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled index",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(),
+				IndexResult: unfulfilledRangeForShards(1),
+				Shards:      shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled data and index",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{0, 1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(0),
+				IndexResult: unfulfilledRangeForShards(1),
+				Shards:      shardIDs,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testNamespaceBootstrapUnfulfilledShards(t, shardIDs, tt.unfulfilledShardIDs,
+				tt.withIndex, tt.nsResult)
+		})
+	}
+}
+
+func testNamespaceBootstrapUnfulfilledShards(
+	t *testing.T,
+	shardIDs, unfulfilledShardIDs []uint32,
+	withIndex bool,
+	nsResult bootstrap.NamespaceResult,
+) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	var (
+		ns     *dbNamespace
+		closer func()
+	)
+	if withIndex {
+		idx := NewMockNamespaceIndex(ctrl)
+		idx.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+		ns, closer = newTestNamespaceWithIndex(t, idx)
+	} else {
+		ns, closer = newTestNamespace(t)
+	}
+	defer closer()
+
+	for _, id := range shardIDs {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(id)
+		shard.EXPECT().IsBootstrapped().Return(false)
+		if !contains(unfulfilledShardIDs, id) {
+			shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
+		}
+		ns.shards[id] = shard
+	}
+
+	require.Error(t, ns.Bootstrap(ctx, nsResult))
 }
 
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
@@ -570,6 +677,7 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	require.NoError(t, ns.WarmFlush(blockStart, nil))
+	require.NoError(t, ns.ColdFlush(nil))
 }
 
 type snapshotTestCase struct {
@@ -578,6 +686,7 @@ type snapshotTestCase struct {
 	shardBootstrapStateBeforeTick BootstrapState
 	lastSnapshotTime              func(blockStart time.Time, blockSize time.Duration) time.Time
 	shardSnapshotErr              error
+	isBootstrapped                bool
 }
 
 func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
@@ -599,17 +708,19 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
 		},
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
 		},
 	}
 	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
@@ -617,20 +728,43 @@ func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
 
 func TestNamespaceSnapshotShardError(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
 		},
-		snapshotTestCase{
+		{
 			isSnapshotting:                false,
 			expectSnapshot:                true,
 			shardBootstrapStateBeforeTick: Bootstrapped,
 			shardSnapshotErr:              errors.New("err"),
+			isBootstrapped:                true,
 		},
 	}
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func TestNamespaceSnapshotShardSkipNotBootstrapped(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			shardSnapshotErr:              nil,
+			isBootstrapped:                true,
+		},
+		{
+			isSnapshotting:                false,
+			expectSnapshot:                true,
+			shardBootstrapStateBeforeTick: Bootstrapped,
+			// Skip this shard (not bootstrapped) so we do not see this error.
+			shardSnapshotErr: errors.New("shard not bootstrapped"),
+			isBootstrapped:   false,
+		},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
 func testSnapshotWithShardSnapshotErrs(
@@ -662,6 +796,10 @@ func testSnapshotWithShardSnapshotErrs(
 		shard := NewMockdatabaseShard(ctrl)
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+		shard.EXPECT().IsBootstrapped().Return(tc.isBootstrapped).AnyTimes()
+		if !tc.isBootstrapped {
+			continue
+		}
 		if tc.expectSnapshot {
 			shard.EXPECT().
 				Snapshot(blockStart, now, gomock.Any(), gomock.Any()).
@@ -1482,13 +1620,17 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	mockOnColdFlushNs := NewMockOnColdFlushNamespace(ctrl)
 	mockOnColdFlushNs.EXPECT().Done().Return(nil)
 	mockOnColdFlush := NewMockOnColdFlush(ctrl)
-	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any()).Return(mockOnColdFlushNs, nil)
+	cfOpts := NewColdFlushNsOpts(false)
+	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any(), cfOpts).Return(mockOnColdFlushNs, nil)
 	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
 
 	targetShard0 := NewMockdatabaseShard(ctrl)
 	targetShard1 := NewMockdatabaseShard(ctrl)
 	targetNs.shards[0] = targetShard0
 	targetNs.shards[1] = targetShard1
+
+	targetShard0.EXPECT().IsBootstrapped().Return(true)
+	targetShard1.EXPECT().IsBootstrapped().Return(true)
 
 	targetShard0.EXPECT().ID().Return(shard0ID)
 	targetShard1.EXPECT().ID().Return(shard1ID)
@@ -1505,6 +1647,54 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedTileCount)
+}
+
+func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	var (
+		sourceNsID      = ident.StringID("source")
+		targetNsID      = ident.StringID("target")
+		sourceBlockSize = time.Hour
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		insOpts         = instrument.NewOptions()
+	)
+
+	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
+	require.NoError(t, err)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+	sourceNs.bootstrapState = Bootstrapped
+	sourceRetentionOpts := sourceNs.nopts.RetentionOptions().SetBlockSize(sourceBlockSize)
+	sourceNs.nopts = sourceNs.nopts.SetRetentionOptions(sourceRetentionOpts)
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
+	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
+
+	targetShard0 := NewMockdatabaseShard(ctrl)
+	targetShard1 := NewMockdatabaseShard(ctrl)
+	targetNs.shards[0] = targetShard0
+	targetNs.shards[1] = targetShard1
+
+	targetShard0.EXPECT().IsBootstrapped().Return(false)
+	targetShard1.EXPECT().IsBootstrapped().Return(false)
+
+	targetShard0.EXPECT().ID().Return(uint32(10))
+	targetShard1.EXPECT().ID().Return(uint32(11))
+
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+
+	require.NoError(t, err)
+	assert.Zero(t, processedTileCount)
 }
 
 func waitForStats(
@@ -1527,4 +1717,13 @@ func assertNeedsFlush(t *testing.T, ns *dbNamespace, t0, t1 time.Time, assertTru
 	needsFlush, err := ns.NeedsFlush(t0, t1)
 	require.NoError(t, err)
 	require.Equal(t, assertTrue, needsFlush)
+}
+
+func contains(c []uint32, x uint32) bool {
+	for _, y := range c {
+		if x == y {
+			return true
+		}
+	}
+	return false
 }

@@ -131,9 +131,6 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		zap.Duration("fetchTimeout", parsedOptions.FetchOpts.Timeout),
 	)
 
-	watcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
-	parsedOptions.CancelWatcher = watcher
-
 	result, err := read(ctx, parsedOptions, h.opts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
@@ -149,7 +146,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	handleroptions.AddResponseHeaders(w, result.Meta, parsedOptions.FetchOpts)
+
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
 	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
@@ -181,14 +178,18 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
 	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
 
-	if renderResult.LimitedMaxReturnedData {
-		if err := WriteReturnedDataLimitedHeader(w, ReturnedDataLimited{
-			Series:      renderResult.Series,
-			TotalSeries: renderResult.TotalSeries,
-			Datapoints:  renderResult.Datapoints,
-		}); err != nil {
-			logger.Error("error writing returned data limited header", zap.Error(err))
-		}
+	meta := result.Meta
+	limited := &handleroptions.ReturnedDataLimited{
+		Limited:     renderResult.LimitedMaxReturnedData,
+		Series:      renderResult.Series,
+		TotalSeries: renderResult.TotalSeries,
+		Datapoints:  renderResult.Datapoints,
+	}
+	err = handleroptions.AddResponseHeaders(w, meta, parsedOptions.FetchOpts, limited, nil)
+	if err != nil {
+		logger.Error("error writing returned data limited header", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
 	}
 
 	// Write the actual results after having checked for limits and wrote headers if needed.

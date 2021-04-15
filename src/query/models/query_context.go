@@ -46,6 +46,8 @@ type QueryContextOptions struct {
 	LimitMaxReturnedSeries int
 	// LimitMaxReturnedDatapoints limits the number of datapoints returned in total to the client.
 	LimitMaxReturnedDatapoints int
+	// LimitMaxReturnedSeriesMetadata limits the number of series metadata returned in total to the client.
+	LimitMaxReturnedSeriesMetadata int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
 	// Instantaneous indicates an instant query.
