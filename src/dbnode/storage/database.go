@@ -452,6 +452,13 @@ func (d *db) Options() Options {
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
+	d.Lock()
+	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
+	if receivedNewShards {
+		d.lastReceivedNewShards = d.nowFn()
+	}
+	d.Unlock()
+
 	if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
 		d.assignShardSet(shardSet)
 	}); err != nil {
@@ -478,9 +485,6 @@ func (d *db) assignShardSet(shardSet sharding.ShardSet) {
 
 	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
 	d.shardSet = shardSet
-	if receivedNewShards {
-		d.lastReceivedNewShards = d.nowFn()
-	}
 
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
