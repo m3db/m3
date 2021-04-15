@@ -250,10 +250,8 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 	for _, n := range namespaces {
 		var activeShards []string
 		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
+		// NB(linasn) This should list ALL shards because it will delete dirs for the shards NOT LISTED below.
 		for _, s := range n.OwnedShards() {
-			if !s.IsBootstrapped() {
-				continue
-			}
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
 		}

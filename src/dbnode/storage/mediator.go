@@ -86,7 +86,7 @@ type mediator struct {
 	mediatorTimeBarrier mediatorTimeBarrier
 	closedCh            chan struct{}
 	tickInterval        time.Duration
-	fileOpsProcesses    []func()
+	fileOpsProcesses    []FileOpsProcess
 	backgroundProcesses []BackgroundProcess
 }
 
@@ -110,10 +110,9 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 	}
 	fsm := newFileSystemManager(database, commitlog, opts)
 	d.databaseFileSystemManager = fsm
-
-	d.fileOpsProcesses = []func(){
-		d.ongoingFileSystemProcesses,
-		d.ongoingColdFlushProcesses,
+	d.fileOpsProcesses = []FileOpsProcess{
+		FileOpsProcessFn(d.ongoingFileSystemProcesses),
+		FileOpsProcessFn(d.ongoingColdFlushProcesses),
 	}
 	d.mediatorTimeBarrier = newMediatorTimeBarrier(nowFn, iOpts, len(d.fileOpsProcesses))
 
@@ -166,7 +165,7 @@ func (m *mediator) Open() error {
 
 	go m.reportLoop()
 	for _, fileOpsProcess := range m.fileOpsProcesses {
-		go fileOpsProcess()
+		go fileOpsProcess.Start()
 	}
 	go m.ongoingTick()
 
@@ -324,7 +323,7 @@ func (m *mediator) runFileSystemProcesses() {
 		return
 	}
 
-	m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
+	m.databaseFileSystemManager.Run(mediatorTime)
 }
 
 func (m *mediator) runColdFlushProcesses() {

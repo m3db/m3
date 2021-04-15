@@ -91,5 +91,5 @@ func TestFileSystemManagerRun(t *testing.T) {
 	)
 
 	defer instrument.SetShouldPanicEnvironmentVariable(true)()
-	require.Panics(t, func() { mgr.Run(ts, syncRun, noForce) })
+	require.Panics(t, func() { mgr.Run(ts) })
 }

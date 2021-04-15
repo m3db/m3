@@ -876,11 +876,7 @@ type databaseFileSystemManager interface {
 
 	// Run attempts to perform all filesystem-related operations,
 	// returning true if those operations are performed, and false otherwise.
-	Run(
-		t time.Time,
-		runType runType,
-		forceType forceType,
-	) bool
+	Run(t time.Time) bool
 
 	// Report reports runtime information.
 	Report()
@@ -934,6 +930,21 @@ type BackgroundProcess interface {
 
 	// Report reports runtime information.
 	Report()
+}
+
+// FileOpsProcess is a background process that is run by the database.
+type FileOpsProcess interface {
+	// Start launches the FileOpsProcess to run asynchronously.
+	Start()
+}
+
+// FileOpsProcessFn is a file ops process function.
+type FileOpsProcessFn func()
+
+// Start starts file ops process function.
+func (f FileOpsProcessFn) Start() {
+	// delegate to the anonymous function.
+	f()
 }
 
 // databaseRepairer repairs in-memory database data.

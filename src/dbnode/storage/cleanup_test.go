@@ -410,6 +410,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	shardNotBootstrapped := NewMockdatabaseShard(ctrl)
 	shardNotBootstrapped.EXPECT().IsBootstrapped().Return(false).AnyTimes()
+	shardNotBootstrapped.EXPECT().ID().Return(uint32(1)).AnyTimes()
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
 	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)

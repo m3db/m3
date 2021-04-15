@@ -107,11 +107,6 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
-	if !m.database.IsBootstrapped() {
-		m.log.Debug("database is still bootstrapping, terminating cold flush")
-		return true
-	}
-
 	m.log.Info("starting cold flush")
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
