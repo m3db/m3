@@ -179,6 +179,12 @@ func (r *ReadThroughSegment) PutCachedSearchPattern(
 	query search.Query,
 	pl postings.List,
 ) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return
+	}
+
 	cache := r.caches.SearchPostingsListCache
 	if cache == nil || !r.opts.CacheSearches {
 		return

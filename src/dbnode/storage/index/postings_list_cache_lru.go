@@ -68,20 +68,21 @@ type postingsListLRUShard struct {
 	sync.RWMutex
 	size      int
 	evictList *list.List
-	items     map[uuid.Array]map[key]*list.Element
+	items     map[uuid.Array]map[PostingsListCacheKey]*list.Element
 }
 
 // entry is used to hold a value in the evictList.
 type entry struct {
 	uuid           uuid.UUID
-	key            key
+	key            PostingsListCacheKey
 	cachedPostings *cachedPostings
 }
 
-type key struct {
-	field       string
-	pattern     string
-	patternType PatternType
+// PostingsListCacheKey is a postings list cache key.
+type PostingsListCacheKey struct {
+	Field       string
+	Pattern     string
+	PatternType PatternType
 }
 
 type postingsListLRUOptions struct {
@@ -116,7 +117,7 @@ func newPostingsListLRUShard(size int) *postingsListLRUShard {
 	return &postingsListLRUShard{
 		size:      size,
 		evictList: list.New(),
-		items:     make(map[uuid.Array]map[key]*list.Element),
+		items:     make(map[uuid.Array]map[PostingsListCacheKey]*list.Element),
 	}
 }
 
@@ -212,7 +213,7 @@ func (c *postingsListLRUShard) Add(
 	if queries, ok := c.items[uuidArray]; ok {
 		queries[newKey] = entry
 	} else {
-		c.items[uuidArray] = map[key]*list.Element{
+		c.items[uuidArray] = map[PostingsListCacheKey]*list.Element{
 			newKey: entry,
 		}
 	}
@@ -314,8 +315,12 @@ func (c *postingsListLRUShard) removeElement(e *list.Element) {
 	}
 }
 
-func newKey(field, pattern string, patternType PatternType) key {
-	return key{field: field, pattern: pattern, patternType: patternType}
+func newKey(field, pattern string, patternType PatternType) PostingsListCacheKey {
+	return PostingsListCacheKey{
+		Field:       field,
+		Pattern:     pattern,
+		PatternType: patternType,
+	}
 }
 
 func hashKey(

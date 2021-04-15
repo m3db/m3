@@ -427,7 +427,7 @@ func (o *opts) SetPostingsListCache(value *PostingsListCache) Options {
 }
 
 func (o *opts) PostingsListCache() *PostingsListCache {
-	return o.searchPostingsListCache
+	return o.postingsListCache
 }
 
 func (o *opts) SetSearchPostingsListCache(value *PostingsListCache) Options {
@@ -437,7 +437,7 @@ func (o *opts) SetSearchPostingsListCache(value *PostingsListCache) Options {
 }
 
 func (o *opts) SearchPostingsListCache() *PostingsListCache {
-	return o.postingsListCache
+	return o.searchPostingsListCache
 }
 
 func (o *opts) SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options {

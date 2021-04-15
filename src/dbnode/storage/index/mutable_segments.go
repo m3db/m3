@@ -913,10 +913,10 @@ func (m *mutableSegments) populateCachedSearches(
 		})
 	}
 
-	searches := make(map[string]cachedPatternForCompactedSegment)
+	searches := make(map[PostingsListCacheKey]cachedPatternForCompactedSegment)
 	for i, seg := range prevSegs {
 		result := seg.segment.CachedSearchPatterns(func(p CachedPattern) {
-			pattern, ok := searches[p.SearchQueryKey]
+			pattern, ok := searches[p.CacheKey]
 			if !ok {
 				pattern = cachedPatternForCompactedSegment{
 					searchQuery: p.SearchQuery,
@@ -927,7 +927,7 @@ func (m *mutableSegments) populateCachedSearches(
 						prevSeg: prevSeg,
 					}
 				}
-				searches[p.SearchQueryKey] = pattern
+				searches[p.CacheKey] = pattern
 			}
 			// Mark this segment with the cached pattern.
 			pattern.patterns[i].hasCachedPattern = true

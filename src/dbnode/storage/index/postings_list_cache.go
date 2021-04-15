@@ -179,8 +179,6 @@ type cachedPostings struct {
 
 	// value
 	postings postings.List
-	// searchQueryKey is only set for search queries.
-	searchQueryKey string
 	// searchQuery is only set for search queries.
 	searchQuery *querypb.Query
 }
@@ -307,12 +305,9 @@ func (q *PostingsListCache) startLoop() Closer {
 }
 
 type CachedPattern struct {
-	Field          string
-	Pattern        string
-	PatternType    PatternType
-	SearchQueryKey string
-	SearchQuery    *querypb.Query
-	Postings       postings.List
+	CacheKey    PostingsListCacheKey
+	SearchQuery *querypb.Query
+	Postings    postings.List
 }
 
 type CachedPatternsResult struct {
@@ -358,17 +353,14 @@ func shardCachedPatternsWithRLock(
 	result.InRegistry = true
 	result.TotalPatterns += len(segmentPostings)
 	for key, value := range segmentPostings {
-		if v := query.PatternType; v != nil && *v != key.patternType {
+		if v := query.PatternType; v != nil && *v != key.PatternType {
 			continue
 		}
 
 		fn(CachedPattern{
-			Field:          key.field,
-			Pattern:        key.pattern,
-			PatternType:    key.patternType,
-			SearchQueryKey: value.Value.(*entry).cachedPostings.searchQueryKey,
-			SearchQuery:    value.Value.(*entry).cachedPostings.searchQuery,
-			Postings:       value.Value.(*entry).cachedPostings.postings,
+			CacheKey:    key,
+			SearchQuery: value.Value.(*entry).cachedPostings.searchQuery,
+			Postings:    value.Value.(*entry).cachedPostings.postings,
 		})
 		result.MatchedPatterns++
 	}
