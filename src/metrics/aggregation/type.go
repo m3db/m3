@@ -127,7 +127,7 @@ var (
 		P9999:  []byte("p9999"),
 	}
 
-	typeStringQuantiles = map[Type][]byte{
+	typeQuantileBytes = map[Type][]byte{
 		P10:   []byte("0.1"),
 		P20:   []byte("0.2"),
 		P30:   []byte("0.3"),
@@ -233,7 +233,7 @@ func (a Type) Quantile() (float64, bool) {
 
 // QuantileBytes returns the quantile bytes represented by the Type.
 func (a Type) QuantileBytes() ([]byte, bool) {
-	val, ok := typeStringQuantiles[a]
+	val, ok := typeQuantileBytes[a]
 	return val, ok
 }
 

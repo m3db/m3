@@ -1235,7 +1235,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPromQuantileTag(t *tes
 						"agg":      ".p50",
 						"quantile": "0.5",
 					},
-					values: []expectedValue{{value: 30}},
+					values: []expectedValue{{value: 10}},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  1 * time.Second,
