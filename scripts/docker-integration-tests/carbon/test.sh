@@ -137,3 +137,21 @@ ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'f.bar.*' fbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'g.bar.*' gbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'h.bar*' hbarbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'i.bar*' ibarbaz.json"
+
+# Test find limits from config of matching max docs of 200 with:
+# carbon:
+#   limitsFind:
+#     perQuery:
+#       maxFetchedDocs: 100
+#       requireExhaustive: false
+for i in $(seq 0 200); do
+  t=$(date +%s)
+  echo "find.limits.perquery.maxdocs.series_${i} 42 $t" | nc 0.0.0.0 7204
+done
+
+# Check between 90 and 110 (won't be exact match since we're limiting by docs
+# not by max fetched results).
+ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+  '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -le 110 ]]'
+ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+  '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -ge 90 ]]'
