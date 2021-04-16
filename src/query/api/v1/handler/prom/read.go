@@ -137,8 +137,15 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// If the error happened in the m3 storage layer, propagate the causing error as is.
 			xhttp.WriteError(w, sErr.Unwrap())
 		} else {
-			// Else assume any prometheus library error is a 4xx, since there are no remote calls.
-			xhttp.WriteError(w, xerrors.NewInvalidParamsError(res.Err))
+			promErr := res.Err
+			switch promErr.(type) {
+			case promql.ErrQueryTimeout:
+			case promql.ErrQueryCanceled:
+			default:
+				// Assume any prometheus library error is a 4xx, since there are no remote calls.
+				promErr = xerrors.NewInvalidParamsError(res.Err)
+			}
+			xhttp.WriteError(w, promErr)
 		}
 		return
 	}

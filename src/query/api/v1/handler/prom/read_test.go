@@ -158,6 +158,16 @@ func TestPromReadHandlerErrors(t *testing.T) {
 			httpCode: http.StatusBadRequest,
 		},
 		{
+			name:     "prom timeout",
+			err:      promql.ErrQueryTimeout("timeout"),
+			httpCode: http.StatusGatewayTimeout,
+		},
+		{
+			name:     "prom cancel",
+			err:      promql.ErrQueryCanceled("cancel"),
+			httpCode: 499,
+		},
+		{
 			name:     "storage 500",
 			err:      prometheus.NewStorageErr(fmt.Errorf("500 storage error")),
 			httpCode: http.StatusInternalServerError,
