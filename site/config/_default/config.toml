@@ -112,7 +112,7 @@ offlineSearch = false
   # See the config.toml file from this documentation site to have an example.
 
   helpBlock = true
-  editURL = "https://github.com/m3db/m3/tree/master/site/content/"
+  editURL = "https://github.com/m3db/m3/blob/master/site/content/"
 
   # Author of the site, will be used in meta information
   author = "The M3 team and community"

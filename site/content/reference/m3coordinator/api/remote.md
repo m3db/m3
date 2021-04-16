@@ -72,7 +72,7 @@ promremotecli_log 2019/06/25 04:13:56 writing to http://host.docker.internal:720
 promremotecli_log 2019/06/25 04:13:56 write success
 
 # If you are paranoid about image tags being hijacked/replaced with nefarious code, you can use this SHA256 tag:
-# quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
+# quay.io/m3db/prometheus_remote_client_golang:v0.4.3
 ```
 
 For more details on querying data in PromQL that was written using this endpoint, see the [query API documentation](/docs/reference/m3query/api/query).
