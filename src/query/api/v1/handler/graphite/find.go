@@ -61,7 +61,7 @@ func NewFindHandler(opts options.HandlerOptions) http.Handler {
 		opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &grahiteFindHandler{
 		storage:             wrappedStore,
-		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		fetchOptionsBuilder: opts.GraphiteFindFetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
