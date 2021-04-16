@@ -524,7 +524,7 @@ func Run(runOpts RunOptions) {
 		}
 		if limits := cfg.Carbon.LimitsRender; limits != nil {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
-			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
+			graphiteRenderFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
 				handleroptions.FetchOptionsBuilderOptions{
 					Limits:        fetchOptsBuilderLimitsOpts,
 					RestrictByTag: storageRestrictByTags,
