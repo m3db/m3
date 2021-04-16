@@ -480,7 +480,12 @@ func (i *multiBitmapIterator) Close() error {
 	i.Reset(multiBitmapOptions{})
 
 	// Return this ref to the pool for re-use.
-	putMultiBitmapIterator(i)
+	// TODO:!!!!!
+	// TODO: Investigate why pooling this causes bad
+	// reuse and potentially put ref tracking on multi-bitmap
+	// iterators.
+	// TODO:!!!!!
+	// putMultiBitmapIterator(i)
 
 	return nil
 }

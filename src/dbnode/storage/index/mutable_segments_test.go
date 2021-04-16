@@ -1,3 +1,5 @@
+// +build big
+
 // Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,12 +28,13 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -94,6 +97,11 @@ func newTestMutableSegments(
 }
 
 func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.T) {
+	// Use read only postings.
+	prevReadOnlyPostings := index.MigrationReadOnlyPostings()
+	index.SetMigrationReadOnlyPostings(true)
+	defer index.SetMigrationReadOnlyPostings(prevReadOnlyPostings)
+
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -106,118 +114,167 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 	segs, result := newTestMutableSegments(t, testMD, blockStart)
 	segs.backgroundCompactDisable = true // Disable to explicitly test.
 
-	logger := result.logger.With(zap.String("test", t.Name()))
-
-	// Insert until we have a background segment.
 	inserted := 0
-	for {
-		segs.Lock()
-		segsBackground := len(segs.backgroundSegments)
-		segs.Unlock()
-		if segsBackground > 0 {
-			break
-		}
-
-		batch := NewWriteBatch(WriteBatchOptions{
-			IndexBlockSize: blockSize,
-		})
-		for i := 0; i < 128; i++ {
-			stillIndexedBlockStartsAtGC := 1
-			if inserted%2 == 0 {
-				stillIndexedBlockStartsAtGC = 0
-			}
-			onIndexSeries := NewMockOnIndexSeries(ctrl)
-			onIndexSeries.EXPECT().
-				RelookupAndIncrementReaderWriterCount().
-				Return(onIndexSeries, true).
-				AnyTimes()
-			onIndexSeries.EXPECT().
-				RemoveIndexedForBlockStarts(gomock.Any()).
-				Return(RemoveIndexedForBlockStartsResult{
-					IndexedBlockStartsRemaining: stillIndexedBlockStartsAtGC,
-				}).
-				AnyTimes()
-			onIndexSeries.EXPECT().
-				DecrementReaderWriterCount().
-				AnyTimes()
-
-			batch.Append(WriteBatchEntry{
-				Timestamp:     nowNotBlockStartAligned,
-				OnIndexSeries: onIndexSeries,
-			}, testDocN(inserted))
-			inserted++
-		}
-
-		_, err := segs.WriteBatch(batch)
-		require.NoError(t, err)
-	}
-
-	// Perform some searches.
-	readers, err := segs.AddReaders(nil)
-	require.NoError(t, err)
-
-	b0, err := query.NewRegexpQuery([]byte("bucket-0"), []byte("(one|three)"))
-	require.NoError(t, err)
-
-	b1, err := query.NewRegexpQuery([]byte("bucket-0"), []byte("(one|three|five)"))
-	require.NoError(t, err)
-
-	q := query.NewConjunctionQuery([]search.Query{b0, b1})
-	searcher, err := q.Searcher()
-	require.NoError(t, err)
-
-	results := make(map[string]struct{})
-	for _, reader := range readers {
-		readThrough, ok := reader.(search.ReadThroughSegmentSearcher)
-		require.True(t, ok)
-
-		pl, err := readThrough.Search(q, searcher)
-		require.NoError(t, err)
-
-		it, err := reader.Docs(pl)
-		require.NoError(t, err)
-
-		for it.Next() {
-			d := it.Current()
-			id, err := docs.ReadIDFromDocument(d)
-			require.NoError(t, err)
-			results[string(id)] = struct{}{}
-		}
-
-		require.NoError(t, it.Err())
-		require.NoError(t, it.Close())
-	}
-
-	logger.Info("search results", zap.Int("results", len(results)))
-
-	// Make sure search postings cache was populated.
-	require.Equal(t, len(readers), result.searchCache.lru.Len())
-
-	// Explicitly background compact and make sure that background segment
-	// is GC'd of series no longer present.
 	segs.Lock()
-	segs.sealedBlockStarts[xtime.ToUnixNano(blockStart)] = struct{}{}
-	segs.backgroundCompactGCPending = true
-	segs.backgroundCompactWithLock()
-	compactingBackgroundGarbageCollect := segs.compact.compactingBackgroundGarbageCollect
+	segsBackground := len(segs.backgroundSegments)
 	segs.Unlock()
 
-	// Should have kicked off a background compact GC.
-	require.True(t, compactingBackgroundGarbageCollect)
+	for runs := 0; runs < 10; runs++ {
+		t.Run(fmt.Sprintf("run-%d", runs), func(t *testing.T) {
+			logger := result.logger.With(zap.Int("run", runs))
 
-	// Wait for background compact GC to run.
-	for {
-		segs.Lock()
-		compactingBackgroundGarbageCollect := segs.compact.compactingBackgroundGarbageCollect
-		segs.Unlock()
-		if !compactingBackgroundGarbageCollect {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
+			// Insert until we have a new background segment.
+			for {
+				segs.Lock()
+				curr := len(segs.backgroundSegments)
+				segs.Unlock()
+				if curr > segsBackground {
+					segsBackground = curr
+					break
+				}
+
+				batch := NewWriteBatch(WriteBatchOptions{
+					IndexBlockSize: blockSize,
+				})
+				for i := 0; i < 128; i++ {
+					stillIndexedBlockStartsAtGC := 1
+					if inserted%2 == 0 {
+						stillIndexedBlockStartsAtGC = 0
+					}
+					onIndexSeries := NewMockOnIndexSeries(ctrl)
+					onIndexSeries.EXPECT().
+						RelookupAndIncrementReaderWriterCount().
+						Return(onIndexSeries, true).
+						AnyTimes()
+					onIndexSeries.EXPECT().
+						RemoveIndexedForBlockStarts(gomock.Any()).
+						Return(RemoveIndexedForBlockStartsResult{
+							IndexedBlockStartsRemaining: stillIndexedBlockStartsAtGC,
+						}).
+						AnyTimes()
+					onIndexSeries.EXPECT().
+						DecrementReaderWriterCount().
+						AnyTimes()
+
+					batch.Append(WriteBatchEntry{
+						Timestamp:     nowNotBlockStartAligned,
+						OnIndexSeries: onIndexSeries,
+					}, testDocN(inserted))
+					inserted++
+				}
+
+				_, err := segs.WriteBatch(batch)
+				require.NoError(t, err)
+			}
+
+			// Perform some searches.
+			testDocSearches(t, segs)
+
+			// Make sure search postings cache was populated.
+			require.True(t, result.searchCache.lru.Len() > 0)
+			logger.Info("search cache populated", zap.Int("n", result.searchCache.lru.Len()))
+
+			// Start some async searches so we have searches going on while
+			// executing background compact GC.
+			doneCh := make(chan struct{}, 2)
+			defer close(doneCh)
+			for i := 0; i < 2; i++ {
+				go func() {
+					for {
+						select {
+						case <-doneCh:
+							return
+						default:
+						}
+						// Search continously.
+						testDocSearches(t, segs)
+					}
+				}()
+			}
+
+			// Explicitly background compact and make sure that background segment
+			// is GC'd of series no longer present.
+			segs.Lock()
+			segs.sealedBlockStarts[xtime.ToUnixNano(blockStart)] = struct{}{}
+			segs.backgroundCompactGCPending = true
+			segs.backgroundCompactWithLock()
+			compactingBackgroundStandard := segs.compact.compactingBackgroundStandard
+			compactingBackgroundGarbageCollect := segs.compact.compactingBackgroundGarbageCollect
+			segs.Unlock()
+
+			// Should have kicked off a background compact GC.
+			require.True(t, compactingBackgroundStandard || compactingBackgroundGarbageCollect)
+
+			// Wait for background compact GC to run.
+			for {
+				segs.Lock()
+				compactingBackgroundStandard := segs.compact.compactingBackgroundStandard
+				compactingBackgroundGarbageCollect := segs.compact.compactingBackgroundGarbageCollect
+				segs.Unlock()
+				if !compactingBackgroundStandard && !compactingBackgroundGarbageCollect {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			logger.Info("compaction done, search cache", zap.Int("n", result.searchCache.lru.Len()))
+		})
 	}
-
-	// TODO: verify
 }
+
+func testDocSearches(
+	t *testing.T,
+	segs *mutableSegments,
+) {
+	for i := 0; i < len(testDocBucket0Values); i++ {
+		for j := 0; j < len(testDocBucket1Values); j++ {
+			readers, err := segs.AddReaders(nil)
+			assert.NoError(t, err)
+
+			regexp0 := fmt.Sprintf("(%s|%s)", moduloByteStr(testDocBucket0Values, i),
+				moduloByteStr(testDocBucket0Values, i+1))
+			b0, err := query.NewRegexpQuery([]byte(testDocBucket0Name), []byte(regexp0))
+			assert.NoError(t, err)
+
+			regexp1 := fmt.Sprintf("(%s|%s|%s)", moduloByteStr(testDocBucket1Values, j),
+				moduloByteStr(testDocBucket1Values, j+1),
+				moduloByteStr(testDocBucket1Values, j+2))
+			b1, err := query.NewRegexpQuery([]byte(testDocBucket1Name), []byte(regexp1))
+			assert.NoError(t, err)
+
+			q := query.NewConjunctionQuery([]search.Query{b0, b1})
+			searcher, err := q.Searcher()
+			assert.NoError(t, err)
+
+			for _, reader := range readers {
+				readThrough, ok := reader.(search.ReadThroughSegmentSearcher)
+				assert.True(t, ok)
+
+				pl, err := readThrough.Search(q, searcher)
+				assert.NoError(t, err)
+
+				assert.True(t, pl.CountSlow() > 0)
+			}
+		}
+	}
+}
+
+var (
+	testDocBucket0Name   = "bucket_0"
+	testDocBucket0Values = []string{
+		"one",
+		"two",
+		"three",
+	}
+	testDocBucket1Name   = "bucket_1"
+	testDocBucket1Values = []string{
+		"one",
+		"two",
+		"three",
+		"four",
+		"five",
+	}
+)
 
 func testDocN(n int) doc.Metadata {
 	return doc.Metadata{
@@ -228,22 +285,12 @@ func testDocN(n int) doc.Metadata {
 				Value: []byte("bar"),
 			},
 			{
-				Name: []byte("bucket-0"),
-				Value: moduloByteStr([]string{
-					"one",
-					"two",
-					"three",
-				}, n),
+				Name:  []byte(testDocBucket0Name),
+				Value: moduloByteStr(testDocBucket0Values, n),
 			},
 			{
-				Name: []byte("bucket-1"),
-				Value: moduloByteStr([]string{
-					"one",
-					"two",
-					"three",
-					"four",
-					"five",
-				}, n),
+				Name:  []byte(testDocBucket1Name),
+				Value: moduloByteStr(testDocBucket1Values, n),
 			},
 		},
 	}
