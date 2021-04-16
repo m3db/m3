@@ -1187,6 +1187,131 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixTag(t *t
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRulesConfigMappingRulesPromQuantileTag(t *testing.T) {
+	t.Parallel()
+
+	timerMetric := testTimerMetric{
+		tags: map[string]string{
+			nameTag:    "http_requests",
+			"app":      "nginx_edge",
+			"endpoint": "health",
+		},
+		timedSamples: []testTimerMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	tags := []Tag{
+		{Name: "__m3_prom_summary__"},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "__m3_type__:timer",
+					Aggregations: []aggregation.Type{aggregation.P50},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+					Tags: tags,
+				},
+			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeTimer},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			timerMetrics: []testTimerMetric{timerMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:    "http_requests",
+						"app":      "nginx_edge",
+						"endpoint": "health",
+						"agg":      ".p50",
+						"quantile": "0.5",
+					},
+					values: []expectedValue{{value: 10}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  1 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigMappingRulesPromQuantileTagIgnored(t *testing.T) {
+	t.Parallel()
+
+	timerMetric := testTimerMetric{
+		tags: map[string]string{
+			nameTag:    "http_requests",
+			"app":      "nginx_edge",
+			"endpoint": "health",
+		},
+		timedSamples: []testTimerMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	tags := []Tag{
+		{Name: "__m3_prom_summary__"},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "__m3_type__:timer",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+					Tags: tags,
+				},
+			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeTimer},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			timerMetrics: []testTimerMetric{timerMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:    "http_requests",
+						"app":      "nginx_edge",
+						"endpoint": "health",
+						"agg":      ".upper",
+					},
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  1 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigMappingRulesAugmentTag(t *testing.T) {
 	t.Parallel()
 
@@ -1202,6 +1327,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesAugmentTag(t *testing.
 	tags := []Tag{
 		{Name: "datacenter", Value: "abc"},
 	}
+	//nolint:dupl
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
 		identTag: "app",
 		rulesConfig: &RulesConfiguration{
@@ -2603,6 +2729,20 @@ type testGaugeMetricTimedSample struct {
 	value  float64
 }
 
+type testTimerMetric struct {
+	tags                    map[string]string
+	samples                 []float64
+	timedSamples            []testTimerMetricTimedSample
+	expectDropPolicyApplied bool
+	expectDropTimestamp     bool
+}
+
+type testTimerMetricTimedSample struct {
+	time   time.Time
+	offset time.Duration
+	value  float64
+}
+
 type testCounterMetricsOptions struct {
 	timedSamples bool
 }
@@ -2666,10 +2806,14 @@ func testDownsamplerAggregation(
 	expectedWrites := append(counterMetricsExpect, gaugeMetricsExpect...)
 
 	// Allow overrides
-	var allowFilter *testDownsamplerOptionsExpectAllowFilter
+	var (
+		allowFilter  *testDownsamplerOptionsExpectAllowFilter
+		timerMetrics []testTimerMetric
+	)
 	if ingest := testOpts.ingest; ingest != nil {
 		counterMetrics = ingest.counterMetrics
 		gaugeMetrics = ingest.gaugeMetrics
+		timerMetrics = ingest.timerMetrics
 	}
 	if expect := testOpts.expect; expect != nil {
 		expectedWrites = expect.writes
@@ -2678,7 +2822,7 @@ func testDownsamplerAggregation(
 
 	// Ingest points
 	testDownsamplerAggregationIngest(t, testDownsampler,
-		counterMetrics, gaugeMetrics)
+		counterMetrics, gaugeMetrics, timerMetrics)
 
 	// Wait for writes
 	logger.Info("wait for test metrics to appear")
@@ -2893,7 +3037,7 @@ func testDownsamplerRemoteAggregation(
 
 	// Ingest points
 	testDownsamplerAggregationIngest(t, testDownsampler,
-		testCounterMetrics, testGaugeMetrics)
+		testCounterMetrics, testGaugeMetrics, []testTimerMetric{})
 
 	// Ensure we checked counters and gauges
 	samplesCounters := 0
@@ -2913,6 +3057,7 @@ func testDownsamplerAggregationIngest(
 	testDownsampler testDownsampler,
 	testCounterMetrics []testCounterMetric,
 	testGaugeMetrics []testGaugeMetric,
+	testTimerMetrics []testTimerMetric,
 ) {
 	downsampler := testDownsampler.downsampler
 
@@ -3006,6 +3151,45 @@ func testDownsamplerAggregationIngest(
 			require.NoError(t, err)
 		}
 	}
+
+	//nolint:dupl
+	for _, metric := range testTimerMetrics {
+		appender.NextMetric()
+
+		for name, value := range metric.tags {
+			appender.AddTag([]byte(name), []byte(value))
+		}
+
+		samplesAppenderResult, err := appender.SamplesAppender(opts)
+		require.NoError(t, err)
+		require.Equal(t, metric.expectDropPolicyApplied,
+			samplesAppenderResult.IsDropPolicyApplied)
+		require.Equal(t, metric.expectDropTimestamp,
+			samplesAppenderResult.ShouldDropTimestamp)
+
+		samplesAppender := samplesAppenderResult.SamplesAppender
+		for _, sample := range metric.samples {
+			err = samplesAppender.AppendUntimedTimerSample(sample, nil)
+			require.NoError(t, err)
+		}
+		for _, sample := range metric.timedSamples {
+			if sample.time.IsZero() {
+				sample.time = now // Allow empty time to mean "now"
+			}
+			if sample.offset > 0 {
+				sample.time = sample.time.Add(sample.offset)
+			}
+			if testOpts.waitForOffset {
+				time.Sleep(sample.offset)
+			}
+			if samplesAppenderResult.ShouldDropTimestamp {
+				err = samplesAppender.AppendUntimedTimerSample(sample.value, nil)
+			} else {
+				err = samplesAppender.AppendTimerSample(sample.time, sample.value, nil)
+			}
+			require.NoError(t, err)
+		}
+	}
 }
 
 func setAggregatedNamespaces(
@@ -3064,6 +3248,7 @@ type testDownsamplerOptions struct {
 type testDownsamplerOptionsIngest struct {
 	counterMetrics []testCounterMetric
 	gaugeMetrics   []testGaugeMetric
+	timerMetrics   []testTimerMetric
 }
 
 type testDownsamplerOptionsExpect struct {

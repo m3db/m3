@@ -639,6 +639,17 @@ func (a *metricsAppender) processTags(
 			)
 			tags.append(name, value)
 		}
+		if bytes.Equal(tag.Name, metric.M3MetricsPromSummary) {
+			types, err := id.Types()
+			if err != nil || len(types) == 0 {
+				continue
+			}
+			value, ok := types[0].QuantileBytes()
+			if !ok {
+				continue
+			}
+			tags.append(metric.PromQuantileName, value)
+		}
 	}
 	return tags
 }

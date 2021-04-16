@@ -126,6 +126,22 @@ var (
 		P999:   []byte("p999"),
 		P9999:  []byte("p9999"),
 	}
+
+	typeQuantileBytes = map[Type][]byte{
+		P10:   []byte("0.1"),
+		P20:   []byte("0.2"),
+		P30:   []byte("0.3"),
+		P40:   []byte("0.4"),
+		P50:   []byte("0.5"),
+		P60:   []byte("0.6"),
+		P70:   []byte("0.7"),
+		P80:   []byte("0.8"),
+		P90:   []byte("0.9"),
+		P95:   []byte("0.95"),
+		P99:   []byte("0.99"),
+		P999:  []byte("0.999"),
+		P9999: []byte("0.9999"),
+	}
 )
 
 // Type defines an aggregation function.
@@ -213,6 +229,12 @@ func (a Type) Quantile() (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// QuantileBytes returns the quantile bytes represented by the Type.
+func (a Type) QuantileBytes() ([]byte, bool) {
+	val, ok := typeQuantileBytes[a]
+	return val, ok
 }
 
 // Proto returns the proto of the aggregation type.
