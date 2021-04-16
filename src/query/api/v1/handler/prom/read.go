@@ -138,7 +138,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			xhttp.WriteError(w, sErr.Unwrap())
 		} else {
 			promErr := res.Err
-			switch promErr.(type) {
+			switch promErr.(type) { //nolint:errorlint
 			case promql.ErrQueryTimeout:
 			case promql.ErrQueryCanceled:
 			default:
