@@ -61,8 +61,14 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 	}
 
 	workChs := make([]chan Work, numShards)
+	bufSize := int64(size) / numShards
+	if opts.GrowOnDemand() {
+		// Do not use buffered channels if the pool can grow on demand. This ensures a new worker is spawned if all
+		// workers are currently busy.
+		bufSize = 0
+	}
 	for i := range workChs {
-		workChs[i] = make(chan Work, int64(size)/numShards)
+		workChs[i] = make(chan Work, bufSize)
 	}
 
 	return &pooledWorkerPool{

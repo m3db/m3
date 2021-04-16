@@ -129,7 +129,9 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 	}
 	scope := opts.InstrumentOptions.MetricsScope().SubScope("metrics_appender")
 	metrics := metricsAppenderMetrics{
-		processedCount: scope.Counter("processed_count"),
+		processedCountNonRollup: scope.Tagged(map[string]string{"agg_type": "non_rollup"}).Counter("processed"),
+		processedCountRollup:    scope.Tagged(map[string]string{"agg_type": "rollup"}).Counter("processed"),
+		operationsCount:         scope.Counter("operations_processed"),
 	}
 
 	return metricsAppenderOptions{
