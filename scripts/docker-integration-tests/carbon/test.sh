@@ -151,7 +151,7 @@ done
 # Check between 90 and 10 (won't be exact match since we're limiting by docs
 # not by max fetched results).
 # Note: First check that there's 200 series there by using count().
-ATTEMPTS=20 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff "read_carbon 'countSeries(find.limits.perquery.maxdocs.*)' 200.000000"
+ATTEMPTS=20 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff "read_carbon 'countSeries(find.limits.perquery.maxdocs.*)' 200"
 ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
   '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -ge 90 ]]'
 ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
