@@ -107,7 +107,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
-	m.log.Debug("starting cold flush")
+	m.log.Debug("starting cold flush", zap.Time("time", t))
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	// NB(r): Use invariant here since flush errors were introduced
@@ -126,7 +126,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
 			})
 	}
-	m.log.Debug("completed cold flush")
+	m.log.Debug("completed cold flush", zap.Time("time", t))
 	return true
 }
 

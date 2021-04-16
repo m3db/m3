@@ -147,7 +147,7 @@ func (m *fileSystemManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
-	m.log.Debug("starting warm flush")
+	m.log.Debug("starting warm flush", zap.Time("time", t))
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	if err := m.WarmFlushCleanup(t); err != nil {
@@ -166,7 +166,7 @@ func (m *fileSystemManager) Run(t time.Time) bool {
 				l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
 			})
 	}
-	m.log.Debug("completed warm flush")
+	m.log.Debug("completed warm flush", zap.Time("time", t))
 
 	return true
 }

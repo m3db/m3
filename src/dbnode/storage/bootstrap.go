@@ -26,13 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -123,10 +120,7 @@ func (m *bootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
 	bootstrapAsyncResult := newBootstrapAsyncResult()
 	go func(r *BootstrapAsyncResult) {
 		if result, err := m.startBootstrap(r); err != nil && !result.AlreadyBootstrapping {
-			instrument.EmitAndLogInvariantViolation(m.instrumentation.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("error bootstrapping", zap.Error(err))
-				})
+			m.instrumentation.emitAndLogInvariantViolation(err, "error bootstrapping")
 		}
 	}(bootstrapAsyncResult)
 	return bootstrapAsyncResult

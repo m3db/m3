@@ -506,6 +506,30 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	wg.Wait()
 }
 
+func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).Return(errors.New("unknown error"))
+	d.mediator = mediator
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		d.AssignShardSet(shardSet)
+	})
+}
+
 func TestDatabaseRemoveNamespace(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
