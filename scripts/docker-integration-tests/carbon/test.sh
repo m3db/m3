@@ -15,7 +15,8 @@ docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
 # Think of this as a defer func() in golang
 function defer {
-  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  # docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  echo "no defer"
 }
 trap defer EXIT
 
@@ -98,9 +99,8 @@ ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos1-a
 ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1**)' 3"
 ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1)' 3"
 
-t=$(date +%s)
-
 # Test basic cases
+t=$(date +%s)
 echo "a 0 $t"             | nc 0.0.0.0 7204
 echo "a.bar 0 $t"         | nc 0.0.0.0 7204
 echo "a.biz 0 $t"         | nc 0.0.0.0 7204
@@ -144,14 +144,16 @@ ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'i.bar*' ibarbaz.json"
 #     perQuery:
 #       maxFetchedDocs: 100
 #       requireExhaustive: false
+t=$(date +%s)
 for i in $(seq 0 200); do
-  t=$(date +%s)
   echo "find.limits.perquery.maxdocs.series_${i} 42 $t" | nc 0.0.0.0 7204
 done
 
-# Check between 90 and 110 (won't be exact match since we're limiting by docs
+# Check between 90 and 10 (won't be exact match since we're limiting by docs
 # not by max fetched results).
-ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-  '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -le 110 ]]'
+# Note: First check that there's 200 series there by using count().
+ATTEMPTS=20 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff "read_carbon 'count(find.limits.perquery.maxdocs.*)' 200"
 ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
   '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -ge 90 ]]'
+ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+  '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -le 110 ]]'
