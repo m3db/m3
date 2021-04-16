@@ -403,6 +403,10 @@ type IngestConfiguration struct {
 type CarbonConfiguration struct {
 	// Ingester if set defines an ingester to run for carbon.
 	Ingester *CarbonIngesterConfiguration `yaml:"ingester"`
+	// LimitsFind sets the limits configuration for find queries.
+	LimitsFind *LimitsConfiguration `yaml:"limitsFind"`
+	// LimitsRender sets the limits configuration for render queries.
+	LimitsRender *LimitsConfiguration `yaml:"limitsRender"`
 	// AggregateNamespacesAllData configures whether all aggregate
 	// namespaces contain entire copies of the data set.
 	// This affects whether queries can be optimized or not, if false

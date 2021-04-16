@@ -403,7 +403,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	if clusterClient != nil {
 		err = database.RegisterRoutes(h.registry, clusterClient,
-			h.options.Config(), h.options.EmbeddedDbCfg(),
+			h.options.Config(), h.options.EmbeddedDBCfg(),
 			serviceOptionDefaults, instrumentOpts, h.options.NamespaceValidator())
 		if err != nil {
 			return err

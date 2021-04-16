@@ -478,7 +478,11 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	var graphiteStorageOpts graphite.M3WrappedStorageOptions
+	var (
+		graphiteFindFetchOptsBuilder   = fetchOptsBuilder
+		graphiteRenderFetchOptsBuilder = fetchOptsBuilder
+		graphiteStorageOpts            graphite.M3WrappedStorageOptions
+	)
 	if cfg.Carbon != nil {
 		graphiteStorageOpts.AggregateNamespacesAllData =
 			cfg.Carbon.AggregateNamespacesAllData
@@ -494,6 +498,31 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
 		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
 		graphiteStorageOpts.CompileEscapeAllNotOnlyQuotes = cfg.Carbon.CompileEscapeAllNotOnlyQuotes
+
+		if limits := cfg.Carbon.LimitsFind; limits != nil {
+			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
+			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
+				handleroptions.FetchOptionsBuilderOptions{
+					Limits:        fetchOptsBuilderLimitsOpts,
+					RestrictByTag: storageRestrictByTags,
+					Timeout:       timeout,
+				})
+			if err != nil {
+				logger.Fatal("could not set graphite find fetch options parser", zap.Error(err))
+			}
+		}
+		if limits := cfg.Carbon.LimitsRender; limits != nil {
+			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
+			graphiteRenderFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
+				handleroptions.FetchOptionsBuilderOptions{
+					Limits:        fetchOptsBuilderLimitsOpts,
+					RestrictByTag: storageRestrictByTags,
+					Timeout:       timeout,
+				})
+			if err != nil {
+				logger.Fatal("could not set graphite find fetch options parser", zap.Error(err))
+			}
+		}
 	}
 
 	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
@@ -504,8 +533,8 @@ func Run(runOpts RunOptions) {
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
-		runOpts.DBConfig, fetchOptsBuilder, queryCtxOpts,
-		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
+		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
+		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)
 	if err != nil {

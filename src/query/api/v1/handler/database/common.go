@@ -44,12 +44,12 @@ func RegisterRoutes(
 	r *queryhttp.EndpointRegistry,
 	client clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 	namespaceValidator options.NamespaceValidator,
 ) error {
-	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
+	createHandler, err := NewCreateHandler(client, cfg, embeddedDBCfg,
 		defaults, instrumentOpts, namespaceValidator)
 	if err != nil {
 		return err
