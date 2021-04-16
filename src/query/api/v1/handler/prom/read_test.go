@@ -21,6 +21,7 @@
 package prom
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -169,6 +170,7 @@ func TestPromReadHandlerErrors(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			setup := setupTest(t)
 			setup.queryable.selectFn = func(
@@ -179,7 +181,7 @@ func TestPromReadHandlerErrors(t *testing.T) {
 				return nil, nil, tc.err
 			}
 
-			req, _ := http.NewRequest("GET", native.PromReadURL, nil)
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", native.PromReadURL, nil)
 			req.URL.RawQuery = defaultParams().Encode()
 
 			recorder := httptest.NewRecorder()
