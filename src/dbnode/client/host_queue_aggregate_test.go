@@ -62,11 +62,6 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 
 	// Prepare aggregates
 	aggregate := testAggregateOp("testNs", callback)
-	wg.Add(1)
-	assert.NoError(t, queue.Enqueue(aggregate))
-	assert.Equal(t, 1, queue.Len())
-	// Sleep some so that we can ensure flushing is not happening until queue is full
-	time.Sleep(20 * time.Millisecond)
 
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
@@ -75,6 +70,10 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 	mockClient.EXPECT().AggregateRaw(gomock.Any(), gomock.Any()).Do(aggregateExec).Return(nil, nil)
 	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
+
+	// Execute aggregate
+	wg.Add(1)
+	assert.NoError(t, queue.Enqueue(aggregate))
 
 	// Close the queue should cause all writes to be flushed
 	queue.Close()
