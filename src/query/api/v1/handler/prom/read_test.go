@@ -21,6 +21,7 @@
 package prom
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -34,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/storage"
-	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/query/storage/prometheus"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/prometheus/prometheus/pkg/labels"
@@ -144,14 +145,14 @@ func TestPromReadHandlerInvalidQuery(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
-func TestPromReadHandlerExecuteInvalidParamsError(t *testing.T) {
+func TestPromReadHandlerExecutePromError(t *testing.T) {
 	setup := setupTest(t)
 	setup.queryable.selectFn = func(
 		sortSeries bool,
 		hints *promstorage.SelectHints,
 		labelMatchers ...*labels.Matcher,
 	) (promstorage.SeriesSet, promstorage.Warnings, error) {
-		return nil, nil, xerrors.NewInvalidParamsError(fmt.Errorf("user input error"))
+		return nil, nil, fmt.Errorf("prom error")
 	}
 
 	req, _ := http.NewRequest("GET", native.PromReadURL, nil)
@@ -164,6 +165,28 @@ func TestPromReadHandlerExecuteInvalidParamsError(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
 	require.Equal(t, statusError, resp.Status)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+func TestPromReadHandlerExecuteStorageError(t *testing.T) {
+	setup := setupTest(t)
+	setup.queryable.selectFn = func(
+		sortSeries bool,
+		hints *promstorage.SelectHints,
+		labelMatchers ...*labels.Matcher,
+	) (promstorage.SeriesSet, promstorage.Warnings, error) {
+		return nil, nil, prometheus.NewStorageErr(fmt.Errorf("storage error"))
+	}
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", native.PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
+
+	recorder := httptest.NewRecorder()
+	setup.readHandler.ServeHTTP(recorder, req)
+
+	var resp response
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, statusError, resp.Status)
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
 }
 
 func TestPromReadInstantHandler(t *testing.T) {
