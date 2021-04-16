@@ -1327,6 +1327,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesAugmentTag(t *testing.
 	tags := []Tag{
 		{Name: "datacenter", Value: "abc"},
 	}
+	//nolint:dupl
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
 		identTag: "app",
 		rulesConfig: &RulesConfiguration{
@@ -3151,6 +3152,7 @@ func testDownsamplerAggregationIngest(
 		}
 	}
 
+	//nolint:dupl
 	for _, metric := range testTimerMetrics {
 		appender.NextMetric()
 
