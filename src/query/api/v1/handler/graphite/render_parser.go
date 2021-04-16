@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite/pickle"
-	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/storage"
@@ -89,9 +89,9 @@ type RenderRequest struct {
 func ParseRenderRequest(
 	ctx context.Context,
 	r *http.Request,
-	opts options.HandlerOptions,
+	fetchOptsBuilder handleroptions.FetchOptionsBuilder,
 ) (context.Context, RenderRequest, *storage.FetchOptions, error) {
-	ctx, fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
+	ctx, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(ctx, r)
 	if err != nil {
 		return nil, RenderRequest{}, nil, err
 	}
