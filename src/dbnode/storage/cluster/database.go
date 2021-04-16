@@ -407,7 +407,8 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		count := d.bootstrapCount[id]
 		if count != len(namespaces) {
 			// Should never happen if bootstrapped and durable.
-			d.log.Debug("database indicated that it was bootstrapped and durable, but number of bootstrapped shards did not match number of namespaces",
+			d.log.Debug("database indicated that it was bootstrapped and durable, "+
+				"but number of bootstrapped shards did not match number of namespaces",
 				zap.Uint32("shard", id),
 				zap.Int("count", count),
 				zap.Int("numNamespaces", len(namespaces)))
