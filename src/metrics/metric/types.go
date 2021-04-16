@@ -58,6 +58,7 @@ var (
 	PromSummaryValue        = []byte("summary")
 	PromInfoValue           = []byte("info")
 	PromStateSetValue       = []byte("state_set")
+	PromQuantileName        = []byte("quantile")
 
 	M3MetricsPrefix       = []byte("__m3")
 	M3MetricsPrefixString = string(M3MetricsPrefix)
@@ -67,6 +68,7 @@ var (
 	M3MetricsGraphitePrefix      = []byte(M3MetricsPrefixString + "_graphite_prefix__")
 	M3MetricsDropTimestamp       = []byte(M3MetricsPrefixString + "_drop_timestamp__")
 	M3PromTypeTag                = []byte(M3MetricsPrefixString + "_prom_type__")
+	M3MetricsPromSummary         = []byte(M3MetricsPrefixString + "_prom_summary__")
 )
 
 func (t Type) String() string {

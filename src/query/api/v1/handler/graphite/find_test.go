@@ -233,7 +233,7 @@ func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string)
 		})
 	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
-		SetFetchOptionsBuilder(builder).
+		SetGraphiteFindFetchOptionsBuilder(builder).
 		SetStorage(store)
 	h := NewFindHandler(opts)
 

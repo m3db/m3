@@ -24,6 +24,9 @@ import (
 	gocontext "context"
 	"time"
 
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -43,8 +46,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber/tchannel-go"
 )
 
 // Client can create sessions to write and read to a cluster.
@@ -704,7 +705,16 @@ type Options interface {
 
 	// NamespaceInitializer returns the NamespaceInitializer.
 	NamespaceInitializer() namespace.Initializer
+
+	// SetThriftContextFn sets the retrier for streaming blocks.
+	SetThriftContextFn(value ThriftContextFn) Options
+
+	// ThriftContextFn returns the retrier for streaming blocks.
+	ThriftContextFn() ThriftContextFn
 }
+
+// ThriftContextFn turns a context into a thrift context for a thrift call.
+type ThriftContextFn func(gocontext.Context) thrift.Context
 
 // AdminOptions is a set of administration client options.
 type AdminOptions interface {
