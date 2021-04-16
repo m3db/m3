@@ -135,10 +135,10 @@ type HandlerOptions interface {
 	// SetConfig sets the config.
 	SetConfig(c config.Configuration) HandlerOptions
 
-	// EmbeddedDbCfg returns the embedded db config.
-	EmbeddedDbCfg() *dbconfig.DBConfiguration
-	// SetEmbeddedDbCfg sets the embedded db config.
-	SetEmbeddedDbCfg(c *dbconfig.DBConfiguration) HandlerOptions
+	// EmbeddedDBCfg returns the embedded db config.
+	EmbeddedDBCfg() *dbconfig.DBConfiguration
+	// SetEmbeddedDBCfg sets the embedded db config.
+	SetEmbeddedDBCfg(c *dbconfig.DBConfiguration) HandlerOptions
 
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
@@ -243,7 +243,7 @@ type handlerOptions struct {
 	clusters                          m3.Clusters
 	clusterClient                     clusterclient.Client
 	config                            config.Configuration
-	embeddedDbCfg                     *dbconfig.DBConfiguration
+	embeddedDBCfg                     *dbconfig.DBConfiguration
 	createdAt                         time.Time
 	tagOptions                        models.TagOptions
 	fetchOptionsBuilder               handleroptions.FetchOptionsBuilder
@@ -282,7 +282,7 @@ func NewHandlerOptions(
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder,
 	graphiteFindFetchOptionsBuilder handleroptions.FetchOptionsBuilder,
 	graphiteRenderFetchOptionsBuilder handleroptions.FetchOptionsBuilder,
@@ -310,7 +310,7 @@ func NewHandlerOptions(
 		clusters:                          m3dbClusters,
 		clusterClient:                     clusterClient,
 		config:                            cfg,
-		embeddedDbCfg:                     embeddedDbCfg,
+		embeddedDBCfg:                     embeddedDBCfg,
 		createdAt:                         time.Now(),
 		tagOptions:                        tagOptions,
 		fetchOptionsBuilder:               fetchOptionsBuilder,
@@ -407,14 +407,14 @@ func (o *handlerOptions) SetConfig(c config.Configuration) HandlerOptions {
 	return &opts
 }
 
-func (o *handlerOptions) EmbeddedDbCfg() *dbconfig.DBConfiguration {
-	return o.embeddedDbCfg
+func (o *handlerOptions) EmbeddedDBCfg() *dbconfig.DBConfiguration {
+	return o.embeddedDBCfg
 }
 
-func (o *handlerOptions) SetEmbeddedDbCfg(
+func (o *handlerOptions) SetEmbeddedDBCfg(
 	c *dbconfig.DBConfiguration) HandlerOptions {
 	opts := *o
-	opts.embeddedDbCfg = c
+	opts.embeddedDBCfg = c
 	return &opts
 }
 
