@@ -118,7 +118,7 @@ func (w testWrite) encodedTags(t *testing.T) checked.Bytes {
 }
 
 func TestBatchWriterAddAndIter(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, namespace, nil)
+	writeBatch := NewWriteBatch(namespace, nil)
 
 	for i, write := range writes {
 		writeBatch.Add(
@@ -135,7 +135,7 @@ func TestBatchWriterAddAndIter(t *testing.T) {
 }
 
 func TestBatchWriterAddTaggedAndIter(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, namespace, nil)
+	writeBatch := NewWriteBatch(namespace, nil)
 
 	for i, write := range writes {
 		writeBatch.AddTagged(
@@ -154,7 +154,7 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 }
 
 func TestBatchWriterSetSeries(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, namespace, nil)
+	writeBatch := NewWriteBatch(namespace, nil)
 
 	for i, write := range writes {
 		writeBatch.AddTagged(
@@ -221,7 +221,7 @@ func TestBatchWriterSetSeries(t *testing.T) {
 func TestWriteBatchReset(t *testing.T) {
 	var (
 		numResets  = 10
-		writeBatch = NewWriteBatch(batchSize, namespace, nil)
+		writeBatch = NewWriteBatch(namespace, nil)
 	)
 
 	for i := 0; i < numResets; i++ {
@@ -286,7 +286,7 @@ func TestBatchWriterFinalizer(t *testing.T) {
 		}
 	)
 
-	writeBatch := NewWriteBatch(batchSize, namespace, finalizeFn)
+	writeBatch := NewWriteBatch(namespace, finalizeFn)
 	writeBatch.SetFinalizeEncodedTagsFn(finalizeEncodedTagsFn)
 	writeBatch.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 

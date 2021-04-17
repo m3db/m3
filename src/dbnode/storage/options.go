@@ -193,7 +193,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
 
-	writeBatchPool := writes.NewWriteBatchPool(poolOpts, nil, nil)
+	writeBatchPool := writes.NewWriteBatchPool(poolOpts, nil)
 	writeBatchPool.Init()
 
 	segmentReaderPool := xio.NewSegmentReaderPool(poolOpts)

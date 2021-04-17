@@ -33,6 +33,13 @@ var (
 	errTagsAndEncodedTagsRequired = errors.New("tags iterator and encoded tags must be provided")
 )
 
+const (
+	// prealocateBatchCoeff is used for allocating write batches of slightly bigger
+	// capacity than needed for the current request, in order to reduce allocations on
+	// subsequent reuse of pooled write batch.
+	prealocateBatchCoeff = 1.2
+)
+
 type writeBatch struct {
 	writes       []BatchWrite
 	pendingIndex []PendingIndexInsert
@@ -50,13 +57,10 @@ type writeBatch struct {
 
 // NewWriteBatch creates a new WriteBatch.
 func NewWriteBatch(
-	batchSize int,
 	ns ident.ID,
 	finalizeFn func(WriteBatch),
 ) WriteBatch {
 	return &writeBatch{
-		writes:       make([]BatchWrite, 0, batchSize),
-		pendingIndex: make([]PendingIndexInsert, 0, batchSize),
 		ns:           ns,
 		finalizeFn:   finalizeFn,
 	}
@@ -102,14 +106,20 @@ func (b *writeBatch) Reset(
 	batchSize int,
 	ns ident.ID,
 ) {
-	var writes []BatchWrite
+	prealocateBatchCap := int(float32(batchSize) * prealocateBatchCoeff)
+
 	if batchSize > cap(b.writes) {
-		writes = make([]BatchWrite, 0, batchSize)
+		b.writes = make([]BatchWrite, 0, prealocateBatchCap)
 	} else {
-		writes = b.writes[:0]
+		b.writes = b.writes[:0]
 	}
 
-	b.writes = writes
+	if batchSize > cap(b.pendingIndex) {
+		b.pendingIndex = make([]PendingIndexInsert, 0, prealocateBatchCap)
+	} else {
+		b.pendingIndex = b.pendingIndex[:0]
+	}
+
 	b.ns = ns
 	b.finalizeEncodedTagsFn = nil
 	b.finalizeAnnotationFn = nil
@@ -144,14 +154,14 @@ func (b *writeBatch) PendingIndex() []PendingIndexInsert {
 	return b.pendingIndex
 }
 
-// Set the function that will be called to finalize annotations when a WriteBatch
-// is finalized, allowing the caller to pool them.
+// SetFinalizeEncodedTagsFn sets the function that will be called to finalize encodedTags
+// when a WriteBatch is finalized, allowing the caller to pool them.
 func (b *writeBatch) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
 	b.finalizeEncodedTagsFn = f
 }
 
-// Set the function that will be called to finalize annotations when a WriteBatch
-// is finalized, allowing the caller to pool them.
+// SetFinalizeAnnotationFn sets the function that will be called to finalize annotations
+// when a WriteBatch is finalized, allowing the caller to pool them.
 func (b *writeBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
 	b.finalizeAnnotationFn = f
 }
