@@ -18,7 +18,7 @@ While reading it, we recommend referring to [the default configuration file](htt
 ### Client Write and Read consistency
 
 We recommend running the client with `writeConsistencyLevel` set to `majority` and `readConsistencyLevel` set to `unstrict_majority`.
-This means that all write must be acknowledged by a quorums of nodes in order to be considered succesful, and that reads will attempt to achieve quorum, but will return the data from a single node if they are unable to achieve quorum. This ensures that reads will normally ensure consistency, but degraded conditions will cause reads to fail outright as long as at least a single node can satisfy the request.
+This means that all write must be acknowledged by a quorums of nodes in order to be considered succesful, and that reads will attempt to achieve quorum, but will return the data from a single node if they are unable to achieve quorum. This ensures that reads will normally ensure consistency, and degraded conditions will not cause reads to fail outright as long as at least a single node can satisfy the request.
 
 You can read about the consistency levels in more detail in [the Consistency Levels section](/docs/architecture/m3db/consistencylevels)
 
