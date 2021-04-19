@@ -190,10 +190,7 @@ type indexFilesetsBeforeFn func(dir string,
 	exclusiveTime time.Time,
 ) ([]string, error)
 
-type readIndexInfoFilesFn func(filePathPrefix string,
-	namespace ident.ID,
-	readerBufferSize int,
-) []fs.ReadIndexInfoFileResult
+type readIndexInfoFilesFn func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult
 
 type newNamespaceIndexOpts struct {
 	md                      namespace.Metadata
@@ -1039,11 +1036,11 @@ func (i *nsIndex) flushableBlocks(
 	// NB(bodu): We read index info files once here to avoid re-reading all of them
 	// for each block.
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
-	infoFiles := i.readIndexInfoFilesFn(
-		fsOpts.FilePathPrefix(),
-		i.nsMetadata.ID(),
-		fsOpts.InfoReaderBufferSize(),
-	)
+	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   fsOpts.FilePathPrefix(),
+		Namespace:        i.nsMetadata.ID(),
+		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+	})
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 
 	now := i.nowFn()
@@ -2098,13 +2095,30 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	return i.deleteFilesFn(filesets)
 }
 
+func (i *nsIndex) CleanupCorruptedFileSets() error {
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
+	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   fsOpts.FilePathPrefix(),
+		Namespace:        i.nsMetadata.ID(),
+		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+		IncludeCorrupted: true,
+	})
+	var filesets []string
+	for _, file := range infoFiles {
+		if file.Err.Error() == fs.ErrCorruptedFileset {
+			filesets = append(filesets, file.AbsoluteFilePaths...)
+		}
+	}
+	return i.deleteFilesFn(filesets)
+}
+
 func (i *nsIndex) CleanupDuplicateFileSets() error {
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
-	infoFiles := i.readIndexInfoFilesFn(
-		fsOpts.FilePathPrefix(),
-		i.nsMetadata.ID(),
-		fsOpts.InfoReaderBufferSize(),
-	)
+	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   fsOpts.FilePathPrefix(),
+		Namespace:        i.nsMetadata.ID(),
+		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+	})
 
 	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[xtime.UnixNano]map[idxpersist.IndexVolumeType][]fs.Segments)
 	for _, file := range infoFiles {

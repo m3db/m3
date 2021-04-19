@@ -737,6 +737,9 @@ type NamespaceIndex interface {
 	// using the provided `t` as the frame of reference.
 	CleanupExpiredFileSets(t time.Time) error
 
+	// CleanupCorruptedFileSets removes corrupted fileset files.
+	CleanupCorruptedFileSets() error
+
 	// CleanupDuplicateFileSets removes duplicate fileset files.
 	CleanupDuplicateFileSets() error
 

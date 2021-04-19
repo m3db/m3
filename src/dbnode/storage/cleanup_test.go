@@ -353,7 +353,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	ns.EXPECT().Index().Times(2).Return(idx, nil)
+	ns.EXPECT().Index().Times(3).Return(idx, nil)
 
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)
@@ -361,6 +361,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
+	idx.EXPECT().CleanupCorruptedFileSets().Return(nil)
 	idx.EXPECT().CleanupDuplicateFileSets().Return(nil)
 	require.NoError(t, cleanup(mgr, ts))
 }

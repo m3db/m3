@@ -138,13 +138,10 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(
-		filePathPrefix string,
-		namespace ident.ID,
-		readerBufferSize int,
-	) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
+
 	idx.deleteFilesFn = func(s []string) error {
 		require.Equal(t, []string{fset1.Name(), fset2.Name()}, s)
 		multiErr := xerrors.NewMultiError()
@@ -204,13 +201,10 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(
-		filePathPrefix string,
-		namespace ident.ID,
-		readerBufferSize int,
-	) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
+
 	idx.deleteFilesFn = func(s []string) error {
 		require.Equal(t, []string{}, s)
 		return nil

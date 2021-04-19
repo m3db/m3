@@ -339,8 +339,11 @@ func TestBootstrapIndex(t *testing.T) {
 	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
 
 	// Check that single persisted segment got written out
-	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
-		src.fsopts.InfoReaderBufferSize())
+	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+		filePathPrefix:   src.fsopts.FilePathPrefix(),
+		namespace:        testNs1ID,
+		readerBufferSize: src.fsopts.InfoReaderBufferSize(),
+	})
 	require.Equal(t, 1, len(infoFiles))
 
 	for _, infoFile := range infoFiles {
@@ -419,8 +422,11 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
 
 	// Check that not segments were written out
-	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
-		src.fsopts.InfoReaderBufferSize())
+	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+		filePathPrefix:   src.fsopts.FilePathPrefix(),
+		namespace:        testNs1ID,
+		readerBufferSize: src.fsopts.InfoReaderBufferSize(),
+	})
 	require.Equal(t, 0, len(infoFiles))
 
 	// Check that both segments are mutable
@@ -641,8 +647,11 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 	indexResults := tester.ResultForNamespace(ns.ID()).IndexResult.IndexResults()
 
 	// Check that single persisted segment got written out
-	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
-		src.fsopts.InfoReaderBufferSize())
+	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+		filePathPrefix:   src.fsopts.FilePathPrefix(),
+		namespace:        testNs1ID,
+		readerBufferSize: src.fsopts.InfoReaderBufferSize(),
+	})
 	require.Equal(t, test.expectedInfoFiles, len(infoFiles), "index info files")
 
 	for _, infoFile := range infoFiles {
