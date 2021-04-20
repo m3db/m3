@@ -2141,7 +2141,7 @@ func (i *nsIndex) CleanupDuplicateFileSets(activeShards []uint32) error {
 			for _, seg := range segmentsOrderByVolumeIndex {
 				for len(segmentsToKeep) > 0 {
 					idx := len(segmentsToKeep) - 1
-					if previous := segmentsToKeep[idx]; seg.ShardTimeRanges().FilterShards(activeShards).IsSuperset(
+					if previous := segmentsToKeep[idx]; seg.ShardTimeRanges().IsSuperset(
 						previous.ShardTimeRanges().FilterShards(activeShards)) {
 						filesToDelete = append(filesToDelete, previous.AbsoluteFilePaths()...)
 						segmentsToKeep = segmentsToKeep[:idx]
