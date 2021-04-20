@@ -98,9 +98,8 @@ ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos1-a
 ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1**)' 3"
 ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1)' 3"
 
-t=$(date +%s)
-
 # Test basic cases
+t=$(date +%s)
 echo "a 0 $t"             | nc 0.0.0.0 7204
 echo "a.bar 0 $t"         | nc 0.0.0.0 7204
 echo "a.biz 0 $t"         | nc 0.0.0.0 7204
@@ -137,3 +136,23 @@ ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'f.bar.*' fbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'g.bar.*' gbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'h.bar*' hbarbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'i.bar*' ibarbaz.json"
+
+# Test find limits from config of matching max docs of 200 with:
+# carbon:
+#   limitsFind:
+#     perQuery:
+#       maxFetchedDocs: 100
+#       requireExhaustive: false
+t=$(date +%s)
+for i in $(seq 1 200); do
+  echo "find.limits.perquery.maxdocs.series_${i} 42 $t" | nc 0.0.0.0 7204
+done
+
+# Check between 90 and 10 (won't be exact match since we're limiting by docs
+# not by max fetched results).
+# Note: First check that there's 200 series there by using count().
+ATTEMPTS=20 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff "read_carbon 'countSeries(find.limits.perquery.maxdocs.*)' 200"
+ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+  '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -ge 90 ]]'
+ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+  '[[ $(curl -s localhost:7201/api/v1/graphite/metrics/find?query=find.limits.perquery.maxdocs.* | jq -r ". | length") -le 110 ]]'
