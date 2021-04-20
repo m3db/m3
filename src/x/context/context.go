@@ -26,15 +26,12 @@ import (
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xresource "github.com/m3db/m3/src/x/resource"
-	xsys "github.com/m3db/m3/src/x/sys"
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
 )
-
-const finalizeableListSlots = 16
 
 var (
 	noopTracer opentracing.NoopTracer
@@ -45,21 +42,13 @@ var (
 type ctx struct {
 	sync.RWMutex
 
-	goCtx stdctx.Context
-	pool  contextPool
-	done  bool
-	wg    sync.WaitGroup
-
-	// Used fixed size allocation.
-	finalizeables [finalizeableListSlots]finalizeableListSlot
-
+	goCtx                stdctx.Context
+	pool                 contextPool
+	done                 bool
+	wg                   sync.WaitGroup
+	finalizeables        *finalizeableList
 	parent               Context
 	checkedAndNotSampled bool
-}
-
-type finalizeableListSlot struct {
-	lock sync.Mutex
-	list *finalizeableList
 }
 
 type finalizeable struct {
@@ -131,56 +120,45 @@ func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 }
 
 func (c *ctx) registerFinalizeable(f finalizeable) {
-	if c.RLock(); c.done {
-		c.RUnlock()
+	if c.Lock(); c.done {
+		c.Unlock()
 		return
 	}
 
-	slot := xsys.CPUCore() % finalizeableListSlots
-	c.finalizeables[slot].lock.Lock()
-	if c.finalizeables[slot].list == nil {
+	if c.finalizeables == nil {
 		if c.pool != nil {
-			c.finalizeables[slot].list = c.pool.getFinalizeablesList()
+			c.finalizeables = c.pool.getFinalizeablesList()
 		} else {
-			c.finalizeables[slot].list = newFinalizeableList(nil)
+			c.finalizeables = newFinalizeableList(nil)
 		}
 	}
-	c.finalizeables[slot].list.PushBack(f)
-	c.finalizeables[slot].lock.Unlock()
+	c.finalizeables.PushBack(f)
 
-	c.RUnlock()
+	c.Unlock()
 }
 
 func (c *ctx) numFinalizeables() int {
-	var n int
-	for slot := range c.finalizeables {
-		c.finalizeables[slot].lock.Lock()
-		if c.finalizeables[slot].list != nil {
-			n += c.finalizeables[slot].list.Len()
-		}
-		c.finalizeables[slot].lock.Unlock()
+	if c.finalizeables == nil {
+		return 0
 	}
-	return n
+	return c.finalizeables.Len()
 }
 
 func (c *ctx) DependsOn(blocker Context) {
-	c.RLock()
-	parent := c.parentCtxWithRLock()
+	parent := c.parentCtx()
 	if parent != nil {
-		c.RUnlock()
 		parent.DependsOn(blocker)
 		return
 	}
-	done := c.done
-	if !done {
-		c.wg.Add(1)
-	}
-	c.RUnlock()
 
-	if !done {
-		// Register outside of RLock.
+	c.Lock()
+
+	if !c.done {
+		c.wg.Add(1)
 		blocker.RegisterFinalizer(c)
 	}
+
+	c.Unlock()
 }
 
 // Finalize handles a call from another context that was depended upon closing.
@@ -250,47 +228,47 @@ func (c *ctx) close(mode closeMode, returnMode returnToPoolMode) {
 		c.Unlock()
 		return
 	}
+
 	c.done = true
+
+	// Capture finalizeables to avoid concurrent r/w if Reset
+	// is used after a caller waits for the finalizers to finish
+	f := c.finalizeables
+	c.finalizeables = nil
+
 	c.Unlock()
+
+	if f == nil {
+		c.tryReturnToPool(returnMode)
+		return
+	}
 
 	switch mode {
 	case closeAsync:
-		go c.finalize(returnMode)
+		go c.finalize(f, returnMode)
 	case closeBlock:
-		c.finalize(returnMode)
+		c.finalize(f, returnMode)
 	}
 }
 
-func (c *ctx) finalize(returnMode returnToPoolMode) {
+func (c *ctx) finalize(f *finalizeableList, returnMode returnToPoolMode) {
 	// Wait for dependencies.
 	c.wg.Wait()
 
 	// Now call finalizers.
-	for slot := range c.finalizeables {
-		c.finalizeables[slot].lock.Lock()
-		f := c.finalizeables[slot].list
-		c.finalizeables[slot].list = nil
-		c.finalizeables[slot].lock.Unlock()
-
-		if f == nil {
-			// Nothing to callback.
-			continue
+	for elem := f.Front(); elem != nil; elem = elem.Next() {
+		if elem.Value.finalizer != nil {
+			elem.Value.finalizer.Finalize()
 		}
-
-		for elem := f.Front(); elem != nil; elem = elem.Next() {
-			if elem.Value.finalizer != nil {
-				elem.Value.finalizer.Finalize()
-			}
-			if elem.Value.closer != nil {
-				elem.Value.closer.Close()
-			}
+		if elem.Value.closer != nil {
+			elem.Value.closer.Close()
 		}
+	}
 
-		if c.pool != nil {
-			// NB(r): Always return finalizeables, only the
-			// context itself might want to be reused immediately.
-			c.pool.putFinalizeablesList(f)
-		}
+	if c.pool != nil {
+		// NB(r): Always return finalizeables, only the
+		// context itself might want to be reused immediately.
+		c.pool.putFinalizeablesList(f)
 	}
 
 	c.tryReturnToPool(returnMode)
@@ -304,10 +282,7 @@ func (c *ctx) Reset() {
 	}
 
 	c.Lock()
-	c.done, c.goCtx, c.checkedAndNotSampled = false, stdctx.Background(), false
-	for idx := range c.finalizeables {
-		c.finalizeables[idx] = finalizeableListSlot{}
-	}
+	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, stdctx.Background(), false
 	c.Unlock()
 }
 
@@ -345,14 +320,10 @@ func (c *ctx) setParentCtx(parentCtx Context) {
 
 func (c *ctx) parentCtx() Context {
 	c.RLock()
-	parent := c.parentCtxWithRLock()
+	parent := c.parent
 	c.RUnlock()
 
 	return parent
-}
-
-func (c *ctx) parentCtxWithRLock() Context {
-	return c.parent
 }
 
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
