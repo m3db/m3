@@ -392,6 +392,7 @@ func (w *consumerWriterImpl) notifyReset2(err error, caller string, shard uint64
 		if err != nil {
 			w.logger.Error("connection error",
 				zap.Error(err), zap.String("caller", caller),
+				zap.String("addr", w.addr),
 				zap.Uint64("shard", shard), zap.Uint64("id", id),
 				zap.Int("connIndex", connIndex),
 				zap.Int("numConnections", numConnections))
