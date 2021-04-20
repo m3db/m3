@@ -5352,6 +5352,34 @@ func (mr *MockOptionsMockRecorder) SetPermitsOptions(value interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPermitsOptions", reflect.TypeOf((*MockOptions)(nil).SetPermitsOptions), value)
 }
 
+// LimitsOptions mocks base method
+func (m *MockOptions) LimitsOptions() limits.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LimitsOptions")
+	ret0, _ := ret[0].(limits.Options)
+	return ret0
+}
+
+// LimitsOptions indicates an expected call of LimitsOptions
+func (mr *MockOptionsMockRecorder) LimitsOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LimitsOptions", reflect.TypeOf((*MockOptions)(nil).LimitsOptions))
+}
+
+// SetLimitsOptions mocks base method
+func (m *MockOptions) SetLimitsOptions(value limits.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLimitsOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetLimitsOptions indicates an expected call of SetLimitsOptions
+func (mr *MockOptionsMockRecorder) SetLimitsOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLimitsOptions", reflect.TypeOf((*MockOptions)(nil).SetLimitsOptions), value)
+}
+
 // MockMemoryTracker is a mock of MemoryTracker interface
 type MockMemoryTracker struct {
 	ctrl     *gomock.Controller

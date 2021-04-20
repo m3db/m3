@@ -67,10 +67,10 @@ type PostingsListCache struct {
 }
 
 // NewPostingsListCache creates a new query cache.
-func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsListCache, Closer, error) {
+func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsListCache, error) {
 	lru, err := newPostingsListLRU(size)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	plc := &PostingsListCache{
@@ -80,8 +80,12 @@ func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsLis
 		metrics: newPostingsListCacheMetrics(opts.InstrumentOptions.MetricsScope()),
 	}
 
-	closer := plc.startReportLoop()
-	return plc, closer, nil
+	return plc, nil
+}
+
+// Start the background report loop and return a Closer to cleanup.
+func (q *PostingsListCache) Start() Closer {
+	return q.startReportLoop()
 }
 
 // GetRegexp returns the cached results for the provided regexp query, if any.

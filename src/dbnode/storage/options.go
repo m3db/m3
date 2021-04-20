@@ -99,6 +99,7 @@ var (
 	errIndexClaimsManagerNotSet   = errors.New("index claims manager is not set")
 	errBlockLeaserNotSet          = errors.New("block leaser is not set")
 	errOnColdFlushNotSet          = errors.New("on cold flush is not set, requires at least a no-op implementation")
+	errLimitsOptionsNotSet        = errors.New("limits options are not set")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -178,6 +179,7 @@ type options struct {
 	namespaceHooks                  NamespaceHooks
 	tileAggregator                  TileAggregator
 	permitsOptions                  permits.Options
+	limitsOptions                   limits.Options
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -311,6 +313,10 @@ func (o *options) Validate() error {
 
 	if o.onColdFlush == nil {
 		return errOnColdFlushNotSet
+	}
+
+	if o.limitsOptions == nil {
+		return errLimitsOptionsNotSet
 	}
 
 	return nil
@@ -912,6 +918,16 @@ func (o *options) SetPermitsOptions(value permits.Options) Options {
 	opts := *o
 	opts.permitsOptions = value
 
+	return &opts
+}
+
+func (o *options) LimitsOptions() limits.Options {
+	return o.limitsOptions
+}
+
+func (o *options) SetLimitsOptions(value limits.Options) Options {
+	opts := *o
+	opts.limitsOptions = value
 	return &opts
 }
 

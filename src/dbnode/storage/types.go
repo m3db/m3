@@ -1394,6 +1394,12 @@ type Options interface {
 
 	// SetPermitsOptions sets the permits options.
 	SetPermitsOptions(value permits.Options) Options
+
+	// LimitsOptions returns the limit options.
+	LimitsOptions() limits.Options
+
+	// SetLimitsOptions sets the limits options.
+	SetLimitsOptions(value limits.Options) Options
 }
 
 // MemoryTracker tracks memory.

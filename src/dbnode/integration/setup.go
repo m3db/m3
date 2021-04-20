@@ -276,7 +276,7 @@ func NewTestSetup(
 		indexMode = index.InsertAsync
 	}
 
-	plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+	plCache, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
 		InstrumentOptions: iOpts,
 	})
 	if err != nil {
@@ -284,7 +284,7 @@ func NewTestSetup(
 	}
 	// Ok to run immediately since it just closes the background reporting loop. Only ok because
 	// this is a test setup, in production we would want the metrics.
-	stopReporting()
+	plCache.Start()()
 
 	indexOpts := storageOpts.IndexOptions().
 		SetInsertMode(indexMode).
