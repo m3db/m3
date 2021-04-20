@@ -340,9 +340,9 @@ func TestBootstrapIndex(t *testing.T) {
 
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
-		filePathPrefix:   src.fsopts.FilePathPrefix(),
-		namespace:        testNs1ID,
-		readerBufferSize: src.fsopts.InfoReaderBufferSize(),
+		FilePathPrefix:   src.fsopts.FilePathPrefix(),
+		Namespace:        testNs1ID,
+		ReaderBufferSize: src.fsopts.InfoReaderBufferSize(),
 	})
 	require.Equal(t, 1, len(infoFiles))
 
@@ -423,9 +423,9 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 
 	// Check that not segments were written out
 	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
-		filePathPrefix:   src.fsopts.FilePathPrefix(),
-		namespace:        testNs1ID,
-		readerBufferSize: src.fsopts.InfoReaderBufferSize(),
+		FilePathPrefix:   src.fsopts.FilePathPrefix(),
+		Namespace:        testNs1ID,
+		ReaderBufferSize: src.fsopts.InfoReaderBufferSize(),
 	})
 	require.Equal(t, 0, len(infoFiles))
 
@@ -648,9 +648,9 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
-		filePathPrefix:   src.fsopts.FilePathPrefix(),
-		namespace:        testNs1ID,
-		readerBufferSize: src.fsopts.InfoReaderBufferSize(),
+		FilePathPrefix:   src.fsopts.FilePathPrefix(),
+		Namespace:        testNs1ID,
+		ReaderBufferSize: src.fsopts.InfoReaderBufferSize(),
 	})
 	require.Equal(t, test.expectedInfoFiles, len(infoFiles), "index info files")
 

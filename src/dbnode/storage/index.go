@@ -2095,7 +2095,19 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	return i.deleteFilesFn(filesets)
 }
 
+type latestVolumeIndices struct {
+	latestVolumeIndex          int
+	latestCorruptedVolumeIndex int
+}
+
 func (i *nsIndex) CleanupCorruptedFileSets() error {
+	/*
+	   Corrupted index filesets can be safely cleaned up if its not
+	   the latest volume index per index volume type/block start combo.
+
+	   We are guaranteed not to be actively writing to an index fileset once
+	   we're already writing to later volume indices.
+	*/
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
 		FilePathPrefix:   fsOpts.FilePathPrefix(),
@@ -2103,13 +2115,41 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
 		IncludeCorrupted: true,
 	})
-	var filesets []string
+	var (
+		toDelete         []string
+		corrupted        []string
+		latestBlockStart time.Time
+		byVolumeType     = make(map[idxpersist.IndexVolumeType]latestVolumeIndices)
+	)
 	for _, file := range infoFiles {
-		if file.Err.Error() == fs.ErrCorruptedFileset {
-			filesets = append(filesets, file.AbsoluteFilePaths...)
+		if file.ID.BlockStart.After(latestBlockStart) {
+			for volType := range byVolumeType {
+				vol := byVolumeType[volType]
+				if len(corrupted) > 0 && vol.latestCorruptedVolumeIndex > vol.latestVolumeIndex {
+					toDelete = append(toDelete, corrupted...)
+				}
+
+				byVolumeType[volType] = latestVolumeIndices{}
+			}
+			corrupted = corrupted[:0]
 		}
+
+		volType := idxpersist.DefaultIndexVolumeType
+		if file.Info.IndexVolumeType != nil {
+			volType = idxpersist.IndexVolumeType(file.Info.IndexVolumeType.Value)
+		}
+		vol := byVolumeType[volType]
+		if file.Err.Error() == fs.ErrCorruptedFileset {
+			corrupted = append(corrupted, file.AbsoluteFilePaths...)
+			vol.latestCorruptedVolumeIndex = file.ID.VolumeIndex
+			byVolumeType[volType] = vol
+			continue
+		}
+
+		vol.latestVolumeIndex = file.ID.VolumeIndex
+		byVolumeType[volType] = vol
 	}
-	return i.deleteFilesFn(filesets)
+	return i.deleteFilesFn(toDelete)
 }
 
 func (i *nsIndex) CleanupDuplicateFileSets() error {

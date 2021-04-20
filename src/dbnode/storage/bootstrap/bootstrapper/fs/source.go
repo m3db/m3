@@ -937,9 +937,9 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
 	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
-		filePathPrefix:   fsopts.FilePathPrefix(),
-		namespace:        ns.ID(),
-		readerBufferSize: fsopts.InfoReaderBufferSize(),
+		FilePathPrefix:   s.fsopts.FilePathPrefix(),
+		Namespace:        ns.ID(),
+		ReaderBufferSize: s.fsopts.InfoReaderBufferSize(),
 	})
 
 	for _, infoFile := range infoFiles {
