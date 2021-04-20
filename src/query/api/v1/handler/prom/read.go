@@ -132,7 +132,21 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("error executing query",
 			zap.Error(res.Err), zap.String("query", params.Query),
 			zap.Bool("instant", h.opts.instant))
-		xhttp.WriteError(w, res.Err)
+		var sErr *prometheus.StorageErr
+		if errors.As(res.Err, &sErr) {
+			// If the error happened in the m3 storage layer, propagate the causing error as is.
+			xhttp.WriteError(w, sErr.Unwrap())
+		} else {
+			promErr := res.Err
+			switch promErr.(type) { //nolint:errorlint
+			case promql.ErrQueryTimeout:
+			case promql.ErrQueryCanceled:
+			default:
+				// Assume any prometheus library error is a 4xx, since there are no remote calls.
+				promErr = xerrors.NewInvalidParamsError(res.Err)
+			}
+			xhttp.WriteError(w, promErr)
+		}
 		return
 	}
 
