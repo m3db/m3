@@ -325,7 +325,7 @@ func (w *messageWriterImpl) write(
 
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
-		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
+		if err := consumerWriter.Write(connIndex, w.encoder.Bytes(), m.meta.shard, m.meta.id); err != nil {
 			writeErrors++
 			continue
 		}

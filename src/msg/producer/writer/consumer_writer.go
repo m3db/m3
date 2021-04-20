@@ -52,7 +52,7 @@ type consumerWriter interface {
 	Address() string
 
 	// Write writes the bytes, it is thread safe per connection index.
-	Write(connIndex int, b []byte) error
+	Write(connIndex int, b []byte, shard uint64, id uint64) error
 
 	// Init initializes the consumer writer.
 	Init()
@@ -182,7 +182,7 @@ func newConsumerWriter(
 	// Try connecting without retry first attempt.
 	connectAllNoRetry := w.newConnectFn(connectOptions{retry: false})
 	if err := w.resetWithConnectFn(connectAllNoRetry); err != nil {
-		w.notifyReset(err)
+		w.notifyReset(err, "newConsumerWriter", 999, 999)
 	}
 	return w
 }
@@ -193,7 +193,7 @@ func (w *consumerWriterImpl) Address() string {
 
 // Write should fail fast so that the write could be tried on other
 // consumer writers that are sharing the message queue.
-func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
+func (w *consumerWriterImpl) Write(connIndex int, b []byte, shard uint64, id uint64) error {
 	w.writeState.RLock()
 	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
 		w.writeState.RUnlock()
@@ -217,7 +217,7 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	w.writeState.RUnlock()
 
 	if err != nil {
-		w.notifyReset(err)
+		w.notifyReset(err, "Write", shard, id)
 		w.m.encodeError.Inc(1)
 	}
 
@@ -258,7 +258,7 @@ func (w *consumerWriterImpl) flushUntilClose() {
 			for _, conn := range w.writeState.conns {
 				conn.writeLock.Lock()
 				if err := conn.w.Flush(); err != nil {
-					w.notifyReset(err)
+					w.notifyReset(err, "flushUntilClose", 999, 999)
 				}
 				conn.writeLock.Unlock()
 			}
@@ -356,7 +356,7 @@ func (w *consumerWriterImpl) readAcks(idx int) error {
 	conn.ack.Metadata = conn.ack.Metadata[:0]
 	err := conn.decoder.Decode(&conn.ack)
 	if err != nil {
-		w.notifyReset(err)
+		w.notifyReset(err, "readAcks", 999, 999)
 		w.m.decodeError.Inc(1)
 		return err
 	}
@@ -386,11 +386,13 @@ func (w *consumerWriterImpl) Close() {
 	w.wg.Wait()
 }
 
-func (w *consumerWriterImpl) notifyReset(err error) {
+func (w *consumerWriterImpl) notifyReset(err error, caller string, shard uint64, id uint64) {
 	select {
 	case w.resetCh <- struct{}{}:
 		if err != nil {
-			w.logger.Error("connection error", zap.Error(err))
+			w.logger.Error("connection error",
+				zap.Error(err), zap.String("caller", caller),
+				zap.Uint64("shard", shard), zap.Uint64("id", id))
 		}
 	default:
 	}
