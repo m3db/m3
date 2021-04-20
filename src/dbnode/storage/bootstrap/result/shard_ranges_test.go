@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,6 +46,55 @@ func TestShardTimeRangesAdd(t *testing.T) {
 		require.Equal(t, r, testBlockSize)
 		require.Equal(t, min, times[i])
 		require.Equal(t, max, times[i+1])
+	}
+}
+
+func TestFilterShards(t *testing.T) {
+	start := time.Now().Truncate(testBlockSize)
+	end := start.Add(testBlockSize)
+	ranges := NewShardTimeRangesFromRange(start, end, 0, 1, 2)
+
+	tests := []struct {
+		name   string
+		filter []uint32
+		result []uint32
+	}{
+		{
+			name:   "empty filter",
+			filter: []uint32{},
+			result: []uint32{},
+		},
+		{
+			name:   "all exist",
+			filter: []uint32{0, 1, 2},
+			result: []uint32{0, 1, 2},
+		},
+		{
+			name:   "none exists",
+			filter: []uint32{10, 11, 12},
+			result: []uint32{},
+		},
+		{
+			name:   "some exist",
+			filter: []uint32{0, 1, 10, 11},
+			result: []uint32{0, 1},
+		},
+		{
+			name:   "some filtered out",
+			filter: []uint32{0, 1},
+			result: []uint32{0, 1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filtered := ranges.FilterShards(tt.filter)
+			require.Equal(t, filtered.Len(), len(tt.result), "unexpected length")
+			for _, s := range tt.result {
+				_, ok := filtered.Get(s)
+				assert.True(t, ok, "missing shard %v", s)
+			}
+		})
 	}
 }
 

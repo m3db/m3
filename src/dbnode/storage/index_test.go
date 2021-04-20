@@ -153,7 +153,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		}
 		return multiErr.FinalError()
 	}
-	require.NoError(t, idx.CleanupDuplicateFileSets())
+	require.NoError(t, idx.CleanupDuplicateFileSets([]uint32{0, 1, 2, 3}))
 }
 
 func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolumeType(t *testing.T) {
@@ -204,10 +204,10 @@ func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolumeType
 		},
 	}
 
+	shards := []uint32{1, 2}
 	expectedFilesToRemove := make([]string, 0)
 	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
 	for _, fileset := range filesets {
-		shards := []uint32{1, 2}
 		infoFile := newReadIndexInfoFileResult(fileset.blockStart, fileset.volumeType, fileset.volumeIndex, shards)
 		infoFiles = append(infoFiles, infoFile)
 		if fileset.shouldRemove {
@@ -231,7 +231,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolumeType
 		}
 		return nil
 	}
-	require.NoError(t, idx.CleanupDuplicateFileSets())
+	require.NoError(t, idx.CleanupDuplicateFileSets(shards))
 }
 
 func TestNamespaceIndexCleanupDuplicateFilesets_ChangingShardList(t *testing.T) {
@@ -297,7 +297,109 @@ func TestNamespaceIndexCleanupDuplicateFilesets_ChangingShardList(t *testing.T) 
 		return nil
 	}
 
-	require.NoError(t, idx.CleanupDuplicateFileSets())
+	require.NoError(t, idx.CleanupDuplicateFileSets([]uint32{1, 2, 3, 4, 5}))
+}
+
+func TestNamespaceIndexCleanupDuplicateFilesets_IgnoreNonActiveShards(t *testing.T) {
+	activeShards := []uint32{1, 2}
+	shardLists := []struct {
+		shards       []uint32
+		shouldRemove bool
+	}{
+		{
+			shards:       []uint32{1, 2, 3, 4},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 2, 3},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 2},
+			shouldRemove: false,
+		},
+	}
+
+	blockStart := time.Now().Truncate(2 * time.Hour)
+	expectedFilesToRemove := make([]string, 0)
+	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
+	for i, shardList := range shardLists {
+		infoFile := newReadIndexInfoFileResult(blockStart, "default", i, shardList.shards)
+		infoFiles = append(infoFiles, infoFile)
+		if shardList.shouldRemove {
+			expectedFilesToRemove = append(expectedFilesToRemove, infoFile.AbsoluteFilePaths...)
+		}
+	}
+
+	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+	idx := nsIdx.(*nsIndex)
+	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+	idx.deleteFilesFn = func(s []string) error {
+		require.Len(t, s, len(expectedFilesToRemove))
+		for _, e := range expectedFilesToRemove {
+			assert.Contains(t, s, e)
+		}
+		return nil
+	}
+
+	require.NoError(t, idx.CleanupDuplicateFileSets(activeShards))
+}
+
+func TestNamespaceIndexCleanupDuplicateFilesets_NoActiveShards(t *testing.T) {
+	activeShards := []uint32{}
+	shardLists := []struct {
+		shards       []uint32
+		shouldRemove bool
+	}{
+		{
+			shards:       []uint32{1, 2, 3, 4},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 2, 3},
+			shouldRemove: true,
+		},
+		{
+			shards:       []uint32{1, 2},
+			shouldRemove: false,
+		},
+	}
+
+	blockStart := time.Now().Truncate(2 * time.Hour)
+	expectedFilesToRemove := make([]string, 0)
+	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
+	for i, shardList := range shardLists {
+		infoFile := newReadIndexInfoFileResult(blockStart, "default", i, shardList.shards)
+		infoFiles = append(infoFiles, infoFile)
+		if shardList.shouldRemove {
+			expectedFilesToRemove = append(expectedFilesToRemove, infoFile.AbsoluteFilePaths...)
+		}
+	}
+
+	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+	idx := nsIdx.(*nsIndex)
+	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+	idx.deleteFilesFn = func(s []string) error {
+		require.Len(t, s, len(expectedFilesToRemove))
+		for _, e := range expectedFilesToRemove {
+			assert.Contains(t, s, e)
+		}
+		return nil
+	}
+
+	require.NoError(t, idx.CleanupDuplicateFileSets(activeShards))
 }
 
 func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
@@ -359,7 +461,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 		require.Equal(t, []string{}, s)
 		return nil
 	}
-	require.NoError(t, idx.CleanupDuplicateFileSets())
+	require.NoError(t, idx.CleanupDuplicateFileSets([]uint32{0, 1, 2, 4}))
 }
 
 func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
