@@ -2125,13 +2125,27 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 		if file.ID.BlockStart.After(latestBlockStart) {
 			for volType := range byVolumeType {
 				vol := byVolumeType[volType]
-				if len(corrupted) > 0 && vol.latestCorruptedVolumeIndex > vol.latestVolumeIndex {
-					toDelete = append(toDelete, corrupted...)
+				byVolumeType[volType] = latestVolumeIndices{}
+
+				if len(corrupted) == 0 {
+					continue
+				}
+				if vol.latestCorruptedVolumeIndex <= vol.latestVolumeIndex {
+					continue
 				}
 
-				byVolumeType[volType] = latestVolumeIndices{}
+				toDelete = append(toDelete, corrupted...)
 			}
 			corrupted = corrupted[:0]
+		}
+
+		// NB: Missing info file data means the info file itself is corrupt.
+		// When we start writing an index volume, we first write an incomplete index info file so
+		// we are always guaranteed its existence but not if it was written successfully.
+		if file.Info.BlockStart == 0 {
+			// Delete corrupted index info files right away.
+			toDelete = append(toDelete, corrupted...)
+			continue
 		}
 
 		volType := idxpersist.DefaultIndexVolumeType
@@ -2139,7 +2153,7 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 			volType = idxpersist.IndexVolumeType(file.Info.IndexVolumeType.Value)
 		}
 		vol := byVolumeType[volType]
-		if file.Err.Error() == fs.ErrCorruptedFileset {
+		if file.Corrupted {
 			corrupted = append(corrupted, file.AbsoluteFilePaths...)
 			vol.latestCorruptedVolumeIndex = file.ID.VolumeIndex
 			byVolumeType[volType] = vol
