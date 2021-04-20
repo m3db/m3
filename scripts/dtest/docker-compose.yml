@@ -10,7 +10,7 @@ services:
       - "0.0.0.0:9000:9000"
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
-    env:
+    environment:
       - PANIC_ON_INVARIANT_VIOLATED=true
   coord01:
     networks:
@@ -22,7 +22,7 @@ services:
       - "0.0.0.0:7204:7204"
     volumes:
       - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
-    env:
+    environment:
       - PANIC_ON_INVARIANT_VIOLATED=true
 networks:
   dtest:

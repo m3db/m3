@@ -77,7 +77,9 @@ func (p *metricsAppenderPool) Put(v *metricsAppender) {
 }
 
 type metricsAppenderMetrics struct {
-	processedCount tally.Counter
+	processedCountNonRollup tally.Counter
+	processedCountRollup    tally.Counter
+	operationsCount         tally.Counter
 }
 
 type metricsAppender struct {
@@ -409,11 +411,14 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		a.debugLogMatch("downsampler applying matched rollup rule",
 			debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
 		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:              a.agg,
-			clientRemote:     a.clientRemote,
-			processedCounter: a.metrics.processedCount,
-			unownedID:        rollup.ID,
-			stagedMetadatas:  rollup.Metadatas,
+			agg:             a.agg,
+			clientRemote:    a.clientRemote,
+			unownedID:       rollup.ID,
+			stagedMetadatas: rollup.Metadatas,
+
+			processedCountNonRollup: a.metrics.processedCountNonRollup,
+			processedCountRollup:    a.metrics.processedCountRollup,
+			operationsCount:         a.metrics.operationsCount,
 		})
 		if a.untimedRollups {
 			dropTimestamp = true
@@ -566,11 +571,14 @@ func (a *metricsAppender) newSamplesAppender(
 		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
 	return samplesAppender{
-		agg:              a.agg,
-		clientRemote:     a.clientRemote,
-		processedCounter: a.metrics.processedCount,
-		unownedID:        data.Bytes(),
-		stagedMetadatas:  []metadata.StagedMetadata{sm},
+		agg:             a.agg,
+		clientRemote:    a.clientRemote,
+		unownedID:       data.Bytes(),
+		stagedMetadatas: []metadata.StagedMetadata{sm},
+
+		processedCountNonRollup: a.metrics.processedCountNonRollup,
+		processedCountRollup:    a.metrics.processedCountRollup,
+		operationsCount:         a.metrics.operationsCount,
 	}, nil
 }
 
@@ -630,6 +638,17 @@ func (a *metricsAppender) processTags(
 				value = types[0].Name()
 			)
 			tags.append(name, value)
+		}
+		if bytes.Equal(tag.Name, metric.M3MetricsPromSummary) {
+			types, err := id.Types()
+			if err != nil || len(types) == 0 {
+				continue
+			}
+			value, ok := types[0].QuantileBytes()
+			if !ok {
+				continue
+			}
+			tags.append(metric.PromQuantileName, value)
 		}
 	}
 	return tags
