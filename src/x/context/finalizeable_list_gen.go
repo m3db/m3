@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -218,13 +218,16 @@ func (l *finalizeableList) remove(e *finalizeableElement) *finalizeableElement {
 // It returns the element value e.Value.
 // The element must not be nil.
 func (l *finalizeableList) Remove(e *finalizeableElement) finalizeable {
+	// read the value before returning to the pool to avoid a data race with another goroutine getting access to the
+	// list after it has been put back into the pool.
+	v := e.Value
 	if e.list == l {
 		// if e.list == l, l must have been initialized when e was inserted
 		// in l or l == nil (e is a zero Element) and l.remove will crash.
 		l.remove(e)
 		l.Pool.put(e)
 	}
-	return e.Value
+	return v
 }
 
 // PushFront inserts a new element e with value v at the front of list l and returns e.

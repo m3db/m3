@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -165,31 +166,40 @@ func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator,
 
 // FetchTagged resolves the provided query to known IDs, and
 // fetches the data for them.
-func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query,
-	opts index.QueryOptions) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
+func (s *AsyncSession) FetchTagged(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
 		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
-	return s.session.FetchTagged(namespace, q, opts)
+	return s.session.FetchTagged(ctx, namespace, q, opts)
 }
 
 // FetchTaggedIDs resolves the provided query to known IDs.
-func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query,
-	opts index.QueryOptions) (client.TaggedIDsIterator, client.FetchResponseMetadata, error) {
+func (s *AsyncSession) FetchTaggedIDs(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (client.TaggedIDsIterator, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
 		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
-	return s.session.FetchTaggedIDs(namespace, q, opts)
+	return s.session.FetchTaggedIDs(ctx, namespace, q, opts)
 }
 
 // Aggregate aggregates values from the database for the given set of constraints.
 func (s *AsyncSession) Aggregate(
+	ctx context.Context,
 	namespace ident.ID,
 	q index.Query,
 	opts index.AggregationOptions,
@@ -200,7 +210,7 @@ func (s *AsyncSession) Aggregate(
 		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
-	return s.session.Aggregate(namespace, q, opts)
+	return s.session.Aggregate(ctx, namespace, q, opts)
 }
 
 // ShardID returns the given shard for an ID for callers

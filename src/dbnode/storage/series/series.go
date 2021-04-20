@@ -26,19 +26,18 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"go.uber.org/zap"
 )
 
 var (
@@ -395,12 +394,12 @@ func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
 	nsCtx namespace.Context,
-) ([][]xio.BlockReader, error) {
+) (BlockReaderIter, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
+	iter, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
-	return r, err
+	return iter, err
 }
 
 func (s *dbSeries) FetchWideEntry(
@@ -593,8 +592,9 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 	defer s.Unlock()
 
-	// Should never happen
-	if !id.Equal(s.id) {
+	// id can be nil at this point if this dbSeries gets closed just before it
+	// gets evicted from the wiredlist.
+	if id == nil || s.id == nil || !id.Equal(s.id) {
 		return
 	}
 

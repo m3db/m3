@@ -44,18 +44,19 @@ func RegisterRoutes(
 	r *queryhttp.EndpointRegistry,
 	client clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 	namespaceValidator options.NamespaceValidator,
+	kvStoreProtoParser options.KVStoreProtoParser,
 ) error {
-	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
+	createHandler, err := NewCreateHandler(client, cfg, embeddedDBCfg,
 		defaults, instrumentOpts, namespaceValidator)
 	if err != nil {
 		return err
 	}
 
-	kvStoreHandler := NewKeyValueStoreHandler(client, instrumentOpts)
+	kvStoreHandler := NewKeyValueStoreHandler(client, instrumentOpts, kvStoreProtoParser)
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.

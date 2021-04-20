@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -44,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -165,7 +167,7 @@ func TestAggregatorOpenPlacementError(t *testing.T) {
 	errPlacement := errors.New("error getting placement")
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Open().Return(nil)
-	placementManager.EXPECT().Placement().Return(nil, nil, errPlacement)
+	placementManager.EXPECT().Placement().Return(nil, errPlacement)
 
 	agg, _ := testAggregator(t, ctrl)
 	agg.placementManager = placementManager
@@ -177,11 +179,10 @@ func TestAggregatorOpenInstanceFromError(t *testing.T) {
 	defer ctrl.Finish()
 
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
 	errInstanceFrom := errors.New("error getting instance from placement")
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Open().Return(nil)
-	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().Placement().Return(testPlacement, nil)
 	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, errInstanceFrom)
 
 	agg, _ := testAggregator(t, ctrl)
@@ -199,11 +200,11 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	agg.placementManager = placementManager
 
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
 
 	placementManager.EXPECT().Open().Return(nil)
+	placementManager.EXPECT().C().Return(make(chan struct{})).AnyTimes()
 	placementManager.EXPECT().InstanceID().Return(agg.opts.PlacementManager().InstanceID())
-	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().Placement().Return(testPlacement, nil).AnyTimes()
 	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, ErrInstanceNotFoundInPlacement)
 
 	require.NoError(t, agg.Open())
@@ -211,7 +212,6 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	require.False(t, agg.shardSetOpen)
 	require.Equal(t, 0, len(agg.shardIDs))
 	require.Nil(t, agg.shards)
-	require.Equal(t, agg.currStagedPlacement, testStagedPlacement)
 	require.Equal(t, agg.currPlacement, testPlacement)
 	require.Equal(t, aggregatorOpen, agg.state)
 }
@@ -229,7 +229,6 @@ func TestAggregatorOpenSuccess(t *testing.T) {
 	for i := 0; i < testNumShards; i++ {
 		require.NotNil(t, agg.shards[i])
 	}
-	require.NotNil(t, agg.currStagedPlacement)
 	require.NotNil(t, agg.currPlacement)
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 }
@@ -239,17 +238,17 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	placements := []*placementpb.PlacementSnapshots{
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					CutoverTime: 0,
 				},
 			},
 		},
 		testStagedPlacementProtoWithNumShards(t, testInstanceID, testShardSetID, 4),
-		&placementpb.PlacementSnapshots{
+		{
 			Snapshots: []*placementpb.Placement{
-				&placementpb.Placement{
+				{
 					CutoverTime: testPlacementCutover + 1000,
 				},
 			},
@@ -270,7 +269,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	_, err := store.Set(testPlacementKey, placements[1])
 	require.NoError(t, err)
 	for {
-		_, p, err := agg.placementManager.Placement()
+		p, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if p.CutoverNanos() == testPlacementCutover {
 			break
@@ -294,7 +293,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	_, err = store.Set(testPlacementKey, placements[2])
 	require.NoError(t, err)
 	for {
-		_, p, err := agg.placementManager.Placement()
+		p, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if p.CutoverNanos() == testPlacementCutover+1000 {
 			break
@@ -328,7 +327,7 @@ func TestAggregatorAddUntimedNotOpen(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	err := agg.AddUntimed(testUntimedMetric, testStagedMetadatas)
-	require.Equal(t, errAggregatorNotOpenOrClosed, err)
+	require.Equal(t, errShardNotOwned, err)
 }
 
 func TestAggregatorAddUntimedNotResponsibleForShard(t *testing.T) {
@@ -368,6 +367,8 @@ func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 	require.NoError(t, agg.Open())
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
+	existingShard := agg.shards[3]
+
 	newShardAssignment := []shard.Shard{
 		shard.NewShard(0).SetState(shard.Initializing).SetCutoverNanos(5000).SetCutoffNanos(20000),
 		shard.NewShard(1).SetState(shard.Initializing).SetCutoverNanos(5500).SetCutoffNanos(25000),
@@ -381,7 +382,7 @@ func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 
 	// Wait for the placement to be updated.
 	for {
-		_, placement, err := agg.placementManager.Placement()
+		placement, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if placement.CutoverNanos() == newPlacementCutoverNanos {
 			break
@@ -389,7 +390,6 @@ func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	existingShard := agg.shards[3]
 	err = agg.AddUntimed(testUntimedMetric, testStagedMetadatas)
 	require.NoError(t, err)
 	require.Equal(t, 5, len(agg.shards))
@@ -416,14 +416,15 @@ func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 	}
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
 	require.Equal(t, newPlacementCutoverNanos, agg.currPlacement.CutoverNanos())
-
 	for {
 		existingShard.RLock()
 		closed := existingShard.closed
 		existingShard.RUnlock()
+
 		if closed {
 			break
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
 }
@@ -434,7 +435,7 @@ func TestAggregatorAddTimedNotOpen(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	err := agg.AddTimed(testTimedMetric, testTimedMetadata)
-	require.Equal(t, errAggregatorNotOpenOrClosed, err)
+	require.Equal(t, errShardNotOwned, err)
 }
 
 func TestAggregatorAddTimedNotResponsibleForShard(t *testing.T) {
@@ -478,6 +479,8 @@ func TestAggregatorAddTimedSuccessWithPlacementUpdate(t *testing.T) {
 	require.NoError(t, agg.Open())
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
+	existingShard := agg.shards[3]
+
 	newShardAssignment := []shard.Shard{
 		shard.NewShard(0).SetState(shard.Initializing).SetCutoverNanos(5000).SetCutoffNanos(20000),
 		shard.NewShard(1).SetState(shard.Initializing).SetCutoverNanos(5500).SetCutoffNanos(25000),
@@ -491,7 +494,7 @@ func TestAggregatorAddTimedSuccessWithPlacementUpdate(t *testing.T) {
 
 	// Wait for the placement to be updated.
 	for {
-		_, placement, err := agg.placementManager.Placement()
+		placement, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if placement.CutoverNanos() == newPlacementCutoverNanos {
 			break
@@ -499,7 +502,6 @@ func TestAggregatorAddTimedSuccessWithPlacementUpdate(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	existingShard := agg.shards[3]
 	err = agg.AddTimed(testTimedMetric, testTimedMetadata)
 	require.NoError(t, err)
 	require.Equal(t, 5, len(agg.shards))
@@ -544,7 +546,7 @@ func TestAggregatorAddForwardedNotOpen(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	err := agg.AddForwarded(testForwardedMetric, testForwardMetadata)
-	require.Equal(t, errAggregatorNotOpenOrClosed, err)
+	require.Equal(t, errShardNotOwned, err)
 }
 
 func TestAggregatorAddForwardedNotResponsibleForShard(t *testing.T) {
@@ -588,6 +590,8 @@ func TestAggregatorAddForwardedSuccessWithPlacementUpdate(t *testing.T) {
 	require.NoError(t, agg.Open())
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
+	existingShard := agg.shards[3]
+
 	newShardAssignment := []shard.Shard{
 		shard.NewShard(0).SetState(shard.Initializing).SetCutoverNanos(5000).SetCutoffNanos(20000),
 		shard.NewShard(1).SetState(shard.Initializing).SetCutoverNanos(5500).SetCutoffNanos(25000),
@@ -601,7 +605,7 @@ func TestAggregatorAddForwardedSuccessWithPlacementUpdate(t *testing.T) {
 
 	// Wait for the placement to be updated.
 	for {
-		_, placement, err := agg.placementManager.Placement()
+		placement, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if placement.CutoverNanos() == newPlacementCutoverNanos {
 			break
@@ -609,7 +613,6 @@ func TestAggregatorAddForwardedSuccessWithPlacementUpdate(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	existingShard := agg.shards[3]
 	err = agg.AddForwarded(testForwardedMetric, testForwardMetadata)
 	require.NoError(t, err)
 	require.Equal(t, 5, len(agg.shards))
@@ -946,59 +949,15 @@ func TestAggregatorOwnedShards(t *testing.T) {
 
 func TestAggregatorAddMetricMetrics(t *testing.T) {
 	s := tally.NewTestScope("testScope", nil)
-	m := newAggregatorAddUntimedMetrics(s, instrument.TimerOptions{})
-	m.ReportSuccess(time.Second)
+	m := newAggregatorAddUntimedMetrics(s, instrument.TimerOptions{StandardSampleRate: 0.001})
+	m.ReportSuccess()
+	m.SuccessLatencyStopwatch().Stop()
 	m.ReportError(errInvalidMetricType)
 	m.ReportError(errShardNotOwned)
 	m.ReportError(errAggregatorShardNotWriteable)
 	m.ReportError(errWriteNewMetricRateLimitExceeded)
 	m.ReportError(errWriteValueRateLimitExceeded)
-	m.ReportError(errors.New("foo"))
-
-	snapshot := s.Snapshot()
-	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
-
-	// Validate we count successes and errors correctly.
-	require.Equal(t, 7, len(counters))
-	for _, id := range []string{
-		"testScope.success+",
-		"testScope.errors+reason=invalid-metric-types",
-		"testScope.errors+reason=shard-not-owned",
-		"testScope.errors+reason=shard-not-writeable",
-		"testScope.errors+reason=value-rate-limit-exceeded",
-		"testScope.errors+reason=new-metric-rate-limit-exceeded",
-		"testScope.errors+reason=not-categorized",
-	} {
-		c, exists := counters[id]
-		require.True(t, exists)
-		require.Equal(t, int64(1), c.Value())
-	}
-
-	// Validate we record times correctly.
-	require.Equal(t, 1, len(timers))
-
-	for _, id := range []string{
-		"testScope.success-latency+",
-	} {
-		ti, exists := timers[id]
-		require.True(t, exists)
-		require.Equal(t, []time.Duration{time.Second}, ti.Values())
-	}
-
-	// Validate we do not have any gauges.
-	require.Equal(t, 0, len(gauges))
-}
-
-func TestAggregatorAddTimedMetrics(t *testing.T) {
-	s := tally.NewTestScope("testScope", nil)
-	m := newAggregatorAddTimedMetrics(s, instrument.TimerOptions{})
-	m.ReportSuccess(time.Second)
-	m.ReportError(errShardNotOwned)
-	m.ReportError(errAggregatorShardNotWriteable)
-	m.ReportError(errWriteNewMetricRateLimitExceeded)
-	m.ReportError(errWriteValueRateLimitExceeded)
-	m.ReportError(errTooFarInTheFuture)
-	m.ReportError(errTooFarInThePast)
+	m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")))
 	m.ReportError(errors.New("foo"))
 
 	snapshot := s.Snapshot()
@@ -1008,12 +967,12 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	require.Equal(t, 8, len(counters))
 	for _, id := range []string{
 		"testScope.success+",
+		"testScope.errors+reason=invalid-metric-types",
 		"testScope.errors+reason=shard-not-owned",
 		"testScope.errors+reason=shard-not-writeable",
 		"testScope.errors+reason=value-rate-limit-exceeded",
 		"testScope.errors+reason=new-metric-rate-limit-exceeded",
-		"testScope.errors+reason=too-far-in-the-future",
-		"testScope.errors+reason=too-far-in-the-past",
+		"testScope.errors+reason=arrived-too-late",
 		"testScope.errors+reason=not-categorized",
 	} {
 		c, exists := counters[id]
@@ -1027,9 +986,57 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	for _, id := range []string{
 		"testScope.success-latency+",
 	} {
-		ti, exists := timers[id]
+		_, exists := timers[id]
 		require.True(t, exists)
-		require.Equal(t, []time.Duration{time.Second}, ti.Values())
+	}
+
+	// Validate we do not have any gauges.
+	require.Equal(t, 0, len(gauges))
+}
+
+func TestAggregatorAddTimedMetrics(t *testing.T) {
+	s := tally.NewTestScope("testScope", nil)
+	m := newAggregatorAddTimedMetrics(s, instrument.TimerOptions{})
+	m.ReportSuccess()
+	m.SuccessLatencyStopwatch().Stop()
+	m.ReportError(errShardNotOwned)
+	m.ReportError(errAggregatorShardNotWriteable)
+	m.ReportError(errWriteNewMetricRateLimitExceeded)
+	m.ReportError(errWriteValueRateLimitExceeded)
+	m.ReportError(errTooFarInTheFuture)
+	m.ReportError(errTooFarInThePast)
+	m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")))
+	m.ReportError(errors.New("foo"))
+
+	snapshot := s.Snapshot()
+	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
+
+	// Validate we count successes and errors correctly.
+	require.Equal(t, 9, len(counters))
+	for _, id := range []string{
+		"testScope.success+",
+		"testScope.errors+reason=shard-not-owned",
+		"testScope.errors+reason=shard-not-writeable",
+		"testScope.errors+reason=value-rate-limit-exceeded",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded",
+		"testScope.errors+reason=too-far-in-the-future",
+		"testScope.errors+reason=too-far-in-the-past",
+		"testScope.errors+reason=arrived-too-late",
+		"testScope.errors+reason=not-categorized",
+	} {
+		c, exists := counters[id]
+		require.True(t, exists)
+		require.Equal(t, int64(1), c.Value())
+	}
+
+	// Validate we record times correctly.
+	require.Equal(t, 1, len(timers))
+
+	for _, id := range []string{
+		"testScope.success-latency+",
+	} {
+		_, exists := timers[id]
+		require.True(t, exists)
 	}
 
 	// Validate we do not have any gauges.
@@ -1046,10 +1053,10 @@ func testAggregatorWithCustomPlacements(
 	ctrl *gomock.Controller,
 	proto *placementpb.PlacementSnapshots,
 ) (*aggregator, kv.Store) {
-	watcher, store := testPlacementWatcherWithPlacementProto(t, testPlacementKey, proto)
+	watcherOpts, store := testWatcherOptsWithPlacementProto(t, testPlacementKey, proto)
 	placementManagerOpts := NewPlacementManagerOptions().
 		SetInstanceID(testInstanceID).
-		SetStagedPlacementWatcher(watcher)
+		SetWatcherOptions(watcherOpts)
 	placementManager := NewPlacementManager(placementManagerOpts)
 	opts := testOptions(ctrl).
 		SetEntryCheckInterval(0).
@@ -1058,19 +1065,19 @@ func testAggregatorWithCustomPlacements(
 }
 
 // nolint: unparam
-func testPlacementWatcherWithPlacementProto(
+func testWatcherOptsWithPlacementProto(
 	t *testing.T,
 	placementKey string,
 	proto *placementpb.PlacementSnapshots,
-) (placement.StagedPlacementWatcher, kv.Store) {
+) (placement.WatcherOptions, kv.Store) {
+	t.Helper()
 	store := mem.NewStore()
 	_, err := store.SetIfNotExists(placementKey, proto)
 	require.NoError(t, err)
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKey).
 		SetStagedPlacementStore(store)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
-	return placementWatcher, store
+	return placementWatcherOpts, store
 }
 
 // nolint: unparam
@@ -1107,8 +1114,8 @@ func testStagedPlacementProtoWithCustomShards(
 		SetInstances([]placement.Instance{instance}).
 		SetShards(shards.AllIDs()).
 		SetCutoverNanos(placementCutoverNanos)
-	testStagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]placement.Placement{testPlacement})
+	testStagedPlacement, err := placement.NewPlacementsFromLatest(testPlacement)
+	require.NoError(t, err)
 	stagedPlacementProto, err := testStagedPlacement.Proto()
 	require.NoError(t, err)
 	return stagedPlacementProto
@@ -1160,7 +1167,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 	infiniteBufferForPastTimedMetricFn := func(time.Duration) time.Duration {
 		return math.MaxInt64
 	}
-	return NewOptions().
+	return newTestOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionMgr).

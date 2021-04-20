@@ -68,20 +68,14 @@ type Entry struct {
 	pendingIndexBatchSizeOne              []writes.PendingIndexInsert
 }
 
-// OnReleaseReadWriteRef is a callback that can release
-// a strongly held series read/write ref.
-type OnReleaseReadWriteRef interface {
-	OnReleaseReadWriteRef()
-}
-
-// ensure Entry satifies the `OnReleaseReadWriteRef` interface.
-var _ OnReleaseReadWriteRef = &Entry{}
-
 // ensure Entry satisfies the `index.OnIndexSeries` interface.
 var _ index.OnIndexSeries = &Entry{}
 
 // ensure Entry satisfies the `bootstrap.SeriesRef` interface.
 var _ bootstrap.SeriesRef = &Entry{}
+
+// ensure Entry satisfies the `bootstrap.SeriesRefResolver` interface.
+var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
@@ -128,15 +122,6 @@ func (entry *Entry) IncrementReaderWriterCount() {
 // DecrementReaderWriterCount decrements the ref count on the Entry.
 func (entry *Entry) DecrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
-}
-
-// OnReleaseReadWriteRef decrements a read/write ref, it's named
-// differently to decouple the concrete task needed when a ref
-// is released and the intent to release the ref (simpler for
-// caller readability/reasoning).
-func (entry *Entry) OnReleaseReadWriteRef() {
-	// All we do when we release a read/write ref is decrement.
-	entry.DecrementReaderWriterCount()
 }
 
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
@@ -286,6 +271,11 @@ func (entry *Entry) LoadBlock(
 	return entry.Series.LoadBlock(block, writeType)
 }
 
+// UniqueIndex is the unique index for the series.
+func (entry *Entry) UniqueIndex() uint64 {
+	return entry.Series.UniqueIndex()
+}
+
 func (entry *Entry) maybeIndex(timestamp time.Time) error {
 	idx := entry.indexWriter
 	if idx == nil {
@@ -304,6 +294,19 @@ func (entry *Entry) maybeIndex(timestamp time.Time) error {
 	}
 	entry.OnIndexPrepare()
 	return idx.WritePending(entry.pendingIndexBatchSizeOne)
+}
+
+// SeriesRef returns the series read write ref.
+func (entry *Entry) SeriesRef() (bootstrap.SeriesRef, error) {
+	return entry, nil
+}
+
+// ReleaseRef must be called after using the series ref
+// to release the reference count to the series so it can
+// be expired by the owning shard eventually.
+func (entry *Entry) ReleaseRef() error {
+	entry.DecrementReaderWriterCount()
+	return nil
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard

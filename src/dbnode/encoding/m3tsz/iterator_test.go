@@ -21,19 +21,24 @@
 package m3tsz
 
 import (
-	"bytes"
+	"encoding/base64"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func getTestReaderIterator(rawBytes []byte) *readerIterator {
-	return NewReaderIterator(bytes.NewReader(rawBytes), false, encoding.NewOptions()).(*readerIterator)
+	return NewReaderIterator(
+		xio.NewBytesReader64(rawBytes),
+		false,
+		encoding.NewOptions(),
+	).(*readerIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {
@@ -57,20 +62,25 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		stream := encoding.NewIStream(xio.NewBytesReader64(input.rawBytes))
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 
 		it.TimeUnit = input.timeUnit
 		it.PrevTimeDelta = input.previousTimeDelta
+		tes, _ := it.timeEncodingSchemes.SchemeForUnit(it.TimeUnit)
+		it.timeEncodingScheme = tes
 
 		err := it.readNextTimestamp(stream)
 		require.NoError(t, err)
 		require.Equal(t, input.expectedTimeDelta, it.PrevTimeDelta)
 	}
 
-	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}), 16)
+	stream := encoding.NewIStream(xio.NewBytesReader64([]byte{0x1}))
 	it := NewTimestampIterator(encoding.NewOptions(), false)
-	err := it.readNextTimestamp(stream)
+	err := it.readFirstTimestamp(stream)
+	require.Error(t, err)
+
+	err = it.readNextTimestamp(stream)
 	require.Error(t, err)
 
 	err = it.readNextTimestamp(stream)
@@ -127,7 +137,7 @@ func TestReaderIteratorReadAnnotation(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		stream := encoding.NewIStream(xio.NewBytesReader64(input.rawBytes))
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 
 		err := it.readAnnotation(stream)
@@ -157,7 +167,7 @@ func TestReaderIteratorReadTimeUnit(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		stream := encoding.NewIStream(xio.NewBytesReader64(input.rawBytes))
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 		it.TimeUnit = input.timeUnit
 
@@ -353,4 +363,22 @@ func TestReaderIteratorNextWithUnexpectedTimeUnit(t *testing.T) {
 	it := getTestReaderIterator(rawBytes)
 	require.False(t, it.Next())
 	require.Error(t, it.Err())
+}
+
+func TestReaderIteratorDecodingRegression(t *testing.T) {
+	// This reproduces the regression that was introduced in
+	// https://github.com/m3db/m3/commit/abad1bb2e9a4de18afcb9a29e87fa3a39a694ef4
+	// by failing decoding (returns unexpected EOF error after the first call to Next()).
+	b64 := "FnLaQ5ZggACAIEEAUAgIAAAJ1XOXnQH+QAAAAAAAAAB4AAOpgUJ3igWXnNAAYAAAAAEuYPEbxWsXrvGZl9ZGm8J3+1YS3vGZjVZdm8RvK6xHuz1rxmZU2R6u8j/a+wE2rxmY02e2vEbzbsRuvGZtzZOq8J3ivYO6vIXOm8ZmL1lq7xG89rEWbxmfVWT/vAf9qrBFm8Zme1jq7yFxevEbzpsW6vGZivZOq8J39zYRuvGZm3Zba8RvGmxNqzr7xmY9WSpu+h+61gR7vGZldZ9m8RvGqxLe8Zm7VkabwneX1g+u8hcVrxmZc2XqvEbxfsSqvGZ/zZFa8B/yrsF/rxmZU2Ras/e8RvKqxFm8Zm91ku7wneK1h+m8ZmXVkb7xG92rEqbxmY7WPbvIXK67if/HmwBaq8Zma9kerxG/qbE3rxmY12W2vCd5s2EarO/vGZnVZFm8RvbaxOu8ZmL1nqbwH/PqwRXvGZtVZPmzrrxG8W7E9rxmbU2RavCd532HurxmY02TWvEb27sRuvGZmzY6q8hcd7vofm1YFqbxmY/WSrvEb/WsR5vGZlVZd+8J3jVYS5s9a8ZmNdkvrxG96bEWrxmZb2fqvAf8WbBK68Zm/dkVrxG8qbD+ryFyvvGZi1Zem8J3ltYRbvGZ/dgA" // nolint: lll
+
+	data, err := base64.StdEncoding.DecodeString(b64)
+	require.NoError(t, err)
+
+	it := NewReaderIterator(xio.NewBytesReader64(data), true, encoding.NewOptions())
+	for i := 0; it.Next(); i++ {
+		require.NoError(t, it.Err())
+		it.Current()
+	}
+
+	require.NoError(t, it.Err())
 }

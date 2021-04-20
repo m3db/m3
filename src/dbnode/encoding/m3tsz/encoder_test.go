@@ -21,12 +21,14 @@
 package m3tsz
 
 import (
+	"io"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -90,7 +92,7 @@ func TestWriteDeltaOfDeltaTimeUnitChanged(t *testing.T) {
 	}
 	for _, input := range inputs {
 		stream := encoding.NewOStream(nil, false, nil)
-		tsEncoder := NewTimestampEncoder(testStartTime, xtime.Nanosecond, nil)
+		tsEncoder := NewTimestampEncoder(testStartTime, xtime.Nanosecond, encoding.NewOptions())
 		tsEncoder.writeDeltaOfDeltaTimeUnitChanged(stream, 0, input.delta)
 		b, p := stream.RawBytes()
 		require.Equal(t, input.expectedBytes, b)
@@ -153,17 +155,18 @@ func TestWriteAnnotation(t *testing.T) {
 }
 
 func getBytes(t *testing.T, e encoding.Encoder) []byte {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	r, ok := e.Stream(ctx)
 	if !ok {
 		return nil
 	}
-	var b [1000]byte
-	n, err := r.Read(b[:])
-	require.NoError(t, err)
-	return b[:n]
+
+	bytes, err := xio.ToBytes(r)
+	assert.Equal(t, io.EOF, err)
+
+	return bytes
 }
 
 func TestWriteTimeUnit(t *testing.T) {
@@ -202,7 +205,7 @@ func TestWriteTimeUnit(t *testing.T) {
 }
 
 func TestEncodeNoAnnotation(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -242,7 +245,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithAnnotation(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -286,7 +289,7 @@ func TestEncodeWithAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithTimeUnit(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -324,7 +327,7 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 }
 
 func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
@@ -379,7 +382,7 @@ func TestInitTimeUnit(t *testing.T) {
 }
 
 func TestEncoderResets(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	enc := getTestOptEncoder(testStartTime)
@@ -433,7 +436,7 @@ func TestEncoderLastEncoded(t *testing.T) {
 func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
 	testMultiplePasses(t, multiplePassesTest{
 		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			defer ctx.BlockingClose()
 
 			encLen := enc.Len()
@@ -471,7 +474,7 @@ func TestEncoderCloseWaitForStream(t *testing.T) {
 	numStreams := 8
 	for i := 0; i <= numStreams; i++ {
 		numActiveStreams.Inc()
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		_, ok := enc.Stream(ctx)
 		require.True(t, ok)
 		go func(ctx context.Context, idx int) {
@@ -535,4 +538,170 @@ func testMultiplePasses(t *testing.T, test multiplePassesTest) {
 			test.postEncodeAll(encoder, numValues)
 		}
 	}
+}
+
+func TestEncoderFailOnDeltaOfDeltaOverflow(t *testing.T) {
+	tests := []struct {
+		name           string
+		delta          time.Duration
+		units          xtime.Unit
+		positiveErrMsg string
+		negativeErrMsg string
+	}{
+		{
+			name:  "seconds, short gap",
+			delta: time.Hour,
+			units: xtime.Second,
+		},
+		{
+			name:  "seconds, huge gap",
+			delta: 25 * 24 * time.Hour,
+			units: xtime.Second,
+		},
+		{
+			name:           "seconds, too big gap",
+			delta:          1000 * 25 * 24 * time.Hour, // more than 2^31 s
+			units:          xtime.Second,
+			positiveErrMsg: "deltaOfDelta value 2160000000 s overflows 32 bits",
+			negativeErrMsg: "deltaOfDelta value -2159999999 s overflows 32 bits",
+		},
+		{
+			name:  "milliseconds, short gap",
+			delta: time.Hour,
+			units: xtime.Millisecond,
+		},
+		{
+			name:  "milliseconds, almost too big gap",
+			delta: 24 * 24 * time.Hour, // slightly less than 2^31 ms
+			units: xtime.Millisecond,
+		},
+		{
+			name:           "milliseconds, too big gap",
+			delta:          25 * 24 * time.Hour, // more than 2^31 ms
+			units:          xtime.Millisecond,
+			positiveErrMsg: "deltaOfDelta value 2160000000 ms overflows 32 bits",
+			negativeErrMsg: "deltaOfDelta value -2159999999 ms overflows 32 bits",
+		},
+		{
+			name:  "microseconds, short gap",
+			delta: time.Hour,
+			units: xtime.Microsecond,
+		},
+		{
+			name:  "microseconds, huge gap",
+			delta: 25 * 24 * time.Hour,
+			units: xtime.Microsecond,
+		},
+		{
+			name:  "nanoseconds, short gap",
+			delta: time.Hour,
+			units: xtime.Nanosecond,
+		},
+		{
+			name:  "nanoseconds, huge gap",
+			delta: 25 * 24 * time.Hour,
+			units: xtime.Nanosecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testPositiveDeltaOfDelta(t, tt.delta, tt.units, tt.positiveErrMsg)
+			testNegativeDeltaOfDelta(t, tt.delta, tt.units, tt.negativeErrMsg)
+		})
+	}
+}
+
+func testPositiveDeltaOfDelta(t *testing.T, delta time.Duration, units xtime.Unit, expectedErrMsg string) {
+	t.Helper()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	enc := getTestEncoder(testStartTime)
+
+	dp1 := dp(testStartTime, 1)
+	dp2 := dp(testStartTime.Add(delta), 2)
+
+	err := enc.Encode(dp1, units, nil)
+	require.NoError(t, err)
+
+	err = enc.Encode(dp2, units, nil)
+	if expectedErrMsg != "" {
+		require.EqualError(t, err, expectedErrMsg)
+		return
+	}
+	require.NoError(t, err)
+
+	dec := NewDecoder(enc.intOptimized, enc.opts)
+	stream, ok := enc.Stream(ctx)
+	require.True(t, ok)
+
+	it := dec.Decode(stream)
+	defer it.Close()
+
+	decodeAndCheck(t, it, dp1, units)
+	decodeAndCheck(t, it, dp2, units)
+
+	require.False(t, it.Next())
+	require.NoError(t, it.Err())
+}
+
+func testNegativeDeltaOfDelta(t *testing.T, delta time.Duration, units xtime.Unit, expectedErrMsg string) {
+	t.Helper()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	oneUnit, err := units.Value()
+	require.NoError(t, err)
+
+	enc := getTestEncoder(testStartTime)
+
+	dps := []ts.Datapoint{
+		dp(testStartTime, 1),
+		dp(testStartTime.Add(delta/2), 2),
+		dp(testStartTime.Add(delta/2+delta), 3),
+		dp(testStartTime.Add(delta/2+delta+oneUnit), 4), // DoD = oneUnit - delta
+	}
+
+	for i, dp := range dps {
+		err = enc.Encode(dp, units, nil)
+		if i == 3 && expectedErrMsg != "" {
+			require.EqualError(t, err, expectedErrMsg)
+			return
+		}
+		require.NoError(t, err)
+	}
+
+	dec := NewDecoder(enc.intOptimized, enc.opts)
+	stream, ok := enc.Stream(ctx)
+	require.True(t, ok)
+
+	it := dec.Decode(stream)
+	defer it.Close()
+
+	for _, dp := range dps {
+		decodeAndCheck(t, it, dp, units)
+	}
+
+	require.False(t, it.Next())
+	require.NoError(t, it.Err())
+}
+
+func dp(timestamp time.Time, value float64) ts.Datapoint {
+	return ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+}
+
+func decodeAndCheck(t *testing.T, it encoding.ReaderIterator, dp ts.Datapoint, units xtime.Unit) {
+	t.Helper()
+
+	require.True(t, it.Next())
+	decodedDP, decodedUnits, _ := it.Current()
+	assert.Equal(t, dp, decodedDP)
+	assert.Equal(t, units, decodedUnits)
 }

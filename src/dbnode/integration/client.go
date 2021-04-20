@@ -129,6 +129,14 @@ func (client *TestTChannelClient) TChannelClientFetch(
 	return client.node.Fetch(ctx, req)
 }
 
+// TChannelClientFetchTagged fulfills a fetch by tag request using a tchannel client.
+func (client *TestTChannelClient) TChannelClientFetchTagged(
+	timeout time.Duration, req *rpc.FetchTaggedRequest,
+) (*rpc.FetchTaggedResult_, error) {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.FetchTagged(ctx, req)
+}
+
 // TChannelClientAggregateTiles runs a request for AggregateTiles.
 func (client *TestTChannelClient) TChannelClientAggregateTiles(
 	timeout time.Duration, req *rpc.AggregateTilesRequest,

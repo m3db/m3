@@ -67,25 +67,18 @@ type response struct {
 	Warnings  []string    `json:"warnings,omitempty"`
 }
 
-// Responds with HTTP OK status code and writes response JSON to response body.
-func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) {
+// Respond responds with HTTP OK status code and writes response JSON to response body.
+func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) error {
 	statusMessage := statusSuccess
 	var warningStrings []string
 	for _, warning := range warnings {
 		warningStrings = append(warningStrings, warning.Error())
 	}
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	b, err := json.Marshal(&response{
+	return json.NewEncoder(w).Encode(&response{
 		Status:   statusMessage,
 		Data:     data,
 		Warnings: warningStrings,
 	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	w.WriteHeader(http.StatusOK)
-	w.Write(b)
 }

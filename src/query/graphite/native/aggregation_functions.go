@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
@@ -233,7 +232,7 @@ func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList sin
 		return ts.NewSeriesList(), nil
 	}
 	if len(divisorSeriesList.Values) != 1 {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"divideSeries second argument must reference exactly one series but instead has %d",
 			len(divisorSeriesList.Values)))
 		return ts.NewSeriesList(), err
@@ -258,7 +257,7 @@ func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList sin
 // divideSeriesLists divides one series list by another series list
 func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesList singlePathSpec) (ts.SeriesList, error) {
 	if len(dividendSeriesList.Values) != len(divisorSeriesList.Values) {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"divideSeriesLists both SeriesLists must have exactly the same length"))
 		return ts.NewSeriesList(), err
 	}
@@ -310,7 +309,7 @@ func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.Ser
 	default:
 		// Median: the movingMedian() method already implemented is returning an series non compatible result. skip support for now.
 		// avg_zero is not implemented, skip support for now unless later identified actual use cases.
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
 	}
 }
 
@@ -347,7 +346,7 @@ func aggregateWithWildcards(
 ) (ts.SeriesList, error) {
 	f, fexists := summarizeFuncs[fname]
 	if !fexists {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
+		err := xerrors.NewInvalidParamsError(fmt.Errorf(
 			"invalid func %s", fname))
 		return ts.NewSeriesList(), err
 	}
@@ -556,8 +555,10 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		wg.Wait()
 	}
 
-	r := ts.NewSeriesList()
+	// Retain metadata but we definitely did not retain sort order.
+	r := ts.SeriesList(seriesList)
 	r.Values = output
+	r.SortApplied = false
 	return r, nil
 }
 
@@ -655,7 +656,7 @@ func applyFnToMetaSeries(ctx *common.Context, series singlePathSpec, metaSeries 
 
 	f, fexists := summarizeFuncs[fname]
 	if !fexists {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
+		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
 	}
 
 	newSeries := make([]*ts.Series, 0, len(metaSeries))
@@ -697,7 +698,7 @@ func combineSeries(ctx *common.Context,
 
 	normalized, start, end, millisPerStep, err := common.Normalize(ctx, ts.SeriesList(series))
 	if err != nil {
-		err := errors.NewInvalidParamsError(fmt.Errorf("combine series error: %v", err))
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("combine series error: %w", err))
 		return ts.NewSeriesList(), err
 	}
 
@@ -733,14 +734,14 @@ func weightedAverage(
 
 	for _, series := range input.Values {
 		if step != series.MillisPerStep() {
-			err := errors.NewInvalidParamsError(fmt.Errorf("different step sizes in input series not supported"))
+			err := xerrors.NewInvalidParamsError(fmt.Errorf("different step sizes in input series not supported"))
 			return ts.NewSeriesList(), err
 		}
 	}
 
 	for _, series := range weights.Values {
 		if step != series.MillisPerStep() {
-			err := errors.NewInvalidParamsError(fmt.Errorf("different step sizes in input series not supported"))
+			err := xerrors.NewInvalidParamsError(fmt.Errorf("different step sizes in input series not supported"))
 			return ts.NewSeriesList(), err
 		}
 	}

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -65,20 +66,18 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	leakPool := injectLeakcheckFetchTaggedAttempPool(session)
-	_, _, err = s.FetchTagged(
+	_, _, err = s.FetchTagged(testContext(),
 		ident.StringID("namespace"),
 		index.Query{},
-		index.QueryOptions{},
-	)
+		index.QueryOptions{})
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 	leakPool.Check(t)
 
-	_, _, err = s.FetchTaggedIDs(
+	_, _, err = s.FetchTaggedIDs(testContext(),
 		ident.StringID("namespace"),
 		index.Query{},
-		index.QueryOptions{},
-	)
+		index.QueryOptions{})
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 	leakPool.Check(t)
@@ -95,12 +94,12 @@ func TestSessionFetchTaggedNotOpenError(t *testing.T) {
 	assert.NoError(t, err)
 	t0 := time.Now()
 
-	_, _, err = s.FetchTagged(ident.StringID("namespace"),
+	_, _, err = s.FetchTagged(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStatusNotOpen, err)
 
-	_, _, err = s.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = s.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStatusNotOpen, err)
@@ -128,7 +127,7 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidCall(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
@@ -157,7 +156,7 @@ func TestSessionFetchTaggedIDsGuardAgainstNilHost(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
@@ -187,7 +186,7 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidHost(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
@@ -229,7 +228,7 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
@@ -267,21 +266,21 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 		testHostQueueOpsByHost{
 			testHostName(0): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {},
 					},
 				},
 			},
 			testHostName(1): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {},
 					},
 				},
 			},
 			testHostName(2): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueErr: fmt.Errorf("random-error"),
 					},
 				},
@@ -290,10 +289,11 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
-	assert.Error(t, err)
-	assert.NoError(t, session.Close())
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _, _ = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
+			testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	})
 }
 
 func TestSessionFetchTaggedMergeTest(t *testing.T) {
@@ -330,7 +330,7 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 		testHostQueueOpsByHost{
 			testHostName(0): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -344,7 +344,7 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 			},
 			testHostName(1): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -358,7 +358,7 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 			},
 			testHostName(2): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -378,7 +378,7 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
 
-	iters, meta, err := session.FetchTagged(ident.StringID("namespace"),
+	iters, meta, err := session.FetchTagged(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.NoError(t, err)
 	assert.False(t, meta.Exhaustive)
@@ -439,7 +439,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 		testHostQueueOpsByHost{
 			testHostName(0): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -448,7 +448,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 							}()
 						},
 					},
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -462,7 +462,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 			},
 			testHostName(1): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -471,7 +471,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 							}()
 						},
 					},
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -485,7 +485,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 			},
 			testHostName(2): &testHostQueueOps{
 				enqueues: []testEnqueue{
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -494,7 +494,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 							}()
 						},
 					},
-					testEnqueue{
+					{
 						enqueueFn: func(idx int, op op) {
 							go func() {
 								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
@@ -513,7 +513,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	// NB: stubbing needs to be done after session.Open
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
-	iters, meta, err := session.FetchTagged(ident.StringID("namespace"),
+	iters, meta, err := session.FetchTagged(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.NoError(t, err)
 	assert.False(t, meta.Exhaustive)
@@ -590,6 +590,15 @@ func mockExtendedHostQueues(
 		require.Fail(t, "unable to find host idx: %v", host.ID())
 		return -1
 	}
+	expectClose := true
+	for _, hq := range opsByHost {
+		for _, e := range hq.enqueues {
+			if e.enqueueErr != nil {
+				expectClose = false
+				break
+			}
+		}
+	}
 	s.newHostQueueFn = func(
 		host topology.Host,
 		opts hostQueueOpts,
@@ -602,6 +611,7 @@ func mockExtendedHostQueues(
 		hostQueue.EXPECT().Open()
 		hostQueue.EXPECT().Host().Return(host).AnyTimes()
 		hostQueue.EXPECT().ConnectionCount().Return(opts.opts.MinConnectionCount()).AnyTimes()
+
 		var expectNextEnqueueFn func(fns []testEnqueue)
 		expectNextEnqueueFn = func(fns []testEnqueue) {
 			fn := fns[0]
@@ -621,7 +631,9 @@ func mockExtendedHostQueues(
 		if len(hostEnqueues.enqueues) > 0 {
 			expectNextEnqueueFn(hostEnqueues.enqueues)
 		}
-		hostQueue.EXPECT().Close()
+		if expectClose {
+			hostQueue.EXPECT().Close()
+		}
 		return hostQueue, nil
 	}
 }

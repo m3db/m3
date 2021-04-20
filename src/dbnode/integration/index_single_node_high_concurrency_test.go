@@ -299,7 +299,7 @@ func testIndexSingleNodeHighConcurrency(
 							},
 						}
 
-						ctx := context.NewContext()
+						ctx := context.NewBackground()
 						r, err := testSetup.DB().AggregateQuery(ctx, md.ID(), q, qOpts)
 						if err != nil {
 							panic(err)

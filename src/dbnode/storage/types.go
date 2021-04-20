@@ -39,9 +39,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -173,7 +173,7 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// WideQuery performs a wide blockwise query that provides batched results
 	// that can exceed query limits.
@@ -394,7 +394,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -459,14 +459,14 @@ type databaseNamespace interface {
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (result SeriesReadWriteRef, owned bool, err error)
+	) (result bootstrap.SeriesRefResolver, owned bool, err error)
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
@@ -477,21 +477,6 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 	) (int64, error)
-}
-
-// SeriesReadWriteRef is a read/write reference for a series,
-// must make sure to release
-type SeriesReadWriteRef struct {
-	// Series reference for read/writing.
-	Series bootstrap.SeriesRef
-	// UniqueIndex is the unique index of the series (as applicable).
-	UniqueIndex uint64
-	// Shard is the shard of the series.
-	Shard uint32
-	// ReleaseReadWriteRef must be called after using the series ref
-	// to release the reference count to the series so it can
-	// be expired by the owning shard eventually.
-	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
 }
 
 // Shard is a time series database shard.
@@ -507,13 +492,6 @@ type Shard interface {
 
 	// BootstrapState returns the shards' bootstrap state.
 	BootstrapState() BootstrapState
-
-	// ScanData performs a "full table scan" on the given block,
-	// calling processor function on every entry read.
-	ScanData(
-		blockStart time.Time,
-		processor fs.DataEntryProcessor,
-	) error
 
 	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
 	// on the latest volume of the given block.
@@ -562,7 +540,7 @@ type databaseShard interface {
 		id ident.ID,
 		start, end time.Time,
 		nsCtx namespace.Context,
-	) ([][]xio.BlockReader, error)
+	) (series.BlockReaderIter, error)
 
 	// FetchWideEntry retrieves wide entry for an ID for the
 	// block at time start.
@@ -663,13 +641,13 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (bootstrap.SeriesRefResolver, error)
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Metadata, bool, error)
@@ -680,9 +658,6 @@ type databaseShard interface {
 		sourceNs Namespace,
 		targetNs Namespace,
 		shardID uint32,
-		blockReaders []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
-		sourceBlockVolumes []shardBlockVolume,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)
@@ -1015,14 +990,21 @@ type databaseMediator interface {
 	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
 }
 
+// ColdFlushNsOpts are options for OnColdFlush.ColdFlushNamespace.
+type ColdFlushNsOpts interface {
+	// ReuseResources enables reuse of per-namespace reusable resources.
+	ReuseResources() bool
+}
+
 // OnColdFlush can perform work each time a series is flushed.
 type OnColdFlush interface {
-	ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error)
+	ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts) (OnColdFlushNamespace, error)
 }
 
 // OnColdFlushNamespace performs work on a per namespace level.
 type OnColdFlushNamespace interface {
 	persist.OnFlushSeries
+	Abort() error
 	Done() error
 }
 
@@ -1351,6 +1333,12 @@ type Options interface {
 
 	// TileAggregator returns the TileAggregator.
 	TileAggregator() TileAggregator
+
+	// PermitsOptions returns the permits options.
+	PermitsOptions() permits.Options
+
+	// SetPermitsOptions sets the permits options.
+	SetPermitsOptions(value permits.Options) Options
 }
 
 // MemoryTracker tracks memory.
@@ -1429,11 +1417,9 @@ type TileAggregator interface {
 		ctx context.Context,
 		sourceNs, targetNs Namespace,
 		shardID uint32,
-		readers []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
-	) (int64, error)
+	) (processedTileCount int64, nextVolume int, err error)
 }
 
 // NewTileAggregatorFn creates a new TileAggregator.

@@ -37,7 +37,7 @@ var (
 )
 
 func TestAggregatorShardCutoffNanos(t *testing.T) {
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	inputs := []int64{0, 12345, math.MaxInt64}
 	for _, input := range inputs {
 		shard.cutoffNanos = input
@@ -47,7 +47,7 @@ func TestAggregatorShardCutoffNanos(t *testing.T) {
 
 func TestAggregatorShardIsWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -69,7 +69,7 @@ func TestAggregatorShardIsWriteable(t *testing.T) {
 
 func TestAggregatorShardIsCutoff(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -89,7 +89,7 @@ func TestAggregatorShardIsCutoff(t *testing.T) {
 
 func TestAggregatorShardSetWritableRange(t *testing.T) {
 	testNanos := int64(1234)
-	opts := NewOptions().
+	opts := newTestOptions().
 		SetEntryCheckInterval(0).
 		SetBufferDurationBeforeShardCutover(time.Duration(500)).
 		SetBufferDurationAfterShardCutoff(time.Duration(1000))
@@ -124,7 +124,7 @@ func TestAggregatorShardSetWritableRange(t *testing.T) {
 }
 
 func TestAggregatorShardAddUntimedShardClosed(t *testing.T) {
-	shard := newAggregatorShard(testShard, NewOptions().SetEntryCheckInterval(0))
+	shard := newAggregatorShard(testShard, newTestOptions().SetEntryCheckInterval(0))
 	shard.closed = true
 	err := shard.AddUntimed(testUntimedMetric, testStagedMetadatas)
 	require.Equal(t, errAggregatorShardClosed, err)
@@ -132,7 +132,7 @@ func TestAggregatorShardAddUntimedShardClosed(t *testing.T) {
 
 func TestAggregatorShardAddUntimedShardNotWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -153,7 +153,7 @@ func TestAggregatorShardAddUntimedShardNotWriteable(t *testing.T) {
 }
 
 func TestAggregatorShardAddUntimedSuccess(t *testing.T) {
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	require.Equal(t, testShard, shard.ID())
 
 	var (
@@ -177,7 +177,7 @@ func TestAggregatorShardAddUntimedSuccess(t *testing.T) {
 
 func TestAggregatorShardAddTimedShardNotWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -198,7 +198,7 @@ func TestAggregatorShardAddTimedShardNotWriteable(t *testing.T) {
 }
 
 func TestAggregatorShardAddTimedSuccess(t *testing.T) {
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	require.Equal(t, testShard, shard.ID())
 
 	var (
@@ -222,7 +222,7 @@ func TestAggregatorShardAddTimedSuccess(t *testing.T) {
 
 func TestAggregatorShardAddForwardedShardNotWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -243,7 +243,7 @@ func TestAggregatorShardAddForwardedShardNotWriteable(t *testing.T) {
 }
 
 func TestAggregatorShardAddForwardedSuccess(t *testing.T) {
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 	require.Equal(t, testShard, shard.ID())
 
 	var (
@@ -266,7 +266,7 @@ func TestAggregatorShardAddForwardedSuccess(t *testing.T) {
 }
 
 func TestAggregatorShardClose(t *testing.T) {
-	shard := newAggregatorShard(testShard, NewOptions())
+	shard := newAggregatorShard(testShard, newTestOptions())
 
 	// Close the shard.
 	shard.Close()

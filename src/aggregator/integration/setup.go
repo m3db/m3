@@ -105,8 +105,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 
 	// Creating the aggregator options.
 	clockOpts := opts.ClockOptions()
-	aggregatorOpts := aggregator.NewOptions().
-		SetClockOptions(clockOpts).
+	aggregatorOpts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetAggregationTypesOptions(opts.AggregationTypesOptions()).
 		SetEntryCheckInterval(opts.EntryCheckInterval()).
@@ -114,15 +113,12 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
 
 	// Set up placement manager.
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
-		SetClockOptions(clockOpts).
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(opts.PlacementKVKey()).
 		SetStagedPlacementStore(opts.KVStore())
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
-		SetClockOptions(clockOpts).
 		SetInstanceID(opts.InstanceID()).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
 	aggregatorOpts = aggregatorOpts.
 		SetShardFn(opts.ShardFn()).
@@ -164,7 +160,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
 		SetJitterEnabled(opts.JitterEnabled()).
-		SetMaxJitterFn(opts.MaxJitterFn())
+		SetMaxJitterFn(opts.MaxJitterFn()).
+		SetBufferForPastTimedMetric(aggregatorOpts.BufferForPastTimedMetric())
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
@@ -173,7 +170,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetClockOptions(clockOpts).
 		SetConnectionOptions(opts.ClientConnectionOptions()).
 		SetShardFn(opts.ShardFn()).
-		SetStagedPlacementWatcherOptions(placementWatcherOpts).
+		SetWatcherOptions(placementWatcherOpts).
 		SetRWOptions(rwOpts)
 	c, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)

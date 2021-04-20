@@ -2,11 +2,11 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/aggregator/docker-compose.yml
+COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/aggregator/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
-PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
+PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.4.3
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 export REVISION
 
@@ -170,12 +170,14 @@ function prometheus_remote_write {
   local label1_value=${label1_value:-label1}
   local label2_name=${label2_name:-label2}
   local label2_value=${label2_value:-label2}
+  local metric_type=${metric_type:counter}
 
   network_name="aggregator"
   network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://m3coordinator01:7202/api/v1/prom/remote/write \
+    -h Prometheus-Metric-Type:${metric_type}                        \
     -t __name__:${metric_name}                            \
     -t ${label0_name}:${label0_value}                     \
     -t ${label1_name}:${label1_value}                     \
@@ -217,6 +219,21 @@ function prometheus_query_native {
   return $?
 }
 
+function dbnode_fetch {
+  local namespace=${namespace}
+  local id=${id}
+  local rangeStart=${rangeStart}
+  local rangeEnd=${rangeEnd}
+  local jq_path=${jq_path:-}
+  local expected_value=${expected_value:-}
+  result=$(curl -s                                    \
+    "0.0.0.0:9002/fetch" \
+    "-d" \
+    "{\"namespace\": \"${namespace}\", \"id\": \"${id}\", \"rangeStart\": ${rangeStart}, \"rangeEnd\": ${rangeEnd}}" | jq -r "${jq_path}")
+  test "$result" = "$expected_value"
+  return $?
+}
+
 function test_aggregated_rollup_rule {
   resolution_seconds="10"
   now=$(date +"%s")
@@ -234,6 +251,7 @@ function test_aggregated_rollup_rule {
     label0_name="app" label0_value="nginx_edge" \
       label1_name="status_code" label1_value="500" \
       label2_name="endpoint" label2_value="/foo/bar" \
+      metric_type="counter" \
       prometheus_remote_write \
       http_requests $write_at $value \
       true "Expected request to succeed" \
@@ -251,6 +269,7 @@ function test_aggregated_rollup_rule {
     label0_name="app" label0_value="nginx_edge" \
       label1_name="status_code" label1_value="500" \
       label2_name="endpoint" label2_value="/foo/baz" \
+      metric_type="gauge" \
       prometheus_remote_write \
       http_requests $write_at $value \
       true "Expected request to succeed" \
@@ -284,6 +303,43 @@ function test_aggregated_rollup_rule {
     retry_with_backoff prometheus_query_native
 }
 
+function test_metric_type_survives_aggregation {
+  echo "Test metric type should be kept after aggregation"
+  now=$(date +"%s")
+  value="42"
+
+  metric_type="counter" \
+  prometheus_remote_write \
+  metric_type_test $now $value \
+  true "Expected request to succeed" \
+  200 "Expected request to return status code 200"
+
+  start=$(( $now - 3600 ))
+  end=$(( $now + 3600 ))
+  jq_path=".datapoints[0].annotation"
+
+  echo "Test query metric type"
+
+  # Test if metric type is stored in aggregated namespace
+  # "CAEQAQ==" is the protobuf encoded base64 value with the metric type on it
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    namespace="agg" \
+    id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
+    rangeStart=${start} \
+    rangeEnd=${end} \
+    jq_path="$jq_path" expected_value="CAEQAQ==" \
+    retry_with_backoff dbnode_fetch
+  
+  # Additional test to ensure correct value is stored
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 \
+    namespace="agg" \
+    id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
+    rangeStart=${start} \
+    rangeEnd=${end} \
+    jq_path=".datapoints[0].value" expected_value="45"
+}
+
 echo "Run tests"
 test_aggregated_graphite_metric
 test_aggregated_rollup_rule
+test_metric_type_survives_aggregation

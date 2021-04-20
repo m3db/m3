@@ -102,7 +102,7 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 }
 
 func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	encoder := NewEncoder(testStartTime, nil, intOpt, nil)
@@ -123,7 +123,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		} else if i < 7 {
 			annotation = ts.Annotation("bar")
 		} else if i == 10 {
-			annotation = ts.Annotation("baz")
+			annotation = ts.Annotation("long annotation long annotation long annotation long annotation")
 		}
 
 		if annotation != nil {
@@ -147,7 +147,6 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 	require.True(t, ok)
 
 	it := decoder.Decode(stream)
-	require.True(t, ok)
 	defer it.Close()
 
 	i := 0

@@ -23,6 +23,7 @@ package commitlog
 import (
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -49,8 +51,10 @@ import (
 
 var (
 	testNamespaceID    = ident.StringID("commitlog_test_ns")
-	testDefaultRunOpts = bootstrap.NewRunOptions().
-				SetInitialTopologyState(&topology.StateSnapshot{})
+	testDefaultRunOpts = bootstrap.NewRunOptions().SetInitialTopologyState(&topology.StateSnapshot{})
+
+	shortAnnotation = ts.Annotation("annot")
+	longAnnotation  = ts.Annotation(strings.Repeat("x", ts.OptimizedAnnotationLen*3))
 )
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
@@ -115,12 +119,12 @@ func TestReadOnlyOnce(t *testing.T) {
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := testValues{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
-		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, shortAnnotation},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, longAnnotation},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, longAnnotation},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, shortAnnotation},
 		// "baz" is in shard 2 and should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, shortAnnotation},
 	}
 
 	var commitLogReads int
@@ -167,7 +171,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	res, err := src.Read(ctx, tester.Namespaces, tester.Cache)
@@ -200,8 +204,8 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := testValues{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, longAnnotation},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, shortAnnotation},
 		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
 		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
 		// "baz" is in shard 2 and should not be returned
@@ -250,9 +254,9 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := testValues{
-		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
+		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, shortAnnotation},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, nil},
+		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, longAnnotation},
 		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, nil},
 		{foo, start, 5.0, xtime.Second, nil},
 	}
@@ -360,9 +364,9 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 
 		foo             = ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 		commitLogValues = testValues{
-			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
+			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, shortAnnotation},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
-			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
+			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, longAnnotation},
 		}
 	)
 	if setAnn != nil {
@@ -432,7 +436,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		encoder.Encode(dp, value.u, value.a)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := encoder.Stream(ctx)
@@ -441,9 +445,9 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	seg, err := reader.Segment()
 	require.NoError(t, err)
 
-	bytes := make([]byte, seg.Len())
-	_, err = reader.Read(bytes)
-	require.NoError(t, err)
+	bytes, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, seg.Len(), len(bytes))
 
 	mockReader.EXPECT().Read().Return(
 		foo.ID,

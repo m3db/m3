@@ -21,7 +21,6 @@
 package graphite
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"net/http"
@@ -33,11 +32,11 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/native"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
@@ -55,10 +54,11 @@ var (
 // A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
 type renderHandler struct {
-	opts             options.HandlerOptions
-	engine           *native.Engine
-	queryContextOpts models.QueryContextOptions
-	graphiteOpts     graphite.M3WrappedStorageOptions
+	opts                options.HandlerOptions
+	engine              *native.Engine
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	queryContextOpts    models.QueryContextOptions
+	graphiteOpts        graphite.M3WrappedStorageOptions
 }
 
 type respError struct {
@@ -75,8 +75,9 @@ func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 		engine: native.NewEngine(wrappedStore, native.CompileOptions{
 			EscapeAllNotOnlyQuotes: opts.GraphiteStorageOptions().CompileEscapeAllNotOnlyQuotes,
 		}),
-		queryContextOpts: opts.QueryContextOptions(),
-		graphiteOpts:     opts.GraphiteStorageOptions(),
+		fetchOptionsBuilder: opts.GraphiteRenderFetchOptionsBuilder(),
+		queryContextOpts:    opts.QueryContextOptions(),
+		graphiteOpts:        opts.GraphiteStorageOptions(),
 	}
 }
 
@@ -98,8 +99,7 @@ func (h *renderHandler) serveHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
-	reqCtx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	p, fetchOpts, err := ParseRenderRequest(r, h.opts)
+	reqCtx, p, fetchOpts, err := ParseRenderRequest(r.Context(), r, h.fetchOptionsBuilder)
 	if err != nil {
 		return xhttp.NewError(err, http.StatusBadRequest)
 	}
@@ -200,6 +200,7 @@ func (h *renderHandler) serveHTTP(
 	for _, r := range results {
 		numSeries += r.Len()
 		if !r.SortApplied {
+			// Use sort.Stable for deterministic output.
 			sort.Stable(ts.SeriesByName(r.Values))
 		}
 	}
@@ -215,7 +216,9 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	handleroptions.AddResponseHeaders(w, meta, fetchOpts)
+	if err := handleroptions.AddResponseHeaders(w, meta, fetchOpts, nil, nil); err != nil {
+		return err
+	}
 
 	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,

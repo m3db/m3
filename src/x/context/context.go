@@ -26,7 +26,7 @@ import (
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xresource "github.com/m3db/m3/src/x/resource"
-	xsync "github.com/m3db/m3/src/x/sync"
+	xsys "github.com/m3db/m3/src/x/sys"
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
@@ -67,9 +67,16 @@ type finalizeable struct {
 	closer    xresource.SimpleCloser
 }
 
-// NewContext creates a new context.
-func NewContext() Context {
-	return newContext()
+// NewWithGoContext creates a new context with the provided go ctx.
+func NewWithGoContext(goCtx stdctx.Context) Context {
+	ctx := newContext()
+	ctx.SetGoContext(goCtx)
+	return ctx
+}
+
+// NewBackground creates a new context with a Background go ctx.
+func NewBackground() Context {
+	return NewWithGoContext(stdctx.Background())
 }
 
 // NewPooledContext returns a new context that is returned to a pool when closed.
@@ -82,12 +89,8 @@ func newContext() *ctx {
 	return &ctx{}
 }
 
-func (c *ctx) GoContext() (stdctx.Context, bool) {
-	if c.goCtx == nil {
-		return nil, false
-	}
-
-	return c.goCtx, true
+func (c *ctx) GoContext() stdctx.Context {
+	return c.goCtx
 }
 
 func (c *ctx) SetGoContext(v stdctx.Context) {
@@ -133,7 +136,7 @@ func (c *ctx) registerFinalizeable(f finalizeable) {
 		return
 	}
 
-	slot := xsync.CPUCore() % finalizeableListSlots
+	slot := xsys.CPUCore() % finalizeableListSlots
 	c.finalizeables[slot].lock.Lock()
 	if c.finalizeables[slot].list == nil {
 		if c.pool != nil {
@@ -301,7 +304,7 @@ func (c *ctx) Reset() {
 	}
 
 	c.Lock()
-	c.done, c.goCtx, c.checkedAndNotSampled = false, nil, false
+	c.done, c.goCtx, c.checkedAndNotSampled = false, stdctx.Background(), false
 	for idx := range c.finalizeables {
 		c.finalizeables[idx] = finalizeableListSlot{}
 	}
@@ -353,10 +356,10 @@ func (c *ctx) parentCtxWithRLock() Context {
 }
 
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	goCtx, exists := c.GoContext()
-	if !exists || c.checkedAndNotSampled {
+	if c.checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
 	}
+	goCtx := c.GoContext()
 
 	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
 	if !sampled {

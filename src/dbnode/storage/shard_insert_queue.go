@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
-	xsync "github.com/m3db/m3/src/x/sync"
+	xsys "github.com/m3db/m3/src/x/sys"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -138,7 +138,7 @@ func newDatabaseShardInsertQueue(
 		// NB(r): Use 2 * num cores so that each CPU insert queue which
 		// is 1 per num CPU core can always enqueue a notification without
 		// it being lost.
-		notifyInsert:                     make(chan struct{}, 2*xsync.NumCores()),
+		notifyInsert:                     make(chan struct{}, 2*xsys.NumCores()),
 		closeCh:                          make(chan struct{}, 1),
 		insertPerSecondLimit:             atomic.NewUint64(0),
 		insertPerSecondLimitWindowNanos:  atomic.NewUint64(0),
@@ -295,7 +295,7 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 	// it is safe to concurently read (but not modify obviously).
 	// Add randomization.
 	queueOffset := int(now.UnixNano()) % queuesPerCPUCore
-	queueIdx := (xsync.CPUCore() * queuesPerCPUCore) + queueOffset
+	queueIdx := (xsys.CPUCore() * queuesPerCPUCore) + queueOffset
 	inserts := q.currBatch.insertsByCPUCore[queueIdx]
 	inserts.Lock()
 	// Track if first insert, if so then we need to notify insert loop,
@@ -358,12 +358,12 @@ type dbShardInsertAsyncOptions struct {
 	hasPendingRetrievedBlock bool
 	hasPendingIndexing       bool
 
-	// NB(prateek): `entryRefCountIncremented` indicates if the
+	// NB(prateek): `releaseEntryRef` indicates if the
 	// entry provided along with the dbShardInsertAsyncOptions
-	// already has it's ref count incremented. It's used to
-	// correctly manage the lifecycle of the entry across the
+	// already has it's ref count incremented and it will be decremented after insert.
+	// It's used to correctly manage the lifecycle of the entry across the
 	// shard -> shard Queue -> shard boundaries.
-	entryRefCountIncremented bool
+	releaseEntryRef bool
 }
 
 type dbShardPendingWrite struct {
@@ -395,7 +395,7 @@ func newDbShardInsertBatch(
 		nowFn: nowFn,
 		wg:    &sync.WaitGroup{},
 	}
-	numQueues := xsync.NumCores() * queuesPerCPUCore
+	numQueues := xsys.NumCores() * queuesPerCPUCore
 	for i := 0; i < numQueues; i++ {
 		b.insertsByCPUCore = append(b.insertsByCPUCore, &dbShardInsertsByCPUCore{
 			wg:      b.wg,

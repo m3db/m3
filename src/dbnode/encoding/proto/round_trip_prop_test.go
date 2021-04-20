@@ -169,7 +169,7 @@ func TestRoundTripProp(t *testing.T) {
 		// be returned by a call to Stream().
 		encLen := enc.Len()
 
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		defer ctx.Close()
 
 		stream, ok := enc.Stream(ctx)
@@ -301,7 +301,7 @@ func TestBijectivityProp(t *testing.T) {
 			messageBytes = append(messageBytes, mBytes)
 		}
 
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		defer ctx.Close()
 
 		// First verify that if the same input byte slices are passed then the same stream will always

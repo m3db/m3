@@ -21,6 +21,7 @@
 package fst
 
 import (
+	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -112,12 +113,21 @@ func (f *fstTermsPostingsIter) Next() bool {
 	currOffset := f.termsIter.CurrentOffset()
 
 	f.seg.RLock()
-	if index.MigrationReadOnlyPostings() {
-		f.err = f.seg.unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
-			currOffset, f.fieldOffsets)
-	} else {
-		f.err = f.seg.unmarshalBitmapNotClosedMaybeFinalizedWithLock(f.legacyBitmap,
-			currOffset, f.fieldOffsets)
+	if f.termsIter.opts.fieldsFST {
+		var fieldsData fswriter.FieldData
+		fieldsData, f.err = f.seg.unmarshalFieldDataNotClosedMaybeFinalizedWithRLock(currOffset)
+		currOffset = fieldsData.FieldPostingsListOffset
+	}
+	if f.err == nil {
+		// Only attempt if the previous unmarshal definitely succeeded
+		// if we are operating on a fields FST.
+		if index.MigrationReadOnlyPostings() {
+			f.err = f.seg.unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
+				currOffset, f.fieldOffsets)
+		} else {
+			f.err = f.seg.unmarshalBitmapNotClosedMaybeFinalizedWithLock(f.legacyBitmap,
+				currOffset, f.fieldOffsets)
+		}
 	}
 	f.seg.RUnlock()
 

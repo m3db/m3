@@ -42,10 +42,16 @@ type QueryContextOptions struct {
 	LimitMaxTimeseries int
 	// LimitMaxDocs limits the number of docs returned by each storage node.
 	LimitMaxDocs int
+	// LimitMaxReturnedSeries limits the number of series returned in total to the client.
+	LimitMaxReturnedSeries int
+	// LimitMaxReturnedDatapoints limits the number of datapoints returned in total to the client.
+	LimitMaxReturnedDatapoints int
+	// LimitMaxReturnedSeriesMetadata limits the number of series metadata returned in total to the client.
+	LimitMaxReturnedSeriesMetadata int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
 	// Instantaneous indicates an instant query.
-	Instantaneous     bool
+	Instantaneous bool
 	// RestrictFetchType restricts the query fetches.
 	RestrictFetchType *RestrictFetchTypeQueryContextOptions
 }

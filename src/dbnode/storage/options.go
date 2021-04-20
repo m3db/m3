@@ -23,9 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
-	"math"
-	"runtime"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -41,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -52,7 +50,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -159,7 +156,6 @@ type options struct {
 	identifierPool                  ident.Pool
 	fetchBlockMetadataResultsPool   block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool  block.FetchBlocksMetadataResultsPool
-	queryIDsWorkerPool              xsync.WorkerPool
 	writeBatchPool                  *writes.WriteBatchPool
 	bufferBucketPool                *series.BufferBucketPool
 	bufferBucketVersionsPool        *series.BufferBucketVersionsPool
@@ -181,6 +177,7 @@ type options struct {
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 	tileAggregator                  TileAggregator
+	permitsOptions                  permits.Options
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -195,10 +192,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
-
-	// Default to using half of the available cores for querying IDs
-	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
-	queryIDsWorkerPool.Init()
 
 	writeBatchPool := writes.NewWriteBatchPool(poolOpts, nil, nil)
 	writeBatchPool.Init()
@@ -244,7 +237,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		}),
 		fetchBlockMetadataResultsPool:   block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool:  block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
-		queryIDsWorkerPool:              queryIDsWorkerPool,
 		writeBatchPool:                  writeBatchPool,
 		bufferBucketVersionsPool:        series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:                series.NewBufferBucketPool(poolOpts),
@@ -258,6 +250,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
+		permitsOptions:                  permits.NewOptions(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -326,6 +319,7 @@ func (o *options) Validate() error {
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
+	opts.blockOpts = opts.blockOpts.SetClockOptions(value)
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
 	opts.indexOpts = opts.indexOpts.SetClockOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
@@ -502,16 +496,12 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
-	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(opts.poolOpts)
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
 	opts.blockOpts = opts.blockOpts.
@@ -914,13 +904,24 @@ func (o *options) SetTileAggregator(value TileAggregator) Options {
 	return &opts
 }
 
+func (o *options) PermitsOptions() permits.Options {
+	return o.permitsOptions
+}
+
+func (o *options) SetPermitsOptions(value permits.Options) Options {
+	opts := *o
+	opts.permitsOptions = value
+
+	return &opts
+}
+
 func (o *options) TileAggregator() TileAggregator {
 	return o.tileAggregator
 }
 
 type noOpColdFlush struct{}
 
-func (n *noOpColdFlush) ColdFlushNamespace(Namespace) (OnColdFlushNamespace, error) {
+func (n *noOpColdFlush) ColdFlushNamespace(Namespace, ColdFlushNsOpts) (OnColdFlushNamespace, error) {
 	return &persist.NoOpColdFlushNamespace{}, nil
 }
 
@@ -936,10 +937,8 @@ func (a *noopTileAggregator) AggregateTiles(
 	ctx context.Context,
 	sourceNs, targetNs Namespace,
 	shardID uint32,
-	blockReaders []fs.DataFileSetReader,
-	writer fs.StreamingWriter,
 	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
-) (int64, error) {
-	return 0, nil
+) (int64, int, error) {
+	return 0, 0, nil
 }

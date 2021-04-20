@@ -21,6 +21,7 @@
 package tchannelthrift
 
 import (
+	stdctx "context"
 	"time"
 
 	"github.com/m3db/m3/src/x/context"
@@ -28,7 +29,6 @@ import (
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
-	xnetcontext "golang.org/x/net/context"
 )
 
 const (
@@ -39,18 +39,19 @@ const (
 func RegisterServer(channel *tchannel.Channel, service thrift.TChanServer, contextPool context.Pool) {
 	server := thrift.NewServer(channel)
 	server.Register(service, thrift.OptPostResponse(postResponseFn))
-	server.SetContextFn(func(ctx xnetcontext.Context, method string, headers map[string]string) thrift.Context {
+	server.SetContextFn(func(ctx stdctx.Context, method string, headers map[string]string) thrift.Context {
 		xCtx := contextPool.Get()
 		xCtx.SetGoContext(ctx)
-		ctxWithValue := xnetcontext.WithValue(ctx, contextKey, xCtx)
+		ctxWithValue := stdctx.WithValue(ctx, contextKey, xCtx) //nolint: staticcheck
 		return thrift.WithHeaders(ctxWithValue, headers)
 	})
 }
 
 // NewContext returns a new thrift context and cancel func with embedded M3DB context
-func NewContext(timeout time.Duration) (thrift.Context, xnetcontext.CancelFunc) {
+func NewContext(timeout time.Duration) (thrift.Context, stdctx.CancelFunc) {
 	tctx, cancel := thrift.NewContext(timeout)
-	ctxWithValue := xnetcontext.WithValue(tctx, contextKey, context.NewContext())
+	xCtx := context.NewWithGoContext(tctx)
+	ctxWithValue := stdctx.WithValue(tctx, contextKey, xCtx) //nolint: staticcheck
 	return thrift.WithHeaders(ctxWithValue, nil), cancel
 }
 
@@ -59,7 +60,7 @@ func Context(ctx thrift.Context) context.Context {
 	return ctx.Value(contextKey).(context.Context)
 }
 
-func postResponseFn(ctx xnetcontext.Context, method string, response apachethrift.TStruct) {
+func postResponseFn(ctx stdctx.Context, method string, response apachethrift.TStruct) {
 	value := ctx.Value(contextKey)
 	inner := value.(context.Context)
 	inner.Close()

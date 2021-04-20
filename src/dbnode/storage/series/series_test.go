@@ -22,13 +22,13 @@ package series
 
 import (
 	"errors"
-	"io"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
@@ -43,7 +43,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,9 +56,7 @@ func newSeriesTestOptions() Options {
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	bufferBucketPool := NewBufferBucketPool(nil)
 	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)
@@ -74,8 +71,8 @@ func newSeriesTestOptions() Options {
 		SetRetentionOptions(opts.
 			RetentionOptions().
 			SetBlockSize(2 * time.Minute).
-			SetBufferFuture(10 * time.Second).
-			SetBufferPast(10 * time.Second).
+			SetBufferFuture(90 * time.Second).
+			SetBufferPast(90 * time.Second).
 			SetRetentionPeriod(time.Hour)).
 		SetDatabaseBlockOptions(opts.
 			DatabaseBlockOptions().
@@ -95,7 +92,7 @@ func TestSeriesEmpty(t *testing.T) {
 
 // Writes to series, verifying no error and that further writes should happen.
 func verifyWriteToSeries(t *testing.T, series *dbSeries, v DecodedTestValue) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value,
 		v.Unit, v.Annotation, WriteOptions{})
 	require.NoError(t, err)
@@ -142,7 +139,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 		verifyWriteToSeries(t, series, v)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
@@ -192,7 +189,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 
 	for i, v := range data {
 		curr = v.Timestamp
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
@@ -203,7 +200,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		ctx.Close()
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
@@ -257,18 +254,22 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 		verifyWriteToSeries(t, series, v)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	nsCtx := namespace.Context{}
 
 	// Test fine grained range
-	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	iter, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	assert.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 
 	// Test wide range
-	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	iter, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	assert.NoError(t, err)
+	results, err = iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
@@ -324,10 +325,10 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blockStates                  = BootstrappedBlockStateSnapshot{
 					Snapshot: map[xtime.UnixNano]BlockState{
 						// Exercise both code paths.
-						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): {
 							WarmRetrievable: true,
 						},
-						xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart): {
 							WarmRetrievable: false,
 						},
 					},
@@ -390,10 +391,12 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 			}
 
 			t.Run("Data can be read", func(t *testing.T) {
-				ctx := context.NewContext()
+				ctx := context.NewBackground()
 				defer ctx.Close()
 
-				results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				iter, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				require.NoError(t, err)
+				results, err := iter.ToSlices(ctx)
 				require.NoError(t, err)
 
 				var expectedData []DecodedTestValue
@@ -458,14 +461,14 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	nsCtx := namespace.Context{}
 
-	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
+	iter, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
-	assert.Nil(t, results)
+	assert.Nil(t, iter)
 }
 
 func TestSeriesFlushNoBlock(t *testing.T) {
@@ -525,7 +528,7 @@ func TestSeriesFlush(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	series.buffer.Write(ctx, testID, curr, 1234, xtime.Second, nil, WriteOptions{})
 	ctx.BlockingClose()
 
@@ -534,7 +537,7 @@ func TestSeriesFlush(t *testing.T) {
 		persistFn := func(_ persist.Metadata, _ ts.Segment, _ uint32) error {
 			return input
 		}
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		outcome, err := series.WarmFlush(ctx, curr, persistFn, namespace.Context{})
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
@@ -638,11 +641,11 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(blockStart): BlockState{
+			xtime.ToUnixNano(blockStart): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -701,7 +704,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -734,7 +737,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -789,7 +792,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -829,7 +832,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -884,7 +887,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -904,7 +907,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			xtime.ToUnixNano(curr): {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -1138,7 +1141,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		SetRetentionOptions(retentionOpts)
 
 	var (
-		ctx        = context.NewContext()
+		ctx        = context.NewBackground()
 		id         = ident.StringID("foo")
 		nsID       = ident.StringID("bar")
 		tags       = ident.NewTags(ident.StringTag("name", "value"))
@@ -1187,7 +1190,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	iter, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	require.NoError(t, err)
+	encoded, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
@@ -1255,7 +1260,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wasWritten, _, err := series.Write(ctx, curr.Add(-3*time.Minute),
@@ -1271,8 +1276,10 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
+	iter, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
 		curr.Add(time.Minute), namespace.Context{})
+	require.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 	values, err := decodedReaderValues(results, opts, namespace.Context{})
 	require.NoError(t, err)

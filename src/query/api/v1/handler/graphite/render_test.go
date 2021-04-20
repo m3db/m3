@@ -55,7 +55,8 @@ func testHandlerOptions(t *testing.T) options.HandlerOptions {
 
 	return options.EmptyHandlerOptions().
 		SetQueryContextOptions(models.QueryContextOptions{}).
-		SetFetchOptionsBuilder(fetchOptsBuilder)
+		SetGraphiteFindFetchOptionsBuilder(fetchOptsBuilder).
+		SetGraphiteRenderFetchOptionsBuilder(fetchOptsBuilder)
 }
 
 func makeBlockResult(

@@ -20,6 +20,8 @@
 
 package doc
 
+import "time"
+
 // MetadataIterator provides an iterator over a collection of document metadata. It is NOT
 // safe for multiple goroutines to invoke methods on an MetadataIterator simultaneously.
 type MetadataIterator interface {
@@ -43,6 +45,7 @@ type MetadataIterator interface {
 // Iterator provides an iterator over a collection of documents. It is NOT
 // safe for multiple goroutines to invoke methods on an Iterator simultaneously.
 type Iterator interface {
+
 	// Next returns a bool indicating if the iterator has any more documents
 	// to return.
 	Next() bool
@@ -58,4 +61,19 @@ type Iterator interface {
 
 	// Close releases any internal resources used by the iterator.
 	Close() error
+}
+
+// QueryDocIterator is an Iterator for all documents returned for a query. See Iterator for more details.
+type QueryDocIterator interface {
+	Iterator
+
+	// Done returns true if iterator is done and Next will return false on the next call. On the first call this will
+	// always return false and Next may still return false for an empty iterator. Callers still need to check for an
+	// Err after Done returns true.
+	// This is used by the index query path to check if there are more docs to process before waiting for an index
+	// worker.
+	Done() bool
+
+	// SearchDuration is how long it took to search for documents while iterating.
+	SearchDuration() time.Duration
 }

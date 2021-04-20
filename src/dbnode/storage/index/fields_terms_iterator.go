@@ -24,17 +24,22 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
 var (
 	errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
+
+	bgCtx = context.NewBackground()
 )
 
 // fieldsAndTermsIteratorOpts configures the fieldsAndTermsIterator.
@@ -67,9 +72,10 @@ type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
-	err       error
-	fieldIter segment.FieldsPostingsListIterator
-	termIter  segment.TermsIterator
+	err            error
+	fieldIter      segment.FieldsPostingsListIterator
+	termIter       segment.TermsIterator
+	searchDuration time.Duration
 
 	current struct {
 		field    []byte
@@ -81,23 +87,22 @@ type fieldsAndTermsIter struct {
 	restrictByPostings       *roaring.ReadOnlyBitmap
 }
 
-var (
-	fieldsAndTermsIterZeroed fieldsAndTermsIter
-)
+var fieldsAndTermsIterZeroed fieldsAndTermsIter
 
 var _ fieldsAndTermsIterator = &fieldsAndTermsIter{}
 
 // newFieldsAndTermsIteratorFn is the lambda definition of the ctor for fieldsAndTermsIterator.
 type newFieldsAndTermsIteratorFn func(
-	r segment.Reader, opts fieldsAndTermsIteratorOpts,
+	ctx context.Context, r segment.Reader, opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error)
 
 func newFieldsAndTermsIterator(
+	ctx context.Context,
 	reader segment.Reader,
 	opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error) {
 	iter := &fieldsAndTermsIter{}
-	err := iter.Reset(reader, opts)
+	err := iter.Reset(ctx, reader, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +110,7 @@ func newFieldsAndTermsIterator(
 }
 
 func (fti *fieldsAndTermsIter) Reset(
+	ctx context.Context,
 	reader segment.Reader,
 	opts fieldsAndTermsIteratorOpts,
 ) error {
@@ -140,10 +146,14 @@ func (fti *fieldsAndTermsIter) Reset(
 		return err
 	}
 
+	_, sp := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
+	start := time.Now()
 	pl, err := searcher.Search(fti.reader)
+	sp.Finish()
 	if err != nil {
 		return err
 	}
+	fti.searchDuration = time.Since(start)
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	if index.MigrationReadOnlyPostings() {
@@ -184,8 +194,11 @@ func (fti *fieldsAndTermsIter) Reset(
 			return errUnpackBitmapFromPostingsList
 		}
 	}
-
 	return nil
+}
+
+func (fti *fieldsAndTermsIter) SearchDuration() time.Duration {
+	return fti.searchDuration
 }
 
 func (fti *fieldsAndTermsIter) setNextField() bool {
@@ -370,6 +383,6 @@ func (fti *fieldsAndTermsIter) closePerUse() xerrors.MultiError {
 
 func (fti *fieldsAndTermsIter) Close() error {
 	multiErr := fti.closePerUse()
-	multiErr = multiErr.Add(fti.Reset(nil, fieldsAndTermsIteratorOpts{}))
+	multiErr = multiErr.Add(fti.Reset(bgCtx, nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }

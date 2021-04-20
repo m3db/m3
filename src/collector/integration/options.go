@@ -110,10 +110,12 @@ func newTestOptions() testOptions {
 		instrumentOpts:           instrument.NewOptions(),
 		serverOpts:               server.NewOptions(),
 		serverStateChangeTimeout: defaultServerStateChangeTimeout,
-		store:           mem.NewStore(),
-		cacheOpts:       cache.NewOptions(),
-		matcherOpts:     matcher.NewOptions(),
-		aggClientOpts:   aggclient.NewOptions(),
+		store:                    mem.NewStore(),
+		cacheOpts:                cache.NewOptions(),
+		matcherOpts:              matcher.NewOptions(),
+		aggClientOpts: aggclient.NewOptions().
+			SetMaxBatchSize(65536).
+			SetFlushWorkerCount(4),
 		aggReporterOpts: aggreporter.NewReporterOptions(),
 	}
 }

@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,11 +44,11 @@ func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b")}
-	r := segment.NewMockReader(ctrl)
-	iter, err := newFilterFieldsIterator(r, filters)
+	reader := newMockSegmentReader(ctrl, map[string]terms{})
+
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
-	r.EXPECT().ContainsField(gomock.Any()).Return(false, nil).AnyTimes()
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -60,15 +59,11 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	iter, err := newFilterFieldsIterator(r, filters)
+	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}})
+
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
-	gomock.InOrder(
-		r.EXPECT().ContainsField([]byte("a")).Return(true, nil),
-		r.EXPECT().ContainsField([]byte("b")).Return(false, nil),
-		r.EXPECT().ContainsField([]byte("c")).Return(false, nil),
-	)
 	require.True(t, iter.Next())
 	require.Equal(t, "a", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
@@ -85,15 +80,11 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	iter, err := newFilterFieldsIterator(r, filters)
+	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "b": {}, "e": {}})
+
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
-	gomock.InOrder(
-		r.EXPECT().ContainsField([]byte("a")).Return(false, nil),
-		r.EXPECT().ContainsField([]byte("b")).Return(true, nil),
-		r.EXPECT().ContainsField([]byte("c")).Return(false, nil),
-	)
 	require.True(t, iter.Next())
 	require.Equal(t, "b", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
@@ -106,15 +97,11 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	iter, err := newFilterFieldsIterator(r, filters)
+	reader := newMockSegmentReader(ctrl, map[string]terms{"d": {}, "e": {}, "c": {}})
+
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
-	gomock.InOrder(
-		r.EXPECT().ContainsField([]byte("a")).Return(false, nil),
-		r.EXPECT().ContainsField([]byte("b")).Return(false, nil),
-		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
-	)
 	require.True(t, iter.Next())
 	require.Equal(t, "c", iterCurrTerm(iter.Current()))
 	require.False(t, iter.Next())
@@ -127,15 +114,11 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	iter, err := newFilterFieldsIterator(r, filters)
+	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "b": {}, "c": {}})
+
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
-	gomock.InOrder(
-		r.EXPECT().ContainsField([]byte("a")).Return(true, nil),
-		r.EXPECT().ContainsField([]byte("b")).Return(true, nil),
-		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
-	)
 	require.True(t, iter.Next())
 	require.Equal(t, "a", iterCurrTerm(iter.Current()))
 	require.True(t, iter.Next())
@@ -152,15 +135,11 @@ func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	iter, err := newFilterFieldsIterator(r, filters)
+	reader := newMockSegmentReader(ctrl, map[string]terms{"a": {}, "c": {}})
+
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
-	gomock.InOrder(
-		r.EXPECT().ContainsField([]byte("a")).Return(true, nil),
-		r.EXPECT().ContainsField([]byte("b")).Return(false, nil),
-		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
-	)
 	require.True(t, iter.Next())
 	require.Equal(t, "a", iterCurrTerm(iter.Current()))
 	require.True(t, iter.Next())

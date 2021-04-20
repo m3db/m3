@@ -27,7 +27,6 @@ import (
 	"io"
 	"math"
 	"runtime"
-	"sort"
 	"sync"
 	"time"
 
@@ -46,7 +45,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/resource"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -67,7 +65,6 @@ var (
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
-	errCancelledQuery               = errors.New("query was cancelled")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -126,6 +123,13 @@ func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group block
 	return nil
 }
 
+type addAggregateResultsFn func(
+	ctx context.Context,
+	results AggregateResults,
+	batch []AggregateResultsEntry,
+	source []byte,
+) ([]AggregateResultsEntry, int, int, error)
+
 // nolint: maligned
 type block struct {
 	sync.RWMutex
@@ -137,6 +141,7 @@ type block struct {
 	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
 	newExecutorWithRLockFn          newExecutorFn
+	addAggregateResultsFn           addAggregateResultsFn
 	blockStart                      time.Time
 	blockEnd                        time.Time
 	blockSize                       time.Duration
@@ -145,10 +150,11 @@ type block struct {
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	queryLimits                     limits.QueryLimits
-	docsLimit                       limits.LookbackLimit
-	querySegmentsWorkers            xsync.WorkerPool
-	cachedSearchesWorkers           xsync.WorkerPool
+
+	fetchDocsLimit        limits.LookbackLimit
+	aggDocsLimit          limits.LookbackLimit
+	querySegmentsWorkers  xsync.WorkerPool
+	cachedSearchesWorkers xsync.WorkerPool
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -161,15 +167,19 @@ type blockMetrics struct {
 	segmentFreeMmapSuccess          tally.Counter
 	segmentFreeMmapError            tally.Counter
 	segmentFreeMmapSkipNotImmutable tally.Counter
+	querySeriesMatched              tally.Histogram
+	queryDocsMatched                tally.Histogram
+	aggregateSeriesMatched          tally.Histogram
+	aggregateDocsMatched            tally.Histogram
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
 	segmentFreeMmap := "segment-free-mmap"
+	buckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return blockMetrics{
-		rotateActiveSegment:    s.Counter("rotate-active-segment"),
-		rotateActiveSegmentAge: s.Timer("rotate-active-segment-age"),
-		rotateActiveSegmentSize: s.Histogram("rotate-active-segment-size",
-			append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)),
+		rotateActiveSegment:     s.Counter("rotate-active-segment"),
+		rotateActiveSegmentAge:  s.Timer("rotate-active-segment-age"),
+		rotateActiveSegmentSize: s.Histogram("rotate-active-segment-size", buckets),
 		segmentFreeMmapSuccess: s.Tagged(map[string]string{
 			"result":    "success",
 			"skip_type": "none",
@@ -182,6 +192,11 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 			"result":    "skip",
 			"skip_type": "not-immutable",
 		}).Counter(segmentFreeMmap),
+
+		querySeriesMatched:     s.Histogram("query-series-matched", buckets),
+		queryDocsMatched:       s.Histogram("query-docs-matched", buckets),
+		aggregateSeriesMatched: s.Histogram("aggregate-series-matched", buckets),
+		aggregateDocsMatched:   s.Histogram("aggregate-docs-matched", buckets),
 	}
 }
 
@@ -273,12 +288,13 @@ func NewBlock(
 		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		queryLimits:                     opts.QueryLimits(),
-		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		fetchDocsLimit:                  opts.QueryLimits().FetchDocsLimit(),
+		aggDocsLimit:                    opts.QueryLimits().AggregateDocsLimit(),
 		querySegmentsWorkers:            opts.QueryBlockSegmentWorkerPool(),
 		cachedSearchesWorkers:           cachedSearchesWorkers,
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
+	b.addAggregateResultsFn = b.addAggregateResults
 
 	return b, nil
 }
@@ -420,67 +436,20 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 	return readers, nil
 }
 
-// Query acquires a read lock on the block so that the segments
-// are guaranteed to not be freed/released while accumulating results.
-// This allows references to the mmap'd segment data to be accumulated
-// and then copied into the results before this method returns (it is not
-// safe to return docs directly from the segments from this method, the
-// results datastructure is used to copy it every time documents are added
-// to the results datastructure).
-func (b *block) Query(
-	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
-	query Query,
-	opts QueryOptions,
-	results BaseResults,
-	logFields []opentracinglog.Field,
-) (bool, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.BlockQuery)
-	defer sp.Finish()
-	if sampled {
-		sp.LogFields(logFields...)
-	}
-
-	exhaustive, err := b.queryNoLock(ctx, cancellable, query, opts, results)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-
-	return exhaustive, err
-}
-
-const (
-	queryGroupReadersParallelism = 32
-	queryGroupSize               = 32
-)
-
-type queryGroup struct {
-	readers    []m3ninxindex.Reader
-	exhaustive bool
-	err        error
-}
-
-func (b *block) segmentReadersNoLock() ([]segment.Reader, error) {
+// QueryIter acquires a read lock on the block to get the set of segments for the returned iterator. However, the
+// segments are searched and results are processed lazily in the returned iterator. The segments are finalized when
+// the ctx is finalized to ensure the mmaps are not freed until the ctx closes. This allows the returned results to
+// reference data in the mmap without copying.
+func (b *block) QueryIter(ctx context.Context, query Query) (QueryIterator, error) {
 	b.RLock()
-	defer b.RUnlock()
-
 	if b.state == blockStateClosed {
+		b.RUnlock()
 		return nil, ErrUnableToQueryBlockClosed
 	}
-
-	return b.segmentReadersWithRLock()
-}
-
-func (b *block) queryNoLock(
-	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
-	query Query,
-	opts QueryOptions,
-	results BaseResults,
-) (bool, error) {
-	readers, err := b.segmentReadersNoLock()
+	readers, err := b.segmentReadersWithRLock()
+	b.RUnlock()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	segmentReaders := make([]m3ninxindex.Reader, 0, len(readers))
@@ -488,148 +457,98 @@ func (b *block) queryNoLock(
 		segmentReaders = append(segmentReaders, reader)
 	}
 
-	if len(segmentReaders) < queryGroupReadersParallelism {
-		// Query no parallelism, but ensure not to overwhlem by limiting
-		// concurrency to the query segments worker pool.
-		b.querySegmentsWorkers.GetToken()
-		exhaustive, err := b.queryReadersNoLock(ctx, cancellable, query,
-			opts, results, segmentReaders)
-		b.querySegmentsWorkers.PutToken()
-		return exhaustive, err
-	}
-
-	var (
-		groupsN = int(math.Ceil(float64(len(readers)) / float64(queryGroupSize)))
-		groups  = make([]queryGroup, groupsN)
-		jobs    = make([]m3ninxindex.Reader, groupsN*queryGroupSize)
-		wg      sync.WaitGroup
-	)
-	// Create query group jobs.
-	for i := 0; i < groupsN; i++ {
-		groupJobs := jobs[:queryGroupSize]
-		jobs = jobs[queryGroupSize:]
-		groups[i] = queryGroup{
-			// Jobs backed by single bulk alloc slice, but start zero length.
-			readers: groupJobs[:0],
-		}
-	}
-	// Allocate jobs to groups, first sort by size.
-	sort.Slice(segmentReaders, func(i, j int) bool {
-		nI, _ := segmentReaders[i].NumDocs()
-		nJ, _ := segmentReaders[j].NumDocs()
-		return nI < nJ
-	})
-	// Now allocate round robin.
-	for i, reader := range segmentReaders {
-		group := i % groupsN
-		groups[group].readers = append(groups[group].readers, reader)
-	}
-
-	// Launch async queries.
-	for i := 1; i < groupsN; i++ {
-		i := i
-		wg.Add(1)
-		b.querySegmentsWorkers.Go(func() {
-			exhaustive, err := b.queryReadersNoLock(ctx, cancellable, query,
-				opts, results, groups[i].readers)
-			groups[i].exhaustive, groups[i].err = exhaustive, err
-			wg.Done()
-		})
-	}
-
-	// Save an extra goroutine to execute synchronously on local goroutine.
-	b.querySegmentsWorkers.GetToken()
-	exhaustive, err := b.queryReadersNoLock(ctx, cancellable, query,
-		opts, results, groups[0].readers)
-	b.querySegmentsWorkers.PutToken()
-	if err != nil {
-		return false, err
-	}
-
-	// Wait for others.
-	wg.Wait()
-
-	// Collate exhaustive.
-	for i := 1; i < groupsN; i++ {
-		if err := groups[i].err; err != nil {
-			return false, err
-		}
-		exhaustive = exhaustive && groups[i].exhaustive
-	}
-	return exhaustive, nil
-}
-
-func (b *block) queryReadersNoLock(
-	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
-	query Query,
-	opts QueryOptions,
-	queryResults BaseResults,
-	segmentReaders []m3ninxindex.Reader,
-) (bool, error) {
-	// Use a non concurrent builder for query results if can.
-	results, ok := queryResults.NonConcurrentBuilder()
-	if !ok {
-		// Fall back to using the query results as builder.
-		results = queryResults
-	}
-
 	exec := executor.NewExecutor(segmentReaders)
 
-	// Make sure if we don't register to close the executor later
-	// that we close it before returning.
-	execCloseRegistered := false
-	defer func() {
-		if !execCloseRegistered {
-			b.closeAsyncNoLock(exec)
-		}
-	}()
+	// FOLLOWUP(prateek): push down QueryOptions to restrict results
+	docIter, err := exec.Execute(ctx, query.Query.SearchQuery())
+	if err != nil {
+		b.closeAsyncNoLock(exec)
+		return nil, err
+	}
 
 	// Register the executor to close when context closes
 	// so can avoid copying the results into the map and just take
 	// references to it.
-	// NB(r): Needs to still be a valid query otherwise
-	// the context could be invalid because the caller early returned
-	// which means it can't be used for finalization any longer.
-	valid := cancellable.TryCheckout()
-	if !valid {
-		return false, errCancelledQuery
-	}
-	execCloseRegistered = true // Make sure to not locally close it.
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		b.closeAsyncNoLock(exec)
 	}))
-	cancellable.ReleaseCheckout()
 
-	// Perform actual search to start iteration.
-	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := exec.Execute(query.Query.SearchQuery())
-	if err != nil {
-		return false, err
+	return NewQueryIter(docIter), nil
+}
+
+// nolint: dupl
+func (b *block) QueryWithIter(
+	ctx context.Context,
+	opts QueryOptions,
+	iter QueryIterator,
+	results DocumentResults,
+	deadline time.Time,
+	logFields []opentracinglog.Field,
+) error {
+	// Use a non concurrent builder for query results if can.
+	if concurrentResults, ok := results.NonConcurrentBuilder(); ok {
+		// Fall back to using the query results as builder.
+		results, ok = concurrentResults.(DocumentResults)
+		if !ok {
+			return fmt.Errorf("non-concurrent results builder not-document results: %v", ok)
+		}
 	}
 
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	err := b.queryWithSpan(ctx, opts, iter, results, deadline)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	if iter.Done() {
+		docs, series := iter.Counts()
+		b.metrics.queryDocsMatched.RecordValue(float64(docs))
+		b.metrics.querySeriesMatched.RecordValue(float64(series))
+	}
+	return err
+}
+
+func (b *block) queryWithSpan(
+	ctx context.Context,
+	opts QueryOptions,
+	iter QueryIterator,
+	results DocumentResults,
+	deadline time.Time,
+) error {
 	var (
-		source     = opts.Source
-		iterCloser = safeCloser{closable: iter}
-		size       = queryResults.Size()
-		docsCount  = queryResults.TotalDocsCount()
-		docsPool   = b.opts.DocumentArrayPool()
-		batch      = docsPool.Get()
-		batchSize  = cap(batch)
+		err       error
+		source    = opts.Source
+		size      = results.Size()
+		docsCount = results.TotalDocsCount()
+		docsPool  = b.opts.DocumentArrayPool()
+		batch     = docsPool.Get()
+		batchSize = cap(batch)
 	)
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
 	}
 
 	// Register local data structures that need closing.
-	defer func() {
-		iterCloser.Close()
-		docsPool.Put(batch)
-	}()
+	defer docsPool.Put(batch)
 
-	for iter.Next() {
+	for time.Now().Before(deadline) && iter.Next(ctx) {
 		if opts.LimitsExceeded(size, docsCount) {
 			break
+		}
+
+		// the caller (nsIndex) has canceled this before the query has timed out.
+		// only check once per batch to limit the overhead. worst case nsIndex will need to wait for an additional batch
+		// to be processed after the query timeout. we check when the batch is empty to cover 2 cases, the initial doc
+		// when includes the search time, and subsequent batch resets.
+		if len(batch) == 0 {
+			select {
+			case <-ctx.GoContext().Done():
+				// indexNs will log something useful.
+				return ctx.GoContext().Err()
+			default:
+			}
 		}
 
 		batch = append(batch, iter.Current())
@@ -637,62 +556,57 @@ func (b *block) queryReadersNoLock(
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
-			return false, err
+			return err
 		}
+	}
+	if err := iter.Err(); err != nil {
+		return err
 	}
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
+		batch, size, docsCount, err = b.addQueryResults(ctx, results, batch, source)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 
-	if err := iter.Err(); err != nil {
-		return false, err
-	}
-	if err := iterCloser.Close(); err != nil {
-		return false, err
-	}
+	iter.AddSeries(size)
+	iter.AddDocs(docsCount)
 
-	return opts.exhaustive(size, docsCount), nil
+	return nil
 }
 
 func (b *block) closeAsyncNoLock(closer io.Closer) {
 	if err := closer.Close(); err != nil {
 		// Note: This only happens if closing the readers isn't clean.
-		b.logger.Error("could not close query index block resource", zap.Error(err))
+		instrument.EmitAndLogInvariantViolation(
+			b.iopts,
+			func(l *zap.Logger) {
+				l.Error("could not close query index block resource", zap.Error(err))
+			})
 	}
 }
 
 func (b *block) addQueryResults(
-	cancellable *xresource.CancellableLifetime,
-	results BaseResultsBuilder,
+	ctx context.Context,
+	results DocumentResults,
 	batch []doc.Document,
 	source []byte,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch), source); err != nil {
+		if err := b.fetchDocsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}
 
-	// checkout the lifetime of the query before adding results.
-	queryValid := cancellable.TryCheckout()
-	if !queryValid {
-		// query not valid any longer, do not add results and return early.
-		return batch, 0, 0, errCancelledQuery
-	}
-
-	// try to add the docs to the xresource.
+	_, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQueryAddDocuments)
+	defer sp.Finish()
+	// try to add the docs to the resource.
 	size, docsCount, err := results.AddDocuments(batch)
-
-	// immediately release the checkout on the lifetime of query.
-	cancellable.ReleaseCheckout()
 
 	// reset batch.
 	var emptyDoc doc.Document
@@ -705,46 +619,21 @@ func (b *block) addQueryResults(
 	return batch, size, docsCount, err
 }
 
-// Aggregate acquires a read lock on the block so that the segments
-// are guaranteed to not be freed/released while accumulating results.
-// NB: Aggregate is an optimization of the general aggregate Query approach
-// for the case when we can skip going to raw documents, and instead rely on
-// pre-aggregated results via the FST underlying the index.
-func (b *block) Aggregate(
-	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
-	opts QueryOptions,
-	results AggregateResults,
-	logFields []opentracinglog.Field,
-) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
+// AggIter acquires a read lock on the block to get the set of segments for the returned iterator. However, the
+// segments are searched and results are processed lazily in the returned iterator. The segments are finalized when
+// the ctx is finalized to ensure the mmaps are not freed until the ctx closes. This allows the returned results to
+// reference data in the mmap without copying.
+func (b *block) AggregateIter(ctx context.Context, aggOpts AggregateResultsOptions) (AggregateIterator, error) {
+	b.RLock()
+	defer b.RUnlock()
 
-	exhaustive, err := b.aggregateNoLock(ctx, cancellable, opts, results)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
+	if b.state == blockStateClosed {
+		return nil, ErrUnableToQueryBlockClosed
 	}
 
-	return exhaustive, err
-}
-
-func (b *block) aggregateNoLock(
-	ctx context.Context,
-	cancellable *xresource.CancellableLifetime,
-	opts QueryOptions,
-	results AggregateResults,
-) (bool, error) {
-	readers, err := b.segmentReadersNoLock()
-	if err != nil {
-		return false, err
-	}
-
-	aggOpts := results.AggregateResultsOptions()
-	iterateTerms := aggOpts.Type == AggregateTagNamesAndValues
 	iterateOpts := fieldsAndTermsIteratorOpts{
 		restrictByQuery: aggOpts.RestrictByQuery,
-		iterateTerms:    iterateTerms,
+		iterateTerms:    aggOpts.Type == AggregateTagNamesAndValues,
 		allowFn: func(field []byte) bool {
 			// skip any field names that we shouldn't allow.
 			if bytes.Equal(field, doc.IDReservedFieldName) {
@@ -769,32 +658,10 @@ func (b *block) aggregateNoLock(
 			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
 		},
 	}
-
-	iter, err := b.newFieldsAndTermsIteratorFn(nil, iterateOpts)
+	readers, err := b.segmentReadersWithRLock()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-
-	var (
-		source     = opts.Source
-		size       = results.Size()
-		docsN      = results.TotalDocsCount()
-		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
-		batchSize  = cap(batch)
-		iterClosed = false // tracking whether we need to free the iterator at the end.
-	)
-	if batchSize == 0 {
-		batchSize = defaultAggregateResultsEntryBatchSize
-	}
-
-	// cleanup at the end
-	defer func() {
-		b.opts.AggregateResultsEntryArrayPool().Put(batch)
-		if !iterClosed {
-			iter.Close()
-		}
-	}()
-
 	// Make sure to close readers at end of query since results can
 	// include references to the underlying bytes from the index segment
 	// read by the readers.
@@ -805,61 +672,174 @@ func (b *block) aggregateNoLock(
 		}))
 	}
 
-	for _, reader := range readers {
-		if opts.LimitsExceeded(size, docsN) {
+	return &aggregateIter{
+		readers:     readers,
+		iterateOpts: iterateOpts,
+		newIterFn:   b.newFieldsAndTermsIteratorFn,
+	}, nil
+}
+
+// nolint: dupl
+func (b *block) AggregateWithIter(
+	ctx context.Context,
+	iter AggregateIterator,
+	opts QueryOptions,
+	results AggregateResults,
+	deadline time.Time,
+	logFields []opentracinglog.Field,
+) error {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	err := b.aggregateWithSpan(ctx, iter, opts, results, deadline)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	if iter.Done() {
+		docs, series := iter.Counts()
+		b.metrics.aggregateDocsMatched.RecordValue(float64(docs))
+		b.metrics.aggregateSeriesMatched.RecordValue(float64(series))
+	}
+
+	return err
+}
+
+func (b *block) aggregateWithSpan(
+	ctx context.Context,
+	iter AggregateIterator,
+	opts QueryOptions,
+	results AggregateResults,
+	deadline time.Time,
+) error {
+	var (
+		err           error
+		source        = opts.Source
+		size          = results.Size()
+		docsCount     = results.TotalDocsCount()
+		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
+		maxBatch      = cap(batch)
+		fieldAppended bool
+		termAppended  bool
+		lastField     []byte
+		batchedFields int
+		currFields    int
+		currTerms     int
+	)
+	if maxBatch == 0 {
+		maxBatch = defaultAggregateResultsEntryBatchSize
+	}
+
+	// cleanup at the end
+	defer b.opts.AggregateResultsEntryArrayPool().Put(batch)
+
+	if opts.SeriesLimit > 0 && opts.SeriesLimit < maxBatch {
+		maxBatch = opts.SeriesLimit
+	}
+
+	if opts.DocsLimit > 0 && opts.DocsLimit < maxBatch {
+		maxBatch = opts.DocsLimit
+	}
+
+	for time.Now().Before(deadline) && iter.Next(ctx) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
-		err = iter.Reset(reader, iterateOpts)
+		// the caller (nsIndex) has canceled this before the query has timed out.
+		// only check once per batch to limit the overhead. worst case nsIndex will need to wait for an additional
+		// batch to be processed after the query timeout. we check when the batch is empty to cover 2 cases, the
+		// initial result when includes the search time, and subsequent batch resets.
+		if len(batch) == 0 {
+			select {
+			case <-ctx.GoContext().Done():
+				return ctx.GoContext().Err()
+			default:
+			}
+		}
+
+		field, term := iter.Current()
+
+		// TODO: remove this legacy doc tracking implementation when alternative
+		// limits are in place.
+		if results.EnforceLimits() {
+			if lastField == nil {
+				lastField = append(lastField, field...)
+				batchedFields++
+				if err := b.fetchDocsLimit.Inc(1, source); err != nil {
+					return err
+				}
+			} else if !bytes.Equal(lastField, field) {
+				lastField = lastField[:0]
+				lastField = append(lastField, field...)
+				batchedFields++
+				if err := b.fetchDocsLimit.Inc(1, source); err != nil {
+					return err
+				}
+			}
+
+			// NB: this logic increments the doc count to account for where the
+			// legacy limits would have been updated. It increments by two to
+			// reflect the term appearing as both the last element of the previous
+			// batch, as well as the first element in the next batch.
+			if batchedFields > maxBatch {
+				if err := b.fetchDocsLimit.Inc(2, source); err != nil {
+					return err
+				}
+
+				batchedFields = 1
+			}
+		}
+
+		batch, fieldAppended, termAppended = b.appendFieldAndTermToBatch(batch, field, term,
+			iter.fieldsAndTermsIteratorOpts().iterateTerms)
+		if fieldAppended {
+			currFields++
+		}
+		if termAppended {
+			currTerms++
+		}
+		// continue appending to the batch until we hit our max batch size.
+		if currFields+currTerms < maxBatch {
+			continue
+		}
+
+		batch, size, docsCount, err = b.addAggregateResultsFn(ctx, results, batch, source)
 		if err != nil {
-			return false, err
+			return err
 		}
 
-		for iter.Next() {
-			if opts.LimitsExceeded(size, docsN) {
-				break
-			}
-
-			field, term := iter.Current()
-			batch = b.appendFieldAndTermToBatchNoLock(batch, field, term,
-				iterateTerms)
-			if len(batch) < batchSize {
-				continue
-			}
-
-			batch, size, docsN, err = b.addAggregateResults(cancellable, results, batch, source)
-			if err != nil {
-				return false, err
-			}
-		}
-
-		if err := iter.Err(); err != nil {
-			return false, err
-		}
+		currFields = 0
+		currTerms = 0
 	}
 
-	// Close iterator just once, otherwise resources free'd before Reset called.
-	iterClosed = true
-	if err := iter.Close(); err != nil {
-		return false, err
+	if err := iter.Err(); err != nil {
+		return err
 	}
 
 	// Add last batch to results if remaining.
-	if len(batch) > 0 {
-		batch, size, docsN, err = b.addAggregateResults(cancellable, results, batch, source)
+	for len(batch) > 0 {
+		batch, size, docsCount, err = b.addAggregateResultsFn(ctx, results, batch, source)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 
-	return opts.exhaustive(size, docsN), nil
+	iter.AddSeries(size)
+	iter.AddDocs(docsCount)
+
+	return nil
 }
 
-func (b *block) appendFieldAndTermToBatchNoLock(
+// appendFieldAndTermToBatch adds the provided field / term onto the batch,
+// optionally reusing the last element of the batch if it pertains to the same field.
+// First boolean result indicates that a unique field was added to the batch
+// and the second boolean indicates if a unique term was added.
+func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
 	includeTerms bool,
-) []AggregateResultsEntry {
+) ([]AggregateResultsEntry, bool, bool) {
 	// NB(prateek): we make a copy of the (field, term) entries returned
 	// by the iterator during traversal, because the []byte are only valid per entry during
 	// the traversal (i.e. calling Next() invalidates the []byte). We choose to do this
@@ -868,10 +848,11 @@ func (b *block) appendFieldAndTermToBatchNoLock(
 	// idents is transferred to the results map, which either hangs on to them (if they are new),
 	// or finalizes them if they are duplicates.
 	var (
-		entry            AggregateResultsEntry
-		lastField        []byte
-		lastFieldIsValid bool
-		reuseLastEntry   bool
+		entry                       AggregateResultsEntry
+		lastField                   []byte
+		lastFieldIsValid            bool
+		reuseLastEntry              bool
+		newFieldAdded, newTermAdded bool
 	)
 	// we are iterating multiple segments so we may receive duplicates (same field/term), but
 	// as we are iterating one segment at a time, and because the underlying index structures
@@ -894,6 +875,7 @@ func (b *block) appendFieldAndTermToBatchNoLock(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
+		newFieldAdded = true
 		// allocate id because this is the first time we've seen it
 		// NB(r): Iterating fields FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -902,6 +884,7 @@ func (b *block) appendFieldAndTermToBatchNoLock(
 	}
 
 	if includeTerms {
+		newTermAdded = true
 		// terms are always new (as far we know without checking the map for duplicates), so we allocate
 		// NB(r): Iterating terms FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -914,7 +897,8 @@ func (b *block) appendFieldAndTermToBatchNoLock(
 	} else {
 		batch = append(batch, entry)
 	}
-	return batch
+
+	return batch, newFieldAdded, newTermAdded
 }
 
 func (b *block) pooledID(id []byte) ident.ID {
@@ -925,31 +909,30 @@ func (b *block) pooledID(id []byte) ident.ID {
 	return b.opts.IdentifierPool().BinaryID(data)
 }
 
+// addAggregateResults adds the fields on the batch
+// to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
-	cancellable *xresource.CancellableLifetime,
+	ctx context.Context,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
+	_, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQueryAddDocuments)
+	defer sp.Finish()
+	// try to add the docs to the resource.
+	size, docsCount := results.AddFields(batch)
+
+	aggDocs := len(batch)
+	for i := range batch {
+		aggDocs += len(batch[i].Terms)
+	}
+
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch), source); err != nil {
+		if err := b.aggDocsLimit.Inc(aggDocs, source); err != nil {
 			return batch, 0, 0, err
 		}
 	}
-
-	// checkout the lifetime of the query before adding results.
-	queryValid := cancellable.TryCheckout()
-	if !queryValid {
-		// query not valid any longer, do not add results and return early.
-		return batch, 0, 0, errCancelledQuery
-	}
-
-	// try to add the docs to the xresource.
-	size, docsCount := results.AddFields(batch)
-
-	// immediately release the checkout on the lifetime of query.
-	cancellable.ReleaseCheckout()
 
 	// reset batch.
 	var emptyField AggregateResultsEntry
@@ -1321,21 +1304,4 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 		})
 		return err
 	}
-}
-
-type closable interface {
-	Close() error
-}
-
-type safeCloser struct {
-	closable
-	closed bool
-}
-
-func (c *safeCloser) Close() error {
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	return c.closable.Close()
 }

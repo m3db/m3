@@ -1,6 +1,6 @@
 ## Organizing Data with Placements and Namespaces
 
-A time series database (TSDBs) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
+A time series database (TSDB) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
 
 As a distributed TSDB, M3 helps solve this problem by spreading metrics data, and demand for that data, across multiple nodes in a cluster. M3 does this by splitting data into segments that match certain criteria (such as above a certain value) across nodes into shards.
 
@@ -189,7 +189,7 @@ curl {{% apiendpoint %}}services/m3db/placement | jq .
 {{% /notice %}}
 
 ### Ready a Namespace
-<!-- TODO: Why?> -->
+
 Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}services/m3db/namespace/ready_.
 
 {{< tabs name="ready_namespaces" >}}
@@ -273,37 +273,18 @@ This quickstart focuses on Prometheus metrics which consist of a value, a timest
 
 You can write metrics using one of two endpoints:
 
--   _[{{% apiendpoint %}}prom/remote/write](/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
+-   _[{{% apiendpoint %}}prom/remote/write](/docs/reference/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
 -   _{{% apiendpoint %}}json/write_ - Write a JSON payload of metrics data. This endpoint is quick for testing purposes but is not as performant for production usage.
 
-For this quickstart, use the _{{% apiendpoint %}}json/write_ endpoint to write a tagged metric to M3 with the following data in the request body, all fields are required:
+{{< tabs name="prom_http_write" >}}
+{{< tab name="Prometheus" >}}
 
--   `tags`: An object of at least one `name`/`value` pairs
--   `timestamp`: The UNIX timestamp for the data
--   `value`: The value for the data, can be of any type
-
-{{% notice tip %}}
-The examples below use `__name__` as the name for one of the tags, which is a Prometheus reserved tag that allows you to query metrics using the value of the tag to filter results.
-{{% /notice %}}
-
-{{% notice tip %}}
-Label names may contain ASCII letters, numbers, underscores, and Unicode characters. They must match the regex `[a-zA-Z_][a-zA-Z0-9_]*`. Label names beginning with `__` are reserved for internal use. [Read more in the Prometheus documentation](https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels).
-{{% /notice %}}
-
-{{< tabs name="write_metrics" >}}
-{{< tab name="Command 1" >}}
-
-{{< codeinclude file="docs/includes/write-metrics-1.sh" language="shell" >}}
+{{< fileinclude file="quickstart-prometheus-steps.md" >}}
 
 {{< /tab >}}
-{{< tab name="Command 2" >}}
+{{< tab name="HTTP API" >}}
 
-{{< codeinclude file="docs/includes/write-metrics-2.sh" language="shell" >}}
-
-{{< /tab >}}
-{{< tab name="Command 3" >}}
-
-{{< codeinclude file="docs/includes/write-metrics-3.sh" language="shell" >}}
+{{< fileinclude file="quickstart-http-steps.md" >}}
 
 {{< /tab >}}
 {{< /tabs >}}
@@ -443,9 +424,92 @@ curl -X "POST" -G "{{% apiendpoint %}}query_range" \
 {{% /tab %}}
 {{< /tabs >}}
 
-<!-- ## Next Steps
+#### Values collected from Prometheus
 
-This quickstart covered getting a single-node M3DB cluster running, and writing and querying metrics to the cluster. Some next steps are:
+If you followed the steps above for collecting metrics from Prometheus, the examples above work, but don't return any results. To query those results, use the following commands to return a sum of the values.
 
--   one
--   two -->
+{{< tabs name="example_promql_sum" >}}
+{{% tab name="Linux" %}}
+
+<!-- TODO: Check Linux command -->
+
+```shell
+curl -X "POST" -G "{{% apiendpoint %}}query_range" \
+  -d "query=third_avenue_sum" \
+  -d "start=$(date "+%s" -d "45 seconds ago")" \
+  -d "end=$( date +%s )" \
+  -d "step=500s" | jq .
+```
+
+{{% /tab %}}
+{{% tab name="macOS/BSD" %}}
+
+```shell
+curl -X "POST" -G "{{% apiendpoint %}}query_range" \
+  -d "query=third_avenue_sum" \
+  -d "start=$( date -v -45S +%s )" \
+  -d "end=$( date +%s )" \
+  -d "step=500s" | jq .
+```
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "__name__": "third_avenue_sum",
+          "group": "canary",
+          "instance": "localhost:8082",
+          "job": "node",
+          "monitor": "codelab-monitor"
+        },
+        "values": [
+          [
+            1608737991,
+            "5801.45"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "third_avenue_sum",
+          "group": "production",
+          "instance": "localhost:8080",
+          "job": "node",
+          "monitor": "codelab-monitor"
+        },
+        "values": [
+          [
+            1608737991,
+            "5501.45"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "third_avenue_sum",
+          "group": "production",
+          "instance": "localhost:8081",
+          "job": "node",
+          "monitor": "codelab-monitor"
+        },
+        "values": [
+          [
+            1608737991,
+            "13480.27"
+          ]
+        ]
+      }
+    ]
+  }
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}

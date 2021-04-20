@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -33,14 +34,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -48,15 +49,180 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
-	workerChannelSize = 256
+	workerChannelSize                 = 256
+	readSeriesBlocksWorkerChannelSize = 512
 )
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (
 	iter commitlog.Iterator, corruptFiles []commitlog.ErrorWithPath, err error)
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
+
+type bootstrapNamespace struct {
+	namespaceID             []byte
+	bootstrapping           bool
+	dataAndIndexShardRanges result.ShardTimeRanges
+	namespace               namespace.Metadata
+	namespaceContext        namespace.Context
+	dataBlockSize           time.Duration
+	accumulator             bootstrap.NamespaceDataAccumulator
+}
+
+type seriesMapKey struct {
+	fileReadID  uint64
+	uniqueIndex uint64
+}
+
+type seriesMapEntry struct {
+	namespace          *bootstrapNamespace
+	series             bootstrap.CheckoutSeriesResult
+	shardNoLongerOwned bool
+}
+
+// accumulateArg contains all the information a worker go-routine needs to
+// accumulate a write for encoding into the database.
+type accumulateArg struct {
+	namespace *bootstrapNamespace
+	series    bootstrap.CheckoutSeriesResult
+	shard     uint32
+	dp        ts.Datapoint
+	unit      xtime.Unit
+
+	// longAnnotation stores the annotation value in case it does not fit in shortAnnotation.
+	longAnnotation ts.Annotation
+
+	// shortAnnotation is a predefined buffer for passing small allocations around instead of allocating.
+	shortAnnotation    [ts.OptimizedAnnotationLen]byte
+	shortAnnotationLen uint8
+}
+
+type accumulateWorker struct {
+	inputCh        chan accumulateArg
+	datapointsRead int
+	numErrors      int
+}
+
+type seriesBlock struct {
+	resolver bootstrap.SeriesRefResolver
+	block    block.DatabaseBlock
+}
+
+type readSeriesBlocksWorker struct {
+	dataCh      chan seriesBlock
+	reader      fs.DataFileSetReader
+	shard       uint32
+	accumulator bootstrap.NamespaceDataAccumulator
+	blocksPool  block.DatabaseBlockPool
+	blockStart  time.Time
+	blockSize   time.Duration
+	nsCtx       namespace.Context
+}
+
+func (w *readSeriesBlocksWorker) readSeriesBlocks(ctx context.Context) error {
+	defer close(w.dataCh)
+	numSeriesRead := 0
+	for {
+		id, tags, data, expectedChecksum, err := w.reader.Read()
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		numSeriesRead++
+
+		dbBlock := w.blocksPool.Get()
+		dbBlock.Reset(w.blockStart, w.blockSize,
+			ts.NewSegment(data, nil, 0, ts.FinalizeHead), w.nsCtx)
+
+		// Resetting the block will trigger a checksum calculation, so use
+		// that instead of calculating it twice.
+		checksum, err := dbBlock.Checksum()
+		if err != nil {
+			return err
+		}
+		if checksum != expectedChecksum {
+			return fmt.Errorf("checksum for series: %s was %d but expected %d",
+				id, checksum, expectedChecksum)
+		}
+
+		res, owned, err := w.accumulator.CheckoutSeriesWithoutLock(w.shard, id, tags)
+		if err != nil {
+			if !owned {
+				// Skip bootstrapping this series if we don't own it.
+				continue
+			}
+			return err
+		}
+
+		w.dataCh <- seriesBlock{
+			resolver: res.Resolver,
+			block:    dbBlock,
+		}
+
+		id.Finalize()
+		tags.Close()
+
+		// check if context was not canceled on a regular basis.
+		if numSeriesRead%1024 == 0 {
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+				// do not block.
+			}
+		}
+	}
+	return nil
+}
+
+type readNamespaceResult struct {
+	namespace               bootstrap.Namespace
+	dataAndIndexShardRanges result.ShardTimeRanges
+}
+
+type commitLogResult struct {
+	shouldReturnUnfulfilled bool
+	// ensures we only read the commit log once
+	read bool
+}
+
+type commitLogSourceMetrics struct {
+	corruptCommitlogFile tally.Counter
+	bootstrapping        tally.Gauge
+	commitLogEntriesRead tally.Counter
+}
+
+func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
+	return commitLogSourceMetrics{
+		corruptCommitlogFile: scope.SubScope("commitlog").Counter("corrupt"),
+		bootstrapping:        scope.SubScope("status").Gauge("bootstrapping"),
+		commitLogEntriesRead: scope.SubScope("commitlog").Counter("entries-read"),
+	}
+}
+
+type gaugeLoopCloserFn func()
+
+func (m commitLogSourceMetrics) emitBootstrapping() gaugeLoopCloserFn {
+	doneCh := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				m.bootstrapping.Update(0)
+				return
+			default:
+				m.bootstrapping.Update(1)
+				time.Sleep(time.Second)
+			}
+		}
+	}()
+
+	return func() { close(doneCh) }
+}
 
 type commitLogSource struct {
 	opts  Options
@@ -76,46 +242,8 @@ type commitLogSource struct {
 	// to be read once (during the first pass) and the results can be subsequently cached and returned on future passes.
 	// Since the bootstrapper is single threaded this does not need to be guarded with a mutex.
 	commitLogResult commitLogResult
-}
 
-type bootstrapNamespace struct {
-	namespaceID             []byte
-	bootstrapping           bool
-	dataAndIndexShardRanges result.ShardTimeRanges
-	namespace               namespace.Metadata
-	namespaceContext        namespace.Context
-	dataBlockSize           time.Duration
-	accumulator             bootstrap.NamespaceDataAccumulator
-}
-
-type seriesMap map[seriesMapKey]*seriesMapEntry
-
-type seriesMapKey struct {
-	fileReadID  uint64
-	uniqueIndex uint64
-}
-
-type seriesMapEntry struct {
-	shardNoLongerOwned bool
-	namespace          *bootstrapNamespace
-	series             bootstrap.CheckoutSeriesResult
-}
-
-// accumulateArg contains all the information a worker go-routine needs to
-// accumulate a write for encoding into the database.
-type accumulateArg struct {
-	namespace  *bootstrapNamespace
-	series     bootstrap.CheckoutSeriesResult
-	shard      uint32
-	dp         ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
-}
-
-type accumulateWorker struct {
-	inputCh        chan accumulateArg
-	datapointsRead int
-	numErrors      int
+	instrumentation *instrumentation
 }
 
 func newCommitLogSource(
@@ -128,13 +256,15 @@ func newCommitLogSource(
 		MetricsScope().
 		SubScope("bootstrapper-commitlog")
 
+	log := opts.
+		ResultOptions().
+		InstrumentOptions().
+		Logger().
+		With(zap.String("bootstrapper", "commitlog"))
+
 	return &commitLogSource{
-		opts: opts,
-		log: opts.
-			ResultOptions().
-			InstrumentOptions().
-			Logger().
-			With(zap.String("bootstrapper", "commitlog")),
+		opts:  opts,
+		log:   log,
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 
 		inspection: inspection,
@@ -143,7 +273,8 @@ func newCommitLogSource(
 		snapshotFilesFn: fs.SnapshotFiles,
 		newReaderFn:     fs.NewReader,
 
-		metrics: newCommitLogSourceMetrics(scope),
+		metrics:         newCommitLogSourceMetrics(scope),
+		instrumentation: newInstrumentation(opts, scope, log),
 	}
 }
 
@@ -165,22 +296,17 @@ func (s *commitLogSource) AvailableIndex(
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
-type readNamespaceResult struct {
-	namespace               bootstrap.Namespace
-	dataAndIndexShardRanges result.ShardTimeRanges
-}
-
 // Read will read all commitlog files on disk, as well as as the latest snapshot for
 // each shard/block combination (if it exists) and merge them.
 // TODO(rartoul): Make this take the SnapshotMetadata files into account to reduce the
 // number of commitlogs / snapshots that we need to read.
 func (s *commitLogSource) Read(
-	ctx context.Context,
+	ctx xcontext.Context,
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.commitLogBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	var (
 		// Emit bootstrapping gauge for duration of ReadData.
@@ -191,10 +317,7 @@ func (s *commitLogSource) Read(
 	)
 	defer doneReadingData()
 
-	startSnapshotsRead := s.nowFn()
-	s.log.Info("read snapshots start")
-	span.LogEvent("read_snapshots_start")
-
+	instrCtx.bootstrapSnapshotsStarted()
 	for _, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
@@ -233,14 +356,12 @@ func (s *commitLogSource) Read(
 			}
 		}
 	}
+	instrCtx.bootstrapSnapshotsCompleted()
 
-	s.log.Info("read snapshots done",
-		zap.Duration("took", s.nowFn().Sub(startSnapshotsRead)))
-	span.LogEvent("read_snapshots_done")
-
+	instrCtx.readCommitLogStarted()
 	if !s.commitLogResult.read {
 		var err error
-		s.commitLogResult, err = s.readCommitLog(namespaces, span)
+		s.commitLogResult, err = s.readCommitLog(namespaces, instrCtx.span)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -274,14 +395,8 @@ func (s *commitLogSource) Read(
 			IndexResult: indexResult,
 		})
 	}
-
+	instrCtx.readCommitLogCompleted()
 	return bootstrapResult, nil
-}
-
-type commitLogResult struct {
-	shouldReturnUnfulfilled bool
-	// ensures we only read the commit log once
-	read                    bool
 }
 
 func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span opentracing.Span) (commitLogResult, error) {
@@ -553,19 +668,32 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 			continue
 		}
 
+		arg := accumulateArg{
+			namespace: seriesEntry.namespace,
+			series:    seriesEntry.series,
+			shard:     seriesEntry.series.Shard,
+			dp:        entry.Datapoint,
+			unit:      entry.Unit,
+		}
+
+		annotationLen := len(entry.Annotation)
+		if annotationLen > 0 {
+			// Use the predefined buffer if the annotation fits in it.
+			if annotationLen <= len(arg.shortAnnotation) {
+				copy(arg.shortAnnotation[:], entry.Annotation)
+				arg.shortAnnotationLen = uint8(annotationLen)
+			} else {
+				// Otherwise allocate.
+				arg.longAnnotation = append(make([]byte, 0, annotationLen), entry.Annotation...)
+			}
+		}
+
 		// Distribute work.
 		// NB(r): In future we could batch a few points together before sending
 		// to a channel to alleviate lock contention/stress on the channels.
 		workerEnqueue++
 		worker := workers[workerEnqueue%numWorkers]
-		worker.inputCh <- accumulateArg{
-			namespace:  seriesEntry.namespace,
-			series:     seriesEntry.series,
-			shard:      seriesEntry.series.Shard,
-			dp:         entry.Datapoint,
-			unit:       entry.Unit,
-			annotation: entry.Annotation,
-		}
+		worker.inputCh <- arg
 	}
 
 	if iterErr := iter.Err(); iterErr != nil {
@@ -796,6 +924,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 		nsCtx      = namespace.NewContextFrom(ns)
+		numWorkers = s.opts.AccumulateConcurrency()
 	)
 
 	// Bootstrap the snapshot file.
@@ -832,50 +961,43 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		zap.Time("blockStart", blockStart),
 		zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex))
 
-	for {
-		id, tags, data, expectedChecksum, err := reader.Read()
-		if err != nil && err != io.EOF {
-			return err
-		}
-		if err == io.EOF {
-			break
-		}
-
-		dbBlock := blocksPool.Get()
-		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegment(data, nil, 0, ts.FinalizeHead), nsCtx)
-
-		// Resetting the block will trigger a checksum calculation, so use
-		// that instead of calculating it twice.
-		checksum, err := dbBlock.Checksum()
-		if err != nil {
-			return err
-		}
-		if checksum != expectedChecksum {
-			return fmt.Errorf("checksum for series: %s was %d but expected %d",
-				id, checksum, expectedChecksum)
-		}
-
-		// NB(r): No parallelization required to checkout the series.
-		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
-		if err != nil {
-			if !owned {
-				// Skip bootstrapping this series if we don't own it.
-				continue
-			}
-			return err
-		}
-
-		// Load into series.
-		if err := ref.Series.LoadBlock(dbBlock, writeType); err != nil {
-			return err
-		}
-
-		// Always finalize both ID and tags after loading block.
-		id.Finalize()
-		tags.Close()
+	worker := &readSeriesBlocksWorker{
+		dataCh:      make(chan seriesBlock, readSeriesBlocksWorkerChannelSize),
+		reader:      reader,
+		shard:       shard,
+		accumulator: accumulator,
+		blocksPool:  blocksPool,
+		blockStart:  blockStart,
+		blockSize:   blockSize,
+		nsCtx:       nsCtx,
 	}
 
+	errs, ctx := errgroup.WithContext(context.Background())
+	errs.Go(func() error {
+		return worker.readSeriesBlocks(ctx)
+	})
+
+	for i := 0; i < numWorkers; i++ {
+		errs.Go(func() error {
+			return s.loadBlocks(worker.dataCh, writeType)
+		})
+	}
+
+	return errs.Wait()
+}
+
+func (s *commitLogSource) loadBlocks(dataCh <-chan seriesBlock, writeType series.WriteType) error {
+	for seriesBlock := range dataCh {
+		// Load into series.
+		seriesRef, err := seriesBlock.resolver.SeriesRef()
+		if err != nil {
+			return fmt.Errorf("(commitlog) unable to resolve series ref: %w", err)
+		}
+
+		if err := seriesRef.LoadBlock(seriesBlock.block, writeType); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -937,20 +1059,40 @@ func (s *commitLogSource) readCommitLogFilePredicate(f commitlog.FileFilterInfo)
 }
 
 func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
-	ctx := context.NewContext()
+	ctx := xcontext.NewBackground()
 	defer ctx.Close()
+
+	reusableAnnotation := make([]byte, 0, ts.OptimizedAnnotationLen)
 
 	for input := range worker.inputCh {
 		var (
-			namespace  = input.namespace
-			entry      = input.series
-			dp         = input.dp
-			unit       = input.unit
-			annotation = input.annotation
+			namespace = input.namespace
+			entry     = input.series
+			dp        = input.dp
+			unit      = input.unit
 		)
+
+		annotation := input.longAnnotation
+		if input.shortAnnotationLen > 0 {
+			reusableAnnotation = append(reusableAnnotation[:0], input.shortAnnotation[:input.shortAnnotationLen]...)
+			annotation = reusableAnnotation
+		}
 		worker.datapointsRead++
 
-		_, _, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
+		ref, err := entry.Resolver.SeriesRef()
+		if err != nil {
+			if worker.numErrors == 0 {
+				s.log.Error("failed to resolve series ref", zap.Error(err))
+			} else {
+				// Always write a debug log, most of these will go nowhere if debug
+				// logging not enabled however.
+				s.log.Debug("failed to resolve series ref", zap.Error(err))
+			}
+			worker.numErrors++
+			continue
+		}
+
+		_, _, err = ref.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc:         namespace.namespaceContext.Schema,
 				BootstrapWrite:     true,
@@ -1111,38 +1253,4 @@ func (s *commitLogSource) shardsReplicated(
 	// have majority replica values of 2.
 	majorityReplicas := initialTopologyState.MajorityReplicas
 	return majorityReplicas > 1
-}
-
-type commitLogSourceMetrics struct {
-	corruptCommitlogFile tally.Counter
-	bootstrapping        tally.Gauge
-	commitLogEntriesRead tally.Counter
-}
-
-func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
-	return commitLogSourceMetrics{
-		corruptCommitlogFile: scope.SubScope("commitlog").Counter("corrupt"),
-		bootstrapping:        scope.SubScope("status").Gauge("bootstrapping"),
-		commitLogEntriesRead: scope.SubScope("commitlog").Counter("entries-read"),
-	}
-}
-
-type gaugeLoopCloserFn func()
-
-func (m commitLogSourceMetrics) emitBootstrapping() gaugeLoopCloserFn {
-	doneCh := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-doneCh:
-				m.bootstrapping.Update(0)
-				return
-			default:
-				m.bootstrapping.Update(1)
-				time.Sleep(time.Second)
-			}
-		}
-	}()
-
-	return func() { close(doneCh) }
 }

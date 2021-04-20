@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	fsbootstrapper "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -54,8 +55,6 @@ var (
 	// Update BootstrapPeersConfiguration comment in
 	// src/cmd/services/m3dbnode/config package if this is changed.
 	DefaultShardPersistenceFlushConcurrency = 1
-	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
-	defaultIndexSegmentConcurrency = 1
 )
 
 var (
@@ -92,9 +91,9 @@ func NewOptions() Options {
 		defaultShardConcurrency:          DefaultShardConcurrency,
 		shardPersistenceConcurrency:      DefaultShardPersistenceConcurrency,
 		shardPersistenceFlushConcurrency: DefaultShardPersistenceFlushConcurrency,
-		indexSegmentConcurrency:          defaultIndexSegmentConcurrency,
+		indexSegmentConcurrency:          fsbootstrapper.DefaultIndexSegmentConcurrency,
 		persistenceMaxQueueSize:          defaultPersistenceMaxQueueSize,
-		// Use a zero pool, this should be overriden at config time.
+		// Use a zero pool, this should be overridden at config time.
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
 			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),
@@ -125,6 +124,15 @@ func (o *options) Validate() error {
 	}
 	if n := o.indexSegmentConcurrency; n <= 0 {
 		return fmt.Errorf("index segment concurrency not >= 1: actual=%d", n)
+	}
+	if n := o.shardPersistenceConcurrency; n <= 0 {
+		return fmt.Errorf("shard persistence concurrency not >= 1: actual=%d", n)
+	}
+	if n := o.shardPersistenceFlushConcurrency; n <= 0 {
+		return fmt.Errorf("shard persistence flush concurrency not >= 1: actual=%d", n)
+	}
+	if n := o.defaultShardConcurrency; n <= 0 {
+		return fmt.Errorf("default shard concurrency not >= 1: actual=%d", n)
 	}
 	return nil
 }

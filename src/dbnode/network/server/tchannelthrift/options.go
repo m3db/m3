@@ -21,6 +21,8 @@
 package tchannelthrift
 
 import (
+	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/clock"
@@ -42,6 +44,9 @@ type options struct {
 	checkedBytesWrapperPool     xpool.CheckedBytesWrapperPool
 	maxOutstandingWriteRequests int
 	maxOutstandingReadRequests  int
+	queryLimits                 limits.QueryLimits
+	permitsOptions              permits.Options
+	seriesBlocksPerBatch        int
 }
 
 // NewOptions creates new options.
@@ -83,6 +88,8 @@ func NewOptions() Options {
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
 		checkedBytesWrapperPool:  bytesWrapperPool,
+		queryLimits:              limits.NoOpQueryLimits(),
+		permitsOptions:           permits.NewOptions(),
 	}
 }
 
@@ -194,4 +201,34 @@ func (o *options) SetMaxOutstandingReadRequests(value int) Options {
 
 func (o *options) MaxOutstandingReadRequests() int {
 	return o.maxOutstandingReadRequests
+}
+
+func (o *options) SetQueryLimits(value limits.QueryLimits) Options {
+	opts := *o
+	opts.queryLimits = value
+	return &opts
+}
+
+func (o *options) QueryLimits() limits.QueryLimits {
+	return o.queryLimits
+}
+
+func (o *options) SetPermitsOptions(value permits.Options) Options {
+	opts := *o
+	opts.permitsOptions = value
+	return &opts
+}
+
+func (o *options) PermitsOptions() permits.Options {
+	return o.permitsOptions
+}
+
+func (o *options) SetFetchTaggedSeriesBlocksPerBatch(value int) Options {
+	opts := *o
+	opts.seriesBlocksPerBatch = value
+	return &opts
+}
+
+func (o *options) FetchTaggedSeriesBlocksPerBatch() int {
+	return o.seriesBlocksPerBatch
 }

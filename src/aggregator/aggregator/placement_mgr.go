@@ -47,8 +47,8 @@ type PlacementManager interface {
 	// InstanceID returns the configured instance ID.
 	InstanceID() string
 
-	// Placement returns the active staged placement and the active placement.
-	Placement() (placement.ActiveStagedPlacement, placement.Placement, error)
+	// Placement returns the current placement.
+	Placement() (placement.Placement, error)
 
 	// Instance returns the current instance in the current placement.
 	Instance() (placement.Instance, error)
@@ -63,21 +63,24 @@ type PlacementManager interface {
 	// Shards returns the current shards owned by the instance.
 	Shards() (shard.Shards, error)
 
+	// C returns a channel that can be used to subscribe for updates
+	C() <-chan struct{}
+
 	// Close closes the placement manager.
 	Close() error
 }
 
 type placementManagerMetrics struct {
-	activeStagedPlacementErrors tally.Counter
-	activePlacementErrors       tally.Counter
-	instanceNotFound            tally.Counter
+	activePlacementErrors tally.Counter
+	instanceNotFound      tally.Counter
+	updates               tally.Counter
 }
 
 func newPlacementManagerMetrics(scope tally.Scope) placementManagerMetrics {
 	return placementManagerMetrics{
-		activeStagedPlacementErrors: scope.Counter("active-staged-placement-errors"),
-		activePlacementErrors:       scope.Counter("active-placement-errors"),
-		instanceNotFound:            scope.Counter("instance-not-found"),
+		activePlacementErrors: scope.Counter("active-placement-errors"),
+		instanceNotFound:      scope.Counter("instance-not-found"),
+		updates:               scope.Counter("placement-updates"),
 	}
 }
 
@@ -94,21 +97,26 @@ type placementManager struct {
 
 	nowFn            clock.NowFn
 	instanceID       string
-	placementWatcher placement.StagedPlacementWatcher
+	placementWatcher placement.Watcher
 
 	state   placementManagerState
 	metrics placementManagerMetrics
+	ch      chan struct{}
 }
 
 // NewPlacementManager creates a new placement manager.
 func NewPlacementManager(opts PlacementManagerOptions) PlacementManager {
 	instrumentOpts := opts.InstrumentOptions()
-	return &placementManager{
-		nowFn:            opts.ClockOptions().NowFn(),
-		instanceID:       opts.InstanceID(),
-		placementWatcher: opts.StagedPlacementWatcher(),
-		metrics:          newPlacementManagerMetrics(instrumentOpts.MetricsScope()),
+	mgr := &placementManager{
+		nowFn:      opts.ClockOptions().NowFn(),
+		instanceID: opts.InstanceID(),
+		ch:         make(chan struct{}, 1),
+		metrics:    newPlacementManagerMetrics(instrumentOpts.MetricsScope()),
 	}
+	mgr.placementWatcher = placement.NewPlacementsWatcher(
+		opts.WatcherOptions().SetOnPlacementChangedFn(mgr.process))
+
+	return mgr
 }
 
 func (mgr *placementManager) Open() error {
@@ -122,7 +130,12 @@ func (mgr *placementManager) Open() error {
 		return err
 	}
 	mgr.state = placementManagerOpen
+
 	return nil
+}
+
+func (mgr *placementManager) C() <-chan struct{} {
+	return mgr.ch
 }
 
 func (mgr *placementManager) InstanceID() string {
@@ -132,11 +145,11 @@ func (mgr *placementManager) InstanceID() string {
 	return value
 }
 
-func (mgr *placementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {
+func (mgr *placementManager) Placement() (placement.Placement, error) {
 	mgr.RLock()
-	stagedPlacement, placement, err := mgr.placementWithLock()
+	placement, err := mgr.placementWithLock()
 	mgr.RUnlock()
-	return stagedPlacement, placement, err
+	return placement, err
 }
 
 func (mgr *placementManager) Instance() (placement.Instance, error) {
@@ -152,7 +165,7 @@ func (mgr *placementManager) InstanceFrom(placement placement.Placement) (placem
 
 // TODO(xichen): move the method to placement interface.
 func (mgr *placementManager) HasReplacementInstance() (bool, error) {
-	_, placement, err := mgr.Placement()
+	placement, err := mgr.Placement()
 	if err != nil {
 		return false, err
 	}
@@ -216,31 +229,21 @@ func (mgr *placementManager) Close() error {
 	return nil
 }
 
-func (mgr *placementManager) placementWithLock() (placement.ActiveStagedPlacement, placement.Placement, error) {
+func (mgr *placementManager) placementWithLock() (placement.Placement, error) {
 	if mgr.state != placementManagerOpen {
-		return nil, nil, errPlacementManagerNotOpenOrClosed
+		return nil, errPlacementManagerNotOpenOrClosed
 	}
 
-	// NB(xichen): avoid using defer here because this is called on the write path
-	// for every incoming metric and defered return and func execution is expensive.
-	stagedPlacement, onStagedPlacementDoneFn, err := mgr.placementWatcher.ActiveStagedPlacement()
+	placement, err := mgr.placementWatcher.Get()
 	if err != nil {
-		mgr.metrics.activeStagedPlacementErrors.Inc(1)
-		return nil, nil, err
-	}
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		onStagedPlacementDoneFn()
 		mgr.metrics.activePlacementErrors.Inc(1)
-		return nil, nil, err
+		return nil, err
 	}
-	onPlacementDoneFn()
-	onStagedPlacementDoneFn()
-	return stagedPlacement, placement, nil
+	return placement, nil
 }
 
 func (mgr *placementManager) instanceWithLock() (placement.Instance, error) {
-	_, placement, err := mgr.placementWithLock()
+	placement, err := mgr.placementWithLock()
 	if err != nil {
 		return nil, err
 	}
@@ -254,4 +257,11 @@ func (mgr *placementManager) instanceFrom(placement placement.Placement) (placem
 		return nil, ErrInstanceNotFoundInPlacement
 	}
 	return instance, nil
+}
+
+func (mgr *placementManager) process(_, _ placement.Placement) {
+	select {
+	case mgr.ch <- struct{}{}:
+	default:
+	}
 }

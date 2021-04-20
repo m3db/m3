@@ -22,6 +22,7 @@ package handleroptions
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"math"
 	"mime/multipart"
@@ -236,7 +237,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				req.Header.Add(k, v)
 			}
 
-			opts, err := builder.NewFetchOptions(req)
+			ctx, opts, err := builder.NewFetchOptions(context.Background(), req)
 			if !test.expectedErr {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedLimit, opts.SeriesLimit)
@@ -253,6 +254,14 @@ func TestFetchOptionsBuilder(t *testing.T) {
 					require.Equal(t, test.expectedLookback.value, *opts.LookbackDuration)
 				}
 				require.Equal(t, 10*time.Second, opts.Timeout)
+				// Check context has deadline and headers from
+				// the request.
+				_, ok := ctx.Deadline()
+				require.True(t, ok)
+				headers := ctx.Value(RequestHeaderKey)
+				require.NotNil(t, headers)
+				_, ok = headers.(http.Header)
+				require.True(t, ok)
 			} else {
 				require.Error(t, err)
 			}
@@ -379,7 +388,7 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 		req.Header.Add(k, v)
 	}
 
-	opts, err := builder.NewFetchOptions(req)
+	_, opts, err := builder.NewFetchOptions(context.Background(), req)
 	require.NoError(t, err)
 	require.NotNil(t, opts.RestrictQueryOptions)
 	ex := &storage.RestrictQueryOptions{

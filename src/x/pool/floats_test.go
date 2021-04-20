@@ -53,7 +53,7 @@ func getFloatsPool(bucketSizes int, bucketCaps []int) *floatsPool {
 	buckets := make([]Bucket, len(bucketCaps))
 	for i, cap := range bucketCaps {
 		buckets[i] = Bucket{
-			Count:    bucketSizes,
+			Count:    Size(bucketSizes),
 			Capacity: cap,
 		}
 	}

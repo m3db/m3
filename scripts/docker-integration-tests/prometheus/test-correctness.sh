@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -ex
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 t=$(date +%s)
 
 function write_metrics {

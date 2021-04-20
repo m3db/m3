@@ -22,6 +22,7 @@ package native
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -31,8 +32,8 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -170,9 +171,6 @@ type contextShiftFunc func(*common.Context) *common.Context
 // unaryTransformer takes in one series and returns a transformed series.
 type unaryTransformer func(ts.SeriesList) (ts.SeriesList, error)
 
-// binaryTransformer takes in two series and returns a transformed series.
-type binaryTransformer func(ts.SeriesList, ts.SeriesList) (ts.SeriesList, error)
-
 // unaryContextShifter contains a contextShiftFunc for generating shift contexts
 // as well as a unaryTransformer for transforming one series to another.
 type unaryContextShifter struct {
@@ -180,33 +178,25 @@ type unaryContextShifter struct {
 	UnaryTransformer unaryTransformer
 }
 
-// binaryContextShifter contains a contextShiftFunc for generating shift contexts
-// as well as a binaryTransformer for transforming one series to another.
-type binaryContextShifter struct {
-	ContextShiftFunc  contextShiftFunc
-	BinaryTransformer binaryTransformer
-}
-
 var (
-	contextPtrType              = reflect.TypeOf(&common.Context{})
-	timeSeriesType              = reflect.TypeOf(&ts.Series{})
-	timeSeriesListType          = reflect.SliceOf(timeSeriesType)
-	seriesListType              = reflect.TypeOf(ts.NewSeriesList())
-	unaryContextShifterPtrType  = reflect.TypeOf(&unaryContextShifter{})
-	binaryContextShifterPtrType = reflect.TypeOf(&binaryContextShifter{})
-	singlePathSpecType          = reflect.TypeOf(singlePathSpec{})
-	multiplePathSpecsType       = reflect.TypeOf(multiplePathSpecs{})
-	interfaceType               = reflect.TypeOf([]genericInterface{}).Elem()
-	float64Type                 = reflect.TypeOf(float64(100))
-	float64SliceType            = reflect.SliceOf(float64Type)
-	intType                     = reflect.TypeOf(int(0))
-	intSliceType                = reflect.SliceOf(intType)
-	stringType                  = reflect.TypeOf("")
-	stringSliceType             = reflect.SliceOf(stringType)
-	boolType                    = reflect.TypeOf(false)
-	boolSliceType               = reflect.SliceOf(boolType)
-	errorType                   = reflect.TypeOf((*error)(nil)).Elem()
-	genericInterfaceType        = reflect.TypeOf((*genericInterface)(nil)).Elem()
+	contextPtrType             = reflect.TypeOf(&common.Context{})
+	timeSeriesType             = reflect.TypeOf(&ts.Series{})
+	timeSeriesListType         = reflect.SliceOf(timeSeriesType)
+	seriesListType             = reflect.TypeOf(ts.NewSeriesList())
+	unaryContextShifterPtrType = reflect.TypeOf(&unaryContextShifter{})
+	singlePathSpecType         = reflect.TypeOf(singlePathSpec{})
+	multiplePathSpecsType      = reflect.TypeOf(multiplePathSpecs{})
+	interfaceType              = reflect.TypeOf([]genericInterface{}).Elem()
+	float64Type                = reflect.TypeOf(float64(100))
+	float64SliceType           = reflect.SliceOf(float64Type)
+	intType                    = reflect.TypeOf(int(0))
+	intSliceType               = reflect.SliceOf(intType)
+	stringType                 = reflect.TypeOf("")
+	stringSliceType            = reflect.SliceOf(stringType)
+	boolType                   = reflect.TypeOf(false)
+	boolSliceType              = reflect.SliceOf(boolType)
+	errorType                  = reflect.TypeOf((*error)(nil)).Elem()
+	genericInterfaceType       = reflect.TypeOf((*genericInterface)(nil)).Elem()
 )
 
 var (
@@ -214,7 +204,6 @@ var (
 		// these are for return types
 		timeSeriesListType,
 		unaryContextShifterPtrType,
-		binaryContextShifterPtrType,
 		seriesListType,
 		singlePathSpecType,
 		multiplePathSpecsType,
@@ -231,10 +220,10 @@ var (
 )
 
 var (
-	errNonFunction   = errors.NewInvalidParamsError(errors.New("not a function"))
-	errNeedsArgument = errors.NewInvalidParamsError(errors.New("functions must take at least 1 argument"))
-	errNoContext     = errors.NewInvalidParamsError(errors.New("first argument must be a context"))
-	errInvalidReturn = errors.NewInvalidParamsError(errors.New("functions must return a value and an error"))
+	errNonFunction   = xerrors.NewInvalidParamsError(errors.New("not a function"))
+	errNeedsArgument = xerrors.NewInvalidParamsError(errors.New("functions must take at least 1 argument"))
+	errNoContext     = xerrors.NewInvalidParamsError(errors.New("first argument must be a context"))
+	errInvalidReturn = xerrors.NewInvalidParamsError(errors.New("functions must return a value and an error"))
 )
 
 // Function contains a function to invoke along with metadata about
@@ -246,6 +235,8 @@ type Function struct {
 	defaults map[uint8]interface{}
 	out      reflect.Type
 	variadic bool
+
+	disableUnaryContextShiftFetchOptimization bool
 }
 
 // WithDefaultParams provides default parameters for functions
@@ -256,6 +247,23 @@ func (f *Function) WithDefaultParams(defaultParams map[uint8]interface{}) *Funct
 		}
 	}
 	f.defaults = defaultParams
+	return f
+}
+
+// WithoutUnaryContextShifterSkipFetchOptimization allows a function to skip
+// the optimization that avoids fetching data for the first execution phase
+// of a unary context shifted function (where it is called the first time
+// without any series populated as input to the function and relies on
+// execution of the unary context shifter with the shifted series solely).
+// Note: This is useful for the "movingX" family of functions that require
+// that require actually seeing what the step size is sometimes of the series
+// from the first phase of execution to determine how much to look back for the
+// context shift phase.
+func (f *Function) WithoutUnaryContextShifterSkipFetchOptimization() *Function {
+	if f.out != unaryContextShifterPtrType {
+		panic("Skip fetch optimization only available to unary context shifters")
+	}
+	f.disableUnaryContextShiftFetchOptimization = true
 	return f
 }
 
@@ -339,7 +347,7 @@ func buildFunction(f interface{}) (*Function, error) {
 	out := t.Out(0)
 	if !allowableTypes.contains(out) {
 		return nil, fmt.Errorf("invalid return type %s", out.Name())
-	} else if out == unaryContextShifterPtrType || out == binaryContextShifterPtrType {
+	} else if out == unaryContextShifterPtrType {
 		validateContextShiftingFn(in)
 	}
 
@@ -530,7 +538,14 @@ func (call *functionCall) Arguments() []ArgumentASTNode {
 func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	values := make([]reflect.Value, len(call.in))
 	for i, param := range call.in {
-		if call.f.out == unaryContextShifterPtrType && call.f.in[i] == singlePathSpecType {
+		// Optimization to skip fetching series for a unary context shift
+		// operation since they'll refetch after shifting.
+		// Note: You can call WithoutUnaryContextShifterSkipFetchOptimization()
+		// after registering a function if you need a unary context shift
+		// operation to have series for the initial time window fetched.
+		if call.f.out == unaryContextShifterPtrType &&
+			!call.f.disableUnaryContextShiftFetchOptimization &&
+			(call.f.in[i] == singlePathSpecType || call.f.in[i] == multiplePathSpecsType) {
 			values[i] = reflect.ValueOf(singlePathSpec{}) // fake parameter
 			continue
 		}
@@ -567,9 +582,6 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	case unaryContextShifterPtrType:
 		// unary function
 		ret = transformerFn.Call([]reflect.Value{shiftedSeries})
-	case binaryContextShifterPtrType:
-		// binary function
-		ret = transformerFn.Call([]reflect.Value{shiftedSeries, values[0]})
 	default:
 		return reflect.Value{}, fmt.Errorf("unknown context shift: %v", call.f.out)
 	}
@@ -584,7 +596,7 @@ func (call *functionCall) CompatibleWith(reflectType reflect.Type) bool {
 	if reflectType == interfaceType {
 		return true
 	}
-	if call.f.out == unaryContextShifterPtrType || call.f.out == binaryContextShifterPtrType {
+	if call.f.out == unaryContextShifterPtrType {
 		return reflectType == singlePathSpecType || reflectType == multiplePathSpecsType
 	}
 	return call.f.out.Kind() == reflectType.Kind()

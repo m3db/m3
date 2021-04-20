@@ -21,6 +21,7 @@
 package handleroptions
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -37,7 +38,12 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 )
 
+type headerKey string
+
 const (
+	// RequestHeaderKey is the key which headers will be added to in the
+	// request context.
+	RequestHeaderKey headerKey = "RequestHeaderKey"
 	// StepParam is the step parameter.
 	StepParam = "step"
 	// LookbackParam is the lookback parameter.
@@ -53,7 +59,10 @@ const (
 // config.
 type FetchOptionsBuilder interface {
 	// NewFetchOptions parses an http request into fetch options.
-	NewFetchOptions(req *http.Request) (*storage.FetchOptions, error)
+	NewFetchOptions(
+		ctx context.Context,
+		req *http.Request,
+	) (context.Context, *storage.FetchOptions, error)
 }
 
 // FetchOptionsBuilderOptions provides options to use when creating a
@@ -72,9 +81,12 @@ func (o FetchOptionsBuilderOptions) Validate() error {
 // FetchOptionsBuilderLimitsOptions provides limits options to use when
 // creating a fetch options builder.
 type FetchOptionsBuilderLimitsOptions struct {
-	SeriesLimit       int
-	DocsLimit         int
-	RequireExhaustive bool
+	SeriesLimit                 int
+	DocsLimit                   int
+	ReturnedSeriesLimit         int
+	ReturnedDatapointsLimit     int
+	ReturnedSeriesMetadataLimit int
+	RequireExhaustive           bool
 }
 
 type fetchOptionsBuilder struct {
@@ -144,19 +156,21 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 
 // NewFetchOptions parses an http request into fetch options.
 func (b fetchOptionsBuilder) NewFetchOptions(
+	ctx context.Context,
 	req *http.Request,
-) (*storage.FetchOptions, error) {
-	fetchOpts, err := b.newFetchOptions(req)
+) (context.Context, *storage.FetchOptions, error) {
+	ctx, fetchOpts, err := b.newFetchOptions(ctx, req)
 	if err != nil {
 		// Always invalid request if parsing fails params.
-		return nil, xerrors.NewInvalidParamsError(err)
+		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	return fetchOpts, nil
+	return ctx, fetchOpts, nil
 }
 
 func (b fetchOptionsBuilder) newFetchOptions(
+	ctx context.Context,
 	req *http.Request,
-) (*storage.FetchOptions, error) {
+) (context.Context, *storage.FetchOptions, error) {
 	fetchOpts := storage.NewFetchOptions()
 
 	if source := req.Header.Get(headers.SourceHeader); len(source) > 0 {
@@ -166,7 +180,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	seriesLimit, err := ParseLimit(req, headers.LimitMaxSeriesHeader,
 		"limit", b.opts.Limits.SeriesLimit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fetchOpts.SeriesLimit = seriesLimit
@@ -174,14 +188,38 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	docsLimit, err := ParseLimit(req, headers.LimitMaxDocsHeader,
 		"docsLimit", b.opts.Limits.DocsLimit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fetchOpts.DocsLimit = docsLimit
 
+	returnedSeriesLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesHeader,
+		"returnedSeriesLimit", b.opts.Limits.ReturnedSeriesLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.ReturnedSeriesLimit = returnedSeriesLimit
+
+	returnedDatapointsLimit, err := ParseLimit(req, headers.LimitMaxReturnedDatapointsHeader,
+		"returnedDatapointsLimit", b.opts.Limits.ReturnedDatapointsLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.ReturnedDatapointsLimit = returnedDatapointsLimit
+
+	returnedSeriesMetadataLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesMetadataHeader,
+		"returnedSeriesMetadataLimit", b.opts.Limits.ReturnedSeriesMetadataLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.ReturnedSeriesMetadataLimit = returnedSeriesMetadataLimit
+
 	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.Limits.RequireExhaustive)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fetchOpts.RequireExhaustive = requireExhaustive
@@ -191,7 +229,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse metrics type: input=%s, err=%v", str, err)
-			return nil, err
+			return nil, nil, err
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -205,7 +243,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse storage policy: input=%s, err=%v", str, err)
-			return nil, err
+			return nil, nil, err
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -218,12 +256,12 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		// Allow header to override any default restrict by tags config.
 		var opts StringTagOptions
 		if err := json.Unmarshal([]byte(str), &opts); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		tagOpts, err := opts.StorageOptions()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -238,7 +276,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		if err := restrict.Validate(); err != nil {
 			err = fmt.Errorf(
 				"could not validate restrict options: err=%v", err)
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -247,24 +285,26 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	if step, ok, err := ParseStep(req); err != nil {
 		err = fmt.Errorf(
 			"could not parse step: err=%v", err)
-		return nil, err
+		return nil, nil, err
 	} else if ok {
 		fetchOpts.Step = step
 	}
 	if lookback, ok, err := ParseLookbackDuration(req); err != nil {
 		err = fmt.Errorf(
 			"could not parse lookback: err=%v", err)
-		return nil, err
+		return nil, nil, err
 	} else if ok {
 		fetchOpts.LookbackDuration = &lookback
 	}
 
 	fetchOpts.Timeout, err = ParseRequestTimeout(req, b.opts.Timeout)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse timeout: err=%v", err)
+		return nil, nil, fmt.Errorf("could not parse timeout: err=%w", err)
 	}
 
-	return fetchOpts, nil
+	// Set timeout on the returned context.
+	ctx, _ = contextWithRequestAndTimeout(ctx, req, fetchOpts)
+	return ctx, fetchOpts, nil
 }
 
 func newOrExistingRestrictQueryOptions(
@@ -283,6 +323,17 @@ func newOrExistingRestrictQueryOptionsRestrictByType(
 		return v
 	}
 	return &storage.RestrictByType{}
+}
+
+// contextWithRequestAndTimeout sets up a context with the request's context
+// and the configured timeout.
+func contextWithRequestAndTimeout(
+	ctx context.Context,
+	r *http.Request,
+	opts *storage.FetchOptions,
+) (context.Context, context.CancelFunc) {
+	ctx = context.WithValue(ctx, RequestHeaderKey, r.Header)
+	return context.WithTimeout(ctx, opts.Timeout)
 }
 
 // ParseStep parses the step duration for an HTTP request.

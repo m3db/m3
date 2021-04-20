@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/clock"
 	xresource "github.com/m3db/m3/src/x/resource"
-	xsync "github.com/m3db/m3/src/x/sync"
+	xsys "github.com/m3db/m3/src/x/sys"
 
 	"github.com/uber-go/tally"
 )
@@ -111,7 +111,7 @@ func newNamespaceIndexInsertQueue(
 		// NB(r): Use 2 * num cores so that each CPU insert queue which
 		// is 1 per num CPU core can always enqueue a notification without
 		// it being lost.
-		notifyInsert: make(chan struct{}, 2*xsync.NumCores()),
+		notifyInsert: make(chan struct{}, 2*xsys.NumCores()),
 		closeCh:      make(chan struct{}, 1),
 		scope:        subscope,
 		metrics:      newNamespaceIndexInsertQueueMetrics(subscope),
@@ -198,7 +198,7 @@ func (q *nsIndexInsertQueue) InsertBatch(
 	// Note: since inserts by CPU core is allocated when
 	// nsIndexInsertBatch is constructed and then never modified
 	// it is safe to concurently read (but not modify obviously).
-	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	inserts := q.currBatch.insertsByCPUCore[xsys.CPUCore()]
 	inserts.Lock()
 	firstInsert := len(inserts.shardInserts) == 0
 	inserts.shardInserts = append(inserts.shardInserts, batch)
@@ -233,7 +233,7 @@ func (q *nsIndexInsertQueue) InsertPending(
 		// Add randomization.
 		queueOffset += int(pending[0].Entry.EnqueuedAt.UnixNano()) % queuesPerCPUCore
 	}
-	queueIdx := (xsync.CPUCore() * queuesPerCPUCore) + queueOffset
+	queueIdx := (xsys.CPUCore() * queuesPerCPUCore) + queueOffset
 	inserts := q.currBatch.insertsByCPUCore[queueIdx]
 	inserts.Lock()
 	firstInsert := len(inserts.batchInserts) == 0
@@ -348,7 +348,7 @@ func newNsIndexInsertBatch(
 		namespace: namespace,
 		nowFn:     nowFn,
 	}
-	numQueues := xsync.NumCores() * queuesPerCPUCore
+	numQueues := xsys.NumCores() * queuesPerCPUCore
 	for i := 0; i < numQueues; i++ {
 		b.insertsByCPUCore = append(b.insertsByCPUCore, &nsIndexInsertsByCPUCore{
 			metrics: newNamespaceIndexInsertsByCPUCoreMetrics(i, scope),

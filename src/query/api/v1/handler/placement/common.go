@@ -110,10 +110,11 @@ type Handler struct {
 func Service(
 	clusterClient clusterclient.Client,
 	opts handleroptions.ServiceOptions,
+	pConfig placement.Configuration,
 	now time.Time,
 	validationFn placement.ValidateFn,
 ) (placement.Service, error) {
-	ps, _, err := ServiceWithAlgo(clusterClient, opts, now, validationFn)
+	ps, _, err := ServiceWithAlgo(clusterClient, opts, pConfig, now, validationFn)
 	return ps, err
 }
 
@@ -123,6 +124,7 @@ func Service(
 func ServiceWithAlgo(
 	clusterClient clusterclient.Client,
 	opts handleroptions.ServiceOptions,
+	pConfig placement.Configuration,
 	now time.Time,
 	validationFn placement.ValidateFn,
 ) (placement.Service, placement.Algorithm, error) {
@@ -152,7 +154,7 @@ func ServiceWithAlgo(
 	}
 
 	sid := opts.ServiceID()
-	pOpts := placement.NewOptions().
+	pOpts := pConfig.NewOptions().
 		SetValidZone(opts.ServiceZone).
 		SetIsSharded(true).
 		SetDryrun(opts.DryRun)
