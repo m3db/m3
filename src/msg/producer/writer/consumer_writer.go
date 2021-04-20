@@ -52,7 +52,7 @@ type consumerWriter interface {
 	Address() string
 
 	// Write writes the bytes, it is thread safe per connection index.
-	Write(connIndex int, b []byte, shard uint64, id uint64) error
+	Write(connIndex int, b []byte, shard uint64, id uint64, numConnections int) error
 
 	// Init initializes the consumer writer.
 	Init()
@@ -193,7 +193,7 @@ func (w *consumerWriterImpl) Address() string {
 
 // Write should fail fast so that the write could be tried on other
 // consumer writers that are sharing the message queue.
-func (w *consumerWriterImpl) Write(connIndex int, b []byte, shard uint64, id uint64) error {
+func (w *consumerWriterImpl) Write(connIndex int, b []byte, shard uint64, id uint64, numConnections int) error {
 	w.writeState.RLock()
 	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
 		w.writeState.RUnlock()
@@ -217,7 +217,7 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte, shard uint64, id uin
 	w.writeState.RUnlock()
 
 	if err != nil {
-		w.notifyReset(err, "Write", shard, id)
+		w.notifyReset2(err, "Write", shard, id, connIndex, numConnections)
 		w.m.encodeError.Inc(1)
 	}
 
@@ -384,6 +384,20 @@ func (w *consumerWriterImpl) Close() {
 	close(w.doneCh)
 
 	w.wg.Wait()
+}
+
+func (w *consumerWriterImpl) notifyReset2(err error, caller string, shard uint64, id uint64, connIndex int, numConnections int) {
+	select {
+	case w.resetCh <- struct{}{}:
+		if err != nil {
+			w.logger.Error("connection error",
+				zap.Error(err), zap.String("caller", caller),
+				zap.Uint64("shard", shard), zap.Uint64("id", id),
+				zap.Int("connIndex", connIndex),
+				zap.Int("numConnections", numConnections))
+		}
+	default:
+	}
 }
 
 func (w *consumerWriterImpl) notifyReset(err error, caller string, shard uint64, id uint64) {
