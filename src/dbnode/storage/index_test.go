@@ -874,6 +874,7 @@ func newReadIndexInfoFileResult(
 		},
 		Info: indexpb.IndexVolumeInfo{
 			BlockStart: blockStart.UnixNano(),
+			BlockSize:  int64(2 * time.Hour),
 			Shards:     shards,
 			IndexVolumeType: &protobuftypes.StringValue{
 				Value: volumeType,
