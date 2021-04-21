@@ -839,7 +839,7 @@ type BootstrapResult struct {
 type BootstrapAsyncResult struct {
 	bootstrapStarted   *sync.WaitGroup
 	bootstrapCompleted *sync.WaitGroup
-	bootstrapResultFn  func() BootstrapResult
+	bootstrapResult    BootstrapResult
 }
 
 func newBootstrapAsyncResult() *BootstrapAsyncResult {
@@ -858,7 +858,7 @@ func newBootstrapAsyncResult() *BootstrapAsyncResult {
 // Result will wait for bootstrap to complete and return BootstrapResult.
 func (b *BootstrapAsyncResult) Result() BootstrapResult {
 	b.bootstrapCompleted.Wait()
-	return b.bootstrapResultFn()
+	return b.bootstrapResult
 }
 
 // WaitForStart waits until bootstrap has been started.

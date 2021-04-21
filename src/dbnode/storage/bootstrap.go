@@ -204,9 +204,7 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	m.state = Bootstrapped
 	m.Unlock()
-	asyncResult.bootstrapResultFn = func() BootstrapResult {
-		return result
-	}
+	asyncResult.bootstrapResult = result
 	asyncResult.bootstrapCompleted.Done()
 	return result, nil
 }
