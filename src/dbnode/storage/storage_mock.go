@@ -3568,6 +3568,20 @@ func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseMediator)(nil).IsBootstrapped))
 }
 
+// IsOpen mocks base method
+func (m *MockdatabaseMediator) IsOpen() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOpen")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOpen indicates an expected call of IsOpen
+func (mr *MockdatabaseMediatorMockRecorder) IsOpen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpen", reflect.TypeOf((*MockdatabaseMediator)(nil).IsOpen))
+}
+
 // LastBootstrapCompletionTime mocks base method
 func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()

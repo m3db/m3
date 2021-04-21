@@ -250,7 +250,7 @@ func (m *mediator) ongoingFileSystemProcesses() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -271,7 +271,7 @@ func (m *mediator) ongoingColdFlushProcesses() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -293,7 +293,7 @@ func (m *mediator) ongoingTick() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -353,7 +353,7 @@ func (m *mediator) reportLoop() {
 	}
 }
 
-func (m *mediator) isOpen() bool {
+func (m *mediator) IsOpen() bool {
 	m.RLock()
 	defer m.RUnlock()
 	return m.state == mediatorOpen
@@ -492,9 +492,13 @@ func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
 	// If all waiters are waiting, we can safely call mutually exclusive external functions.
 	if numWaiters == b.numMaxWaiters {
 		// Drain the channel.
-		for len(b.externalFnCh) > 0 {
-			externalFn := <-b.externalFnCh
-			externalFn()
+		for {
+			select {
+			case fn := <-b.externalFnCh:
+				fn()
+			default:
+				break // Break from loop, no more to read
+			}
 		}
 	}
 

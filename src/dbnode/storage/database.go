@@ -459,21 +459,21 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 	d.Unlock()
 
+	if !d.mediator.IsOpen() {
+		d.assignShardSet(shardSet)
+		return
+	}
+
 	if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
 		d.assignShardSet(shardSet)
 	}); err != nil {
-		if errors.Is(err, errMediatorNotOpen) {
-			// initial assignment.
-			d.assignShardSet(shardSet)
-		} else {
-			// should not happen.
-			instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("failed to enqueue assignShardSet fn",
-						zap.Error(err),
-						zap.Uint32s("shards", shardSet.AllIDs()))
-				})
-		}
+		// should not happen.
+		instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
+			func(l *zap.Logger) {
+				l.Error("failed to enqueue assignShardSet fn",
+					zap.Error(err),
+					zap.Uint32s("shards", shardSet.AllIDs()))
+			})
 	}
 }
 

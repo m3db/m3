@@ -143,9 +143,11 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 		// reshard occurs and we need to bootstrap more shards.
 		m.hasPending = true
 		m.Unlock()
+		result := BootstrapResult{AlreadyBootstrapping: true}
+		asyncResult.bootstrapResult = result
 		asyncResult.bootstrapStarted.Done()
 		asyncResult.bootstrapCompleted.Done()
-		return BootstrapResult{AlreadyBootstrapping: true}, errBootstrapEnqueued
+		return result, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
 	}
@@ -155,10 +157,14 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 	m.mediator.DisableFileOpsAndWait()
 	defer m.mediator.EnableFileOps()
 
+	var result BootstrapResult
 	asyncResult.bootstrapStarted.Done()
+	defer func() {
+		asyncResult.bootstrapResult = result
+		asyncResult.bootstrapCompleted.Done()
+	}()
 
 	// Keep performing bootstraps until none pending and no error returned.
-	var result BootstrapResult
 	for i := 0; true; i++ {
 		// NB(r): Decouple implementation of bootstrap so can override in tests.
 		bootstrapErr := m.bootstrapFn()
@@ -204,8 +210,6 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	m.state = Bootstrapped
 	m.Unlock()
-	asyncResult.bootstrapResult = result
-	asyncResult.bootstrapCompleted.Done()
 	return result, nil
 }
 

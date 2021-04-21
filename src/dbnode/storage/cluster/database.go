@@ -406,7 +406,8 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	for id := range d.initializing {
 		count := d.bootstrapCount[id]
 		if count != len(namespaces) {
-			// Should never happen if bootstrapped and durable.
+			// This could temporarily occur due to the race condition, e.g. database was bootstrapped and durable
+			// at the time we checked but then new shards were assigned which are still not bootstrapped.
 			d.log.Debug("database indicated that it was bootstrapped and durable, "+
 				"but number of bootstrapped shards did not match number of namespaces",
 				zap.Uint32("shard", id),

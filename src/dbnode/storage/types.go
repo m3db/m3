@@ -1008,6 +1008,9 @@ type databaseMediator interface {
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
 
+	// IsOpen returns whether mediator is opened.
+	IsOpen() bool
+
 	// LastBootstrapCompletionTime returns the last bootstrap completion time,
 	// if any.
 	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
