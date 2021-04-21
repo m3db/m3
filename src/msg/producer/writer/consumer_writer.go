@@ -182,7 +182,7 @@ func newConsumerWriter(
 	// Try connecting without retry first attempt.
 	connectAllNoRetry := w.newConnectFn(connectOptions{retry: false})
 	if err := w.resetWithConnectFn(connectAllNoRetry); err != nil {
-		w.notifyReset(err, "newConsumerWriter", 999, 999)
+		w.notifyReset(err, "newConsumerWriter")
 	}
 	return w
 }
@@ -258,7 +258,7 @@ func (w *consumerWriterImpl) flushUntilClose() {
 			for _, conn := range w.writeState.conns {
 				conn.writeLock.Lock()
 				if err := conn.w.Flush(); err != nil {
-					w.notifyReset(err, "flushUntilClose", 999, 999)
+					w.notifyReset(err, "flushUntilClose")
 				}
 				conn.writeLock.Unlock()
 			}
@@ -356,7 +356,7 @@ func (w *consumerWriterImpl) readAcks(idx int) error {
 	conn.ack.Metadata = conn.ack.Metadata[:0]
 	err := conn.decoder.Decode(&conn.ack)
 	if err != nil {
-		w.notifyReset(err, "readAcks", 999, 999)
+		w.notifyReset(err, "readAcks")
 		w.m.decodeError.Inc(1)
 		return err
 	}
@@ -401,14 +401,13 @@ func (w *consumerWriterImpl) notifyReset2(err error, caller string, shard uint64
 	}
 }
 
-func (w *consumerWriterImpl) notifyReset(err error, caller string, shard uint64, id uint64) {
+func (w *consumerWriterImpl) notifyReset(err error, caller string) {
 	select {
 	case w.resetCh <- struct{}{}:
 		if err != nil {
 			w.logger.Error("connection error",
 				zap.Error(err), zap.String("caller", caller),
-				zap.String("addr", w.addr),
-				zap.Uint64("shard", shard), zap.Uint64("id", id))
+				zap.String("addr", w.addr))
 		}
 	default:
 	}
