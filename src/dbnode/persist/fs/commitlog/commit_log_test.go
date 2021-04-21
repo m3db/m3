@@ -161,7 +161,7 @@ func testSeries(
 		UniqueIndex: uniqueIndex,
 		Namespace:   ident.StringID("testNS"),
 		ID:          ident.StringID(id),
-		EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
+		EncodedTags: encodedTagsChecked.Bytes(),
 		Shard:       shard,
 	}
 }
@@ -1064,7 +1064,7 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 		finalized++
 	}
 
-	writes := writes.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
+	writes := writes.NewWriteBatch(0, ident.StringID("ns"), finalizeFn)
 
 	testSeriesWrites := []ts.Series{
 		testSeries(t, opts, 0, "foo.bar", testTags0, 42),
