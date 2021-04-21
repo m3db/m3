@@ -27,7 +27,7 @@ import (
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xresource "github.com/m3db/m3/src/x/resource"
 
-	lightstep "github.com/lightstep/lightstep-tracer-go"
+	"github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
@@ -79,11 +79,17 @@ func newContext() *ctx {
 }
 
 func (c *ctx) GoContext() stdctx.Context {
-	return c.goCtx
+	c.RLock()
+	goCtx := c.goCtx
+	c.RUnlock()
+
+	return goCtx
 }
 
 func (c *ctx) SetGoContext(v stdctx.Context) {
+	c.Lock()
 	c.goCtx = v
+	c.Unlock()
 }
 
 func (c *ctx) IsClosed() bool {
@@ -117,6 +123,12 @@ func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 	}
 
 	c.registerFinalizeable(finalizeable{closer: f})
+}
+
+func (c *ctx) AddValueToGoContext(key, value interface{}) {
+	c.Lock()
+	c.goCtx = stdctx.WithValue(c.goCtx, key, value)
+	c.Unlock()
 }
 
 func (c *ctx) registerFinalizeable(f finalizeable) {
@@ -327,14 +339,20 @@ func (c *ctx) parentCtx() Context {
 }
 
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	if c.checkedAndNotSampled {
+	c.RLock()
+	checkedAndNotSampled := c.checkedAndNotSampled
+	c.RUnlock()
+
+	if checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
 	}
 	goCtx := c.GoContext()
 
 	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
 	if !sampled {
+		c.Lock()
 		c.checkedAndNotSampled = true
+		c.Unlock()
 		return c, noopTracer.StartSpan(name), false
 	}
 

@@ -89,6 +89,9 @@ type Context interface {
 	// and a bool if the span is being sampled. This is used over StartTraceSpan()
 	// for hot paths where performance is crucial.
 	StartSampledTraceSpan(string) (Context, opentracing.Span, bool)
+
+	// AddValueToGoContext sets the given key/value on the Go std context.
+	AddValueToGoContext(key, value interface{})
 }
 
 // Pool provides a pool for contexts.
