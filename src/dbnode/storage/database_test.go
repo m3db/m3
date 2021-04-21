@@ -436,6 +436,7 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	// Set a mock mediator to be certain that bootstrap is not called when
 	// no new shards are assigned.
 	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true)
 	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
 		fn()
 		return nil
@@ -474,6 +475,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true)
 	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
 		fn()
 		return nil
@@ -516,6 +518,7 @@ func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
 	}()
 
 	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true)
 	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).Return(errors.New("unknown error"))
 	d.mediator = mediator
 

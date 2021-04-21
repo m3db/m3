@@ -492,12 +492,13 @@ func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
 	// If all waiters are waiting, we can safely call mutually exclusive external functions.
 	if numWaiters == b.numMaxWaiters {
 		// Drain the channel.
+	Loop:
 		for {
 			select {
 			case fn := <-b.externalFnCh:
 				fn()
 			default:
-				break // Break from loop, no more to read
+				break Loop
 			}
 		}
 	}
