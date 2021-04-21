@@ -137,7 +137,7 @@ type createHandler struct {
 	namespaceAddHandler    *namespace.AddHandler
 	namespaceGetHandler    *namespace.GetHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
-	embeddedDbCfg          *dbconfig.DBConfiguration
+	embeddedDBCfg          *dbconfig.DBConfiguration
 	defaults               []handleroptions.ServiceOptionsDefault
 	instrumentOpts         instrument.Options
 }
@@ -146,7 +146,7 @@ type createHandler struct {
 func NewCreateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 	namespaceValidator options.NamespaceValidator,
@@ -162,7 +162,7 @@ func NewCreateHandler(
 		namespaceAddHandler:    namespace.NewAddHandler(client, instrumentOpts, namespaceValidator),
 		namespaceGetHandler:    namespace.NewGetHandler(client, instrumentOpts),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client, instrumentOpts),
-		embeddedDbCfg:          embeddedDbCfg,
+		embeddedDBCfg:          embeddedDBCfg,
 		defaults:               defaults,
 		instrumentOpts:         instrumentOpts,
 	}, nil
@@ -350,7 +350,7 @@ func (h *createHandler) parseAndValidateRequest(
 	var placementInitRequest *admin.PlacementInitRequest
 	if (requestedDBType == dbTypeCluster && len(dbCreateReq.Hosts) > 0) ||
 		requestedDBType == dbTypeLocal {
-		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
+		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDBCfg)
 		if err != nil {
 			return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 		}
@@ -562,7 +562,7 @@ func getRecommendedBlockSize(retentionPeriod time.Duration) time.Duration {
 
 func defaultedPlacementInitRequest(
 	r *admin.DatabaseCreateRequest,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 ) (*admin.PlacementInitRequest, error) {
 	var (
 		numShards         int32
@@ -571,11 +571,11 @@ func defaultedPlacementInitRequest(
 	)
 	switch dbType(r.Type) {
 	case dbTypeLocal:
-		if embeddedDbCfg == nil {
+		if embeddedDBCfg == nil {
 			return nil, errMissingEmbeddedDBConfig
 		}
 
-		addr := embeddedDbCfg.ListenAddressOrDefault()
+		addr := embeddedDBCfg.ListenAddressOrDefault()
 		port, err := portFromEmbeddedDBConfigListenAddress(addr)
 		if err != nil {
 			return nil, err
