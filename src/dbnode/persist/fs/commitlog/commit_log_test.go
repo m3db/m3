@@ -1064,7 +1064,7 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 		finalized++
 	}
 
-	writes := writes.NewWriteBatch(ident.StringID("ns"), finalizeFn)
+	writes := writes.NewWriteBatch(0, ident.StringID("ns"), finalizeFn)
 
 	testSeriesWrites := []ts.Series{
 		testSeries(t, opts, 0, "foo.bar", testTags0, 42),

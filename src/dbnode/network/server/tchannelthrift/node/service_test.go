@@ -2546,7 +2546,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		{"bar", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := writes.NewWriteBatch(ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(0, ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2600,7 +2600,7 @@ func TestServiceWriteBatchRawV2SingleNS(t *testing.T) {
 		{"bar", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := writes.NewWriteBatch(ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(0, ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2657,8 +2657,8 @@ func TestServiceWriteBatchRawV2MultiNS(t *testing.T) {
 			{"bar", time.Now().Truncate(time.Second), 42.42},
 		}
 
-		writeBatch1 = writes.NewWriteBatch(ident.StringID(nsID1), nil)
-		writeBatch2 = writes.NewWriteBatch(ident.StringID(nsID2), nil)
+		writeBatch1 = writes.NewWriteBatch(0, ident.StringID(nsID1), nil)
+		writeBatch2 = writes.NewWriteBatch(0, ident.StringID(nsID2), nil)
 	)
 
 	mockDB.EXPECT().
@@ -2751,7 +2751,7 @@ func TestServiceWriteBatchRawOverMaxOutstandingRequests(t *testing.T) {
 		testIsComplete       = make(chan struct{}, 0)
 		requestIsOutstanding = make(chan struct{}, 0)
 	)
-	writeBatch := writes.NewWriteBatch(ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(0, ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Do(func(nsID ident.ID, numValues int) {
@@ -2859,7 +2859,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := writes.NewWriteBatch(ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2925,7 +2925,7 @@ func TestServiceWriteTaggedBatchRawV2(t *testing.T) {
 		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := writes.NewWriteBatch(ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2992,8 +2992,8 @@ func TestServiceWriteTaggedBatchRawV2MultiNS(t *testing.T) {
 			{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
 			{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 		}
-		writeBatch1 = writes.NewWriteBatch(ident.StringID(nsID1), nil)
-		writeBatch2 = writes.NewWriteBatch(ident.StringID(nsID2), nil)
+		writeBatch1 = writes.NewWriteBatch(len(values), ident.StringID(nsID1), nil)
+		writeBatch2 = writes.NewWriteBatch(len(values), ident.StringID(nsID2), nil)
 	)
 
 	mockDB.EXPECT().

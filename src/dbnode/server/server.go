@@ -1598,6 +1598,12 @@ func withEncodingAndPoolingOptions(
 			policy.IteratorPool,
 			scope.SubScope("multi-iterator-pool")))
 
+	writeBatchPoolInitialBatchSize := 0
+	if policy.WriteBatchPool.InitialBatchSize != nil {
+		// Use config value if available.
+		writeBatchPoolInitialBatchSize = *policy.WriteBatchPool.InitialBatchSize
+	}
+
 	var writeBatchPoolMaxBatchSize *int
 	if policy.WriteBatchPool.MaxBatchSize != nil {
 		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
@@ -1613,7 +1619,11 @@ func withEncodingAndPoolingOptions(
 		// writes without allocating because these objects are very expensive to
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
-		writeBatchPoolSize = commitlogQueueSize / client.DefaultWriteBatchSize
+		expectedBatchSize := writeBatchPoolInitialBatchSize
+		if expectedBatchSize == 0 {
+			expectedBatchSize = client.DefaultWriteBatchSize
+		}
+		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
 	}
 
 	writeBatchPoolOpts := pool.NewObjectPoolOptions()
@@ -1628,7 +1638,10 @@ func withEncodingAndPoolingOptions(
 				InstrumentOptions().
 				SetMetricsScope(scope.SubScope("write-batch-pool")))
 
-	writeBatchPool := writes.NewWriteBatchPool(writeBatchPoolOpts, writeBatchPoolMaxBatchSize)
+	writeBatchPool := writes.NewWriteBatchPool(
+		writeBatchPoolOpts,
+		writeBatchPoolInitialBatchSize,
+		writeBatchPoolMaxBatchSize)
 
 	tagPoolPolicy := policy.TagsPool
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{

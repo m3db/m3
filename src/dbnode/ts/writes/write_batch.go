@@ -34,10 +34,10 @@ var (
 )
 
 const (
-	// prealocateBatchCoeff is used for allocating write batches of slightly bigger
+	// preallocateBatchCoeff is used for allocating write batches of slightly bigger
 	// capacity than needed for the current request, in order to reduce allocations on
 	// subsequent reuse of pooled write batch.
-	prealocateBatchCoeff = 1.2
+	preallocateBatchCoeff = 1.2
 )
 
 type writeBatch struct {
@@ -57,10 +57,25 @@ type writeBatch struct {
 
 // NewWriteBatch creates a new WriteBatch.
 func NewWriteBatch(
+	initialBatchSize int,
 	ns ident.ID,
 	finalizeFn func(WriteBatch),
 ) WriteBatch {
+	var (
+		writes       []BatchWrite
+		pendingIndex []PendingIndexInsert
+	)
+
+	if initialBatchSize > 0 {
+		writes = make([]BatchWrite, 0, initialBatchSize)
+		pendingIndex = make([]PendingIndexInsert, 0, initialBatchSize)
+		// Leaving nil slices if initialBatchSize == 0,
+		// they will be allocated when needed, based on the actual batch size.
+	}
+
 	return &writeBatch{
+		writes:       writes,
+		pendingIndex: pendingIndex,
 		ns:           ns,
 		finalizeFn:   finalizeFn,
 	}
@@ -106,16 +121,25 @@ func (b *writeBatch) Reset(
 	batchSize int,
 	ns ident.ID,
 ) {
-	prealocateBatchCap := int(float32(batchSize) * prealocateBatchCoeff)
+	// Preallocate slightly more when not using initialBatchSize.
+	preallocateBatchCap := int(float32(batchSize) * preallocateBatchCoeff)
 
 	if batchSize > cap(b.writes) {
-		b.writes = make([]BatchWrite, 0, prealocateBatchCap)
+		batchCap := batchSize
+		if cap(b.writes) == 0 {
+			batchCap = preallocateBatchCap
+		}
+		b.writes = make([]BatchWrite, 0, batchCap)
 	} else {
 		b.writes = b.writes[:0]
 	}
 
 	if batchSize > cap(b.pendingIndex) {
-		b.pendingIndex = make([]PendingIndexInsert, 0, prealocateBatchCap)
+		batchCap := batchSize
+		if cap(b.pendingIndex) == 0 {
+			batchCap = preallocateBatchCap
+		}
+		b.pendingIndex = make([]PendingIndexInsert, 0, batchCap)
 	} else {
 		b.pendingIndex = b.pendingIndex[:0]
 	}
