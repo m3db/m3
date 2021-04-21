@@ -269,9 +269,11 @@ func (w *replicatedShardWriter) Close() {
 		return
 	}
 	w.isClosed = true
+	w.logger.Info("replicatedShardWriter.Close() begin", zap.Uint32("shard", w.shard))
 	for _, mw := range w.messageWriters {
 		mw.Close()
 	}
+	w.logger.Info("replicatedShardWriter.Close() end", zap.Uint32("shard", w.shard))
 }
 
 func (w *replicatedShardWriter) QueueSize() int {

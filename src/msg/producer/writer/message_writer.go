@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/unsafe"
+	"go.uber.org/zap"
 
 	"github.com/uber-go/tally"
 )
@@ -224,6 +225,8 @@ type messageWriterImpl struct {
 	lastNewWrite *list.Element
 
 	nowFn clock.NowFn
+
+	logger *zap.Logger
 }
 
 func newMessageWriter(
@@ -253,6 +256,7 @@ func newMessageWriter(
 		doneCh:              make(chan struct{}),
 		m:                   &m,
 		nowFn:               nowFn,
+		logger: opts.InstrumentOptions().Logger(),
 	}
 }
 
@@ -569,10 +573,13 @@ func (w *messageWriterImpl) Close() {
 	}
 	w.isClosed = true
 	w.Unlock()
+	w.logger.Info("replicatedShardWriter.Close() begin", zap.Uint64("replicatedShardID", w.replicatedShardID))
 	// NB: Wait until all messages cleaned up then close.
 	w.waitUntilAllMessageRemoved()
+	w.logger.Info("replicatedShardWriter.Close() all messages removed", zap.Uint64("replicatedShardID", w.replicatedShardID))
 	close(w.doneCh)
 	w.wg.Wait()
+	w.logger.Info("replicatedShardWriter.Close() end", zap.Uint64("replicatedShardID", w.replicatedShardID))
 }
 
 func (w *messageWriterImpl) waitUntilAllMessageRemoved() {

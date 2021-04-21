@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
 	xio "github.com/m3db/m3/src/x/io"
+	"go.uber.org/zap"
 
 	"github.com/uber-go/tally"
 )
@@ -102,6 +103,8 @@ type consumer struct {
 	doneCh chan struct{}
 	wg     sync.WaitGroup
 	m      metrics
+
+	logger *zap.Logger
 }
 
 func newConsumer(
@@ -131,6 +134,8 @@ func newConsumer(
 		closed: false,
 		doneCh: make(chan struct{}),
 		m:      m,
+
+		logger: opts.InstrumentOptions().Logger(),
 	}
 }
 
@@ -226,10 +231,12 @@ func (c *consumer) Close() {
 	}
 	c.closed = true
 	c.Unlock()
-
+	c.logger.Info("consumer.Close() begin")
 	close(c.doneCh)
+	c.logger.Info("consumer.Close() wg.Wait()")
 	c.wg.Wait()
 	c.conn.Close()
+	c.logger.Info("consumer.Close() end")
 }
 
 type message struct {

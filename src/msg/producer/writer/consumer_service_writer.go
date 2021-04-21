@@ -257,6 +257,7 @@ func (w *consumerServiceWriterImpl) process(update interface{}) error {
 	w.Unlock()
 	go func() {
 		for _, addr := range tobeDeleted {
+			w.logger.Info("consumerServiceWriterImpl.process() tobeDeleted", zap.String("addr", addr))
 			cw, ok := oldConsumerWriters[addr]
 			if ok {
 				cw.Close()
@@ -301,7 +302,7 @@ func (w *consumerServiceWriterImpl) Close() {
 	w.closed = true
 	w.Unlock()
 
-	w.logger.Info("closing consumer service writer", zap.String("writer", w.cs.String()))
+	w.logger.Info("consumerServiceWriterImpl.Close() begin", zap.String("writer", w.cs.String()))
 	close(w.doneCh)
 	// Blocks until all messages consuemd.
 	var shardWriterWG sync.WaitGroup
@@ -313,14 +314,16 @@ func (w *consumerServiceWriterImpl) Close() {
 			shardWriterWG.Done()
 		}()
 	}
+	w.logger.Info("consumerServiceWriterImpl.Close() shardWriterWG.Wait()", zap.String("writer", w.cs.String()))
 	shardWriterWG.Wait()
 
 	w.value.Unwatch()
 	for _, cw := range w.consumerWriters {
 		cw.Close()
 	}
+	w.logger.Info("consumerServiceWriterImpl.Close() wg.Wait()", zap.String("writer", w.cs.String()))
 	w.wg.Wait()
-	w.logger.Info("closed consumer service writer", zap.String("writer", w.cs.String()))
+	w.logger.Info("consumerServiceWriterImpl.Close() end", zap.String("writer", w.cs.String()))
 }
 
 func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {

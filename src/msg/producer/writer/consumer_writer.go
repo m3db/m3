@@ -381,9 +381,12 @@ func (w *consumerWriterImpl) Close() {
 		return
 	}
 
+	w.logger.Info("consumerWriterImpl.Close() begin", zap.String("addr", w.addr))
 	close(w.doneCh)
 
+	w.logger.Info("consumerWriterImpl.Close() wg.Wait", zap.String("addr", w.addr))
 	w.wg.Wait()
+	w.logger.Info("consumerWriterImpl.Close() end", zap.String("addr", w.addr))
 }
 
 func (w *consumerWriterImpl) notifyReset2(err error, caller string, shard uint64, id uint64, connIndex int, numConnections int) {
