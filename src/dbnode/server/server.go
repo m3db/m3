@@ -1598,14 +1598,10 @@ func withEncodingAndPoolingOptions(
 			policy.IteratorPool,
 			scope.SubScope("multi-iterator-pool")))
 
-	var writeBatchPoolInitialBatchSize *int
+	writeBatchPoolInitialBatchSize := 0
 	if policy.WriteBatchPool.InitialBatchSize != nil {
 		// Use config value if available.
-		writeBatchPoolInitialBatchSize = policy.WriteBatchPool.InitialBatchSize
-	} else {
-		// Otherwise use the default batch size that the client will use.
-		clientDefaultSize := client.DefaultWriteBatchSize
-		writeBatchPoolInitialBatchSize = &clientDefaultSize
+		writeBatchPoolInitialBatchSize = *policy.WriteBatchPool.InitialBatchSize
 	}
 
 	var writeBatchPoolMaxBatchSize *int
@@ -1623,7 +1619,10 @@ func withEncodingAndPoolingOptions(
 		// writes without allocating because these objects are very expensive to
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
-		expectedBatchSize := *writeBatchPoolInitialBatchSize
+		expectedBatchSize := writeBatchPoolInitialBatchSize
+		if expectedBatchSize == 0 {
+			expectedBatchSize = client.DefaultWriteBatchSize
+		}
 		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
 	}
 

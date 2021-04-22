@@ -39,7 +39,8 @@ type (
 )
 
 const (
-	fileOpCheckInterval = time.Second
+	fileOpCheckInterval        = time.Second
+	defaultExternalChannelSize = 8
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
@@ -85,6 +86,7 @@ type mediator struct {
 	mediatorTimeBarrier mediatorTimeBarrier
 	closedCh            chan struct{}
 	tickInterval        time.Duration
+	fileOpsProcesses    []FileOpsProcess
 	backgroundProcesses []BackgroundProcess
 }
 
@@ -97,19 +99,22 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 		nowFn = opts.ClockOptions().NowFn()
 	)
 	d := &mediator{
-		database:            database,
-		opts:                opts,
-		nowFn:               opts.ClockOptions().NowFn(),
-		sleepFn:             time.Sleep,
-		metrics:             newMediatorMetrics(scope),
-		state:               mediatorNotOpen,
-		mediatorTimeBarrier: newMediatorTimeBarrier(nowFn, iOpts),
-		closedCh:            make(chan struct{}),
-		tickInterval:        opts.MediatorTickInterval(),
+		database:     database,
+		opts:         opts,
+		nowFn:        opts.ClockOptions().NowFn(),
+		sleepFn:      time.Sleep,
+		metrics:      newMediatorMetrics(scope),
+		state:        mediatorNotOpen,
+		closedCh:     make(chan struct{}),
+		tickInterval: opts.MediatorTickInterval(),
 	}
-
 	fsm := newFileSystemManager(database, commitlog, opts)
 	d.databaseFileSystemManager = fsm
+	d.fileOpsProcesses = []FileOpsProcess{
+		FileOpsProcessFn(d.ongoingFileSystemProcesses),
+		FileOpsProcessFn(d.ongoingColdFlushProcesses),
+	}
+	d.mediatorTimeBarrier = newMediatorTimeBarrier(nowFn, iOpts, len(d.fileOpsProcesses))
 
 	// NB(bodu): Cold flush needs its own persist manager now
 	// that its running in its own thread.
@@ -138,6 +143,18 @@ func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) error {
 	return nil
 }
 
+func (m *mediator) EnqueueMutuallyExclusiveFn(fn func()) error {
+	m.RLock()
+	if m.state != mediatorOpen {
+		m.RUnlock()
+		return errMediatorNotOpen
+	}
+	m.RUnlock()
+
+	m.mediatorTimeBarrier.externalFnCh <- fn
+	return nil
+}
+
 func (m *mediator) Open() error {
 	m.Lock()
 	defer m.Unlock()
@@ -147,8 +164,9 @@ func (m *mediator) Open() error {
 	m.state = mediatorOpen
 
 	go m.reportLoop()
-	go m.ongoingFileSystemProcesses()
-	go m.ongoingColdFlushProcesses()
+	for _, fileOpsProcess := range m.fileOpsProcesses {
+		go fileOpsProcess.Start()
+	}
 	go m.ongoingTick()
 
 	for _, process := range m.backgroundProcesses {
@@ -232,7 +250,7 @@ func (m *mediator) ongoingFileSystemProcesses() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -253,7 +271,7 @@ func (m *mediator) ongoingColdFlushProcesses() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -275,7 +293,7 @@ func (m *mediator) ongoingTick() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -305,7 +323,7 @@ func (m *mediator) runFileSystemProcesses() {
 		return
 	}
 
-	m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
+	m.databaseFileSystemManager.Run(mediatorTime)
 }
 
 func (m *mediator) runColdFlushProcesses() {
@@ -335,7 +353,7 @@ func (m *mediator) reportLoop() {
 	}
 }
 
-func (m *mediator) isOpen() bool {
+func (m *mediator) IsOpen() bool {
 	m.RLock()
 	defer m.RUnlock()
 	return m.state == mediatorOpen
@@ -413,10 +431,12 @@ type mediatorTimeBarrier struct {
 	// by the mutex.
 	mediatorTime          time.Time
 	numFsProcessesWaiting int
+	numMaxWaiters         int
 
-	nowFn     func() time.Time
-	iOpts     instrument.Options
-	releaseCh chan time.Time
+	nowFn        func() time.Time
+	iOpts        instrument.Options
+	releaseCh    chan time.Time
+	externalFnCh chan func()
 }
 
 // initialMediatorTime should only be used to obtain the initial time for
@@ -468,17 +488,34 @@ func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
 	}
 
 	b.mediatorTime = newMediatorTime
+
+	// If all waiters are waiting, we can safely call mutually exclusive external functions.
+	if numWaiters == b.numMaxWaiters {
+		// Drain the channel.
+	Loop:
+		for {
+			select {
+			case fn := <-b.externalFnCh:
+				fn()
+			default:
+				break Loop
+			}
+		}
+	}
+
 	for i := 0; i < numWaiters; i++ {
 		b.releaseCh <- b.mediatorTime
 	}
 	return b.mediatorTime, nil
 }
 
-func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options) mediatorTimeBarrier {
+func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options, maxWaiters int) mediatorTimeBarrier {
 	return mediatorTimeBarrier{
-		mediatorTime: nowFn(),
-		nowFn:        nowFn,
-		iOpts:        iOpts,
-		releaseCh:    make(chan time.Time, 0),
+		mediatorTime:  nowFn(),
+		nowFn:         nowFn,
+		iOpts:         iOpts,
+		numMaxWaiters: maxWaiters,
+		releaseCh:     make(chan time.Time),
+		externalFnCh:  make(chan func(), defaultExternalChannelSize),
 	}
 }
