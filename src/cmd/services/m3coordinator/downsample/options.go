@@ -837,13 +837,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			SetFlushTimesStore(localKVStore))
 
 	electionManager, err := o.newAggregatorElectionManager(serviceID,
-		placementManager, flushTimesManager)
+		placementManager, flushTimesManager, clockOpts)
 	if err != nil {
 		return agg{}, err
 	}
 
-	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(serviceID,
-		placementManager, flushTimesManager, electionManager, instrumentOpts,
+	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(
+		placementManager, flushTimesManager, electionManager, o.ClockOptions, instrumentOpts,
 		storageFlushConcurrency, pools)
 
 	bufferPastLimits := defaultBufferPastLimits
@@ -867,8 +867,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	// Finally construct all options.
-	aggregatorOpts := aggregator.NewOptions().
-		SetClockOptions(clockOpts).
+	aggregatorOpts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetDefaultStoragePolicies(nil).
 		SetMetricPrefix(nil).
@@ -1136,6 +1135,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
+	clockOpts clock.Options,
 ) (aggregator.ElectionManager, error) {
 	leaderValue := instanceID
 	campaignOpts, err := services.NewCampaignOptions()
@@ -1148,6 +1148,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	leaderService := newLocalLeaderService(serviceID)
 
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
+		SetClockOptions(clockOpts).
 		SetCampaignOptions(campaignOpts).
 		SetLeaderService(leaderService).
 		SetPlacementManager(placementManager).
@@ -1157,15 +1158,16 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 }
 
 func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
-	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	electionManager aggregator.ElectionManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 	storageFlushConcurrency int,
 	pools aggPools,
 ) (aggregator.FlushManager, handler.Handler) {
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetClockOptions(clockOpts).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).

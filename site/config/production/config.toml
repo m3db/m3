@@ -125,21 +125,18 @@ offlineSearch = false
   twitter = "m3db_io"
   disableHomeIcon = true
 
-  [params.api]
-    localCordinator = "http://localhost:7201/"
-    apiEndpoint = "api/v1/"
-
-  # TODO: Might need to refactor some of the K8s shortcodes later
-# Add your release versions here
-# TODO: Enable when ready
-# [[params.versions]]
-#   version = "1.0"
-#   url = "https://master.kubeflow.org"
-#   [[params.versions]]
-#   version = "0.9"
-#   url = "https://master.kubeflow.org"
-
-# version_menu = "Versions"
+# TODO: Can all the below be consolidated?
+  [[params.versions]]
+    version = "1.1"
+    url = "/docs"
+  [[params.versions]]
+    version = "1.0"
+    url = "/v1.0/docs"
+  [[params.versions]]
+    version = "0.15.17"
+    url = "/v0.15.17/docs"    
+  [params.releases]
+    docker = "v1.0.0"
 
 # TODO: Do not like doing this really
 [markup]

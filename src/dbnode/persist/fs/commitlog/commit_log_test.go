@@ -161,7 +161,7 @@ func testSeries(
 		UniqueIndex: uniqueIndex,
 		Namespace:   ident.StringID("testNS"),
 		ID:          ident.StringID(id),
-		EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
+		EncodedTags: encodedTagsChecked.Bytes(),
 		Shard:       shard,
 	}
 }
@@ -553,7 +553,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	require.Equal(t, 2, len(files))
 
 	// Assert commitlog cannot be opened more than once
-	reader := newCommitLogReader(commitLogReaderOptions{commitLogOptions: opts})
+	reader := NewReader(ReaderOptions{commitLogOptions: opts})
 	_, err = reader.Open(files[0])
 	require.NoError(t, err)
 	reader.Close()
@@ -1064,7 +1064,7 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 		finalized++
 	}
 
-	writes := writes.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
+	writes := writes.NewWriteBatch(0, ident.StringID("ns"), finalizeFn)
 
 	testSeriesWrites := []ts.Series{
 		testSeries(t, opts, 0, "foo.bar", testTags0, 42),

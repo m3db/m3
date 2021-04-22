@@ -62,5 +62,9 @@ func (d Datapoint) Equal(x Datapoint) bool {
 // EncodedTags represents the encoded tags for the series.
 type EncodedTags []byte
 
+// OptimizedAnnotationLen specifies the limit of length of annotations for which
+// we avoid allocations by using fixed backing memory where possible.
+const OptimizedAnnotationLen = 16
+
 // Annotation represents information used to annotate datapoints.
 type Annotation []byte

@@ -33,3 +33,7 @@ carbon:
         policies:
           - resolution: 5s
             retention: 10h
+  limitsFind:
+    perQuery:
+      maxFetchedDocs: 100
+      requireExhaustive: false

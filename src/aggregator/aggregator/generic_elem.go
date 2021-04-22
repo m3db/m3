@@ -309,7 +309,13 @@ func (e *GenericElem) Consume(
 	for i := range e.toConsume {
 		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
 		e.toConsume[i].lockedAgg.Lock()
-		e.processValueWithAggregationLock(timeNanos, e.toConsume[i].lockedAgg, flushLocalFn, flushForwardedFn)
+		e.processValueWithAggregationLock(
+			timeNanos,
+			e.toConsume[i].lockedAgg,
+			flushLocalFn,
+			flushForwardedFn,
+			resolution,
+		)
 		// Closes the aggregation object after it's processed.
 		e.toConsume[i].lockedAgg.closed = true
 		e.toConsume[i].lockedAgg.aggregation.Close()
@@ -466,6 +472,7 @@ func (e *GenericElem) processValueWithAggregationLock(
 	lockedAgg *lockedAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
+	resolution time.Duration,
 ) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
@@ -520,7 +527,7 @@ func (e *GenericElem) processValueWithAggregationLock(
 				}
 
 				var res transformation.Datapoint
-				res, extraDp = unaryMultiOp.Evaluate(curr)
+				res, extraDp = unaryMultiOp.Evaluate(curr, resolution)
 				value = res.Value
 			}
 		}

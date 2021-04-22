@@ -267,10 +267,6 @@ func (q *queue) drain() {
 				} else {
 					q.asyncFetch(v)
 				}
-			case *fetchTaggedOp:
-				q.asyncFetchTagged(v)
-			case *aggregateOp:
-				q.asyncAggregate(v)
 			case *truncateOp:
 				q.asyncTruncate(v)
 			default:
@@ -863,33 +859,40 @@ func (q *queue) asyncFetchV2(
 }
 
 func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
-	// All fetch tagged calls are required to provide a context with a deadline.
-	ctx, err := q.mustWrapContext(op.context, "fetchTagged")
-	if err != nil {
-		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-		return
-	}
-
+	// Note: No worker pool required for fetch tagged queries, they do
+	// not benefit from goroutine re-use the same way the write
+	// code path does which frequently runs into stack splitting due to
+	// how deep the stacks are in the write code path.
+	// Context on stack splitting (a lot of other material out there too):
+	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
-	q.workerPool.GoWithContext(ctx, func() {
-		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := func() {
+
+	// NB(r): Need to perform any completion function in async
+	// goroutine since caller may hold the lock while enqueing the op
+	// which is required to access the completion fn with op.CompletionFn().
+	go func() {
+		defer func() {
 			op.decRef()
 			q.Done()
+		}()
+
+		// All fetch tagged calls are required to provide a context with a deadline.
+		ctx, err := q.mustWrapAndCheckContext(op.context, "fetchTagged")
+		if err != nil {
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			return
 		}
 
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
@@ -897,38 +900,44 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			host:     q.host,
 			response: result,
 		}, err)
-		cleanup()
-	})
+	}()
 }
 
 func (q *queue) asyncAggregate(op *aggregateOp) {
-	// All aggregate calls are required to provide a context with a deadline.
-	ctx, err := q.mustWrapContext(op.context, "aggregate")
-	if err != nil {
-		op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-		return
-	}
-
+	// Note: No worker pool required for aggregate queries, they do
+	// not benefit from goroutine re-use the same way the write
+	// code path does which frequently runs into stack splitting due to
+	// how deep the stacks are in the write code path.
+	// Context on stack splitting (a lot of other material out there too):
+	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
-	q.workerPool.GoWithContext(ctx, func() {
-		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := func() {
+
+	// NB(r): Need to perform any completion function in async
+	// goroutine since caller may hold the lock while enqueing the op
+	// which is required to access the completion fn with op.CompletionFn().
+	go func() {
+		defer func() {
 			op.decRef()
 			q.Done()
+		}()
+
+		// All aggregate calls are required to provide a context with a deadline.
+		ctx, err := q.mustWrapAndCheckContext(op.context, "aggregate")
+		if err != nil {
+			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
+			return
 		}
 
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
 		result, err := client.AggregateRaw(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
@@ -936,8 +945,7 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			host:     q.host,
 			response: result,
 		}, err)
-		cleanup()
-	})
+	}()
 }
 
 func (q *queue) asyncTruncate(op *truncateOp) {
@@ -965,7 +973,7 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 	})
 }
 
-func (q *queue) mustWrapContext(
+func (q *queue) mustWrapAndCheckContext(
 	callingContext context.Context,
 	method string,
 ) (thrift.Context, error) {
@@ -973,13 +981,17 @@ func (q *queue) mustWrapContext(
 		return nil, fmt.Errorf(
 			"%w in host queue: method=%s", ErrCallMissingContext, method)
 	}
+
 	// Use the original context for the call.
 	_, ok := callingContext.Deadline()
 	if !ok {
 		return nil, fmt.Errorf(
 			"%w in host queue: method=%s", ErrCallWithoutDeadline, method)
 	}
-	return thrift.Wrap(callingContext), nil
+
+	// Create thrift context.
+	newThriftContext := q.opts.ThriftContextFn()
+	return newThriftContext(callingContext), nil
 }
 
 func (q *queue) Len() int {
@@ -989,24 +1001,49 @@ func (q *queue) Len() int {
 	return v
 }
 
+func (q *queue) validateOpenWithLock() error {
+	if q.status != statusOpen {
+		return errQueueNotOpen(q.host.ID())
+	}
+	return nil
+}
+
 func (q *queue) Enqueue(o op) error {
 	switch sOp := o.(type) {
-	case *fetchBatchOp:
-		// Need to take ownership if its a fetch batch op
-		sOp.IncRef()
 	case *fetchTaggedOp:
 		// Need to take ownership if its a fetch tagged op
 		sOp.incRef()
+		// No queueing for fetchTagged op
+		q.RLock()
+		if err := q.validateOpenWithLock(); err != nil {
+			q.RUnlock()
+			return err
+		}
+		q.asyncFetchTagged(sOp)
+		q.RUnlock()
+		return nil
 	case *aggregateOp:
 		// Need to take ownership if its an aggregate op
 		sOp.incRef()
+		// No queueing for aggregate op
+		q.RLock()
+		if err := q.validateOpenWithLock(); err != nil {
+			q.RUnlock()
+			return err
+		}
+		q.asyncAggregate(sOp)
+		q.RUnlock()
+		return nil
+	case *fetchBatchOp:
+		// Need to take ownership if its a fetch batch op
+		sOp.IncRef()
 	}
 
 	var needsDrain []op
 	q.Lock()
-	if q.status != statusOpen {
+	if err := q.validateOpenWithLock(); err != nil {
 		q.Unlock()
-		return errQueueNotOpen(q.host.ID())
+		return err
 	}
 	q.ops = append(q.ops, o)
 	q.opsSumSize += o.Size()

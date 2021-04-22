@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -44,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -955,13 +957,14 @@ func TestAggregatorAddMetricMetrics(t *testing.T) {
 	m.ReportError(errAggregatorShardNotWriteable)
 	m.ReportError(errWriteNewMetricRateLimitExceeded)
 	m.ReportError(errWriteValueRateLimitExceeded)
+	m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")))
 	m.ReportError(errors.New("foo"))
 
 	snapshot := s.Snapshot()
 	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
 
 	// Validate we count successes and errors correctly.
-	require.Equal(t, 7, len(counters))
+	require.Equal(t, 8, len(counters))
 	for _, id := range []string{
 		"testScope.success+",
 		"testScope.errors+reason=invalid-metric-types",
@@ -969,6 +972,7 @@ func TestAggregatorAddMetricMetrics(t *testing.T) {
 		"testScope.errors+reason=shard-not-writeable",
 		"testScope.errors+reason=value-rate-limit-exceeded",
 		"testScope.errors+reason=new-metric-rate-limit-exceeded",
+		"testScope.errors+reason=arrived-too-late",
 		"testScope.errors+reason=not-categorized",
 	} {
 		c, exists := counters[id]
@@ -1001,13 +1005,14 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	m.ReportError(errWriteValueRateLimitExceeded)
 	m.ReportError(errTooFarInTheFuture)
 	m.ReportError(errTooFarInThePast)
+	m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")))
 	m.ReportError(errors.New("foo"))
 
 	snapshot := s.Snapshot()
 	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
 
 	// Validate we count successes and errors correctly.
-	require.Equal(t, 8, len(counters))
+	require.Equal(t, 9, len(counters))
 	for _, id := range []string{
 		"testScope.success+",
 		"testScope.errors+reason=shard-not-owned",
@@ -1016,6 +1021,7 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 		"testScope.errors+reason=new-metric-rate-limit-exceeded",
 		"testScope.errors+reason=too-far-in-the-future",
 		"testScope.errors+reason=too-far-in-the-past",
+		"testScope.errors+reason=arrived-too-late",
 		"testScope.errors+reason=not-categorized",
 	} {
 		c, exists := counters[id]
@@ -1161,7 +1167,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 	infiniteBufferForPastTimedMetricFn := func(time.Duration) time.Duration {
 		return math.MaxInt64
 	}
-	return NewOptions().
+	return newTestOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionMgr).

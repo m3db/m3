@@ -61,8 +61,14 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 	}
 
 	workChs := make([]chan Work, numShards)
+	bufSize := int64(size) / numShards
+	if opts.GrowOnDemand() {
+		// Do not use buffered channels if the pool can grow on demand. This ensures a new worker is spawned if all
+		// workers are currently busy.
+		bufSize = 0
+	}
 	for i := range workChs {
-		workChs[i] = make(chan Work, int64(size)/numShards)
+		workChs[i] = make(chan Work, bufSize)
 	}
 
 	return &pooledWorkerPool{
@@ -97,6 +103,10 @@ func (p *pooledWorkerPool) GoWithTimeout(work Work, timeout time.Duration) bool 
 
 func (p *pooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
 	return p.work(maybeContext{ctx: ctx}, work, 0)
+}
+
+func (p *pooledWorkerPool) FastContextCheck(batchSize int) PooledWorkerPool {
+	return &fastPooledWorkerPool{workerPool: p, batchSize: batchSize}
 }
 
 // maybeContext works around the linter about optionally

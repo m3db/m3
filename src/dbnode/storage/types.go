@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -460,14 +459,14 @@ type databaseNamespace interface {
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (result SeriesReadWriteRef, owned bool, err error)
+	) (result bootstrap.SeriesRefResolver, owned bool, err error)
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
@@ -478,21 +477,6 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 	) (int64, error)
-}
-
-// SeriesReadWriteRef is a read/write reference for a series,
-// must make sure to release
-type SeriesReadWriteRef struct {
-	// Series reference for read/writing.
-	Series bootstrap.SeriesRef
-	// UniqueIndex is the unique index of the series (as applicable).
-	UniqueIndex uint64
-	// Shard is the shard of the series.
-	Shard uint32
-	// ReleaseReadWriteRef must be called after using the series ref
-	// to release the reference count to the series so it can
-	// be expired by the owning shard eventually.
-	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
 }
 
 // Shard is a time series database shard.
@@ -657,13 +641,13 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (bootstrap.SeriesRefResolver, error)
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Metadata, bool, error)
@@ -838,6 +822,9 @@ type databaseBootstrapManager interface {
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() (BootstrapResult, error)
 
+	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
+	BootstrapEnqueue() *BootstrapAsyncResult
+
 	// Report reports runtime information.
 	Report()
 }
@@ -846,6 +833,37 @@ type databaseBootstrapManager interface {
 type BootstrapResult struct {
 	ErrorsBootstrap      []error
 	AlreadyBootstrapping bool
+}
+
+// BootstrapAsyncResult is a bootstrap async result.
+type BootstrapAsyncResult struct {
+	bootstrapStarted   *sync.WaitGroup
+	bootstrapCompleted *sync.WaitGroup
+	bootstrapResult    BootstrapResult
+}
+
+func newBootstrapAsyncResult() *BootstrapAsyncResult {
+	var (
+		wgStarted   sync.WaitGroup
+		wgCompleted sync.WaitGroup
+	)
+	wgStarted.Add(1)
+	wgCompleted.Add(1)
+	return &BootstrapAsyncResult{
+		bootstrapStarted:   &wgStarted,
+		bootstrapCompleted: &wgCompleted,
+	}
+}
+
+// Result will wait for bootstrap to complete and return BootstrapResult.
+func (b *BootstrapAsyncResult) Result() BootstrapResult {
+	b.bootstrapCompleted.Wait()
+	return b.bootstrapResult
+}
+
+// WaitForStart waits until bootstrap has been started.
+func (b *BootstrapAsyncResult) WaitForStart() {
+	b.bootstrapStarted.Wait()
 }
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
@@ -866,10 +884,10 @@ type databaseFlushManager interface {
 // and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
 	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
-	WarmFlushCleanup(t time.Time, isBootstrapped bool) error
+	WarmFlushCleanup(t time.Time) error
 
 	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
-	ColdFlushCleanup(t time.Time, isBootstrapped bool) error
+	ColdFlushCleanup(t time.Time) error
 
 	// Report reports runtime information.
 	Report()
@@ -892,11 +910,7 @@ type databaseFileSystemManager interface {
 
 	// Run attempts to perform all filesystem-related operations,
 	// returning true if those operations are performed, and false otherwise.
-	Run(
-		t time.Time,
-		runType runType,
-		forceType forceType,
-	) bool
+	Run(t time.Time) bool
 
 	// Report reports runtime information.
 	Report()
@@ -952,6 +966,21 @@ type BackgroundProcess interface {
 	Report()
 }
 
+// FileOpsProcess is a background process that is run by the database.
+type FileOpsProcess interface {
+	// Start launches the FileOpsProcess to run asynchronously.
+	Start()
+}
+
+// FileOpsProcessFn is a file ops process function.
+type FileOpsProcessFn func()
+
+// Start starts file ops process function.
+func (f FileOpsProcessFn) Start() {
+	// delegate to the anonymous function.
+	f()
+}
+
 // databaseRepairer repairs in-memory database data.
 type databaseRepairer interface {
 	BackgroundProcess
@@ -979,12 +1008,18 @@ type databaseMediator interface {
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
 
+	// IsOpen returns whether mediator is opened.
+	IsOpen() bool
+
 	// LastBootstrapCompletionTime returns the last bootstrap completion time,
 	// if any.
 	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
+
+	// BootstrapEnqueue bootstraps the database asynchronously with file operations performed at the end.
+	BootstrapEnqueue() *BootstrapAsyncResult
 
 	// DisableFileOpsAndWait disables file operations.
 	DisableFileOpsAndWait()
@@ -1004,6 +1039,10 @@ type databaseMediator interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
+
+	// EnqueueMutuallyExclusiveFn enqueues function to be executed mutually exclusively,
+	// when file operations are idle.
+	EnqueueMutuallyExclusiveFn(fn func()) error
 }
 
 // ColdFlushNsOpts are options for OnColdFlush.ColdFlushNamespace.

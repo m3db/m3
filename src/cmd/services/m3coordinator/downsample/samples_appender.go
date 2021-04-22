@@ -23,6 +23,8 @@ package downsample
 import (
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -34,8 +36,11 @@ import (
 
 // samplesAppender must have one of agg or client set
 type samplesAppender struct {
-	agg          aggregator.Aggregator
-	clientRemote client.Client
+	agg                     aggregator.Aggregator
+	clientRemote            client.Client
+	processedCountNonRollup tally.Counter
+	processedCountRollup    tally.Counter
+	operationsCount         tally.Counter
 
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
@@ -45,6 +50,7 @@ type samplesAppender struct {
 var _ SamplesAppender = (*samplesAppender)(nil)
 
 func (a samplesAppender) AppendUntimedCounterSample(value int64, annotation []byte) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Counter{
@@ -65,6 +71,7 @@ func (a samplesAppender) AppendUntimedCounterSample(value int64, annotation []by
 }
 
 func (a samplesAppender) AppendUntimedGaugeSample(value float64, annotation []byte) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Gauge{
@@ -85,6 +92,7 @@ func (a samplesAppender) AppendUntimedGaugeSample(value float64, annotation []by
 }
 
 func (a samplesAppender) AppendUntimedTimerSample(value float64, annotation []byte) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.BatchTimer{
@@ -135,11 +143,39 @@ func (a *samplesAppender) AppendTimerSample(t time.Time, value float64, annotati
 }
 
 func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
+	a.emitMetrics()
 	if a.clientRemote != nil {
 		return a.clientRemote.WriteTimedWithStagedMetadatas(sample, a.stagedMetadatas)
 	}
 
 	return a.agg.AddTimedWithStagedMetadatas(sample, a.stagedMetadatas)
+}
+
+func (a *samplesAppender) emitMetrics() {
+	for _, metadata := range a.stagedMetadatas {
+		// Separate out the rollup and non-rollup processed counts. For rollups
+		// additionally emit a metric that indicates the number of non-rollup
+		// operations in the rules.
+		var (
+			numOperations = 0
+			isRollup      bool
+		)
+		for _, pipeline := range metadata.Pipelines {
+			if pipeline.IsAnyRollupRules() {
+				isRollup = true
+			}
+			numOperations += len(pipeline.Pipeline.Operations)
+		}
+		if isRollup {
+			a.processedCountRollup.Inc(1)
+		} else {
+			a.processedCountNonRollup.Inc(1)
+		}
+		// This includes operations other than the actual rollup.
+		if numOperations > 1 {
+			a.operationsCount.Inc(int64(numOperations - 1))
+		}
+	}
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender.

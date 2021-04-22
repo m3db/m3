@@ -80,6 +80,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -870,7 +871,7 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iOpts, tchannelOpts, syncCfg.TopologyInitializer,
+		cfg.Client, opts.ClockOptions(), iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 		syncCfg.KVStore, logger, runOpts.CustomOptions)
 	if err != nil {
@@ -884,6 +885,7 @@ func Run(runOpts RunOptions) {
 	documentsBuilderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
@@ -906,7 +908,7 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iOpts, tchannelOpts, topologyInitializer,
+				clientCfg, opts.ClockOptions(), iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 				syncCfg.KVStore, logger, runOpts.CustomOptions)
 			if err != nil {
@@ -1510,11 +1512,11 @@ func withEncodingAndPoolingOptions(
 	iOpts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
-	// Set the max bytes pool byte slice alloc size for the thrift pooling.
-	thriftBytesAllocSize := policy.ThriftBytesPoolAllocSizeOrDefault()
-	logger.Info("set thrift bytes pool alloc size",
-		zap.Int("size", thriftBytesAllocSize))
-	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
+	// Set the byte slice capacities for the thrift pooling.
+	thriftBytesAllocSizes := policy.ThriftBytesPoolAllocSizesOrDefault()
+	logger.Info("set thrift bytes pool slice sizes",
+		zap.Ints("sizes", thriftBytesAllocSizes))
+	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSizes...)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("bytes-pool")))
@@ -1596,14 +1598,10 @@ func withEncodingAndPoolingOptions(
 			policy.IteratorPool,
 			scope.SubScope("multi-iterator-pool")))
 
-	var writeBatchPoolInitialBatchSize *int
+	writeBatchPoolInitialBatchSize := 0
 	if policy.WriteBatchPool.InitialBatchSize != nil {
 		// Use config value if available.
-		writeBatchPoolInitialBatchSize = policy.WriteBatchPool.InitialBatchSize
-	} else {
-		// Otherwise use the default batch size that the client will use.
-		clientDefaultSize := client.DefaultWriteBatchSize
-		writeBatchPoolInitialBatchSize = &clientDefaultSize
+		writeBatchPoolInitialBatchSize = *policy.WriteBatchPool.InitialBatchSize
 	}
 
 	var writeBatchPoolMaxBatchSize *int
@@ -1621,7 +1619,10 @@ func withEncodingAndPoolingOptions(
 		// writes without allocating because these objects are very expensive to
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
-		expectedBatchSize := *writeBatchPoolInitialBatchSize
+		expectedBatchSize := writeBatchPoolInitialBatchSize
+		if expectedBatchSize == 0 {
+			expectedBatchSize = client.DefaultWriteBatchSize
+		}
 		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
 	}
 
@@ -1846,6 +1847,7 @@ func withEncodingAndPoolingOptions(
 
 func newAdminClient(
 	config client.Configuration,
+	clockOpts clock.Options,
 	iOpts instrument.Options,
 	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
@@ -1891,6 +1893,7 @@ func newAdminClient(
 	options = append(options, custom...)
 	m3dbClient, err := config.NewAdminClient(
 		client.ConfigurationParameters{
+			ClockOptions: clockOpts,
 			InstrumentOptions: iOpts.
 				SetMetricsScope(iOpts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topologyInitializer,

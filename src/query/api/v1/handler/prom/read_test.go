@@ -21,6 +21,7 @@
 package prom
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -144,26 +146,63 @@ func TestPromReadHandlerInvalidQuery(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
-func TestPromReadHandlerExecuteInvalidParamsError(t *testing.T) {
-	setup := setupTest(t)
-	setup.queryable.selectFn = func(
-		sortSeries bool,
-		hints *promstorage.SelectHints,
-		labelMatchers ...*labels.Matcher,
-	) (promstorage.SeriesSet, promstorage.Warnings, error) {
-		return nil, nil, xerrors.NewInvalidParamsError(fmt.Errorf("user input error"))
+func TestPromReadHandlerErrors(t *testing.T) {
+	testCases := []struct {
+		name     string
+		err      error
+		httpCode int
+	}{
+		{
+			name:     "prom error",
+			err:      fmt.Errorf("prom error"),
+			httpCode: http.StatusBadRequest,
+		},
+		{
+			name:     "prom timeout",
+			err:      promql.ErrQueryTimeout("timeout"),
+			httpCode: http.StatusGatewayTimeout,
+		},
+		{
+			name:     "prom cancel",
+			err:      promql.ErrQueryCanceled("cancel"),
+			httpCode: 499,
+		},
+		{
+			name:     "storage 500",
+			err:      prometheus.NewStorageErr(fmt.Errorf("500 storage error")),
+			httpCode: http.StatusInternalServerError,
+		},
+		{
+			name:     "storage 400",
+			err:      prometheus.NewStorageErr(xerrors.NewInvalidParamsError(fmt.Errorf("400 storage error"))),
+			httpCode: http.StatusBadRequest,
+		},
 	}
 
-	req, _ := http.NewRequest("GET", native.PromReadURL, nil)
-	req.URL.RawQuery = defaultParams().Encode()
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			setup := setupTest(t)
+			setup.queryable.selectFn = func(
+				sortSeries bool,
+				hints *promstorage.SelectHints,
+				labelMatchers ...*labels.Matcher,
+			) (promstorage.SeriesSet, promstorage.Warnings, error) {
+				return nil, nil, tc.err
+			}
 
-	recorder := httptest.NewRecorder()
-	setup.readHandler.ServeHTTP(recorder, req)
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", native.PromReadURL, nil)
+			req.URL.RawQuery = defaultParams().Encode()
 
-	var resp response
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
-	require.Equal(t, statusError, resp.Status)
-	require.Equal(t, http.StatusBadRequest, recorder.Code)
+			recorder := httptest.NewRecorder()
+			setup.readHandler.ServeHTTP(recorder, req)
+
+			var resp response
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+			require.Equal(t, statusError, resp.Status)
+			require.Equal(t, tc.httpCode, recorder.Code)
+		})
+	}
 }
 
 func TestPromReadInstantHandler(t *testing.T) {

@@ -350,12 +350,12 @@ type dbShardInsertAsyncOptions struct {
 	hasPendingRetrievedBlock bool
 	hasPendingIndexing       bool
 
-	// NB(prateek): `entryRefCountIncremented` indicates if the
+	// NB(prateek): `releaseEntryRef` indicates if the
 	// entry provided along with the dbShardInsertAsyncOptions
-	// already has it's ref count incremented. It's used to
-	// correctly manage the lifecycle of the entry across the
+	// already has it's ref count incremented and it will be decremented after insert.
+	// It's used to correctly manage the lifecycle of the entry across the
 	// shard -> shard Queue -> shard boundaries.
-	entryRefCountIncremented bool
+	releaseEntryRef bool
 }
 
 type dbShardPendingWrite struct {

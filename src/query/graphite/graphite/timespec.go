@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)(.*)$`)    // allows -3min, -4d, etc.

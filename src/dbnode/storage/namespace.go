@@ -491,9 +491,10 @@ func (n *dbNamespace) assignShardSet(
 	opts assignShardSetOptions,
 ) {
 	var (
-		incoming = make(map[uint32]struct{}, len(shardSet.All()))
-		existing []databaseShard
-		closing  []databaseShard
+		incoming        = make(map[uint32]struct{}, len(shardSet.All()))
+		createdShardIds []uint32
+		existing        []databaseShard
+		closing         []databaseShard
 	)
 	for _, shard := range shardSet.AllIDs() {
 		incoming[shard] = struct{}{}
@@ -525,11 +526,20 @@ func (n *dbNamespace) assignShardSet(
 		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 			opts.needsBootstrap, n.opts, n.seriesOpts)
+		createdShardIds = append(createdShardIds, shard)
 		// NB(bodu): We only record shard add metrics for shards created in non
 		// initial assignments.
 		if !opts.initialAssignment {
 			n.metrics.shards.add.Inc(1)
 		}
+	}
+
+	if len(createdShardIds) > 0 {
+		n.log.Info("created new shards",
+			zap.Stringer("namespace", n.ID()),
+			zap.Uint32s("shards", createdShardIds),
+			zap.Bool("initialAssignment", opts.initialAssignment),
+			zap.Bool("needsBootstrap", opts.needsBootstrap))
 	}
 
 	if idx := n.reverseIndex; idx != nil {
@@ -741,19 +751,19 @@ func (n *dbNamespace) WritePendingIndexInserts(
 	return n.reverseIndex.WritePending(pending)
 }
 
-func (n *dbNamespace) SeriesReadWriteRef(
+func (n *dbNamespace) SeriesRefResolver(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, bool, error) {
+) (bootstrap.SeriesRefResolver, bool, error) {
 	n.RLock()
 	shard, owned, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	if err != nil {
-		return SeriesReadWriteRef{}, owned, err
+		return nil, owned, err
 	}
-	res, err := shard.SeriesReadWriteRef(id, tags)
-	return res, true, err
+	resolver, err := shard.SeriesRefResolver(id, tags)
+	return resolver, true, err
 }
 
 func (n *dbNamespace) QueryIDs(
@@ -1045,6 +1055,9 @@ func (n *dbNamespace) Bootstrap(
 		}
 		if !bootstrapped {
 			// NB(r): Not bootstrapped in this bootstrap run.
+			n.log.Debug("skipping already bootstrapped shard",
+				zap.Uint32("shard", shardID),
+				zap.Stringer("namespace", n.id))
 			continue
 		}
 
@@ -1300,6 +1313,12 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	multiErr := xerrors.NewMultiError()
 	shardColdFlushes := make([]ShardColdFlush, 0, len(shards))
 	for _, shard := range shards {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping cold flush due to shard not bootstrapped yet")
+			continue
+		}
 		shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
@@ -1385,6 +1404,12 @@ func (n *dbNamespace) Snapshot(
 		multiErr      xerrors.MultiError
 	)
 	for _, shard := range n.OwnedShards() {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping snapshot due to shard not bootstrapped yet")
+			continue
+		}
 		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
@@ -1754,6 +1779,7 @@ func (n *dbNamespace) aggregateTiles(
 		processedTileCount int64
 		aggregationSuccess bool
 	)
+
 	defer func() {
 		if aggregationSuccess {
 			return
@@ -1764,7 +1790,15 @@ func (n *dbNamespace) aggregateTiles(
 				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
 		}
 	}()
+
 	for _, targetShard := range n.OwnedShards() {
+		if !targetShard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", targetShard.ID())).
+				Debug("skipping aggregateTiles due to shard not bootstrapped")
+			continue
+		}
+
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
 			ctx, sourceNs, n, targetShard.ID(), onColdFlushNs, opts)
 

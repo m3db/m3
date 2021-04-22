@@ -193,7 +193,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
 
-	writeBatchPool := writes.NewWriteBatchPool(poolOpts, nil, nil)
+	writeBatchPool := writes.NewWriteBatchPool(poolOpts, 0, nil)
 	writeBatchPool.Init()
 
 	segmentReaderPool := xio.NewSegmentReaderPool(poolOpts)
@@ -319,6 +319,7 @@ func (o *options) Validate() error {
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
+	opts.blockOpts = opts.blockOpts.SetClockOptions(value)
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
 	opts.indexOpts = opts.indexOpts.SetClockOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)

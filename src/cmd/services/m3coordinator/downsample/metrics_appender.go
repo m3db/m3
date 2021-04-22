@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -73,6 +74,12 @@ func (p *metricsAppenderPool) Get() *metricsAppender {
 
 func (p *metricsAppenderPool) Put(v *metricsAppender) {
 	p.pool.Put(v)
+}
+
+type metricsAppenderMetrics struct {
+	processedCountNonRollup tally.Counter
+	processedCountRollup    tally.Counter
+	operationsCount         tally.Counter
 }
 
 type metricsAppender struct {
@@ -107,6 +114,7 @@ type metricsAppenderOptions struct {
 	clockOpts    clock.Options
 	debugLogging bool
 	logger       *zap.Logger
+	metrics      metricsAppenderMetrics
 }
 
 func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
@@ -407,6 +415,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			clientRemote:    a.clientRemote,
 			unownedID:       rollup.ID,
 			stagedMetadatas: rollup.Metadatas,
+
+			processedCountNonRollup: a.metrics.processedCountNonRollup,
+			processedCountRollup:    a.metrics.processedCountRollup,
+			operationsCount:         a.metrics.operationsCount,
 		})
 		if a.untimedRollups {
 			dropTimestamp = true
@@ -563,6 +575,10 @@ func (a *metricsAppender) newSamplesAppender(
 		clientRemote:    a.clientRemote,
 		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
+
+		processedCountNonRollup: a.metrics.processedCountNonRollup,
+		processedCountRollup:    a.metrics.processedCountRollup,
+		operationsCount:         a.metrics.operationsCount,
 	}, nil
 }
 
@@ -622,6 +638,17 @@ func (a *metricsAppender) processTags(
 				value = types[0].Name()
 			)
 			tags.append(name, value)
+		}
+		if bytes.Equal(tag.Name, metric.M3MetricsPromSummary) {
+			types, err := id.Types()
+			if err != nil || len(types) == 0 {
+				continue
+			}
+			value, ok := types[0].QuantileBytes()
+			if !ok {
+				continue
+			}
+			tags.append(metric.PromQuantileName, value)
 		}
 	}
 	return tags

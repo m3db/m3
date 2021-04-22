@@ -1,5 +1,6 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
+
   [[module.imports]]
     path = "github.com/chronosphereio/victor"
     
@@ -111,7 +112,7 @@ offlineSearch = false
   # See the config.toml file from this documentation site to have an example.
 
   helpBlock = true
-  editURL = "https://github.com/m3db/m3/tree/master/site/content/"
+  editURL = "https://github.com/m3db/m3/blob/master/site/content/"
 
   # Author of the site, will be used in meta information
   author = "The M3 team and community"
@@ -149,9 +150,11 @@ offlineSearch = false
     apiEndpoint = "api/v1/"
 # TODO: Can all the below be consolidated?
   [[params.versions]]
+    version = "1.1"
+    url = "/docs"
+  [[params.versions]]
     version = "1.0"
-    url = ""
-
+    url = "/v1.0/docs"
   [params.releases]
     docker = "v1.0.0"
 

@@ -132,6 +132,9 @@ type RunOptions struct {
 	// constructed.
 	InstrumentOptionsReadyCh chan<- InstrumentOptionsReady
 
+	// ClockOptions is an optional clock to use instead of the default one.
+	ClockOptions clock.Options
+
 	// CustomHandlerOptions contains custom handler options.
 	CustomHandlerOptions options.CustomHandlerOptions
 
@@ -243,6 +246,11 @@ func Run(runOpts RunOptions) {
 	}
 
 	opentracing.SetGlobalTracer(tracer)
+
+	clockOpts := clock.NewOptions()
+	if runOpts.ClockOptions != nil {
+		clockOpts = runOpts.ClockOptions
+	}
 
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
@@ -417,7 +425,7 @@ func Run(runOpts RunOptions) {
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
 			cfg, m3dbClusters, m3dbPoolWrapper,
 			runOpts, queryCtxOpts, tsdbOpts,
-			runOpts.DownsamplerReadyCh, clusterNamespacesWatcher, rwOpts, instrumentOptions)
+			runOpts.DownsamplerReadyCh, clusterNamespacesWatcher, rwOpts, clockOpts, instrumentOptions)
 
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
@@ -481,7 +489,11 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	var graphiteStorageOpts graphite.M3WrappedStorageOptions
+	var (
+		graphiteFindFetchOptsBuilder   = fetchOptsBuilder
+		graphiteRenderFetchOptsBuilder = fetchOptsBuilder
+		graphiteStorageOpts            graphite.M3WrappedStorageOptions
+	)
 	if cfg.Carbon != nil {
 		graphiteStorageOpts.AggregateNamespacesAllData =
 			cfg.Carbon.AggregateNamespacesAllData
@@ -497,6 +509,31 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
 		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
 		graphiteStorageOpts.CompileEscapeAllNotOnlyQuotes = cfg.Carbon.CompileEscapeAllNotOnlyQuotes
+
+		if limits := cfg.Carbon.LimitsFind; limits != nil {
+			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
+			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
+				handleroptions.FetchOptionsBuilderOptions{
+					Limits:        fetchOptsBuilderLimitsOpts,
+					RestrictByTag: storageRestrictByTags,
+					Timeout:       timeout,
+				})
+			if err != nil {
+				logger.Fatal("could not set graphite find fetch options parser", zap.Error(err))
+			}
+		}
+		if limits := cfg.Carbon.LimitsRender; limits != nil {
+			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
+			graphiteRenderFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
+				handleroptions.FetchOptionsBuilderOptions{
+					Limits:        fetchOptsBuilderLimitsOpts,
+					RestrictByTag: storageRestrictByTags,
+					Timeout:       timeout,
+				})
+			if err != nil {
+				logger.Fatal("could not set graphite find fetch options parser", zap.Error(err))
+			}
+		}
 	}
 
 	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
@@ -507,8 +544,8 @@ func Run(runOpts RunOptions) {
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
-		runOpts.DBConfig, fetchOptsBuilder, queryCtxOpts,
-		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
+		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
+		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)
 	if err != nil {
@@ -611,6 +648,7 @@ func newM3DBStorage(
 	downsamplerReadyCh chan<- struct{},
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	rwOpts xio.Options,
+	clockOpts clock.Options,
 	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var (
@@ -670,7 +708,7 @@ func newM3DBStorage(
 		ds, err := newDownsampler(
 			cfg.Downsample, clusterClient,
 			fanoutStorage, clusterNamespacesWatcher,
-			tsdbOpts.TagOptions(), instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
+			tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
 		if err != nil {
 			return nil, err
 		}
@@ -727,6 +765,7 @@ func newDownsampler(
 	storage storage.Storage,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	tagOptions models.TagOptions,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 	applyCustomRuleStore downsample.CustomRuleStoreFn,
@@ -776,7 +815,7 @@ func newDownsampler(
 		ClusterClient:              clusterManagementClient,
 		RulesKVStore:               kvStore,
 		ClusterNamespacesWatcher:   clusterNamespacesWatcher,
-		ClockOptions:               clock.NewOptions(),
+		ClockOptions:               clockOpts,
 		InstrumentOptions:          instrumentOpts,
 		TagEncoderOptions:          tagEncoderOptions,
 		TagDecoderOptions:          tagDecoderOptions,

@@ -1809,20 +1809,20 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushState(shardID, blockStart inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushState), shardID, blockStart)
 }
 
-// SeriesReadWriteRef mocks base method
-func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, bool, error) {
+// SeriesRefResolver mocks base method
+func (m *MockdatabaseNamespace) SeriesRefResolver(shardID uint32, id ident.ID, tags ident.TagIterator) (bootstrap.SeriesRefResolver, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesReadWriteRef", shardID, id, tags)
-	ret0, _ := ret[0].(SeriesReadWriteRef)
+	ret := m.ctrl.Call(m, "SeriesRefResolver", shardID, id, tags)
+	ret0, _ := ret[0].(bootstrap.SeriesRefResolver)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef
-func (mr *MockdatabaseNamespaceMockRecorder) SeriesReadWriteRef(shardID, id, tags interface{}) *gomock.Call {
+// SeriesRefResolver indicates an expected call of SeriesRefResolver
+func (mr *MockdatabaseNamespaceMockRecorder) SeriesRefResolver(shardID, id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesReadWriteRef), shardID, id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesRefResolver", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesRefResolver), shardID, id, tags)
 }
 
 // WritePendingIndexInserts mocks base method
@@ -2345,19 +2345,19 @@ func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, repairer
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, nsCtx, nsMeta, tr, repairer)
 }
 
-// SeriesReadWriteRef mocks base method
-func (m *MockdatabaseShard) SeriesReadWriteRef(id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error) {
+// SeriesRefResolver mocks base method
+func (m *MockdatabaseShard) SeriesRefResolver(id ident.ID, tags ident.TagIterator) (bootstrap.SeriesRefResolver, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesReadWriteRef", id, tags)
-	ret0, _ := ret[0].(SeriesReadWriteRef)
+	ret := m.ctrl.Call(m, "SeriesRefResolver", id, tags)
+	ret0, _ := ret[0].(bootstrap.SeriesRefResolver)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef
-func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags interface{}) *gomock.Call {
+// SeriesRefResolver indicates an expected call of SeriesRefResolver
+func (mr *MockdatabaseShardMockRecorder) SeriesRefResolver(id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesRefResolver", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesRefResolver), id, tags)
 }
 
 // DocRef mocks base method
@@ -2855,6 +2855,20 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Bootstrap))
 }
 
+// BootstrapEnqueue mocks base method
+func (m *MockdatabaseBootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapEnqueue")
+	ret0, _ := ret[0].(*BootstrapAsyncResult)
+	return ret0
+}
+
+// BootstrapEnqueue indicates an expected call of BootstrapEnqueue
+func (mr *MockdatabaseBootstrapManagerMockRecorder) BootstrapEnqueue() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).BootstrapEnqueue))
+}
+
 // Report mocks base method
 func (m *MockdatabaseBootstrapManager) Report() {
 	m.ctrl.T.Helper()
@@ -2955,31 +2969,31 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 }
 
 // WarmFlushCleanup mocks base method
-func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
+func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, isBootstrapped)
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WarmFlushCleanup indicates an expected call of WarmFlushCleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t, isBootstrapped)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t)
 }
 
 // ColdFlushCleanup mocks base method
-func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
+func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, isBootstrapped)
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ColdFlushCleanup indicates an expected call of ColdFlushCleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) ColdFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+func (mr *MockdatabaseCleanupManagerMockRecorder) ColdFlushCleanup(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).ColdFlushCleanup), t, isBootstrapped)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).ColdFlushCleanup), t)
 }
 
 // Report mocks base method
@@ -3074,17 +3088,17 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Status() *gomock.Call {
 }
 
 // Run mocks base method
-func (m *MockdatabaseFileSystemManager) Run(t time.Time, runType runType, forceType forceType) bool {
+func (m *MockdatabaseFileSystemManager) Run(t time.Time) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", t, runType, forceType)
+	ret := m.ctrl.Call(m, "Run", t)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Run indicates an expected call of Run
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Run(t, runType, forceType interface{}) *gomock.Call {
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Run(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Run), t, runType, forceType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Run), t)
 }
 
 // Report mocks base method
@@ -3138,31 +3152,31 @@ func (m *MockdatabaseColdFlushManager) EXPECT() *MockdatabaseColdFlushManagerMoc
 }
 
 // WarmFlushCleanup mocks base method
-func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
+func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, isBootstrapped)
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WarmFlushCleanup indicates an expected call of WarmFlushCleanup
-func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t, isBootstrapped)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t)
 }
 
 // ColdFlushCleanup mocks base method
-func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
+func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, isBootstrapped)
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ColdFlushCleanup indicates an expected call of ColdFlushCleanup
-func (mr *MockdatabaseColdFlushManagerMockRecorder) ColdFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+func (mr *MockdatabaseColdFlushManagerMockRecorder) ColdFlushCleanup(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).ColdFlushCleanup), t, isBootstrapped)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).ColdFlushCleanup), t)
 }
 
 // Report mocks base method
@@ -3344,6 +3358,41 @@ func (mr *MockBackgroundProcessMockRecorder) Report() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockBackgroundProcess)(nil).Report))
 }
 
+// MockFileOpsProcess is a mock of FileOpsProcess interface
+type MockFileOpsProcess struct {
+	ctrl     *gomock.Controller
+	recorder *MockFileOpsProcessMockRecorder
+}
+
+// MockFileOpsProcessMockRecorder is the mock recorder for MockFileOpsProcess
+type MockFileOpsProcessMockRecorder struct {
+	mock *MockFileOpsProcess
+}
+
+// NewMockFileOpsProcess creates a new mock instance
+func NewMockFileOpsProcess(ctrl *gomock.Controller) *MockFileOpsProcess {
+	mock := &MockFileOpsProcess{ctrl: ctrl}
+	mock.recorder = &MockFileOpsProcessMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockFileOpsProcess) EXPECT() *MockFileOpsProcessMockRecorder {
+	return m.recorder
+}
+
+// Start mocks base method
+func (m *MockFileOpsProcess) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start
+func (mr *MockFileOpsProcessMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockFileOpsProcess)(nil).Start))
+}
+
 // MockdatabaseRepairer is a mock of databaseRepairer interface
 type MockdatabaseRepairer struct {
 	ctrl     *gomock.Controller
@@ -3519,6 +3568,20 @@ func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseMediator)(nil).IsBootstrapped))
 }
 
+// IsOpen mocks base method
+func (m *MockdatabaseMediator) IsOpen() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOpen")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOpen indicates an expected call of IsOpen
+func (mr *MockdatabaseMediatorMockRecorder) IsOpen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpen", reflect.TypeOf((*MockdatabaseMediator)(nil).IsOpen))
+}
+
 // LastBootstrapCompletionTime mocks base method
 func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
@@ -3547,6 +3610,20 @@ func (m *MockdatabaseMediator) Bootstrap() (BootstrapResult, error) {
 func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap))
+}
+
+// BootstrapEnqueue mocks base method
+func (m *MockdatabaseMediator) BootstrapEnqueue() *BootstrapAsyncResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapEnqueue")
+	ret0, _ := ret[0].(*BootstrapAsyncResult)
+	return ret0
+}
+
+// BootstrapEnqueue indicates an expected call of BootstrapEnqueue
+func (mr *MockdatabaseMediatorMockRecorder) BootstrapEnqueue() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseMediator)(nil).BootstrapEnqueue))
 }
 
 // DisableFileOpsAndWait mocks base method
@@ -3626,6 +3703,20 @@ func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time0.UnixNano
 func (mr *MockdatabaseMediatorMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastSuccessfulSnapshotStartTime))
+}
+
+// EnqueueMutuallyExclusiveFn mocks base method
+func (m *MockdatabaseMediator) EnqueueMutuallyExclusiveFn(fn func()) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueMutuallyExclusiveFn", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnqueueMutuallyExclusiveFn indicates an expected call of EnqueueMutuallyExclusiveFn
+func (mr *MockdatabaseMediatorMockRecorder) EnqueueMutuallyExclusiveFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueMutuallyExclusiveFn", reflect.TypeOf((*MockdatabaseMediator)(nil).EnqueueMutuallyExclusiveFn), fn)
 }
 
 // MockColdFlushNsOpts is a mock of ColdFlushNsOpts interface

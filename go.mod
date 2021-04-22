@@ -104,7 +104,7 @@ require (
 	go.uber.org/atomic v1.6.0
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
-	go.uber.org/zap v1.13.0
+	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
@@ -122,8 +122,8 @@ require (
 	gotest.tools v2.2.0+incompatible
 )
 
-// branch 0.9.3-pool-read-binary-3
-replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
+// branch 0.9.3-patch
+replace github.com/apache/thrift => github.com/m3dbx/thrift v0.0.0-20210326170526-6e3eef8b4a26
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
