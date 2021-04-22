@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -161,10 +163,30 @@ type instrumentation struct {
 	log                                *zap.Logger
 	nowFn                              clock.NowFn
 	persistedIndexBlocksOutOfRetention tally.Counter
-	dataTimeRanges                     result.ShardTimeRanges
-	indexTimeRanges                    result.ShardTimeRanges
-	dataRangesToBootstrap              tally.Gauge
-	indexRangesToBootstrap             tally.Gauge
+	dataTimeRanges                     map[ident.ID]*timeRangeMetrics
+	indexTimeRanges                    map[ident.ID]*timeRangeMetrics
+}
+
+type timeRangeMetrics struct {
+	timeRanges result.ShardTimeRanges
+	gauge      tally.Gauge
+}
+
+func newTimeRangeMetrics(
+	nsID ident.ID,
+	shardTimeRanges result.ShardTimeRanges,
+	phase phase,
+	scope tally.Scope,
+) *timeRangeMetrics {
+	timeRanges := shardTimeRanges.Copy()
+	gauge := scope.Tagged(map[string]string{"ns": nsID.String()}).
+		Gauge(fmt.Sprintf("bootstrap-%s-ranges", phase))
+	totalRanges := totalRanges(timeRanges)
+	gauge.Update(float64(totalRanges))
+	return &timeRangeMetrics{
+		timeRanges: timeRanges,
+		gauge:      gauge,
+	}
 }
 
 func newInstrumentation(opts Options) *instrumentation {
@@ -181,63 +203,74 @@ func newInstrumentation(opts Options) *instrumentation {
 		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
 		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
-		dataRangesToBootstrap:              scope.Gauge("bootstrap-data-ranges"),
-		indexRangesToBootstrap:             scope.Gauge("bootstrap-index-ranges"),
-		dataTimeRanges:                     result.NewShardTimeRanges(),
-		indexTimeRanges:                    result.NewShardTimeRanges(),
+		dataTimeRanges:                     map[ident.ID]*timeRangeMetrics{},
+		indexTimeRanges:                    map[ident.ID]*timeRangeMetrics{},
 	}
 }
 
-func (i *instrumentation) availableDataBootstrapRanges(shardTimeRanges result.ShardTimeRanges) {
+type phase string
+
+const (
+	phaseData  phase = "data"
+	phaseIndex phase = "index"
+)
+
+func (i *instrumentation) availableDataBootstrapRanges(nsID ident.ID, shardTimeRanges result.ShardTimeRanges) {
 	if shardTimeRanges == nil {
 		return
 	}
 	i.Lock()
-	i.dataTimeRanges = shardTimeRanges.Copy()
-	totalRanges := totalRanges(i.dataTimeRanges)
-	i.dataRangesToBootstrap.Update(float64(totalRanges))
+	i.dataTimeRanges[nsID] = newTimeRangeMetrics(nsID, shardTimeRanges, phaseData, i.scope)
 	i.Unlock()
 	i.log.Info("resolved data ranges to bootstrap",
-		zap.Int("shards", shardTimeRanges.Len()),
-		zap.Int("numberOfRanges", totalRanges))
+		zap.Stringer("ns", nsID),
+		zap.Int("shards", shardTimeRanges.Len()))
 }
 
-func (i *instrumentation) availableIndexBootstrapRanges(shardTimeRanges result.ShardTimeRanges) {
+func (i *instrumentation) availableIndexBootstrapRanges(nsID ident.ID, shardTimeRanges result.ShardTimeRanges) {
 	if shardTimeRanges == nil {
 		return
 	}
 	i.Lock()
-	i.indexTimeRanges = shardTimeRanges.Copy()
-	totalRanges := totalRanges(i.indexTimeRanges)
-	i.indexRangesToBootstrap.Update(float64(totalRanges))
+	i.indexTimeRanges[nsID] = newTimeRangeMetrics(nsID, shardTimeRanges, phaseIndex, i.scope)
 	i.Unlock()
 	i.log.Info("resolved index ranges to bootstrap",
-		zap.Int("shards", shardTimeRanges.Len()),
-		zap.Int("numberOfRanges", totalRanges))
+		zap.Stringer("ns", nsID),
+		zap.Int("shards", shardTimeRanges.Len()))
 }
 
-func (i *instrumentation) dataRangeDone(fulfilled result.ShardTimeRanges) {
+func (i *instrumentation) dataRangeDone(nsID ident.ID, fulfilled result.ShardTimeRanges) {
 	if fulfilled.IsEmpty() {
 		return
 	}
 	i.Lock()
-	i.dataTimeRanges.Subtract(fulfilled)
-	totalRanges := totalRanges(i.dataTimeRanges)
-	i.dataRangesToBootstrap.Update(float64(totalRanges))
+	metrics, ok := i.dataTimeRanges[nsID]
+	if !ok {
+		i.Unlock()
+		return
+	}
+	metrics.timeRanges.Subtract(fulfilled)
+	totalRanges := totalRanges(metrics.timeRanges)
+	metrics.gauge.Update(float64(totalRanges))
 	i.Unlock()
 	i.log.Debug("data range done",
 		zap.Int("numberOfRanges", totalRanges),
 	)
 }
 
-func (i *instrumentation) indexRangeDone(fulfilled result.ShardTimeRanges) {
+func (i *instrumentation) indexRangeDone(nsID ident.ID, fulfilled result.ShardTimeRanges) {
 	if fulfilled.IsEmpty() {
 		return
 	}
 	i.Lock()
-	i.indexTimeRanges.Subtract(fulfilled)
-	totalRanges := totalRanges(i.indexTimeRanges)
-	i.indexRangesToBootstrap.Update(float64(totalRanges))
+	metrics, ok := i.indexTimeRanges[nsID]
+	if !ok {
+		i.Unlock()
+		return
+	}
+	metrics.timeRanges.Subtract(fulfilled)
+	totalRanges := totalRanges(metrics.timeRanges)
+	metrics.gauge.Update(float64(totalRanges))
 	i.Unlock()
 	i.log.Debug("index range done",
 		zap.Int("numberOfRanges", totalRanges),
