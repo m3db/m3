@@ -200,7 +200,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = RenderResultsJSON(responseWriter, result, renderOpts)
 	}
 
-	if responseWriter.Close() != nil {
+	if err := responseWriter.Close(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		logger.Error("failed to render results", zap.Error(err))
 	} else {
