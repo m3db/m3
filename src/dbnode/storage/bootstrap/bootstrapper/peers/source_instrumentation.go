@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -29,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -152,12 +154,17 @@ func (i *instrumentationReadShardsContext) bootstrapShardsCompleted() {
 }
 
 type instrumentation struct {
+	sync.Mutex
 	opts                               Options
 	profiler                           instrument.Profiler
 	scope                              tally.Scope
 	log                                *zap.Logger
 	nowFn                              clock.NowFn
 	persistedIndexBlocksOutOfRetention tally.Counter
+	dataTimeRanges                     result.ShardTimeRanges
+	indexTimeRanges                    result.ShardTimeRanges
+	dataRangesToBootstrap              tally.Gauge
+	indexRangesToBootstrap             tally.Gauge
 }
 
 func newInstrumentation(opts Options) *instrumentation {
@@ -174,7 +181,75 @@ func newInstrumentation(opts Options) *instrumentation {
 		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
 		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
+		dataRangesToBootstrap:              scope.Gauge("bootstrap-data-ranges"),
+		indexRangesToBootstrap:             scope.Gauge("bootstrap-index-ranges"),
+		dataTimeRanges:                     result.NewShardTimeRanges(),
+		indexTimeRanges:                    result.NewShardTimeRanges(),
 	}
+}
+
+func (i *instrumentation) availableDataBootstrapRanges(shardTimeRanges result.ShardTimeRanges) {
+	if shardTimeRanges == nil {
+		return
+	}
+	i.Lock()
+	i.dataTimeRanges = shardTimeRanges.Copy()
+	totalRanges := totalRanges(i.dataTimeRanges)
+	i.dataRangesToBootstrap.Update(float64(totalRanges))
+	i.Unlock()
+	i.log.Info("resolved data ranges to bootstrap",
+		zap.Int("shards", shardTimeRanges.Len()),
+		zap.Int("numberOfRanges", totalRanges))
+}
+
+func (i *instrumentation) availableIndexBootstrapRanges(shardTimeRanges result.ShardTimeRanges) {
+	if shardTimeRanges == nil {
+		return
+	}
+	i.Lock()
+	i.indexTimeRanges = shardTimeRanges.Copy()
+	totalRanges := totalRanges(i.indexTimeRanges)
+	i.indexRangesToBootstrap.Update(float64(totalRanges))
+	i.Unlock()
+	i.log.Info("resolved index ranges to bootstrap",
+		zap.Int("shards", shardTimeRanges.Len()),
+		zap.Int("numberOfRanges", totalRanges))
+}
+
+func (i *instrumentation) dataRangeDone(fulfilled result.ShardTimeRanges) {
+	if fulfilled.IsEmpty() {
+		return
+	}
+	i.Lock()
+	i.dataTimeRanges.Subtract(fulfilled)
+	totalRanges := totalRanges(i.dataTimeRanges)
+	i.dataRangesToBootstrap.Update(float64(totalRanges))
+	i.Unlock()
+	i.log.Debug("data range done",
+		zap.Int("numberOfRanges", totalRanges),
+	)
+}
+
+func (i *instrumentation) indexRangeDone(fulfilled result.ShardTimeRanges) {
+	if fulfilled.IsEmpty() {
+		return
+	}
+	i.Lock()
+	i.indexTimeRanges.Subtract(fulfilled)
+	totalRanges := totalRanges(i.indexTimeRanges)
+	i.indexRangesToBootstrap.Update(float64(totalRanges))
+	i.Unlock()
+	i.log.Debug("index range done",
+		zap.Int("numberOfRanges", totalRanges),
+	)
+}
+
+func totalRanges(shardTimeRanges result.ShardTimeRanges) int {
+	res := 0
+	for _, ranges := range shardTimeRanges.Iter() {
+		res += ranges.Len()
+	}
+	return res
 }
 
 func (i *instrumentation) peersBootstrapperSourceReadStarted(

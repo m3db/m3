@@ -104,7 +104,9 @@ func (s *peersSource) AvailableData(
 	if err := s.validateRunOpts(runOpts); err != nil {
 		return nil, err
 	}
-	return s.peerAvailability(nsMetadata, shardTimeRanges, runOpts)
+	peerAvailability, err := s.peerAvailability(nsMetadata, shardTimeRanges, runOpts)
+	s.instrumentation.availableDataBootstrapRanges(peerAvailability)
+	return peerAvailability, err
 }
 
 func (s *peersSource) AvailableIndex(
@@ -116,7 +118,9 @@ func (s *peersSource) AvailableIndex(
 	if err := s.validateRunOpts(runOpts); err != nil {
 		return nil, err
 	}
-	return s.peerAvailability(nsMetadata, shardTimeRanges, runOpts)
+	peerAvailability, err := s.peerAvailability(nsMetadata, shardTimeRanges, runOpts)
+	s.instrumentation.availableIndexBootstrapRanges(peerAvailability)
+	return peerAvailability, err
 }
 
 func (s *peersSource) Read(
@@ -365,6 +369,10 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
 			flush.shardResult, flush.timeRange, asyncTasks)
 		if err == nil {
+			if !flush.shardResult.IsEmpty() {
+				s.instrumentation.dataRangeDone(result.NewShardTimeRangesFromRange(
+					flush.timeRange.Start, flush.timeRange.End, flush.shard))
+			}
 			continue
 		}
 
@@ -486,6 +494,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				}
 			}
 		}
+		shardTimeRanges := result.NewShardTimeRangesFromRange(currRange.Start, currRange.End, shard)
+		s.instrumentation.dataRangeDone(shardTimeRanges)
 	}
 }
 
@@ -896,6 +906,7 @@ func (s *peersSource) processReaders(
 					shard,
 					xtime.NewRanges(timeRange),
 				)
+				s.instrumentation.indexRangeDone(fulfilled)
 				resultLock.Lock()
 				err = r.IndexResults().MarkFulfilled(start, fulfilled,
 					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
