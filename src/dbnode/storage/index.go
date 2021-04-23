@@ -2115,6 +2115,7 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
 		IncludeCorrupted: true,
 	})
+
 	var (
 		toDelete         []string
 		corrupted        []string
@@ -2122,6 +2123,7 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 		byVolumeType     = make(map[idxpersist.IndexVolumeType]latestVolumeIndices)
 	)
 	for _, file := range infoFiles {
+		// This intentionally skips the latest block start as that's the active block.
 		if file.ID.BlockStart.After(latestBlockStart) {
 			for volType := range byVolumeType {
 				vol := byVolumeType[volType]
@@ -2130,12 +2132,15 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 				if len(corrupted) == 0 {
 					continue
 				}
-				if vol.latestCorruptedVolumeIndex <= vol.latestVolumeIndex {
+				// NB: We only remove stale index filesets to avoid deleting
+				// one we're actively writing to.
+				if vol.latestCorruptedVolumeIndex >= vol.latestVolumeIndex {
 					continue
 				}
 
 				toDelete = append(toDelete, corrupted...)
 			}
+			latestBlockStart = file.ID.BlockStart
 			corrupted = corrupted[:0]
 		}
 
