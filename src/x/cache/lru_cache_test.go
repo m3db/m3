@@ -591,8 +591,7 @@ func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
 // 3. RoutineA never loads since loader is nil. RoutineA never calls Put.
 // 4. RoutineB blocks until the timeout, or indefinitely if no timeout is set in the ctx.
 func TestNilLoader(t *testing.T) {
-	lru := NewLRU(&LRUOptions{
-	})
+	lru := NewLRU(&LRUOptions{})
 
 	_, err := lru.GetWithTTL(context.Background(), "key-1", nil)
 	require.Equal(t, err, ErrEntryNotFound)
