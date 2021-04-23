@@ -721,10 +721,31 @@ func forEachInfoFile(
 		return
 	}
 
-	var (
-		indexDigests index.IndexDigests
-		corrupted    []FileSetFile
-	)
+	maybeIncludeCorrupted := func(corrupted FileSetFile) {
+		if !args.includeCorrupted {
+			return
+		}
+		// NB: We do not want to give up here on error or else we may not clean up
+		// corrupt index filesets.
+		infoFilePath, ok := corrupted.InfoFilePath()
+		if !ok {
+			fn(corrupted, nil, true)
+			return
+		}
+		infoData, err := read(infoFilePath)
+		if err != nil {
+			// NB: If no info data is supplied, we assume that the
+			// info file itself is corrupted. Since this is the
+			// first file written to disk, this should be safe to remove.
+			fn(corrupted, nil, true)
+			return
+		}
+		// NB: We always write an index info file when we begin writing to an index volume
+		// so we are always guaranteed that there's AT LEAST the info file on disk w/ incomplete info.
+		fn(corrupted, infoData, true)
+	}
+
+	var indexDigests index.IndexDigests
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
 		t := matched[i].ID.BlockStart
@@ -762,14 +783,14 @@ func forEachInfoFile(
 		// Read digest of digests from the checkpoint file
 		expectedDigestOfDigest, err := readCheckpointFile(checkpointFilePath, digestBuf)
 		if err != nil {
-			corrupted = append(corrupted, matched[i])
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 		// Read and validate the digest file
 		digestData, err := readAndValidate(digestsFilePath, readerBufferSize,
 			expectedDigestOfDigest)
 		if err != nil {
-			corrupted = append(corrupted, matched[i])
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 
@@ -780,7 +801,7 @@ func forEachInfoFile(
 			expectedInfoDigest = digest.ToBuffer(digestData).ReadDigest()
 		case persist.FileSetIndexContentType:
 			if err := indexDigests.Unmarshal(digestData); err != nil {
-				corrupted = append(corrupted, matched[i])
+				maybeIncludeCorrupted(matched[i])
 				continue
 			}
 			expectedInfoDigest = indexDigests.GetInfoDigest()
@@ -789,39 +810,16 @@ func forEachInfoFile(
 		infoData, err := readAndValidate(infoFilePath, readerBufferSize,
 			expectedInfoDigest)
 		if err != nil {
-			corrupted = append(corrupted, matched[i])
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 		// Guarantee that every matched fileset has an info file.
 		if _, ok := matched[i].InfoFilePath(); !ok {
-			corrupted = append(corrupted, matched[i])
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 
 		fn(matched[i], infoData, false)
-	}
-
-	if args.includeCorrupted {
-		for _, f := range corrupted {
-			// NB: We do not want to give up here on error or else we may not clean up
-			// corrupt index filesets.
-			infoFilePath, ok := f.InfoFilePath()
-			if !ok {
-				fn(f, nil, true)
-				continue
-			}
-			infoData, err := read(infoFilePath)
-			if err != nil {
-				// NB: If no info data is supplied, we assume that the
-				// info file itself is corrupted. Since this is the
-				// first file written to disk, this should be safe to remove.
-				fn(f, nil, true)
-				continue
-			}
-			// NB: We always write an index info file when we begin writing to an index volume
-			// so we are always guaranteed that there's AT LEAST the info file on disk w/ incomplete info.
-			fn(f, infoData, true)
-		}
 	}
 }
 
