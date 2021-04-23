@@ -1,0 +1,36 @@
+# Fanout queries to remote clusters
+rpc:
+  enabled: true
+  listenAddress: "0.0.0.0:7202"
+  remotes:
+    - name: "cluster-b"
+      remoteListenAddresses: ["coordinator-cluster-b:7202"]
+    - name: "cluster-c"
+      remoteListenAddresses: ["coordinator-cluster-c:7202"]
+
+clusters:
+  - client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - dbnode-cluster-a:2379
+
+carbon:
+  ingester:
+    listenAddress: "0.0.0.0:7204"
+    rules:
+      - pattern: .*
+        policies:
+          - resolution: 5s
+            retention: 10h
+
+# Use tag consolidation here; other integration tests handle id consolidations.
+query:
+  consolidation:
+    matchType: tags
