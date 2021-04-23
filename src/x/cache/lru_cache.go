@@ -251,7 +251,7 @@ func (c *LRU) Get(ctx context.Context, key string, loader LoaderFunc) (interface
 func (c *LRU) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFunc) (interface{}, error) {
 	// Spin until it's either loaded or the load fails.
 	for {
-		value, load, loadingCh, err := c.tryCached(key)
+		value, load, loadingCh, err := c.tryCached(key, loader != nil)
 
 		// There was a cached error, so just return it
 		if err != nil {
@@ -301,10 +301,14 @@ func (c *LRU) has(key string, checkExpiry bool) bool {
 	return true
 }
 
-// tryCached returns a value from the cache, or an indication of
-// the caller should do (return an error, load the value, wait for a concurrent
-// load to complete).
-func (c *LRU) tryCached(key string) (interface{}, bool, chan struct{}, error) {
+// tryCached returns a value from the cache, or an indication of what the caller should do. willLoad is set to
+// true if the caller will load the value if it's missing from the cache.
+//
+// a non-nil error indicates there is either a cached error or an error retrieving the cached value.
+// a non-nil chan indicates another routine is currently loading the value and the caller should wait on the chan.
+// a bool instructing the caller to load the value because it was not found and no other routine is currently attempting
+// to load it.
+func (c *LRU) tryCached(key string, willLoad bool) (interface{}, bool, chan struct{}, error) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
@@ -325,21 +329,26 @@ func (c *LRU) tryCached(key string) (interface{}, bool, chan struct{}, error) {
 	// Otherwise we need to load it
 	c.metrics.misses.Inc(1)
 
-	if !exists {
-		// The entry doesn't exist, clear enough space for it and then add it
-		if err := c.reserveCapacity(1); err != nil {
-			return nil, false, nil, err
+	if willLoad {
+		if !exists {
+			// The entry doesn't exist, clear enough space for it and then add it
+			if err := c.reserveCapacity(1); err != nil {
+				return nil, false, nil, err
+			}
+
+			entry = c.newEntry(key)
+		} else {
+			// The entry expired, don't consider it for eviction while we're loading
+			c.byAccessTime.Remove(entry.accessTimeElt)
+			c.byLoadTime.Remove(entry.loadTimeElt)
 		}
 
-		entry = c.newEntry(key)
-	} else {
-		// The entry expired, don't consider it for eviction while we're loading
-		c.byAccessTime.Remove(entry.accessTimeElt)
-		c.byLoadTime.Remove(entry.loadTimeElt)
+		// Create a channel that other callers can block on waiting for this to complete
+		entry.loadingCh = make(chan struct{})
 	}
+	// if the caller will not load the value, do not reserve a spot or setup a channel for others to block on. still
+	// return true to indicate to the caller the value is missing from the cache.
 
-	// Create a channel that other callers can block on waiting for this to complete
-	entry.loadingCh = make(chan struct{})
 	return nil, true, nil, nil
 }
 

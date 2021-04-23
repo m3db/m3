@@ -584,6 +584,25 @@ func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
 	assert.Equal(t, "bar", value.(string))
 }
 
+// TestNilLoader verifies a regression where a subsequent load would timeout with a nil loader, if the first missed load
+// never called Put.
+// 1. RoutineA Get and miss.
+// 2. RoutineB Get and wait for RoutineA to load.
+// 3. RoutineA never loads since loader is nil. RoutineA never calls Put.
+// 4. RoutineB blocks until the timeout, or indefinitely if no timeout is set in the ctx.
+func TestNilLoader(t *testing.T) {
+	lru := NewLRU(&LRUOptions{
+	})
+
+	_, err := lru.GetWithTTL(context.Background(), "key-1", nil)
+	require.Equal(t, err, ErrEntryNotFound)
+	// this would previously timeout waiting for the first call to load the value.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	_, err = lru.GetWithTTL(ctx, "key-1", nil)
+	cancel()
+	require.Equal(t, err, ErrEntryNotFound)
+}
+
 var defaultKeys = []string{
 	"key-0", "key-1", "key-2", "key-3", "key-4", "key-5", "key-6", "key-7", "key-8", "key-9", "key10",
 }
