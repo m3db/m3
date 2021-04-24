@@ -201,6 +201,7 @@ func (agg *aggregator) placementTick() {
 		agg.RLock()
 		placement, err := agg.placementManager.Placement()
 		if err != nil {
+			agg.RUnlock()
 			m.updateFailures.Inc(1)
 			continue
 		}
@@ -396,6 +397,7 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 
 	agg.RLock()
 	if int(shardID) >= len(agg.shards) {
+		agg.RUnlock()
 		return nil, errShardNotOwned
 	}
 	shard := agg.shards[shardID]
