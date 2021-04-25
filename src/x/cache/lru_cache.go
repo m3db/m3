@@ -249,9 +249,27 @@ func (c *LRU) Get(ctx context.Context, key string, loader LoaderFunc) (interface
 // loader to return a TTL for the resulting value, overriding the
 // default TTL associated with the cache.
 func (c *LRU) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFunc) (interface{}, error) {
+	return c.getWithTTL(ctx, key, loader)
+}
+
+// TryGet will simply attempt to get a key and if it does not exist and instead
+// of loading it if it is missing it will just return the second boolean
+// argument as false to indicate it is missing.
+func (c *LRU) TryGet(key string) (interface{}, bool) {
+	value, err := c.getWithTTL(nil, key, nil)
+	return value, err == nil
+}
+
+func (c *LRU) getWithTTL(
+	ctx context.Context,
+	key string,
+	loader LoaderWithTTLFunc,
+) (interface{}, error) {
 	// Spin until it's either loaded or the load fails.
 	for {
-		value, load, loadingCh, err := c.tryCached(key)
+		value, load, loadingCh, err := c.tryCached(key, tryCachedOptions{
+			getWithNoLoader: loader == nil,
+		})
 
 		// There was a cached error, so just return it
 		if err != nil {
@@ -301,10 +319,17 @@ func (c *LRU) has(key string, checkExpiry bool) bool {
 	return true
 }
 
+type tryCachedOptions struct {
+	getWithNoLoader bool
+}
+
 // tryCached returns a value from the cache, or an indication of
 // the caller should do (return an error, load the value, wait for a concurrent
 // load to complete).
-func (c *LRU) tryCached(key string) (interface{}, bool, chan struct{}, error) {
+func (c *LRU) tryCached(
+	key string,
+	opts tryCachedOptions,
+) (interface{}, bool, chan struct{}, error) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
@@ -324,6 +349,14 @@ func (c *LRU) tryCached(key string) (interface{}, bool, chan struct{}, error) {
 
 	// Otherwise we need to load it
 	c.metrics.misses.Inc(1)
+
+	if opts.getWithNoLoader && !exists {
+		// If we're not using a loader then return entry not found
+		// rather than creating a loading channel since we are not trying
+		// to load an element we are just attempting to retrieve it if and
+		// only if it exists.
+		return nil, false, nil, ErrEntryNotFound
+	}
 
 	if !exists {
 		// The entry doesn't exist, clear enough space for it and then add it
