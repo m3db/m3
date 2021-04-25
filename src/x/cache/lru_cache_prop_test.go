@@ -104,7 +104,7 @@ func TestLRUPropertyTest(t *testing.T) {
 	parameters.Rng.Seed(123456789)
 	parameters.MinSuccessfulTests = 25
 	props := gopter.NewProperties(parameters)
-	props.Property("Test processBothSeries",
+	props.Property("Test LRU concurrent use",
 		prop.ForAll(testLRUPropFunc, genPropTestMultiInputs(propTestMultiInputsOptions{
 			inputsOpts: []genPropTestInputOptions{
 				{
