@@ -408,10 +408,20 @@ func (c *LRU) updateCacheEntryWithLock(
 	if expiresAt.IsZero() {
 		expiresAt = c.now().Add(c.ttl)
 	}
-
 	entry.expiresAt = expiresAt
-	entry.loadTimeElt = c.byLoadTime.PushFront(entry)
-	entry.accessTimeElt = c.byAccessTime.PushFront(entry)
+
+	if entry.loadTimeElt == nil {
+		entry.loadTimeElt = c.byLoadTime.PushFront(entry)
+	} else {
+		c.byLoadTime.MoveToFront(entry.loadTimeElt)
+	}
+
+	if entry.accessTimeElt == nil {
+		entry.accessTimeElt = c.byAccessTime.PushFront(entry)
+	} else {
+		c.byAccessTime.MoveToFront(entry.accessTimeElt)
+	}
+
 	c.metrics.entries.Update(float64(len(c.entries)))
 
 	// Tell any other callers that we're done loading

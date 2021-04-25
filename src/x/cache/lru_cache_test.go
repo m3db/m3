@@ -584,6 +584,21 @@ func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
 	assert.Equal(t, "bar", value.(string))
 }
 
+func TestLRU_GetNonExisting_FromFullCache_AfterDoublePut(t *testing.T) {
+	lru := NewLRU(&LRUOptions{MaxEntries: 2})
+
+	// insert same key twice:
+	lru.Put("foo", "1")
+	lru.Put("foo", "1")
+
+	// insert another key to make cache full:
+	lru.Put("bar", "2")
+
+	// try to get entry that does not exist:
+	_, err := lru.Get(context.Background(), "new", nil)
+	require.Error(t, err, ErrEntryNotFound.Error())
+}
+
 var defaultKeys = []string{
 	"key-0", "key-1", "key-2", "key-3", "key-4", "key-5", "key-6", "key-7", "key-8", "key-9", "key10",
 }
