@@ -22,7 +22,6 @@ package cache
 
 import (
 	"fmt"
-	"go.uber.org/atomic"
 	"math"
 	"math/rand"
 	"reflect"
@@ -33,6 +32,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"go.uber.org/atomic"
 )
 
 func TestLRUPropertyTest(t *testing.T) {
