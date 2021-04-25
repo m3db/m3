@@ -189,7 +189,7 @@ type HandlerOptions interface {
 	// queries between PromQL and M3Query.
 	QueryRouter() QueryRouter
 	// SetQueryRouter sets query router.
-SetQueryRouter(value QueryRouter) HandlerOptions
+	SetQueryRouter(value QueryRouter) HandlerOptions
 
 	// InstantQueryRouter is a reference to the router which is responsible for
 	// routing instant queries between PromQL and M3Query.
