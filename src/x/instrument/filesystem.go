@@ -59,19 +59,19 @@ func (r *fileSystemMetrics) report() {
 	if err != nil {
 		r.dirErrors.Inc(1)
 	} else {
-		r.commitlogsSize.Update(float64(snapshotsStats.Size))
+		r.snapshotsSize.Update(float64(snapshotsStats.Size))
 	}
 	dataStats, err := xos.GetDirectoryStats(filepath.Join(r.rootDir, dataDir))
 	if err != nil {
 		r.dirErrors.Inc(1)
 	} else {
-		r.commitlogsSize.Update(float64(dataStats.Size))
+		r.dataSize.Update(float64(dataStats.Size))
 	}
 	indexStats, err := xos.GetDirectoryStats(filepath.Join(r.rootDir, indexDir))
 	if err != nil {
 		r.dirErrors.Inc(1)
 	} else {
-		r.commitlogsSize.Update(float64(indexStats.Size))
+		r.indexSize.Update(float64(indexStats.Size))
 	}
 }
 

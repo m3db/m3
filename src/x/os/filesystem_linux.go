@@ -20,16 +20,19 @@ func GetFileSystemStats(rootDir string) (*FileSystemStats, error) {
 	return ret, nil
 }
 
-// GetDirectoryStats returns stats for directory.
-// Stats includes total size of all files (not subdirectories)
-// in the directory.
+// GetDirectoryStats returns the total size of all files
+// in the directory tree. Note that this will be different
+// from the output of the utility du as it only counts
+// apparent sizes of files, and not the disk usage of files.
 func GetDirectoryStats(path string) (*DirectoryStats, error) {
 	ret := &DirectoryStats{}
 	err := filepath.Walk(path, func(n string, fInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		ret.Size += uint64(fInfo.Size())
+		if !fInfo.IsDir() {
+			ret.Size += uint64(fInfo.Size())
+		}
 		return err
 	})
 	return ret, err
