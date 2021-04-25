@@ -267,9 +267,11 @@ func (c *LRU) getWithTTL(
 ) (interface{}, error) {
 	// Spin until it's either loaded or the load fails.
 	for {
-		value, load, loadingCh, err := c.tryCached(key, tryCachedOptions{
-			getWithNoLoader: loader == nil,
-		})
+		// Inform whether we are going to use a loader or not
+		// to ensure correct behavior of whether to create an entry
+		// that will get loaded or not occurs.
+		getWithNoLoader := loader == nil
+		value, load, loadingCh, err := c.tryCached(key, getWithNoLoader)
 
 		// There was a cached error, so just return it
 		if err != nil {
@@ -319,16 +321,12 @@ func (c *LRU) has(key string, checkExpiry bool) bool {
 	return true
 }
 
-type tryCachedOptions struct {
-	getWithNoLoader bool
-}
-
 // tryCached returns a value from the cache, or an indication of
 // the caller should do (return an error, load the value, wait for a concurrent
 // load to complete).
 func (c *LRU) tryCached(
 	key string,
-	opts tryCachedOptions,
+	getWithNoLoader bool,
 ) (interface{}, bool, chan struct{}, error) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
@@ -350,7 +348,7 @@ func (c *LRU) tryCached(
 	// Otherwise we need to load it
 	c.metrics.misses.Inc(1)
 
-	if opts.getWithNoLoader && !exists {
+	if getWithNoLoader && !exists {
 		// If we're not using a loader then return entry not found
 		// rather than creating a loading channel since we are not trying
 		// to load an element we are just attempting to retrieve it if and

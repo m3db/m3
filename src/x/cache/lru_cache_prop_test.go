@@ -108,15 +108,15 @@ func TestLRUPropertyTest(t *testing.T) {
 		prop.ForAll(testLRUPropFunc, genPropTestMultiInputs(propTestMultiInputsOptions{
 			inputsOpts: []genPropTestInputOptions{
 				{
-					numKeysMin:   256,
-					numKeysMax:   512,
+					numKeysMin:   5000,
+					numKeysMax:   7000,
 					opsPerKeyMin: 8,
 					opsPerKeyMax: 16,
 					getPutRatio:  0.25,
 				},
 				{
-					numKeysMin:   256,
-					numKeysMax:   512,
+					numKeysMin:   5000,
+					numKeysMax:   7000,
 					opsPerKeyMin: 3,
 					opsPerKeyMax: 5,
 					getPutRatio:  0.75,
