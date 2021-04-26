@@ -60,7 +60,8 @@ func TestLRUPropertyTest(t *testing.T) {
 					puts++
 				}
 			}
-			fmt.Printf("concurrency[%d] = keys=%d, gets=%d, puts=%d\n", i, len(vals), gets, puts)
+
+			t.Logf("concurrency[%d] = keys=%d, gets=%d, puts=%d\n", i, len(vals), gets, puts)
 		}
 
 		// Kick off concurrent tests.
@@ -95,7 +96,7 @@ func TestLRUPropertyTest(t *testing.T) {
 
 		wg.Wait()
 
-		fmt.Printf("found=%d, not_found=%d\n", found.Load(), notFound.Load())
+		t.Logf("found=%d, not_found=%d\n", found.Load(), notFound.Load())
 
 		return true, nil
 	}
@@ -140,6 +141,7 @@ type propTestMultiInputsOptions struct {
 }
 
 func genPropTestMultiInputs(opts propTestMultiInputsOptions) gopter.Gen {
+	// nolint: prealloc
 	var gens []gopter.Gen
 	for _, subOpts := range opts.inputsOpts {
 		gens = append(gens, genPropTestInput(subOpts))
@@ -187,6 +189,7 @@ func genPropTestOperations(opts genPropTestInputOptions) gopter.Gen {
 		numKeys := inputs[0].(int)
 
 		randSeed := inputs[1].(int64)
+		// nolint: gosec
 		randGen := rand.New(rand.NewSource(randSeed))
 
 		return gopter.CombineGens().Map(func(input interface{}) *generatedPropTestOperations {

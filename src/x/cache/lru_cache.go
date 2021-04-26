@@ -256,6 +256,11 @@ func (c *LRU) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFu
 // of loading it if it is missing it will just return the second boolean
 // argument as false to indicate it is missing.
 func (c *LRU) TryGet(key string) (interface{}, bool) {
+	// Note: We want to explicitly not pass a context so that if the function
+	// is modified to require it that we would cause nil ptr deref (i.e.
+	// catch this during the change rather than at runtime cause modified
+	// behavior of accidently using a non-nil background or todo context here).
+	// nolint: staticcheck
 	value, err := c.getWithTTL(nil, key, nil)
 	return value, err == nil
 }
