@@ -574,6 +574,18 @@ func TestLRU_GetWithTTL_AllowEntrySpecificTTLs(t *testing.T) {
 	assert.Equal(t, 2, loadAttempts)
 }
 
+func TestLRU_GetWithTTL_DoubleGetNoExistingEntryNoLoader(t *testing.T) {
+	lru := NewLRU(nil)
+
+	_, err := lru.GetWithTTL(context.Background(), "foo", nil)
+	require.Error(t, err)
+	assert.Equal(t, err, ErrEntryNotFound)
+
+	_, err = lru.GetWithTTL(context.Background(), "foo", nil)
+	require.Error(t, err)
+	assert.Equal(t, err, ErrEntryNotFound)
+}
+
 func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
 	lru := NewLRU(nil)
 
