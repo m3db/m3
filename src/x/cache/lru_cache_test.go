@@ -622,7 +622,7 @@ func TestLRU_TryGetExpired(t *testing.T) {
 		return now
 	}})
 
-	// create an entry in the cache and expre it.
+	// create an entry in the cache and expire it.
 	lru.Put("foo", "1")
 	now = now.Add(time.Second * 2)
 
