@@ -220,7 +220,7 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 
 func TestAliasByNodeWithManyPathExpressions(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	now := time.Now()
 	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
