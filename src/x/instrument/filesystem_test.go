@@ -19,12 +19,15 @@ func TestFileSystemMetricsReport(t *testing.T) {
 
 	tempDir, err := ioutil.TempDir("", "fssizetest")
 	assert.Nil(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		assert.Nil(t, err)
+	}()
 
-	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "commitlogs"), 0755))
-	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "snapshots"), 0755))
-	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "data"), 0755))
-	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "index"), 0755))
+	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "commitlogs"), 0750))
+	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "snapshots"), 0750))
+	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "data"), 0750))
+	assert.Nil(t, os.Mkdir(filepath.Join(tempDir, "index"), 0750))
 
 	fsReporter := NewFileSystemReporter(opts, tempDir)
 	assert.Nil(t, fsReporter.Start())
@@ -38,9 +41,9 @@ func TestFileSystemMetricsReport(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotEqual(t, float64(0), availBytes.Value())
 
-	numFsApiErrors, ok := testScope.Snapshot().Counters()["filesystem.num_fs_api_errors+"]
+	numFsAPIErrors, ok := testScope.Snapshot().Counters()["filesystem.num_fs_api_errors+"]
 	assert.True(t, ok)
-	assert.Equal(t, int64(0), numFsApiErrors.Value())
+	assert.Equal(t, int64(0), numFsAPIErrors.Value())
 
 	commitLogsSize, ok := testScope.Snapshot().Gauges()["filesystem.commitlogs_bytes+"]
 	assert.True(t, ok)
@@ -58,9 +61,9 @@ func TestFileSystemMetricsReport(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotEqual(t, float64(0), indexSize.Value())
 
-	numDirApiErrors, ok := testScope.Snapshot().Counters()["filesystem.num_dir_api_errors+"]
+	numDirAPIErrors, ok := testScope.Snapshot().Counters()["filesystem.num_dir_api_errors+"]
 	assert.True(t, ok)
-	assert.Equal(t, int64(0), numDirApiErrors.Value())
+	assert.Equal(t, int64(0), numDirAPIErrors.Value())
 
 	assert.Nil(t, fsReporter.Stop())
 }

@@ -27,7 +27,9 @@ func createTempFsForTests(t *testing.T) string {
 }
 func TestGetFileSystemStats(t *testing.T) {
 	tempDir := createTempFsForTests(t)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		assert.Nil(t, os.RemoveAll(tempDir))
+	}()
 	stats, err := GetFileSystemStats(tempDir)
 	assert.Nil(t, err)
 	assert.NotEqual(t, uint64(0), stats.Total)

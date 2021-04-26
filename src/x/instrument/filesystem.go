@@ -1,3 +1,4 @@
+// Package instrument - filesystem metrics
 package instrument
 
 import (
@@ -5,8 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	xos "github.com/m3db/m3/src/x/os"
 	"github.com/uber-go/tally"
+
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 const (
@@ -75,6 +77,7 @@ func (r *fileSystemMetrics) report() {
 	}
 }
 
+// NewFileSystemReporter creates a new filesystem reporter
 func NewFileSystemReporter(
 	opts Options,
 	rootDir string,

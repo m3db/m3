@@ -391,7 +391,10 @@ func Run(runOpts RunOptions) {
 	if err := fileSystemReporter.Start(); err != nil {
 		logger.Fatal("unable to start filesystem reporter", zap.Error(err))
 	}
-	defer fileSystemReporter.Stop()
+	defer func() {
+		err := fileSystemReporter.Stop()
+		logger.Warn("unable to stop filesystem reporter", zap.Error(err))
+	}()
 
 	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
 	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
