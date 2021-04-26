@@ -514,7 +514,8 @@ func (c constFuncArg) Evaluate(ctx *common.Context) (reflect.Value, error) { ret
 func (c constFuncArg) CompatibleWith(reflectType reflect.Type) bool {
 	return c.value.Type() == reflectType || reflectType == interfaceType
 }
-func (c constFuncArg) String() string { return fmt.Sprintf("%v", c.value.Interface()) }
+func (c constFuncArg) String() string                 { return fmt.Sprintf("%v", c.value.Interface()) }
+func (c constFuncArg) PathExpression() (string, bool) { return "", false }
 
 // A functionCall is an actual call to a function, with resolution for arguments
 type functionCall struct {
@@ -532,6 +533,10 @@ func (call *functionCall) Arguments() []ArgumentASTNode {
 		args[i] = arg
 	}
 	return args
+}
+
+func (call *functionCall) PathExpression() (string, bool) {
+	return "", false
 }
 
 // Evaluate evaluates the function call and returns the result as a reflect.Value
