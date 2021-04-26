@@ -53,6 +53,28 @@ type PrometheusOptions struct {
 	InstrumentOptions instrument.Options
 }
 
+// StorageErr wraps all errors returned by the storage layer.
+// This allows the http handlers that call the Prometheus library directly to distinguish prometheus library errors
+// and remote storage errors.
+type StorageErr struct {
+	inner error
+}
+
+// NewStorageErr wraps the provided error as a StorageErr.
+func NewStorageErr(err error) *StorageErr {
+	return &StorageErr{inner: err}
+}
+
+// Unwrap returns the underlying error.
+func (e *StorageErr) Unwrap() error {
+	return e.inner
+}
+
+// Error returns the error string for the underlying error.
+func (e *StorageErr) Error() string {
+	return e.inner.Error()
+}
+
 // NewPrometheusQueryable returns a new prometheus queryable backed by a m3
 // storage.
 func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
@@ -116,7 +138,7 @@ func (q *querier) Select(
 
 	result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, NewStorageErr(err)
 	}
 	seriesSet := fromQueryResult(sortSeries, result.PromResult)
 	warnings := fromWarningStrings(result.Metadata.WarningStrings())

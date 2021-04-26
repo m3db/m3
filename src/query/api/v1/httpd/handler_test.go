@@ -108,6 +108,8 @@ func setupHandler(
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
 		fetchOptsBuilder,
+		fetchOptsBuilder,
+		fetchOptsBuilder,
 		models.QueryContextOptions{},
 		instrumentOpts,
 		defaultCPUProfileduration,
@@ -405,7 +407,8 @@ func TestCustomRoutes(t *testing.T) {
 		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")),
 		engine, newPromEngine(), nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
-		fetchOptsBuilder, models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
+		fetchOptsBuilder, fetchOptsBuilder, fetchOptsBuilder,
+		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 		graphite.M3WrappedStorageOptions{}, testM3DBOpts)
 	require.NoError(t, err)

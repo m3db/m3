@@ -89,6 +89,9 @@ type Context interface {
 	// and a bool if the span is being sampled. This is used over StartTraceSpan()
 	// for hot paths where performance is crucial.
 	StartSampledTraceSpan(string) (Context, opentracing.Span, bool)
+
+	// DistanceFromRootContext returns the distance from root context (root context tree)
+	DistanceFromRootContext() uint16
 }
 
 // Pool provides a pool for contexts.

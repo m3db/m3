@@ -491,9 +491,10 @@ func (n *dbNamespace) assignShardSet(
 	opts assignShardSetOptions,
 ) {
 	var (
-		incoming = make(map[uint32]struct{}, len(shardSet.All()))
-		existing []databaseShard
-		closing  []databaseShard
+		incoming        = make(map[uint32]struct{}, len(shardSet.All()))
+		createdShardIds []uint32
+		existing        []databaseShard
+		closing         []databaseShard
 	)
 	for _, shard := range shardSet.AllIDs() {
 		incoming[shard] = struct{}{}
@@ -525,11 +526,20 @@ func (n *dbNamespace) assignShardSet(
 		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 			opts.needsBootstrap, n.opts, n.seriesOpts)
+		createdShardIds = append(createdShardIds, shard)
 		// NB(bodu): We only record shard add metrics for shards created in non
 		// initial assignments.
 		if !opts.initialAssignment {
 			n.metrics.shards.add.Inc(1)
 		}
+	}
+
+	if len(createdShardIds) > 0 {
+		n.log.Info("created new shards",
+			zap.Stringer("namespace", n.ID()),
+			zap.Uint32s("shards", createdShardIds),
+			zap.Bool("initialAssignment", opts.initialAssignment),
+			zap.Bool("needsBootstrap", opts.needsBootstrap))
 	}
 
 	if idx := n.reverseIndex; idx != nil {
@@ -1045,6 +1055,9 @@ func (n *dbNamespace) Bootstrap(
 		}
 		if !bootstrapped {
 			// NB(r): Not bootstrapped in this bootstrap run.
+			n.log.Debug("skipping already bootstrapped shard",
+				zap.Uint32("shard", shardID),
+				zap.Stringer("namespace", n.id))
 			continue
 		}
 

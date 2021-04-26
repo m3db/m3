@@ -8,25 +8,25 @@ chapter: true
 This document enumerates the Custom Resource Definitions used by the M3DB Operator. It is auto-generated from code comments.
 
 ## Table of Contents
-- [Table of Contents](#table-of-contents)
-- [ClusterCondition](#clustercondition)
-- [ClusterSpec](#clusterspec)
-- [ExternalCoordinatorConfig](#externalcoordinatorconfig)
-- [IsolationGroup](#isolationgroup)
-- [M3DBCluster](#m3dbcluster)
-- [M3DBClusterList](#m3dbclusterlist)
-- [M3DBStatus](#m3dbstatus)
-- [NodeAffinityTerm](#nodeaffinityterm)
-- [AggregatedAttributes](#aggregatedattributes)
-- [Aggregation](#aggregation)
-- [AggregationOptions](#aggregationoptions)
-- [DownsampleOptions](#downsampleoptions)
-- [IndexOptions](#indexoptions)
-- [Namespace](#namespace)
-- [NamespaceOptions](#namespaceoptions)
-- [RetentionOptions](#retentionoptions)
-- [PodIdentity](#podidentity)
-- [PodIdentityConfig](#podidentityconfig)
+- [Table of Contents](/docs/operator/api/#table-of-contents)
+- [ClusterCondition](/docs/operator/api/#clustercondition)
+- [ClusterSpec](/docs/operator/api/#clusterspec)
+- [ExternalCoordinatorConfig](/docs/operator/api/#externalcoordinatorconfig)
+- [IsolationGroup](/docs/operator/api/#isolationgroup)
+- [M3DBCluster](/docs/operator/api/#m3dbcluster)
+- [M3DBClusterList](/docs/operator/api/#m3dbclusterlist)
+- [M3DBStatus](/docs/operator/api/#m3dbstatus)
+- [NodeAffinityTerm](/docs/operator/api/#nodeaffinityterm)
+- [AggregatedAttributes](/docs/operator/api/#aggregatedattributes)
+- [Aggregation](/docs/operator/api/#aggregation)
+- [AggregationOptions](/docs/operator/api/#aggregationoptions)
+- [DownsampleOptions](/docs/operator/api/#downsampleoptions)
+- [IndexOptions](/docs/operator/api/#indexoptions)
+- [Namespace](/docs/operator/api/#namespace)
+- [NamespaceOptions](/docs/operator/api/#namespaceoptions)
+- [RetentionOptions](/docs/operator/api/#retentionoptions)
+- [PodIdentity](/docs/operator/api/#podidentity)
+- [PodIdentityConfig](/docs/operator/api/#podidentityconfig)
 
 ## ClusterCondition
 
@@ -41,7 +41,7 @@ ClusterCondition represents various conditions the cluster can be in.
 | reason | Reason this condition last changed. | string | false |
 | message | Human-friendly message about this condition. | string | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## ClusterSpec
 
@@ -79,8 +79,10 @@ ClusterSpec defines the desired state for a M3 cluster to be converge to.
 | parallelPodManagement | ParallelPodManagement sets StatefulSets created by the operator to have Parallel pod management instead of OrderedReady. If nil, this will default to true. | *bool | true |
 | serviceAccountName | To use a non-default service account, specify the name here otherwise the service account \"default\" will be used. This is useful for advanced use-cases such as pod security policies. The service account must exist. This operator will not create it. | string | false |
 | frozen | Frozen is used to stop the operator from taking any further actions on a cluster. This is useful when troubleshooting as it guarantees the operator won't make any changes to the cluster. | bool | false |
+| sidecarContainers | SidecarContainers is used to add sidecar containers to the pods that run the cluster's nodes. If any storage volumes are needed by the sidecar containers, see SidecarVolumes below. | []corev1.Container | false |
+| sidecarVolumes | SidecarVolumes is used to add any volumes that are required by sidecar containers. | []corev1.Volume | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## ExternalCoordinatorConfig
 
@@ -91,7 +93,7 @@ ExternalCoordinatorConfig defines parameters for using an external coordinator t
 | selector |  | map[string]string | true |
 | serviceEndpoint |  | string | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## IsolationGroup
 
@@ -101,10 +103,12 @@ IsolationGroup defines the name of zone as well attributes for the zone configur
 | ----- | ----------- | ------ | -------- |
 | name | Name is the value that will be used in StatefulSet labels, pod labels, and M3DB placement \"isolationGroup\" fields. | string | true |
 | nodeAffinityTerms | NodeAffinityTerms is an array of NodeAffinityTerm requirements, which are ANDed together to indicate what nodes an isolation group can be assigned to. | [][NodeAffinityTerm](#nodeaffinityterm) | false |
+| usePodAntiAffinity | UsePodAntiAffinity enables M3DB pod anti-affinity by using M3DB pod component labels to prevent multiple M3DB pods from being scheduled in the same failure domain, determined by podAffinityToplogyKey. | bool | false |
+| podAffinityToplogyKey | PodAffinityToplogyKey defines the node label used for pod anti-affinity. This parameter is required when usePodAntiAffinity is set to true. | string | false |
 | numInstances | NumInstances defines the number of instances. | int32 | true |
 | storageClassName | StorageClassName is the name of the StorageClass to use for this isolation group. This allows ensuring that PVs will be created in the same zone as the pinned statefulset on Kubernetes < 1.12 (when topology aware volume scheduling was introduced). Only has effect if the clusters `dataDirVolumeClaimTemplate` is non-nil. If set, the volume claim template will have its storageClassName field overridden per-isolationgroup. If unset the storageClassName of the volumeClaimTemplate will be used. | string | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## M3DBCluster
 
@@ -117,7 +121,7 @@ M3DBCluster defines the cluster
 | spec |  | [ClusterSpec](#clusterspec) | true |
 | status |  | [M3DBStatus](#m3dbstatus) | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## M3DBClusterList
 
@@ -128,7 +132,7 @@ M3DBClusterList represents a list of M3DB Clusters
 | metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#listmeta-v1-meta) | false |
 | items |  | [][M3DBCluster](#m3dbcluster) | true |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## M3DBStatus
 
@@ -141,7 +145,7 @@ M3DBStatus contains the current state the M3DB cluster along with a human readab
 | message | Message is a human readable message indicating why the cluster is in it's current state | string | false |
 | observedGeneration | ObservedGeneration is the last generation of the cluster the controller observed. Kubernetes will automatically increment metadata.Generation every time the cluster spec is changed. | int64 | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## NodeAffinityTerm
 
@@ -152,7 +156,7 @@ NodeAffinityTerm represents a node label and a set of label values, any of which
 | key | Key is the label of the node. | string | true |
 | values | Values is an array of values, any of which a node can have for a pod to be assigned to it. | []string | true |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## AggregatedAttributes
 
@@ -163,7 +167,7 @@ AggregatedAttributes are attributes specifying how data points are aggregated.
 | resolution | Resolution is the time range to aggregate data across. | string | false |
 | downsampleOptions | DownsampleOptions stores options for downsampling data points. | *[DownsampleOptions](#downsampleoptions) | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## Aggregation
 
@@ -174,7 +178,7 @@ Aggregation describes data points within a namespace.
 | aggregated | Aggregated indicates whether data points are aggregated or not. | bool | false |
 | attributes | Attributes defines how data is aggregated when Aggregated is set to true. This field is ignored when aggregated is false. | [AggregatedAttributes](#aggregatedattributes) | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## AggregationOptions
 
@@ -184,7 +188,7 @@ AggregationOptions is a set of options for aggregating data within the namespace
 | ----- | ----------- | ------ | -------- |
 | aggregations | Aggregations are the aggregations for a namespace. | [][Aggregation](#aggregation) | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## DownsampleOptions
 
@@ -194,7 +198,7 @@ DownsampleOptions is a set of options related to downsampling data.
 | ----- | ----------- | ------ | -------- |
 | all | All indicates whether to send data points to this namespace. If set to false, this namespace will not receive data points. In this case, data will need to be sent to the namespace via another mechanism (e.g. rollup/recording rules). | bool | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## IndexOptions
 
@@ -217,7 +221,7 @@ Namespace defines an M3DB namespace or points to a preset M3DB namespace.
 | preset | Preset indicates preset namespace options. | string | false |
 | options | Options points to optional custom namespace configuration. | *[NamespaceOptions](#namespaceoptions) | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## NamespaceOptions
 
@@ -236,7 +240,7 @@ NamespaceOptions defines parameters for an M3DB namespace. [Read the namespace d
 | coldWritesEnabled | ColdWritesEnabled controls whether cold writes are enabled. | bool | false |
 | aggregationOptions | AggregationOptions sets the aggregation parameters. | [AggregationOptions](#aggregationoptions) | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## RetentionOptions
 
@@ -251,7 +255,7 @@ RetentionOptions defines parameters for data retention.
 | blockDataExpiry | BlockDataExpiry controls the block expiry. | bool | false |
 | blockDataExpiryAfterNotAccessPeriod | BlockDataExpiry controls the not after access period for expiration. | string | false |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)
 
 ## PodIdentity
 
@@ -275,4 +279,4 @@ PodIdentityConfig contains cluster-level configuration for deriving pod identity
 | ----- | ----------- | ------ | -------- |
 | sources | Sources enumerates the sources from which to derive pod identity. Note that a pod's name will always be used. If empty, defaults to pod name and UID. | []PodIdentitySource | true |
 
-[Back to TOC](#table-of-contents)
+[Back to TOC](/docs/operator/api/#table-of-contents)

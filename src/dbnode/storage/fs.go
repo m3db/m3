@@ -69,13 +69,6 @@ type fileOpState struct {
 	NumFailures        int
 }
 
-type runType int
-
-const (
-	syncRun runType = iota
-	asyncRun
-)
-
 type forceType int
 
 const (
@@ -139,47 +132,42 @@ func (m *fileSystemManager) Status() fileOpStatus {
 	return status
 }
 
-func (m *fileSystemManager) Run(
-	t time.Time,
-	runType runType,
-	forceType forceType,
-) bool {
+func (m *fileSystemManager) Run(t time.Time) bool {
 	m.Lock()
-	if forceType == noForce && !m.shouldRunWithLock() {
+	if !m.shouldRunWithLock() {
 		m.Unlock()
 		return false
 	}
 	m.status = fileOpInProgress
 	m.Unlock()
 
+	defer func() {
+		m.Lock()
+		m.status = fileOpNotStarted
+		m.Unlock()
+	}()
+
+	m.log.Debug("starting warm flush", zap.Time("time", t))
+
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
-	flushFn := func() {
+	if err := m.WarmFlushCleanup(t); err != nil {
 		// NB(r): Use invariant here since flush errors were introduced
 		// and not caught in CI or integration tests.
 		// When an invariant occurs in CI tests it panics so as to fail
 		// the build.
-		if err := m.WarmFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
-			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
-				})
-		}
-		if err := m.Flush(t); err != nil {
-			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
-				})
-		}
-		m.Lock()
-		m.status = fileOpNotStarted
-		m.Unlock()
+		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+			func(l *zap.Logger) {
+				l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
+			})
 	}
+	if err := m.Flush(t); err != nil {
+		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+			func(l *zap.Logger) {
+				l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
+			})
+	}
+	m.log.Debug("completed warm flush", zap.Time("time", t))
 
-	if runType == syncRun {
-		flushFn()
-	} else {
-		go flushFn()
-	}
 	return true
 }
 
