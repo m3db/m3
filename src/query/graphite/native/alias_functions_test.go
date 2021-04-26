@@ -123,7 +123,7 @@ func TestAliasSubWithBackReferences(t *testing.T) {
 	}, input.pattern, input.replace)
 	require.NoError(t, err)
 	expected := []common.TestSeries{
-		common.TestSeries{Name: input.expected, Data: values},
+		{Name: input.expected, Data: values},
 	}
 	common.CompareOutputsAndExpected(t, 1000, now, expected, results.Values)
 
@@ -216,4 +216,24 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	assert.Equal(t, "servers.bob02-foo", results.Values[1].Name())
 	assert.Equal(t, "~~~", results.Values[2].Name())
 	assert.Equal(t, "", results.Values[3].Name())
+}
+
+func TestAliasByNodeWithManyPathExpressions(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "sumSeries(servers.bob02-foo.cpu.load_5,servers.bob01-foo.cpu.load_5)", now, values),
+		ts.NewSeries(ctx, "sumSeries(sumSeries(servers.bob04-foo.cpu.load_5,servers.bob03-foo.cpu.load_5))", now, values),
+	}
+	results, err := aliasByNode(ctx, singlePathSpec{
+		Values: series,
+	}, 0, 1)
+	require.Nil(t, err)
+	require.NotNil(t, results)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
+	assert.Equal(t, "servers.bob04-foo", results.Values[1].Name())
 }
