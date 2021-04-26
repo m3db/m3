@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
@@ -141,14 +142,22 @@ func (fti *fieldsAndTermsIter) Reset(
 	}
 
 	// If need to restrict by query, run the query on the segment first.
-	searcher, err := opts.restrictByQuery.SearchQuery().Searcher()
+	searchQuery := opts.restrictByQuery.SearchQuery()
+	searcher, err := searchQuery.Searcher()
 	if err != nil {
 		return err
 	}
 
-	_, sp := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
-	start := time.Now()
-	pl, err := searcher.Search(fti.reader)
+	var (
+		_, sp = ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
+		start = time.Now()
+		pl    postings.List
+	)
+	if readThrough, ok := reader.(search.ReadThroughSegmentSearcher); ok {
+		pl, err = readThrough.Search(searchQuery, searcher)
+	} else {
+		pl, err = searcher.Search(fti.reader)
+	}
 	sp.Finish()
 	if err != nil {
 		return err
