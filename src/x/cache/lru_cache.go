@@ -249,9 +249,34 @@ func (c *LRU) Get(ctx context.Context, key string, loader LoaderFunc) (interface
 // loader to return a TTL for the resulting value, overriding the
 // default TTL associated with the cache.
 func (c *LRU) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFunc) (interface{}, error) {
+	return c.getWithTTL(ctx, key, loader)
+}
+
+// TryGet will simply attempt to get a key and if it does not exist and instead
+// of loading it if it is missing it will just return the second boolean
+// argument as false to indicate it is missing.
+func (c *LRU) TryGet(key string) (interface{}, bool) {
+	// Note: We want to explicitly not pass a context so that if the function
+	// is modified to require it that we would cause nil ptr deref (i.e.
+	// catch this during the change rather than at runtime cause modified
+	// behavior of accidentally using a non-nil background or todo context here).
+	// nolint: staticcheck
+	value, err := c.getWithTTL(nil, key, nil)
+	return value, err == nil
+}
+
+func (c *LRU) getWithTTL(
+	ctx context.Context,
+	key string,
+	loader LoaderWithTTLFunc,
+) (interface{}, error) {
 	// Spin until it's either loaded or the load fails.
 	for {
-		value, load, loadingCh, err := c.tryCached(key)
+		// Inform whether we are going to use a loader or not
+		// to ensure correct behavior of whether to create an entry
+		// that will get loaded or not occurs.
+		getWithNoLoader := loader == nil
+		value, load, loadingCh, err := c.tryCached(key, getWithNoLoader)
 
 		// There was a cached error, so just return it
 		if err != nil {
@@ -304,7 +329,10 @@ func (c *LRU) has(key string, checkExpiry bool) bool {
 // tryCached returns a value from the cache, or an indication of
 // the caller should do (return an error, load the value, wait for a concurrent
 // load to complete).
-func (c *LRU) tryCached(key string) (interface{}, bool, chan struct{}, error) {
+func (c *LRU) tryCached(
+	key string,
+	getWithNoLoader bool,
+) (interface{}, bool, chan struct{}, error) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
@@ -324,6 +352,14 @@ func (c *LRU) tryCached(key string) (interface{}, bool, chan struct{}, error) {
 
 	// Otherwise we need to load it
 	c.metrics.misses.Inc(1)
+
+	if getWithNoLoader && !exists {
+		// If we're not using a loader then return entry not found
+		// rather than creating a loading channel since we are not trying
+		// to load an element we are just attempting to retrieve it if and
+		// only if it exists.
+		return nil, false, nil, ErrEntryNotFound
+	}
 
 	if !exists {
 		// The entry doesn't exist, clear enough space for it and then add it
@@ -408,10 +444,20 @@ func (c *LRU) updateCacheEntryWithLock(
 	if expiresAt.IsZero() {
 		expiresAt = c.now().Add(c.ttl)
 	}
-
 	entry.expiresAt = expiresAt
-	entry.loadTimeElt = c.byLoadTime.PushFront(entry)
-	entry.accessTimeElt = c.byAccessTime.PushFront(entry)
+
+	if entry.loadTimeElt == nil {
+		entry.loadTimeElt = c.byLoadTime.PushFront(entry)
+	} else {
+		c.byLoadTime.MoveToFront(entry.loadTimeElt)
+	}
+
+	if entry.accessTimeElt == nil {
+		entry.accessTimeElt = c.byAccessTime.PushFront(entry)
+	} else {
+		c.byAccessTime.MoveToFront(entry.accessTimeElt)
+	}
+
 	c.metrics.entries.Update(float64(len(c.entries)))
 
 	// Tell any other callers that we're done loading

@@ -55,6 +55,10 @@ type CallASTNode interface {
 
 // ArgumentASTNode is an interface to help with printing the AST.
 type ArgumentASTNode interface {
+	// PathExpression returns the path expression and true if argument
+	// is a path.
+	PathExpression() (string, bool)
+	// String is the pretty printed format.
 	String() string
 }
 
@@ -66,6 +70,10 @@ type fetchExpression struct {
 
 type fetchExpressionPathArg struct {
 	path string
+}
+
+func (a fetchExpressionPathArg) PathExpression() (string, bool) {
+	return a.path, true
 }
 
 func (a fetchExpressionPathArg) String() string {
@@ -83,6 +91,10 @@ func (f *fetchExpression) Name() string {
 
 func (f *fetchExpression) Arguments() []ArgumentASTNode {
 	return []ArgumentASTNode{f.pathArg}
+}
+
+func (f *fetchExpression) PathExpression() (string, bool) {
+	return "", false
 }
 
 // Execute fetches results from storage

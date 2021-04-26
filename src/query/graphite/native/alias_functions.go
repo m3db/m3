@@ -21,6 +21,8 @@
 package native
 
 import (
+	"strings"
+
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
@@ -40,7 +42,59 @@ func aliasByMetric(ctx *common.Context, series singlePathSpec) (ts.SeriesList, e
 // aliasByNode renames a time series result according to a subset of the nodes
 // in its hierarchy.
 func aliasByNode(ctx *common.Context, seriesList singlePathSpec, nodes ...int) (ts.SeriesList, error) {
-	return common.AliasByNode(ctx, ts.SeriesList(seriesList), nodes...)
+	renamed := make([]*ts.Series, 0, ts.SeriesList(seriesList).Len())
+	for _, series := range seriesList.Values {
+		name := getFirstPathExpression(series.Name())
+
+		nameParts := strings.Split(name, ".")
+		newNameParts := make([]string, 0, len(nodes))
+		for _, node := range nodes {
+			// NB(jayp): graphite supports negative indexing, so we need to also!
+			if node < 0 {
+				node += len(nameParts)
+			}
+			if node < 0 || node >= len(nameParts) {
+				continue
+			}
+			newNameParts = append(newNameParts, nameParts[node])
+		}
+		newName := strings.Join(newNameParts, ".")
+		newSeries := series.RenamedTo(newName)
+		renamed = append(renamed, newSeries)
+	}
+	seriesList.Values = renamed
+	return ts.SeriesList(seriesList), nil
+}
+
+func getFirstPathExpression(name string) string {
+	expr, err := Compile(name, CompileOptions{})
+	if err != nil {
+		return name
+	}
+	if path, ok := getFirstPathExpressionDepthFirst(expr.Arguments()); ok {
+		return path
+	}
+	return name
+}
+
+func getFirstPathExpressionDepthFirst(args []ArgumentASTNode) (string, bool) {
+	for i := 0; i < len(args); i++ {
+		path, ok := args[i].PathExpression()
+		if ok {
+			return path, true
+		}
+
+		inner, ok := args[i].(CallASTNode)
+		if !ok {
+			continue
+		}
+
+		path, ok = getFirstPathExpressionDepthFirst(inner.Arguments())
+		if ok {
+			return path, true
+		}
+	}
+	return "", false
 }
 
 // aliasSub runs series names through a regex search/replace.
