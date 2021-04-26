@@ -353,7 +353,7 @@ func (c *LRU) tryCached(
 	// Otherwise we need to load it
 	c.metrics.misses.Inc(1)
 
-	if getWithNoLoader && !exists {
+	if getWithNoLoader {
 		// If we're not using a loader then return entry not found
 		// rather than creating a loading channel since we are not trying
 		// to load an element we are just attempting to retrieve it if and
