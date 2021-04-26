@@ -59,7 +59,6 @@ var (
 	errAggregatorNotOpenOrClosed     = errors.New("aggregator is not open or closed")
 	errAggregatorAlreadyOpenOrClosed = errors.New("aggregator is already open or closed")
 	errInvalidMetricType             = errors.New("invalid metric type")
-	errActivePlacementChanged        = errors.New("active placement has changed")
 	errShardNotOwned                 = errors.New("aggregator shard is not owned")
 )
 
@@ -368,7 +367,11 @@ func (agg *aggregator) Close() error {
 	if agg.state != aggregatorOpen {
 		return errAggregatorNotOpenOrClosed
 	}
+
 	close(agg.doneCh)
+	// Waiting for the ticking goroutines to return.
+	agg.wg.Wait()
+
 	for _, shardID := range agg.shardIDs {
 		agg.shards[shardID].Close()
 	}
@@ -1090,13 +1093,6 @@ func newAggregatorMetrics(
 type RuntimeStatus struct {
 	FlushStatus FlushStatus `json:"flushStatus"`
 }
-
-type updateShardsType int
-
-const (
-	noUpdateShards updateShardsType = iota
-	updateShards
-)
 
 type aggregatorState int
 
