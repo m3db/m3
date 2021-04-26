@@ -599,14 +599,17 @@ func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
 func TestLRU_GetNonExisting_FromFullCache_AfterDoublePut(t *testing.T) {
 	lru := NewLRU(&LRUOptions{MaxEntries: 2})
 
-	// insert same key twice:
+	// Insert same key twice:
 	lru.Put("foo", "1")
 	lru.Put("foo", "1")
 
-	// insert another key to make cache full:
+	// Insert another key to make cache full:
 	lru.Put("bar", "2")
 
-	// try to get entry that does not exist:
+	// Try to get entry that does not exist - this was getting LRU.reserveCapacity into
+	// an infinite loop because the second Put above was inserting a copy of the original entry
+	// into double-linked lists and mutating its state (loadTimeElt and accessTimeElt fields),
+	// making it's removal impossible:
 	_, err := lru.Get(context.Background(), "new", nil)
 	require.Error(t, err, ErrEntryNotFound.Error())
 }
