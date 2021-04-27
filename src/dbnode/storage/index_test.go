@@ -242,6 +242,150 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 	require.NoError(t, idx.CleanupExpiredFileSets(now))
 }
 
+func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
+	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+
+	idx := nsIdx.(*nsIndex)
+	now := time.Now().Truncate(time.Hour)
+	indexBlockSize := 2 * time.Hour
+	blockTime := now.Add(-2 * indexBlockSize)
+
+	dir, err := ioutil.TempDir("", t.Name())
+	require.NoError(t, err)
+
+	defer os.RemoveAll(dir)
+
+	fset1, err := ioutil.TempFile(dir, "fileset-9000-0-")
+	require.NoError(t, err)
+	fset2, err := ioutil.TempFile(dir, "fileset-9000-1-")
+	require.NoError(t, err)
+	fset3, err := ioutil.TempFile(dir, "fileset-9000-2-")
+	require.NoError(t, err)
+	fset4, err := ioutil.TempFile(dir, "fileset-9001-0-")
+	require.NoError(t, err)
+	fset5, err := ioutil.TempFile(dir, "fileset-9001-1-")
+	require.NoError(t, err)
+	fset6, err := ioutil.TempFile(dir, "fileset-9002-0-")
+	require.NoError(t, err)
+
+	volumeTypeDefault := "default"
+	volumeTypeExtra := "extra"
+	infoFiles := []fs.ReadIndexInfoFileResult{
+		{
+			ID: fs.FileSetFileIdentifier{
+				VolumeIndex: 0,
+			},
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeTypeDefault,
+				},
+			},
+			AbsoluteFilePaths: []string{fset1.Name()},
+			Corrupted:         false,
+		},
+		// Simulate two corrupted index filesets for block start/vol type (delete the first).
+		{
+			ID: fs.FileSetFileIdentifier{
+				VolumeIndex: 1,
+			},
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeTypeExtra,
+				},
+			},
+			AbsoluteFilePaths: []string{fset2.Name()},
+			Corrupted:         true,
+		},
+		{
+			ID: fs.FileSetFileIdentifier{
+				VolumeIndex: 2,
+			},
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2, 3},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeTypeExtra,
+				},
+			},
+			AbsoluteFilePaths: []string{fset3.Name()},
+			Corrupted:         true,
+		},
+		// Simulate one corrupted index fileset for block start/vol type (delete the first).
+		{
+			ID: fs.FileSetFileIdentifier{
+				VolumeIndex: 0,
+			},
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.Add(indexBlockSize).UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeTypeDefault,
+				},
+			},
+			AbsoluteFilePaths: []string{fset4.Name()},
+			Corrupted:         true,
+		},
+		{
+			ID: fs.FileSetFileIdentifier{
+				VolumeIndex: 1,
+			},
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.Add(indexBlockSize).UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2, 3},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeTypeDefault,
+				},
+			},
+			AbsoluteFilePaths: []string{fset5.Name()},
+			Corrupted:         false,
+		},
+		// Active block, still writing to this.
+		{
+			ID: fs.FileSetFileIdentifier{
+				VolumeIndex: 0,
+			},
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.Add(2 * indexBlockSize).UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2, 3},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeTypeDefault,
+				},
+			},
+			AbsoluteFilePaths: []string{fset6.Name()},
+			// We're in the middle of write.
+			Corrupted: true,
+		},
+	}
+
+	idx.readIndexInfoFilesFn = func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+
+	idx.deleteFilesFn = func(s []string) error {
+		require.Equal(t, []string{fset2.Name(), fset4.Name()}, s)
+		multiErr := xerrors.NewMultiError()
+		for _, file := range s {
+			multiErr = multiErr.Add(os.Remove(file))
+		}
+		return multiErr.FinalError()
+	}
+	require.NoError(t, idx.CleanupCorruptedFileSets())
+}
+
 func TestNamespaceIndexFlushSuccess(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()

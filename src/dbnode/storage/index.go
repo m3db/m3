@@ -2095,11 +2095,6 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	return i.deleteFilesFn(filesets)
 }
 
-type latestVolumeIndices struct {
-	latestVolumeIndex          int
-	latestCorruptedVolumeIndex int
-}
-
 func (i *nsIndex) CleanupCorruptedFileSets() error {
 	/*
 	   Corrupted index filesets can be safely cleaned up if its not
@@ -2117,30 +2112,32 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 	})
 
 	var (
-		toDelete         []string
-		corrupted        []string
-		latestBlockStart time.Time
-		byVolumeType     = make(map[idxpersist.IndexVolumeType]latestVolumeIndices)
+		toDelete                      []string
+		corrupted                     []fs.ReadIndexInfoFileResult
+		latestBlockStart              int64
+		latestVolumeIndexByVolumeType = make(map[idxpersist.IndexVolumeType]int)
 	)
+	// NB: Info files should be ordered by block start.
 	for _, file := range infoFiles {
 		// This intentionally skips the latest block start as that's the active block.
-		if file.ID.BlockStart.After(latestBlockStart) {
-			for volType := range byVolumeType {
-				vol := byVolumeType[volType]
-				byVolumeType[volType] = latestVolumeIndices{}
+		if file.Info.BlockStart > latestBlockStart {
+			for volType := range latestVolumeIndexByVolumeType {
+				latestVolumeIndex := latestVolumeIndexByVolumeType[volType]
+				// Reset latest vol idx.
+				latestVolumeIndexByVolumeType[volType] = 0
 
 				if len(corrupted) == 0 {
 					continue
 				}
 				// NB: We only remove stale index filesets to avoid deleting
 				// one we're actively writing to.
-				if vol.latestCorruptedVolumeIndex >= vol.latestVolumeIndex {
-					continue
+				for _, cf := range corrupted {
+					if cf.ID.VolumeIndex < latestVolumeIndex {
+						toDelete = append(toDelete, cf.AbsoluteFilePaths...)
+					}
 				}
-
-				toDelete = append(toDelete, corrupted...)
 			}
-			latestBlockStart = file.ID.BlockStart
+			latestBlockStart = file.Info.BlockStart
 			corrupted = corrupted[:0]
 		}
 
@@ -2148,8 +2145,8 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 		// When we start writing an index volume, we first write an incomplete index info file so
 		// we are always guaranteed its existence but not if it was written successfully.
 		if file.Info.BlockStart == 0 {
-			// Delete corrupted index info files right away.
-			toDelete = append(toDelete, corrupted...)
+			// Mark filesets w/ corrupted index info files for deletion right away.
+			toDelete = append(toDelete, file.AbsoluteFilePaths...)
 			continue
 		}
 
@@ -2157,16 +2154,10 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 		if file.Info.IndexVolumeType != nil {
 			volType = idxpersist.IndexVolumeType(file.Info.IndexVolumeType.Value)
 		}
-		vol := byVolumeType[volType]
 		if file.Corrupted {
-			corrupted = append(corrupted, file.AbsoluteFilePaths...)
-			vol.latestCorruptedVolumeIndex = file.ID.VolumeIndex
-			byVolumeType[volType] = vol
-			continue
+			corrupted = append(corrupted, file)
 		}
-
-		vol.latestVolumeIndex = file.ID.VolumeIndex
-		byVolumeType[volType] = vol
+		latestVolumeIndexByVolumeType[volType] = file.ID.VolumeIndex
 	}
 	return i.deleteFilesFn(toDelete)
 }
