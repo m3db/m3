@@ -327,6 +327,88 @@ func TestPlacementHasReplacementInstance(t *testing.T) {
 	}
 }
 
+func TestPlacementExclusiveShardSetOwner(t *testing.T) {
+	tests := []struct {
+		name      string
+		placement *placementpb.Placement
+		expected  bool
+	}{
+		{
+			name: "two instances with same shardSetID",
+			placement: &placementpb.Placement{
+				CutoverTime: 11,
+				Instances: map[string]*placementpb.Instance{
+					testInstanceID1: {
+						Id:         testInstanceID1,
+						ShardSetId: 0,
+					},
+					testInstanceID2: {
+						Id:         testInstanceID2,
+						ShardSetId: 0,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "two instances with different shardSetIDs",
+			placement: &placementpb.Placement{
+				CutoverTime: 22,
+				Instances: map[string]*placementpb.Instance{
+					testInstanceID1: {
+						Id:         testInstanceID1,
+						ShardSetId: 0,
+					},
+					testInstanceID2: {
+						Id:         testInstanceID2,
+						ShardSetId: 9,
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "single instance",
+			placement: &placementpb.Placement{
+				CutoverTime: 33,
+				Instances: map[string]*placementpb.Instance{
+					testInstanceID1: {
+						Id:         testInstanceID1,
+						ShardSetId: 1,
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	mgr, store := testPlacementManager(t)
+	mgr.instanceID = testInstanceID1
+	require.NoError(t, mgr.Open())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func (t *testing.T) {
+			proto := &placementpb.PlacementSnapshots{
+				Snapshots: []*placementpb.Placement{tt.placement},
+			}
+
+			_, err := store.Set(testPlacementKey, proto)
+			require.NoError(t, err)
+
+			for {
+				p, err := mgr.Placement()
+				if err == nil && p.CutoverNanos() == proto.Snapshots[0].CutoverTime {
+					res, err := mgr.ExclusiveShardSetOwner()
+					require.NoError(t, err)
+					require.Equal(t, tt.expected, res)
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		})
+	}
+}
+
 func TestPlacementManagerShards(t *testing.T) {
 	mgr, store := testPlacementManager(t)
 	mgr.instanceID = testInstanceID1
