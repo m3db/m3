@@ -148,32 +148,32 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	if err := m.cleanupExpiredIndexFiles(t, namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up index files for %v: %v", t, err))
+			"encountered errors when cleaning up index files for %v: %w", t, err))
 	}
 
 	if err := m.cleanupCorruptedIndexFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up corrupted files for %v: %v", t, err))
+			"encountered errors when cleaning up corrupted files for %v: %w", t, err))
 	}
 
 	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up index files for %v: %v", t, err))
+			"encountered errors when cleaning up index files for %v: %w", t, err))
 	}
 
 	if err := m.deleteInactiveDataSnapshotFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
+			"encountered errors when deleting inactive snapshot files for %v: %w", t, err))
 	}
 
 	if err := m.deleteInactiveNamespaceFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
+			"encountered errors when deleting inactive namespace files for %v: %w", t, err))
 	}
 
 	if err := m.cleanupSnapshotsAndCommitlogs(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up snapshot and commitlog files: %v", err))
+			"encountered errors when cleaning up snapshot and commitlog files: %w", err))
 	}
 
 	return multiErr.FinalError()

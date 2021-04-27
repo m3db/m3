@@ -257,7 +257,7 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 	dir, err := ioutil.TempDir("", t.Name())
 	require.NoError(t, err)
 
-	defer os.RemoveAll(dir)
+	defer os.RemoveAll(dir) //nolint:errcheck
 
 	fset1, err := ioutil.TempFile(dir, "fileset-9000-0-")
 	require.NoError(t, err)

@@ -1412,11 +1412,11 @@ func readAndValidate(
 }
 
 func read(filePath string) ([]byte, error) {
-	fd, err := os.Open(filePath)
+	fd, err := os.Open(filePath) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
-	defer fd.Close()
+	defer fd.Close() //nolint:errcheck,gosec
 
 	stat, err := os.Stat(filePath)
 	if err != nil {
