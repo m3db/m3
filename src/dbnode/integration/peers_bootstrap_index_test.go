@@ -216,9 +216,9 @@ func getNumDocsPerBlockStart(
 ) (map[xtime.UnixNano]int, error) {
 	numDocsPerBlockStart := make(map[xtime.UnixNano]int)
 	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
-		filePathPrefix:   fsOpts.FilePathPrefix(),
-		namespace:        nsID,
-		readerBufferSize: fsOpts.InfoReaderBufferSize(),
+		FilePathPrefix:   fsOpts.FilePathPrefix(),
+		Namespace:        nsID,
+		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
 	})
 	// Grab the latest index info file for each blockstart.
 	latestIndexInfoPerBlockStart := make(map[xtime.UnixNano]indexInfo)
