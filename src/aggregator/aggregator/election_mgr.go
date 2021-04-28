@@ -644,16 +644,9 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	}
 
 	if shards.NumShards() == 0 {
-		// Allow the instance with no shards take the leadership if it is the only instance owning
-		// this shard set.
+		// Allow the instance with no shards take the leadership.
 		// This is needed for limited duration, during cluster expansion, when adding new instances.
-		exclusiveShardSetOwner, err := mgr.placementManager.ExclusiveShardSetOwner()
-		if err != nil {
-			return false, err
-		}
-		if exclusiveShardSetOwner {
-			return true, nil
-		}
+		return true, nil
 	}
 
 	// NB(xichen): We apply an offset when checking if a shard has been cutoff in order

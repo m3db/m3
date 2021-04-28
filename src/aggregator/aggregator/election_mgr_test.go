@@ -1169,21 +1169,9 @@ func TestElectionManagerCampaignIsEnabledWhenNoShardsArePresent(t *testing.T) {
 	mgr := NewElectionManager(opts).(*electionManager)
 	mgr.placementManager = placementManager
 
-	placementManager.EXPECT().ExclusiveShardSetOwner().Return(true, nil)
 	enabled, err := mgr.campaignIsEnabled()
 	require.True(t, enabled)
 	require.NoError(t, err)
-
-	placementManager.EXPECT().ExclusiveShardSetOwner().Return(false, nil)
-	enabled, err = mgr.campaignIsEnabled()
-	require.False(t, enabled)
-	require.NoError(t, err)
-
-	errHasReplacementInstance := errors.New("error determining replacement instance")
-	placementManager.EXPECT().ExclusiveShardSetOwner().Return(false, errHasReplacementInstance)
-	enabled, err = mgr.campaignIsEnabled()
-	require.False(t, enabled)
-	require.EqualError(t, err, errHasReplacementInstance.Error())
 }
 
 func testElectionManagerOptions(t *testing.T, ctrl *gomock.Controller) ElectionManagerOptions {
