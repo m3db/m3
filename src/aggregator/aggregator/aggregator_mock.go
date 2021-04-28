@@ -456,6 +456,21 @@ func (mr *MockPlacementManagerMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockPlacementManager)(nil).Close))
 }
 
+// ExclusiveShardSetOwner mocks base method
+func (m *MockPlacementManager) ExclusiveShardSetOwner() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExclusiveShardSetOwner")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExclusiveShardSetOwner indicates an expected call of ExclusiveShardSetOwner
+func (mr *MockPlacementManagerMockRecorder) ExclusiveShardSetOwner() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExclusiveShardSetOwner", reflect.TypeOf((*MockPlacementManager)(nil).ExclusiveShardSetOwner))
+}
+
 // HasReplacementInstance mocks base method
 func (m *MockPlacementManager) HasReplacementInstance() (bool, error) {
 	m.ctrl.T.Helper()
