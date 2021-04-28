@@ -60,10 +60,6 @@ type PlacementManager interface {
 	// the current instance, and false otherwise.
 	HasReplacementInstance() (bool, error)
 
-	// ExclusiveShardSetOwner returns true iff this instance is the only instance owning
-	// this shard set..
-	ExclusiveShardSetOwner() (bool, error)
-
 	// Shards returns the current shards owned by the instance.
 	Shards() (shard.Shards, error)
 
@@ -207,28 +203,6 @@ func (mgr *placementManager) HasReplacementInstance() (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-func (mgr *placementManager) ExclusiveShardSetOwner() (bool, error) {
-	placement, err := mgr.Placement()
-	if err != nil {
-		return false, err
-	}
-
-	currInstance, err := mgr.instanceFrom(placement)
-	if err != nil {
-		return false, err
-	}
-	currShardSetID := currInstance.ShardSetID()
-	allInstances := placement.Instances()
-
-	for _, instance := range allInstances {
-		if instance.ShardSetID() == currShardSetID && instance.ID() != mgr.instanceID {
-			return false, nil
-		}
-	}
-
-	return true, nil
 }
 
 func (mgr *placementManager) Shards() (shard.Shards, error) {
