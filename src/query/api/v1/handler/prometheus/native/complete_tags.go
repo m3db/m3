@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -120,6 +121,9 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	wg.Wait()
 	if err := multiErr.FinalError(); err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
+		if errors.IsTimeout(err) {
+			err = errors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 		return
 	}

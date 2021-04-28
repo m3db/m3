@@ -80,8 +80,8 @@ func TestErrorStatus(t *testing.T) {
 			expectedStatus: 504,
 		},
 		{
-			name:           "prom timeout",
-			err:            promql.ErrQueryTimeout("timeout"),
+			name:           "http error",
+			err:            NewError(errors.New("some error"), 504),
 			expectedStatus: 504,
 		},
 	}
