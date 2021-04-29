@@ -2149,7 +2149,7 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 
 		// NB: Missing info file data means the info file itself is corrupt.
 		// When we start writing an index volume, we first write an incomplete index info file so
-		// we are always guaranteed its existence but not if it was written successfully.
+		// we are always guaranteed it exists but not if it was written successfully.
 		if file.Info.BlockStart == 0 {
 			// Mark filesets w/ corrupted index info files for deletion right away.
 			toDelete = append(toDelete, file.AbsoluteFilePaths...)
