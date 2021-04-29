@@ -14,6 +14,7 @@ PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.4.3
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 METRIC_NAME_TEST_RESTRICT_WRITE=bar_metric
 QUERY_LIMIT_MESSAGE="${QUERY_LIMIT_MESSAGE:-query exceeded limit}"
+QUERY_TIMEOUT_STATUS_CODE="${QUERY_TIMEOUT_STATUS_CODE:-504}"
 export REVISION
 
 echo "Pull containers required for test"
@@ -318,25 +319,25 @@ function test_query_timeouts {
 
   # Exercise APIs with different minimal timeouts to trigger timeouts in varying parts of the stack
 
-  # Confirms that timeouts at the coordinator layer return a 504
+  # Confirms that timeouts at the coordinator layer
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/labels) = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/labels) = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/label/__name__/values) = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ns" 0.0.0.0:7201/api/v1/label/__name__/values) = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
 
-  # Confirms that timeouts from coordinator -> m3db return a 504
+  # Confirms that timeouts from coordinator -> m3db
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success) = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" "0.0.0.0:7201/api/v1/query_range?query=database_write_tagged_success&step=15&start=0&end=100") = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/labels) = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/labels) = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
   ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/label/__name__/values) = "504" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "timeout: 1ms" 0.0.0.0:7201/api/v1/label/__name__/values) = "$QUERY_TIMEOUT_STATUS_CODE" ]]'
 }
 
 function prometheus_query_native {
@@ -412,15 +413,14 @@ function test_prometheus_query_native_timeout {
   params_instant="timeout=${timeout}"
   params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"'&'"timeout=${timeout}"
   return_status_code="true"
-  expected_value="504"
 
   echo "Test query gateway timeout (instant)"
   endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" \
-    metrics_type="unaggregated" return_status_code="$return_status_code" expected_value="$expected_value" \
+    metrics_type="unaggregated" return_status_code="$return_status_code" expected_value="$QUERY_TIMEOUT_STATUS_CODE" \
     prometheus_query_native
   echo "Test query gateway timeout (range)"
   endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
-    metrics_type="unaggregated" return_status_code="$return_status_code" expected_value="$expected_value" \
+    metrics_type="unaggregated" return_status_code="$return_status_code" expected_value="$QUERY_TIMEOUT_STATUS_CODE" \
     prometheus_query_native
 }
 

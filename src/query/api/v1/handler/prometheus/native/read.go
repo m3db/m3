@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -136,11 +137,14 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
 		opentracingext.Error.Set(sp, true)
-		logger.Error("range query error",
+		logger.Error("m3 query error",
 			zap.Error(err),
 			zap.Any("parsedOptions", parsedOptions))
 		h.promReadMetrics.incError(err)
 
+		if errors.IsTimeout(err) {
+			err = errors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 		return
 	}
