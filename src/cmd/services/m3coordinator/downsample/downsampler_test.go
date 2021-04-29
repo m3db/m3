@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//nolint: dupl
 package downsample
 
 import (
@@ -226,7 +227,7 @@ func TestDownsamplerEmptyGroupBy(t *testing.T) {
 
 	requestMetric := testGaugeMetric{
 		tags: map[string]string{
-			nameTag:         "http_requests",
+			nameTag: "http_requests",
 		},
 		timedSamples: []testGaugeMetricTimedSample{
 			{value: 42},
@@ -235,7 +236,7 @@ func TestDownsamplerEmptyGroupBy(t *testing.T) {
 	}
 	errorMetric := testGaugeMetric{
 		tags: map[string]string{
-			nameTag:         "http_errors",
+			nameTag: "http_errors",
 		},
 		timedSamples: []testGaugeMetricTimedSample{
 			{value: 43},

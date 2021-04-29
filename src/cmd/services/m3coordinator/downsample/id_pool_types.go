@@ -125,23 +125,53 @@ func (p *rollupIDProvider) reset(
 	p.index = -1
 	p.newName = newName
 	p.tagPairs = tagPairs
-	p.nameTagIndex = 0
-	p.rollupTagIndex = 0
-	for idx, pair := range tagPairs {
-		if p.nameTagIndex == -1 && bytes.Compare(p.nameTagBytes, pair.Name) < 0 {
-			p.nameTagIndex = idx
-		}
-		if p.rollupTagIndex == -1 && bytes.Compare(rollupTagName, pair.Name) < 0 {
-			p.rollupTagIndex = idx
-		}
+
+	mergeTags := []struct {
+		name  []byte
+		index int
+	}{
+		{
+			name:  rollupTagName,
+			index: -1,
+		},
+		{
+			name:  p.nameTagBytes,
+			index: -1,
+		},
+	}
+	if p.nameTagBeforeRollupTag {
+		mergeTags[0].name = p.nameTagBytes
+		mergeTags[1].name = rollupTagName
 	}
 
-	if p.nameTagIndex == p.rollupTagIndex {
-		if p.nameTagBeforeRollupTag {
-			p.rollupTagIndex++
-		} else {
-			p.nameTagIndex++
+	// merge the special tags into the set of tag pairs without allocating extra space.
+	idx := 0
+	for _, pair := range tagPairs {
+		if mergeTags[0].index == -1 && bytes.Compare(mergeTags[0].name, pair.Name) < 0 {
+			mergeTags[0].index = idx
+			idx++
 		}
+		if mergeTags[1].index == -1 && bytes.Compare(mergeTags[1].name, pair.Name) < 0 {
+			mergeTags[1].index = idx
+			// all tags merged, safe to break.
+			break
+		}
+		idx++
+	}
+
+	if mergeTags[0].index == -1 {
+		mergeTags[0].index = idx
+		idx++
+	}
+	if mergeTags[1].index == -1 {
+		mergeTags[1].index = idx
+	}
+
+	p.rollupTagIndex = mergeTags[0].index
+	p.nameTagIndex = mergeTags[1].index
+	if p.nameTagBeforeRollupTag {
+		p.nameTagIndex = mergeTags[0].index
+		p.rollupTagIndex = mergeTags[1].index
 	}
 }
 
