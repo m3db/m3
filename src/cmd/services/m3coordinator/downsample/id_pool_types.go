@@ -125,8 +125,8 @@ func (p *rollupIDProvider) reset(
 	p.index = -1
 	p.newName = newName
 	p.tagPairs = tagPairs
-	p.nameTagIndex = -1
-	p.rollupTagIndex = -1
+	p.nameTagIndex = 0
+	p.rollupTagIndex = 0
 	for idx, pair := range tagPairs {
 		if p.nameTagIndex == -1 && bytes.Compare(p.nameTagBytes, pair.Name) < 0 {
 			p.nameTagIndex = idx
