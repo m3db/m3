@@ -146,8 +146,6 @@ func getStatusCode(err error) int {
 			// Also check for prom errors, which can be either a cancellation or a timeout.
 		} else if _, ok := err.(promql.ErrQueryCanceled); ok { // nolint:errorlint
 			return 499
-		} else if _, ok := err.(promql.ErrQueryTimeout); ok { // nolint:errorlint
-			return http.StatusGatewayTimeout
 		}
 	}
 	return http.StatusInternalServerError

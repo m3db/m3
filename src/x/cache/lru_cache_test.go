@@ -614,6 +614,28 @@ func TestLRU_GetNonExisting_FromFullCache_AfterDoublePut(t *testing.T) {
 	require.Error(t, err, ErrEntryNotFound.Error())
 }
 
+// TestLRU_TryGetExpired is a regression test for a bug that would create a loadingCh for expired entries in the cache,
+// even if the loader was nil.
+func TestLRU_TryGetExpired(t *testing.T) {
+	now := time.Now()
+	lru := NewLRU(&LRUOptions{MaxEntries: 2, TTL: time.Second, Now: func() time.Time {
+		return now
+	}})
+
+	// create an entry in the cache and expire it.
+	lru.Put("foo", "1")
+	now = now.Add(time.Second * 2)
+
+	// first load is not found since it's expired.
+	_, ok := lru.TryGet("foo")
+	require.False(t, ok)
+
+	// second load is still not found since it's expired. previously the bug would attempt to wait on the loadingCh
+	// and fail with a panic because the ctx is nil.
+	_, ok = lru.TryGet("foo")
+	require.False(t, ok)
+}
+
 var defaultKeys = []string{
 	"key-0", "key-1", "key-2", "key-3", "key-4", "key-5", "key-6", "key-7", "key-8", "key-9", "key10",
 }

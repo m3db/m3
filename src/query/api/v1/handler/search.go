@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -82,6 +83,9 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err),
 			zap.Any("query", query),
 			zap.Any("fetchOpts", fetchOpts))
+		if errors.IsTimeout(err) {
+			err = errors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 		return
 	}
