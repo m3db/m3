@@ -2126,8 +2126,7 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 	for _, file := range infoFiles {
 		// This intentionally skips the latest block start as that's the active block.
 		if file.Info.BlockStart > latestBlockStart {
-			for volType := range latestVolumeIndexByVolumeType {
-				latestVolumeIndex := latestVolumeIndexByVolumeType[volType]
+			for volType, latestVolumeIndex := range latestVolumeIndexByVolumeType {
 				// Reset latest vol idx.
 				latestVolumeIndexByVolumeType[volType] = 0
 
