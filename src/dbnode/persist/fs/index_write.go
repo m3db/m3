@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xos "github.com/m3db/m3/src/x/os"
 
 	protobuftypes "github.com/gogo/protobuf/types"
 )
@@ -326,5 +327,5 @@ func (w *indexWriter) Close() error {
 }
 
 func (w *indexWriter) writeInfoFile(infoFileData []byte) error {
-	return ioutil.WriteFile(w.infoFilePath, infoFileData, w.newFileMode)
+	return xos.WriteFileSync(w.infoFilePath, infoFileData, w.newFileMode)
 }

@@ -29,3 +29,20 @@ type File interface {
 	// Close the file descriptor.
 	Close() error
 }
+
+// WriteFileSync calls fsync() in addition to writing a file to disk.
+func WriteFileSync(name string, data []byte, perm FileMode) error {
+	f, err := OpenFile(name, O_WRONLY|O_CREATE|O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	// Store the first error.
+	if err1 := f.Sync(); err1 != nil && err == nil {
+		err = err1
+	}
+	if err1 := f.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	return err
+}
