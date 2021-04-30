@@ -369,8 +369,12 @@ func (agg *aggregator) Close() error {
 	}
 
 	close(agg.doneCh)
+
 	// Waiting for the ticking goroutines to return.
+	// Doing this outside of agg.Lock to avoid potential deadlocks.
+	agg.Unlock()
 	agg.wg.Wait()
+	agg.Lock()
 
 	for _, shardID := range agg.shardIDs {
 		agg.shards[shardID].Close()
