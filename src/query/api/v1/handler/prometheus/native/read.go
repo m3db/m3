@@ -151,6 +151,15 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
+	err = handleroptions.AddDBLimitResponseHeaders(w, result.Meta, parsedOptions.FetchOpts)
+	if err != nil {
+		logger.Error("error writing db limit response headers",
+			zap.Error(err), zap.String("query", parsedOptions.Params.Query),
+			zap.Bool("instant", h.instant))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
 	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
@@ -166,30 +175,18 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
 	}
 
-	// First invoke the results rendering with a noop writer in order to
-	// check the returned-data limits. This must be done before the actual rendering
-	// so that we can add the returned-data-limited header which must precede body writing.
-	var (
-		renderResult RenderResultsResult
-		noopWriter   = json.NewNoopWriter()
-	)
-	if h.instant {
-		renderResult = renderResultsInstantaneousJSON(noopWriter, result, renderOpts)
-	} else {
-		renderResult = RenderResultsJSON(noopWriter, result, renderOpts)
-	}
-
+	// TODO(nate): make execution of this configurable
+	renderResult := LimitReturnedData(h.instant, &result, renderOpts)
 	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
 	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
 
-	meta := result.Meta
 	limited := &handleroptions.ReturnedDataLimited{
 		Limited:     renderResult.LimitedMaxReturnedData,
 		Series:      renderResult.Series,
 		TotalSeries: renderResult.TotalSeries,
 		Datapoints:  renderResult.Datapoints,
 	}
-	err = handleroptions.AddResponseHeaders(w, meta, parsedOptions.FetchOpts, limited, nil)
+	err = handleroptions.AddReturnedLimitResponseHeaders(w, limited, nil)
 	if err != nil {
 		logger.Error("error writing returned data limited header", zap.Error(err))
 		xhttp.WriteError(w, err)
@@ -199,9 +196,9 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Write the actual results after having checked for limits and wrote headers if needed.
 	responseWriter := json.NewWriter(w)
 	if h.instant {
-		_ = renderResultsInstantaneousJSON(responseWriter, result, renderOpts)
+		renderResultsInstantaneousJSON(responseWriter, result)
 	} else {
-		_ = RenderResultsJSON(responseWriter, result, renderOpts)
+		RenderResultsJSON(responseWriter, result)
 	}
 
 	if err := responseWriter.Close(); err != nil {

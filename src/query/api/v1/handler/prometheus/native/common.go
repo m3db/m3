@@ -22,7 +22,6 @@ package native
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -247,14 +246,10 @@ type RenderResultsResult struct {
 func RenderResultsJSON(
 	jw json.Writer,
 	result ReadResult,
-	opts RenderResultsOptions,
-) RenderResultsResult {
+) {
 	var (
-		series             = result.Series
-		warnings           = result.Meta.WarningStrings()
-		seriesRendered     = 0
-		datapointsRendered = 0
-		limited            = false
+		series   = result.Series
+		warnings = result.Meta.WarningStrings()
 	)
 
 	jw.BeginObject()
@@ -284,35 +279,9 @@ func RenderResultsJSON(
 		vals := s.Values()
 		length := s.Len()
 
-		// If a limit of the number of datapoints is present, then write
-		// out series' data up until that limit is hit.
-		if opts.ReturnedSeriesLimit > 0 && seriesRendered+1 > opts.ReturnedSeriesLimit {
-			limited = true
-			break
-		}
-		if opts.ReturnedDatapointsLimit > 0 && datapointsRendered+length > opts.ReturnedDatapointsLimit {
-			limited = true
-			break
-		}
-
 		hasData := false
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
-
-			// If keepNaNs is set to false and the value is NaN, drop it from the response.
-			// If the series has no datapoints at all then this datapoint iteration will
-			// count zero total and end up skipping writing the series entirely.
-			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
-				continue
-			}
-
-			// Skip points before the query boundary. Ideal place to adjust these
-			// would be at the result node but that would make it inefficient since
-			// we would need to create another block just for the sake of restricting
-			// the bounds.
-			if dp.Timestamp.Before(opts.Start) || dp.Timestamp.After(opts.End) {
-				continue
-			}
 
 			// On first datapoint for the series, write out the series beginning content.
 			if !hasData {
@@ -328,10 +297,8 @@ func RenderResultsJSON(
 				jw.BeginObjectField("values")
 				jw.BeginArray()
 
-				seriesRendered++
 				hasData = true
 			}
-			datapointsRendered++
 
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
@@ -357,27 +324,17 @@ func RenderResultsJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	return RenderResultsResult{
-		Series:                 seriesRendered,
-		Datapoints:             datapointsRendered,
-		TotalSeries:            len(series),
-		LimitedMaxReturnedData: limited,
-	}
 }
 
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
 	jw json.Writer,
 	result ReadResult,
-	opts RenderResultsOptions,
-) RenderResultsResult {
+) {
 	var (
-		series        = result.Series
-		warnings      = result.Meta.WarningStrings()
-		isScalar      = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
-		keepNaNs      = opts.KeepNaNs
-		returnedCount = 0
-		limited       = false
+		series   = result.Series
+		warnings = result.Meta.WarningStrings()
+		isScalar = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
 	)
 
 	resultType := "vector"
@@ -413,28 +370,11 @@ func renderResultsInstantaneousJSON(
 		length := s.Len()
 		dp := vals.DatapointAt(length - 1)
 
-		if opts.ReturnedSeriesLimit > 0 && returnedCount >= opts.ReturnedSeriesLimit {
-			limited = true
-			break
-		}
-		if opts.ReturnedDatapointsLimit > 0 && returnedCount >= opts.ReturnedDatapointsLimit {
-			limited = true
-			break
-		}
-
 		if isScalar {
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
-			returnedCount++
 			continue
 		}
-
-		// If keepNaNs is set to false and the value is NaN, drop it from the response.
-		if !keepNaNs && math.IsNaN(dp.Value) {
-			continue
-		}
-
-		returnedCount++
 
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
@@ -457,13 +397,4 @@ func renderResultsInstantaneousJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-
-	return RenderResultsResult{
-		LimitedMaxReturnedData: limited,
-		// Series and datapoints are the same count for instant
-		// queries since a series has one datapoint.
-		Datapoints:  returnedCount,
-		Series:      returnedCount,
-		TotalSeries: len(series),
-	}
 }

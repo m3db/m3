@@ -124,11 +124,15 @@ const (
 	// operation.
 	HeaderForce = "Force"
 
-	// LimitHeader is the header added when returned series are limited.
+	// LimitHeader is the header added when returned series are limited. This header
+	// indicates that the db node has limited the amount of data it returned to
+	// the coordinator.
 	LimitHeader = M3HeaderPrefix + "Results-Limited"
 
 	// ReturnedDataLimitedHeader is the header added when returned
-	// data are limited either by series or datapoints.
+	// data are limited either by series or datapoints. This header
+	// indicates the coordinator has limited the amount of data that
+	// can be returned to the client.
 	ReturnedDataLimitedHeader = M3HeaderPrefix + "Returned-Data-Limited"
 
 	// ReturnedMetadataLimitedHeader is the header added when returned

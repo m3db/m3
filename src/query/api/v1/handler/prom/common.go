@@ -25,10 +25,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
+	"github.com/m3db/m3/src/query/storage"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	jsoniter "github.com/json-iterator/go"
-	promql "github.com/prometheus/prometheus/promql/parser"
+	"github.com/prometheus/prometheus/promql"
+	promqlparser "github.com/prometheus/prometheus/promql/parser"
 	promstorage "github.com/prometheus/prometheus/storage"
 )
 
@@ -55,8 +58,8 @@ type errorType string
 
 // QueryData struct to be used when responding from HTTP handler.
 type QueryData struct {
-	ResultType promql.ValueType `json:"resultType"`
-	Result     promql.Value     `json:"result"`
+	ResultType promqlparser.ValueType `json:"resultType"`
+	Result     promqlparser.Value     `json:"result"`
 }
 
 type response struct {
@@ -81,4 +84,88 @@ func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 		Data:     data,
 		Warnings: warningStrings,
 	})
+}
+
+func LimitReturnedData(
+	// TODO(nate): figure out a data type that enterprise can provide here
+	res *promql.Result,
+	fetchOpts *storage.FetchOptions,
+) (native.ReturnedDataLimited, error) {
+	var (
+		seriesLimit     = fetchOpts.ReturnedSeriesLimit
+		datapointsLimit = fetchOpts.ReturnedDatapointsLimit
+
+		limited     = false
+		series      int
+		datapoints  int
+		seriesTotal int
+	)
+	switch res.Value.Type() {
+	case promqlparser.ValueTypeVector:
+		v, err := res.Vector()
+		if err != nil {
+			return native.ReturnedDataLimited{}, err
+		}
+
+		// Determine maxSeries based on either series or datapoints limit. Vector has one datapoint per
+		// series and so the datapoint limit behaves the same way as the series one.
+		switch {
+		case seriesLimit > 0 && datapointsLimit == 0:
+			series = seriesLimit
+		case seriesLimit == 0 && datapointsLimit > 0:
+			series = datapointsLimit
+		case seriesLimit == 0 && datapointsLimit == 0:
+			// Set max to the actual size if no limits.
+			series = len(v)
+		default:
+			// Take the min of the two limits if both present.
+			series = seriesLimit
+			if seriesLimit > datapointsLimit {
+				series = datapointsLimit
+			}
+		}
+
+		seriesTotal = len(v)
+		limited = series < seriesTotal
+
+		if limited {
+			limitedSeries := v[:series]
+			res.Value = limitedSeries
+			datapoints = len(limitedSeries)
+		} else {
+			series = seriesTotal
+			datapoints = seriesTotal
+		}
+	case promqlparser.ValueTypeMatrix:
+		m, err := res.Matrix()
+		if err != nil {
+			return native.ReturnedDataLimited{}, err
+		}
+
+		for _, d := range m {
+			datapointCount := len(d.Points)
+			if fetchOpts.ReturnedSeriesLimit > 0 && series+1 > fetchOpts.ReturnedSeriesLimit {
+				limited = true
+				break
+			}
+			if fetchOpts.ReturnedDatapointsLimit > 0 && datapoints+datapointCount > fetchOpts.ReturnedDatapointsLimit {
+				limited = true
+				break
+			}
+			series++
+			datapoints += datapointCount
+		}
+		seriesTotal = len(m)
+
+		if series < seriesTotal {
+			res.Value = m[:series]
+		}
+	}
+
+	return native.ReturnedDataLimited{
+		Limited:     limited,
+		Series:      series,
+		Datapoints:  datapoints,
+		TotalSeries: seriesTotal,
+	}, nil
 }

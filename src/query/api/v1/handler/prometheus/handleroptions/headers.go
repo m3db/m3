@@ -66,22 +66,28 @@ func AddResponseHeaders(
 	returnedDataLimited *ReturnedDataLimited,
 	returnedMetadataLimited *ReturnedMetadataLimited,
 ) error {
+	if err := AddDBLimitResponseHeaders(w, meta, fetchOpts); err != nil {
+		return err
+	}
+
+	if err := AddReturnedLimitResponseHeaders(
+		w, returnedDataLimited, returnedMetadataLimited,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AddDBLimitResponseHeaders adds response headers related to hitting query
+// limits at the dbnode level.
+func AddDBLimitResponseHeaders(
+	w http.ResponseWriter,
+	meta block.ResultMetadata,
+	fetchOpts *storage.FetchOptions,
+) error {
 	if fetchOpts != nil {
 		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
-	}
-	if limited := returnedDataLimited; limited != nil {
-		s, err := json.Marshal(limited)
-		if err != nil {
-			return err
-		}
-		w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
-	}
-	if limited := returnedMetadataLimited; limited != nil {
-		s, err := json.Marshal(limited)
-		if err != nil {
-			return err
-		}
-		w.Header().Add(headers.ReturnedMetadataLimitedHeader, string(s))
 	}
 
 	ex := meta.Exhaustive
@@ -104,6 +110,31 @@ func AddResponseHeaders(
 	}
 
 	w.Header().Set(headers.LimitHeader, strings.Join(warnings, ","))
+
+	return nil
+}
+
+// AddReturnedLimitResponseHeaders adds headers related to hitting
+// limits on the allowed amount of data that can be returned to the client.
+func AddReturnedLimitResponseHeaders(
+	w http.ResponseWriter,
+	returnedDataLimited *ReturnedDataLimited,
+	returnedMetadataLimited *ReturnedMetadataLimited,
+) error {
+	if limited := returnedDataLimited; limited != nil {
+		s, err := json.Marshal(limited)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
+	}
+	if limited := returnedMetadataLimited; limited != nil {
+		s, err := json.Marshal(limited)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.ReturnedMetadataLimitedHeader, string(s))
+	}
 
 	return nil
 }

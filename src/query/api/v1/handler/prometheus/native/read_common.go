@@ -297,3 +297,129 @@ func WriteReturnedDataLimitedHeader(w http.ResponseWriter, r ReturnedDataLimited
 	w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
 	return nil
 }
+
+func LimitReturnedData(
+	instant bool,
+	result *ReadResult,
+	opts RenderResultsOptions,
+) RenderResultsResult {
+	if instant {
+		return limitInstantResults(result, opts)
+	} else {
+		return limitResults(result, opts)
+	}
+}
+
+func limitInstantResults(result *ReadResult, opts RenderResultsOptions) RenderResultsResult {
+	var (
+		series        = result.Series
+		isScalar      = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		keepNaNs      = opts.KeepNaNs
+		returnedCount = 0
+		limited       = false
+	)
+
+	for i, s := range series {
+		vals := s.Values()
+		length := s.Len()
+		dp := vals.DatapointAt(length - 1)
+
+		if opts.ReturnedSeriesLimit > 0 && returnedCount >= opts.ReturnedSeriesLimit {
+			limited = true
+			result.Series = series[:i]
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && returnedCount >= opts.ReturnedDatapointsLimit {
+			limited = true
+			result.Series = series[:i]
+			break
+		}
+
+		if isScalar {
+			returnedCount++
+			break
+		}
+		// If keepNaNs is set to false and the value is NaN, drop it from the response.
+		if !keepNaNs && math.IsNaN(dp.Value) {
+			continue
+		}
+
+		returnedCount++
+	}
+
+	return RenderResultsResult{
+		LimitedMaxReturnedData: limited,
+		// Series and datapoints are the same count for instant
+		// queries since a series has one datapoint.
+		Datapoints:  returnedCount,
+		Series:      returnedCount,
+		TotalSeries: len(series),
+	}
+}
+
+func limitResults(result *ReadResult, opts RenderResultsOptions) RenderResultsResult {
+	var (
+		series             = result.Series
+		seriesRendered     = 0
+		datapointsRendered = 0
+		limited            = false
+	)
+
+	for i, s := range series {
+		vals := s.Values()
+		length := s.Len()
+
+		// If a limit of the number of datapoints is present, then write
+		// out series' data up until that limit is hit.
+		if opts.ReturnedSeriesLimit > 0 && seriesRendered+1 > opts.ReturnedSeriesLimit {
+			limited = true
+			result.Series = series[:i]
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && datapointsRendered+length > opts.ReturnedDatapointsLimit {
+			limited = true
+			result.Series = series[:i]
+			break
+		}
+
+		hasData := false
+		for i := 0; i < length; i++ {
+			dp := vals.DatapointAt(i)
+
+			// If keepNaNs is set to false and the value is NaN, drop it from the response.
+			// If the series has no datapoints at all then this datapoint iteration will
+			// count zero total and end up skipping writing the series entirely.
+			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
+				continue
+			}
+
+			// Skip points before the query boundary. Ideal place to adjust these
+			// would be at the result node but that would make it inefficient since
+			// we would need to create another block just for the sake of restricting
+			// the bounds.
+			if dp.Timestamp.Before(opts.Start) || dp.Timestamp.After(opts.End) {
+				continue
+			}
+
+			// On first datapoint for the series, write out the series beginning content.
+			if !hasData {
+				seriesRendered++
+				hasData = true
+			}
+			datapointsRendered++
+		}
+
+		if !hasData {
+			// No datapoints written for series so continue to
+			// next instead of writing the end content.
+			continue
+		}
+	}
+
+	return RenderResultsResult{
+		Series:                 seriesRendered,
+		Datapoints:             datapointsRendered,
+		TotalSeries:            len(series),
+		LimitedMaxReturnedData: limited,
+	}
+}
