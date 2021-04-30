@@ -367,6 +367,7 @@ func (agg *aggregator) Close() error {
 	if agg.state != aggregatorOpen {
 		return errAggregatorNotOpenOrClosed
 	}
+	agg.state = aggregatorClosed
 
 	close(agg.doneCh)
 
@@ -387,7 +388,6 @@ func (agg *aggregator) Close() error {
 	if agg.adminClient != nil {
 		agg.adminClient.Close()
 	}
-	agg.state = aggregatorClosed
 	return nil
 }
 
