@@ -355,7 +355,7 @@ func testIndexSingleNodeHighConcurrency(
 			return false
 		}
 		return int(counter.Value()) == expectNumIndex
-	}, time.Minute)
+	}, time.Minute*5)
 
 	counters := testSetup.Scope().Snapshot().Counters()
 	counter, ok := counters[expectStatProcess]
@@ -365,7 +365,8 @@ func testIndexSingleNodeHighConcurrency(
 		value = int(counter.Value())
 	}
 	assert.True(t, indexProcess,
-		fmt.Sprintf("expected to index %d but processed %d", expectNumIndex, value))
+		fmt.Sprintf("timeout waiting for index to process: expected to index %d but only processed %d",
+			expectNumIndex, value))
 
 	// Allow concurrent query during writes to finish.
 	close(queryConcDuringWritesCloseCh)

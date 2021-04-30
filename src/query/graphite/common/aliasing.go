@@ -58,38 +58,6 @@ func AliasByMetric(ctx *Context, series ts.SeriesList) (ts.SeriesList, error) {
 	return series, nil
 }
 
-// AliasByNode renames a time series result according to a subset of the nodes
-// in its hierarchy.
-func AliasByNode(_ *Context, seriesList ts.SeriesList, nodes ...int) (ts.SeriesList, error) {
-	renamed := make([]*ts.Series, 0, seriesList.Len())
-	for _, series := range seriesList.Values {
-		name := series.Name()
-		left := strings.LastIndex(name, "(") + 1
-		name = name[left:]
-		right := strings.IndexAny(name, ",)")
-		if right == -1 {
-			right = len(name)
-		}
-		nameParts := strings.Split(name[0:right], ".")
-		newNameParts := make([]string, 0, len(nodes))
-		for _, node := range nodes {
-			// NB(jayp): graphite supports negative indexing, so we need to also!
-			if node < 0 {
-				node += len(nameParts)
-			}
-			if node < 0 || node >= len(nameParts) {
-				continue
-			}
-			newNameParts = append(newNameParts, nameParts[node])
-		}
-		newName := strings.Join(newNameParts, ".")
-		newSeries := series.RenamedTo(newName)
-		renamed = append(renamed, newSeries)
-	}
-	seriesList.Values = renamed
-	return seriesList, nil
-}
-
 // AliasSub runs series names through a regex search/replace.
 func AliasSub(_ *Context, input ts.SeriesList, search, replace string) (ts.SeriesList, error) {
 	regex, err := regexp.Compile(search)

@@ -992,12 +992,12 @@ func TestElectionManagerCampaignIsEnabledAllCutoffShardsFlushed(t *testing.T) {
 		Get().
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				0: &schema.ShardFlushTimes{
+				0: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Second): 8000,
 					},
 				},
-				1: &schema.ShardFlushTimes{
+				1: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
@@ -1033,12 +1033,12 @@ func TestElectionManagerCampaignIsEnabledHasReplacementInstance(t *testing.T) {
 		Get().
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				0: &schema.ShardFlushTimes{
+				0: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Second): 7000,
 					},
 				},
-				1: &schema.ShardFlushTimes{
+				1: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
@@ -1075,12 +1075,12 @@ func TestElectionManagerCampaignIsEnabledNoReplacementInstance(t *testing.T) {
 		Get().
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				0: &schema.ShardFlushTimes{
+				0: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Second): 7000,
 					},
 				},
-				1: &schema.ShardFlushTimes{
+				1: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
@@ -1155,6 +1155,23 @@ func TestElectionManagerCampaignIsEnabledUnexpectedShardCutoverCutoffTimes(t *te
 
 	_, err := mgr.campaignIsEnabled()
 	require.Equal(t, errUnexpectedShardCutoverCutoffTimes, err)
+}
+
+func TestElectionManagerCampaignIsEnabledWhenNoShardsArePresent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	noShards := shard.NewShards(nil)
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Shards().Return(noShards, nil).AnyTimes()
+
+	opts := testElectionManagerOptions(t, ctrl)
+	mgr := NewElectionManager(opts).(*electionManager)
+	mgr.placementManager = placementManager
+
+	enabled, err := mgr.campaignIsEnabled()
+	require.True(t, enabled)
+	require.NoError(t, err)
 }
 
 func testElectionManagerOptions(t *testing.T, ctrl *gomock.Controller) ElectionManagerOptions {

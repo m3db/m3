@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	queryerrors "github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/prometheus"
@@ -135,11 +136,17 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var sErr *prometheus.StorageErr
 		if errors.As(res.Err, &sErr) {
 			// If the error happened in the m3 storage layer, propagate the causing error as is.
-			xhttp.WriteError(w, sErr.Unwrap())
+			err := sErr.Unwrap()
+			if queryerrors.IsTimeout(err) {
+				xhttp.WriteError(w, queryerrors.NewErrQueryTimeout(err))
+			} else {
+				xhttp.WriteError(w, err)
+			}
 		} else {
 			promErr := res.Err
 			switch promErr.(type) { //nolint:errorlint
 			case promql.ErrQueryTimeout:
+				promErr = queryerrors.NewErrQueryTimeout(promErr)
 			case promql.ErrQueryCanceled:
 			default:
 				// Assume any prometheus library error is a 4xx, since there are no remote calls.

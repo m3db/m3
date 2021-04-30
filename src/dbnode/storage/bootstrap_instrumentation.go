@@ -191,3 +191,9 @@ func (i *bootstrapInstrumentation) setIsBootstrappedAndDurable(isBootstrappedAnd
 	}
 	i.durableStatus.Update(status)
 }
+
+func (i *bootstrapInstrumentation) emitAndLogInvariantViolation(err error, msg string) {
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+		l.Error(msg, zap.Error(err))
+	})
+}

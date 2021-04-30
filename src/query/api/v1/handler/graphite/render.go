@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	queryerrors "github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/native"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
@@ -91,6 +92,9 @@ func sendError(errorCh chan error, err error) {
 // ServeHTTP processes the render requests.
 func (h *renderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.serveHTTP(w, r); err != nil {
+		if queryerrors.IsTimeout(err) {
+			err = queryerrors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 	}
 }
