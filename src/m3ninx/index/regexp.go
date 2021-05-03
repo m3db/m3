@@ -63,7 +63,6 @@ var (
 type cacheMetrics struct {
 	hit           tally.Counter
 	miss          tally.Counter
-	errors        tally.Counter
 	unwrapSuccess tally.Counter
 	unwrapError   tally.Counter
 }
@@ -98,7 +97,6 @@ func SetRegexpCacheOptions(opts RegexpCacheOptions) {
 	regexpCacheMetrics = &cacheMetrics{
 		hit:           scope.Counter("hit"),
 		miss:          scope.Counter("miss"),
-		errors:        scope.Counter("errors"),
 		unwrapSuccess: scope.SubScope("unwrap").Counter("success"),
 		unwrapError:   scope.SubScope("unwrap").Counter("error"),
 	}
@@ -125,10 +123,8 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	regexpCacheLock.RUnlock()
 
 	if cacheLRU != nil && cacheLRUMetrics != nil {
-		cached, err := regexpCache.GetWithTTL(cacheContext, reString, nil)
-		if err != nil && err != cache.ErrEntryNotFound {
-			cacheLRUMetrics.errors.Inc(1)
-		} else if err == cache.ErrEntryNotFound || cached == nil {
+		cached, ok := regexpCache.TryGet(reString)
+		if !ok {
 			cacheLRUMetrics.miss.Inc(1)
 		} else {
 			cacheLRUMetrics.hit.Inc(1)
@@ -203,12 +199,12 @@ func ensureRegexpAnchored(unanchoredRegexp *syntax.Regexp) (*syntax.Regexp, erro
 		Op:    syntax.OpConcat,
 		Flags: syntax.Perl,
 		Sub: []*syntax.Regexp{
-			&syntax.Regexp{
+			{
 				Op:    syntax.OpBeginText,
 				Flags: syntax.Perl,
 			},
 			unanchoredRegexp,
-			&syntax.Regexp{
+			{
 				Op:    syntax.OpEndText,
 				Flags: syntax.Perl,
 			},
@@ -322,7 +318,7 @@ func ensureRegexpUnanchoredHelper(parsed *syntax.Regexp, leftmost, rightmost boo
 				Op:    syntax.OpConcat,
 				Flags: parsed.Flags,
 				Sub: []*syntax.Regexp{
-					&syntax.Regexp{
+					{
 						Op:    syntax.OpQuest,
 						Flags: parsed.Flags,
 						Sub: []*syntax.Regexp{
@@ -348,7 +344,7 @@ func ensureRegexpUnanchoredHelper(parsed *syntax.Regexp, leftmost, rightmost boo
 				Flags: parsed.Flags,
 				Sub: []*syntax.Regexp{
 					newRe,
-					&syntax.Regexp{
+					{
 						Op:    syntax.OpStar,
 						Flags: parsed.Flags,
 						Sub: []*syntax.Regexp{

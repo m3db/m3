@@ -103,6 +103,9 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to get tag values", zap.Error(err))
+		if errors.IsTimeout(err) {
+			err = errors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 		return
 	}

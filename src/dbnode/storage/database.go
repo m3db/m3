@@ -453,14 +453,38 @@ func (d *db) Options() Options {
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
-	defer d.Unlock()
-
 	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-
-	d.shardSet = shardSet
 	if receivedNewShards {
 		d.lastReceivedNewShards = d.nowFn()
 	}
+	d.Unlock()
+
+	if !d.mediator.IsOpen() {
+		d.assignShardSet(shardSet)
+		return
+	}
+
+	if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
+		d.assignShardSet(shardSet)
+	}); err != nil {
+		// should not happen.
+		instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
+			func(l *zap.Logger) {
+				l.Error("failed to enqueue assignShardSet fn",
+					zap.Error(err),
+					zap.Uint32s("shards", shardSet.AllIDs()))
+			})
+	}
+}
+
+func (d *db) assignShardSet(shardSet sharding.ShardSet) {
+	d.Lock()
+	defer d.Unlock()
+
+	d.log.Info("assigning shards", zap.Uint32s("shards", shardSet.AllIDs()))
+
+	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
+	d.shardSet = shardSet
 
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
@@ -516,14 +540,10 @@ func (d *db) queueBootstrapWithLock() {
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
-		// NB(r): Trigger another bootstrap, if already bootstrapping this will
-		// enqueue a new bootstrap to execute before the current bootstrap
-		// completes.
-		go func() {
-			if result, err := d.mediator.Bootstrap(); err != nil && !result.AlreadyBootstrapping {
-				d.log.Error("error bootstrapping", zap.Error(err))
-			}
-		}()
+		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
+		// NB(linasn): We need to wait for the bootstrap to start and set it's state to Bootstrapping in order
+		// to safely run fileOps in mediator later.
+		bootstrapAsyncResult.WaitForStart()
 	}
 }
 

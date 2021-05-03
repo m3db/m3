@@ -39,6 +39,14 @@ import (
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
+	testDatabaseBootstrapWithBootstrapError(t, false)
+}
+
+func TestDatabaseBootstrapEnqueueWithBootstrapError(t *testing.T) {
+	testDatabaseBootstrapWithBootstrapError(t, true)
+}
+
+func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
@@ -88,9 +96,16 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	require.Equal(t, BootstrapNotStarted, bsm.state)
 
-	result, err := bsm.Bootstrap()
+	var result BootstrapResult
+	if async {
+		asyncResult := bsm.BootstrapEnqueue()
+		asyncResult.WaitForStart()
+		result = asyncResult.Result()
+	} else {
+		result, err = bsm.Bootstrap()
+		require.NoError(t, err)
+	}
 
-	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, bsm.state)
 	require.Equal(t, 1, len(result.ErrorsBootstrap))
 	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())

@@ -39,8 +39,9 @@ func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 
-	database.EXPECT().IsBootstrapped().Return(false)
+	database.EXPECT().IsBootstrapped().Return(false).Times(2)
 	require.False(t, mgr.shouldRunWithLock())
+	require.False(t, mgr.Run(time.Now()))
 
 	database.EXPECT().IsBootstrapped().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
@@ -72,7 +73,7 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 	require.True(t, mgr.shouldRunWithLock())
 }
 
-func TestFileSystemManagerRun(t *testing.T) {
+func TestFileSystemManagerRunCleanupPanic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
@@ -87,9 +88,32 @@ func TestFileSystemManagerRun(t *testing.T) {
 
 	ts := time.Now()
 	gomock.InOrder(
-		cm.EXPECT().WarmFlushCleanup(ts, true).Return(errors.New("foo")),
+		cm.EXPECT().WarmFlushCleanup(ts).Return(errors.New("foo")),
 	)
 
 	defer instrument.SetShouldPanicEnvironmentVariable(true)()
-	require.Panics(t, func() { mgr.Run(ts, syncRun, noForce) })
+	require.Panics(t, func() { mgr.Run(ts) })
+}
+
+func TestFileSystemManagerRunFlushPanic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	database := newMockdatabase(ctrl)
+	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+
+	fm := NewMockdatabaseFlushManager(ctrl)
+	cm := NewMockdatabaseCleanupManager(ctrl)
+	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
+	mgr := fsm.(*fileSystemManager)
+	mgr.databaseFlushManager = fm
+	mgr.databaseCleanupManager = cm
+
+	ts := time.Now()
+	gomock.InOrder(
+		cm.EXPECT().WarmFlushCleanup(ts).Return(nil),
+		fm.EXPECT().Flush(ts).Return(errors.New("flush error")),
+	)
+
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { mgr.Run(ts) })
 }

@@ -9,6 +9,10 @@ common: &common
     # Allow manual retries.
     manual: true
 
+# Temporarily disable codecov while we investigate issues with uploading.
+env:
+  SKIP_CODECOV: "true"
+
 steps:
   - name: "Codegen"
     command: make clean install-vendor-m3 test-all-gen

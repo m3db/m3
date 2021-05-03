@@ -643,6 +643,12 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 		return false, err
 	}
 
+	if shards.NumShards() == 0 {
+		// Allow the instance with no shards take the leadership.
+		// This is needed for limited duration, during cluster expansion, when adding new instances.
+		return true, nil
+	}
+
 	// NB(xichen): We apply an offset when checking if a shard has been cutoff in order
 	// to detect if the campaign should be stopped before all the shards are cut off.
 	// This is to avoid the situation where the campaign is stopped after the shards
@@ -672,7 +678,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	}
 
 	// If no shards have been cut over, campaign is disabled to avoid writing
-	// incomplele data before shards are cut over.
+	// incomplete data before shards are cut over.
 	if noCutoverShards {
 		mgr.metrics.campaignCheckNoCutoverShards.Inc(1)
 		mgr.logger.Warn("campaign is not enabled, no cutover shards")

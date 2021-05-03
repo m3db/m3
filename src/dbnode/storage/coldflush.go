@@ -101,12 +101,20 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	m.status = fileOpInProgress
 	m.Unlock()
 
+	defer func() {
+		m.Lock()
+		m.status = fileOpNotStarted
+		m.Unlock()
+	}()
+
+	m.log.Debug("starting cold flush", zap.Time("time", t))
+
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	// NB(r): Use invariant here since flush errors were introduced
 	// and not caught in CI or integration tests.
 	// When an invariant occurs in CI tests it panics so as to fail
 	// the build.
-	if err := m.ColdFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
+	if err := m.ColdFlushCleanup(t); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
 				l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
@@ -118,9 +126,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
 			})
 	}
-	m.Lock()
-	m.status = fileOpNotStarted
-	m.Unlock()
+	m.log.Debug("completed cold flush", zap.Time("time", t))
 	return true
 }
 

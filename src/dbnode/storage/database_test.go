@@ -436,6 +436,11 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	// Set a mock mediator to be certain that bootstrap is not called when
 	// no new shards are assigned.
 	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true)
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
+		fn()
+		return nil
+	})
 	d.mediator = mediator
 
 	var ns []*MockdatabaseNamespace
@@ -470,7 +475,14 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil)
+	mediator.EXPECT().IsOpen().Return(true)
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
+		fn()
+		return nil
+	})
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		return BootstrapResult{}, nil
+	})
 	d.mediator = mediator
 
 	assert.NoError(t, d.Bootstrap())
@@ -484,13 +496,41 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil).Do(func() {
+	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
+		asyncResult := newBootstrapAsyncResult()
+		asyncResult.bootstrapStarted = &wg
 		wg.Done()
+		return asyncResult
 	})
 
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
+}
+
+func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true)
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).Return(errors.New("unknown error"))
+	d.mediator = mediator
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		d.AssignShardSet(shardSet)
+	})
 }
 
 func TestDatabaseRemoveNamespace(t *testing.T) {
