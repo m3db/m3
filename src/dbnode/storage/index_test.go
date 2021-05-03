@@ -649,7 +649,6 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 
 	mockIter := index.NewMockQueryIterator(ctrl)
 	mockIter.EXPECT().Done().Return(false).Times(2)
-	mockIter.EXPECT().SearchDuration().Return(time.Minute * 1)
 	mockIter.EXPECT().Close().Return(nil)
 
 	mockBlock := index.NewMockBlock(ctrl)

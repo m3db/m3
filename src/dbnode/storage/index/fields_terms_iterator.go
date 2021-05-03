@@ -22,7 +22,6 @@ package index
 
 import (
 	"errors"
-	"time"
 
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 
@@ -66,10 +65,9 @@ type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
-	err            error
-	fieldIter      segment.FieldsPostingsListIterator
-	termIter       segment.TermsIterator
-	searchDuration time.Duration
+	err       error
+	fieldIter segment.FieldsPostingsListIterator
+	termIter  segment.TermsIterator
 
 	current struct {
 		field    []byte
@@ -117,13 +115,11 @@ func newFieldsAndTermsIterator(
 	}
 
 	_, sp := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
-	start := time.Now()
 	pl, err := searcher.Search(iter.reader)
 	sp.Finish()
 	if err != nil {
 		return nil, err
 	}
-	iter.searchDuration = time.Since(start)
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	bitmap, ok := roaring.BitmapFromPostingsList(pl)
@@ -133,10 +129,6 @@ func newFieldsAndTermsIterator(
 
 	iter.restrictByPostings = bitmap
 	return iter, nil
-}
-
-func (fti *fieldsAndTermsIter) SearchDuration() time.Duration {
-	return fti.searchDuration
 }
 
 func (fti *fieldsAndTermsIter) setNextField() bool {
