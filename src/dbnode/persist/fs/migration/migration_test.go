@@ -77,8 +77,8 @@ func TestToVersion1_1Run(t *testing.T) {
 	plCache, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})
-	defer plCache.Start()()
 	require.NoError(t, err)
+	defer plCache.Start()()
 
 	opts := NewTaskOptions().
 		SetNewMergerFn(fs.NewMerger).

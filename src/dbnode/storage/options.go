@@ -207,9 +207,10 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOpts)
 	bytesWrapperPool.Init()
 
+	iOpts := instrument.NewOptions()
 	o := &options{
 		clockOpts:                clock.NewOptions(),
-		instrumentOpts:           instrument.NewOptions(),
+		instrumentOpts:           iOpts,
 		blockOpts:                block.NewOptions(),
 		commitLogOpts:            commitlog.NewOptions(),
 		runtimeOptsMgr:           m3dbruntime.NewOptionsManager(),
@@ -253,6 +254,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
 		permitsOptions:                  permits.NewOptions(),
+		limitsOptions:                   limits.DefaultLimitsOptions(iOpts),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
