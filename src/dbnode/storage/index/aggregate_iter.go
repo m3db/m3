@@ -21,8 +21,6 @@
 package index
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -37,8 +35,7 @@ type aggregateIter struct {
 	newIterFn   newFieldsAndTermsIteratorFn
 
 	// immutable state after first Next() call
-	iters          []fieldsAndTermsIterator
-	searchDuration time.Duration
+	iters []fieldsAndTermsIterator
 
 	// mutable state
 	idx                    int
@@ -60,7 +57,6 @@ func (it *aggregateIter) Next(ctx context.Context) bool {
 				it.err = err
 				return false
 			}
-			it.searchDuration += iter.SearchDuration()
 			it.iters = append(it.iters, iter)
 		}
 		if !it.next() {
@@ -140,10 +136,6 @@ func (it *aggregateIter) Close() error {
 		multiErr = multiErr.Add(it.iters[i].Close())
 	}
 	return multiErr.FinalError()
-}
-
-func (it *aggregateIter) SearchDuration() time.Duration {
-	return it.searchDuration
 }
 
 func (it *aggregateIter) AddSeries(count int) {

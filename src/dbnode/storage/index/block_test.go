@@ -1849,7 +1849,6 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	}, testOpts)
 
 	gomock.InOrder(
-		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(false),
@@ -1922,7 +1921,6 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().SearchDuration().Return(time.Second)
 	iter.EXPECT().Next().Return(true)
 	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
 	iter.EXPECT().Next().Return(true)
@@ -2023,7 +2021,6 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 		curr := []byte(fmt.Sprint(i))
 		iter.EXPECT().Current().Return([]byte("f1"), curr)
 	}
-	iter.EXPECT().SearchDuration().Return(time.Second)
 
 	aggIter, err := b.AggregateIter(ctx, results.AggregateResultsOptions())
 	require.NoError(t, err)
@@ -2099,7 +2096,6 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().SearchDuration().Return(time.Second),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),

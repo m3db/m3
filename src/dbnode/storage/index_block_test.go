@@ -649,7 +649,6 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			mockIter0 := index.NewMockQueryIterator(ctrl)
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
-			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
 			mockIter0.EXPECT().Close().Return(nil)
 
 			result, err := idx.Query(ctx, q, qOpts)
@@ -664,13 +663,11 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			}
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
-			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
 			mockIter0.EXPECT().Close().Return(nil)
 
 			mockIter1 := index.NewMockQueryIterator(ctrl)
 			b1.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter1, nil)
 			mockIter1.EXPECT().Done().Return(true)
-			mockIter1.EXPECT().SearchDuration().Return(time.Minute)
 			mockIter1.EXPECT().Close().Return(nil)
 
 			result, err = idx.Query(ctx, q, qOpts)
@@ -704,7 +701,6 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			gomock.InOrder(
 				mockIter0.EXPECT().Done().Return(false),
 				mockIter0.EXPECT().Done().Return(true),
-				mockIter0.EXPECT().SearchDuration().Return(time.Minute),
 				mockIter0.EXPECT().Close().Return(nil),
 			)
 
@@ -867,7 +863,6 @@ func TestLimits(t *testing.T) {
 			gomock.InOrder(
 				mockIter.EXPECT().Done().Return(false),
 				mockIter.EXPECT().Done().Return(true),
-				mockIter.EXPECT().SearchDuration().Return(time.Minute),
 				mockIter.EXPECT().Close().Return(err),
 			)
 
@@ -1004,7 +999,6 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		mockPool.EXPECT().Get().Return(stubResult),
 		b0.EXPECT().QueryIter(ctx, q).Return(mockIter, nil),
 		mockIter.EXPECT().Done().Return(true),
-		mockIter.EXPECT().SearchDuration().Return(time.Minute),
 		mockIter.EXPECT().Close().Return(nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
@@ -1117,7 +1111,6 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 			mockIter0 := index.NewMockAggregateIterator(ctrl)
 			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
-			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
 			mockIter0.EXPECT().Close().Return(nil)
 			result, err := idx.AggregateQuery(ctx, q, aggOpts)
 			require.NoError(t, err)
@@ -1132,13 +1125,11 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
-			mockIter0.EXPECT().SearchDuration().Return(time.Minute)
 			mockIter0.EXPECT().Close().Return(nil)
 
 			mockIter1 := index.NewMockAggregateIterator(ctrl)
 			b1.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter1, nil)
 			mockIter1.EXPECT().Done().Return(true)
-			mockIter1.EXPECT().SearchDuration().Return(time.Minute)
 			mockIter1.EXPECT().Close().Return(nil)
 			result, err = idx.AggregateQuery(ctx, q, aggOpts)
 			require.NoError(t, err)
@@ -1175,7 +1166,6 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 			gomock.InOrder(
 				mockIter0.EXPECT().Done().Return(false),
 				mockIter0.EXPECT().Done().Return(true),
-				mockIter0.EXPECT().SearchDuration().Return(time.Minute),
 				mockIter0.EXPECT().Close().Return(nil),
 			)
 			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
@@ -1297,7 +1287,6 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 		mockPool.EXPECT().Get().Return(stubResult),
 		b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter, nil),
 		mockIter.EXPECT().Done().Return(true),
-		mockIter.EXPECT().SearchDuration().Return(time.Minute),
 		mockIter.EXPECT().Close().Return(nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
@@ -1404,7 +1393,6 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 				}
 				mockIter0 := index.NewMockAggregateIterator(ctrl)
 				mockIter0.EXPECT().Done().Return(true)
-				mockIter0.EXPECT().SearchDuration().Return(time.Second)
 				mockIter0.EXPECT().Close().Return(nil)
 				b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter0, nil)
 				result, err := idx.AggregateQuery(ctx, q, aggOpts)
@@ -1420,13 +1408,11 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 				aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 
 				mockIter0.EXPECT().Done().Return(true)
-				mockIter0.EXPECT().SearchDuration().Return(time.Second)
 				mockIter0.EXPECT().Close().Return(nil)
 				b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter0, nil)
 
 				mockIter1 := index.NewMockAggregateIterator(ctrl)
 				mockIter1.EXPECT().Done().Return(true)
-				mockIter1.EXPECT().SearchDuration().Return(time.Second)
 				mockIter1.EXPECT().Close().Return(nil)
 				b1.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter1, nil)
 				result, err = idx.AggregateQuery(ctx, q, aggOpts)
@@ -1464,7 +1450,6 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 				gomock.InOrder(
 					mockIter0.EXPECT().Done().Return(false),
 					mockIter0.EXPECT().Done().Return(true),
-					mockIter0.EXPECT().SearchDuration().Return(time.Minute),
 					mockIter0.EXPECT().Close().Return(nil),
 				)
 				aggOpts = index.AggregationOptions{QueryOptions: qOpts}

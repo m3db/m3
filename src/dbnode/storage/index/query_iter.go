@@ -21,8 +21,6 @@
 package index
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 )
@@ -54,10 +52,6 @@ func (q *queryIter) Next(_ context.Context) bool {
 
 func (q *queryIter) Err() error {
 	return q.docIter.Err()
-}
-
-func (q *queryIter) SearchDuration() time.Duration {
-	return q.docIter.SearchDuration()
 }
 
 func (q *queryIter) Close() error {

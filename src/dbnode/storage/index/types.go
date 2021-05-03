@@ -927,9 +927,6 @@ type ResultIterator interface {
 	// Err returns an non-nil error if an error occurred calling Next.
 	Err() error
 
-	// SearchDuration is how long it took search the FSTs for the results returned by the iterator.
-	SearchDuration() time.Duration
-
 	// Close the iterator.
 	Close() error
 
@@ -955,9 +952,6 @@ type fieldsAndTermsIterator interface {
 
 	// Close releases any resources held by the iterator.
 	Close() error
-
-	// SearchDuration is how long it took to search the Segment.
-	SearchDuration() time.Duration
 }
 
 // Options control the Indexing knobs.
