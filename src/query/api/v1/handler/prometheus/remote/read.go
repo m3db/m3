@@ -61,10 +61,8 @@ const (
 	PromReadURL = handler.RoutePrefixV1 + "/prom/remote/read"
 )
 
-var (
-	// PromReadHTTPMethods are the HTTP methods used with this resource.
-	PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
-)
+// PromReadHTTPMethods are the HTTP methods used with this resource.
+var PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
 
 // promReadHandler is a handler for the prometheus remote read endpoint.
 type promReadHandler struct {
@@ -137,7 +135,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write headers before response.
-	err = handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts, nil, nil)
+	err = handleroptions.AddDBLimitResponseHeaders(w, readResult.Meta, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.incError(err)
 		logger.Error("remote read query write response header error",
@@ -446,7 +444,8 @@ func Read(
 				LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
 				LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
 				LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
-			}}
+			},
+		}
 
 		engine = opts.Engine()
 

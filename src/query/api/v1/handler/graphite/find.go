@@ -44,10 +44,8 @@ const (
 	FindURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
 )
 
-var (
-	// FindHTTPMethods are the HTTP methods for this handler.
-	FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// FindHTTPMethods are the HTTP methods for this handler.
+var FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 type grahiteFindHandler struct {
 	storage             graphitestorage.Storage
@@ -168,7 +166,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
-	err = handleroptions.AddResponseHeaders(w, meta, opts, nil, nil)
+	err = handleroptions.AddDBLimitResponseHeaders(w, meta, opts)
 	if err != nil {
 		logger.Error("unable to render find header", zap.Error(err))
 		xhttp.WriteError(w, err)
