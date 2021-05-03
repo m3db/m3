@@ -206,6 +206,17 @@ func (r shardTimeRanges) AddRanges(other ShardTimeRanges) {
 	}
 }
 
+// FilterShards returns the shard time ranges after omitting shard not in the list.
+func (r shardTimeRanges) FilterShards(shards []uint32) ShardTimeRanges {
+	filtered := NewShardTimeRanges()
+	for _, s := range shards {
+		if ranges, ok := r.Get(s); ok {
+			filtered.Set(s, ranges)
+		}
+	}
+	return filtered
+}
+
 // ToUnfulfilledDataResult will return a result that is comprised of wholly
 // unfufilled time ranges from the set of shard time ranges.
 func (r shardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {

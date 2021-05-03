@@ -163,6 +163,9 @@ type ShardTimeRanges interface {
 	// GetOrAdd gets or adds time ranges for a shard.
 	GetOrAdd(shard uint32) xtime.Ranges
 
+	// FilterShards returns the shard time ranges after omitting shard not in the list.
+	FilterShards(shards []uint32) ShardTimeRanges
+
 	// AddRanges adds other shard time ranges to the current shard time ranges.
 	AddRanges(ranges ShardTimeRanges)
 

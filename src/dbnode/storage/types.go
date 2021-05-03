@@ -738,7 +738,7 @@ type NamespaceIndex interface {
 	CleanupExpiredFileSets(t time.Time) error
 
 	// CleanupDuplicateFileSets removes duplicate fileset files.
-	CleanupDuplicateFileSets() error
+	CleanupDuplicateFileSets(activeShards []uint32) error
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
