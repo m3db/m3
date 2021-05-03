@@ -1267,20 +1267,6 @@ func (mr *MockQueryIteratorMockRecorder) Err() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockQueryIterator)(nil).Err))
 }
 
-// SearchDuration mocks base method
-func (m *MockQueryIterator) SearchDuration() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SearchDuration")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// SearchDuration indicates an expected call of SearchDuration
-func (mr *MockQueryIteratorMockRecorder) SearchDuration() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockQueryIterator)(nil).SearchDuration))
-}
-
 // Close mocks base method
 func (m *MockQueryIterator) Close() error {
 	m.ctrl.T.Helper()
@@ -1411,20 +1397,6 @@ func (m *MockAggregateIterator) Err() error {
 func (mr *MockAggregateIteratorMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockAggregateIterator)(nil).Err))
-}
-
-// SearchDuration mocks base method
-func (m *MockAggregateIterator) SearchDuration() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SearchDuration")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// SearchDuration indicates an expected call of SearchDuration
-func (mr *MockAggregateIteratorMockRecorder) SearchDuration() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockAggregateIterator)(nil).SearchDuration))
 }
 
 // Close mocks base method
@@ -1574,20 +1546,6 @@ func (mr *MockResultIteratorMockRecorder) Err() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockResultIterator)(nil).Err))
 }
 
-// SearchDuration mocks base method
-func (m *MockResultIterator) SearchDuration() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SearchDuration")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// SearchDuration indicates an expected call of SearchDuration
-func (mr *MockResultIteratorMockRecorder) SearchDuration() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockResultIterator)(nil).SearchDuration))
-}
-
 // Close mocks base method
 func (m *MockResultIterator) Close() error {
 	m.ctrl.T.Helper()
@@ -1719,20 +1677,6 @@ func (m *MockfieldsAndTermsIterator) Close() error {
 func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Close))
-}
-
-// SearchDuration mocks base method
-func (m *MockfieldsAndTermsIterator) SearchDuration() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SearchDuration")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// SearchDuration indicates an expected call of SearchDuration
-func (mr *MockfieldsAndTermsIteratorMockRecorder) SearchDuration() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).SearchDuration))
 }
 
 // MockOptions is a mock of Options interface

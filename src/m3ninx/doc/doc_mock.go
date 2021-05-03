@@ -26,7 +26,6 @@ package doc
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -280,18 +279,4 @@ func (m *MockQueryDocIterator) Done() bool {
 func (mr *MockQueryDocIteratorMockRecorder) Done() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockQueryDocIterator)(nil).Done))
-}
-
-// SearchDuration mocks base method
-func (m *MockQueryDocIterator) SearchDuration() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SearchDuration")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// SearchDuration indicates an expected call of SearchDuration
-func (mr *MockQueryDocIteratorMockRecorder) SearchDuration() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockQueryDocIterator)(nil).SearchDuration))
 }

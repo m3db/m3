@@ -126,20 +126,11 @@ type serviceMetrics struct {
 	overloadRejected        tally.Counter
 	rpcTotalRead            tally.Counter
 	rpcStatusCanceledRead   tally.Counter
-	// the total time to call FetchTagged, both querying the index and reading data results (if requested).
-	queryTimingFetchTagged index.QueryMetrics
-	// the total time to read data blocks.
-	queryTimingDataRead index.QueryMetrics
-	// the total time to call Aggregate.
-	queryTimingAggregate index.QueryMetrics
-	// the total time to call AggregateRaw.
-	queryTimingAggregateRaw index.QueryMetrics
 	// the series blocks read during a call to fetchTagged
 	fetchTaggedSeriesBlocks tally.Histogram
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
-	buckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return serviceMetrics{
 		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
 		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
@@ -164,11 +155,6 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 			"rpc_status": "canceled",
 			"rpc_type":   "read",
 		}).Counter("rpc_status"),
-		queryTimingFetchTagged:  index.NewQueryMetrics("fetch_tagged", scope),
-		queryTimingAggregate:    index.NewQueryMetrics("aggregate", scope),
-		queryTimingAggregateRaw: index.NewQueryMetrics("aggregate_raw", scope),
-		queryTimingDataRead:     index.NewQueryMetrics("data_read", scope),
-		fetchTaggedSeriesBlocks: scope.Histogram("fetchTagged-seriesBlocks", buckets),
 	}
 }
 
@@ -836,7 +822,6 @@ func (s *service) fetchTaggedIter(
 		s.readRPCCompleted(ctx.GoContext())
 	}))
 
-	startTime := s.nowFn()
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
 		return nil, tterrors.NewBadRequestError(err)
@@ -866,12 +851,6 @@ func (s *service) fetchTaggedIter(
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
 		blockPermits:    permits,
-		totalDocsCount:  queryResult.Results.TotalDocsCount(),
-		nowFn:           s.nowFn,
-		fetchStart:      startTime,
-		dataReadMetrics: s.metrics.queryTimingDataRead,
-		totalMetrics:    s.metrics.queryTimingFetchTagged,
-		seriesBlocks:    s.metrics.fetchTaggedSeriesBlocks,
 	}), nil
 }
 
@@ -906,15 +885,13 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	fetchTaggedResultsIterOpts
-	idResults         []idResult
-	idx               int
-	blockReadIdx      int
-	cur               IDResult
-	err               error
-	permits           []permits.Permit
-	unreleasedQuota   int64
-	dataReadStart     time.Time
-	totalSeriesBlocks int
+	idResults       []idResult
+	idx             int
+	blockReadIdx    int
+	cur             IDResult
+	err             error
+	permits         []permits.Permit
+	unreleasedQuota int64
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -928,19 +905,12 @@ type fetchTaggedResultsIterOpts struct {
 	iOpts           instrument.Options
 	instrumentClose func(error)
 	blockPermits    permits.Permits
-	nowFn           clock.NowFn
-	fetchStart      time.Time
-	totalDocsCount  int
-	dataReadMetrics index.QueryMetrics
-	totalMetrics    index.QueryMetrics
-	seriesBlocks    tally.Histogram
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
 	return &fetchTaggedResultsIter{
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
-		dataReadStart:              opts.nowFn(),
 		permits:                    make([]permits.Permit, 0),
 	}
 }
@@ -1003,7 +973,6 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 
 			for blockIter.Next(ctx) {
 				curr := blockIter.Current()
-				i.totalSeriesBlocks++
 				currResult.blockReaders = append(currResult.blockReaders, curr)
 				acquired, err := i.acquire(ctx, i.blockReadIdx)
 				if err != nil {
@@ -1082,16 +1051,6 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
-
-	now := i.nowFn()
-	dataReadTime := now.Sub(i.dataReadStart)
-	i.dataReadMetrics.ByDocs.Record(i.totalDocsCount, dataReadTime)
-
-	totalFetchTime := now.Sub(i.fetchStart)
-	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
-
-	i.seriesBlocks.RecordValue(float64(i.totalSeriesBlocks))
-
 	for _, p := range i.permits {
 		i.blockPermits.Release(p)
 	}
@@ -1181,9 +1140,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		Exhaustive: queryResult.Exhaustive,
 	}
 	results := queryResult.Results
-	size := 0
 	for _, entry := range results.Map().Iter() {
-		size++
 		responseElem := &rpc.AggregateQueryResultTagNameElement{
 			TagName: entry.Key().String(),
 		}
@@ -1191,7 +1148,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		tagValuesMap := tagValues.Map()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
 		for _, entry := range tagValuesMap.Iter() {
-			size++
 			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryResultTagValueElement{
 				TagValue: entry.Key().String(),
 			})
@@ -1199,11 +1155,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		response.Results = append(response.Results, responseElem)
 	}
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
-
-	duration := s.nowFn().Sub(callStart)
-	queryTiming := s.metrics.queryTimingAggregate
-	queryTiming.ByDocs.Record(size, duration)
-
 	return response, nil
 }
 
@@ -1233,9 +1184,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		Exhaustive: queryResult.Exhaustive,
 	}
 	results := queryResult.Results
-	size := 0
 	for _, entry := range results.Map().Iter() {
-		size++
 		responseElem := &rpc.AggregateQueryRawResultTagNameElement{
 			TagName: entry.Key().Bytes(),
 		}
@@ -1244,7 +1193,6 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			tagValuesMap := tagValues.Map()
 			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
 			for _, entry := range tagValuesMap.Iter() {
-				size++
 				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
 					TagValue: entry.Key().Bytes(),
 				})
@@ -1252,10 +1200,6 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		}
 		response.Results = append(response.Results, responseElem)
 	}
-
-	duration := s.nowFn().Sub(callStart)
-	queryTiming := s.metrics.queryTimingAggregateRaw
-	queryTiming.ByDocs.Record(size, duration)
 
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil

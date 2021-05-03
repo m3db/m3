@@ -45,8 +45,7 @@ func TestFetchResultIterTest(t *testing.T) {
 	mocks := gomock.NewController(t)
 	defer mocks.Finish()
 
-	scope, ctx, nsID, resMap, start, end, db := setup(mocks)
-
+	ctx, nsID, resMap, start, end, db := setup(mocks)
 	blockPermits := &fakePermits{available: 5, quotaPerPermit: 5}
 	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
 		queryResult: index.QueryResult{
@@ -60,10 +59,6 @@ func TestFetchResultIterTest(t *testing.T) {
 		db:              db,
 		nsID:            nsID,
 		blockPermits:    blockPermits,
-		nowFn:           time.Now,
-		dataReadMetrics: index.NewQueryMetrics("", scope),
-		totalMetrics:    index.NewQueryMetrics("", scope),
-		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
 		instrumentClose: func(err error) {},
 	})
 	total := 0
@@ -80,23 +75,17 @@ func TestFetchResultIterTest(t *testing.T) {
 	// after the block is processed, so a block might be eagerly processed and then permit acquisition fails.
 	require.Equal(t, 19, blockPermits.acquired)
 	require.Equal(t, 19, blockPermits.released)
-	requireSeriesBlockMetric(t, scope)
 }
 
 func TestFetchResultIterTestNoReleaseWithoutAcquire(t *testing.T) {
 	blockPermits := &fakePermits{available: 10, quotaPerPermit: 1000}
 	emptyMap := index.NewQueryResults(ident.StringID("testNs"), index.QueryResultsOptions{}, testIndexOptions)
-	scope := tally.NewTestScope("", map[string]string{})
 	iter := newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
 		queryResult: index.QueryResult{
 			Results: emptyMap,
 		},
 		blockPermits:    blockPermits,
-		nowFn:           time.Now,
 		instrumentClose: func(err error) {},
-		dataReadMetrics: index.NewQueryMetrics("", scope),
-		totalMetrics:    index.NewQueryMetrics("", scope),
-		seriesBlocks:    scope.Histogram("series-blocks", tally.MustMakeExponentialValueBuckets(10, 2, 5)),
 	})
 	ctx := context.NewBackground()
 	for iter.Next(ctx) {
@@ -120,9 +109,8 @@ func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
 }
 
 func setup(mocks *gomock.Controller) (
-	tally.TestScope, context.Context, ident.ID, index.QueryResults, time.Time, time.Time, *storage.Mockdatabase,
+	context.Context, ident.ID, index.QueryResults, time.Time, time.Time, *storage.Mockdatabase,
 ) {
-	scope := tally.NewTestScope("", map[string]string{})
 	ctx := context.NewBackground()
 	nsID := ident.StringID("testNs")
 
@@ -145,7 +133,7 @@ func setup(mocks *gomock.Controller) (
 		}, nil)
 		resMap.Map().Set(id.Bytes(), doc.Document{})
 	}
-	return scope, ctx, nsID, resMap, start, end, db
+	return ctx, nsID, resMap, start, end, db
 }
 
 type fakePermits struct {
