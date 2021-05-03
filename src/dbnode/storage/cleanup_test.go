@@ -348,6 +348,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(uint32(42)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	shard.EXPECT().CleanupExpiredFileSets(gomock.Eq(ts.Add(-rOpts.RetentionPeriod()))).Return(nil)
 	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
 
@@ -385,11 +386,16 @@ func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
 			SetEnabled(true).
 			SetBlockSize(7200 * time.Second))
 
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil)
+	idx.EXPECT().CleanupDuplicateFileSets(gomock.Any()).Return(nil)
+
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	ns.EXPECT().Index().Return(idx, nil).AnyTimes()
 
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)
