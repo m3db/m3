@@ -73,6 +73,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
+	"github.com/gorilla/mux"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	extprom "github.com/prometheus/client_golang/prometheus"
@@ -137,6 +138,10 @@ type RunOptions struct {
 
 	// CustomHandlerOptions contains custom handler options.
 	CustomHandlerOptions options.CustomHandlerOptions
+
+	// Middleware sets the list of middleware functions applied before dispatching the query request to the query
+	// handler. If this is nil, a set of default middleware functions are applied.
+	Middleware []mux.MiddlewareFunc
 
 	// CustomPromQLParseFunction is a custom PromQL parsing function.
 	CustomPromQLParseFunction promql.ParseFn
@@ -550,6 +555,9 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts, tsdbOpts)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
+	}
+	if runOpts.Middleware != nil {
+		handlerOptions = handlerOptions.SetMiddleware(runOpts.Middleware)
 	}
 
 	if fn := runOpts.CustomHandlerOptions.OptionTransformFn; fn != nil {

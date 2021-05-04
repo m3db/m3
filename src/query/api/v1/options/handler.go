@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package options configures query http handlers.
 package options
 
 import (
@@ -25,6 +26,10 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/prometheus/prometheus/promql"
+	"google.golang.org/protobuf/runtime/protoiface"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -42,9 +47,6 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/prometheus/prometheus/promql"
-	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 // QueryEngine is a type of query engine.
@@ -231,6 +233,12 @@ type HandlerOptions interface {
 	SetKVStoreProtoParser(KVStoreProtoParser) HandlerOptions
 	// KVStoreProtoHandler returns the KVStoreProtoParser.
 	KVStoreProtoParser() KVStoreProtoParser
+
+	// Middleware is the list of Middleware functions to run before dispatching to the query handler.
+	Middleware() []mux.MiddlewareFunc
+
+	// SetMiddleware sets the list of Middleware functions.
+	SetMiddleware(value []mux.MiddlewareFunc) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -262,6 +270,7 @@ type handlerOptions struct {
 	namespaceValidator                NamespaceValidator
 	storeMetricsType                  bool
 	kvStoreProtoParser                KVStoreProtoParser
+	middleware                        []mux.MiddlewareFunc
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -270,6 +279,7 @@ func EmptyHandlerOptions() HandlerOptions {
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
 		m3dbOpts:       m3db.NewOptions(),
+		middleware:     DefaultMiddleware,
 	}
 }
 
@@ -300,7 +310,6 @@ func NewHandlerOptions(
 	if cfg.StoreMetricsType != nil {
 		storeMetricsType = *cfg.StoreMetricsType
 	}
-
 	return &handlerOptions{
 		storage:                           downsamplerAndWriter.Storage(),
 		downsamplerAndWriter:              downsamplerAndWriter,
@@ -318,16 +327,17 @@ func NewHandlerOptions(
 		graphiteRenderFetchOptionsBuilder: graphiteRenderFetchOptionsBuilder,
 		queryContextOptions:               queryContextOptions,
 		instrumentOpts:                    instrumentOpts,
-		cpuProfileDuration:                cpuProfileDuration,
-		placementServiceNames:             placementServiceNames,
-		serviceOptionDefaults:             serviceOptionDefaults,
-		nowFn:                             time.Now,
-		queryRouter:                       queryRouter,
-		instantQueryRouter:                instantQueryRouter,
-		graphiteStorageOpts:               graphiteStorageOpts,
-		m3dbOpts:                          m3dbOpts,
-		storeMetricsType:                  storeMetricsType,
-		namespaceValidator:                validators.NamespaceValidator,
+		cpuProfileDuration:    cpuProfileDuration,
+		placementServiceNames: placementServiceNames,
+		serviceOptionDefaults: serviceOptionDefaults,
+		nowFn:                 time.Now,
+		queryRouter:           queryRouter,
+		instantQueryRouter:    instantQueryRouter,
+		graphiteStorageOpts:   graphiteStorageOpts,
+		m3dbOpts:              m3dbOpts,
+		storeMetricsType:      storeMetricsType,
+		namespaceValidator:    validators.NamespaceValidator,
+		middleware:            DefaultMiddleware,
 	}, nil
 }
 
@@ -624,6 +634,16 @@ func (o *handlerOptions) SetKVStoreProtoParser(value KVStoreProtoParser) Handler
 
 func (o *handlerOptions) KVStoreProtoParser() KVStoreProtoParser {
 	return o.kvStoreProtoParser
+}
+
+func (o *handlerOptions) Middleware() []mux.MiddlewareFunc {
+	return o.middleware
+}
+
+func (o *handlerOptions) SetMiddleware(value []mux.MiddlewareFunc) HandlerOptions {
+	opts := *o
+	opts.middleware = value
+	return &opts
 }
 
 // KVStoreProtoParser parses protobuf messages based off specific keys.

@@ -309,22 +309,23 @@ func TestTracingMiddleware(t *testing.T) {
 	router := mux.NewRouter()
 	setupTestRouteRouter(router)
 
-	handler := applyMiddleware(router, mtr)
-	doTestRequest(handler)
+	router.Use(options.NewTracingMiddleware(mtr))
+
+	doTestRequest(router)
 
 	assert.NotEmpty(t, mtr.FinishedSpans())
 }
 
 func TestCompressionMiddleware(t *testing.T) {
-	mtr := mocktracer.New()
 	router := mux.NewRouter()
 	setupTestRouteRouter(router)
 
-	handler := applyMiddleware(router, mtr)
+	router.Use(options.CompressionMiddleware)
+
 	req := httptest.NewRequest("GET", testRoute, nil)
 	req.Header.Add("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
+	router.ServeHTTP(res, req)
 
 	enc, found := res.HeaderMap["Content-Encoding"]
 	require.True(t, found)
