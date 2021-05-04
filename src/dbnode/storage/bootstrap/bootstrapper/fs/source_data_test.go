@@ -965,7 +965,7 @@ func newTestStorageOptions(
 	pm persist.Manager,
 	icm fs.IndexClaimsManager,
 ) (storage.Options, index.Closer) {
-	plCache, closer, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
+	plCache, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})
 	require.NoError(t, err)
@@ -980,5 +980,5 @@ func newTestStorageOptions(
 		SetRepairEnabled(false).
 		SetIndexOptions(index.NewOptions().
 			SetPostingsListCache(plCache)).
-		SetBlockLeaseManager(block.NewLeaseManager(nil)), closer
+		SetBlockLeaseManager(block.NewLeaseManager(nil)), plCache.Start()
 }

@@ -149,8 +149,8 @@ type RunOptions struct {
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
 
-	// Transforms are transforms to apply to the database storage options.
-	Transforms []storage.OptionTransform
+	// Transform is a function to transform the Options.
+	Transform storage.OptionTransform
 
 	// StorageOptions are additional storage options.
 	StorageOptions StorageOptions
@@ -449,29 +449,17 @@ func Run(runOpts RunOptions) {
 		SetDiskSeriesReadLimitOpts(diskSeriesReadLimit).
 		SetAggregateDocsLimitOpts(aggDocsLimit).
 		SetInstrumentOptions(iOpts)
-
-	appliedOpts := opts
-	for _, transform := range runOpts.Transforms {
-		appliedOpts = transform(appliedOpts)
-	}
-
-	if builder := appliedOpts.SourceLoggerBuilder(); builder != nil {
+	if builder := opts.SourceLoggerBuilder(); builder != nil {
 		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
 	}
-	queryLimits, err := limits.NewQueryLimits(limitOpts)
-	if err != nil {
-		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
-	}
-	queryLimits.Start()
-	defer queryLimits.Stop()
+	opts = opts.SetLimitsOptions(limitOpts)
+
 	seriesReadPermits := permits.NewLookbackLimitPermitsManager(
 		"disk-series-read",
 		diskSeriesReadLimit,
 		iOpts,
 		limitOpts.SourceLoggerBuilder(),
 	)
-	seriesReadPermits.Start()
-	defer seriesReadPermits.Stop()
 
 	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
 	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
@@ -496,11 +484,10 @@ func Run(runOpts RunOptions) {
 				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
 	)
-	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
 		logger.Fatal("could not construct postings list cache", zap.Error(err))
 	}
-	defer stopReporting()
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
@@ -508,9 +495,20 @@ func Run(runOpts RunOptions) {
 		Scope: iOpts.MetricsScope(),
 	})
 
-	for _, transform := range runOpts.Transforms {
-		opts = transform(opts)
+	if runOpts.Transform != nil {
+		opts = runOpts.Transform(opts)
 	}
+
+	queryLimits, err := limits.NewQueryLimits(opts.LimitsOptions())
+	if err != nil {
+		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
+	}
+
+	queryLimits.Start()
+	defer queryLimits.Stop()
+	seriesReadPermits.Start()
+	defer seriesReadPermits.Stop()
+	defer postingsListCache.Start()()
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
