@@ -27,6 +27,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/read"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
@@ -49,13 +50,7 @@ type promReadMetrics struct {
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
 
-	returnedDataMetrics PromReadReturnedDataMetrics
-}
-
-// PromReadReturnedDataMetrics are metrics on the data returned from prom reads.
-type PromReadReturnedDataMetrics struct {
-	FetchSeries     tally.Histogram
-	FetchDatapoints tally.Histogram
+	returnedDataMetrics read.ReturnedDataMetrics
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -66,15 +61,15 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess:   scope.Timer("fetch.success.latency"),
-		returnedDataMetrics: NewPromReadReturnedDataMetrics(scope),
+		returnedDataMetrics: read.NewReturnedDataMetrics(scope),
 	}
 }
 
 // NewPromReadReturnedDataMetrics returns metrics for returned data.
-func NewPromReadReturnedDataMetrics(scope tally.Scope) PromReadReturnedDataMetrics {
+func NewPromReadReturnedDataMetrics(scope tally.Scope) read.ReturnedDataMetrics {
 	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 16)...)
 	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
-	return PromReadReturnedDataMetrics{
+	return read.ReturnedDataMetrics{
 		FetchSeries:     scope.Histogram("fetch.series", seriesBuckets),
 		FetchDatapoints: scope.Histogram("fetch.datapoints", datapointBuckets),
 	}
@@ -174,11 +169,11 @@ type ParsedOptions struct {
 	Params    models.RequestParams
 }
 
-func read(
+func execRead(
 	ctx context.Context,
 	parsed ParsedOptions,
 	handlerOpts options.HandlerOptions,
-) (ReadResult, error) {
+) (read.Result, error) {
 	var (
 		opts      = parsed.QueryOpts
 		fetchOpts = parsed.FetchOpts
@@ -196,7 +191,7 @@ func read(
 		xopentracing.Duration("params.step", params.Step),
 	)
 
-	emptyResult := ReadResult{
+	emptyResult := read.Result{
 		Meta:      block.NewResultMetadata(),
 		BlockType: block.BlockEmpty,
 	}
@@ -264,7 +259,7 @@ func read(
 
 	blockType := bl.Info().Type()
 
-	return ReadResult{
+	return read.Result{
 		Series:    seriesList,
 		Meta:      resultMeta,
 		BlockType: blockType,

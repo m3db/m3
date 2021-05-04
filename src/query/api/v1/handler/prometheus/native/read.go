@@ -21,13 +21,14 @@
 package native
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/handler/read"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/errors"
-	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -79,23 +80,30 @@ type promReadHandler struct {
 	instant         bool
 	promReadMetrics promReadMetrics
 	opts            options.HandlerOptions
+	readFn          readFn
 }
+
+type readFn func(context.Context, ParsedOptions, options.HandlerOptions) (read.Result, error)
 
 // NewPromReadHandler returns a new prometheus-compatible read handler.
 func NewPromReadHandler(opts options.HandlerOptions) http.Handler {
-	return newHandler(opts, false)
+	return newHandler(opts, false, nil)
 }
 
 // NewPromReadInstantHandler returns a new pro instance of handler.
 func NewPromReadInstantHandler(opts options.HandlerOptions) http.Handler {
-	return newHandler(opts, true)
+	return newHandler(opts, true, nil)
 }
 
 // newHandler returns a new pro instance of handler.
-func newHandler(opts options.HandlerOptions, instant bool) http.Handler {
+func newHandler(opts options.HandlerOptions, instant bool, readFn readFn) http.Handler {
 	name := "native-read"
 	if instant {
 		name = "native-instant-read"
+	}
+
+	if readFn == nil {
+		readFn = execRead
 	}
 
 	taggedScope := opts.InstrumentOpts().MetricsScope().
@@ -104,6 +112,7 @@ func newHandler(opts options.HandlerOptions, instant bool) http.Handler {
 		promReadMetrics: newPromReadMetrics(taggedScope),
 		opts:            opts,
 		instant:         instant,
+		readFn:          readFn,
 	}
 	return h
 }
@@ -132,7 +141,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		zap.Duration("fetchTimeout", parsedOptions.FetchOpts.Timeout),
 	)
 
-	result, err := read(ctx, parsedOptions, h.opts)
+	result, err := h.readFn(ctx, parsedOptions, h.opts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
@@ -165,55 +174,20 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		keepNaNs = result.Meta.KeepNaNs
 	}
 
-	renderOpts := RenderResultsOptions{
+	renderOpts := read.RenderResultsOptions{
 		Start:                   parsedOptions.Params.Start,
 		End:                     parsedOptions.Params.End,
 		KeepNaNs:                keepNaNs,
 		ReturnedSeriesLimit:     parsedOptions.FetchOpts.ReturnedSeriesLimit,
 		ReturnedDatapointsLimit: parsedOptions.FetchOpts.ReturnedDatapointsLimit,
+		Instant:                 h.instant,
 	}
 
-	// First invoke the results rendering with a noop writer in order to
-	// check the returned-data limits. This must be done before the actual rendering
-	// so that we can add the returned-data-limited header which must precede body writing.
-	var (
-		renderResult RenderResultsResult
-		noopWriter   = json.NewNoopWriter()
+	read.RenderResults(
+		w,
+		read.NewM3QueryResultIterator(result),
+		h.promReadMetrics.returnedDataMetrics,
+		logger,
+		renderOpts,
 	)
-	if h.instant {
-		renderResult = renderResultsInstantaneousJSON(noopWriter, result, renderOpts)
-	} else {
-		renderResult = RenderResultsJSON(noopWriter, result, renderOpts)
-	}
-
-	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
-	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
-
-	limited := &handleroptions.ReturnedDataLimited{
-		Limited:     renderResult.LimitedMaxReturnedData,
-		Series:      renderResult.Series,
-		TotalSeries: renderResult.TotalSeries,
-		Datapoints:  renderResult.Datapoints,
-	}
-	err = handleroptions.AddReturnedLimitResponseHeaders(w, limited, nil)
-	if err != nil {
-		logger.Error("error writing returned data limited header", zap.Error(err))
-		xhttp.WriteError(w, err)
-		return
-	}
-
-	// Write the actual results after having checked for limits and wrote headers if needed.
-	responseWriter := json.NewWriter(w)
-	if h.instant {
-		_ = renderResultsInstantaneousJSON(responseWriter, result, renderOpts)
-	} else {
-		_ = RenderResultsJSON(responseWriter, result, renderOpts)
-	}
-
-	if err := responseWriter.Close(); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		logger.Error("failed to render results", zap.Error(err))
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
 }

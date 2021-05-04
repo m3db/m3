@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
+	"github.com/m3db/m3/src/query/api/v1/handler/read"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	queryerrors "github.com/m3db/m3/src/query/errors"
@@ -81,7 +82,7 @@ type readHandler struct {
 	scope               tally.Scope
 	logger              *zap.Logger
 	opts                opts
-	returnedDataMetrics native.PromReadReturnedDataMetrics
+	returnedDataMetrics read.ReturnedDataMetrics
 }
 
 func newReadHandler(

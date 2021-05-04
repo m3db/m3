@@ -23,6 +23,7 @@ package native
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/handler/read"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
@@ -38,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -116,11 +119,49 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 		Params:    r,
 	}
 
-	_, err := read(ctx, parsed, promRead.opts)
+	_, err := execRead(ctx, parsed, promRead.opts)
 	require.Error(t, err)
 	require.Equal(t,
 		"context deadline exceeded",
 		err.Error())
+}
+
+func BenchmarkReadHandlerAllocs(b *testing.B) {
+	b.ReportAllocs()
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
+
+	setup := newTestSetup(nil, nil)
+	readFunc := testReadFn()
+
+	for i := 0; i < b.N; i++ {
+		handler := newHandler(setup.options, false, readFunc)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+	}
+}
+
+func testReadFn() readFn {
+	numSeries := 1000
+	start := time.Unix(1535948880, 0)
+	series := make([]*ts.Series, 0, numSeries)
+	for i := 0; i < numSeries; i++ {
+		series = append(series, ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
+			})))
+	}
+
+	return func(context.Context, ParsedOptions, options.HandlerOptions) (read.Result, error) {
+		return read.Result{
+			Series:    series,
+			Meta:      block.NewResultMetadata(),
+			BlockType: block.BlockTest,
+		}, nil
+	}
 }
 
 func testPromReadHandlerRead(t *testing.T, resultMeta block.ResultMetadata) {
@@ -154,7 +195,7 @@ func testPromReadHandlerRead(t *testing.T, resultMeta block.ResultMetadata) {
 		Params:    r,
 	}
 
-	result, err := read(ctx, parsed, promRead.opts)
+	result, err := execRead(ctx, parsed, promRead.opts)
 	require.NoError(t, err)
 	seriesList := result.Series
 
@@ -199,7 +240,9 @@ func newTestSetup(
 		Timeout: 15 * time.Second,
 	}
 	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
-	require.NoError(t, err)
+	if t != nil {
+		require.NoError(t, err)
+	}
 	tagOpts := models.NewTagOptions()
 	limitsConfig := config.LimitsConfiguration{}
 	keepNaNs := false
