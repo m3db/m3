@@ -206,6 +206,7 @@ type blockShardRangesSegments struct {
 type BlockOptions struct {
 	ForegroundCompactorMmapDocsData bool
 	BackgroundCompactorMmapDocsData bool
+	ActiveBlock                     bool
 }
 
 // NewBlockFn is a new block constructor.
@@ -233,24 +234,33 @@ func NewBlock(
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
-	segs := newMutableSegments(
+
+	segs, err := newMutableSegments(
+		md,
 		blockStart,
 		opts,
 		blockOpts,
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	coldSegs, err := newMutableSegments(
+		md,
+		blockStart,
+		opts,
+		blockOpts,
+		namespaceRuntimeOptsMgr,
+		iopts,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
-	coldSegs := []*mutableSegments{
-		newMutableSegments(
-			blockStart,
-			opts,
-			blockOpts,
-			namespaceRuntimeOptsMgr,
-			iopts,
-		),
-	}
+	coldMutableSegments := []*mutableSegments{coldSegs}
 	b := &block{
 		state:                           blockStateOpen,
 		blockStart:                      blockStart,
@@ -258,7 +268,7 @@ func NewBlock(
 		blockSize:                       blockSize,
 		blockOpts:                       blockOpts,
 		mutableSegments:                 segs,
-		coldMutableSegments:             coldSegs,
+		coldMutableSegments:             coldMutableSegments,
 		shardRangesSegmentsByVolumeType: make(shardRangesSegmentsByVolumeType),
 		opts:                            opts,
 		iopts:                           iopts,
@@ -276,6 +286,15 @@ func NewBlock(
 	return b, nil
 }
 
+func (b *block) ActiveBlockNotifySealedBlocks(
+	sealed []xtime.UnixNano,
+) error {
+	if !b.blockOpts.ActiveBlock {
+		return fmt.Errorf("block not in-memory block: start=%v", b.StartTime())
+	}
+	return b.mutableSegments.NotifySealedBlocks(sealed)
+}
+
 func (b *block) StartTime() time.Time {
 	return b.blockStart
 }
@@ -288,25 +307,32 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.RLock()
 	if !b.writesAcceptedWithRLock() {
 		b.RUnlock()
-		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
+		return b.writeBatchResult(inserts, MutableSegmentsStats{},
+			b.writeBatchErrorInvalidState(b.state))
 	}
 	if b.state == blockStateSealed {
 		coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
 		b.RUnlock()
-		return b.writeBatchResult(inserts, coldBlock.WriteBatch(inserts))
+		_, err := coldBlock.WriteBatch(inserts)
+		// Don't pass stats back from insertion into a cold block,
+		// we only care about warm mutable segments stats.
+		return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
 	}
 	b.RUnlock()
-	return b.writeBatchResult(inserts, b.mutableSegments.WriteBatch(inserts))
+	stats, err := b.mutableSegments.WriteBatch(inserts)
+	return b.writeBatchResult(inserts, stats, err)
 }
 
 func (b *block) writeBatchResult(
 	inserts *WriteBatch,
+	stats MutableSegmentsStats,
 	err error,
 ) (WriteBatchResult, error) {
 	if err == nil {
 		inserts.MarkUnmarkedEntriesSuccess()
 		return WriteBatchResult{
-			NumSuccess: int64(inserts.Len()),
+			NumSuccess:           int64(inserts.Len()),
+			MutableSegmentsStats: stats,
 		}, nil
 	}
 
@@ -314,7 +340,10 @@ func (b *block) writeBatchResult(
 	if !ok {
 		// NB: marking all the inserts as failure, cause we don't know which ones failed.
 		inserts.MarkUnmarkedEntriesError(err)
-		return WriteBatchResult{NumError: int64(inserts.Len())}, err
+		return WriteBatchResult{
+			NumError:             int64(inserts.Len()),
+			MutableSegmentsStats: stats,
+		}, err
 	}
 
 	numErr := len(partialErr.Errs())
@@ -326,8 +355,9 @@ func (b *block) writeBatchResult(
 	// Mark all non-error inserts success, so we don't repeatedly index them.
 	inserts.MarkUnmarkedEntriesSuccess()
 	return WriteBatchResult{
-		NumSuccess: int64(inserts.Len() - numErr),
-		NumError:   int64(numErr),
+		NumSuccess:           int64(inserts.Len() - numErr),
+		NumError:             int64(numErr),
+		MutableSegmentsStats: stats,
 	}, partialErr
 }
 
@@ -1083,6 +1113,12 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 	return nil
 }
 
+func (b *block) IsOpen() bool {
+	b.RLock()
+	defer b.RUnlock()
+	return b.state == blockStateOpen
+}
+
 func (b *block) IsSealedWithRLock() bool {
 	return b.state == blockStateSealed
 }
@@ -1171,16 +1207,22 @@ func (b *block) EvictColdMutableSegments() error {
 	return nil
 }
 
-func (b *block) RotateColdMutableSegments() {
+func (b *block) RotateColdMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
-	b.coldMutableSegments = append(b.coldMutableSegments, newMutableSegments(
+	coldSegs, err := newMutableSegments(
+		b.nsMD,
 		b.blockStart,
 		b.opts,
 		b.blockOpts,
 		b.namespaceRuntimeOptsMgr,
 		b.iopts,
-	))
+	)
+	if err != nil {
+		return err
+	}
+	b.coldMutableSegments = append(b.coldMutableSegments, coldSegs)
+	return nil
 }
 
 func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {

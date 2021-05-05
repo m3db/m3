@@ -75,7 +75,7 @@ func NewReadThroughSegment(
 	seg segment.ImmutableSegment,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
-) segment.Segment {
+) *ReadThroughSegment {
 	return &ReadThroughSegment{
 		segment:           seg,
 		opts:              opts,
