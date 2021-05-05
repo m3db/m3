@@ -279,7 +279,7 @@ func EmptyHandlerOptions() HandlerOptions {
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
 		m3dbOpts:       m3db.NewOptions(),
-		middleware:     DefaultMiddleware,
+		middleware:     DefaultMiddleware(),
 	}
 }
 
@@ -327,17 +327,17 @@ func NewHandlerOptions(
 		graphiteRenderFetchOptionsBuilder: graphiteRenderFetchOptionsBuilder,
 		queryContextOptions:               queryContextOptions,
 		instrumentOpts:                    instrumentOpts,
-		cpuProfileDuration:    cpuProfileDuration,
-		placementServiceNames: placementServiceNames,
-		serviceOptionDefaults: serviceOptionDefaults,
-		nowFn:                 time.Now,
-		queryRouter:           queryRouter,
-		instantQueryRouter:    instantQueryRouter,
-		graphiteStorageOpts:   graphiteStorageOpts,
-		m3dbOpts:              m3dbOpts,
-		storeMetricsType:      storeMetricsType,
-		namespaceValidator:    validators.NamespaceValidator,
-		middleware:            DefaultMiddleware,
+		cpuProfileDuration:                cpuProfileDuration,
+		placementServiceNames:             placementServiceNames,
+		serviceOptionDefaults:             serviceOptionDefaults,
+		nowFn:                             time.Now,
+		queryRouter:                       queryRouter,
+		instantQueryRouter:                instantQueryRouter,
+		graphiteStorageOpts:               graphiteStorageOpts,
+		m3dbOpts:                          m3dbOpts,
+		storeMetricsType:                  storeMetricsType,
+		namespaceValidator:                validators.NamespaceValidator,
+		middleware:                        DefaultMiddleware(),
 	}, nil
 }
 

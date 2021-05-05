@@ -309,7 +309,7 @@ func TestTracingMiddleware(t *testing.T) {
 	router := mux.NewRouter()
 	setupTestRouteRouter(router)
 
-	router.Use(options.NewTracingMiddleware(mtr))
+	router.Use(options.TracingMiddleware(mtr))
 
 	doTestRequest(router)
 

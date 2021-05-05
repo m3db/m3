@@ -14,15 +14,17 @@ import (
 
 // DefaultMiddleware is the default list of middleware functions applied if no middleware functions are set in the
 // HandlerOptions.
-var DefaultMiddleware = []mux.MiddlewareFunc{
-	CorsMiddleware,
-	NewTracingMiddleware(opentracing.GlobalTracer()),
-	CompressionMiddleware,
+func DefaultMiddleware() []mux.MiddlewareFunc {
+	return []mux.MiddlewareFunc{
+		CorsMiddleware(),
+		TracingMiddleware(opentracing.GlobalTracer()),
+		CompressionMiddleware(),
+	}
 }
 
-// NewTracingMiddleware applies OpenTracing compatible middleware, which will start a span
+// TracingMiddleware applies OpenTracing compatible middleware, which will start a span
 // for each incoming request.
-func NewTracingMiddleware(tracer opentracing.Tracer) mux.MiddlewareFunc {
+func TracingMiddleware(tracer opentracing.Tracer) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return nethttp.Middleware(tracer, base,
 			nethttp.OperationNameFunc(func(r *http.Request) string {
@@ -32,18 +34,22 @@ func NewTracingMiddleware(tracer opentracing.Tracer) mux.MiddlewareFunc {
 }
 
 // CorsMiddleware adds CORS headers will be added to all responses.
-var CorsMiddleware = func(base http.Handler) http.Handler {
-	return &cors.Handler{
-		Handler: base,
-		Info: &cors.Info{
-			"*": true,
-		},
+func CorsMiddleware() mux.MiddlewareFunc {
+	return func(base http.Handler) http.Handler {
+		return &cors.Handler{
+			Handler: base,
+			Info: &cors.Info{
+				"*": true,
+			},
+		}
 	}
 }
 
 // CompressionMiddleware adds suitable response compression based on the client's Accept-Encoding headers.
-var CompressionMiddleware = func(base http.Handler) http.Handler {
-	return httputil.CompressionHandler{
-		Handler: base,
+func CompressionMiddleware() mux.MiddlewareFunc {
+	return func(base http.Handler) http.Handler {
+		return httputil.CompressionHandler{
+			Handler: base,
+		}
 	}
 }
