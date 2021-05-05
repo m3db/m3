@@ -320,7 +320,7 @@ func TestCompressionMiddleware(t *testing.T) {
 	router := mux.NewRouter()
 	setupTestRouteRouter(router)
 
-	router.Use(options.CompressionMiddleware)
+	router.Use(options.CompressionMiddleware())
 
 	req := httptest.NewRequest("GET", testRoute, nil)
 	req.Header.Add("Accept-Encoding", "gzip")
