@@ -38,15 +38,16 @@ import (
 
 // Configuration is config used to create a Matcher.
 type Configuration struct {
-	InitWatchTimeout      time.Duration                `yaml:"initWatchTimeout"`
-	RulesKVConfig         kv.OverrideConfiguration     `yaml:"rulesKVConfig"`
-	NamespacesKey         string                       `yaml:"namespacesKey" validate:"nonzero"`
-	RuleSetKeyFmt         string                       `yaml:"ruleSetKeyFmt" validate:"nonzero"`
-	NamespaceTag          string                       `yaml:"namespaceTag" validate:"nonzero"`
-	DefaultNamespace      string                       `yaml:"defaultNamespace" validate:"nonzero"`
-	NameTagKey            string                       `yaml:"nameTagKey" validate:"nonzero"`
-	MatchRangePast        *time.Duration               `yaml:"matchRangePast"`
-	SortedTagIteratorPool pool.ObjectPoolConfiguration `yaml:"sortedTagIteratorPool"`
+	InitWatchTimeout            time.Duration                `yaml:"initWatchTimeout"`
+	RulesKVConfig               kv.OverrideConfiguration     `yaml:"rulesKVConfig"`
+	NamespacesKey               string                       `yaml:"namespacesKey" validate:"nonzero"`
+	RuleSetKeyFmt               string                       `yaml:"ruleSetKeyFmt" validate:"nonzero"`
+	NamespaceTag                string                       `yaml:"namespaceTag" validate:"nonzero"`
+	DefaultNamespace            string                       `yaml:"defaultNamespace" validate:"nonzero"`
+	NameTagKey                  string                       `yaml:"nameTagKey" validate:"nonzero"`
+	MatchRangePast              *time.Duration               `yaml:"matchRangePast"`
+	SortedTagIteratorPool       pool.ObjectPoolConfiguration `yaml:"sortedTagIteratorPool"`
+	RequireNamespaceWatchOnInit bool                         `yaml:"requireNamespaceWatchOnInit"`
 }
 
 // NewNamespaces creates a matcher.Namespaces.
@@ -136,7 +137,8 @@ func (cfg *Configuration) NewOptions(
 		SetNamespacesKey(cfg.NamespacesKey).
 		SetRuleSetKeyFn(ruleSetKeyFn).
 		SetNamespaceTag([]byte(cfg.NamespaceTag)).
-		SetDefaultNamespace([]byte(cfg.DefaultNamespace))
+		SetDefaultNamespace([]byte(cfg.DefaultNamespace)).
+		SetRequireNamespaceWatchOnInit(cfg.RequireNamespaceWatchOnInit)
 
 	if cfg.InitWatchTimeout != 0 {
 		opts = opts.SetInitWatchTimeout(cfg.InitWatchTimeout)

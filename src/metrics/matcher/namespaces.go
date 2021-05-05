@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
@@ -112,27 +113,29 @@ type namespaces struct {
 	onNamespaceAddedFn   OnNamespaceAddedFn
 	onNamespaceRemovedFn OnNamespaceRemovedFn
 
-	proto   *rulepb.Namespaces
-	rules   *namespaceRuleSetsMap
-	metrics namespacesMetrics
+	proto                       *rulepb.Namespaces
+	rules                       *namespaceRuleSetsMap
+	metrics                     namespacesMetrics
+	requireNamespaceWatchOnInit bool
 }
 
 // NewNamespaces creates a new namespaces object.
 func NewNamespaces(key string, opts Options) Namespaces {
 	instrumentOpts := opts.InstrumentOptions()
 	n := &namespaces{
-		key:                  key,
-		store:                opts.KVStore(),
-		opts:                 opts,
-		nowFn:                opts.ClockOptions().NowFn(),
-		log:                  instrumentOpts.Logger(),
-		ruleSetKeyFn:         opts.RuleSetKeyFn(),
-		matchRangePast:       opts.MatchRangePast(),
-		onNamespaceAddedFn:   opts.OnNamespaceAddedFn(),
-		onNamespaceRemovedFn: opts.OnNamespaceRemovedFn(),
-		proto:                &rulepb.Namespaces{},
-		rules:                newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
-		metrics:              newNamespacesMetrics(instrumentOpts.MetricsScope()),
+		key:                         key,
+		store:                       opts.KVStore(),
+		opts:                        opts,
+		nowFn:                       opts.ClockOptions().NowFn(),
+		log:                         instrumentOpts.Logger(),
+		ruleSetKeyFn:                opts.RuleSetKeyFn(),
+		matchRangePast:              opts.MatchRangePast(),
+		onNamespaceAddedFn:          opts.OnNamespaceAddedFn(),
+		onNamespaceRemovedFn:        opts.OnNamespaceRemovedFn(),
+		proto:                       &rulepb.Namespaces{},
+		rules:                       newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
+		metrics:                     newNamespacesMetrics(instrumentOpts.MetricsScope()),
+		requireNamespaceWatchOnInit: opts.RequireNamespaceWatchOnInit(),
 	}
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
@@ -160,10 +163,15 @@ func (n *namespaces) Open() error {
 	// to be more resilient to error conditions preventing process
 	// from starting up.
 	n.metrics.initWatchErrors.Inc(1)
+	if n.requireNamespaceWatchOnInit {
+		return err
+	}
+
 	n.opts.InstrumentOptions().Logger().With(
 		zap.String("key", n.key),
 		zap.Error(err),
 	).Error("error initializing namespaces values, retrying in the background")
+
 	return nil
 }
 
@@ -255,7 +263,12 @@ func (n *namespaces) process(value interface{}) error {
 	n.Lock()
 	defer n.Unlock()
 
-	var watchWg sync.WaitGroup
+	var (
+		watchWg  sync.WaitGroup
+		multiErr xerrors.MultiError
+		errLock  sync.Mutex
+	)
+
 	for _, entry := range incoming.Iter() {
 		namespace, elem := entry.Key(), rules.Namespace(entry.Value())
 		nsName, snapshots := elem.Name(), elem.Snapshots()
@@ -302,6 +315,13 @@ func (n *namespaces) process(value interface{}) error {
 					n.log.Error("failed to watch ruleset updates",
 						zap.String("ruleSetKey", ruleSet.Key()),
 						zap.Error(err))
+
+					// Track errors if we explicitly want to ensure watches succeed.
+					if n.requireNamespaceWatchOnInit {
+						errLock.Lock()
+						multiErr = multiErr.Add(err)
+						errLock.Unlock()
+					}
 				}
 			}()
 		}
@@ -312,6 +332,11 @@ func (n *namespaces) process(value interface{}) error {
 	}
 
 	watchWg.Wait()
+
+	if !multiErr.Empty() {
+		return multiErr.FinalError()
+	}
+
 	for _, entry := range n.rules.Iter() {
 		namespace, ruleSet := entry.Key(), entry.Value()
 		_, exists := incoming.Get(namespace)
