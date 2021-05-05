@@ -21,8 +21,6 @@
 package executor
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -47,8 +45,7 @@ type iterator struct {
 	ctx      context.Context
 
 	// immutable state after the first call to Next()
-	iters               []doc.Iterator
-	totalSearchDuration time.Duration
+	iters []doc.Iterator
 
 	// mutable state
 	idx     int
@@ -66,10 +63,6 @@ func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) doc.Q
 	}
 }
 
-func (it *iterator) SearchDuration() time.Duration {
-	return it.totalSearchDuration
-}
-
 func (it *iterator) Done() bool {
 	return it.err != nil || it.done
 }
@@ -79,12 +72,10 @@ func (it *iterator) Next() bool {
 		return false
 	}
 	if it.iters == nil {
-		start := time.Now()
 		if err := it.initIters(); err != nil {
 			it.err = err
 			return false
 		}
-		it.totalSearchDuration = time.Since(start)
 		if !it.next() {
 			it.done = true
 			return false

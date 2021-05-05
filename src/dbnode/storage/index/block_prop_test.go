@@ -86,11 +86,11 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 		t, blockStart, testMD, testOpts.SetPostingsListCache(nil))
 	require.NoError(t, err)
 
-	plCache, stopReporting, err := NewPostingsListCache(1000, PostingsListCacheOptions{
+	plCache, err := NewPostingsListCache(1000, PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})
 	require.NoError(t, err)
-	defer stopReporting()
+	defer plCache.Start()()
 
 	cachedOptions := testOpts.
 		SetPostingsListCache(plCache).

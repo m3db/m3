@@ -82,6 +82,16 @@ func DefaultLookbackLimitOptions() LookbackLimitOptions {
 	}
 }
 
+// DefaultLimitsOptions is the set of default limits options.
+func DefaultLimitsOptions(iOpts instrument.Options) Options {
+	return NewOptions().
+		SetInstrumentOptions(iOpts).
+		SetBytesReadLimitOpts(DefaultLookbackLimitOptions()).
+		SetDocsLimitOpts(DefaultLookbackLimitOptions()).
+		SetAggregateDocsLimitOpts(DefaultLookbackLimitOptions()).
+		SetDiskSeriesReadLimitOpts(DefaultLookbackLimitOptions())
+}
+
 // NewQueryLimits returns a new query limits manager.
 func NewQueryLimits(options Options) (QueryLimits, error) {
 	if err := options.Validate(); err != nil {

@@ -20,8 +20,6 @@
 
 package doc
 
-import "time"
-
 // MetadataIterator provides an iterator over a collection of document metadata. It is NOT
 // safe for multiple goroutines to invoke methods on an MetadataIterator simultaneously.
 type MetadataIterator interface {
@@ -73,7 +71,4 @@ type QueryDocIterator interface {
 	// This is used by the index query path to check if there are more docs to process before waiting for an index
 	// worker.
 	Done() bool
-
-	// SearchDuration is how long it took to search for documents while iterating.
-	SearchDuration() time.Duration
 }

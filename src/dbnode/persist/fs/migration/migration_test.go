@@ -74,10 +74,11 @@ func TestToVersion1_1Run(t *testing.T) {
 	md, err := namespace.NewMetadata(nsID, namespace.NewOptions())
 	require.NoError(t, err)
 
-	plCache, closer, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
+	plCache, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})
-	defer closer()
+	require.NoError(t, err)
+	defer plCache.Start()()
 
 	opts := NewTaskOptions().
 		SetNewMergerFn(fs.NewMerger).
