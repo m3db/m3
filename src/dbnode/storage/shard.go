@@ -1211,6 +1211,13 @@ func (s *dbShard) newShardEntry(
 		Options:                s.seriesOpts,
 	})
 	return lookup.NewEntry(lookup.NewEntryOptions{
+		RelookupAndIncrementReaderWriterCount: func() (index.OnIndexSeries, bool) {
+			e, _, err := s.tryRetrieveWritableSeries(seriesID)
+			if err != nil || e == nil {
+				return nil, false
+			}
+			return e, true
+		},
 		Series:      newSeries,
 		Index:       uniqueIndex,
 		IndexWriter: s.reverseIndex,
