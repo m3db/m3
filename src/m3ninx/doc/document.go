@@ -91,6 +91,7 @@ func (f Fields) shallowCopy() Fields {
 type Metadata struct {
 	ID     []byte
 	Fields []Field
+	Ref    interface{}
 }
 
 // Get returns the value of the specified field name in the document if it exists.
