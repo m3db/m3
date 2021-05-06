@@ -206,6 +206,6 @@ func main() {
 	}
 
 	if err := reader.Close(); err != nil {
-		log.Fatalf("unable close reader: %v", err)
+		log.Fatalf("unable to close reader: %v", err)
 	}
 }
