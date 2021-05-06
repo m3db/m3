@@ -27,13 +27,15 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 )
 
-type testClock struct {
+// NB: Linter false positive, it says this struct isn't used even though it is.
+type testClock struct { //nolint:unused
 	sync.RWMutex
 
 	now time.Time
 }
 
-func newTestClock(now time.Time) *testClock {
+// NB: Linter false positive, it says this function isn't used even though it is.
+func newTestClock(now time.Time) *testClock { //nolint:deadcode,unused
 	return &testClock{
 		now: now,
 	}
