@@ -351,7 +351,7 @@ func aggregateWithWildcards(
 		return ts.SeriesList(series), nil
 	}
 
-	toAggregate, _ := splitSeriesIntoSubgroups(series, positions)
+	toAggregate := splitSeriesIntoSubgroups(series, positions)
 
 	newSeries := make([]*ts.Series, 0, len(toAggregate))
 	for name, toAggregateSeries := range toAggregate {
@@ -375,7 +375,8 @@ func aggregateWithWildcards(
 	// any sort order on the incoming series list
 	r.SortApplied = false
 
-	return r, nil}
+	return r, nil
+}
 
 // combineSeriesWithWildcards splits the given set of series into sub-groupings
 // based on wildcard matches in the hierarchy, then combines the values in each
@@ -391,7 +392,7 @@ func combineSeriesWithWildcards(
 		return ts.SeriesList(series), nil
 	}
 
-	toCombine, _ := splitSeriesIntoSubgroups(series, positions)
+	toCombine := splitSeriesIntoSubgroups(series, positions)
 
 	newSeries := make([]*ts.Series, 0, len(toCombine))
 	for name, toCombineSeries := range toCombine {
@@ -418,7 +419,7 @@ func combineSeriesWithWildcards(
 	return r, nil
 }
 
-func splitSeriesIntoSubgroups(series singlePathSpec, positions []int) (map[string][]*ts.Series, error) {
+func splitSeriesIntoSubgroups(series singlePathSpec, positions []int) map[string][]*ts.Series {
 	var (
 		toCombine = make(map[string][]*ts.Series)
 		wildcards = make(map[int]struct{})
@@ -443,7 +444,7 @@ func splitSeriesIntoSubgroups(series singlePathSpec, positions []int) (map[strin
 		toCombine[newName] = append(toCombine[newName], series)
 	}
 
-	return toCombine, nil
+	return toCombine
 }
 
 // splits a slice into chunks
