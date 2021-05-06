@@ -21,6 +21,7 @@
 package instrument
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -71,6 +72,14 @@ func (o *options) SetLogger(value *zap.Logger) Options {
 
 func (o *options) Logger() *zap.Logger {
 	return o.zap
+}
+
+func (o *options) LoggerFromContext(ctx context.Context) *zap.Logger {
+	l := LoggerFromContext(ctx)
+	if l == nil {
+		return o.zap
+	}
+	return l
 }
 
 func (o *options) SetMetricsScope(value tally.Scope) Options {
