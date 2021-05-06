@@ -136,7 +136,8 @@ func main() {
 			BlockStart:  time.Unix(0, *optBlockstart),
 			VolumeIndex: int(*volume),
 		},
-		FileSetType: fileSetType,
+		FileSetType:      fileSetType,
+		StreamingEnabled: true,
 	}
 
 	err = reader.Open(openOpts)
@@ -145,7 +146,7 @@ func main() {
 	}
 
 	for {
-		id, _, data, _, err := reader.Read()
+		entry, err := reader.StreamingRead()
 		if err == io.EOF {
 			break
 		}
@@ -153,14 +154,17 @@ func main() {
 			log.Fatalf("err reading metadata: %v", err)
 		}
 
+		var (
+			id   = entry.ID
+			data = entry.Data
+		)
+
 		if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
 			continue
 		}
 
 		if benchMode != benchmarkSeries {
-			data.IncRef()
-
-			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data.Bytes()), true, encodingOpts)
+			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
 			for iter.Next() {
 				dp, _, annotation := iter.Current()
 				if benchMode == benchmarkNone {
@@ -179,11 +183,8 @@ func main() {
 				log.Fatalf("unable to iterate original data: %v", err)
 			}
 			iter.Close()
-
-			data.DecRef()
 		}
 
-		data.Finalize()
 		seriesCount++
 	}
 
@@ -203,5 +204,9 @@ func main() {
 
 			fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
 		}
+	}
+
+	if err := reader.Close(); err != nil {
+		log.Fatalf("unable to close reader: %v", err)
 	}
 }
