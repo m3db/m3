@@ -135,22 +135,29 @@ type Options interface {
 
 	// OnRuleSetUpdatedFn returns the function to be called when a ruleset is updated.
 	OnRuleSetUpdatedFn() OnRuleSetUpdatedFn
+
+	// SetRequireNamespaceWatchOnInit sets the flag to ensure matcher is initialized with a loaded namespace watch.
+	SetRequireNamespaceWatchOnInit(value bool) Options
+
+	// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
+	RequireNamespaceWatchOnInit() bool
 }
 
 type options struct {
-	clockOpts            clock.Options
-	instrumentOpts       instrument.Options
-	ruleSetOpts          rules.Options
-	initWatchTimeout     time.Duration
-	kvStore              kv.Store
-	namespacesKey        string
-	ruleSetKeyFn         RuleSetKeyFn
-	namespaceTag         []byte
-	defaultNamespace     []byte
-	matchRangePast       time.Duration
-	onNamespaceAddedFn   OnNamespaceAddedFn
-	onNamespaceRemovedFn OnNamespaceRemovedFn
-	onRuleSetUpdatedFn   OnRuleSetUpdatedFn
+	clockOpts                   clock.Options
+	instrumentOpts              instrument.Options
+	ruleSetOpts                 rules.Options
+	initWatchTimeout            time.Duration
+	kvStore                     kv.Store
+	namespacesKey               string
+	ruleSetKeyFn                RuleSetKeyFn
+	namespaceTag                []byte
+	defaultNamespace            []byte
+	matchRangePast              time.Duration
+	onNamespaceAddedFn          OnNamespaceAddedFn
+	onNamespaceRemovedFn        OnNamespaceRemovedFn
+	onRuleSetUpdatedFn          OnRuleSetUpdatedFn
+	requireNamespaceWatchOnInit bool
 }
 
 // NewOptions creates a new set of options.
@@ -297,6 +304,18 @@ func (o *options) SetOnRuleSetUpdatedFn(value OnRuleSetUpdatedFn) Options {
 
 func (o *options) OnRuleSetUpdatedFn() OnRuleSetUpdatedFn {
 	return o.onRuleSetUpdatedFn
+}
+
+// SetRequireNamespaceWatchOnInit sets the flag to ensure matcher is initialized with a loaded namespace watch.
+func (o *options) SetRequireNamespaceWatchOnInit(value bool) Options {
+	opts := *o
+	opts.requireNamespaceWatchOnInit = value
+	return &opts
+}
+
+// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
+func (o *options) RequireNamespaceWatchOnInit() bool {
+	return o.requireNamespaceWatchOnInit
 }
 
 func defaultRuleSetKeyFn(namespace []byte) string {
