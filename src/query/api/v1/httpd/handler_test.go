@@ -51,6 +51,9 @@ import (
 	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 var (
@@ -305,26 +308,37 @@ func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
 }
 
 func TestTracingMiddleware(t *testing.T) {
+	core, recorded := observer.New(zapcore.InfoLevel)
+	iOpts := instrument.NewOptions().SetLogger(zap.New(core))
 	mtr := mocktracer.New()
-	router := mux.NewRouter()
-	setupTestRouteRouter(router)
+	r := mux.NewRouter()
+	r.Use(options.TracingMiddleware(mtr, iOpts))
+	r.HandleFunc(testRoute, func(w http.ResponseWriter, r *http.Request) {
+		iOpts.LoggerFromContext(r.Context()).Info("test")
+	})
 
-	handler := applyMiddleware(router, mtr)
-	doTestRequest(handler)
+	doTestRequest(r)
 
 	assert.NotEmpty(t, mtr.FinishedSpans())
+	require.Len(t, recorded.All(), 1)
+	entry := recorded.All()[0]
+	require.Equal(t, "test", entry.Message)
+	fields := entry.ContextMap()
+	require.Len(t, fields, 2)
+	require.NotEqual(t, "", fields["trace_id"])
+	require.NotEqual(t, "", fields["span_id"])
 }
 
 func TestCompressionMiddleware(t *testing.T) {
-	mtr := mocktracer.New()
 	router := mux.NewRouter()
 	setupTestRouteRouter(router)
 
-	handler := applyMiddleware(router, mtr)
+	router.Use(options.CompressionMiddleware())
+
 	req := httptest.NewRequest("GET", testRoute, nil)
 	req.Header.Add("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
+	router.ServeHTTP(res, req)
 
 	enc, found := res.HeaderMap["Content-Encoding"]
 	require.True(t, found)

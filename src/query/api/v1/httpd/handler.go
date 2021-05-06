@@ -47,12 +47,8 @@ import (
 	xdebug "github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-	"github.com/m3db/m3/src/x/net/http/cors"
 
 	"github.com/gorilla/mux"
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/util/httputil"
 	"go.uber.org/zap"
 )
 
@@ -95,40 +91,17 @@ func NewHandler(
 	customHandlers ...options.CustomHandler,
 ) *Handler {
 	r := mux.NewRouter()
-	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
+	r.Use(handlerOptions.Middleware()...)
 	logger := handlerOptions.InstrumentOpts().Logger()
 
 	instrumentOpts := handlerOptions.InstrumentOpts().SetMetricsScope(
 		handlerOptions.InstrumentOpts().MetricsScope().SubScope("http_handler"))
 	return &Handler{
 		registry:       queryhttp.NewEndpointRegistry(r, instrumentOpts),
-		handler:        handlerWithMiddleware,
+		handler:        r,
 		options:        handlerOptions,
 		customHandlers: customHandlers,
 		logger:         logger,
-	}
-}
-
-func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
-	withMiddleware := http.Handler(&cors.Handler{
-		Handler: base,
-		Info: &cors.Info{
-			"*": true,
-		},
-	})
-
-	// Apply OpenTracing compatible middleware, which will start a span
-	// for each incoming request.
-	withMiddleware = nethttp.Middleware(tracer, withMiddleware,
-		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
-		}))
-
-	// NB: wrap the handler with a `CompressionHandler`; this allows all
-	// routes to support `Accept-Encoding:gzip` and `Accept-Encoding:deflate`
-	// requests with the given compression types.
-	return httputil.CompressionHandler{
-		Handler: withMiddleware,
 	}
 }
 
