@@ -24,7 +24,7 @@ steps:
           import: github.com/m3db/m3
     <<: *common
   - name: "Unit %n"
-    command: make clean install-vendor-m3 test-ci-unit
+    command: make clean install-vendor-m3 test-base
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
@@ -32,7 +32,7 @@ steps:
         workdir: /go/src/github.com/m3db/m3
     <<: *common
   - name: "Big Unit %n"
-    command: make clean install-vendor-m3 test-ci-big-unit
+    command: make clean install-vendor-m3 test-big-base
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
