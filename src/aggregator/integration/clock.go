@@ -1,3 +1,5 @@
+// +build integration
+
 // Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,15 +29,13 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 )
 
-// NB: Linter false positive, it says this struct isn't used even though it is.
-type testClock struct { //nolint:unused
+type testClock struct {
 	sync.RWMutex
 
 	now time.Time
 }
 
-// NB: Linter false positive, it says this function isn't used even though it is.
-func newTestClock(now time.Time) *testClock { //nolint:deadcode,unused
+func newTestClock(now time.Time) *testClock {
 	return &testClock{
 		now: now,
 	}
