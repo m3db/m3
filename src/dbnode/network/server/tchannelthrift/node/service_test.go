@@ -52,7 +52,6 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -1449,14 +1448,17 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 		if len(expectedBlocks.tags.Values()) == 0 {
 			require.Equal(t, 0, len(block.EncodedTags))
 		} else {
-			encodedTags := checked.NewBytes(block.EncodedTags, nil)
-			decoder := service.pools.tagDecoder.Get()
-			decoder.Reset(encodedTags)
+			id := ident.BinaryID(checked.NewBytes(block.ID, nil))
 
-			expectedTags := ident.NewTagsIterator(expectedBlocks.tags)
-			require.True(t, ident.NewTagIterMatcher(expectedTags).Matches(decoder))
+			encodedTagsMetadataResolver := storage.NewEncodedTagsMetadataResolver(block.EncodedTags)
+			actualTags, err := encodedTagsMetadataResolver.Resolve(id)
+			require.NoError(t, err)
 
-			decoder.Close()
+			expectedTagsResolver := storage.NewTagsMetadataResolver(expectedBlocks.tags)
+			expectedTags, err := expectedTagsResolver.Resolve(id)
+			require.NoError(t, err)
+
+			require.True(t, expectedTags.Equal(actualTags))
 		}
 
 		foundMatch := false
@@ -2831,15 +2833,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	mockDecoder := serialize.NewMockTagDecoder(ctrl)
-	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
-	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
-	mockDecoder.EXPECT().Close().AnyTimes()
-	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
-	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
-
-	opts := tchannelthrift.NewOptions().
-		SetTagDecoderPool(mockDecoderPool)
+	opts := tchannelthrift.NewOptions()
 
 	service := NewService(mockDB, opts).(*service)
 
@@ -2897,15 +2891,7 @@ func TestServiceWriteTaggedBatchRawV2(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	mockDecoder := serialize.NewMockTagDecoder(ctrl)
-	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
-	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
-	mockDecoder.EXPECT().Close().AnyTimes()
-	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
-	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
-
-	opts := tchannelthrift.NewOptions().
-		SetTagDecoderPool(mockDecoderPool)
+	opts := tchannelthrift.NewOptions()
 
 	service := NewService(mockDB, opts).(*service)
 
@@ -2964,15 +2950,7 @@ func TestServiceWriteTaggedBatchRawV2MultiNS(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	mockDecoder := serialize.NewMockTagDecoder(ctrl)
-	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
-	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
-	mockDecoder.EXPECT().Close().AnyTimes()
-	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
-	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
-
-	opts := tchannelthrift.NewOptions().
-		SetTagDecoderPool(mockDecoderPool)
+	opts := tchannelthrift.NewOptions()
 
 	service := NewService(mockDB, opts).(*service)
 
@@ -3079,15 +3057,7 @@ func TestServiceWriteTaggedBatchRawUnknownError(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
-	mockDecoder := serialize.NewMockTagDecoder(ctrl)
-	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
-	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
-	mockDecoder.EXPECT().Close().AnyTimes()
-	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
-	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
-
-	opts := tchannelthrift.NewOptions().
-		SetTagDecoderPool(mockDecoderPool)
+	opts := tchannelthrift.NewOptions()
 
 	service := NewService(mockDB, opts).(*service)
 

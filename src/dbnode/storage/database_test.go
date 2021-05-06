@@ -870,13 +870,13 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
 		time.Time{}, 1.0, xtime.Second, nil).Return(seriesWrite, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
-		id, tagsIter, time.Time{},
+		id, NewTagsIterMetadataResolver(tagsIter), time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
 		time.Time{}, 1.0, xtime.Second, nil).Return(SeriesWrite{}, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
-		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		ident.StringID("foo"), EmptyTagMetadataResolver, time.Time{},
 		1.0, xtime.Second, nil))
 
 	var (
@@ -1237,7 +1237,7 @@ func testDatabaseWriteBatch(t *testing.T,
 		// in the WriteBatch slice.
 		if tagged {
 			batchWriter.AddTagged(i*2, ident.StringID(write.series),
-				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
+				encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().
 				WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),

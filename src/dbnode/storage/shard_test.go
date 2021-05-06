@@ -1436,7 +1436,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	s.EXPECT().Tick(gomock.Any(), gomock.Any()).Do(func(interface{}, interface{}) {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
-		entry, err = shard.writableSeries(id, ident.EmptyTagIterator)
+		entry, err = shard.writableSeries(id, EmptyTagMetadataResolver)
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
@@ -1774,7 +1774,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 		iter.EXPECT().Close(),
 	)
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), newTagsIterArg(iter))
+	_, err := shard.newShardEntry(ident.StringID("abc"), NewTagsIterMetadataResolver(iter))
 	require.Error(t, err)
 }
 
@@ -1785,7 +1785,7 @@ func TestShardNewValidShardEntry(t *testing.T) {
 	shard := testDatabaseShard(t, DefaultTestOptions())
 	defer shard.Close()
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), newTagsIterArg(ident.EmptyTagIterator))
+	_, err := shard.newShardEntry(ident.StringID("abc"), NewTagsIterMetadataResolver(ident.EmptyTagIterator))
 	require.NoError(t, err)
 }
 
@@ -1819,7 +1819,7 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 		Times(1).
 		Return(ident.NewTagsIterator(seriesTags))
 
-	entry, err := shard.newShardEntry(id, newTagsIterArg(iter))
+	entry, err := shard.newShardEntry(id, NewTagsIterMetadataResolver(iter))
 	require.NoError(t, err)
 
 	shard.Lock()

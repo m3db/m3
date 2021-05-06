@@ -115,7 +115,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		tags ident.TagIterator,
+		tagResolver ident.TagMetadataResolver,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -368,7 +368,7 @@ type databaseNamespace interface {
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
-		tags ident.TagIterator,
+		tagResolver ident.TagMetadataResolver,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -527,7 +527,7 @@ type databaseShard interface {
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
-		tags ident.TagIterator,
+		tagResolver ident.TagMetadataResolver,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,

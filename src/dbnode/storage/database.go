@@ -697,7 +697,7 @@ func (d *db) WriteTagged(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	tags ident.TagIterator,
+	tagResolver ident.TagMetadataResolver,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -709,7 +709,7 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	seriesWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	seriesWrite, err := n.WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -802,7 +802,7 @@ func (d *db) writeBatch(
 			seriesWrite, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
-				write.TagIter,
+				NewEncodedTagsMetadataResolver(write.EncodedTags),
 				write.Write.Datapoint.Timestamp,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,

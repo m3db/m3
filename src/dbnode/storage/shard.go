@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -499,7 +498,7 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
-	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
+	entry, err = s.newShardEntry(id, NewTagsIterMetadataResolver(tags))
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
@@ -883,14 +882,14 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 func (s *dbShard) WriteTagged(
 	ctx context.Context,
 	id ident.ID,
-	tags ident.TagIterator,
+	tagResolver ident.TagMetadataResolver,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (SeriesWrite, error) {
-	return s.writeAndIndex(ctx, id, tags, timestamp,
+	return s.writeAndIndex(ctx, id, tagResolver, timestamp,
 		value, unit, annotation, wOpts, true)
 }
 
@@ -903,14 +902,14 @@ func (s *dbShard) Write(
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (SeriesWrite, error) {
-	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
+	return s.writeAndIndex(ctx, id, EmptyTagMetadataResolver, timestamp,
 		value, unit, annotation, wOpts, false)
 }
 
 func (s *dbShard) writeAndIndex(
 	ctx context.Context,
 	id ident.ID,
-	tags ident.TagIterator,
+	tagResolver ident.TagMetadataResolver,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -929,7 +928,7 @@ func (s *dbShard) writeAndIndex(
 	// If no entry and we are not writing new series asynchronously.
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(id, tagResolver, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -944,7 +943,7 @@ func (s *dbShard) writeAndIndex(
 		result.wg.Wait()
 
 		// Retrieve the inserted entry
-		entry, err = s.writableSeries(id, tags)
+		entry, err = s.writableSeries(id, tagResolver)
 		if err != nil {
 			return SeriesWrite{}, err
 		}
@@ -1003,7 +1002,7 @@ func (s *dbShard) writeAndIndex(
 			annotationClone.AppendAll(annotation)
 		}
 
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(id, tagResolver, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
 				timestamp:  timestamp,
@@ -1063,7 +1062,7 @@ func (s *dbShard) SeriesRefResolver(
 		return entry, nil
 	}
 
-	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
+	entry, err = s.newShardEntry(id, NewTagsIterMetadataResolver(tags))
 	if err != nil {
 		return nil, err
 	}
@@ -1157,7 +1156,7 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element
 	return elem.Value.(*lookup.Entry), elem, nil
 }
 
-func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.Entry, error) {
+func (s *dbShard) writableSeries(id ident.ID, tagResolver ident.TagMetadataResolver) (*lookup.Entry, error) {
 	for {
 		entry, err := s.retrieveWritableSeries(id)
 		if entry != nil {
@@ -1168,7 +1167,7 @@ func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.E
 		}
 
 		// Not inserted, attempt a batched insert
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{})
+		result, err := s.insertSeriesAsyncBatched(id, tagResolver, dbShardInsertAsyncOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -1210,7 +1209,7 @@ func (s *dbShard) retrieveWritableSeries(id ident.ID) (*lookup.Entry, error) {
 
 func (s *dbShard) newShardEntry(
 	id ident.ID,
-	tagsArgOpts tagsArgOptions,
+	tagResolver ident.TagMetadataResolver,
 ) (*lookup.Entry, error) {
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
 	// and metadata are garbage collected, hence we cast the ID to a BytesID
@@ -1227,28 +1226,10 @@ func (s *dbShard) newShardEntry(
 		seriesMetadata doc.Metadata
 		err            error
 	)
-	switch tagsArgOpts.arg {
-	case tagsIterArg:
-		// NB(r): Rewind so we record the tag iterator from the beginning.
-		tagsIter := tagsArgOpts.tagsIter.Duplicate()
 
-		// Pass nil for the identifier pool because the pool will force us to use an array
-		// with a large capacity to store the tags. Since these tags are long-lived, it's
-		// better to allocate an array of the exact size to save memory.
-		seriesMetadata, err = convert.FromSeriesIDAndTagIter(id, tagsIter)
-		tagsIter.Close()
-		if err != nil {
-			return nil, err
-		}
-
-	case tagsArg:
-		seriesMetadata, err = convert.FromSeriesIDAndTags(id, tagsArgOpts.tags)
-		if err != nil {
-			return nil, err
-		}
-
-	default:
-		return nil, errNewShardEntryTagsTypeInvalid
+	seriesMetadata, err = tagResolver.Resolve(id)
+	if err != nil {
+		return nil, err
 	}
 
 	// Use the same bytes as the series metadata for the ID.
@@ -1345,10 +1326,10 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 
 func (s *dbShard) insertSeriesAsyncBatched(
 	id ident.ID,
-	tags ident.TagIterator,
+	tagResolver ident.TagMetadataResolver,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
-	entry, err := s.newShardEntry(id, newTagsIterArg(tags))
+	entry, err := s.newShardEntry(id, tagResolver)
 	if err != nil {
 		return insertAsyncResult{}, err
 	}
@@ -1381,12 +1362,12 @@ type insertSyncOptions struct {
 
 func (s *dbShard) insertSeriesSync(
 	id ident.ID,
-	tagsArgOpts tagsArgOptions,
+	tagResolver ident.TagMetadataResolver,
 	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
 	// NB(r): Create new shard entry outside of write lock to reduce
 	// time using write lock.
-	newEntry, err := s.newShardEntry(id, tagsArgOpts)
+	newEntry, err := s.newShardEntry(id, tagResolver)
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
@@ -2137,7 +2118,7 @@ func (s *dbShard) loadBlock(
 	if entry == nil {
 		// Synchronously insert to avoid waiting for the insert queue which could potentially
 		// delay the insert.
-		entry, err = s.insertSeriesSync(id, newTagsArg(tags),
+		entry, err = s.insertSeriesSync(id, NewTagsMetadataResolver(tags),
 			insertSyncOptions{
 				// NB(r): Because insertSyncIncReaderWriterCount is used here we
 				// don't need to explicitly increment the reader/writer count and it

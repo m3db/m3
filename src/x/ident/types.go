@@ -225,6 +225,12 @@ type TagIterator interface {
 	Rewind()
 }
 
+// TagMetadataResolver represents a metadata resolver.
+type TagMetadataResolver interface {
+	// Resolve resolves doc metadata.
+	Resolve(id ID) (doc.Metadata, error)
+}
+
 // TagsIterator represents a TagIterator that can be reset with a Tags
 // collection type. It is not thread-safe.
 type TagsIterator interface {

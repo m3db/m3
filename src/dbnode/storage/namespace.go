@@ -712,7 +712,7 @@ func (n *dbNamespace) Write(
 func (n *dbNamespace) WriteTagged(
 	ctx context.Context,
 	id ident.ID,
-	tags ident.TagIterator,
+	tagResolver ident.TagMetadataResolver,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -736,7 +736,7 @@ func (n *dbNamespace) WriteTagged(
 		TruncateType: n.opts.TruncateType(),
 		SchemaDesc:   nsCtx.Schema,
 	}
-	seriesWrite, err := shard.WriteTagged(ctx, id, tags, timestamp,
+	seriesWrite, err := shard.WriteTagged(ctx, id, tagResolver, timestamp,
 		value, unit, annotation, opts)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return seriesWrite, err

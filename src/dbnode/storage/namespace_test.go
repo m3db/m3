@@ -217,7 +217,7 @@ func TestNamespaceReadOnlyRejectWrites(t *testing.T) {
 	require.EqualError(t, err, errNamespaceReadOnly.Error())
 	require.False(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = ns.WriteTagged(ctx, id, ident.EmptyTagIterator, now, 0, xtime.Second, nil)
+	seriesWrite, err = ns.WriteTagged(ctx, id, EmptyTagMetadataResolver, now, 0, xtime.Second, nil)
 	require.EqualError(t, err, errNamespaceReadOnly.Error())
 	require.False(t, seriesWrite.WasWritten)
 }
@@ -1335,23 +1335,23 @@ func TestNamespaceIndexInsert(t *testing.T) {
 			TruncateType: truncateType,
 		}
 		shard.EXPECT().
-			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+			WriteTagged(ctx, ident.NewIDMatcher("a"), EmptyTagMetadataResolver,
 				now, 1.0, xtime.Second, nil, opts).
 			Return(SeriesWrite{WasWritten: true}, nil)
 		shard.EXPECT().
-			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+			WriteTagged(ctx, ident.NewIDMatcher("a"), EmptyTagMetadataResolver,
 				now, 1.0, xtime.Second, nil, opts).
 			Return(SeriesWrite{WasWritten: false}, nil)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
 		seriesWrite, err := ns.WriteTagged(ctx, ident.StringID("a"),
-			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+			EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
 		require.True(t, seriesWrite.WasWritten)
 
 		seriesWrite, err = ns.WriteTagged(ctx, ident.StringID("a"),
-			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+			EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
 		require.False(t, seriesWrite.WasWritten)
 

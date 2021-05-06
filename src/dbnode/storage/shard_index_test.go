@@ -78,13 +78,13 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, seriesWrite.WasWritten)
 
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, seriesWrite.WasWritten)
@@ -122,7 +122,7 @@ func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 
 	// write first time
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
@@ -170,7 +170,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
@@ -197,7 +197,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	// ensure we would need to index next block because it's expired
 	nextWriteTime := now.Add(blockSize)
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		nextWriteTime, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)

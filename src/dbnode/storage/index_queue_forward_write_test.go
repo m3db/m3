@@ -477,7 +477,7 @@ func writeToShard(
 	tag := ident.Tag{Name: ident.StringID(id), Value: ident.StringID("")}
 	idTags := ident.NewTags(tag)
 	iter := ident.NewTagsIterator(idTags)
-	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID(id), NewTagsIterMetadataResolver(iter), now,
 		1.0, xtime.Second, nil, series.WriteOptions{
 			TruncateType: series.TypeBlock,
 			TransformOptions: series.WriteTransformOptions{
