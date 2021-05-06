@@ -284,6 +284,9 @@ type MatcherConfiguration struct {
 	// NamespaceTag defines the namespace tag to use to select rules
 	// namespace to evaluate against. Default is "__m3_namespace__".
 	NamespaceTag string `yaml:"namespaceTag"`
+	// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
+	// This only makes sense to use if the corresponding namespace / ruleset values are properly seeded.
+	RequireNamespaceWatchOnInit bool `yaml:"requireNamespaceWatchOnInit"`
 }
 
 // MatcherCacheConfiguration is the configuration for the rule matcher cache.
@@ -710,7 +713,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
 		SetKVStore(o.RulesKVStore).
-		SetNamespaceTag([]byte(namespaceTag))
+		SetNamespaceTag([]byte(namespaceTag)).
+		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit)
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.

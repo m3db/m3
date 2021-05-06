@@ -46,10 +46,10 @@ func TestNamespacesWatchAndClose(t *testing.T) {
 	store, _, nss, _ := testNamespaces()
 	proto := &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: "fooNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        true,
 					},
@@ -62,6 +62,68 @@ func TestNamespacesWatchAndClose(t *testing.T) {
 	require.NoError(t, nss.Watch())
 	require.Equal(t, 1, nss.rules.Len())
 	nss.Close()
+}
+
+func TestNamespacesWatchSoftErr(t *testing.T) {
+	_, _, nss, _ := testNamespaces()
+	// No value set, so this will soft error
+	require.NoError(t, nss.Open())
+}
+
+func TestNamespacesWatchRulesetSoftErr(t *testing.T) {
+	store, _, nss, _ := testNamespaces()
+	proto := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			{
+				Name: "fooNs",
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					{
+						ForRulesetVersion: 1,
+						Tombstoned:        true,
+					},
+				},
+			},
+		},
+	}
+	_, err := store.SetIfNotExists(testNamespacesKey, proto)
+	require.NoError(t, err)
+
+	// This should also soft error even though the underlying ruleset does not exist
+	require.NoError(t, nss.Open())
+}
+
+func TestNamespacesWatchHardErr(t *testing.T) {
+	_, _, _, opts := testNamespaces()
+	opts = opts.SetRequireNamespaceWatchOnInit(true)
+	nss := NewNamespaces(testNamespacesKey, opts).(*namespaces)
+	// This should hard error with RequireNamespaceWatchOnInit enabled
+	require.Error(t, nss.Open())
+}
+
+func TestNamespacesWatchRulesetHardErr(t *testing.T) {
+	store, _, _, opts := testNamespaces()
+	opts = opts.SetRequireNamespaceWatchOnInit(true)
+	nss := NewNamespaces(testNamespacesKey, opts).(*namespaces)
+
+	proto := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			{
+				Name: "fooNs",
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					{
+						ForRulesetVersion: 1,
+						Tombstoned:        true,
+					},
+				},
+			},
+		},
+	}
+	_, err := store.SetIfNotExists(testNamespacesKey, proto)
+	require.NoError(t, err)
+
+	// This should also hard error with RequireNamespaceWatchOnInit enabled,
+	// because the underlying ruleset does not exist
+	require.Error(t, nss.Open())
 }
 
 func TestToNamespacesNilValue(t *testing.T) {
@@ -80,10 +142,10 @@ func TestToNamespacesSuccess(t *testing.T) {
 	store, _, nss, _ := testNamespaces()
 	proto := &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: "fooNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        true,
 					},
@@ -128,55 +190,55 @@ func TestNamespacesProcess(t *testing.T) {
 
 	update := &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: "fooNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 2,
 						Tombstoned:        false,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name: "barNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 2,
 						Tombstoned:        true,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name: "bazNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 2,
 						Tombstoned:        false,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name: "catNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 3,
 						Tombstoned:        true,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name:      "mehNs",
 				Snapshots: nil,
 			},
@@ -215,7 +277,7 @@ func TestNamespacesProcess(t *testing.T) {
 	}
 }
 
-func testNamespaces() (kv.Store, cache.Cache, *namespaces, Options) {
+func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
 	store := mem.NewStore()
 	cache := newMemCache()
 	opts := NewOptions().
