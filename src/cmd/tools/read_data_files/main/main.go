@@ -204,4 +204,8 @@ func main() {
 			fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
 		}
 	}
+
+	if err := reader.Close(); err != nil {
+		log.Fatalf("unable close reader: %v", err)
+	}
 }
