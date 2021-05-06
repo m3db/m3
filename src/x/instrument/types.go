@@ -23,6 +23,7 @@
 package instrument
 
 import (
+	"context"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -55,8 +56,11 @@ type Options interface {
 	// SetLogger sets the zap logger
 	SetLogger(value *zap.Logger) Options
 
-	// ZapLogger returns the zap logger
+	// Logger returns the zap logger
 	Logger() *zap.Logger
+
+	// LoggerFromContext returns the request scoped logger from the context if one exists, otherwise returns Logger().
+	LoggerFromContext(ctx context.Context) *zap.Logger
 
 	// SetMetricsScope sets the metrics scope.
 	SetMetricsScope(value tally.Scope) Options
