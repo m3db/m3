@@ -651,7 +651,6 @@ func TestAggregateWithWildcards(t *testing.T) {
 	)
 	defer ctx.Close()
 
-
 	type result struct {
 		name      string
 		sumOfVals float64
@@ -663,7 +662,7 @@ func TestAggregateWithWildcards(t *testing.T) {
 		expectedResults []result
 	}{
 		{"avg", []int{1, 2}, []result{
-			{"servers.status.400", ((20 + 30 + 40 ) / 3) * 12},
+			{"servers.status.400", ((20 + 30 + 40) / 3) * 12},
 			{"servers.status.500", ((2 + 4 + 6 + 8 + 10) / 5) * 12},
 		}},
 		{"max", []int{2, 4}, []result{
@@ -691,7 +690,7 @@ func TestAggregateWithWildcards(t *testing.T) {
 
 		for i, expected := range test.expectedResults {
 			series := outSeries.Values[i]
-			assert.Equal(t, expected.name, series.Name(),"wrong name for %v %s (%d)", test.nodes, test.fname, i)
+			assert.Equal(t, expected.name, series.Name(), "wrong name for %v %s (%d)", test.nodes, test.fname, i)
 
 			assert.Equal(t, expected.sumOfVals, series.SafeSum(),
 				"wrong result for %v %s (%d)", test.nodes, test.fname, i)
