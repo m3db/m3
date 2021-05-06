@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package integration contains integration tests for
+// Package integration contains integration tests for aggregator.
 package integration
 
 import (
