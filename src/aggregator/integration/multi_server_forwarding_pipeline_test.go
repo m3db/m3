@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -66,8 +65,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	// Clock setup.
-	testClock := newTestClock(time.Now().Truncate(time.Hour))
-	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
 
 	// Placement setup.
 	var (
@@ -158,7 +156,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		)
 		instrumentOpts = instrumentOpts.SetLogger(logger)
 		serverOpts := newTestServerOptions().
-			SetClockOptions(clockOpts).
+			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
 			SetHTTPAddr(mss.httpAddr).
@@ -221,7 +219,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	var (
 		idPrefix        = "foo"
 		numIDs          = 2
-		start           = testClock.Now()
+		start           = clock.Now()
 		stop            = start.Add(12 * time.Second)
 		interval        = time.Second
 		storagePolicies = policy.StoragePolicies{
@@ -292,7 +290,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 
 	writingClients := clients[:2]
 	for _, data := range dataset {
-		testClock.SetNow(data.timestamp)
+		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
 			for _, c := range writingClients {
@@ -311,7 +309,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// at the originating server (where the raw metrics are aggregated).
 	originatingServerflushTime := stop.Add(2 * storagePolicies[1].Resolution().Window)
 	for currTime := stop; !currTime.After(originatingServerflushTime); currTime = currTime.Add(time.Second) {
-		testClock.SetNow(currTime)
+		clock.SetNow(currTime)
 		time.Sleep(time.Second)
 	}
 
@@ -319,7 +317,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// happen at the destination server (where the rollup metrics are aggregated).
 	destinationServerflushTime := originatingServerflushTime.Add(2 * storagePolicies[1].Resolution().Window)
 	for currTime := originatingServerflushTime; !currTime.After(destinationServerflushTime); currTime = currTime.Add(time.Second) {
-		testClock.SetNow(currTime)
+		clock.SetNow(currTime)
 		time.Sleep(time.Second)
 	}
 

@@ -23,6 +23,8 @@ package integration
 import (
 	"sync"
 	"time"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
 type testClock struct {
@@ -47,4 +49,8 @@ func (c *testClock) SetNow(now time.Time) {
 	c.Lock()
 	defer c.Unlock()
 	c.now = now
+}
+
+func (c *testClock) Options() clock.Options {
+	return clock.NewOptions().SetNowFn(c.Now)
 }

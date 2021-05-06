@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -49,8 +48,7 @@ func TestPlacementChange(t *testing.T) {
 	}
 
 	// Clock setup.
-	testClock := newTestClock(time.Now().Truncate(time.Hour))
-	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
 
 	// Placement setup.
 	var (
@@ -136,7 +134,7 @@ func TestPlacementChange(t *testing.T) {
 		)
 		instrumentOpts = instrumentOpts.SetLogger(logger)
 		serverOpts := newTestServerOptions().
-			SetClockOptions(clockOpts).
+			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
 			SetHTTPAddr(mss.httpAddr).
@@ -173,7 +171,7 @@ func TestPlacementChange(t *testing.T) {
 		idPrefix = "metric.id"
 		numIDs   = 100
 
-		start1    = testClock.Now()
+		start1    = clock.Now()
 		stop1     = start1.Add(10 * time.Second)
 		start2    = stop1.Add(time.Minute + 2*time.Second)
 		stop2     = start2.Add(10 * time.Second)
@@ -218,7 +216,7 @@ func TestPlacementChange(t *testing.T) {
 	}
 
 	for _, data := range datasets[0] {
-		testClock.SetNow(data.timestamp)
+		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
 			idx := getServerIndex(mm.metric.ID(), initialPlacement)
@@ -232,13 +230,13 @@ func TestPlacementChange(t *testing.T) {
 		time.Sleep(sleepDuration)
 	}
 
-	testClock.SetNow(start2)
+	clock.SetNow(start2)
 	time.Sleep(sleepDuration)
 	require.NoError(t, setPlacement(placementKey, kvStore, finalPlacement))
 	time.Sleep(sleepDuration)
 
 	for _, data := range datasets[1] {
-		testClock.SetNow(data.timestamp)
+		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
 			idx := getServerIndex(mm.metric.ID(), finalPlacement)
@@ -253,7 +251,7 @@ func TestPlacementChange(t *testing.T) {
 	}
 
 	// Move time forward and wait for flushing to happen.
-	testClock.SetNow(finalTime)
+	clock.SetNow(finalTime)
 	time.Sleep(sleepDuration)
 
 	// Stop the servers.

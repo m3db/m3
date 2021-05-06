@@ -30,8 +30,6 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,9 +76,8 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 		SetAggregationTypesOptions(aggTypesOpts)
 
 	// Clock setup.
-	testClock := newTestClock(time.Now().Truncate(time.Hour))
-	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -111,7 +108,7 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = testClock.Now()
+		start    = clock.Now()
 		t1       = start.Add(2 * time.Second)
 		t2       = start.Add(4 * time.Second)
 		t3       = start.Add(6 * time.Second)
@@ -167,7 +164,7 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 	}
 	for _, dataset := range inputs {
 		for _, data := range dataset {
-			testClock.SetNow(data.timestamp)
+			clock.SetNow(data.timestamp)
 			for _, mm := range data.metricWithMetadatas {
 				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 			}
@@ -181,7 +178,7 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := end.Add(time.Second)
-	testClock.SetNow(finalTime)
+	clock.SetNow(finalTime)
 	time.Sleep(6 * time.Second)
 
 	// Stop the server.

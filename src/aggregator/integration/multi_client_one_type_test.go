@@ -29,8 +29,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,9 +50,8 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	testClock := newTestClock(time.Now().Truncate(time.Hour))
-	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -85,7 +82,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	var (
 		idPrefix   = "foo"
 		numIDs     = 100
-		start      = testClock.Now()
+		start      = clock.Now()
 		stop       = start.Add(10 * time.Second)
 		interval   = time.Second
 		numClients = 10
@@ -110,7 +107,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		testClock.SetNow(data.timestamp)
+		clock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			// Randomly pick one client to write the metric.
 			client := clients[rand.Int63n(int64(numClients))]
@@ -127,7 +124,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := stop.Add(time.Second)
-	testClock.SetNow(finalTime)
+	clock.SetNow(finalTime)
 	time.Sleep(4 * time.Second)
 
 	// Stop the server.
