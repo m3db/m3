@@ -651,26 +651,50 @@ func TestAggregateWithWildcards(t *testing.T) {
 	)
 	defer ctx.Close()
 
-	outSeries, err := aggregateWithWildcards(ctx, singlePathSpec{
-		Values: inputs,
-	}, "sum", 1, 2)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(outSeries.Values))
-
-	outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
-
-	expectedOutputs := []struct {
+	type result struct {
 		name      string
 		sumOfVals float64
-	}{
-		{"servers.status.400", 90 * 12},
-		{"servers.status.500", 30 * 12},
 	}
 
-	for i, expected := range expectedOutputs {
-		series := outSeries.Values[i]
-		assert.Equal(t, expected.name, series.Name())
-		assert.Equal(t, expected.sumOfVals, series.SafeSum())
+	tests := []struct {
+		fname           string
+		nodes           []int
+		expectedResults []result
+	}{
+		{"avg", []int{1, 2}, []result{
+			{"servers.status.400", ((20 + 30 + 40) / 3) * 12},
+			{"servers.status.500", ((2 + 4 + 6 + 8 + 10) / 5) * 12},
+		}},
+		{"max", []int{2, 4}, []result{
+			{"servers.status.400", 40 * 12},
+			{"servers.status.500", 10 * 12},
+		}},
+		{"min", []int{2, -1}, []result{
+			{"servers.status.400", 20 * 12},
+			{"servers.status.500", 2 * 12},
+		}},
+		{"median", []int{1, 2}, []result{
+			{"servers.status.400", 30 * 12},
+			{"servers.status.500", 6 * 12},
+		}},
+	}
+
+	for _, test := range tests {
+		outSeries, err := aggregateWithWildcards(ctx, singlePathSpec{
+			Values: inputs,
+		}, test.fname, 1, 2)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(outSeries.Values))
+
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
+
+		for i, expected := range test.expectedResults {
+			series := outSeries.Values[i]
+			assert.Equal(t, expected.name, series.Name(), "wrong name for %v %s (%d)", test.nodes, test.fname, i)
+
+			assert.Equal(t, expected.sumOfVals, series.SafeSum(),
+				"wrong result for %v %s (%d)", test.nodes, test.fname, i)
+		}
 	}
 }
 
