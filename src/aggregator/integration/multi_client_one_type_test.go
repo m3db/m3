@@ -24,7 +24,6 @@ package integration
 
 import (
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 
@@ -53,20 +52,8 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
+	testClock := newTestClock(time.Now().Truncate(time.Hour))
+	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
 	serverOpts = serverOpts.SetClockOptions(clockOpts)
 
 	// Placement setup.
@@ -98,7 +85,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	var (
 		idPrefix   = "foo"
 		numIDs     = 100
-		start      = getNowFn()
+		start      = testClock.Now()
 		stop       = start.Add(10 * time.Second)
 		interval   = time.Second
 		numClients = 10
@@ -123,7 +110,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		testClock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			// Randomly pick one client to write the metric.
 			client := clients[rand.Int63n(int64(numClients))]
@@ -140,7 +127,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := stop.Add(time.Second)
-	setNowFn(finalTime)
+	testClock.SetNow(finalTime)
 	time.Sleep(4 * time.Second)
 
 	// Stop the server.

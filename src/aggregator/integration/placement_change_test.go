@@ -24,7 +24,6 @@ package integration
 
 import (
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
@@ -50,20 +49,8 @@ func TestPlacementChange(t *testing.T) {
 	}
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
+	testClock := newTestClock(time.Now().Truncate(time.Hour))
+	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
 
 	// Placement setup.
 	var (
@@ -186,7 +173,7 @@ func TestPlacementChange(t *testing.T) {
 		idPrefix = "metric.id"
 		numIDs   = 100
 
-		start1    = getNowFn()
+		start1    = testClock.Now()
 		stop1     = start1.Add(10 * time.Second)
 		start2    = stop1.Add(time.Minute + 2*time.Second)
 		stop2     = start2.Add(10 * time.Second)
@@ -231,7 +218,7 @@ func TestPlacementChange(t *testing.T) {
 	}
 
 	for _, data := range datasets[0] {
-		setNowFn(data.timestamp)
+		testClock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
 			idx := getServerIndex(mm.metric.ID(), initialPlacement)
@@ -245,13 +232,13 @@ func TestPlacementChange(t *testing.T) {
 		time.Sleep(sleepDuration)
 	}
 
-	setNowFn(start2)
+	testClock.SetNow(start2)
 	time.Sleep(sleepDuration)
 	require.NoError(t, setPlacement(placementKey, kvStore, finalPlacement))
 	time.Sleep(sleepDuration)
 
 	for _, data := range datasets[1] {
-		setNowFn(data.timestamp)
+		testClock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
 			idx := getServerIndex(mm.metric.ID(), finalPlacement)
@@ -265,7 +252,7 @@ func TestPlacementChange(t *testing.T) {
 		time.Sleep(sleepDuration)
 	}
 
-	setNowFn(finalTime)
+	testClock.SetNow(finalTime)
 	time.Sleep(sleepDuration)
 
 	// Stop the servers.

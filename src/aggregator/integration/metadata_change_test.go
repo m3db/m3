@@ -24,7 +24,6 @@ package integration
 
 import (
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
@@ -59,20 +58,8 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
+	testClock := newTestClock(time.Now().Truncate(time.Hour))
+	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
 	serverOpts = serverOpts.SetClockOptions(clockOpts)
 
 	// Placement setup.
@@ -104,7 +91,7 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = getNowFn()
+		start    = testClock.Now()
 		middle   = start.Add(4 * time.Second)
 		end      = start.Add(10 * time.Second)
 		interval = time.Second
@@ -138,7 +125,7 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 	}
 	for _, dataset := range inputs {
 		for _, data := range dataset {
-			setNowFn(data.timestamp)
+			testClock.SetNow(data.timestamp)
 			for _, mm := range data.metricWithMetadatas {
 				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 			}
@@ -152,7 +139,7 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := end.Add(time.Second)
-	setNowFn(finalTime)
+	testClock.SetNow(finalTime)
 	time.Sleep(6 * time.Second)
 
 	// Stop the server.

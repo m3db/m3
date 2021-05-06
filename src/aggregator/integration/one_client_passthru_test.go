@@ -25,7 +25,6 @@ package integration
 import (
 	"reflect"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
@@ -47,20 +46,8 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
+	testClock := newTestClock(time.Now().Truncate(time.Hour))
+	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
 	serverOpts = serverOpts.SetClockOptions(clockOpts)
 
 	// Placement setup.
@@ -92,7 +79,7 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	var (
 		idPrefix = "full.passthru.id"
 		numIDs   = 10
-		start    = getNowFn()
+		start    = testClock.Now()
 		stop     = start.Add(10 * time.Second)
 		interval = 2 * time.Second
 	)
@@ -119,7 +106,7 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	})
 
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		testClock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			require.NoError(t, client.writePassthroughMetricWithMetadata(mm.metric.passthrough, mm.metadata.passthroughMetadata))
 		}
@@ -131,7 +118,7 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 
 	// Move time forward and wait for flushing to happen.
 	finalTime := stop.Add(time.Minute + 2*time.Second)
-	setNowFn(finalTime)
+	testClock.SetNow(finalTime)
 	time.Sleep(2 * time.Second)
 
 	// Stop the server.

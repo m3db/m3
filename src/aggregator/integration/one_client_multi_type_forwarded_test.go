@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -45,20 +44,8 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
+	testClock := newTestClock(time.Now().Truncate(time.Hour))
+	clockOpts := clock.NewOptions().SetNowFn(testClock.Now)
 	serverOpts = serverOpts.SetClockOptions(clockOpts)
 
 	// Placement setup.
@@ -90,7 +77,7 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = getNowFn()
+		start    = testClock.Now()
 		stop     = start.Add(10 * time.Second)
 		interval = 2 * time.Second
 	)
@@ -123,7 +110,7 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		testClock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			require.NoError(t, client.writeForwardedMetricWithMetadata(mm.metric.forwarded, mm.metadata.forwardMetadata))
 		}
@@ -135,7 +122,7 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 
 	// Move time forward and wait for flushing to happen.
 	finalTime := stop.Add(2 * time.Second)
-	setNowFn(finalTime)
+	testClock.SetNow(finalTime)
 	time.Sleep(2 * time.Second)
 
 	// Stop the server.
