@@ -252,6 +252,7 @@ func TestPlacementChange(t *testing.T) {
 		time.Sleep(sleepDuration)
 	}
 
+	// Move time forward and wait for flushing to happen.
 	testClock.SetNow(finalTime)
 	time.Sleep(sleepDuration)
 
