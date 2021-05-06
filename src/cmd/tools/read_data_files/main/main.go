@@ -21,20 +21,19 @@
 package main
 
 import (
-	"encoding/base64"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/tools"
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/getopt"
@@ -113,8 +112,6 @@ func main() {
 	bytesPool := tools.NewCheckedBytesPool()
 	bytesPool.Init()
 
-	encodingOpts := encoding.NewOptions().SetBytesPool(bytesPool)
-
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
 	var (
@@ -122,91 +119,110 @@ func main() {
 		datapointCount      = 0
 		annotationSizeTotal uint64
 		start               = time.Now()
+
+		metricsMap = make(map[string]struct{})
 	)
 
-	reader, err := fs.NewReader(bytesPool, fsOpts)
-	if err != nil {
-		log.Fatalf("could not create new reader: %v", err)
-	}
+	for shardID := uint32(0); shardID < *optShard; shardID++ {
 
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   ident.StringID(*optNamespace),
-			Shard:       *optShard,
-			BlockStart:  time.Unix(0, *optBlockstart),
-			VolumeIndex: int(*volume),
-		},
-		FileSetType:      fileSetType,
-		StreamingEnabled: true,
-	}
-
-	err = reader.Open(openOpts)
-	if err != nil {
-		log.Fatalf("unable to open reader: %v", err)
-	}
-
-	for {
-		entry, err := reader.StreamingRead()
-		if err == io.EOF {
-			break
-		}
+		reader, err := fs.NewReader(bytesPool, fsOpts)
 		if err != nil {
-			log.Fatalf("err reading metadata: %v", err)
+			log.Fatalf("could not create new reader: %v", err)
 		}
 
-		var (
-			id   = entry.ID
-			data = entry.Data
-		)
-
-		if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
-			continue
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   ident.StringID(*optNamespace),
+				Shard:       shardID,
+				BlockStart:  time.Unix(0, *optBlockstart),
+				VolumeIndex: int(*volume),
+			},
+			FileSetType:      fileSetType,
+			StreamingEnabled: true,
 		}
 
-		if benchMode != benchmarkSeries {
-			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
-			for iter.Next() {
-				dp, _, annotation := iter.Current()
-				if benchMode == benchmarkNone {
-					// Use fmt package so it goes to stdout instead of stderr
-					fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
-					if len(annotation) > 0 {
-						fmt.Printf(", annotation: %s", // nolint: forbidigo
-							base64.StdEncoding.EncodeToString(annotation))
-					}
-					fmt.Println("}") // nolint: forbidigo
+		err = reader.Open(openOpts)
+		if err != nil {
+			log.Fatalf("unable to open reader: %v", err)
+		}
+
+		nameTag := ident.BytesID("__name__")
+		jobTag := ident.BytesID("job")
+		spuSerialTag := ident.BytesID("spu_serial")
+		orgTag := ident.BytesID("org")
+
+		for {
+			entry, err := reader.StreamingRead()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatalf("err reading metadata: %v", err)
+			}
+
+			id := entry.ID
+
+			if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
+				continue
+			}
+
+			doc, err := convert.FromSeriesIDAndEncodedTags(id, entry.EncodedTags)
+			if err != nil {
+				log.Fatalf("err decoding tags: %v", err)
+			}
+			var name, job []byte
+			var hasSPUSerial, hasOrg bool
+			for _, field := range doc.Fields {
+				if bytes.Equal(field.Name, nameTag) {
+					name = field.Value
 				}
-				annotationSizeTotal += uint64(len(annotation))
-				datapointCount++
+				if bytes.Equal(field.Name, jobTag) {
+					job = field.Value
+				}
+				if bytes.Equal(field.Name, spuSerialTag) {
+					hasSPUSerial = true
+				}
+				if bytes.Equal(field.Name, orgTag) {
+					hasOrg = true
+				}
 			}
-			if err := iter.Err(); err != nil {
-				log.Fatalf("unable to iterate original data: %v", err)
-			}
-			iter.Close()
+
+			res := fmt.Sprintf("%s,%s,%t,%t", name, job, hasSPUSerial, hasOrg)
+			metricsMap[res] = struct{}{}
+
+			seriesCount++
 		}
 
-		seriesCount++
-	}
-
-	if benchMode != benchmarkNone {
-		runTime := time.Since(start)
-		fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
-		fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
-		if runTime > 0 {
-			fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
-		}
-
-		if benchMode == benchmarkDatapoints {
-			fmt.Printf("\n%d datapoints decoded\n", datapointCount) // nolint: forbidigo
+		if benchMode != benchmarkNone {
+			runTime := time.Since(start)
+			fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
+			fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
 			if runTime > 0 {
-				fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds()) // nolint: forbidigo
+				fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
 			}
 
-			fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
+			if benchMode == benchmarkDatapoints {
+				fmt.Printf("\n%d datapoints decoded\n", datapointCount) // nolint: forbidigo
+				if runTime > 0 {
+					fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds()) // nolint: forbidigo
+				}
+
+				fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
+			}
+		}
+
+		if err := reader.Close(); err != nil {
+			log.Fatalf("unable to close reader: %v", err)
 		}
 	}
 
-	if err := reader.Close(); err != nil {
-		log.Fatalf("unable to close reader: %v", err)
+	metrics := make([]string, 0)
+	for m := range metricsMap {
+		metrics = append(metrics, m)
+	}
+
+	sort.Strings(metrics)
+	for _, m := range metrics {
+		fmt.Println(m)
 	}
 }
