@@ -111,6 +111,7 @@ func TestMiddleware(t *testing.T) {
 		sourceHeaders []string
 		expected      testSource
 		deserializer  Deserializer
+		invalidErr    bool
 	}{
 		{
 			name:          "happy path",
@@ -125,12 +126,12 @@ func TestMiddleware(t *testing.T) {
 		{
 			name:          "multiple source headers",
 			sourceHeaders: []string{"foo", "bar"},
-			expected:      testSource{},
+			invalidErr:    true,
 		},
 		{
 			name:          "deserialize error",
 			sourceHeaders: []string{"foobar"},
-			expected:      testSource{},
+			invalidErr:    true,
 			deserializer: func(bytes []byte) (interface{}, error) {
 				return nil, errors.New("boom")
 			},
@@ -171,15 +172,19 @@ func TestMiddleware(t *testing.T) {
 			resp, err := s.Client().Do(req)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
-
-			testMsgs := recorded.FilterMessage("test").All()
-			require.Len(t, testMsgs, 1)
-			entry := testMsgs[0]
-			require.Equal(t, "test", entry.Message)
-			fields := entry.ContextMap()
-			if tc.expected.name != "" {
-				require.Len(t, fields, 1)
-				require.Equal(t, tc.expected.name, fields["source"])
+			if tc.invalidErr {
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			} else {
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				testMsgs := recorded.FilterMessage("test").All()
+				require.Len(t, testMsgs, 1)
+				entry := testMsgs[0]
+				require.Equal(t, "test", entry.Message)
+				fields := entry.ContextMap()
+				if tc.expected.name != "" {
+					require.Len(t, fields, 1)
+					require.Equal(t, tc.expected.name, fields["source"])
+				}
 			}
 		})
 	}
