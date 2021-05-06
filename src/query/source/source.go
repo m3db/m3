@@ -23,6 +23,7 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 type key int
@@ -77,6 +79,10 @@ func RawFromContext(ctx context.Context) ([]byte, bool) {
 	return b, ok
 }
 
+var errInvalidSourceHeader = xhttp.NewError(
+	fmt.Errorf("invalid %s header", headers.SourceHeader),
+	http.StatusBadRequest)
+
 // Middleware adds the headers.SourceHeader value to the request context.
 // Installing this middleware function allows application code to access the typed source value using FromContext.
 // Additionally a source log field is added to the request scope logger.
@@ -84,15 +90,14 @@ func Middleware(d Deserializer, iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			hs := r.Header[headers.SourceHeader]
-			l := iOpts.LoggerFromContext(r.Context())
-			if len(hs) > 1 {
-				l.Error("multiple values for source header", zap.Strings("headers", hs))
+			if len(hs) == 0 {
 				base.ServeHTTP(w, r)
 				return
 			}
-			if len(hs) == 0 {
-				l.Error("no source header found")
-				base.ServeHTTP(w, r)
+			l := iOpts.LoggerFromContext(r.Context())
+			if len(hs) > 1 {
+				l.Error("multiple values for source header", zap.Strings("headers", hs))
+				xhttp.WriteError(w, errInvalidSourceHeader)
 				return
 			}
 			l = l.With(zap.String("source", hs[0]))
@@ -101,6 +106,7 @@ func Middleware(d Deserializer, iOpts instrument.Options) mux.MiddlewareFunc {
 			if err != nil {
 				l.Error("failed to deserialize source", zap.Error(err))
 				base.ServeHTTP(w, r)
+				xhttp.WriteError(w, errInvalidSourceHeader)
 				return
 			}
 			base.ServeHTTP(w, r.WithContext(ctx))
