@@ -195,7 +195,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					reader, ok := encoder.Stream(ctx)
 					if ok {
 						bytes, err := xio.ToBytes(reader)
-						if errors.Is(err, io.EOF) {
+						if !errors.Is(err, io.EOF) {
 							return false, err
 						}
 						encodersBySeries[seriesID] = bytes
