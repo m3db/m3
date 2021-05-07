@@ -220,6 +220,12 @@ type Querier interface {
 		options *FetchOptions,
 	) (block.Result, error)
 
+	FetchCompressed(
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (consolidators.MultiFetchResult, error)
+
 	// SearchSeries returns series IDs matching the current query.
 	SearchSeries(
 		ctx context.Context,

@@ -57,6 +57,14 @@ func (s *remoteStorage) FetchProm(
 	return s.client.FetchProm(ctx, query, options)
 }
 
+func (s *remoteStorage) FetchCompressed(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (consolidators.MultiFetchResult, error) {
+	return s.client.FetchCompressed(ctx, query, options)
+}
+
 func (s *remoteStorage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
