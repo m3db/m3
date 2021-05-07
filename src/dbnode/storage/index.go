@@ -825,35 +825,12 @@ func (i *nsIndex) writeBatchForBlockStart(
 	pending := batch.PendingEntries()
 	numPending := len(pending)
 
-	// NB(r): Notice we acquire each lock only to take a reference to the
-	// block we release it so we don't block the tick, etc when we insert
-	// batches since writing batches can take significant time when foreground
-	// compaction occurs.
-	blockResult, err := i.ensureBlockPresent(blockStart)
-	if err != nil {
-		batch.MarkUnmarkedEntriesError(err)
-		i.logger.Error("unable to write to index, dropping inserts",
-			zap.Time("blockStart", blockStart),
-			zap.Int("numWrites", batch.Len()),
-			zap.Error(err),
-		)
-		i.metrics.asyncInsertErrors.Inc(int64(numPending))
-		return
-	}
-
-	block := blockResult.block
-	latest := blockResult.latest
-	if block.IsOpen() {
-		// Write to in memory block if this block is open.
-		block = i.activeBlock
-	}
-
 	// Track attempted write.
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
 	// i.e. we have the block and the inserts, perform the writes.
-	result, err := block.WriteBatch(batch)
+	result, err := i.activeBlock.WriteBatch(batch)
 
 	// Record the end to end indexing latency.
 	now := i.nowFn()
@@ -869,7 +846,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 	}
 
 	// Record mutable segments count foreground/background if latest block.
-	if stats := result.MutableSegmentsStats; !stats.Empty() && latest {
+	if stats := result.MutableSegmentsStats; !stats.Empty() {
 		i.metrics.latestBlockNumSegmentsForeground.Update(float64(stats.Foreground.NumSegments))
 		i.metrics.latestBlockNumDocsForeground.Update(float64(stats.Foreground.NumDocs))
 		i.metrics.latestBlockNumSegmentsBackground.Update(float64(stats.Background.NumSegments))
