@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/graphite/ts"
 	querystorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	xgomock "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -2460,21 +2459,36 @@ func TestAsPercentWithSeriesListAndEmptyTotalSeriesList(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
 
-	nan := math.NaN()
 	inputs := []struct {
 		name   string
 		step   int
 		values []float64
 	}{
 		{
-			"foo.value",
+			"foo.bar",
 			100,
-			[]float64{12.0, 14.0, 16.0, nan, 20.0, 30.0},
+			[]float64{2.5, 5, 7.5, 10},
 		},
 		{
-			"bar.value",
-			200,
-			[]float64{7.0, nan, 25.0},
+			"foo.baz",
+			100,
+			[]float64{10, 20, 30, 40},
+		},
+	}
+	outputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"asPercent(foo.bar,sumSeries(foo.*))",
+			100,
+			[]float64{20, 20, 20, 20},
+		},
+		{
+			"asPercent(foo.baz,sumSeries(foo.*))",
+			100,
+			[]float64{80, 80, 80, 80},
 		},
 	}
 
@@ -2486,16 +2500,26 @@ func TestAsPercentWithSeriesListAndEmptyTotalSeriesList(t *testing.T) {
 			ctx.StartTime,
 			common.NewTestSeriesValues(ctx, input.step, input.values),
 		)
+		timeSeries.Specification = "foo.*"
 		inputSeries = append(inputSeries, timeSeries)
 	}
 
-	_, err := asPercent(ctx, singlePathSpec{
+	var expected []*ts.Series // nolint: prealloc
+	for _, output := range outputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			output.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, output.step, output.values),
+		)
+		expected = append(expected, timeSeries)
+	}
+
+	r, err := asPercent(ctx, singlePathSpec{
 		Values: inputSeries,
-	}, singlePathSpec{
-		Values: []*ts.Series{},
-	})
-	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
+	}, nil)
+	require.NoError(t, err)
+	requireEqual(t, expected, r.Values)
 }
 
 func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
