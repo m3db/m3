@@ -92,16 +92,22 @@ func NewConsolidationTestSeries(start, end time.Time, duration time.Duration) (*
 }
 
 // CompareOutputsAndExpected compares the actual output with the expected output.
-func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected []TestSeries,
-	actual []*ts.Series) {
-	require.Equal(t, len(expected), len(actual))
+func CompareOutputsAndExpected(
+	t *testing.T,
+	step int,
+	start time.Time,
+	expected []TestSeries,
+	actual []*ts.Series,
+) {
+	require.Equal(t, len(expected), len(actual), "mismatch series count")
 	for i := range expected {
 		i := i // To capture for wrapMsg.
 		e := expected[i].Data
 		a := actual[i]
 		wrapMsg := func(str string) string {
-			return fmt.Sprintf("%s\nseries=%d\nexpected=%v\nactual=%v",
-				str, i, e, a.SafeValues())
+			return fmt.Sprintf("%s\nseries=%d\nexpected=%v\nactual=%v\n"+
+				"expectedStart=%v\nactualStart=%v\n",
+				str, i, e, a.SafeValues(), start, a.StartTime())
 		}
 		require.Equal(t, expected[i].Name, a.Name())
 		assert.Equal(t, step, a.MillisPerStep(), wrapMsg(a.Name()+

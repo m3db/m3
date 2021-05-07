@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/graphite/ts"
 	querystorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	xgomock "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -1044,6 +1043,73 @@ func TestMovingSumSuccess(t *testing.T) {
 	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 
 	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,3)", nil, nil, nil)
+}
+
+// TestMovingSumOfMovingSum tests that expansion of the time window
+// fetched is stacked when child contexts are created, otherwise the child
+// functions do not have enough data to work with to satisfy the parent call.
+func TestMovingSumOfMovingSum(t *testing.T) {
+	var (
+		ctrl   = xgomock.NewController(t)
+		store  = storage.NewMockStorage(ctrl)
+		engine = NewEngine(store, CompileOptions{})
+		end    = time.Now().Truncate(time.Minute)
+		start  = end.Add(-5 * time.Minute)
+		ctx    = common.NewContext(common.ContextOptions{
+			Start:  start,
+			End:    end,
+			Engine: engine,
+		})
+		millisPerStep = 60000
+		data          = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	)
+
+	defer ctrl.Finish()
+	defer func() { _ = ctx.Close() }()
+
+	store.EXPECT().
+		FetchByQuery(gomock.Any(), "foo.bar", gomock.Any()).
+		DoAndReturn(func(
+			_ *common.Context,
+			query string,
+			opts storage.FetchOptions,
+		) (*storage.FetchResult, error) {
+			if !opts.EndTime.Equal(end) {
+				return nil, fmt.Errorf("unexpected end")
+			}
+			length := int(opts.EndTime.Sub(opts.StartTime) / time.Minute)
+			values := data[len(data)-length:]
+			return &storage.FetchResult{
+				SeriesList: []*ts.Series{
+					ts.NewSeries(ctx, query, opts.StartTime,
+						common.NewTestSeriesValues(ctx, millisPerStep, values)),
+				},
+			}, nil
+		}).
+		AnyTimes()
+
+	target := `movingSum(movingSum(foo.bar,"2min"),"5min")`
+
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+
+	expected := []common.TestSeries{
+		{
+			Name: target,
+			Data: []float64{65, 75, 85, 95, 105},
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, millisPerStep, start,
+		expected, res.Values)
 }
 
 func TestMovingSumError(t *testing.T) {
@@ -2393,21 +2459,36 @@ func TestAsPercentWithSeriesListAndEmptyTotalSeriesList(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
 
-	nan := math.NaN()
 	inputs := []struct {
 		name   string
 		step   int
 		values []float64
 	}{
 		{
-			"foo.value",
+			"foo.bar",
 			100,
-			[]float64{12.0, 14.0, 16.0, nan, 20.0, 30.0},
+			[]float64{2.5, 5, 7.5, 10},
 		},
 		{
-			"bar.value",
-			200,
-			[]float64{7.0, nan, 25.0},
+			"foo.baz",
+			100,
+			[]float64{10, 20, 30, 40},
+		},
+	}
+	outputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"asPercent(foo.bar,sumSeries(foo.*))",
+			100,
+			[]float64{20, 20, 20, 20},
+		},
+		{
+			"asPercent(foo.baz,sumSeries(foo.*))",
+			100,
+			[]float64{80, 80, 80, 80},
 		},
 	}
 
@@ -2419,16 +2500,26 @@ func TestAsPercentWithSeriesListAndEmptyTotalSeriesList(t *testing.T) {
 			ctx.StartTime,
 			common.NewTestSeriesValues(ctx, input.step, input.values),
 		)
+		timeSeries.Specification = "foo.*"
 		inputSeries = append(inputSeries, timeSeries)
 	}
 
-	_, err := asPercent(ctx, singlePathSpec{
+	var expected []*ts.Series // nolint: prealloc
+	for _, output := range outputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			output.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, output.step, output.values),
+		)
+		expected = append(expected, timeSeries)
+	}
+
+	r, err := asPercent(ctx, singlePathSpec{
 		Values: inputSeries,
-	}, singlePathSpec{
-		Values: []*ts.Series{},
-	})
-	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
+	}, nil)
+	require.NoError(t, err)
+	requireEqual(t, expected, r.Values)
 }
 
 func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
