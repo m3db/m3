@@ -40,7 +40,6 @@ func TestEncodedTagsMetadataResolver(t *testing.T) {
 	sut := NewEncodedTagsMetadataResolver(encodedTags)
 	metadata, err := sut.Resolve(ident.StringID("testId"))
 	require.NoError(t, err)
-	require.NoError(t, metadata.Validate())
 	require.Equal(t, "testId", string(metadata.ID))
 	assertFieldValue(t, metadata, "__name__", "diskio")
 }
@@ -52,7 +51,6 @@ func TestIterMetadataResolver(t *testing.T) {
 
 	metadata, err := sut.Resolve(ident.StringID("testId"))
 	require.NoError(t, err)
-	require.NoError(t, metadata.Validate())
 	require.Equal(t, "testId", string(metadata.ID))
 	assertFieldValue(t, metadata, "name", "foo")
 	assertFieldValue(t, metadata, "host", "localhost")
@@ -65,7 +63,6 @@ func TestTagsMetadataResolver(t *testing.T) {
 
 	metadata, err := sut.Resolve(ident.StringID("testId"))
 	require.NoError(t, err)
-	require.NoError(t, metadata.Validate())
 	require.Equal(t, "testId", string(metadata.ID))
 	assertFieldValue(t, metadata, "name", "bar")
 	assertFieldValue(t, metadata, "__name__", "foo")
