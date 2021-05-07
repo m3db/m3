@@ -237,7 +237,7 @@ func makeTestWrite(
 		node.SetOpts(node.Opts().SetNumShards(numShards))
 		for _, ns := range node.Namespaces() {
 			// write empty data files to disk so nodes could bootstrap
-			writeTestDataToDisk(ns, node, generate.SeriesBlocksByStart{}, 0)
+			require.NoError(t, writeTestDataToDisk(ns, node, generate.SeriesBlocksByStart{}, 0))
 		}
 	}
 

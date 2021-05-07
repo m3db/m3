@@ -26,14 +26,13 @@ import (
 	"testing"
 	"time"
 
-	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/stretchr/testify/require"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // This test simulates a case where node fails / reboots while fetching data from peers.
@@ -72,7 +71,7 @@ func TestPeersBootstrapPartialData(t *testing.T) {
 			DisablePeersBootstrapper:     false,
 		},
 	}
-	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts) //nolint:govet
 	defer closeFn()
 
 	// Write test data to first node

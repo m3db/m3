@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -36,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
