@@ -1046,6 +1046,73 @@ func TestMovingSumSuccess(t *testing.T) {
 	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,3)", nil, nil, nil)
 }
 
+// TestMovingSumOfMovingSum tests that expansion of the time window
+// fetched is stacked when child contexts are created, otherwise the child
+// functions do not have enough data to work with to satisfy the parent call.
+func TestMovingSumOfMovingSum(t *testing.T) {
+	var (
+		ctrl   = xgomock.NewController(t)
+		store  = storage.NewMockStorage(ctrl)
+		engine = NewEngine(store, CompileOptions{})
+		end    = time.Now().Truncate(time.Minute)
+		start  = end.Add(-5 * time.Minute)
+		ctx    = common.NewContext(common.ContextOptions{
+			Start:  start,
+			End:    end,
+			Engine: engine,
+		})
+		millisPerStep = 60000
+		data          = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	)
+
+	defer ctrl.Finish()
+	defer func() { _ = ctx.Close() }()
+
+	store.EXPECT().
+		FetchByQuery(gomock.Any(), "foo.bar", gomock.Any()).
+		DoAndReturn(func(
+			_ *common.Context,
+			query string,
+			opts storage.FetchOptions,
+		) (*storage.FetchResult, error) {
+			if !opts.EndTime.Equal(end) {
+				return nil, fmt.Errorf("unexpected end")
+			}
+			length := int(opts.EndTime.Sub(opts.StartTime) / time.Minute)
+			values := data[len(data)-length:]
+			return &storage.FetchResult{
+				SeriesList: []*ts.Series{
+					ts.NewSeries(ctx, query, opts.StartTime,
+						common.NewTestSeriesValues(ctx, millisPerStep, values)),
+				},
+			}, nil
+		}).
+		AnyTimes()
+
+	target := `movingSum(movingSum(foo.bar,"2min"),"5min")`
+
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+
+	expected := []common.TestSeries{
+		{
+			Name: target,
+			Data: []float64{65, 75, 85, 95, 105},
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, millisPerStep, start,
+		expected, res.Values)
+}
+
 func TestMovingSumError(t *testing.T) {
 	testMovingFunctionError(t, "movingSum(foo.bar.baz, '-30s')")
 	testMovingFunctionError(t, "movingSum(foo.bar.baz, 0)")
