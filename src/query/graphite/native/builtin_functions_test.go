@@ -1066,7 +1066,7 @@ func TestMovingSumOfMovingSum(t *testing.T) {
 	)
 
 	defer ctrl.Finish()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	store.EXPECT().
 		FetchByQuery(gomock.Any(), "foo.bar", gomock.Any()).
