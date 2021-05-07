@@ -1080,7 +1080,6 @@ func TestMovingSumOfMovingSum(t *testing.T) {
 			}
 			length := int(opts.EndTime.Sub(opts.StartTime) / time.Minute)
 			values := data[len(data)-length:]
-			fmt.Printf("returning values: %v\n", values)
 			return &storage.FetchResult{
 				SeriesList: []*ts.Series{
 					ts.NewSeries(ctx, query, opts.StartTime,
