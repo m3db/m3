@@ -55,6 +55,8 @@ type multiResult struct {
 	tagOpts         models.TagOptions
 	limitOpts       LimitOptions
 
+	all []MultiFetchResults
+
 	pools encoding.IteratorPools
 }
 
@@ -186,14 +188,22 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	return NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
 }
 
-func (r *multiResult) Add(
-	newIterators encoding.SeriesIterators,
-	metadata block.ResultMetadata,
-	attrs storagemetadata.Attributes,
-	err error,
-) {
+func (r *multiResult) Results() []MultiFetchResults {
 	r.Lock()
 	defer r.Unlock()
+	return r.all
+}
+
+func (r *multiResult) Add(add MultiFetchResults) {
+	newIterators := add.SeriesIterators
+	metadata := add.Metadata
+	attrs := add.Attrs
+	err := add.Err
+
+	r.Lock()
+	defer r.Unlock()
+
+	r.all = append(r.all, add)
 
 	if err != nil {
 		r.err = r.err.Add(err)

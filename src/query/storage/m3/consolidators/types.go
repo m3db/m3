@@ -70,16 +70,20 @@ func (t QueryFanoutType) String() string {
 	}
 }
 
+type MultiFetchResults struct {
+	SeriesIterators encoding.SeriesIterators
+	Metadata        block.ResultMetadata
+	Attrs           storagemetadata.Attributes
+	Err             error
+}
+
 // MultiFetchResult is a deduping accumalator for series iterators
 // that allows merging using a given strategy.
 type MultiFetchResult interface {
 	// Add appends series fetch results to the accumulator.
-	Add(
-		seriesIterators encoding.SeriesIterators,
-		metadata block.ResultMetadata,
-		attrs storagemetadata.Attributes,
-		err error,
-	)
+	Add(r MultiFetchResults)
+
+	Results() []MultiFetchResults
 
 	// FinalResult returns a series fetch result containing deduplicated series
 	// iterators and their metadata, and any errors encountered.
