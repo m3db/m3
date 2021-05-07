@@ -406,7 +406,12 @@ func assertExprTree(t *testing.T, expected interface{}, actual interface{}, msg 
 	case constFuncArg:
 		a, ok := actual.(constFuncArg)
 		require.True(t, ok, msg)
-		xtest.Equalish(t, e.value.Interface(), a.value.Interface(), msg)
+		if !a.value.IsValid() {
+			// Explicit nil.
+			require.True(t, e.value.IsZero())
+		} else {
+			xtest.Equalish(t, e.value.Interface(), a.value.Interface(), msg)
+		}
 	default:
 		assert.Equal(t, expected, actual, msg)
 	}
