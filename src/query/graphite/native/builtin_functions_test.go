@@ -3764,6 +3764,34 @@ func TestMovingAverage(t *testing.T) {
 		[]common.TestSeries{expected}, res.Values)
 }
 
+func TestMovingWindow(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	now := time.Now().Truncate(time.Hour)
+	engine := NewEngine(store, CompileOptions{})
+	startTime := now.Add(-3 * time.Minute)
+	endTime := now.Add(-1 * time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+	defer func() { _ = ctx.Close() }()
+
+	stepSize := 60000
+	target := `movingWindow(timeShift(foo.bar.g.zed, '-1d'), '1min', 'avg', 0.7)`
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).AnyTimes()
+	expr, err := engine.Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(ctx)
+	require.NoError(t, err)
+	expected := common.TestSeries{
+		Name: `movingAverage(timeShift(foo.bar.g.zed, -1d),"1min")`,
+		Data: []float64{1, 1},
+	}
+	common.CompareOutputsAndExpected(t, stepSize, startTime,
+		[]common.TestSeries{expected}, res.Values)
+}
+
 func TestLegendValue(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
