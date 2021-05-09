@@ -381,7 +381,7 @@ type OnIndexSeries interface {
 	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
 	// the callback executed on the entry once the indexing is completed releases this
 	// reference.
-	OnIndexPrepare()
+	OnIndexPrepare(blockStart xtime.UnixNano)
 
 	// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
 	// for the provided blockStart. It only allows a single index attempt at a time
