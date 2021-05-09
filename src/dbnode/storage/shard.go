@@ -24,6 +24,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"go.uber.org/atomic"
 	"io"
 	"math"
 	"sync"
@@ -834,6 +835,8 @@ func (s *dbShard) tickAndExpire(
 	return r, nil
 }
 
+var ExpiredSeries = atomic.NewInt32(0)
+
 // NB(prateek): purgeExpiredSeries requires that all entries passed to it have at least one reader/writer,
 // i.e. have a readWriteCount of at least 1.
 // Currently, this function is only called by the lambda inside `tickAndExpire`'s `forEachShardEntryBatch`
@@ -876,6 +879,8 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		series.Close()
 		s.list.Remove(elem)
 		s.lookup.Delete(id)
+
+		ExpiredSeries.Inc()
 	}
 	s.Unlock()
 }

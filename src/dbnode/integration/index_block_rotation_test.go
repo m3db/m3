@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"github.com/m3db/m3/src/dbnode/storage"
 	"testing"
 	"time"
 
@@ -49,10 +50,10 @@ func TestIndexBlockRotation(t *testing.T) {
 	}
 
 	var (
-		numWrites       = 50
+		numWrites       = 2 << 13 // 16k
 		numTags         = 10
-		retentionPeriod = 2 * time.Hour
-		dataBlockSize   = 30 * time.Minute
+		retentionPeriod = 6 * time.Hour
+		dataBlockSize   = time.Hour
 		indexBlockSize  = time.Hour
 		bufferFuture    = 20 * time.Minute
 		bufferPast      = 10 * time.Minute
@@ -67,6 +68,10 @@ func TestIndexBlockRotation(t *testing.T) {
 					SetBufferPast(bufferPast).
 					SetBufferFuture(bufferFuture).
 					SetBlockSize(dataBlockSize)).
+			SetCleanupEnabled(false).
+			SetSnapshotEnabled(false).
+			SetFlushEnabled(true).
+			SetColdWritesEnabled(true).
 			SetIndexOptions(
 				namespace.NewIndexOptions().
 					SetBlockSize(indexBlockSize).SetEnabled(true)))
@@ -82,9 +87,11 @@ func TestIndexBlockRotation(t *testing.T) {
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	t1 := t0.Add(20 * time.Minute)
 	t2 := t1.Add(3 * time.Hour)
+	t3 := t2.Add(20 * time.Minute)
 	testSetup.SetNowFn(t0)
 
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
+	writesPeriod1 := GenerateTestIndexWrite(0, numWrites, numTags, t2, t3)
 
 	// Start the server
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
@@ -111,7 +118,7 @@ func TestIndexBlockRotation(t *testing.T) {
 		return indexPeriod0 == len(writesPeriod0)
 	}, 5*time.Second)
 	require.True(t, indexed)
-	log.Info("verifiied data is indexed", zap.Duration("took", time.Since(start)))
+	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
@@ -127,14 +134,55 @@ func TestIndexBlockRotation(t *testing.T) {
 
 	// move time to 4p
 	testSetup.SetNowFn(t2)
+	startTick := time.Now()
+	go func() {
+		for {
+			time.Sleep(10 * time.Millisecond)
+			delta := time.Since(startTick)
+			testSetup.SetNowFn(t2.Add(delta))
+		}
+	}()
+
+	log.Info("wait for expired series")
+	for {
+		if storage.ExpiredSeries.Load() > 0 {
+			break
+		}
+
+		time.Sleep((1 * time.Millisecond) / 2)
+	}
+
+	log.Info("starting data write 2")
+	start2 := time.Now()
+	writesPeriod1.Write(t, md.ID(), session)
+	log.Info("test data written", zap.Duration("took", time.Since(start2)))
 
 	// give tick some time to evict the block
-	testSetup.SleepFor10xTickMinimumInterval()
+	for {
+		log.Info("checking if GC'd series",
+			zap.Int("notifySealed", int(storage.NotifySealed.Load())),
+			zap.Int("indexSkipSeries", int(storage.SkipIndex.Load())),
+			zap.Int("indexGCSeries", int(index.GCdSeries.Load())))
+		if index.GCdSeries.Load() > 0 {
+			break
+		}
 
-	// ensure all data is absent
-	log.Info("querying period0 results after expiry")
-	period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
-		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
+		time.Sleep(5 * time.Second)
+	}
+
+	// ensure all data
+	log.Info("waiting till data is indexed")
+	indexed = xclock.WaitUntil(func() bool {
+		indexPeriod1 := writesPeriod1.NumIndexed(t, md.ID(), session)
+		return indexPeriod1 == len(writesPeriod1)
+	}, 5*time.Second)
+	require.True(t, indexed)
+	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
+
+	log.Info("querying period1 results")
+	period1Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
+		md.ID(), query, index.QueryOptions{StartInclusive: t2, EndExclusive: t3})
 	require.NoError(t, err)
-	require.Equal(t, 0, period0Results.Len())
+	writesPeriod0.MatchesSeriesIters(t, period1Results)
+	log.Info("found period1 results")
 }

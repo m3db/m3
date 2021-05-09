@@ -98,7 +98,7 @@ func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalityQueryDuringWrites(t
 		numTags:                          2,
 		concurrencyQueryDuringWrites:     16,
 		concurrencyQueryDuringWritesType: indexQuery,
-		skipVerify:                       true,
+		skipVerify:                       false,
 	})
 }
 
@@ -153,22 +153,21 @@ func testIndexSingleNodeHighConcurrency(
 	t *testing.T,
 	opts testIndexHighConcurrencyOptions,
 ) {
+	retOpts := DefaultIntegrationTestRetentionOpts.SetBufferPast(30 * time.Second)
 	// Test setup
 	md, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().
-			SetRetentionOptions(DefaultIntegrationTestRetentionOpts).
+			SetRetentionOptions(retOpts).
 			SetCleanupEnabled(false).
 			SetSnapshotEnabled(false).
-			SetFlushEnabled(false).
+			SetFlushEnabled(true).
 			SetColdWritesEnabled(true).
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
 	require.NoError(t, err)
 
 	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
-		SetWriteNewSeriesAsync(true).
-		// Use default time functions (server time not frozen).
-		SetNowFn(time.Now)
+		SetWriteNewSeriesAsync(true)
 	testSetup, err := NewTestSetup(t, testOpts, nil,
 		func(s storage.Options) storage.Options {
 			if opts.skipWrites {
@@ -178,6 +177,10 @@ func testIndexSingleNodeHighConcurrency(
 		})
 	require.NoError(t, err)
 	defer testSetup.Close()
+
+	blockSize := retOpts.BlockSize()
+	newNow := testSetup.NowFn()().Truncate(blockSize).Add(blockSize).Add(-time.Minute)
+	testSetup.SetNowFn(newNow)
 
 	// Start the server
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
@@ -206,45 +209,81 @@ func testIndexSingleNodeHighConcurrency(
 	workerPool := xsync.NewWorkerPool(opts.concurrencyWrites)
 	workerPool.Init()
 
-	for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
-		i := i
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 
-			for j := 0; j < opts.enqueuePerWorker; j++ {
-				j := j
+		for runs := 0; ; runs++ {
+			log.Info("starting run",
+				zap.Int("notifySealed", int(storage.NotifySealed.Load())),
+				zap.Int("gcSeries", int(index.GCdSeries.Load())))
+
+			var runWg sync.WaitGroup
+			for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
+				i := i
 				wg.Add(1)
-				workerPool.Go(func() {
+				runWg.Add(1)
+				go func() {
 					defer wg.Done()
+					defer runWg.Done()
 
-					var genOpts []genIDTagsOption
-					if opts.skipWrites && j%2 == 0 {
-						genOpts = append(genOpts, genIDTagsOption(func(t ident.Tags) ident.Tags {
-							t.Append(ident.Tag{
-								Name:  ident.StringID("skip"),
-								Value: ident.StringID("true"),
-							})
-							return t
-						}))
-					}
-
-					id, tags := genIDTags(i, j, opts.numTags, genOpts...)
-					timestamp := time.Now()
-					err := session.WriteTagged(md.ID(), id, tags,
-						timestamp, float64(j), xtime.Second, nil)
-					if err != nil {
-						if n := numTotalErrors.Inc(); n < 10 {
-							// Log the first 10 errors for visibility but not flood.
-							log.Error("sampled write error", zap.Error(err))
+					for j := 0; j < opts.enqueuePerWorker; j++ {
+						j := j
+						if runs == 0 && (j == 42) {
+							continue // skip indexing on first run
 						}
-					} else {
-						numTotalSuccess.Inc()
+
+						wg.Add(1)
+						runWg.Add(1)
+						workerPool.Go(func() {
+							defer wg.Done()
+							defer runWg.Done()
+
+							var genOpts []genIDTagsOption
+							if opts.skipWrites && j%2 == 0 {
+								genOpts = append(genOpts, genIDTagsOption(func(t ident.Tags) ident.Tags {
+									t.Append(ident.Tag{
+										Name:  ident.StringID("skip"),
+										Value: ident.StringID("true"),
+									})
+									return t
+								}))
+							}
+
+							id, tags := genIDTags(i, j, opts.numTags, genOpts...)
+							timestamp := time.Now()
+							err := session.WriteTagged(md.ID(), id, tags,
+								timestamp, float64(j), xtime.Second, nil)
+							if err != nil {
+								if n := numTotalErrors.Inc(); n < 10 {
+									// Log the first 10 errors for visibility but not flood.
+									log.Error("sampled write error", zap.Error(err))
+								}
+							} else {
+								numTotalSuccess.Inc()
+							}
+						})
 					}
-				})
+				}()
 			}
-		}()
-	}
+
+			runWg.Wait()
+
+			if storage.NotifySealed.Load() > 0 && index.GCdSeries.Load() > 0 {
+				log.Info("aborting runs",
+					zap.Int("notifySealed", int(storage.NotifySealed.Load())))
+				return
+			}
+
+			time.Sleep(10 * time.Second)
+
+			log.Info("proceeding to next run",
+				zap.Int("notifySealed", int(storage.NotifySealed.Load())),
+				zap.Int("gcSeries", int(index.GCdSeries.Load())))
+			newNow := testSetup.NowFn()().Add(2 * time.Minute)
+			testSetup.SetNowFn(newNow)
+		}
+	}()
 
 	// If concurrent query load enabled while writing also hit with queries.
 	queryConcDuringWritesCloseCh := make(chan struct{}, 1)
@@ -339,6 +378,9 @@ func testIndexSingleNodeHighConcurrency(
 		zap.Time("serverTime", nowFn()),
 		zap.Uint32("queryMatches", numTotalQueryMatches.Load()))
 
+	// Allow concurrent query during writes to finish.
+	close(queryConcDuringWritesCloseCh)
+
 	log.Info("data indexing verify start")
 
 	// Wait for at least all things to be enqueued for indexing.
@@ -347,13 +389,19 @@ func testIndexSingleNodeHighConcurrency(
 	numIndexTotal := opts.enqueuePerWorker
 	multiplyByConcurrency := multiplyBy(opts.concurrencyEnqueueWorker)
 	expectNumIndex := multiplyByConcurrency(numIndexTotal)
+
+	var sinceLastPrint time.Time
 	indexProcess := xclock.WaitUntil(func() bool {
 		counters := testSetup.Scope().Snapshot().Counters()
 		counter, ok := counters[expectStatProcess]
 		if !ok {
 			return false
 		}
-		return int(counter.Value()) == expectNumIndex
+		if time.Since(sinceLastPrint) > 5*time.Second {
+			sinceLastPrint = time.Now()
+			fmt.Printf("indexed=%d, expected=%d\n", int(counter.Value()), expectNumIndex)
+		}
+		return int(counter.Value()) > expectNumIndex
 	}, time.Minute*5)
 
 	counters := testSetup.Scope().Snapshot().Counters()
@@ -366,9 +414,6 @@ func testIndexSingleNodeHighConcurrency(
 	assert.True(t, indexProcess,
 		fmt.Sprintf("timeout waiting for index to process: expected to index %d but only processed %d",
 			expectNumIndex, value))
-
-	// Allow concurrent query during writes to finish.
-	close(queryConcDuringWritesCloseCh)
 
 	// Check no query errors.
 	require.Equal(t, int(0), int(numTotalErrors.Load()))
@@ -398,10 +443,7 @@ func testIndexSingleNodeHighConcurrency(
 						defer fetchWg.Done()
 
 						id, tags := genIDTags(i, j, opts.numTags)
-						indexed := xclock.WaitUntil(func() bool {
-							found := isIndexed(t, session, md.ID(), id, tags)
-							return found
-						}, 30*time.Second)
+						indexed := isIndexed(t, session, md.ID(), id, tags)
 						if !indexed {
 							err := fmt.Errorf("not indexed series: i=%d, j=%d", i, j)
 							notIndexedLock.Lock()
@@ -421,25 +463,25 @@ func testIndexSingleNodeHighConcurrency(
 	log.Info("data indexing verify done", zap.Duration("took", time.Since(start)))
 
 	// Make sure attempted total indexing = skipped + written.
-	counters = testSetup.Scope().Snapshot().Counters()
-	totalSkippedWritten := 0
-	for _, expectID := range []string{
-		expectStatPrefix + "stage=skip",
-		expectStatPrefix + "stage=write",
-	} {
-		actual, ok := counters[expectID]
-		assert.True(t, ok,
-			fmt.Sprintf("counter not found to test value: id=%s", expectID))
-		if ok {
-			totalSkippedWritten += int(actual.Value())
-		}
-	}
+	// counters = testSetup.Scope().Snapshot().Counters()
+	// totalSkippedWritten := 0
+	// for _, expectID := range []string{
+	// 	expectStatPrefix + "stage=skip",
+	// 	expectStatPrefix + "stage=write",
+	// } {
+	// 	actual, ok := counters[expectID]
+	// 	assert.True(t, ok,
+	// 		fmt.Sprintf("counter not found to test value: id=%s", expectID))
+	// 	if ok {
+	// 		totalSkippedWritten += int(actual.Value())
+	// 	}
+	// }
 
-	log.Info("check written + skipped",
-		zap.Int("expectedValue", multiplyByConcurrency(numIndexTotal)),
-		zap.Int("actualValue", totalSkippedWritten))
-	assert.Equal(t, multiplyByConcurrency(numIndexTotal), totalSkippedWritten,
-		"total written + skipped mismatch")
+	// log.Info("check written + skipped",
+	// 	zap.Int("expectedValue", multiplyByConcurrency(numIndexTotal)),
+	// 	zap.Int("actualValue", totalSkippedWritten))
+	// assert.Equal(t, multiplyByConcurrency(numIndexTotal), totalSkippedWritten,
+	// 	"total written + skipped mismatch")
 }
 
 func multiplyBy(n int) func(int) int {

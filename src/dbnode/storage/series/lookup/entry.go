@@ -222,6 +222,7 @@ func (entry *Entry) RemoveIndexedForBlockStarts(
 	blockStarts map[xtime.UnixNano]struct{},
 ) index.RemoveIndexedForBlockStartsResult {
 	var result index.RemoveIndexedForBlockStartsResult
+	// fmt.Printf("checkingBlockStarts: %v\n", blockStarts)
 	entry.reverseIndex.Lock()
 	for k, state := range entry.reverseIndex.states {
 		_, ok := blockStarts[k]
@@ -230,6 +231,7 @@ func (entry *Entry) RemoveIndexedForBlockStarts(
 			result.IndexedBlockStartsRemoved++
 			continue
 		}
+		// fmt.Printf("validBlockStart: %v, ok=%v, success=%v\n", k, ok, state.success)
 		result.IndexedBlockStartsRemaining++
 	}
 	entry.reverseIndex.Unlock()

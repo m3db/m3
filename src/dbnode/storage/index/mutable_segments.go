@@ -23,6 +23,7 @@ package index
 import (
 	"errors"
 	"fmt"
+	"go.uber.org/atomic"
 	"math"
 	"runtime"
 	"sync"
@@ -498,6 +499,12 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		}()
 	}
 
+	m.logger.Info("background GC eval",
+		zap.Int("tasks", len(gcPlan.Tasks)),
+		zap.Bool("m.backgroundCompactGCPending", m.backgroundCompactGCPending),
+		zap.Bool("gcRequired", gcRequired),
+		zap.Int("len(m.backgroundSegments)", len(m.backgroundSegments)),
+	)
 	if len(gcPlan.Tasks) != 0 {
 		// Run non-GC tasks separately so the standard loop is not blocked.
 		m.compact.compactingBackgroundGarbageCollect = true
@@ -512,6 +519,10 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 					gcRequired, sealedBlockStarts)
 				m.closeCompactors(compactors)
 			}
+
+			m.logger.Info("finished background GC",
+				zap.Int("tasks", len(gcPlan.Tasks)),
+			)
 
 			m.Lock()
 			m.compact.compactingBackgroundGarbageCollect = false
@@ -628,6 +639,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 
 	wg.Wait()
 }
+
 func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) *ReadThroughSegment {
 	var (
 		readThroughOpts = m.opts.ReadThroughSegmentOptions()
@@ -653,6 +665,10 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	}
 
 	var documentsFilter segment.DocumentsFilter
+	var filtered int
+	min := -1
+	max := -1
+	missingShard := -1
 	if gcRequired {
 		// Only actively filter out documents if GC is required.
 		documentsFilter = segment.DocumentsFilterFn(func(d doc.Metadata) bool {
@@ -676,6 +692,8 @@ func (m *mutableSegments) backgroundCompactWithTask(
 			latestEntry, ok := entry.RelookupAndIncrementReaderWriterCount()
 			if !ok {
 				// Entry nolonger valid in shard.
+				missingShard++
+				filtered++
 				return false
 			}
 
@@ -684,7 +702,17 @@ func (m *mutableSegments) backgroundCompactWithTask(
 
 			// Keep the series if and only if there are remaining
 			// index block starts outside of the sealed blocks starts.
-			return result.IndexedBlockStartsRemaining > 0
+			keep := result.IndexedBlockStartsRemaining > 0
+			if !keep {
+				filtered++
+			}
+			if min == -1 || result.IndexedBlockStartsRemaining < min {
+				min = result.IndexedBlockStartsRemaining
+			}
+			if max == -1 || result.IndexedBlockStartsRemaining > max {
+				max = result.IndexedBlockStartsRemaining
+			}
+			return keep
 		})
 	}
 
@@ -746,7 +774,17 @@ func (m *mutableSegments) backgroundCompactWithTask(
 
 	// Rotate out the replaced frozen segments and add the compacted one.
 	m.Lock()
-	defer m.Unlock()
+	defer func() {
+		m.Unlock()
+		if filtered > 0 {
+			GCdSeries.Add(int32(filtered))
+		}
+		m.logger.Info("finished background GC task",
+			zap.Int("min", min),
+			zap.Int("max", max),
+			zap.Int("missingShard", missingShard),
+		)
+	}()
 
 	result := m.addCompactedSegmentFromSegmentsWithLock(m.backgroundSegments,
 		segments, replaceSeg)
@@ -754,6 +792,8 @@ func (m *mutableSegments) backgroundCompactWithTask(
 
 	return nil
 }
+
+var GCdSeries = atomic.NewInt32(0)
 
 func (m *mutableSegments) addCompactedSegmentFromSegmentsWithLock(
 	current []*readableSeg,

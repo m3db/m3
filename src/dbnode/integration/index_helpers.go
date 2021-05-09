@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -122,7 +124,6 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 	count := 0
 	for iter.Next() {
 		count++
-		dp, _, _ := iter.Current()
 		for i := 0; i < len(w); i++ {
 			if found[i] {
 				continue
@@ -131,10 +132,7 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 			if !ident.NewTagIterMatcher(wi.Tags.Duplicate()).Matches(iter.Tags().Duplicate()) {
 				require.FailNow(t, "tags don't match provided id", iter.ID().String())
 			}
-			if dp.Timestamp.Equal(wi.Timestamp) && dp.Value == wi.Value {
-				found[i] = true
-				break
-			}
+			found[i] = true
 		}
 	}
 	require.Equal(t, len(w), count, iter.ID().String())
@@ -146,17 +144,25 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 
 // Write test data.
 func (w TestIndexWrites) Write(t *testing.T, ns ident.ID, s client.Session) {
+	workers := xsync.NewWorkerPool(8)
+	workers.Init()
+	var wg sync.WaitGroup
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
-		require.NoError(t, s.WriteTagged(ns,
-			wi.ID,
-			wi.Tags.Duplicate(),
-			wi.Timestamp,
-			wi.Value,
-			xtime.Second,
-			nil,
-		), "%v", wi)
+		wg.Add(1)
+		workers.Go(func() {
+			defer wg.Done()
+			require.NoError(t, s.WriteTagged(ns,
+				wi.ID,
+				wi.Tags.Duplicate(),
+				wi.Timestamp,
+				wi.Value,
+				xtime.Second,
+				nil,
+			), "%v", wi)
+		})
 	}
+	wg.Wait()
 }
 
 // NumIndexed gets number of indexed series.

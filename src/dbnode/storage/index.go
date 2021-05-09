@@ -25,6 +25,7 @@ import (
 	gocontext "context"
 	"errors"
 	"fmt"
+	"go.uber.org/atomic"
 	"io"
 	"math"
 	goruntime "runtime"
@@ -663,6 +664,8 @@ func (i *nsIndex) WriteBatch(
 	return nil
 }
 
+var SkipIndex = atomic.NewInt32(0)
+
 func (i *nsIndex) WritePending(
 	pending []writes.PendingIndexInsert,
 ) error {
@@ -672,6 +675,7 @@ func (i *nsIndex) WritePending(
 	for j := range incoming {
 		t := xtime.ToUnixNano(incoming[j].Entry.Timestamp.Truncate(i.blockSize))
 		if incoming[j].Entry.OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(t) {
+			SkipIndex.Inc()
 			continue
 		}
 		// Continue to add this element.
@@ -956,8 +960,14 @@ func (i *nsIndex) Tick(
 	i.metrics.blocksNotifySealed.Inc(int64(len(tickingBlocks.sealedBlocks)))
 	i.metrics.tick.Inc(1)
 
+	if len(tickingBlocks.sealedBlocks) > 0 {
+		NotifySealed.Add(int32(len(tickingBlocks.sealedBlocks)))
+	}
+
 	return result, multiErr.FinalError()
 }
+
+var NotifySealed = atomic.NewInt32(0)
 
 type tickingBlocksResult struct {
 	totalBlocks   int
