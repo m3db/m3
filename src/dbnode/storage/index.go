@@ -667,7 +667,7 @@ func (i *nsIndex) WritePending(
 	incoming := pending
 	pending = pending[:0]
 	for j := range incoming {
-		t := xtime.ToUnixNano(incoming[j].Entry.Timestamp.Truncate(i.blockSize))
+		t := i.BlockStartForWriteTime(incoming[j].Entry.Timestamp)
 		if incoming[j].Entry.OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(t) {
 			continue
 		}
@@ -789,7 +789,8 @@ func (i *nsIndex) writeBatches(
 					if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
 						forwardIndexEntry := entry
 						forwardIndexEntry.Timestamp = forwardEntryTimestamp
-						forwardIndexEntry.OnIndexSeries.OnIndexPrepare()
+						t := i.BlockStartForWriteTime(forwardEntryTimestamp)
+						forwardIndexEntry.OnIndexSeries.OnIndexPrepare(t)
 						forwardIndexBatch.Append(forwardIndexEntry, d)
 					}
 				} else {
