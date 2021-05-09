@@ -189,7 +189,10 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 // NB(prateek): we retain the ref count on the entry while the indexing is pending,
 // the callback executed on the entry once the indexing is completed releases this
 // reference.
-func (entry *Entry) OnIndexPrepare() {
+func (entry *Entry) OnIndexPrepare(blockStartNanos xtime.UnixNano) {
+	entry.reverseIndex.Lock()
+	entry.reverseIndex.setAttemptWithWLock(blockStartNanos, true)
+	entry.reverseIndex.Unlock()
 	entry.IncrementReaderWriterCount()
 }
 
@@ -302,7 +305,7 @@ func (entry *Entry) maybeIndex(timestamp time.Time) error {
 		},
 		Document: entry.Series.Metadata(),
 	}
-	entry.OnIndexPrepare()
+	entry.OnIndexPrepare(idx.BlockStartForWriteTime(timestamp))
 	return idx.WritePending(entry.pendingIndexBatchSizeOne)
 }
 

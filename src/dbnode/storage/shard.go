@@ -1304,7 +1304,7 @@ func (s *dbShard) pendingIndexInsert(
 	timestamp time.Time,
 ) writes.PendingIndexInsert {
 	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
-	entry.OnIndexPrepare()
+	entry.OnIndexPrepare(s.reverseIndex.BlockStartForWriteTime(timestamp))
 	return writes.PendingIndexInsert{
 		Entry: index.WriteBatchEntry{
 			Timestamp:     timestamp,
@@ -1322,7 +1322,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 ) error {
 	indexBlockStart := s.reverseIndex.BlockStartForWriteTime(timestamp)
 	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
-	entry.OnIndexPrepare()
+	entry.OnIndexPrepare(indexBlockStart)
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
@@ -1596,8 +1596,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if inserts[i].opts.hasPendingIndexing {
 			pendingIndex := inserts[i].opts.pendingIndex
 			// increment the ref on the entry, as the original one was transferred to the
-			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
-			entry.OnIndexPrepare()
+			// this method (insertSeriesBatch) via `releaseEntryRef` mechanism.
+			entry.OnIndexPrepare(s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp))
 
 			writeBatchEntry := index.WriteBatchEntry{
 				Timestamp:     pendingIndex.timestamp,
