@@ -133,6 +133,13 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	return isIndexed
 }
 
+func (entry *Entry) IndexedOrAttemptedAny() bool {
+	entry.reverseIndex.RLock()
+	isIndexed := entry.reverseIndex.indexedOrAttemptedAnyWithRLock()
+	entry.reverseIndex.RUnlock()
+	return isIndexed
+}
+
 // NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
 // for the provided blockStart. It only allows a single index attempt at a time
 // for a single entry.
@@ -339,6 +346,15 @@ func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
 	v, ok := s.states[t]
 	if ok {
 		return v.success
+	}
+	return false
+}
+
+func (s *entryIndexState) indexedOrAttemptedAnyWithRLock() bool {
+	for _, state := range s.states {
+		if state.success || state.attempt {
+			return true
+		}
 	}
 	return false
 }
