@@ -675,8 +675,13 @@ func (m *mutableSegments) backgroundCompactWithTask(
 
 			latestEntry, ok := entry.RelookupAndIncrementReaderWriterCount()
 			if !ok {
-				// Entry nolonger valid in shard.
-				return false
+				// Should not happen since shard will not expire until
+				// no more block starts are indexed.
+				// We do not GC this series if shard is missing since
+				// we open up a race condition where the entry is not
+				// in the shard yet and we GC it since we can't find it
+				// due to an asynchronous insert.
+				return true
 			}
 
 			result := latestEntry.RemoveIndexedForBlockStarts(sealedBlocks)
