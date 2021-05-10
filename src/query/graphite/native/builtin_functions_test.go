@@ -3764,6 +3764,7 @@ func TestMovingAverage(t *testing.T) {
 		[]common.TestSeries{expected}, res.Values)
 }
 
+// nolint: dupl
 func TestMovingWindow(t *testing.T) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
