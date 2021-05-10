@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -314,7 +315,7 @@ func TestTracingMiddleware(t *testing.T) {
 	r := mux.NewRouter()
 	r.Use(options.TracingMiddleware(mtr, iOpts))
 	r.HandleFunc(testRoute, func(w http.ResponseWriter, r *http.Request) {
-		iOpts.LoggerFromContext(r.Context()).Info("test")
+		logging.WithContext(r.Context(), iOpts).Info("test")
 	})
 
 	doTestRequest(r)
