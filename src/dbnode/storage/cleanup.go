@@ -326,7 +326,11 @@ func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespa
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		multiErr = multiErr.Add(idx.CleanupDuplicateFileSets())
+		activeShards := make([]uint32, 0)
+		for _, s := range n.OwnedShards() {
+			activeShards = append(activeShards, s.ID())
+		}
+		multiErr = multiErr.Add(idx.CleanupDuplicateFileSets(activeShards))
 	}
 	return multiErr.FinalError()
 }

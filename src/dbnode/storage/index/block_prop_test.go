@@ -86,11 +86,11 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 		t, blockStart, testMD, testOpts.SetPostingsListCache(nil))
 	require.NoError(t, err)
 
-	plCache, stopReporting, err := NewPostingsListCache(1000, PostingsListCacheOptions{
+	plCache, err := NewPostingsListCache(1000, PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})
 	require.NoError(t, err)
-	defer stopReporting()
+	defer plCache.Start()()
 
 	cachedOptions := testOpts.
 		SetPostingsListCache(plCache).
@@ -128,20 +128,24 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				require.NoError(t, err)
 				for !queryIter.Done() {
 					err = uncachedBlock.QueryWithIter(ctx,
-						queryOpts, queryIter, uncachedResults, time.Now().Add(time.Millisecond * 10), emptyLogFields)
+						queryOpts, queryIter, uncachedResults, time.Now().Add(time.Millisecond*10), emptyLogFields)
 					if err != nil {
-						return false, fmt.Errorf("error querying uncached block: %v", err)
+						return false, fmt.Errorf("error querying uncached block: %w", err)
 					}
 				}
 
 				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 				ctx = context.NewBackground()
 				queryIter, err = cachedBlock.QueryIter(ctx, indexQuery)
+				if err != nil {
+					return false, err
+				}
+
 				for !queryIter.Done() {
 					err = cachedBlock.QueryWithIter(ctx, queryOpts, queryIter, cachedResults,
-						time.Now().Add(time.Millisecond * 10), emptyLogFields)
+						time.Now().Add(time.Millisecond*10), emptyLogFields)
 					if err != nil {
-						return false, fmt.Errorf("error querying cached block: %v", err)
+						return false, fmt.Errorf("error querying cached block: %w", err)
 					}
 				}
 
@@ -378,7 +382,7 @@ func TestAggregateDocLimits(t *testing.T) {
 					aggIter,
 					QueryOptions{},
 					results,
-					time.Now().Add(time.Millisecond * 10),
+					time.Now().Add(time.Millisecond*10),
 					emptyLogFields)
 
 				if err != nil {

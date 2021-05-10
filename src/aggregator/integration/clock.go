@@ -1,3 +1,5 @@
+// +build integration
+
 // Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,58 +20,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package integration
 
 import (
-	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/x/context"
+	"sync"
+	"time"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
-type queryIter struct {
-	// immutable state
-	docIter doc.QueryDocIterator
+type testClock struct {
+	sync.RWMutex
 
-	// mutable state
-	seriesCount, docCount int
+	now time.Time
 }
 
-var _ QueryIterator = &queryIter{}
-
-// NewQueryIter wraps the provided QueryDocIterator as a QueryIterator
-func NewQueryIter(docIter doc.QueryDocIterator) QueryIterator {
-	return &queryIter{
-		docIter: docIter,
+func newTestClock(now time.Time) *testClock {
+	return &testClock{
+		now: now,
 	}
 }
 
-func (q *queryIter) Done() bool {
-	return q.docIter.Done()
+func (c *testClock) Now() time.Time {
+	c.RLock()
+	defer c.RUnlock()
+	return c.now
 }
 
-func (q *queryIter) Next(_ context.Context) bool {
-	return q.docIter.Next()
+func (c *testClock) SetNow(now time.Time) {
+	c.Lock()
+	defer c.Unlock()
+	c.now = now
 }
 
-func (q *queryIter) Err() error {
-	return q.docIter.Err()
-}
-
-func (q *queryIter) Close() error {
-	return q.docIter.Close()
-}
-
-func (q *queryIter) AddSeries(count int) {
-	q.seriesCount += count
-}
-
-func (q *queryIter) AddDocs(count int) {
-	q.docCount += count
-}
-
-func (q *queryIter) Counts() (series, docs int) {
-	return q.seriesCount, q.docCount
-}
-
-func (q *queryIter) Current() doc.Document {
-	return q.docIter.Current()
+func (c *testClock) Options() clock.Options {
+	return clock.NewOptions().SetNowFn(c.Now)
 }

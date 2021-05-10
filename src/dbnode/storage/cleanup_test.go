@@ -346,11 +346,17 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 			SetEnabled(true).
 			SetBlockSize(7200 * time.Second))
 
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(42)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	shard.EXPECT().CleanupExpiredFileSets(gomock.Eq(ts.Add(-rOpts.RetentionPeriod()))).Return(nil)
+	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
+
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 
 	idx := NewMockNamespaceIndex(ctrl)
 	ns.EXPECT().Index().Times(3).Return(idx, nil)
@@ -362,7 +368,41 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
 	idx.EXPECT().CleanupCorruptedFileSets().Return(nil)
-	idx.EXPECT().CleanupDuplicateFileSets().Return(nil)
+	idx.EXPECT().CleanupDuplicateFileSets([]uint32{42}).Return(nil)
+	require.NoError(t, cleanup(mgr, ts))
+}
+
+func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	ts := timeFor(36000)
+	rOpts := retentionOptions.
+		SetRetentionPeriod(21600 * time.Second).
+		SetBlockSize(3600 * time.Second)
+	nsOpts := namespaceOptions.
+		SetRetentionOptions(rOpts).
+		SetCleanupEnabled(true).
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetEnabled(true).
+			SetBlockSize(7200 * time.Second))
+
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil)
+	idx.EXPECT().CleanupDuplicateFileSets(gomock.Any()).Return(nil)
+
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	ns.EXPECT().Index().Return(idx, nil).AnyTimes()
+
+	nses := []databaseNamespace{ns}
+	db := newMockdatabase(ctrl, ns)
+	db.EXPECT().OwnedNamespaces().Return(nses, nil).AnyTimes()
+
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	require.NoError(t, cleanup(mgr, ts))
 }
 

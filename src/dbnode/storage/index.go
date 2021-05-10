@@ -1366,8 +1366,8 @@ func (i *nsIndex) Query(
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
-	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, i.newBlockQueryIterFn,
-		logFields, i.metrics.queryMetrics)
+	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn,
+		i.newBlockQueryIterFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return index.QueryResult{}, err
@@ -1409,8 +1409,8 @@ func (i *nsIndex) WideQuery(
 	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()
 
-	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, i.newBlockQueryIterFn, logFields,
-		i.metrics.wideQueryMetrics)
+	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn,
+		i.newBlockQueryIterFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return err
@@ -1467,8 +1467,7 @@ func (i *nsIndex) AggregateQuery(
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(id, aopts)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn,
-		i.newBlockAggregatorIterFn,
-		logFields, i.metrics.aggQueryMetrics)
+		i.newBlockAggregatorIterFn, logFields)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
@@ -1486,14 +1485,13 @@ func (i *nsIndex) query(
 	execBlockFn execBlockQueryFn,
 	newBlockIterFn newBlockIterFn,
 	logFields []opentracinglog.Field,
-	queryMetrics queryMetrics, //nolint: gocritic
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQueryHelper)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, newBlockIterFn, sp, logFields,
-		queryMetrics)
+	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn,
+		newBlockIterFn, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 
@@ -1544,7 +1542,6 @@ type blockIter struct {
 	iterCloser     io.Closer
 	block          index.Block
 	waitTime       time.Duration
-	searchTime     time.Duration
 	processingTime time.Duration
 }
 
@@ -1557,11 +1554,7 @@ func (i *nsIndex) queryWithSpan(
 	newBlockIterFn newBlockIterFn,
 	span opentracing.Span,
 	logFields []opentracinglog.Field,
-	queryMetrics queryMetrics, //nolint: gocritic
 ) (bool, error) {
-	// Capture start before needing to acquire lock.
-	start := i.nowFn()
-
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
@@ -1681,7 +1674,6 @@ func (i *nsIndex) queryWithSpan(
 				startProcessing := time.Now()
 				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, logFields)
 				processingTime := time.Since(startProcessing)
-				queryMetrics.blockProcessingTime.RecordDuration(processingTime)
 				blockIter.processingTime += processingTime
 				permit.Use(int64(processingTime))
 				perms.Release(permit)
@@ -1690,7 +1682,6 @@ func (i *nsIndex) queryWithSpan(
 				// this should never happen since a new iter cannot be Done, but just to be safe.
 				perms.Release(permit)
 			}
-			blockIter.searchTime += blockIter.iter.SearchDuration()
 
 			// close the iterator since it's no longer needed. it's safe to call Close multiple times, here and in the
 			// defer when the function returns.
@@ -1715,26 +1706,6 @@ func (i *nsIndex) queryWithSpan(
 		// an unexpected error occurred processing the query, bail without updating timing metrics.
 		return false, err
 	}
-
-	// update timing metrics even if the query was canceled due to a timeout
-	queryRuntime := time.Since(start)
-
-	var (
-		totalWaitTime       time.Duration
-		totalProcessingTime time.Duration
-		totalSearchTime     time.Duration
-	)
-
-	for _, blockIter := range blockIters {
-		totalWaitTime += blockIter.waitTime
-		totalProcessingTime += blockIter.processingTime
-		totalSearchTime += blockIter.searchTime
-	}
-
-	queryMetrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
-	queryMetrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
-	queryMetrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), totalProcessingTime)
-	queryMetrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), totalSearchTime)
 
 	return exhaustive, err
 }
@@ -2171,7 +2142,7 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 	return i.deleteFilesFn(toDelete)
 }
 
-func (i *nsIndex) CleanupDuplicateFileSets() error {
+func (i *nsIndex) CleanupDuplicateFileSets(activeShards []uint32) error {
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
 		FilePathPrefix:   fsOpts.FilePathPrefix(),
@@ -2196,7 +2167,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 		segmentsOrderByVolumeIndexByVolumeType[volumeType] = append(segmentsOrderByVolumeIndexByVolumeType[volumeType], seg)
 	}
 
-	// Ensure that segments are soroted by volume index.
+	// Ensure that segments are sorted by volume index.
 	for _, segmentsOrderByVolumeIndexByVolumeType := range segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart {
 		for _, segs := range segmentsOrderByVolumeIndexByVolumeType {
 			sort.SliceStable(segs, func(i, j int) bool {
@@ -2210,20 +2181,19 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 	filesToDelete := make([]string, 0)
 	for _, segmentsOrderByVolumeIndexByVolumeType := range segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart {
 		for _, segmentsOrderByVolumeIndex := range segmentsOrderByVolumeIndexByVolumeType {
-			shardTimeRangesCovered := result.NewShardTimeRanges()
-			currSegments := make([]fs.Segments, 0)
+			segmentsToKeep := make([]fs.Segments, 0)
 			for _, seg := range segmentsOrderByVolumeIndex {
-				if seg.ShardTimeRanges().IsSuperset(shardTimeRangesCovered) {
-					// Mark dupe segments for deletion.
-					for _, currSeg := range currSegments {
-						filesToDelete = append(filesToDelete, currSeg.AbsoluteFilePaths()...)
+				for len(segmentsToKeep) > 0 {
+					idx := len(segmentsToKeep) - 1
+					if previous := segmentsToKeep[idx]; seg.ShardTimeRanges().IsSuperset(
+						previous.ShardTimeRanges().FilterShards(activeShards)) {
+						filesToDelete = append(filesToDelete, previous.AbsoluteFilePaths()...)
+						segmentsToKeep = segmentsToKeep[:idx]
+					} else {
+						break
 					}
-					currSegments = []fs.Segments{seg}
-					shardTimeRangesCovered = seg.ShardTimeRanges().Copy()
-					continue
 				}
-				currSegments = append(currSegments, seg)
-				shardTimeRangesCovered.AddRanges(seg.ShardTimeRanges())
+				segmentsToKeep = append(segmentsToKeep, seg)
 			}
 		}
 	}
@@ -2387,10 +2357,6 @@ type nsIndexMetrics struct {
 	queryNonExhaustiveLimitError       tally.Counter
 	queryNonExhaustiveSeriesLimitError tally.Counter
 	queryNonExhaustiveDocsLimitError   tally.Counter
-
-	queryMetrics     queryMetrics
-	aggQueryMetrics  queryMetrics
-	wideQueryMetrics queryMetrics
 }
 
 func newNamespaceIndexMetrics(
@@ -2486,9 +2452,6 @@ func newNamespaceIndexMetrics(
 			"exhaustive": "false",
 			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
-		queryMetrics:     newQueryMetrics(scope, "query"),
-		aggQueryMetrics:  newQueryMetrics(scope, "aggregate"),
-		wideQueryMetrics: newQueryMetrics(scope, "wide"),
 	}
 
 	// Initialize gauges that should default to zero before
@@ -2497,34 +2460,6 @@ func newNamespaceIndexMetrics(
 	m.flushIndexingConcurrency.Update(0)
 
 	return m
-}
-
-func newQueryMetrics(scope tally.Scope, queryType string) queryMetrics {
-	labels := map[string]string{"type": queryType}
-	return queryMetrics{
-		queryTotalTime:      index.NewQueryMetricsWithLabels("query_total", scope, labels),
-		queryWaitTime:       index.NewQueryMetricsWithLabels("query_wait", scope, labels),
-		queryProcessingTime: index.NewQueryMetricsWithLabels("query_processing", scope, labels),
-		querySearchTime:     index.NewQueryMetricsWithLabels("query_search", scope, labels),
-		blockProcessingTime: scope.Tagged(labels).Histogram("block_processing",
-			instrument.SparseHistogramTimerHistogramBuckets()),
-	}
-}
-
-type queryMetrics struct {
-	// the total time for a query, including waiting for processing resources.
-	queryTotalTime index.QueryMetrics
-	// the time spent waiting for workers to start processing the query. totalTime - waitTime = processing time. this is
-	// not necessary equal to processingTime below since a query can use multiple workers at once.
-	queryWaitTime index.QueryMetrics
-	// the total time a query was consuming processing resources. this can actually be greater than queryTotalTime
-	// if the query uses multiple CPUs.
-	queryProcessingTime index.QueryMetrics
-	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
-	// search results.
-	querySearchTime index.QueryMetrics
-	// time to process a single index block when processing a query.
-	blockProcessingTime tally.Histogram
 }
 
 type nsIndexBlocksMetrics struct {

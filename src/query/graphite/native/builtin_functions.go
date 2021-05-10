@@ -1112,24 +1112,15 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 				"require total to be missing, float, single series or same number of series: series=%d, total=%d",
 				len(input.Values), total.Len()))
 		}
-		if total.Len() == 0 {
-			// Same as nil take as sum of input.
-			sum, err := sumSeries(ctx, multiplePathSpecs(input))
-			if err != nil {
-				return ts.NewSeriesList(), err
-			}
-			totalSeriesList = sum
-		} else {
-			// Sort both by name so they get divided by same name if same length
-			// or closest match.
-			sort.Slice(input.Values, func(i, j int) bool {
-				return strings.Compare(input.Values[i].Name(), input.Values[j].Name()) < 0
-			})
-			sort.Slice(total.Values, func(i, j int) bool {
-				return strings.Compare(total.Values[i].Name(), total.Values[j].Name()) < 0
-			})
-			totalSeriesList = total
-		}
+		// Sort both by name so they get divided by same name if same length
+		// or closest match.
+		sort.Slice(input.Values, func(i, j int) bool {
+			return strings.Compare(input.Values[i].Name(), input.Values[j].Name()) < 0
+		})
+		sort.Slice(total.Values, func(i, j int) bool {
+			return strings.Compare(total.Values[i].Name(), total.Values[j].Name()) < 0
+		})
+		totalSeriesList = total
 	default:
 		err := xerrors.NewInvalidParamsError(errors.New(
 			"total must be either an nil, float, a series or same number of series"))
@@ -2355,6 +2346,30 @@ func movingMin(
 		movingImplementationFn(movingMinHelper))
 }
 
+func movingWindow(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	fname string,
+	xFilesFactor float64,
+) (*unaryContextShifter, error) {
+	switch fname {
+	case avgFnName, averageFnName:
+		return movingAverage(ctx, input, windowSize, xFilesFactor)
+	case maxFnName:
+		return movingMax(ctx, input, windowSize, xFilesFactor)
+	case medianFnName:
+		return movingMedian(ctx, input, windowSize, xFilesFactor)
+	case minFnName:
+		return movingMin(ctx, input, windowSize, xFilesFactor)
+	case sumFnName:
+		return movingSum(ctx, input, windowSize, xFilesFactor)
+	default:
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("movingWindow doesn't support %v function", fname))
+		return nil, err
+	}
+}
+
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
 // Appends a value to the metric name in the legend.  Currently one or several of:
 // "last", "avg", "total", "min", "max".
@@ -2568,7 +2583,7 @@ func init() {
 		4: "", // newName
 	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
-		2: []*ts.Series(nil), // total
+		2: nil, // total
 	})
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageSeries)
@@ -2661,6 +2676,12 @@ func init() {
 	MustRegisterFunction(movingMin).
 		WithDefaultParams(map[uint8]interface{}{
 			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingWindow).
+		WithDefaultParams(map[uint8]interface{}{
+			3: "avg",
+			4: defaultXFilesFactor, // XFilesFactor
 		}).
 		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(multiplySeries)

@@ -741,7 +741,7 @@ type NamespaceIndex interface {
 	CleanupCorruptedFileSets() error
 
 	// CleanupDuplicateFileSets removes duplicate fileset files.
-	CleanupDuplicateFileSets() error
+	CleanupDuplicateFileSets(activeShards []uint32) error
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
@@ -1397,6 +1397,12 @@ type Options interface {
 
 	// SetPermitsOptions sets the permits options.
 	SetPermitsOptions(value permits.Options) Options
+
+	// LimitsOptions returns the limit options.
+	LimitsOptions() limits.Options
+
+	// SetLimitsOptions sets the limits options.
+	SetLimitsOptions(value limits.Options) Options
 }
 
 // MemoryTracker tracks memory.

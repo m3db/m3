@@ -59,13 +59,14 @@ func DefaultTestOptions() Options {
 			panic(err)
 		}
 
-		plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+		plCache, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
 			InstrumentOptions: opts.InstrumentOptions(),
 		})
 		if err != nil {
 			panic(err)
 		}
-		defer stopReporting()
+		plStop := plCache.Start()
+		defer plStop()
 
 		indexOpts := opts.IndexOptions().
 			SetPostingsListCache(plCache)

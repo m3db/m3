@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,58 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package instrument
 
 import (
-	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/x/context"
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
-type queryIter struct {
-	// immutable state
-	docIter doc.QueryDocIterator
-
-	// mutable state
-	seriesCount, docCount int
+func TestLoggerContext(t *testing.T) {
+	l := zap.NewNop()
+	ctx := NewContextFromLogger(context.Background(), l)
+	ctxL := LoggerFromContext(ctx)
+	require.Equal(t, l, ctxL)
+	require.Equal(t, l, NewOptions().LoggerFromContext(ctx))
 }
 
-var _ QueryIterator = &queryIter{}
-
-// NewQueryIter wraps the provided QueryDocIterator as a QueryIterator
-func NewQueryIter(docIter doc.QueryDocIterator) QueryIterator {
-	return &queryIter{
-		docIter: docIter,
-	}
-}
-
-func (q *queryIter) Done() bool {
-	return q.docIter.Done()
-}
-
-func (q *queryIter) Next(_ context.Context) bool {
-	return q.docIter.Next()
-}
-
-func (q *queryIter) Err() error {
-	return q.docIter.Err()
-}
-
-func (q *queryIter) Close() error {
-	return q.docIter.Close()
-}
-
-func (q *queryIter) AddSeries(count int) {
-	q.seriesCount += count
-}
-
-func (q *queryIter) AddDocs(count int) {
-	q.docCount += count
-}
-
-func (q *queryIter) Counts() (series, docs int) {
-	return q.seriesCount, q.docCount
-}
-
-func (q *queryIter) Current() doc.Document {
-	return q.docIter.Current()
+func TestNilLoggerContext(t *testing.T) {
+	ctx := NewContextFromLogger(context.Background(), nil)
+	require.Nil(t, LoggerFromContext(ctx))
+	require.NotNil(t, NewOptions().LoggerFromContext(ctx))
 }
