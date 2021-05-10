@@ -85,9 +85,8 @@ type testEntry struct {
 
 func TestSimpleLRUBehavior(t *testing.T) {
 	size := 3
-	plCache, stopReporting, err := NewPostingsListCache(size, testPostingListCacheOptions)
+	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	var (
 		e0 = testPlEntries[0]
@@ -131,9 +130,8 @@ func TestSimpleLRUBehavior(t *testing.T) {
 
 func TestPurgeSegment(t *testing.T) {
 	size := len(testPlEntries)
-	plCache, stopReporting, err := NewPostingsListCache(size, testPostingListCacheOptions)
+	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	// Write many entries with the same segment UUID.
 	for i := 0; i < 100; i++ {
@@ -189,9 +187,8 @@ func TestPurgeSegment(t *testing.T) {
 }
 
 func TestEverthingInsertedCanBeRetrieved(t *testing.T) {
-	plCache, stopReporting, err := NewPostingsListCache(len(testPlEntries), testPostingListCacheOptions)
+	plCache, err := NewPostingsListCache(len(testPlEntries), testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	for i := range testPlEntries {
 		putEntry(t, plCache, i)
@@ -213,9 +210,8 @@ func TestConcurrencyVerifyResultsNoEviction(t *testing.T) {
 }
 
 func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
-	plCache, stopReporting, err := NewPostingsListCache(size, testPostingListCacheOptions)
+	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	wg := sync.WaitGroup{}
 	// Spin up writers.

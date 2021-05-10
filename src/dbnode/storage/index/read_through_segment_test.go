@@ -58,9 +58,8 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	field := []byte("some-field")
 	parsedRegex, err := syntax.Parse(".*this-will-be-slow.*", syntax.Simple)
@@ -98,9 +97,8 @@ func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	field := []byte("some-field")
 	parsedRegex, err := syntax.Parse(".*this-will-be-slow.*", syntax.Simple)
@@ -177,9 +175,8 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	var (
 		field = []byte("some-field")
@@ -217,9 +214,8 @@ func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	var (
 		field = []byte("some-field")
@@ -290,9 +286,8 @@ func TestClose(t *testing.T) {
 	defer ctrl.Finish()
 
 	segment := fst.NewMockSegment(ctrl)
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	readThroughSeg := NewReadThroughSegment(segment,
 		testReadThroughSegmentCaches(nil, nil),
@@ -326,9 +321,8 @@ func TestReadThroughSegmentMatchField(t *testing.T) {
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	var (
 		field = []byte("some-field")
@@ -365,9 +359,8 @@ func TestReadThroughSegmentMatchFieldCacheDisabled(t *testing.T) {
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
 
 	var (
 		field = []byte("some-field")
