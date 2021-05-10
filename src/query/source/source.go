@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -94,14 +95,14 @@ func Middleware(d Deserializer, iOpts instrument.Options) mux.MiddlewareFunc {
 				base.ServeHTTP(w, r)
 				return
 			}
-			l := iOpts.LoggerFromContext(r.Context())
+			l := logging.WithContext(r.Context(), iOpts)
 			if len(hs) > 1 {
 				l.Error("multiple values for source header", zap.Strings("headers", hs))
 				xhttp.WriteError(w, errInvalidSourceHeader)
 				return
 			}
-			l = l.With(zap.String("source", hs[0]))
-			ctx := instrument.NewContextFromLogger(r.Context(), l)
+			ctx := logging.NewContext(r.Context(), iOpts, zap.String("source", hs[0]))
+			l = logging.WithContext(ctx, iOpts)
 			ctx, err := NewContext(ctx, []byte(hs[0]), d)
 			if err != nil {
 				l.Error("failed to deserialize source", zap.Error(err))

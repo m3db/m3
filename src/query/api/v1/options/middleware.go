@@ -33,6 +33,7 @@ import (
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/net/http/cors"
 )
@@ -70,9 +71,9 @@ func TracingMiddleware(tracer opentracing.Tracer, iOpts instrument.Options) mux.
 						spanID = sCtx.SpanID().String()
 					}
 					if spanID != "" && traceID != "" {
-						l := iOpts.LoggerFromContext(r.Context())
-						l = l.With(zap.String("trace_id", traceID), zap.String("span_id", spanID))
-						r = r.WithContext(instrument.NewContextFromLogger(r.Context(), l))
+							r = r.WithContext(logging.NewContext(r.Context(), iOpts,
+							zap.String("trace_id", traceID),
+							zap.String("span_id", spanID)))
 					}
 				}
 				base.ServeHTTP(w, r)

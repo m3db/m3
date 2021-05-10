@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -146,7 +147,7 @@ func TestMiddleware(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := mux.NewRouter()
 			r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-				l = iOpts.LoggerFromContext(r.Context())
+				l = logging.WithContext(r.Context(), iOpts)
 				l.Info("test")
 				typed, ok := FromContext(r.Context())
 				if tc.expected.name == "" {
