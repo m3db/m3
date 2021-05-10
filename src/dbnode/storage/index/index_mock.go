@@ -813,6 +813,32 @@ func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
 	return m.recorder
 }
 
+// DecrementReaderWriterCount mocks base method.
+func (m *MockOnIndexSeries) DecrementReaderWriterCount() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DecrementReaderWriterCount")
+}
+
+// DecrementReaderWriterCount indicates an expected call of DecrementReaderWriterCount.
+func (mr *MockOnIndexSeriesMockRecorder) DecrementReaderWriterCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecrementReaderWriterCount", reflect.TypeOf((*MockOnIndexSeries)(nil).DecrementReaderWriterCount))
+}
+
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize mocks base method.
+func (m *MockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart time0.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IfAlreadyIndexedMarkIndexSuccessAndFinalize", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize indicates an expected call of IfAlreadyIndexedMarkIndexSuccessAndFinalize.
+func (mr *MockOnIndexSeriesMockRecorder) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IfAlreadyIndexedMarkIndexSuccessAndFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).IfAlreadyIndexedMarkIndexSuccessAndFinalize), blockStart)
+}
+
 // NeedsIndexUpdate mocks base method.
 func (m *MockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite time0.UnixNano) bool {
 	m.ctrl.T.Helper()
@@ -840,15 +866,15 @@ func (mr *MockOnIndexSeriesMockRecorder) OnIndexFinalize(blockStart interface{})
 }
 
 // OnIndexPrepare mocks base method.
-func (m *MockOnIndexSeries) OnIndexPrepare() {
+func (m *MockOnIndexSeries) OnIndexPrepare(blockStart time0.UnixNano) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnIndexPrepare")
+	m.ctrl.Call(m, "OnIndexPrepare", blockStart)
 }
 
 // OnIndexPrepare indicates an expected call of OnIndexPrepare.
-func (mr *MockOnIndexSeriesMockRecorder) OnIndexPrepare() *gomock.Call {
+func (mr *MockOnIndexSeriesMockRecorder) OnIndexPrepare(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexPrepare", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexPrepare))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexPrepare", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexPrepare), blockStart)
 }
 
 // OnIndexSuccess mocks base method.
@@ -861,6 +887,35 @@ func (m *MockOnIndexSeries) OnIndexSuccess(blockStart time0.UnixNano) {
 func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
+}
+
+// RelookupAndIncrementReaderWriterCount mocks base method.
+func (m *MockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RelookupAndIncrementReaderWriterCount")
+	ret0, _ := ret[0].(OnIndexSeries)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// RelookupAndIncrementReaderWriterCount indicates an expected call of RelookupAndIncrementReaderWriterCount.
+func (mr *MockOnIndexSeriesMockRecorder) RelookupAndIncrementReaderWriterCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelookupAndIncrementReaderWriterCount", reflect.TypeOf((*MockOnIndexSeries)(nil).RelookupAndIncrementReaderWriterCount))
+}
+
+// RemoveIndexedForBlockStarts mocks base method.
+func (m *MockOnIndexSeries) RemoveIndexedForBlockStarts(blockStarts map[time0.UnixNano]struct{}) RemoveIndexedForBlockStartsResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveIndexedForBlockStarts", blockStarts)
+	ret0, _ := ret[0].(RemoveIndexedForBlockStartsResult)
+	return ret0
+}
+
+// RemoveIndexedForBlockStarts indicates an expected call of RemoveIndexedForBlockStarts.
+func (mr *MockOnIndexSeriesMockRecorder) RemoveIndexedForBlockStarts(blockStarts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveIndexedForBlockStarts", reflect.TypeOf((*MockOnIndexSeries)(nil).RemoveIndexedForBlockStarts), blockStarts)
 }
 
 // MockBlock is a mock of Block interface.
@@ -884,6 +939,20 @@ func NewMockBlock(ctrl *gomock.Controller) *MockBlock {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 	return m.recorder
+}
+
+// ActiveBlockNotifySealedBlocks mocks base method.
+func (m *MockBlock) ActiveBlockNotifySealedBlocks(sealed []time0.UnixNano) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ActiveBlockNotifySealedBlocks", sealed)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ActiveBlockNotifySealedBlocks indicates an expected call of ActiveBlockNotifySealedBlocks.
+func (mr *MockBlockMockRecorder) ActiveBlockNotifySealedBlocks(sealed interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveBlockNotifySealedBlocks", reflect.TypeOf((*MockBlock)(nil).ActiveBlockNotifySealedBlocks), sealed)
 }
 
 // AddResults mocks base method.
@@ -985,6 +1054,20 @@ func (mr *MockBlockMockRecorder) EvictMutableSegments() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictMutableSegments))
 }
 
+// IsOpen mocks base method.
+func (m *MockBlock) IsOpen() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOpen")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOpen indicates an expected call of IsOpen.
+func (mr *MockBlockMockRecorder) IsOpen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpen", reflect.TypeOf((*MockBlock)(nil).IsOpen))
+}
+
 // IsSealed mocks base method.
 func (m *MockBlock) IsSealed() bool {
 	m.ctrl.T.Helper()
@@ -1072,9 +1155,11 @@ func (mr *MockBlockMockRecorder) QueryWithIter(ctx, opts, iter, results, deadlin
 }
 
 // RotateColdMutableSegments mocks base method.
-func (m *MockBlock) RotateColdMutableSegments() {
+func (m *MockBlock) RotateColdMutableSegments() error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RotateColdMutableSegments")
+	ret := m.ctrl.Call(m, "RotateColdMutableSegments")
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RotateColdMutableSegments indicates an expected call of RotateColdMutableSegments.
@@ -1996,6 +2081,20 @@ func (mr *MockOptionsMockRecorder) ReadThroughSegmentOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadThroughSegmentOptions", reflect.TypeOf((*MockOptions)(nil).ReadThroughSegmentOptions))
 }
 
+// SearchPostingsListCache mocks base method.
+func (m *MockOptions) SearchPostingsListCache() *PostingsListCache {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchPostingsListCache")
+	ret0, _ := ret[0].(*PostingsListCache)
+	return ret0
+}
+
+// SearchPostingsListCache indicates an expected call of SearchPostingsListCache.
+func (mr *MockOptionsMockRecorder) SearchPostingsListCache() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchPostingsListCache", reflect.TypeOf((*MockOptions)(nil).SearchPostingsListCache))
+}
+
 // SegmentBuilderOptions mocks base method.
 func (m *MockOptions) SegmentBuilderOptions() builder.Options {
 	m.ctrl.T.Helper()
@@ -2302,6 +2401,20 @@ func (m *MockOptions) SetReadThroughSegmentOptions(value ReadThroughSegmentOptio
 func (mr *MockOptionsMockRecorder) SetReadThroughSegmentOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadThroughSegmentOptions", reflect.TypeOf((*MockOptions)(nil).SetReadThroughSegmentOptions), value)
+}
+
+// SetSearchPostingsListCache mocks base method.
+func (m *MockOptions) SetSearchPostingsListCache(value *PostingsListCache) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSearchPostingsListCache", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSearchPostingsListCache indicates an expected call of SetSearchPostingsListCache.
+func (mr *MockOptionsMockRecorder) SetSearchPostingsListCache(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSearchPostingsListCache", reflect.TypeOf((*MockOptions)(nil).SetSearchPostingsListCache), value)
 }
 
 // SetSegmentBuilderOptions mocks base method.
