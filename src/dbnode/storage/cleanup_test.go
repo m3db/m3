@@ -389,6 +389,7 @@ func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
 
 	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil)
+	idx.EXPECT().CleanupCorruptedFileSets().Return(nil)
 	idx.EXPECT().CleanupDuplicateFileSets(gomock.Any()).Return(nil)
 
 	ns := NewMockdatabaseNamespace(ctrl)

@@ -20,6 +20,8 @@
 
 package xos
 
+import "os"
+
 // File is the interface implemented by *os.File.
 type File interface {
 	// Write bytes to the file descriptor.
@@ -31,8 +33,8 @@ type File interface {
 }
 
 // WriteFileSync calls fsync() in addition to writing a file to disk.
-func WriteFileSync(name string, data []byte, perm FileMode) error {
-	f, err := OpenFile(name, O_WRONLY|O_CREATE|O_TRUNC, perm)
+func WriteFileSync(name string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return err
 	}
