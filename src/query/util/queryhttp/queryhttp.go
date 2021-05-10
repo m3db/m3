@@ -23,22 +23,11 @@ package queryhttp
 import (
 	"fmt"
 	"net/http"
-	"strconv"
-	"sync"
 
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/uber-go/tally"
 
 	"github.com/gorilla/mux"
-)
-
-var (
-	histogramTimerOptions = instrument.NewHistogramTimerOptions(
-		instrument.HistogramTimerOptions{
-			// Use sparse histogram timer buckets to not overload with latency metrics.
-			HistogramBuckets: instrument.SparseHistogramTimerHistogramBuckets(),
-		})
 )
 
 // NewEndpointRegistry returns a new endpoint registry.
@@ -74,46 +63,19 @@ type RegisterOptions struct {
 	PathPrefix string
 	Handler    http.Handler
 	Methods    []string
+	Middleware []mux.MiddlewareFunc
 }
 
 // Register registers an endpoint.
-func (r *EndpointRegistry) Register(
-	opts RegisterOptions,
-	middlewareOpts ...logging.MiddlewareOption,
-) error {
-	// Wrap requests with response time logging as well as panic recovery.
-	var (
-		route             *mux.Route
-		metrics           = newRouteMetrics(r.instrumentOpts)
-		middlewareOptions []logging.MiddlewareOption
-	)
-	postRequestOption := logging.WithPostRequestMiddleware(
-		logging.PostRequestMiddleware(func(
-			r *http.Request,
-			meta logging.RequestMiddlewareMetadata,
-		) {
-			if !meta.WroteHeader {
-				return
-			}
-
-			p, err := route.GetPathTemplate()
-			if err != nil {
-				p = "unknown"
-			}
-
-			counter, timer := metrics.metric(p, meta.StatusCode)
-			counter.Inc(1)
-			timer.Record(meta.Duration)
-		}))
-	middlewareOptions = append(middlewareOptions, postRequestOption)
-	middlewareOptions = append(middlewareOptions, middlewareOpts...)
-
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, r.instrumentOpts,
-			middlewareOptions...)
+func (r *EndpointRegistry) Register(opts RegisterOptions) error {
+	if len(opts.Middleware) == 0 {
+		opts.Middleware = middleware.Default(r.instrumentOpts)
+	}
+	handler := opts.Handler
+	for i := len(opts.Middleware) - 1; i >= 0; i-- {
+		handler = opts.Middleware[i].Middleware(handler)
 	}
 
-	handler := wrapped(opts.Handler)
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
 		for _, method := range opts.Methods {
 			key := routeKey{
@@ -125,7 +87,7 @@ func (r *EndpointRegistry) Register(
 					p, method)
 			}
 
-			route = r.router.HandleFunc(p, handler.ServeHTTP).Methods(method)
+			route := r.router.Handle(p, handler).Methods(method)
 			r.registered[key] = route
 		}
 	} else if p := opts.PathPrefix; p != "" {
@@ -135,7 +97,7 @@ func (r *EndpointRegistry) Register(
 		if _, ok := r.registered[key]; ok {
 			return fmt.Errorf("route already exists: pathPrefix=%s", p)
 		}
-		route = r.router.PathPrefix(p).Handler(handler)
+		route := r.router.PathPrefix(p).Handler(handler)
 		r.registered[key] = route
 	} else {
 		return fmt.Errorf("no path and methods or path prefix set: +%v", opts)
@@ -154,9 +116,7 @@ type RegisterPathsOptions struct {
 // RegisterPaths registers multiple paths for the same handler.
 func (r *EndpointRegistry) RegisterPaths(
 	paths []string,
-	opts RegisterPathsOptions,
-	middlewareOpts ...logging.MiddlewareOption,
-) error {
+	opts RegisterPathsOptions) error {
 	for _, p := range paths {
 		if err := r.Register(RegisterOptions{
 			Path:    p,
@@ -195,79 +155,4 @@ func (r *EndpointRegistry) PathPrefixRoute(pathPrefix string) (*mux.Route, bool)
 // are explored depth-first.
 func (r *EndpointRegistry) Walk(walkFn mux.WalkFunc) error {
 	return r.router.Walk(walkFn)
-}
-
-func routeName(p string, method string) string {
-	if method == "" {
-		return p
-	}
-	return fmt.Sprintf("%s %s", p, method)
-}
-
-type routeMetrics struct {
-	sync.RWMutex
-	instrumentOpts instrument.Options
-	metrics        map[routeMetricKey]routeMetric
-	timers         map[string]tally.Timer
-}
-
-type routeMetricKey struct {
-	path   string
-	status int
-}
-
-type routeMetric struct {
-	status tally.Counter
-}
-
-func newRouteMetrics(instrumentOpts instrument.Options) *routeMetrics {
-	return &routeMetrics{
-		instrumentOpts: instrumentOpts,
-		metrics:        make(map[routeMetricKey]routeMetric),
-		timers:         make(map[string]tally.Timer),
-	}
-}
-
-func (m *routeMetrics) metric(path string, status int) (tally.Counter, tally.Timer) {
-	key := routeMetricKey{
-		path:   path,
-		status: status,
-	}
-	m.RLock()
-	metric, ok1 := m.metrics[key]
-	timer, ok2 := m.timers[path]
-	m.RUnlock()
-	if ok1 && ok2 {
-		return metric.status, timer
-	}
-
-	m.Lock()
-	defer m.Unlock()
-
-	metric, ok1 = m.metrics[key]
-	timer, ok2 = m.timers[path]
-	if ok1 && ok2 {
-		return metric.status, timer
-	}
-
-	scopePath := m.instrumentOpts.MetricsScope().Tagged(map[string]string{
-		"path": path,
-	})
-
-	scopePathAndStatus := scopePath.Tagged(map[string]string{
-		"status": strconv.Itoa(status),
-	})
-
-	if !ok1 {
-		metric = routeMetric{
-			status: scopePathAndStatus.Counter("request"),
-		}
-		m.metrics[key] = metric
-	}
-	if !ok2 {
-		timer = instrument.NewTimer(scopePath, "latency", histogramTimerOptions)
-		m.timers[path] = timer
-	}
-
-	return metric.status, timer
 }

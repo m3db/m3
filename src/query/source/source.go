@@ -90,20 +90,21 @@ var errInvalidSourceHeader = xhttp.NewError(
 func Middleware(d Deserializer, iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			hs := r.Header[headers.SourceHeader]
-			if len(hs) == 0 {
-				base.ServeHTTP(w, r)
-				return
-			}
+			var s []byte
 			l := logging.WithContext(r.Context(), iOpts)
+			hs := r.Header[headers.SourceHeader]
 			if len(hs) > 1 {
 				l.Error("multiple values for source header", zap.Strings("headers", hs))
 				xhttp.WriteError(w, errInvalidSourceHeader)
 				return
 			}
-			ctx := logging.NewContext(r.Context(), iOpts, zap.String("source", hs[0]))
+			// an empty header value is ok. allow the deserializer to populate an "empty" source value.
+			if len(hs) == 1 {
+				s = []byte(hs[0])
+			}
+			ctx := logging.NewContext(r.Context(), iOpts, zap.ByteString("source", s))
 			l = logging.WithContext(ctx, iOpts)
-			ctx, err := NewContext(ctx, []byte(hs[0]), d)
+			ctx, err := NewContext(ctx, s, d)
 			if err != nil {
 				l.Error("failed to deserialize source", zap.Error(err))
 				base.ServeHTTP(w, r)

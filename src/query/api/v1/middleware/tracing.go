@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package options
+package middleware
 
 import (
 	"fmt"
@@ -29,29 +29,17 @@ import (
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
-	"github.com/prometheus/prometheus/util/httputil"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/net/http/cors"
 )
 
-// DefaultMiddleware is the default list of middleware functions applied if no middleware functions are set in the
-// HandlerOptions.
-func DefaultMiddleware() []mux.MiddlewareFunc {
-	return []mux.MiddlewareFunc{
-		CorsMiddleware(),
-		TracingMiddleware(opentracing.GlobalTracer(), nil),
-		CompressionMiddleware(),
-	}
-}
-
-// TracingMiddleware applies OpenTracing compatible middleware, which will start a span
+// Tracing applies OpenTracing compatible middleware, which will start a span
 // for each incoming request. Additionally if iOpts is non-nil the trace_id and span_id are added as fields to the
 // request scoped logger.
-func TracingMiddleware(tracer opentracing.Tracer, iOpts instrument.Options) mux.MiddlewareFunc {
+func Tracing(tracer opentracing.Tracer, iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return nethttp.MiddlewareFunc(
 			tracer,
@@ -81,26 +69,5 @@ func TracingMiddleware(tracer opentracing.Tracer, iOpts instrument.Options) mux.
 			nethttp.OperationNameFunc(func(r *http.Request) string {
 				return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
 			}))
-	}
-}
-
-// CorsMiddleware adds CORS headers will be added to all responses.
-func CorsMiddleware() mux.MiddlewareFunc {
-	return func(base http.Handler) http.Handler {
-		return &cors.Handler{
-			Handler: base,
-			Info: &cors.Info{
-				"*": true,
-			},
-		}
-	}
-}
-
-// CompressionMiddleware adds suitable response compression based on the client's Accept-Encoding headers.
-func CompressionMiddleware() mux.MiddlewareFunc {
-	return func(base http.Handler) http.Handler {
-		return httputil.CompressionHandler{
-			Handler: base,
-		}
 	}
 }
