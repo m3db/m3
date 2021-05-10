@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
@@ -245,17 +246,17 @@ func (mr *MockDatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, 
 }
 
 // WriteTagged mocks base method
-func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteTagged indicates an expected call of WriteTagged
-func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockDatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockDatabase)(nil).WriteTagged), ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
 }
 
 // BatchWriter mocks base method
@@ -684,17 +685,17 @@ func (mr *MockdatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, 
 }
 
 // WriteTagged mocks base method
-func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteTagged indicates an expected call of WriteTagged
-func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*Mockdatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*Mockdatabase)(nil).WriteTagged), ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
 }
 
 // BatchWriter mocks base method
@@ -1547,18 +1548,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) Write(ctx, id, timestamp, value, un
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
+func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(SeriesWrite)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WriteTagged indicates an expected call of WriteTagged
-func (mr *MockdatabaseNamespaceMockRecorder) WriteTagged(ctx, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseNamespace)(nil).WriteTagged), ctx, id, tags, timestamp, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseNamespace)(nil).WriteTagged), ctx, id, tagResolver, timestamp, value, unit, annotation)
 }
 
 // QueryIDs mocks base method
@@ -2099,18 +2100,18 @@ func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, 
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation, wOpts)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(SeriesWrite)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WriteTagged indicates an expected call of WriteTagged
-func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tags, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseShard)(nil).WriteTagged), ctx, id, tags, timestamp, value, unit, annotation, wOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseShard)(nil).WriteTagged), ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts)
 }
 
 // ReadEncoded mocks base method

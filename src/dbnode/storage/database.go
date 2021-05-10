@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -697,7 +698,7 @@ func (d *db) WriteTagged(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	tags ident.TagIterator,
+	tagResolver convert.TagMetadataResolver,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -709,7 +710,7 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	seriesWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	seriesWrite, err := n.WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -802,7 +803,7 @@ func (d *db) writeBatch(
 			seriesWrite, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
-				write.TagIter,
+				convert.NewEncodedTagsMetadataResolver(write.EncodedTags),
 				write.Write.Datapoint.Timestamp,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
