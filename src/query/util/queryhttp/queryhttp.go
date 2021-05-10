@@ -72,6 +72,8 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 		opts.Middleware = middleware.Default(r.instrumentOpts)
 	}
 	handler := opts.Handler
+	// iterate through in reverse order so each middleware fn gets the proper next handler to dispatch. this ensures the
+	// middleware is dispatched in the expected order (first -> last).
 	for i := len(opts.Middleware) - 1; i >= 0; i-- {
 		handler = opts.Middleware[i].Middleware(handler)
 	}
