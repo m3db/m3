@@ -2346,6 +2346,30 @@ func movingMin(
 		movingImplementationFn(movingMinHelper))
 }
 
+func movingWindow(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSize genericInterface,
+	fname string,
+	xFilesFactor float64,
+) (*unaryContextShifter, error) {
+	switch fname {
+	case avgFnName, averageFnName:
+		return movingAverage(ctx, input, windowSize, xFilesFactor)
+	case maxFnName:
+		return movingMax(ctx, input, windowSize, xFilesFactor)
+	case medianFnName:
+		return movingMedian(ctx, input, windowSize, xFilesFactor)
+	case minFnName:
+		return movingMin(ctx, input, windowSize, xFilesFactor)
+	case sumFnName:
+		return movingSum(ctx, input, windowSize, xFilesFactor)
+	default:
+		err := xerrors.NewInvalidParamsError(fmt.Errorf("movingWindow doesn't support %v function", fname))
+		return nil, err
+	}
+}
+
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
 // Appends a value to the metric name in the legend.  Currently one or several of:
 // "last", "avg", "total", "min", "max".
@@ -2652,6 +2676,12 @@ func init() {
 	MustRegisterFunction(movingMin).
 		WithDefaultParams(map[uint8]interface{}{
 			3: defaultXFilesFactor, // XFilesFactor
+		}).
+		WithoutUnaryContextShifterSkipFetchOptimization()
+	MustRegisterFunction(movingWindow).
+		WithDefaultParams(map[uint8]interface{}{
+			3: "avg",
+			4: defaultXFilesFactor, // XFilesFactor
 		}).
 		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(multiplySeries)
