@@ -79,15 +79,15 @@ func init() {
 
 type testEntry struct {
 	segmentUUID  uuid.UUID
-	key          key
+	key          PostingsListCacheKey
 	postingsList postings.List
 }
 
 func TestSimpleLRUBehavior(t *testing.T) {
 	size := 3
-	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
+	plCache, stopReporting, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer plCache.Start()()
+	defer stopReporting()
 
 	var (
 		e0 = testPlEntries[0]
@@ -131,24 +131,24 @@ func TestSimpleLRUBehavior(t *testing.T) {
 
 func TestPurgeSegment(t *testing.T) {
 	size := len(testPlEntries)
-	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
+	plCache, stopReporting, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer plCache.Start()()
+	defer stopReporting()
 
 	// Write many entries with the same segment UUID.
 	for i := 0; i < 100; i++ {
-		if testPlEntries[i].key.patternType == PatternTypeRegexp {
+		if testPlEntries[i].key.PatternType == PatternTypeRegexp {
 			plCache.PutRegexp(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].key.field,
-				testPlEntries[i].key.pattern,
+				testPlEntries[i].key.Field,
+				testPlEntries[i].key.Pattern,
 				testPlEntries[i].postingsList,
 			)
 		} else {
 			plCache.PutTerm(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].key.field,
-				testPlEntries[i].key.pattern,
+				testPlEntries[i].key.Field,
+				testPlEntries[i].key.Pattern,
 				testPlEntries[i].postingsList,
 			)
 		}
@@ -165,18 +165,18 @@ func TestPurgeSegment(t *testing.T) {
 	// All entries related to the purged segment should be gone.
 	require.Equal(t, size-100, plCache.lru.Len())
 	for i := 0; i < 100; i++ {
-		if testPlEntries[i].key.patternType == PatternTypeRegexp {
+		if testPlEntries[i].key.PatternType == PatternTypeRegexp {
 			_, ok := plCache.GetRegexp(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].key.field,
-				testPlEntries[i].key.pattern,
+				testPlEntries[i].key.Field,
+				testPlEntries[i].key.Pattern,
 			)
 			require.False(t, ok)
 		} else {
 			_, ok := plCache.GetTerm(
 				testPlEntries[0].segmentUUID,
-				testPlEntries[i].key.field,
-				testPlEntries[i].key.pattern,
+				testPlEntries[i].key.Field,
+				testPlEntries[i].key.Pattern,
 			)
 			require.False(t, ok)
 		}
@@ -189,9 +189,9 @@ func TestPurgeSegment(t *testing.T) {
 }
 
 func TestEverthingInsertedCanBeRetrieved(t *testing.T) {
-	plCache, err := NewPostingsListCache(len(testPlEntries), testPostingListCacheOptions)
+	plCache, stopReporting, err := NewPostingsListCache(len(testPlEntries), testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer plCache.Start()()
+	defer stopReporting()
 
 	for i := range testPlEntries {
 		putEntry(t, plCache, i)
@@ -213,9 +213,9 @@ func TestConcurrencyVerifyResultsNoEviction(t *testing.T) {
 }
 
 func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
-	plCache, err := NewPostingsListCache(size, testPostingListCacheOptions)
+	plCache, stopReporting, err := NewPostingsListCache(size, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer plCache.Start()()
+	defer stopReporting()
 
 	wg := sync.WaitGroup{}
 	// Spin up writers.
@@ -276,70 +276,70 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 func putEntry(t *testing.T, cache *PostingsListCache, i int) {
 	// Do each put twice to test the logic that avoids storing
 	// multiple entries for the same value.
-	switch testPlEntries[i].key.patternType {
+	switch testPlEntries[i].key.PatternType {
 	case PatternTypeRegexp:
 		cache.PutRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			testPlEntries[i].key.Field,
+			testPlEntries[i].key.Pattern,
 			testPlEntries[i].postingsList,
 		)
 		cache.PutRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			testPlEntries[i].key.Field,
+			testPlEntries[i].key.Pattern,
 			testPlEntries[i].postingsList,
 		)
 	case PatternTypeTerm:
 		cache.PutTerm(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			testPlEntries[i].key.Field,
+			testPlEntries[i].key.Pattern,
 			testPlEntries[i].postingsList,
 		)
 		cache.PutTerm(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			testPlEntries[i].key.Field,
+			testPlEntries[i].key.Pattern,
 			testPlEntries[i].postingsList,
 		)
 	case PatternTypeField:
 		cache.PutField(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
+			testPlEntries[i].key.Field,
 			testPlEntries[i].postingsList,
 		)
 		cache.PutField(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
+			testPlEntries[i].key.Field,
 			testPlEntries[i].postingsList,
 		)
 	default:
-		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.patternType)
+		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.PatternType)
 	}
 }
 
 func getEntry(t *testing.T, cache *PostingsListCache, i int) (postings.List, bool) {
-	switch testPlEntries[i].key.patternType {
+	switch testPlEntries[i].key.PatternType {
 	case PatternTypeRegexp:
 		return cache.GetRegexp(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			testPlEntries[i].key.Field,
+			testPlEntries[i].key.Pattern,
 		)
 	case PatternTypeTerm:
 		return cache.GetTerm(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
-			testPlEntries[i].key.pattern,
+			testPlEntries[i].key.Field,
+			testPlEntries[i].key.Pattern,
 		)
 	case PatternTypeField:
 		return cache.GetField(
 			testPlEntries[i].segmentUUID,
-			testPlEntries[i].key.field,
+			testPlEntries[i].key.Field,
 		)
 	default:
-		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.patternType)
+		require.FailNow(t, "unknown pattern type", testPlEntries[i].key.PatternType)
 	}
 	return nil, false
 }
@@ -353,14 +353,14 @@ func requireExpectedOrder(t *testing.T, plCache *PostingsListCache, expectedOrde
 func printSortedKeys(t *testing.T, cache *PostingsListCache) {
 	keys := cache.lru.keys()
 	sort.Slice(keys, func(i, j int) bool {
-		iIdx, err := strconv.ParseInt(keys[i].field, 10, 64)
+		iIdx, err := strconv.ParseInt(keys[i].Field, 10, 64)
 		if err != nil {
-			t.Fatalf("unable to parse: %s into int", keys[i].field)
+			t.Fatalf("unable to parse: %s into int", keys[i].Field)
 		}
 
-		jIdx, err := strconv.ParseInt(keys[j].field, 10, 64)
+		jIdx, err := strconv.ParseInt(keys[j].Field, 10, 64)
 		if err != nil {
-			t.Fatalf("unable to parse: %s into int", keys[i].field)
+			t.Fatalf("unable to parse: %s into int", keys[i].Field)
 		}
 
 		return iIdx < jIdx

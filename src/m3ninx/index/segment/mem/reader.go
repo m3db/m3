@@ -113,7 +113,7 @@ func (r *reader) MatchRegexp(field []byte, compiled index.CompiledRegex) (postin
 	return r.segment.matchRegexp(field, compileRE)
 }
 
-func (r *reader) MatchAll() (postings.MutableList, error) {
+func (r *reader) MatchAll() (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {

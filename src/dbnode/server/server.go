@@ -484,10 +484,21 @@ func Run(runOpts RunOptions) {
 				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
 	)
-	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	segmentPostingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
-		logger.Fatal("could not construct postings list cache", zap.Error(err))
+		logger.Fatal("could not construct segment postings list cache", zap.Error(err))
 	}
+
+	segmentStopReporting := segmentPostingsListCache.Start()
+	defer segmentStopReporting()
+
+	searchPostingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct searches postings list cache", zap.Error(err))
+	}
+
+	searchStopReporting := searchPostingsListCache.Start()
+	defer searchStopReporting()
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
@@ -508,7 +519,6 @@ func Run(runOpts RunOptions) {
 	defer queryLimits.Stop()
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
-	defer postingsListCache.Start()()
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -518,10 +528,12 @@ func Run(runOpts RunOptions) {
 		insertMode = index.InsertAsync
 	}
 	indexOpts = indexOpts.SetInsertMode(insertMode).
-		SetPostingsListCache(postingsListCache).
+		SetPostingsListCache(segmentPostingsListCache).
+		SetSearchPostingsListCache(searchPostingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+			CacheRegexp:   plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:    plCacheConfig.CacheTermsOrDefault(),
+			CacheSearches: plCacheConfig.CacheSearchOrDefault(),
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
