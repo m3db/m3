@@ -1699,7 +1699,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	if err = db.WriteTagged(ctx,
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
-		storage.NewTagsIterMetadataResolver(iter), xtime.FromNormalizedTime(dp.Timestamp, d),
+		idxconvert.NewTagsIterMetadataResolver(iter), xtime.FromNormalizedTime(dp.Timestamp, d),
 		dp.Value, unit, dp.Annotation); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -2792,7 +2792,7 @@ func newWriteBatchPooledReqPool(
 
 func (p *writeBatchPooledReqPool) Init() {
 	p.pool.Init(func() interface{} {
-		// NB(r): Make pooled IDs 1x the default write batch size plus an extra one for the namespace
+		// NB(r): Make pooled IDs the default write batch size plus an extra one for the namespace
 		pooledIDs := make([]writeBatchPooledReqID, 1+client.DefaultWriteBatchSize)
 		for i := range pooledIDs {
 			pooledIDs[i].bytes = checked.NewBytes(nil, nil)

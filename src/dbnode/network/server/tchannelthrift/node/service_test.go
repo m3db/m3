@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	conv "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -1450,12 +1451,10 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 		} else {
 			id := ident.BinaryID(checked.NewBytes(block.ID, nil))
 
-			encodedTagsMetadataResolver := storage.NewEncodedTagsMetadataResolver(block.EncodedTags)
-			actualTags, err := encodedTagsMetadataResolver.Resolve(id)
+			actualTags, err := conv.FromSeriesIDAndEncodedTags(id.Bytes(), block.EncodedTags)
 			require.NoError(t, err)
 
-			expectedTagsResolver := storage.NewTagsMetadataResolver(expectedBlocks.tags)
-			expectedTags, err := expectedTagsResolver.Resolve(id)
+			expectedTags, err := conv.FromSeriesIDAndTags(id, expectedBlocks.tags)
 			require.NoError(t, err)
 
 			require.True(t, expectedTags.Equal(actualTags))

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -217,7 +218,7 @@ func TestNamespaceReadOnlyRejectWrites(t *testing.T) {
 	require.EqualError(t, err, errNamespaceReadOnly.Error())
 	require.False(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = ns.WriteTagged(ctx, id, EmptyTagMetadataResolver, now, 0, xtime.Second, nil)
+	seriesWrite, err = ns.WriteTagged(ctx, id, convert.EmptyTagMetadataResolver, now, 0, xtime.Second, nil)
 	require.EqualError(t, err, errNamespaceReadOnly.Error())
 	require.False(t, seriesWrite.WasWritten)
 }
@@ -1335,23 +1336,23 @@ func TestNamespaceIndexInsert(t *testing.T) {
 			TruncateType: truncateType,
 		}
 		shard.EXPECT().
-			WriteTagged(ctx, ident.NewIDMatcher("a"), EmptyTagMetadataResolver,
+			WriteTagged(ctx, ident.NewIDMatcher("a"), convert.EmptyTagMetadataResolver,
 				now, 1.0, xtime.Second, nil, opts).
 			Return(SeriesWrite{WasWritten: true}, nil)
 		shard.EXPECT().
-			WriteTagged(ctx, ident.NewIDMatcher("a"), EmptyTagMetadataResolver,
+			WriteTagged(ctx, ident.NewIDMatcher("a"), convert.EmptyTagMetadataResolver,
 				now, 1.0, xtime.Second, nil, opts).
 			Return(SeriesWrite{WasWritten: false}, nil)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
 		seriesWrite, err := ns.WriteTagged(ctx, ident.StringID("a"),
-			EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil)
+			convert.EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
 		require.True(t, seriesWrite.WasWritten)
 
 		seriesWrite, err = ns.WriteTagged(ctx, ident.StringID("a"),
-			EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil)
+			convert.EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
 		require.False(t, seriesWrite.WasWritten)
 

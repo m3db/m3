@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -69,16 +70,15 @@ const (
 )
 
 var (
-	errShardEntryNotFound           = errors.New("shard entry not found")
-	errShardNotOpen                 = errors.New("shard is not open")
-	errShardAlreadyTicking          = errors.New("shard is already ticking")
-	errShardClosingTickTerminated   = errors.New("shard is closing, terminating tick")
-	errShardInvalidPageToken        = errors.New("shard could not unmarshal page token")
-	errNewShardEntryTagsTypeInvalid = errors.New("new shard entry options error: tags type invalid")
-	errShardIsNotBootstrapped       = errors.New("shard is not bootstrapped")
-	errShardAlreadyBootstrapped     = errors.New("shard is already bootstrapped")
-	errFlushStateIsNotInitialized   = errors.New("shard flush state is not initialized")
-	errTriedToLoadNilSeries         = errors.New("tried to load nil series into shard")
+	errShardEntryNotFound         = errors.New("shard entry not found")
+	errShardNotOpen               = errors.New("shard is not open")
+	errShardAlreadyTicking        = errors.New("shard is already ticking")
+	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
+	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
+	errShardIsNotBootstrapped     = errors.New("shard is not bootstrapped")
+	errShardAlreadyBootstrapped   = errors.New("shard is already bootstrapped")
+	errFlushStateIsNotInitialized = errors.New("shard flush state is not initialized")
+	errTriedToLoadNilSeries       = errors.New("tried to load nil series into shard")
 
 	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
 	// is hit or exceeded.
@@ -113,42 +113,6 @@ const (
 	dbShardStateOpen dbShardState = iota
 	dbShardStateClosing
 )
-
-type tagsArgType uint
-
-const (
-	// nolint: varcheck, unused
-	tagsInvalidArg tagsArgType = iota
-	tagsIterArg
-	tagsArg
-)
-
-// tagsArgOptions is a union type that allows
-// callers to pass either an ident.TagIterator or
-// ident.Tags based on what access they have to
-type tagsArgOptions struct {
-	arg      tagsArgType
-	tagsIter ident.TagIterator
-	tags     ident.Tags
-}
-
-func newTagsIterArg(
-	tagsIter ident.TagIterator,
-) tagsArgOptions {
-	return tagsArgOptions{
-		arg:      tagsIterArg,
-		tagsIter: tagsIter,
-	}
-}
-
-func newTagsArg(
-	tags ident.Tags,
-) tagsArgOptions {
-	return tagsArgOptions{
-		arg:  tagsArg,
-		tags: tags,
-	}
-}
 
 type dbShard struct {
 	sync.RWMutex
@@ -498,7 +462,7 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
-	entry, err = s.newShardEntry(id, NewTagsIterMetadataResolver(tags))
+	entry, err = s.newShardEntry(id, convert.NewTagsIterMetadataResolver(tags))
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
@@ -882,7 +846,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 func (s *dbShard) WriteTagged(
 	ctx context.Context,
 	id ident.ID,
-	tagResolver ident.TagMetadataResolver,
+	tagResolver convert.TagMetadataResolver,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -902,14 +866,14 @@ func (s *dbShard) Write(
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (SeriesWrite, error) {
-	return s.writeAndIndex(ctx, id, EmptyTagMetadataResolver, timestamp,
+	return s.writeAndIndex(ctx, id, convert.EmptyTagMetadataResolver, timestamp,
 		value, unit, annotation, wOpts, false)
 }
 
 func (s *dbShard) writeAndIndex(
 	ctx context.Context,
 	id ident.ID,
-	tagResolver ident.TagMetadataResolver,
+	tagResolver convert.TagMetadataResolver,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -1062,7 +1026,7 @@ func (s *dbShard) SeriesRefResolver(
 		return entry, nil
 	}
 
-	entry, err = s.newShardEntry(id, NewTagsIterMetadataResolver(tags))
+	entry, err = s.newShardEntry(id, convert.NewTagsIterMetadataResolver(tags))
 	if err != nil {
 		return nil, err
 	}
@@ -1156,7 +1120,7 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element
 	return elem.Value.(*lookup.Entry), elem, nil
 }
 
-func (s *dbShard) writableSeries(id ident.ID, tagResolver ident.TagMetadataResolver) (*lookup.Entry, error) {
+func (s *dbShard) writableSeries(id ident.ID, tagResolver convert.TagMetadataResolver) (*lookup.Entry, error) {
 	for {
 		entry, err := s.retrieveWritableSeries(id)
 		if entry != nil {
@@ -1209,7 +1173,7 @@ func (s *dbShard) retrieveWritableSeries(id ident.ID) (*lookup.Entry, error) {
 
 func (s *dbShard) newShardEntry(
 	id ident.ID,
-	tagResolver ident.TagMetadataResolver,
+	tagResolver convert.TagMetadataResolver,
 ) (*lookup.Entry, error) {
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
 	// and metadata are garbage collected, hence we cast the ID to a BytesID
@@ -1326,7 +1290,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 
 func (s *dbShard) insertSeriesAsyncBatched(
 	id ident.ID,
-	tagResolver ident.TagMetadataResolver,
+	tagResolver convert.TagMetadataResolver,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
 	entry, err := s.newShardEntry(id, tagResolver)
@@ -1362,7 +1326,7 @@ type insertSyncOptions struct {
 
 func (s *dbShard) insertSeriesSync(
 	id ident.ID,
-	tagResolver ident.TagMetadataResolver,
+	tagResolver convert.TagMetadataResolver,
 	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
 	// NB(r): Create new shard entry outside of write lock to reduce
@@ -2118,7 +2082,7 @@ func (s *dbShard) loadBlock(
 	if entry == nil {
 		// Synchronously insert to avoid waiting for the insert queue which could potentially
 		// delay the insert.
-		entry, err = s.insertSeriesSync(id, NewTagsMetadataResolver(tags),
+		entry, err = s.insertSeriesSync(id, convert.NewTagsMetadataResolver(tags),
 			insertSyncOptions{
 				// NB(r): Because insertSyncIncReaderWriterCount is used here we
 				// don't need to explicitly increment the reader/writer count and it

@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package convert contains various conversions.
 package convert
 
 import (
@@ -191,7 +192,7 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, 
 }
 
 // FromSeriesIDAndEncodedTags converts the provided series id and encoded tags into a doc.Metadata.
-func FromSeriesIDAndEncodedTags(id ident.ID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
+func FromSeriesIDAndEncodedTags(id ident.BytesID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
 	var (
 		byteOrder = serialize.ByteOrder
 		total     = len(encodedTags)

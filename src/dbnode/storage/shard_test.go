@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -1436,7 +1437,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	s.EXPECT().Tick(gomock.Any(), gomock.Any()).Do(func(interface{}, interface{}) {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
-		entry, err = shard.writableSeries(id, EmptyTagMetadataResolver)
+		entry, err = shard.writableSeries(id, convert.EmptyTagMetadataResolver)
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
@@ -1774,7 +1775,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 		iter.EXPECT().Close(),
 	)
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), NewTagsIterMetadataResolver(iter))
+	_, err := shard.newShardEntry(ident.StringID("abc"), convert.NewTagsIterMetadataResolver(iter))
 	require.Error(t, err)
 }
 
@@ -1785,7 +1786,7 @@ func TestShardNewValidShardEntry(t *testing.T) {
 	shard := testDatabaseShard(t, DefaultTestOptions())
 	defer shard.Close()
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), NewTagsIterMetadataResolver(ident.EmptyTagIterator))
+	_, err := shard.newShardEntry(ident.StringID("abc"), convert.NewTagsIterMetadataResolver(ident.EmptyTagIterator))
 	require.NoError(t, err)
 }
 
@@ -1819,7 +1820,7 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 		Times(1).
 		Return(ident.NewTagsIterator(seriesTags))
 
-	entry, err := shard.newShardEntry(id, NewTagsIterMetadataResolver(iter))
+	entry, err := shard.newShardEntry(id, convert.NewTagsIterMetadataResolver(iter))
 	require.NoError(t, err)
 
 	shard.Lock()
