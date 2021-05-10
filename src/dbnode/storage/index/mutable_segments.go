@@ -628,11 +628,16 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 
 	wg.Wait()
 }
+
 func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) *ReadThroughSegment {
 	var (
+		plCaches = ReadThroughSegmentCaches{
+			SegmentPostingsListCache: m.opts.PostingsListCache(),
+			SearchPostingsListCache:  m.opts.SearchPostingsListCache(),
+		}
 		readThroughOpts = m.opts.ReadThroughSegmentOptions()
 	)
-	return NewReadThroughSegment(seg, m.opts.PostingsListCache(), readThroughOpts)
+	return NewReadThroughSegment(seg, plCaches, readThroughOpts)
 }
 
 func (m *mutableSegments) backgroundCompactWithTask(

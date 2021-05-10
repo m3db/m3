@@ -21,7 +21,8 @@
 package query
 
 import (
-	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -30,6 +31,7 @@ import (
 
 // DisjuctionQuery finds documents which match at least one of the given queries.
 type DisjuctionQuery struct {
+	str     string
 	queries []search.Query
 }
 
@@ -47,9 +49,18 @@ func NewDisjunctionQuery(queries []search.Query) search.Query {
 
 		qs = append(qs, query)
 	}
-	return &DisjuctionQuery{
+	// Cause a sort of the queries/negations for deterministic cache key.
+	sort.Slice(qs, func(i, j int) bool {
+		return qs[i].String() < qs[j].String()
+	})
+	q := &DisjuctionQuery{
 		queries: qs,
 	}
+	// NB(r): Calculate string value up front so
+	// not allocated every time String() is called to determine
+	// the cache key.
+	q.str = q.string()
+	return q
 }
 
 // Searcher returns a searcher over the provided readers.
@@ -112,5 +123,13 @@ func (q *DisjuctionQuery) ToProto() *querypb.Query {
 }
 
 func (q *DisjuctionQuery) String() string {
-	return fmt.Sprintf("disjunction(%s)", join(q.queries))
+	return q.str
+}
+
+func (q *DisjuctionQuery) string() string {
+	var str strings.Builder
+	str.WriteString("disjunction(")
+	join(&str, q.queries)
+	str.WriteRune(')')
+	return str.String()
 }
