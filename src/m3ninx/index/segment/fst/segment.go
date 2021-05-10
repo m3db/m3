@@ -986,7 +986,7 @@ func (sr *fsSegmentReader) MatchRegexp(
 	return pl, err
 }
 
-func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
+func (sr *fsSegmentReader) MatchAll() (postings.List, error) {
 	if sr.closed {
 		return nil, errReaderClosed
 	}
