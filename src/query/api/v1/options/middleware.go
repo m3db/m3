@@ -71,7 +71,7 @@ func TracingMiddleware(tracer opentracing.Tracer, iOpts instrument.Options) mux.
 						spanID = sCtx.SpanID().String()
 					}
 					if spanID != "" && traceID != "" {
-							r = r.WithContext(logging.NewContext(r.Context(), iOpts,
+						r = r.WithContext(logging.NewContext(r.Context(), iOpts,
 							zap.String("trace_id", traceID),
 							zap.String("span_id", spanID)))
 					}
