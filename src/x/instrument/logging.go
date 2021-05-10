@@ -28,10 +28,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type key int
-
-var loggerKey key
-
 // NewTestDebugLogger returns a new debug logger for tests.
 func NewTestDebugLogger(t *testing.T) *zap.Logger {
 	loggerConfig := zap.NewDevelopmentConfig()
