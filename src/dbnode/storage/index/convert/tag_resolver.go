@@ -33,7 +33,7 @@ var (
 	EmptyTagMetadataResolver = NewTagsIterMetadataResolver(ident.EmptyTagIterator)
 
 	// ErrUnknownTagMetadataResolverType is unknown tag metadata resolver type error.
-	ErrUnknownTagMetadataResolverType = errors.New("unknown tag resolver metadata type")
+	ErrUnknownTagMetadataResolverType = errors.New("unknown tag metadata resolver type")
 )
 
 type tagResolverType uint8
