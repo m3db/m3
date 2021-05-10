@@ -338,20 +338,44 @@ func sumSeriesWithWildcards(
 // aggregateWithWildcards splits the given set of series into sub-groupings
 // based on wildcard matches in the hierarchy, then aggregate the values in
 // each grouping based on the given function.
+// Similar to combineSeriesWithWildcards function but more general, as it
+// supports any aggregate functions while combineSeriesWithWildcards only
+// support aggregation with existing ts.ConsolidationFunc.
 func aggregateWithWildcards(
 	ctx *common.Context,
 	series singlePathSpec,
 	fname string,
 	positions ...int,
 ) (ts.SeriesList, error) {
-	f, fexists := summarizeFuncs[fname]
-	if !fexists {
-		err := xerrors.NewInvalidParamsError(fmt.Errorf(
-			"invalid func %s", fname))
-		return ts.NewSeriesList(), err
+	if len(series.Values) == 0 {
+		return ts.SeriesList(series), nil
 	}
 
-	return combineSeriesWithWildcards(ctx, series, positions, f.specificationFunc, f.consolidationFunc)
+	toAggregate := splitSeriesIntoSubgroups(series, positions)
+
+	newSeries := make([]*ts.Series, 0, len(toAggregate))
+	for name, toAggregateSeries := range toAggregate {
+		seriesList := ts.SeriesList{
+			Values:   toAggregateSeries,
+			Metadata: series.Metadata,
+		}
+		aggregated, err := aggregate(ctx, singlePathSpec(seriesList), fname)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		renamedSeries := aggregated.Values[0].RenamedTo(name)
+		newSeries = append(newSeries, renamedSeries)
+	}
+
+	r := ts.SeriesList(series)
+
+	r.Values = newSeries
+
+	// Ranging over hash map to create results destroys
+	// any sort order on the incoming series list
+	r.SortApplied = false
+
+	return r, nil
 }
 
 // combineSeriesWithWildcards splits the given set of series into sub-groupings
@@ -368,6 +392,34 @@ func combineSeriesWithWildcards(
 		return ts.SeriesList(series), nil
 	}
 
+	toCombine := splitSeriesIntoSubgroups(series, positions)
+
+	newSeries := make([]*ts.Series, 0, len(toCombine))
+	for name, toCombineSeries := range toCombine {
+		seriesList := ts.SeriesList{
+			Values:   toCombineSeries,
+			Metadata: series.Metadata,
+		}
+		combined, err := combineSeries(ctx, multiplePathSpecs(seriesList), name, f)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		combined.Values[0].Specification = sf(seriesList)
+		newSeries = append(newSeries, combined.Values...)
+	}
+
+	r := ts.SeriesList(series)
+
+	r.Values = newSeries
+
+	// Ranging over hash map to create results destroys
+	// any sort order on the incoming series list
+	r.SortApplied = false
+
+	return r, nil
+}
+
+func splitSeriesIntoSubgroups(series singlePathSpec, positions []int) map[string][]*ts.Series {
 	var (
 		toCombine = make(map[string][]*ts.Series)
 		wildcards = make(map[int]struct{})
@@ -392,29 +444,7 @@ func combineSeriesWithWildcards(
 		toCombine[newName] = append(toCombine[newName], series)
 	}
 
-	newSeries := make([]*ts.Series, 0, len(toCombine))
-	for name, combinedSeries := range toCombine {
-		seriesList := ts.SeriesList{
-			Values:   combinedSeries,
-			Metadata: series.Metadata,
-		}
-		combined, err := combineSeries(ctx, multiplePathSpecs(seriesList), name, f)
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-		combined.Values[0].Specification = sf(seriesList)
-		newSeries = append(newSeries, combined.Values...)
-	}
-
-	r := ts.SeriesList(series)
-
-	r.Values = newSeries
-
-	// Ranging over hash map to create results destroys
-	// any sort order on the incoming series list
-	r.SortApplied = false
-
-	return r, nil
+	return toCombine
 }
 
 // splits a slice into chunks

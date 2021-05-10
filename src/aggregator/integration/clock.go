@@ -1,4 +1,6 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// +build integration
+
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +20,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package integration contains integration tests for aggregator.
 package integration
 
 import (
+	"sync"
 	"time"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
-type conditionFn func() bool
+type testClock struct {
+	sync.RWMutex
 
-func waitUntil(fn conditionFn, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return true
-		}
-		time.Sleep(10 * time.Millisecond)
+	now time.Time
+}
+
+func newTestClock(now time.Time) *testClock {
+	return &testClock{
+		now: now,
 	}
-	return false
+}
+
+func (c *testClock) Now() time.Time {
+	c.RLock()
+	defer c.RUnlock()
+	return c.now
+}
+
+func (c *testClock) SetNow(now time.Time) {
+	c.Lock()
+	defer c.Unlock()
+	c.now = now
+}
+
+func (c *testClock) Options() clock.Options {
+	return clock.NewOptions().SetNowFn(c.Now)
 }

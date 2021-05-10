@@ -106,7 +106,7 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 	defer closeFn()
 
 	setups.parallel(func(s TestSetup) {
-		s.StartServer()
+		require.NoError(t, s.StartServer())
 	})
 	log.Debug("servers are now up")
 

@@ -76,6 +76,6 @@ func setPlacement(
 	if err != nil {
 		return err
 	}
-	_, err = store.SetIfNotExists(key, stagedPlacementProto)
+	_, err = store.Set(key, stagedPlacementProto)
 	return err
 }

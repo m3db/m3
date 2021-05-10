@@ -161,12 +161,8 @@ func (c *Context) NewChildContext(opts ChildContextOptions) *Context {
 		child.TimeRangeAdjustment.OriginalEnd = origEnd
 		child.TimeRangeAdjustment.ShiftStart += opts.adjustment.shiftStart
 		child.TimeRangeAdjustment.ShiftEnd += opts.adjustment.shiftEnd
-		if opts.adjustment.expandStart > child.TimeRangeAdjustment.ExpandStart {
-			child.TimeRangeAdjustment.ExpandStart = opts.adjustment.expandStart
-		}
-		if opts.adjustment.expandEnd > child.TimeRangeAdjustment.ExpandEnd {
-			child.TimeRangeAdjustment.ExpandEnd = opts.adjustment.expandEnd
-		}
+		child.TimeRangeAdjustment.ExpandStart += opts.adjustment.expandStart
+		child.TimeRangeAdjustment.ExpandEnd += opts.adjustment.expandEnd
 
 		child.StartTime = origStart.
 			Add(child.TimeRangeAdjustment.ShiftStart).

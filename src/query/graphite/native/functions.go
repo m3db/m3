@@ -444,6 +444,11 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 
 	// Cast to the expected typealias type of ts.SeriesList before calling
 	for i, arg := range in {
+		if !arg.IsValid() {
+			// Zero value arg is a nil.
+			in[i] = reflect.New(genericInterfaceType).Elem()
+			continue
+		}
 		typeArg := arg.Type()
 		if typeArg != seriesListType {
 			continue
@@ -625,12 +630,12 @@ func (call *functionCall) String() string {
 // isTimeSeries checks whether the given value contains a timeseries or
 // timeseries list
 func isTimeSeries(v reflect.Value) bool {
-	return v.Type() == seriesListType
+	return v.IsValid() && v.Type() == seriesListType
 }
 
 // getStats gets trace stats for the given timeseries argument
 func getStats(v reflect.Value) common.TraceStats {
-	if v.Type() == timeSeriesType {
+	if v.IsValid() && v.Type() == timeSeriesType {
 		return common.TraceStats{NumSeries: 1}
 	}
 
