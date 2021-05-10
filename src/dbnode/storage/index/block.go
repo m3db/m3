@@ -25,8 +25,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"runtime"
 	"sync"
 	"time"
+
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -44,11 +50,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -132,6 +135,8 @@ type block struct {
 	sync.RWMutex
 
 	state blockState
+
+	cachedSearchesWorkers xsync.WorkerPool
 
 	mutableSegments                 *mutableSegments
 	coldMutableSegments             []*mutableSegments
@@ -235,11 +240,16 @@ func NewBlock(
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
 
+	cpus := int(math.Max(1, math.Ceil(0.25*float64(runtime.NumCPU()))))
+	cachedSearchesWorkers := xsync.NewWorkerPool(cpus)
+	cachedSearchesWorkers.Init()
+
 	segs := newMutableSegments(
 		md,
 		blockStart,
 		opts,
 		blockOpts,
+		cachedSearchesWorkers,
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
@@ -249,6 +259,7 @@ func NewBlock(
 		blockStart,
 		opts,
 		blockOpts,
+		cachedSearchesWorkers,
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
@@ -261,6 +272,7 @@ func NewBlock(
 		blockEnd:                        blockStart.Add(blockSize),
 		blockSize:                       blockSize,
 		blockOpts:                       blockOpts,
+		cachedSearchesWorkers:           cachedSearchesWorkers,
 		mutableSegments:                 segs,
 		coldMutableSegments:             coldMutableSegments,
 		shardRangesSegmentsByVolumeType: make(shardRangesSegmentsByVolumeType),
@@ -1223,6 +1235,7 @@ func (b *block) RotateColdMutableSegments() error {
 		b.blockStart,
 		b.opts,
 		b.blockOpts,
+		b.cachedSearchesWorkers,
 		b.namespaceRuntimeOptsMgr,
 		b.iopts,
 	)

@@ -135,3 +135,6 @@ func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
 }
 func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool           { return false }
 func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool) { return false, false }
+func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (doc.OnIndexSeries, bool) {
+	return nil, false
+}

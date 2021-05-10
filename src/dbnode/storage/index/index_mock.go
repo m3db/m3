@@ -813,6 +813,20 @@ func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 	return m.recorder
 }
 
+// ActiveBlockNotifySealedBlocks mocks base method.
+func (m *MockBlock) ActiveBlockNotifySealedBlocks(sealed []time0.UnixNano) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ActiveBlockNotifySealedBlocks", sealed)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ActiveBlockNotifySealedBlocks indicates an expected call of ActiveBlockNotifySealedBlocks.
+func (mr *MockBlockMockRecorder) ActiveBlockNotifySealedBlocks(sealed interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveBlockNotifySealedBlocks", reflect.TypeOf((*MockBlock)(nil).ActiveBlockNotifySealedBlocks), sealed)
+}
+
 // AddResults mocks base method.
 func (m *MockBlock) AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error {
 	m.ctrl.T.Helper()
@@ -1939,6 +1953,20 @@ func (mr *MockOptionsMockRecorder) ReadThroughSegmentOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadThroughSegmentOptions", reflect.TypeOf((*MockOptions)(nil).ReadThroughSegmentOptions))
 }
 
+// SearchPostingsListCache mocks base method.
+func (m *MockOptions) SearchPostingsListCache() *PostingsListCache {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchPostingsListCache")
+	ret0, _ := ret[0].(*PostingsListCache)
+	return ret0
+}
+
+// SearchPostingsListCache indicates an expected call of SearchPostingsListCache.
+func (mr *MockOptionsMockRecorder) SearchPostingsListCache() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchPostingsListCache", reflect.TypeOf((*MockOptions)(nil).SearchPostingsListCache))
+}
+
 // SegmentBuilderOptions mocks base method.
 func (m *MockOptions) SegmentBuilderOptions() builder.Options {
 	m.ctrl.T.Helper()
@@ -2245,6 +2273,20 @@ func (m *MockOptions) SetReadThroughSegmentOptions(value ReadThroughSegmentOptio
 func (mr *MockOptionsMockRecorder) SetReadThroughSegmentOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadThroughSegmentOptions", reflect.TypeOf((*MockOptions)(nil).SetReadThroughSegmentOptions), value)
+}
+
+// SetSearchPostingsListCache mocks base method.
+func (m *MockOptions) SetSearchPostingsListCache(value *PostingsListCache) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSearchPostingsListCache", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSearchPostingsListCache indicates an expected call of SetSearchPostingsListCache.
+func (mr *MockOptionsMockRecorder) SetSearchPostingsListCache(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSearchPostingsListCache", reflect.TypeOf((*MockOptions)(nil).SetSearchPostingsListCache), value)
 }
 
 // SetSegmentBuilderOptions mocks base method.

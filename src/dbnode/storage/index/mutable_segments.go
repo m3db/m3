@@ -23,27 +23,39 @@ package index
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/m3ninx/search/query"
+	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
+	bitmap "github.com/m3dbx/pilosa/roaring"
 )
 
 var (
@@ -81,20 +93,32 @@ type mutableSegments struct {
 	iopts                    instrument.Options
 	optsListener             xresource.SimpleCloser
 	writeIndexingConcurrency int
+	cachedSearchesWorkers    xsync.WorkerPool
 
 	metrics mutableSegmentsMetrics
 	logger  *zap.Logger
 }
 
 type mutableSegmentsMetrics struct {
-	foregroundCompactionPlanRunLatency    tally.Timer
-	foregroundCompactionTaskRunLatency    tally.Timer
-	backgroundCompactionPlanRunLatency    tally.Timer
-	backgroundCompactionTaskRunLatency    tally.Timer
-	activeBlockIndexNew                   tally.Counter
-	activeBlockGarbageCollectSegment      tally.Counter
-	activeBlockGarbageCollectSeries       tally.Counter
-	activeBlockGarbageCollectEmptySegment tally.Counter
+	foregroundCompactionPlanRunLatency                          tally.Timer
+	foregroundCompactionTaskRunLatency                          tally.Timer
+	backgroundCompactionPlanRunLatency                          tally.Timer
+	backgroundCompactionTaskRunLatency                          tally.Timer
+	activeBlockIndexNew                                         tally.Counter
+	activeBlockGarbageCollectSegment                            tally.Counter
+	activeBlockGarbageCollectSeries                             tally.Counter
+	activeBlockGarbageCollectEmptySegment                       tally.Counter
+	activeBlockGarbageCollectCachedSearchesDisabled             tally.Counter
+	activeBlockGarbageCollectCachedSearchesInRegistry           tally.Counter
+	activeBlockGarbageCollectCachedSearchesNotInRegistry        tally.Counter
+	activeBlockGarbageCollectCachedSearchesTotal                tally.Histogram
+	activeBlockGarbageCollectCachedSearchesMatched              tally.Histogram
+	activeBlockGarbageCollectReconstructCachedSearchEvalSkip    tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchEvalAttempt tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchCacheHit    tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchCacheMiss   tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchExecSuccess tally.Counter
+	activeBlockGarbageCollectReconstructCachedSearchExecError   tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -109,9 +133,38 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		activeBlockIndexNew: activeBlockScope.Tagged(map[string]string{
 			"result_type": "new",
 		}).Counter("index-result"),
-		activeBlockGarbageCollectSegment:      activeBlockScope.Counter("gc-segment"),
-		activeBlockGarbageCollectSeries:       activeBlockScope.Counter("gc-series"),
-		activeBlockGarbageCollectEmptySegment: activeBlockScope.Counter("gc-empty-segment"),
+		activeBlockGarbageCollectSegment:                activeBlockScope.Counter("gc-segment"),
+		activeBlockGarbageCollectSeries:                 activeBlockScope.Counter("gc-series"),
+		activeBlockGarbageCollectEmptySegment:           backgroundScope.Counter("gc-empty-segment"),
+		activeBlockGarbageCollectCachedSearchesDisabled: backgroundScope.Counter("gc-cached-searches-disabled"),
+		activeBlockGarbageCollectCachedSearchesInRegistry: backgroundScope.Tagged(map[string]string{
+			"found": "true",
+		}).Counter("gc-cached-searches-in-registry"),
+		activeBlockGarbageCollectCachedSearchesNotInRegistry: backgroundScope.Tagged(map[string]string{
+			"found": "false",
+		}).Counter("gc-cached-searches-in-registry"),
+		activeBlockGarbageCollectCachedSearchesTotal: backgroundScope.Histogram("gc-cached-searches-total",
+			append(tally.ValueBuckets{0, 1}, tally.MustMakeExponentialValueBuckets(2, 2, 12)...)),
+		activeBlockGarbageCollectCachedSearchesMatched: backgroundScope.Histogram("gc-cached-searches-matched",
+			append(tally.ValueBuckets{0, 1}, tally.MustMakeExponentialValueBuckets(2, 2, 12)...)),
+		activeBlockGarbageCollectReconstructCachedSearchEvalSkip: backgroundScope.Tagged(map[string]string{
+			"eval_type": "skip",
+		}).Counter("gc-reconstruct-cached-search-eval"),
+		activeBlockGarbageCollectReconstructCachedSearchEvalAttempt: backgroundScope.Tagged(map[string]string{
+			"eval_type": "attempt",
+		}).Counter("gc-reconstruct-cached-search-eval"),
+		activeBlockGarbageCollectReconstructCachedSearchCacheHit: backgroundScope.Tagged(map[string]string{
+			"result_type": "cache_hit",
+		}).Counter("gc-reconstruct-cached-search-cache-result"),
+		activeBlockGarbageCollectReconstructCachedSearchCacheMiss: backgroundScope.Tagged(map[string]string{
+			"result_type": "cache_miss",
+		}).Counter("gc-reconstruct-cached-search-cache-result"),
+		activeBlockGarbageCollectReconstructCachedSearchExecSuccess: backgroundScope.Tagged(map[string]string{
+			"result_type": "success",
+		}).Counter("gc-reconstruct-cached-search-exec-result"),
+		activeBlockGarbageCollectReconstructCachedSearchExecError: backgroundScope.Tagged(map[string]string{
+			"result_type": "error",
+		}).Counter("gc-reconstruct-cached-search-exec-result"),
 	}
 }
 
@@ -122,18 +175,20 @@ func newMutableSegments(
 	blockStart xtime.UnixNano,
 	opts Options,
 	blockOpts BlockOptions,
+	cachedSearchesWorkers xsync.WorkerPool,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	iopts instrument.Options,
 ) *mutableSegments {
 	m := &mutableSegments{
-		blockStart: blockStart,
-		blockSize:  md.Options().IndexOptions().BlockSize(),
-		opts:       opts,
-		blockOpts:  blockOpts,
-		compact:    mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
-		iopts:      iopts,
-		metrics:    newMutableSegmentsMetrics(iopts.MetricsScope()),
-		logger:     iopts.Logger(),
+		blockStart:            blockStart,
+		blockSize:             md.Options().IndexOptions().BlockSize(),
+		opts:                  opts,
+		blockOpts:             blockOpts,
+		compact:               mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
+		cachedSearchesWorkers: cachedSearchesWorkers,
+		iopts:                 iopts,
+		metrics:               newMutableSegmentsMetrics(iopts.MetricsScope()),
+		logger:                iopts.Logger(),
 	}
 	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
 	return m
@@ -671,8 +726,8 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	}
 
 	var (
-		compacted = compactResult.Compacted
-		// segMetas   = compactResult.SegmentMetadatas
+		compacted  = compactResult.Compacted
+		segMetas   = compactResult.SegmentMetadatas
 		replaceSeg segment.Segment
 	)
 	if empty {
@@ -692,13 +747,11 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		// Note: There was very obvious peaks of latency (p99 of <500ms spiking
 		// to 8 times that at first replace of large segments after a block
 		// rotation) without this optimization.
-
-		// TODO: port populating cached searches
-		// if err := m.populateCachedSearches(readThroughSeg, segMetas); err != nil {
-		// 	instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-		// 		l.Error("failed to populate cached searches", zap.Error(err))
-		// 	})
-		// }
+		if err := m.populateCachedSearches(readThroughSeg, segMetas); err != nil {
+			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+				l.Error("failed to populate cached searches", zap.Error(err))
+			})
+		}
 	}
 
 	// Rotate out the replaced frozen segments and add the compacted one.
@@ -710,6 +763,284 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	m.backgroundSegments = result
 
 	return nil
+}
+
+type cachedPatternForCompactedSegment struct {
+	field       string
+	searchQuery *querypb.Query
+	patterns    []cachedPatternFromSegment
+}
+
+type cachedPatternFromSegment struct {
+	prevSeg          prevSegment
+	hasCachedPattern bool
+	cachedPattern    CachedPattern
+}
+
+type prevSegment struct {
+	segment *ReadThroughSegment
+	meta    segment.SegmentsBuilderSegmentMetadata
+}
+
+const (
+	defaultBitmapContainerPooling = 128
+)
+
+type populateCachedSearchesWorker struct {
+	postings      postings.MutableList
+	encoder       *pilosa.Encoder
+	closers       []x.SafeCloser
+	cachedClosers []x.SafeCloser
+}
+
+func newPopulateCachedSearchesWorker() *populateCachedSearchesWorker {
+	b := bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
+	return &populateCachedSearchesWorker{
+		postings: roaring.NewPostingsListFromBitmap(b),
+		encoder:  pilosa.NewEncoder(),
+	}
+}
+
+func (w *populateCachedSearchesWorker) addCloser(c io.Closer) {
+	n := len(w.cachedClosers)
+	if n > 0 {
+		last := w.cachedClosers[n-1]
+		last.Reset(c)
+		w.cachedClosers[n-1] = nil
+		w.cachedClosers = w.cachedClosers[:n-1]
+		w.closers = append(w.closers, last)
+		return
+	}
+	w.closers = append(w.closers, x.NewSafeCloser(c))
+}
+
+func (w *populateCachedSearchesWorker) close() error {
+	multiErr := xerrors.NewMultiError()
+	for i, c := range w.closers {
+		multiErr = multiErr.Add(c.Close())
+		w.closers[i] = nil
+		c.Reset(nil)
+		w.cachedClosers = append(w.cachedClosers, c)
+	}
+	w.closers = w.closers[:0]
+	return multiErr.FinalError()
+}
+
+func (m *mutableSegments) populateCachedSearches(
+	compactedSeg *ReadThroughSegment,
+	prevSegsMetas []segment.SegmentsBuilderSegmentMetadata,
+) error {
+	prevSegs := make([]prevSegment, 0, len(prevSegsMetas))
+	for _, segMeta := range prevSegsMetas {
+		prevReadThroughSeg, ok := segMeta.Segment.(*ReadThroughSegment)
+		if !ok {
+			return fmt.Errorf("failed to cast compacted segment to read through segment")
+		}
+		prevSegs = append(prevSegs, prevSegment{
+			segment: prevReadThroughSeg,
+			meta:    segMeta,
+		})
+	}
+
+	searches := make(map[PostingsListCacheKey]cachedPatternForCompactedSegment)
+	for i, seg := range prevSegs {
+		result := seg.segment.CachedSearchPatterns(func(p CachedPattern) {
+			pattern, ok := searches[p.CacheKey]
+			if !ok {
+				pattern = cachedPatternForCompactedSegment{
+					searchQuery: p.SearchQuery,
+					patterns:    make([]cachedPatternFromSegment, len(prevSegs)),
+				}
+				for j, prevSeg := range prevSegs {
+					pattern.patterns[j] = cachedPatternFromSegment{
+						prevSeg: prevSeg,
+					}
+				}
+				searches[p.CacheKey] = pattern
+			}
+			// Mark this segment with the cached pattern.
+			pattern.patterns[i].hasCachedPattern = true
+			pattern.patterns[i].cachedPattern = p
+		})
+		if result.CacheSearchesDisabled {
+			m.metrics.activeBlockGarbageCollectCachedSearchesDisabled.Inc(1)
+		}
+		if result.CachedPatternsResult.InRegistry {
+			m.metrics.activeBlockGarbageCollectCachedSearchesInRegistry.Inc(1)
+		} else {
+			m.metrics.activeBlockGarbageCollectCachedSearchesNotInRegistry.Inc(1)
+		}
+		total := float64(result.CachedPatternsResult.TotalPatterns)
+		m.metrics.activeBlockGarbageCollectCachedSearchesTotal.RecordValue(total)
+		matched := float64(result.CachedPatternsResult.MatchedPatterns)
+		m.metrics.activeBlockGarbageCollectCachedSearchesMatched.RecordValue(matched)
+	}
+
+	var totalSegmentsSize int64
+	for _, seg := range prevSegs {
+		totalSegmentsSize += seg.segment.Size()
+	}
+
+	var (
+		numWorkers       = m.cachedSearchesWorkers.Size()
+		workers          = make(chan *populateCachedSearchesWorker, numWorkers)
+		instrumentedExec = func(fn func() error) func() error {
+			return func() error {
+				e := fn()
+				if e != nil {
+					m.metrics.activeBlockGarbageCollectReconstructCachedSearchExecError.Inc(1)
+					return e
+				}
+				m.metrics.activeBlockGarbageCollectReconstructCachedSearchExecSuccess.Inc(1)
+				return nil
+			}
+		}
+		group errgroup.Group
+	)
+	for i := 0; i < numWorkers; i++ {
+		workers <- newPopulateCachedSearchesWorker()
+	}
+	for _, s := range searches {
+		s := s // Capture for loop.
+
+		var totalSegmentsHasPatternSize int64
+		for i := range s.patterns {
+			if !s.patterns[i].hasCachedPattern {
+				continue
+			}
+			totalSegmentsHasPatternSize += s.patterns[i].prevSeg.segment.Size()
+		}
+
+		if totalSegmentsHasPatternSize < totalSegmentsSize/2 {
+			// If segments that represent less than half total size of all
+			// segments we compacted together do not have the cached pattern
+			// then don't bother caching this since it could result in an
+			// expensive computation and we're not getting the benefit from
+			// running the computation anyway since these aren't searches
+			// that were cached in the largest segments we just compacted.
+			m.metrics.activeBlockGarbageCollectReconstructCachedSearchEvalSkip.Inc(1)
+			continue
+		}
+
+		m.metrics.activeBlockGarbageCollectReconstructCachedSearchEvalAttempt.Inc(1)
+
+		// Control concurrency by taking and returning token from worker pool.
+		w := <-workers
+		group.Go(instrumentedExec(func() error {
+			defer func() {
+				// Close anything needed to be closed.
+				_ = w.close()
+				// Return worker.
+				workers <- w
+			}()
+
+			if s.searchQuery == nil {
+				return fmt.Errorf("no search query for cached search pattern")
+			}
+
+			var searcher search.Searcher
+			search, err := query.UnmarshalProto(s.searchQuery)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal search for cached search pattern: %w", err)
+			}
+
+			// Reset reused postings.
+			w.postings.Reset()
+
+			for i := range s.patterns {
+				var iter postings.Iterator
+				if s.patterns[i].hasCachedPattern {
+					// If has the cached pattern, no need to execute a search, can reuse
+					// the postings iterator from the cache.
+					iter = s.patterns[i].cachedPattern.Postings.Iterator()
+					w.addCloser(iter)
+
+					// Track hit.
+					m.metrics.activeBlockGarbageCollectReconstructCachedSearchCacheHit.Inc(1)
+				} else {
+					// Does not have this pattern cached, need to execute the search
+					// against this segment.
+					if searcher == nil {
+						searcher, err = search.Searcher()
+						if err != nil {
+							return fmt.Errorf("failed to create searcher for cached search pattern: %w", err)
+						}
+					}
+
+					reader, err := s.patterns[i].prevSeg.segment.Reader()
+					if err != nil {
+						return fmt.Errorf("failed to create prev seg reader: %w", err)
+					}
+
+					w.addCloser(reader)
+
+					pl, err := searcher.Search(reader)
+					if err != nil {
+						return fmt.Errorf("failed to search prev seg reader: %w", err)
+					}
+
+					iter = pl.Iterator()
+					w.addCloser(iter)
+
+					// Track miss.
+					m.metrics.activeBlockGarbageCollectReconstructCachedSearchCacheMiss.Inc(1)
+				}
+
+				if s.patterns[i].prevSeg.meta.Offset == 0 && s.patterns[i].prevSeg.meta.Skips == 0 {
+					// No offset and no postings to skip, can copy into the reused postings.
+					if err := w.postings.AddIterator(iter); err != nil {
+						return fmt.Errorf("could not copy cached postings: %w", err)
+					}
+					continue
+				}
+
+				// We have to take into account offset and duplicates/skips.
+				negativeOffsets := s.patterns[i].prevSeg.meta.NegativeOffsets
+				for iter.Next() {
+					curr := iter.Current()
+					negativeOffset := negativeOffsets[curr]
+					// Then skip the individual if matches.
+					if negativeOffset == -1 {
+						// Skip this value, as itself is a duplicate.
+						continue
+					}
+					value := curr + s.patterns[i].prevSeg.meta.Offset - postings.ID(negativeOffset)
+					if err := w.postings.Insert(value); err != nil {
+						iter.Close()
+						return fmt.Errorf("could not insert from cached postings: %w", err)
+					}
+				}
+
+				err := iter.Err()
+				iter.Close()
+				if err != nil {
+					return fmt.Errorf("could not close cached postings: %w", err)
+				}
+			}
+
+			// Encode the result and create a read only copy as we reuse the postings
+			// list in the worker to build consequent postings.
+			bytes, err := w.encoder.Encode(w.postings)
+			if err != nil {
+				return fmt.Errorf("could not encode result cached search postings: %w", err)
+			}
+
+			bitmap.NewBitmap()
+
+			// Need to copy bytes since encoder owns the bytes.
+			copied := append(make([]byte, 0, len(bytes)), bytes...)
+			bm := bitmap.NewBitmap()
+			if err := bm.UnmarshalBinary(copied); err != nil {
+				return fmt.Errorf("could not create result cached search postings: %w", err)
+			}
+
+			pl := roaring.NewPostingsListFromBitmap(bm)
+			compactedSeg.PutCachedSearchPattern(s.field, search, pl)
+			return nil
+		}))
+	}
+
+	return group.Wait()
 }
 
 func (m *mutableSegments) addCompactedSegmentFromSegmentsWithLock(
