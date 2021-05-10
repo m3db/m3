@@ -60,10 +60,10 @@ func BenchmarkBlockWrite(b *testing.B) {
 	})
 
 	fieldValues := map[string][]string{
-		"fruit":     []string{"apple", "banana", "orange", "watermelon"},
-		"vegetable": []string{"broccoli", "carrot", "celery", "cucumber"},
-		"meat":      []string{"beef", "chicken", "pork", "steak"},
-		"cheese":    []string{"cheddar", "swiss", "brie", "bleu"},
+		"fruit":     {"apple", "banana", "orange", "watermelon"},
+		"vegetable": {"broccoli", "carrot", "celery", "cucumber"},
+		"meat":      {"beef", "chicken", "pork", "steak"},
+		"cheese":    {"cheddar", "swiss", "brie", "bleu"},
 	}
 
 	for i := 0; i < 4096; i++ {
@@ -119,7 +119,25 @@ var _ OnIndexSeries = mockOnIndexSeries{}
 
 func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano)  {}
 func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {}
-func (m mockOnIndexSeries) OnIndexPrepare()                           {}
+func (m mockOnIndexSeries) OnIndexPrepare(blockStart xtime.UnixNano)  {}
 func (m mockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
 	return false
 }
+
+func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
+	blockStart xtime.UnixNano,
+) bool {
+	return false
+}
+
+func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
+	blockStarts map[xtime.UnixNano]struct{},
+) RemoveIndexedForBlockStartsResult {
+	return RemoveIndexedForBlockStartsResult{}
+}
+
+func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
+	return nil, false
+}
+
+func (m mockOnIndexSeries) DecrementReaderWriterCount() {}

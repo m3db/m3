@@ -23,11 +23,11 @@ package config
 import "github.com/m3db/m3/src/dbnode/storage/series"
 
 var (
-	defaultPostingsListCacheSize   = 2 << 11 // 4096
+	defaultPostingsListCacheSize   = 2 << 15 // ~65k
 	defaultPostingsListCacheRegexp = true
 	defaultPostingsListCacheTerms  = true
 	defaultPostingsListCacheSearch = true
-	defaultRegexpCacheSize         = 256
+	defaultRegexpCacheSize         = 1024
 )
 
 // CacheConfigurations is the cache configurations.
