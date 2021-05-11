@@ -29,6 +29,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/source"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/net/http/cors"
@@ -42,6 +43,7 @@ func Default(iOpts instrument.Options) []mux.MiddlewareFunc {
 		Cors(),
 		// install tracing before logging so the trace_id is available for response logging.
 		Tracing(opentracing.GlobalTracer(), iOpts),
+		RequestID(iOpts),
 		ResponseLogging(time.Second, iOpts),
 		ResponseMetrics(iOpts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
@@ -52,14 +54,24 @@ func Default(iOpts instrument.Options) []mux.MiddlewareFunc {
 
 // Query is the list of middleware functions for query endpoints.
 func Query(iOpts instrument.Options) []mux.MiddlewareFunc {
+	return query(ResponseLogging(time.Second, iOpts), iOpts)
+}
+
+// PromQuery is the list of middleware functions for prometheus query endpoints.
+func PromQuery(iOpts instrument.Options) []mux.MiddlewareFunc {
+	return query(native.QueryResponse(time.Second, iOpts), iOpts)
+}
+
+func query(response mux.MiddlewareFunc, iOpts instrument.Options) []mux.MiddlewareFunc {
 	// The order of middleware is important. Be very careful when reordering existing middleware.
 	return []mux.MiddlewareFunc{
 		Cors(),
 		// install tracing before logging so the trace_id is available for response logging.
 		Tracing(opentracing.GlobalTracer(), iOpts),
+		RequestID(iOpts),
 		// install source before logging so the source is available for response logging.
 		source.Middleware(nil, iOpts),
-		ResponseLogging(time.Second, iOpts),
+		response,
 		ResponseMetrics(iOpts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
 		Panic(iOpts),
@@ -73,6 +85,7 @@ func NoResponseLogging(iOpts instrument.Options) []mux.MiddlewareFunc {
 	return []mux.MiddlewareFunc{
 		Cors(),
 		Tracing(opentracing.GlobalTracer(), iOpts),
+		RequestID(iOpts),
 		ResponseMetrics(iOpts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
 		Panic(iOpts),

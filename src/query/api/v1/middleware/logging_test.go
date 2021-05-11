@@ -264,7 +264,7 @@ func TestWithResponseTimeLogging(t *testing.T) {
 	assert.True(t, strings.Contains(out, "INFO"))
 	assert.True(t, strings.Contains(out, "finished handling request"))
 	assert.True(t, strings.Contains(out, `"url": "cool"`))
-	assert.True(t, strings.Contains(out, `response": "1.`))
+	assert.True(t, strings.Contains(out, `duration": "1.`))
 }
 
 func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
@@ -311,5 +311,5 @@ func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
 	assert.True(t, strings.Contains(last, "INFO"))
 	assert.True(t, strings.Contains(last, "finished handling request"))
 	assert.True(t, strings.Contains(last, `"url": "cool"`))
-	assert.True(t, strings.Contains(last, `response": "1.`))
+	assert.True(t, strings.Contains(last, `duration": "1.`))
 }

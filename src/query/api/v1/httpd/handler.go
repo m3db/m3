@@ -172,7 +172,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    native.PromReadURL,
 		Handler: h.options.QueryRouter(),
 		Methods: native.PromReadHTTPMethods,
-		Middleware: middleware.Query(instrumentOpts),
+		Middleware: middleware.PromQuery(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    native.PromReadInstantURL,
 		Handler: h.options.InstantQueryRouter(),
 		Methods: native.PromReadInstantHTTPMethods,
-		Middleware: middleware.Query(instrumentOpts),
+		Middleware: middleware.PromQuery(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    "/prometheus" + native.PromReadURL,
 		Handler: promqlQueryHandler,
 		Methods: native.PromReadHTTPMethods,
-		Middleware: middleware.Query(instrumentOpts),
+		Middleware: middleware.PromQuery(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    "/prometheus" + native.PromReadInstantURL,
 		Handler: promqlInstantQueryHandler,
 		Methods: native.PromReadInstantHTTPMethods,
-		Middleware: middleware.Query(instrumentOpts),
+		Middleware: middleware.PromQuery(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    native.CompleteTagsURL,
 		Handler: native.NewCompleteTagsHandler(h.options),
 		Methods: methods(native.CompleteTagsHTTPMethod),
-		Middleware: middleware.Query(instrumentOpts),
+		Middleware: middleware.PromQuery(instrumentOpts),
 	}); err != nil {
 		return err
 	}
