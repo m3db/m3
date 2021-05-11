@@ -18,26 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package middleware
+package http
 
 import (
 	"io"
 	"net/http"
 )
 
-type statusCodeTracker struct {
+// StatusCodeTracker tracks the status code written to a http.ResponseWriter.
+type StatusCodeTracker struct {
 	http.ResponseWriter
 	Status      int
 	WroteHeader bool
 }
 
-func (w *statusCodeTracker) WriteHeader(status int) {
+func (w *StatusCodeTracker) WriteHeader(status int) {
 	w.Status = status
 	w.WroteHeader = true
 	w.ResponseWriter.WriteHeader(status)
 }
 
-func (w *statusCodeTracker) Write(b []byte) (int, error) {
+func (w *StatusCodeTracker) Write(b []byte) (int, error) {
 	if !w.WroteHeader {
 		w.WroteHeader = true
 		w.Status = 200
@@ -45,11 +46,11 @@ func (w *statusCodeTracker) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-// wrappedResponseWriter returns a wrapped version of the original
+// WrappedResponseWriter returns a wrapped version of the original
 // ResponseWriter and only implements the same combination of additional
 // interfaces as the original.  This implementation is based on
 // https://github.com/felixge/httpsnoop.
-func (w *statusCodeTracker) wrappedResponseWriter() http.ResponseWriter {
+func (w *StatusCodeTracker) WrappedResponseWriter() http.ResponseWriter {
 	var (
 		hj, i0 = w.ResponseWriter.(http.Hijacker)
 		cn, i1 = w.ResponseWriter.(http.CloseNotifier) //nolint:staticcheck

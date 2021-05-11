@@ -23,12 +23,16 @@ package native
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/headers"
+	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -36,31 +40,41 @@ import (
 func QueryResponse(threshold time.Duration, iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			startTime := time.Now()
+			start := time.Now()
+			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
+			w = statusCodeTracking.WrappedResponseWriter()
 			base.ServeHTTP(w, r)
-			d := time.Since(startTime)
+			d := time.Since(start)
 			if threshold > 0 && d >= threshold {
 				logger := logging.WithContext(r.Context(), iOpts)
-				query, err := parseQuery(r)
+				query := r.FormValue(queryParam)
+				startTime, err := util.ParseTimeStringWithDefault(r.FormValue(startParam), time.Time{})
 				if err != nil {
-					logger.Warn("failed to parse query for response logging", zap.Error(err))
+					logger.Warn("failed to parse start for response logging", zap.Error(err))
 				}
-				startTime, err := parseTime(r, startParam, time.Now())
+				endTime, err := util.ParseTimeStringWithDefault(r.FormValue(endParam), startTime)
 				if err != nil {
-					logger.Warn("failed to parse startTime for response logging", zap.Error(err))
+					logger.Warn("failed to parse end for response logging", zap.Error(err))
 				}
-				endTime, err := parseTime(r, endParam, time.Now())
-				if err != nil {
-					logger.Warn("failed to parse endTime for response logging", zap.Error(err))
-				}
-				logger.Info("finished handling query request",
+				fields := []zap.Field{
 					zap.Duration("duration", d),
 					zap.String("url", r.URL.RequestURI()),
+					zap.Int("status", statusCodeTracking.Status),
 					zap.String("query", query),
-					zap.Time("startTime", startTime),
-					zap.Time("endTime", endTime),
+					zap.Time("start", startTime),
+					zap.Time("end", endTime),
 					zap.Duration("queryRange", endTime.Sub(startTime)),
-				)
+				}
+				for k, v := range r.Header {
+					if strings.HasPrefix(k, headers.M3HeaderPrefix) {
+						if len(v) == 1 {
+							fields = append(fields, zap.String(k, v[0]))
+						} else {
+							fields = append(fields, zap.Strings(k, v))
+						}
+					}
+				}
+				logger.Info("finished handling query request", fields...)
 			}
 		})
 	}
