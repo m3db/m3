@@ -41,19 +41,14 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 var (
@@ -287,85 +282,6 @@ func TestHealthGet(t *testing.T) {
 	assert.True(t, result > 0)
 }
 
-func TestCORSMiddleware(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	s, _ := m3.NewStorageAndSession(t, ctrl)
-	h, err := setupHandler(s)
-	require.NoError(t, err, "unable to setup handler")
-
-	setupTestRouteRegistry(h.registry)
-	res := doTestRequest(h.Router())
-
-	assert.Equal(t, "hello!", res.Body.String())
-	assert.Equal(t, "*", res.Header().Get("Access-Control-Allow-Origin"))
-}
-
-func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("GET", testRoute, nil)
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-	return res
-}
-
-func TestTracingMiddleware(t *testing.T) {
-	core, recorded := observer.New(zapcore.InfoLevel)
-	iOpts := instrument.NewOptions().SetLogger(zap.New(core))
-	mtr := mocktracer.New()
-	r := mux.NewRouter()
-	r.Use(options.TracingMiddleware(mtr, iOpts))
-	r.HandleFunc(testRoute, func(w http.ResponseWriter, r *http.Request) {
-		iOpts.LoggerFromContext(r.Context()).Info("test")
-	})
-
-	doTestRequest(r)
-
-	assert.NotEmpty(t, mtr.FinishedSpans())
-	require.Len(t, recorded.All(), 1)
-	entry := recorded.All()[0]
-	require.Equal(t, "test", entry.Message)
-	fields := entry.ContextMap()
-	require.Len(t, fields, 2)
-	require.NotEqual(t, "", fields["trace_id"])
-	require.NotEqual(t, "", fields["span_id"])
-}
-
-func TestCompressionMiddleware(t *testing.T) {
-	router := mux.NewRouter()
-	setupTestRouteRouter(router)
-
-	router.Use(options.CompressionMiddleware())
-
-	req := httptest.NewRequest("GET", testRoute, nil)
-	req.Header.Add("Accept-Encoding", "gzip")
-	res := httptest.NewRecorder()
-	router.ServeHTTP(res, req)
-
-	enc, found := res.HeaderMap["Content-Encoding"]
-	require.True(t, found)
-	require.Equal(t, 1, len(enc))
-	assert.Equal(t, "gzip", enc[0])
-}
-
-const testRoute = "/foobar"
-
-func setupTestRouteRegistry(r *queryhttp.EndpointRegistry) {
-	r.Register(queryhttp.RegisterOptions{
-		Path: testRoute,
-		Handler: http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
-			writer.WriteHeader(http.StatusOK)
-			writer.Write([]byte("hello!"))
-		}),
-		Methods: methods(http.MethodGet),
-	})
-}
-
-func setupTestRouteRouter(r *mux.Router) {
-	r.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
-		writer.WriteHeader(http.StatusOK)
-		writer.Write([]byte("hello!"))
-	})
-}
-
 func init() {
 	var err error
 	testWorkerPool, err = xsync.NewPooledWorkerPool(
@@ -384,10 +300,11 @@ func init() {
 type assertFn func(t *testing.T, prev http.Handler, r *http.Request)
 
 type customHandler struct {
-	t         *testing.T
-	routeName string
-	methods   []string
-	assertFn  assertFn
+	t          *testing.T
+	routeName  string
+	methods    []string
+	assertFn   assertFn
+	middleware []mux.MiddlewareFunc
 }
 
 func (h *customHandler) Route() string     { return h.routeName }
@@ -404,6 +321,9 @@ func (h *customHandler) Handler(
 	}
 
 	return http.HandlerFunc(fn), nil
+}
+func (h *customHandler) Middleware() []mux.MiddlewareFunc {
+	return h.middleware
 }
 
 func TestCustomRoutes(t *testing.T) {

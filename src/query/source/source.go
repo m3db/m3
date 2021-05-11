@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -89,20 +90,21 @@ var errInvalidSourceHeader = xhttp.NewError(
 func Middleware(d Deserializer, iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var s []byte
+			l := logging.WithContext(r.Context(), iOpts)
 			hs := r.Header[headers.SourceHeader]
-			if len(hs) == 0 {
-				base.ServeHTTP(w, r)
-				return
-			}
-			l := iOpts.LoggerFromContext(r.Context())
 			if len(hs) > 1 {
 				l.Error("multiple values for source header", zap.Strings("headers", hs))
 				xhttp.WriteError(w, errInvalidSourceHeader)
 				return
 			}
-			l = l.With(zap.String("source", hs[0]))
-			ctx := instrument.NewContextFromLogger(r.Context(), l)
-			ctx, err := NewContext(ctx, []byte(hs[0]), d)
+			// an empty header value is ok. allow the deserializer to populate an "empty" source value.
+			if len(hs) == 1 {
+				s = []byte(hs[0])
+			}
+			ctx := logging.NewContext(r.Context(), iOpts, zap.ByteString("source", s))
+			l = logging.WithContext(ctx, iOpts)
+			ctx, err := NewContext(ctx, s, d)
 			if err != nil {
 				l.Error("failed to deserialize source", zap.Error(err))
 				base.ServeHTTP(w, r)

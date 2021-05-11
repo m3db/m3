@@ -249,7 +249,6 @@ func (s *serviceState) DecNumOutstandingReadRPCs() {
 type pools struct {
 	id                      ident.Pool
 	tagEncoder              serialize.TagEncoderPool
-	tagDecoder              serialize.TagDecoderPool
 	checkedBytesWrapper     xpool.CheckedBytesWrapperPool
 	segmentsArray           segmentsArrayPool
 	writeBatchPooledReqPool *writeBatchPooledReqPool
@@ -321,7 +320,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 		writeBatchPoolSize = maxWriteReqs
 	}
 	writeBatchPooledReqPool := newWriteBatchPooledReqPool(writeBatchPoolSize, iopts)
-	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
+	writeBatchPooledReqPool.Init()
 
 	return &service{
 		state: serviceState{
@@ -343,7 +342,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			id:                      opts.IdentifierPool(),
 			checkedBytesWrapper:     opts.CheckedBytesWrapperPool(),
 			tagEncoder:              opts.TagEncoderPool(),
-			tagDecoder:              opts.TagDecoderPool(),
 			segmentsArray:           segmentPool,
 			writeBatchPooledReqPool: writeBatchPooledReqPool,
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
@@ -1701,7 +1699,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	if err = db.WriteTagged(ctx,
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
-		iter, xtime.FromNormalizedTime(dp.Timestamp, d),
+		idxconvert.NewTagsIterMetadataResolver(iter), xtime.FromNormalizedTime(dp.Timestamp, d),
 		dp.Value, unit, dp.Annotation); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -1965,18 +1963,11 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
-		if err != nil {
-			nonRetryableErrors++
-			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
-			continue
-		}
-
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+
 		batchWriter.AddTagged(
 			i,
 			seriesID,
-			dec,
 			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
@@ -2086,18 +2077,11 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 			continue
 		}
 
-		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
-		if err != nil {
-			nonRetryableErrors++
-			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
-			continue
-		}
-
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+
 		batchWriter.AddTagged(
 			i,
 			seriesID,
-			dec,
 			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
@@ -2629,31 +2613,6 @@ func readEncodedResultSegment(
 	return converted.Segments, nil
 }
 
-func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
-	checkedBytes := s.pools.checkedBytesWrapper.Get(encodedTags)
-	dec := s.pools.tagDecoder.Get()
-	ctx.RegisterCloser(dec)
-	dec.Reset(checkedBytes)
-	if err := dec.Err(); err != nil {
-		return nil, err
-	}
-	return dec, nil
-}
-
-func (s *service) newPooledTagsDecoder(
-	ctx context.Context,
-	encodedTags []byte,
-	p *writeBatchPooledReq,
-) (serialize.TagDecoder, error) {
-	if decoder, ok := p.nextPooledTagDecoder(encodedTags); ok {
-		if err := decoder.Err(); err != nil {
-			return nil, err
-		}
-		return decoder, nil
-	}
-	return s.newTagsDecoder(ctx, encodedTags)
-}
-
 func (s *service) newCloseableMetadataV2Result(
 	res *rpc.FetchBlocksMetadataRawV2Result_,
 ) closeableMetadataV2Result {
@@ -2707,23 +2666,6 @@ func (r *writeBatchPooledReq) nextPooledID(idBytes []byte) (ident.ID, bool) {
 	r.pooledIDsUsed++
 
 	return id, true
-}
-
-func (r *writeBatchPooledReq) nextPooledTagDecoder(encodedTags []byte) (serialize.TagDecoder, bool) {
-	if r.pooledIDsUsed >= len(r.pooledIDs) {
-		return nil, false
-	}
-
-	bytes := r.pooledIDs[r.pooledIDsUsed].bytes
-	bytes.IncRef()
-	bytes.Reset(encodedTags)
-
-	decoder := r.pooledIDs[r.pooledIDsUsed].tagDecoder
-	decoder.Reset(bytes)
-
-	r.pooledIDsUsed++
-
-	return decoder, true
 }
 
 func (r *writeBatchPooledReq) Finalize() {
@@ -2829,9 +2771,8 @@ func (r *writeBatchPooledReq) numNonRetryableErrors() int {
 }
 
 type writeBatchPooledReqID struct {
-	bytes      checked.Bytes
-	id         ident.ID
-	tagDecoder serialize.TagDecoder
+	bytes checked.Bytes
+	id    ident.ID
 }
 
 type writeBatchPooledReqPool struct {
@@ -2849,14 +2790,10 @@ func newWriteBatchPooledReqPool(
 	return &writeBatchPooledReqPool{pool: pool}
 }
 
-func (p *writeBatchPooledReqPool) Init(
-	tagDecoderPool serialize.TagDecoderPool,
-) {
+func (p *writeBatchPooledReqPool) Init() {
 	p.pool.Init(func() interface{} {
-		// NB(r): Make pooled IDs 2x the default write batch size to account for
-		// write tagged which also has encoded tags, plus an extra one for the
-		// namespace
-		pooledIDs := make([]writeBatchPooledReqID, 1+(2*client.DefaultWriteBatchSize))
+		// NB(r): Make pooled IDs the default write batch size plus an extra one for the namespace
+		pooledIDs := make([]writeBatchPooledReqID, 1+client.DefaultWriteBatchSize)
 		for i := range pooledIDs {
 			pooledIDs[i].bytes = checked.NewBytes(nil, nil)
 			pooledIDs[i].id = ident.BinaryID(pooledIDs[i].bytes)
@@ -2865,8 +2802,6 @@ func (p *writeBatchPooledReqPool) Init(
 			// immediately dec a ref here to avoid calling get on this ID
 			// being a valid call
 			pooledIDs[i].bytes.DecRef()
-			// Also ready a tag decoder
-			pooledIDs[i].tagDecoder = tagDecoderPool.Get()
 		}
 		return &writeBatchPooledReq{
 			pooledIDs: pooledIDs,

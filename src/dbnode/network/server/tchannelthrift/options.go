@@ -71,11 +71,6 @@ func NewOptions() Options {
 		poolOptions)
 	tagEncoderPool.Init()
 
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
-		poolOptions)
-	tagDecoderPool.Init()
-
 	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOptions)
 	bytesWrapperPool.Init()
 
@@ -86,7 +81,6 @@ func NewOptions() Options {
 		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
 		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),
 		tagEncoderPool:           tagEncoderPool,
-		tagDecoderPool:           tagDecoderPool,
 		checkedBytesWrapperPool:  bytesWrapperPool,
 		queryLimits:              limits.NoOpQueryLimits(),
 		permitsOptions:           permits.NewOptions(),
@@ -161,16 +155,6 @@ func (o *options) SetTagEncoderPool(value serialize.TagEncoderPool) Options {
 
 func (o *options) TagEncoderPool() serialize.TagEncoderPool {
 	return o.tagEncoderPool
-}
-
-func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
-	opts := *o
-	opts.tagDecoderPool = value
-	return &opts
-}
-
-func (o *options) TagDecoderPool() serialize.TagDecoderPool {
-	return o.tagDecoderPool
 }
 
 func (o *options) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
