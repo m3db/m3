@@ -18,40 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package middleware
+// Package native handles the prometheus api endpoints using m3.
+package native
 
 import (
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-// RequestID populates the request scoped logger with a unique request ID.
-func RequestID(iOpts instrument.Options) mux.MiddlewareFunc {
-	return func(base http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			rqCtx := logging.NewContextWithGeneratedID(r.Context(), iOpts)
-
-			sp := opentracing.SpanFromContext(rqCtx)
-			if sp != nil {
-				rqID := logging.ReadContextID(rqCtx)
-				sp.SetTag("rqID", rqID)
-			}
-
-			// Propagate the context with the reqId
-			base.ServeHTTP(w, r.WithContext(rqCtx))
-		})
-	}
-}
-
-// ResponseLogging logs the response time if the request took longer than the configured threshold.
-func ResponseLogging(threshold time.Duration, iOpts instrument.Options) mux.MiddlewareFunc {
+// QueryResponse logs the query response time if the request took longer than the configured threshold.
+func QueryResponse(threshold time.Duration, iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			startTime := time.Now()
@@ -59,9 +41,26 @@ func ResponseLogging(threshold time.Duration, iOpts instrument.Options) mux.Midd
 			d := time.Since(startTime)
 			if threshold > 0 && d >= threshold {
 				logger := logging.WithContext(r.Context(), iOpts)
-				logger.Info("finished handling request",
+				query, err := parseQuery(r)
+				if err != nil {
+					logger.Warn("failed to parse query for response logging", zap.Error(err))
+				}
+				startTime, err := parseTime(r, startParam, time.Now())
+				if err != nil {
+					logger.Warn("failed to parse startTime for response logging", zap.Error(err))
+				}
+				endTime, err := parseTime(r, endParam, time.Now())
+				if err != nil {
+					logger.Warn("failed to parse endTime for response logging", zap.Error(err))
+				}
+				logger.Info("finished handling query request",
 					zap.Duration("duration", d),
-					zap.String("url", r.URL.RequestURI()))
+					zap.String("url", r.URL.RequestURI()),
+					zap.String("query", query),
+					zap.Time("startTime", startTime),
+					zap.Time("endTime", endTime),
+					zap.Duration("queryRange", endTime.Sub(startTime)),
+				)
 			}
 		})
 	}
