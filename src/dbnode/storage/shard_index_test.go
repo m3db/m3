@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -36,7 +38,6 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -78,13 +79,13 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		convert.NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, seriesWrite.WasWritten)
 
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		convert.NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, seriesWrite.WasWritten)
@@ -122,7 +123,7 @@ func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 
 	// write first time
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		convert.NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
@@ -170,7 +171,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		convert.NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
@@ -197,7 +198,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	// ensure we would need to index next block because it's expired
 	nextWriteTime := now.Add(blockSize)
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		convert.NewTagsIterMetadataResolver(ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value")))),
 		nextWriteTime, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)

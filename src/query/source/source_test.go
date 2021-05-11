@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -110,6 +111,7 @@ func TestMiddleware(t *testing.T) {
 		name          string
 		sourceHeaders []string
 		expected      testSource
+		expectedLog   string
 		deserializer  Deserializer
 		invalidErr    bool
 	}{
@@ -117,11 +119,16 @@ func TestMiddleware(t *testing.T) {
 			name:          "happy path",
 			sourceHeaders: []string{"foobar"},
 			expected:      testSource{"foobar"},
+			expectedLog:   "foobar",
 		},
 		{
 			name:          "no source header",
 			sourceHeaders: []string{},
-			expected:      testSource{},
+			expected:      testSource{"nil"},
+			deserializer: func(bytes []byte) (interface{}, error) {
+				require.Nil(t, bytes)
+				return testSource{name: "nil"}, nil
+			},
 		},
 		{
 			name:          "multiple source headers",
@@ -146,7 +153,7 @@ func TestMiddleware(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := mux.NewRouter()
 			r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-				l = iOpts.LoggerFromContext(r.Context())
+				l = logging.WithContext(r.Context(), iOpts)
 				l.Info("test")
 				typed, ok := FromContext(r.Context())
 				if tc.expected.name == "" {
@@ -181,9 +188,9 @@ func TestMiddleware(t *testing.T) {
 				entry := testMsgs[0]
 				require.Equal(t, "test", entry.Message)
 				fields := entry.ContextMap()
-				if tc.expected.name != "" {
+				if tc.expectedLog != "" {
 					require.Len(t, fields, 1)
-					require.Equal(t, tc.expected.name, fields["source"])
+					require.Equal(t, tc.expectedLog, fields["source"])
 				}
 			}
 		})

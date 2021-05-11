@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/x/clock"
@@ -189,15 +190,18 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+		convert.EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"),
+		convert.EmptyTagMetadataResolver, now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"),
+		convert.EmptyTagMetadataResolver, now, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
@@ -213,15 +217,18 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+		convert.EmptyTagMetadataResolver, next, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"),
+		convert.EmptyTagMetadataResolver, next, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"),
+		convert.EmptyTagMetadataResolver, next, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
@@ -412,7 +419,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	defer ctx.Close()
 
 	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, series.WriteOptions{})
+		convert.EmptyTagMetadataResolver, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 	assert.True(t, seriesWrite.NeedsIndex)
@@ -420,7 +427,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(idx.BlockStartForWriteTime(now))
 
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"),
-		ident.EmptyTagIterator, now, 2.0, xtime.Second, nil, series.WriteOptions{})
+		convert.EmptyTagMetadataResolver, now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 	assert.True(t, seriesWrite.NeedsIndex)
@@ -428,7 +435,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(idx.BlockStartForWriteTime(now))
 
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"),
-		ident.EmptyTagIterator, now, 3.0, xtime.Second, nil, series.WriteOptions{})
+		convert.EmptyTagMetadataResolver, now, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 	assert.True(t, seriesWrite.NeedsIndex)
@@ -453,15 +460,18 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+		convert.EmptyTagMetadataResolver, next, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"),
+		convert.EmptyTagMetadataResolver, next, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"),
+		convert.EmptyTagMetadataResolver, next, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 

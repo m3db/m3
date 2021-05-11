@@ -138,7 +138,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 
@@ -447,7 +447,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 

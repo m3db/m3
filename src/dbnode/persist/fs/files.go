@@ -887,6 +887,14 @@ func ReadInfoFiles(
 	return infoFileResults
 }
 
+// ReadIndexInfoFilesOptions specifies options for reading index info files.
+type ReadIndexInfoFilesOptions struct {
+	FilePathPrefix   string
+	Namespace        ident.ID
+	ReaderBufferSize int
+	IncludeCorrupted bool
+}
+
 // ReadIndexInfoFileResult is the result of reading an info file
 type ReadIndexInfoFileResult struct {
 	ID                FileSetFileIdentifier
@@ -894,14 +902,6 @@ type ReadIndexInfoFileResult struct {
 	AbsoluteFilePaths []string
 	Err               ReadInfoFileResultError
 	Corrupted         bool
-}
-
-// ReadIndexInfoFilesOptions specifies options for reading index info files.
-type ReadIndexInfoFilesOptions struct {
-	FilePathPrefix   string
-	Namespace        ident.ID
-	ReaderBufferSize int
-	IncludeCorrupted bool
 }
 
 // ReadIndexInfoFiles reads all the valid index info entries. Even if ReadIndexInfoFiles returns an error,

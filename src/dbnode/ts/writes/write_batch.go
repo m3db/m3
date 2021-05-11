@@ -97,7 +97,7 @@ func (b *writeBatch) Add(
 	annotation []byte,
 ) error {
 	write, err := newBatchWriterWrite(
-		originalIndex, b.ns, id, nil, nil, timestamp, value, unit, annotation)
+		originalIndex, b.ns, id, nil, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,6 @@ func (b *writeBatch) Add(
 func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
-	tagIter ident.TagIterator,
 	encodedTags ts.EncodedTags,
 	timestamp time.Time,
 	value float64,
@@ -116,7 +115,7 @@ func (b *writeBatch) AddTagged(
 	annotation []byte,
 ) error {
 	write, err := newBatchWriterWrite(
-		originalIndex, b.ns, id, tagIter, encodedTags, timestamp, value, unit, annotation)
+		originalIndex, b.ns, id, encodedTags, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -249,15 +248,14 @@ func newBatchWriterWrite(
 	originalIndex int,
 	namespace ident.ID,
 	id ident.ID,
-	tagIter ident.TagIterator,
 	encodedTags ts.EncodedTags,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (BatchWrite, error) {
-	write := tagIter == nil && encodedTags == nil
-	writeTagged := tagIter != nil && encodedTags != nil
+	write := encodedTags == nil
+	writeTagged := encodedTags != nil
 	if !write && !writeTagged {
 		return BatchWrite{}, errTagsAndEncodedTagsRequired
 	}
@@ -276,7 +274,6 @@ func newBatchWriterWrite(
 			Unit:       unit,
 			Annotation: annotation,
 		},
-		TagIter:       tagIter,
 		EncodedTags:   encodedTags,
 		OriginalIndex: originalIndex,
 	}, nil

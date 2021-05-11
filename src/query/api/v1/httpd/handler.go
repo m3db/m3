@@ -41,8 +41,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/headers"
@@ -91,7 +91,6 @@ func NewHandler(
 	customHandlers ...options.CustomHandler,
 ) *Handler {
 	r := mux.NewRouter()
-	r.Use(handlerOptions.Middleware()...)
 	logger := handlerOptions.InstrumentOpts().Logger()
 
 	instrumentOpts := handlerOptions.InstrumentOpts().SetMetricsScope(
@@ -173,6 +172,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    native.PromReadURL,
 		Handler: h.options.QueryRouter(),
 		Methods: native.PromReadHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -180,6 +180,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    native.PromReadInstantURL,
 		Handler: h.options.InstantQueryRouter(),
 		Methods: native.PromReadInstantHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -189,6 +190,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    "/prometheus" + native.PromReadURL,
 		Handler: promqlQueryHandler,
 		Methods: native.PromReadHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -196,6 +198,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    "/prometheus" + native.PromReadInstantURL,
 		Handler: promqlInstantQueryHandler,
 		Methods: native.PromReadInstantHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -205,6 +208,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    "/m3query" + native.PromReadURL,
 		Handler: nativePromReadHandler,
 		Methods: native.PromReadHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -212,6 +216,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    "/m3query" + native.PromReadInstantURL,
 		Handler: nativePromReadInstantHandler,
 		Methods: native.PromReadInstantHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -229,7 +234,8 @@ func (h *Handler) RegisterRoutes() error {
 		Handler: promRemoteWriteHandler,
 		Methods: methods(remote.PromWriteHTTPMethod),
 		// Register with no response logging for write calls since so frequent.
-	}, logging.WithNoResponseLog()); err != nil {
+		Middleware: middleware.NoResponseLogging(instrumentOpts),
+	}); err != nil {
 		return err
 	}
 
@@ -239,7 +245,8 @@ func (h *Handler) RegisterRoutes() error {
 		Handler: influxdb.NewInfluxWriterHandler(h.options),
 		Methods: methods(influxdb.InfluxWriteHTTPMethod),
 		// Register with no response logging for write calls since so frequent.
-	}, logging.WithNoResponseLog()); err != nil {
+		Middleware: middleware.NoResponseLogging(instrumentOpts),
+	}); err != nil {
 		return err
 	}
 
@@ -273,6 +280,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    native.CompleteTagsURL,
 		Handler: native.NewCompleteTagsHandler(h.options),
 		Methods: methods(native.CompleteTagsHTTPMethod),
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -280,6 +288,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    remote.TagValuesURL,
 		Handler: remote.NewTagValuesHandler(h.options),
 		Methods: methods(remote.TagValuesHTTPMethod),
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -289,6 +298,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    native.ListTagsURL,
 		Handler: native.NewListTagsHandler(h.options),
 		Methods: native.ListTagsHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -314,6 +324,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    remote.PromSeriesMatchURL,
 		Handler: remote.NewPromSeriesMatchHandler(h.options),
 		Methods: remote.PromSeriesMatchHTTPMethods,
+		Middleware: middleware.Query(instrumentOpts),
 	}); err != nil {
 		return err
 	}
@@ -447,9 +458,10 @@ func (h *Handler) RegisterRoutes() error {
 
 			if !prevRoute {
 				if err := h.registry.Register(queryhttp.RegisterOptions{
-					Path:    custom.Route(),
-					Handler: handler,
-					Methods: methods(method),
+					Path:       custom.Route(),
+					Handler:    handler,
+					Methods:    methods(method),
+					Middleware: custom.Middleware(),
 				}); err != nil {
 					return err
 				}

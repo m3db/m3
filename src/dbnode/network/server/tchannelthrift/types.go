@@ -75,12 +75,6 @@ type Options interface {
 	// TagEncoderPool returns the tag encoder pool.
 	TagEncoderPool() serialize.TagEncoderPool
 
-	// SetTagDecoderPool sets the tag encoder pool.
-	SetTagDecoderPool(value serialize.TagDecoderPool) Options
-
-	// TagDecoderPool returns the tag encoder pool.
-	TagDecoderPool() serialize.TagDecoderPool
-
 	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
 	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
 
