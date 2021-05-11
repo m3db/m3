@@ -2095,42 +2095,42 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 	)
 	// NB: Info files should be ordered by block start.
 	for _, file := range infoFiles {
-		// This intentionally skips the latest block start as that's the active block.
-		if file.Info.BlockStart > latestBlockStart {
-			for volType, latestVolumeIndex := range latestVolumeIndexByVolumeType {
-				// Reset latest vol idx.
-				latestVolumeIndexByVolumeType[volType] = 0
-
-				// NB: We only remove stale index filesets to avoid deleting
-				// one we're actively writing to.
-				for _, cf := range corrupted {
-					if cf.IndexVolumeType != volType {
-						continue
-					}
-					if cf.File.ID.VolumeIndex >= latestVolumeIndex {
-						continue
-					}
-					toDelete = append(toDelete, cf.File.AbsoluteFilePaths...)
-				}
-			}
-			latestBlockStart = file.Info.BlockStart
-			corrupted = corrupted[:0]
-		}
-
 		// NB: Missing info file data means the info file itself is corrupt.
 		// When we start writing an index volume, we first write an incomplete index info file so
 		// we are always guaranteed it exists but not if it was written successfully.
-		if file.Info.BlockStart == 0 {
+		if !file.ID.BlockStart.Equal(xtime.FromNanoseconds(file.Info.BlockStart)) {
 			// Mark filesets w/ corrupted index info files for deletion right away.
 			toDelete = append(toDelete, file.AbsoluteFilePaths...)
 			continue
+		}
+
+		// This intentionally skips the latest block start.
+		if file.Info.BlockStart > latestBlockStart {
+			// Iterate through the accumulated corrupted filesets and enlist the stale ones for deletion.
+			for _, cf := range corrupted {
+				if cf.File.ID.VolumeIndex < latestVolumeIndexByVolumeType[cf.IndexVolumeType] {
+					toDelete = append(toDelete, cf.File.AbsoluteFilePaths...)
+				}
+			}
+			// Reset accumulating variables.
+			latestBlockStart = file.Info.BlockStart
+			corrupted = corrupted[:0]
+			for volType := range latestVolumeIndexByVolumeType {
+				latestVolumeIndexByVolumeType[volType] = 0
+			}
+		} else if file.Info.BlockStart < latestBlockStart {
+			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error("filesets are expected to be ordered by block start")
+			})
 		}
 
 		volType := idxpersist.DefaultIndexVolumeType
 		if file.Info.IndexVolumeType != nil {
 			volType = idxpersist.IndexVolumeType(file.Info.IndexVolumeType.Value)
 		}
-		latestVolumeIndexByVolumeType[volType] = file.ID.VolumeIndex
+		if latestVolumeIndexByVolumeType[volType] < file.ID.VolumeIndex {
+			latestVolumeIndexByVolumeType[volType] = file.ID.VolumeIndex
+		}
 
 		if file.Corrupted {
 			corrupted = append(corrupted, corruptedInfoFile{

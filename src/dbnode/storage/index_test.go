@@ -523,6 +523,7 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 	infoFiles := []fs.ReadIndexInfoFileResult{
 		{
 			ID: fs.FileSetFileIdentifier{
+				BlockStart:  blockTime,
 				VolumeIndex: 0,
 			},
 			Info: indexpb.IndexVolumeInfo{
@@ -539,6 +540,7 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 		// Simulate two corrupted index filesets for block start/vol type (delete the first).
 		{
 			ID: fs.FileSetFileIdentifier{
+				BlockStart:  blockTime,
 				VolumeIndex: 1,
 			},
 			Info: indexpb.IndexVolumeInfo{
@@ -554,6 +556,7 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 		},
 		{
 			ID: fs.FileSetFileIdentifier{
+				BlockStart:  blockTime,
 				VolumeIndex: 2,
 			},
 			Info: indexpb.IndexVolumeInfo{
@@ -570,6 +573,7 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 		// Simulate one corrupted index fileset for block start/vol type (delete the first).
 		{
 			ID: fs.FileSetFileIdentifier{
+				BlockStart:  blockTime.Add(indexBlockSize),
 				VolumeIndex: 0,
 			},
 			Info: indexpb.IndexVolumeInfo{
@@ -585,6 +589,7 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 		},
 		{
 			ID: fs.FileSetFileIdentifier{
+				BlockStart:  blockTime.Add(indexBlockSize),
 				VolumeIndex: 1,
 			},
 			Info: indexpb.IndexVolumeInfo{
@@ -601,6 +606,7 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 		// Active block, still writing to this.
 		{
 			ID: fs.FileSetFileIdentifier{
+				BlockStart:  blockTime.Add(2 * indexBlockSize),
 				VolumeIndex: 0,
 			},
 			Info: indexpb.IndexVolumeInfo{
@@ -621,13 +627,10 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 		return infoFiles
 	}
 
+	defaultDeleteFilesFn := idx.deleteFilesFn
 	idx.deleteFilesFn = func(s []string) error {
 		require.Equal(t, []string{fset2.Name(), fset4.Name()}, s)
-		multiErr := xerrors.NewMultiError()
-		for _, file := range s {
-			multiErr = multiErr.Add(os.Remove(file))
-		}
-		return multiErr.FinalError()
+		return defaultDeleteFilesFn(s)
 	}
 	require.NoError(t, idx.CleanupCorruptedFileSets())
 }
