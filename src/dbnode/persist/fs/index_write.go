@@ -327,5 +327,8 @@ func (w *indexWriter) Close() error {
 }
 
 func (w *indexWriter) writeInfoFile(infoFileData []byte) error {
+	// NB: corrupted index fileset cleanup logic depends on info files being written ahead of
+	// all the other files. To avoid cases where writes could be observed in a different order,
+	// info files are being fsync'ed immediately after being written.
 	return xos.WriteFileSync(w.infoFilePath, infoFileData, w.newFileMode)
 }
