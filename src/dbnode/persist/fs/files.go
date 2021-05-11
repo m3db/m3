@@ -82,9 +82,7 @@ const (
 	errUnexpectedFilenamePattern = "unexpected filename: %s"
 )
 
-var (
-	defaultBufioReaderSize = bufio.NewReader(nil).Size()
-)
+var defaultBufioReaderSize = bufio.NewReader(nil).Size()
 
 type fileOpener func(filePath string) (*os.File, error)
 
@@ -859,6 +857,13 @@ func ReadInfoFiles(
 	return infoFileResults
 }
 
+// ReadIndexInfoFilesOptions specifies options for reading index info files.
+type ReadIndexInfoFilesOptions struct {
+	FilePathPrefix   string
+	Namespace        ident.ID
+	ReaderBufferSize int
+}
+
 // ReadIndexInfoFileResult is the result of reading an info file
 type ReadIndexInfoFileResult struct {
 	ID                FileSetFileIdentifier
@@ -869,20 +874,16 @@ type ReadIndexInfoFileResult struct {
 
 // ReadIndexInfoFiles reads all the valid index info entries. Even if ReadIndexInfoFiles returns an error,
 // there may be some valid entries in the returned slice.
-func ReadIndexInfoFiles(
-	filePathPrefix string,
-	namespace ident.ID,
-	readerBufferSize int,
-) []ReadIndexInfoFileResult {
+func ReadIndexInfoFiles(opts ReadIndexInfoFilesOptions) []ReadIndexInfoFileResult {
 	var infoFileResults []ReadIndexInfoFileResult
 	forEachInfoFile(
 		forEachInfoFileSelector{
 			fileSetType:    persist.FileSetFlushType,
 			contentType:    persist.FileSetIndexContentType,
-			filePathPrefix: filePathPrefix,
-			namespace:      namespace,
+			filePathPrefix: opts.FilePathPrefix,
+			namespace:      opts.Namespace,
 		},
-		readerBufferSize,
+		opts.ReaderBufferSize,
 		func(file FileSetFile, data []byte) {
 			filepath, _ := file.InfoFilePath()
 			id := file.ID

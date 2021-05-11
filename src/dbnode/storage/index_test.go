@@ -138,11 +138,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(
-		filePathPrefix string,
-		namespace ident.ID,
-		readerBufferSize int,
-	) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -221,7 +217,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolumeType
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -286,7 +282,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_ChangingShardList(t *testing.T) 
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -337,7 +333,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_IgnoreNonActiveShards(t *testing
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -388,7 +384,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_NoActiveShards(t *testing.T) {
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -450,11 +446,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(
-		filePathPrefix string,
-		namespace ident.ID,
-		readerBufferSize int,
-	) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
