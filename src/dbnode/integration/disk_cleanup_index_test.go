@@ -78,12 +78,15 @@ func TestDiskCleanupIndex(t *testing.T) {
 
 	// Now create some fileset files
 	numTimes := 10
-	fileTimes := make([]time.Time, numTimes)
+	filesetsIdentifiers := make([]fs.FileSetFileIdentifier, numTimes)
 	now := setup.NowFn()().Truncate(idxBlockSize)
 	for i := 0; i < numTimes; i++ {
-		fileTimes[i] = now.Add(time.Duration(i) * idxBlockSize)
+		filesetsIdentifiers[i] = fs.FileSetFileIdentifier{
+			Namespace:  md.ID(),
+			BlockStart: now.Add(time.Duration(i) * idxBlockSize),
+		}
 	}
-	writeIndexFileSetFiles(t, setup.StorageOpts(), md, fileTimes)
+	writeIndexFileSetFiles(t, setup.StorageOpts(), md, filesetsIdentifiers)
 
 	deltaNow := now.Add(time.Minute)
 	filesets, err := fs.IndexFileSetsBefore(filePathPrefix, md.ID(), deltaNow)
