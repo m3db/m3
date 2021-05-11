@@ -34,7 +34,7 @@ type File interface {
 
 // WriteFileSync calls fsync() in addition to writing a file to disk.
 func WriteFileSync(name string, data []byte, perm os.FileMode) error {
-	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) //nolint:gosec
 	if err != nil {
 		return err
 	}
