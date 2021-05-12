@@ -32,19 +32,11 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-// ResponseLogging logs the response time if the request took longer than the configured threshold.
-func ResponseLogging(threshold time.Duration, iOpts instrument.Options) mux.MiddlewareFunc {
+// RequestID populates the request scoped logger with a unique request ID.
+func RequestID(iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			startTime := time.Now()
-
-			// Track status code.
-			statusCodeTracking := &statusCodeTracker{ResponseWriter: w}
-			w = statusCodeTracking.wrappedResponseWriter()
-
 			rqCtx := logging.NewContextWithGeneratedID(r.Context(), iOpts)
-
-			logger := logging.WithContext(rqCtx, iOpts)
 
 			sp := opentracing.SpanFromContext(rqCtx)
 			if sp != nil {
@@ -54,12 +46,22 @@ func ResponseLogging(threshold time.Duration, iOpts instrument.Options) mux.Midd
 
 			// Propagate the context with the reqId
 			base.ServeHTTP(w, r.WithContext(rqCtx))
+		})
+	}
+}
 
-			endTime := time.Now()
-			d := endTime.Sub(startTime)
+// ResponseLogging logs the response time if the request took longer than the configured threshold.
+func ResponseLogging(threshold time.Duration, iOpts instrument.Options) mux.MiddlewareFunc {
+	return func(base http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			startTime := time.Now()
+			base.ServeHTTP(w, r)
+			d := time.Since(startTime)
 			if threshold > 0 && d >= threshold {
-				logger.Info("finished handling request", zap.Time("time", endTime),
-					zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
+				logger := logging.WithContext(r.Context(), iOpts)
+				logger.Info("finished handling request",
+					zap.Duration("duration", d),
+					zap.String("url", r.URL.RequestURI()))
 			}
 		})
 	}

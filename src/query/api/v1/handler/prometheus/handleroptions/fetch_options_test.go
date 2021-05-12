@@ -431,7 +431,13 @@ func TestTimeoutParseWithHeader(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, time.Millisecond)
 
+	req.Header.Add(headers.TimeoutHeader, "1s")
+	timeout, err = ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Second)
+
 	req.Header.Del("timeout")
+	req.Header.Del(headers.TimeoutHeader)
 	timeout, err = ParseRequestTimeout(req, 2*time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, 2*time.Minute)
