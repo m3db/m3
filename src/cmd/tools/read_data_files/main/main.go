@@ -21,7 +21,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -32,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	annotation2 "github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -145,6 +145,9 @@ func main() {
 		log.Fatalf("unable to open reader: %v", err)
 	}
 
+	annotationProto := &annotation2.Payload{}
+	annotationCounts := make(map[string]int)
+
 	for {
 		entry, err := reader.StreamingRead()
 		if err == io.EOF {
@@ -165,19 +168,26 @@ func main() {
 
 		if benchMode != benchmarkSeries {
 			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
-			for iter.Next() {
-				dp, _, annotation := iter.Current()
-				if benchMode == benchmarkNone {
-					// Use fmt package so it goes to stdout instead of stderr
-					fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
-					if len(annotation) > 0 {
-						fmt.Printf(", annotation: %s", // nolint: forbidigo
-							base64.StdEncoding.EncodeToString(annotation))
-					}
-					fmt.Println("}") // nolint: forbidigo
-				}
+			if iter.Next() {
+				_, _, annotation := iter.Current()
+				//if benchMode == benchmarkNone {
+				//	// Use fmt package so it goes to stdout instead of stderr
+				//	fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
+				//	if len(annotation) > 0 {
+				//		fmt.Printf(", annotation: %s", // nolint: forbidigo
+				//			base64.StdEncoding.EncodeToString(annotation))
+				//	}
+				//	fmt.Println("}") // nolint: forbidigo
+				//}
 				annotationSizeTotal += uint64(len(annotation))
 				datapointCount++
+				annotationProto.Reset()
+				err := annotationProto.Unmarshal(annotation)
+				if err != nil {
+					annotationCounts[err.Error()]++
+				} else {
+					annotationCounts[annotationProto.String()]++
+				}
 			}
 			if err := iter.Err(); err != nil {
 				log.Fatalf("unable to iterate original data: %v", err)
@@ -208,5 +218,9 @@ func main() {
 
 	if err := reader.Close(); err != nil {
 		log.Fatalf("unable to close reader: %v", err)
+	}
+
+	for s, count := range annotationCounts {
+		fmt.Printf("%s: %d\n", s, count)
 	}
 }
