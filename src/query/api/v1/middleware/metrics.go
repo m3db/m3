@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
 
+	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -42,8 +43,8 @@ var histogramTimerOptions = instrument.NewHistogramTimerOptions(
 func ResponseMetrics(iOpts instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			statusCodeTracking := &statusCodeTracker{ResponseWriter: w}
-			w = statusCodeTracking.wrappedResponseWriter()
+			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
+			w = statusCodeTracking.WrappedResponseWriter()
 
 			start := time.Now()
 			base.ServeHTTP(w, r)
