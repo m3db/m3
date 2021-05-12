@@ -40,7 +40,7 @@ import (
 )
 
 func TestQueryResponse(t *testing.T) {
-	startTime := time.Now().Round(0)
+	startTime := time.Now().UTC().Round(0)
 	endTime := startTime.Add(time.Hour)
 	cases := []struct {
 		name      string
@@ -118,8 +118,8 @@ func TestQueryResponse(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, err)
 			resp, err := server.Client().Do(req)
-			require.NoError(t, resp.Body.Close())
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 			require.Equal(t, tc.code, resp.StatusCode)
 			msgs := recorded.FilterMessage("finished handling query request").All()
 			require.Len(t, msgs, 1)
