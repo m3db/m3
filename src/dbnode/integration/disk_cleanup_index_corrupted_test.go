@@ -71,7 +71,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 	// Now create some fileset files
 	var (
 		filesetsIdentifiers = make([]fs.FileSetFileIdentifier, 0)
-		numVolumes          = 3
+		maxVolumeIndex      = 3
 
 		now         = setup.NowFn()().Truncate(idxBlockSize)
 		blockStarts = []time.Time{
@@ -81,7 +81,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		}
 	)
 	for _, blockStart := range blockStarts {
-		for idx := 0; idx < numVolumes; idx++ {
+		for idx := 0; idx <= maxVolumeIndex; idx++ {
 			filesetsIdentifiers = append(filesetsIdentifiers, fs.FileSetFileIdentifier{
 				Namespace:   ns.ID(),
 				BlockStart:  blockStart,
@@ -89,13 +89,6 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 			})
 		}
 	}
-	// Add one more block. The filesets with the most recent block start are not considered for
-	// corrupted fileset cleanup.
-	filesetsIdentifiers = append(filesetsIdentifiers, fs.FileSetFileIdentifier{
-		Namespace:   ns.ID(),
-		BlockStart:  now,
-		VolumeIndex: 0,
-	})
 	writeIndexFileSetFiles(t, setup.StorageOpts(), ns, filesetsIdentifiers)
 
 	// Corrupt some of the written filesets.
@@ -108,42 +101,62 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, filesets)
 
-	nonCorruptedFilesetFiles := make([]string, 0)
+	var (
+		filesThatShouldBeKept = make([]string, 0)
+		filesDeletedByTest    = make(map[string]struct{})
+	)
+	// Corrupt some filesets.
 	for _, fileset := range filesets {
+		shouldKeep := false
 		switch {
-		case fileset.ID.BlockStart.Equal(blockStarts[0]) && fileset.ID.VolumeIndex < numVolumes-1:
+		case fileset.ID.BlockStart.Equal(blockStarts[0]) && fileset.ID.VolumeIndex != maxVolumeIndex/2:
 			// Corrupt non-info file. Keep the most recent volume index non-corrupted to allow
 			// cleanup of corrupted volumes.
 			for _, file := range fileset.AbsoluteFilePaths {
 				if strings.Contains(file, "digest.db") {
 					require.NoError(t, os.Remove(file))
+					filesDeletedByTest[file] = struct{}{}
 				}
+			}
+			if fileset.ID.VolumeIndex == maxVolumeIndex {
+				// This volume is chosen as the most recent for the volume type.
+				shouldKeep = true
 			}
 
 		case fileset.ID.BlockStart.Equal(blockStarts[1]) && fileset.ID.VolumeIndex > 0:
-			// Overwrite info file to simulate incomplete write. Filesets with
-			// corrupted/missing info files are deleted even if there are no more recent volumes.
+			// Overwrite info file to simulate incomplete write.
 			for _, file := range fileset.AbsoluteFilePaths {
 				if strings.Contains(file, "info.db") {
 					require.NoError(t, ioutil.WriteFile(file, []byte{}, setup.FilesystemOpts().NewFileMode()))
 				}
 			}
+			if fileset.ID.VolumeIndex == maxVolumeIndex {
+				// This volume is the most recent and it also has incomplete info file, so it is kept.
+				shouldKeep = true
+			}
 
-		case fileset.ID.BlockStart.Equal(blockStarts[2]) && fileset.ID.VolumeIndex != numVolumes/2:
+		case fileset.ID.BlockStart.Equal(blockStarts[2]) && fileset.ID.VolumeIndex < maxVolumeIndex:
 			// Delete info file to simulate corruptions from M3DB versions where info file
-			// had not been written first. Filesets with corrupted/missing info files are deleted even
-			// if there are no more recent volumes.
+			// had not been written first.
 			for _, file := range fileset.AbsoluteFilePaths {
 				if strings.Contains(file, "info.db") {
 					require.NoError(t, os.Remove(file))
+					filesDeletedByTest[file] = struct{}{}
 				}
 			}
-
 		default:
-			nonCorruptedFilesetFiles = append(nonCorruptedFilesetFiles, fileset.AbsoluteFilePaths...)
+			shouldKeep = true
+		}
+
+		if shouldKeep {
+			for _, file := range fileset.AbsoluteFilePaths {
+				if _, ok := filesDeletedByTest[file]; !ok {
+					filesThatShouldBeKept = append(filesThatShouldBeKept, file)
+				}
+			}
 		}
 	}
-	sort.Strings(nonCorruptedFilesetFiles)
+	sort.Strings(filesThatShouldBeKept)
 
 	// Start the server
 	log := setup.StorageOpts().InstrumentOptions().Logger()
@@ -162,7 +175,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		files, err := fs.IndexFileSetsBefore(filePathPrefix, ns.ID(), deltaNow)
 		require.NoError(t, err)
 		sort.Strings(files)
-		return reflect.DeepEqual(files, nonCorruptedFilesetFiles)
+		return reflect.DeepEqual(files, filesThatShouldBeKept)
 	}, waitTimeout)
 	require.True(t, deleted)
 }

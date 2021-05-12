@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -489,7 +490,7 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 }
 
 func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
-	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	md := testNamespaceMetadata(time.Hour, time.Hour*24)
 	nsIdx, err := newNamespaceIndex(md,
 		namespace.NewRuntimeOptionsManager(md.ID().String()),
 		testShardSet, DefaultTestOptions())
@@ -498,139 +499,72 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 	idx := nsIdx.(*nsIndex)
 	now := time.Now().Truncate(time.Hour)
 	indexBlockSize := 2 * time.Hour
-	blockTime := now.Add(-2 * indexBlockSize)
+	var (
+		blockStarts = []time.Time{
+			now.Add(-6 * indexBlockSize),
+			now.Add(-5 * indexBlockSize),
+			now.Add(-4 * indexBlockSize),
+			now.Add(-3 * indexBlockSize),
+			now.Add(-2 * indexBlockSize),
+			now.Add(-1 * indexBlockSize),
+		}
+		shards = []uint32{0, 1, 2} // has no effect on this test
 
-	dir, err := ioutil.TempDir("", t.Name())
-	require.NoError(t, err)
+		volumeTypeDefault = "default"
+		volumeTypeExtra   = "extra"
+	)
 
-	defer os.RemoveAll(dir) //nolint:errcheck
+	filesetsForTest := []struct {
+		infoFile     fs.ReadIndexInfoFileResult
+		shouldRemove bool
+	}{
+		{newReadIndexInfoFileResult(blockStarts[0], volumeTypeDefault, 0, shards), false},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeDefault, 1), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeDefault, 2), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeExtra, 5), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeExtra, 6), false},
+		{newReadIndexInfoFileResult(blockStarts[0], volumeTypeDefault, 11, shards), false},
 
-	fset1, err := ioutil.TempFile(dir, "fileset-9000-0-")
-	require.NoError(t, err)
-	fset2, err := ioutil.TempFile(dir, "fileset-9000-1-")
-	require.NoError(t, err)
-	fset3, err := ioutil.TempFile(dir, "fileset-9000-2-")
-	require.NoError(t, err)
-	fset4, err := ioutil.TempFile(dir, "fileset-9001-0-")
-	require.NoError(t, err)
-	fset5, err := ioutil.TempFile(dir, "fileset-9001-1-")
-	require.NoError(t, err)
-	fset6, err := ioutil.TempFile(dir, "fileset-9002-0-")
-	require.NoError(t, err)
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[1], volumeTypeDefault, 1), false},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 3), true},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 4), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[1], volumeTypeExtra, 5), false},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 6), true},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 7), false},
 
-	volumeTypeDefault := "default"
-	volumeTypeExtra := "extra"
-	infoFiles := []fs.ReadIndexInfoFileResult{
-		{
-			ID: fs.FileSetFileIdentifier{
-				BlockStart:  blockTime,
-				VolumeIndex: 0,
-			},
-			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
-				BlockSize:  int64(indexBlockSize),
-				Shards:     []uint32{0, 1, 2},
-				IndexVolumeType: &protobuftypes.StringValue{
-					Value: volumeTypeDefault,
-				},
-			},
-			AbsoluteFilePaths: []string{fset1.Name()},
-			Corrupted:         false,
-		},
-		// Simulate two corrupted index filesets for block start/vol type (delete the first).
-		{
-			ID: fs.FileSetFileIdentifier{
-				BlockStart:  blockTime,
-				VolumeIndex: 1,
-			},
-			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
-				BlockSize:  int64(indexBlockSize),
-				Shards:     []uint32{0, 1, 2},
-				IndexVolumeType: &protobuftypes.StringValue{
-					Value: volumeTypeExtra,
-				},
-			},
-			AbsoluteFilePaths: []string{fset2.Name()},
-			Corrupted:         true,
-		},
-		{
-			ID: fs.FileSetFileIdentifier{
-				BlockStart:  blockTime,
-				VolumeIndex: 2,
-			},
-			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
-				BlockSize:  int64(indexBlockSize),
-				Shards:     []uint32{0, 1, 2, 3},
-				IndexVolumeType: &protobuftypes.StringValue{
-					Value: volumeTypeExtra,
-				},
-			},
-			AbsoluteFilePaths: []string{fset3.Name()},
-			Corrupted:         true,
-		},
-		// Simulate one corrupted index fileset for block start/vol type (delete the first).
-		{
-			ID: fs.FileSetFileIdentifier{
-				BlockStart:  blockTime.Add(indexBlockSize),
-				VolumeIndex: 0,
-			},
-			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.Add(indexBlockSize).UnixNano(),
-				BlockSize:  int64(indexBlockSize),
-				Shards:     []uint32{0, 1, 2},
-				IndexVolumeType: &protobuftypes.StringValue{
-					Value: volumeTypeDefault,
-				},
-			},
-			AbsoluteFilePaths: []string{fset4.Name()},
-			Corrupted:         true,
-		},
-		{
-			ID: fs.FileSetFileIdentifier{
-				BlockStart:  blockTime.Add(indexBlockSize),
-				VolumeIndex: 1,
-			},
-			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.Add(indexBlockSize).UnixNano(),
-				BlockSize:  int64(indexBlockSize),
-				Shards:     []uint32{0, 1, 2, 3},
-				IndexVolumeType: &protobuftypes.StringValue{
-					Value: volumeTypeDefault,
-				},
-			},
-			AbsoluteFilePaths: []string{fset5.Name()},
-			Corrupted:         false,
-		},
-		// Active block, still writing to this.
-		{
-			ID: fs.FileSetFileIdentifier{
-				BlockStart:  blockTime.Add(2 * indexBlockSize),
-				VolumeIndex: 0,
-			},
-			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.Add(2 * indexBlockSize).UnixNano(),
-				BlockSize:  int64(indexBlockSize),
-				Shards:     []uint32{0, 1, 2, 3},
-				IndexVolumeType: &protobuftypes.StringValue{
-					Value: volumeTypeDefault,
-				},
-			},
-			AbsoluteFilePaths: []string{fset6.Name()},
-			// We're in the middle of write.
-			Corrupted: true,
-		},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[2], 0), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[2], volumeTypeDefault, 1), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[2], volumeTypeExtra, 2), true},
+		{newReadIndexInfoFileResult(blockStarts[2], volumeTypeDefault, 3, shards), false},
+		{newReadIndexInfoFileResult(blockStarts[2], volumeTypeExtra, 4, shards), false},
+
+		{newReadIndexInfoFileResult(blockStarts[3], volumeTypeDefault, 0, shards), false},
+
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[4], volumeTypeDefault, 0), false},
+
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[5], 0), false},
 	}
 
-	idx.readIndexInfoFilesFn = func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
+	var (
+		infoFiles         = make([]fs.ReadIndexInfoFileResult, 0)
+		expectedFilenames = make([]string, 0)
+	)
+	for _, f := range filesetsForTest {
+		infoFiles = append(infoFiles, f.infoFile)
+		if f.shouldRemove {
+			expectedFilenames = append(expectedFilenames, f.infoFile.AbsoluteFilePaths...)
+		}
+	}
+
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 
-	defaultDeleteFilesFn := idx.deleteFilesFn
 	idx.deleteFilesFn = func(s []string) error {
-		require.Equal(t, []string{fset2.Name(), fset4.Name()}, s)
-		return defaultDeleteFilesFn(s)
+		sort.Strings(s)
+		sort.Strings(expectedFilenames)
+		require.Equal(t, expectedFilenames, s)
+		return nil
 	}
 	require.NoError(t, idx.CleanupCorruptedFileSets())
 }
@@ -1010,6 +944,7 @@ func newReadIndexInfoFileResult(
 	}
 	return fs.ReadIndexInfoFileResult{
 		ID: fs.FileSetFileIdentifier{
+			BlockStart:  blockStart,
 			VolumeIndex: volumeIndex,
 		},
 		Info: indexpb.IndexVolumeInfo{
@@ -1021,7 +956,27 @@ func newReadIndexInfoFileResult(
 			},
 		},
 		AbsoluteFilePaths: filenames,
+		Corrupted:         false,
 	}
+}
+
+func newReadIndexInfoFileResultForCorruptedFileset(
+	blockStart time.Time,
+	volumeType string,
+	volumeIndex int,
+) fs.ReadIndexInfoFileResult {
+	res := newReadIndexInfoFileResult(blockStart, volumeType, volumeIndex, []uint32{})
+	res.Corrupted = true
+	return res
+}
+
+func newReadIndexInfoFileResultForCorruptedInfoFile(
+	blockStart time.Time,
+	volumeIndex int,
+) fs.ReadIndexInfoFileResult {
+	res := newReadIndexInfoFileResultForCorruptedFileset(blockStart, "", volumeIndex)
+	res.Info = indexpb.IndexVolumeInfo{}
+	return res
 }
 
 type testIndex struct {

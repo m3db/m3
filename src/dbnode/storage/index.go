@@ -2066,11 +2066,6 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	return i.deleteFilesFn(filesets)
 }
 
-type corruptedInfoFile struct {
-	IndexVolumeType idxpersist.IndexVolumeType
-	File            fs.ReadIndexInfoFileResult
-}
-
 func (i *nsIndex) CleanupCorruptedFileSets() error {
 	/*
 	   Corrupted index filesets can be safely cleaned up if its not
@@ -2087,59 +2082,96 @@ func (i *nsIndex) CleanupCorruptedFileSets() error {
 		IncludeCorrupted: true,
 	})
 
+	if len(infoFiles) == 0 {
+		return nil
+	}
+
 	var (
-		toDelete                      []string
-		corrupted                     []corruptedInfoFile
-		latestBlockStart              int64
-		latestVolumeIndexByVolumeType = make(map[idxpersist.IndexVolumeType]int)
+		toDelete []string
+		begin    = 0 // marks the beginning of a subslice that contains filesets with same block starts
 	)
-	// NB: Info files should be ordered by block start.
-	for _, file := range infoFiles {
-		// NB: Missing info file data means the info file itself is corrupt.
-		// When we start writing an index volume, we first write an incomplete index info file so
-		// we are always guaranteed it exists but not if it was written successfully.
-		if !file.ID.BlockStart.Equal(xtime.FromNanoseconds(file.Info.BlockStart)) {
-			// Mark filesets w/ corrupted index info files for deletion right away.
-			toDelete = append(toDelete, file.AbsoluteFilePaths...)
+	// It's expected that info files are ordered by block start and volume index
+	for j := range infoFiles {
+		if infoFiles[begin].ID.BlockStart.Before(infoFiles[j].ID.BlockStart) {
+			files, err := i.getCorruptedVolumesForDeletion(infoFiles[begin:j])
+			if err != nil {
+				return err
+			}
+			toDelete = append(toDelete, files...)
+			begin = j
+		} else if infoFiles[begin].ID.BlockStart.After(infoFiles[j].ID.BlockStart) {
+			errorMessage := "filesets are expected to be ordered by block start"
+			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(errorMessage)
+			})
+			return instrument.InvariantErrorf(errorMessage)
+		}
+	}
+
+	// Process the volumes in the last block, which are not covered by the loop.
+	files, err := i.getCorruptedVolumesForDeletion(infoFiles[begin:])
+	if err != nil {
+		return err
+	}
+	toDelete = append(toDelete, files...)
+
+	return i.deleteFilesFn(toDelete)
+}
+
+func (i *nsIndex) getCorruptedVolumesForDeletion(filesets []fs.ReadIndexInfoFileResult) ([]string, error) {
+	if len(filesets) <= 1 {
+		return nil, nil
+	}
+
+	// Check for invariants.
+	for j := 0; j+1 < len(filesets); j++ {
+		if !filesets[j].ID.BlockStart.Equal(filesets[j+1].ID.BlockStart) {
+			errorMessage := "all the filesets passed to this function should have the same block start"
+			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(errorMessage)
+			})
+			return nil, instrument.InvariantErrorf(errorMessage)
+		} else if filesets[j].ID.VolumeIndex >= filesets[j+1].ID.VolumeIndex {
+			errorMessage := "filesets should be ordered by volume index in increasing order"
+			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(errorMessage)
+			})
+			return nil, instrument.InvariantErrorf(errorMessage)
+		}
+	}
+
+	toDelete := make([]string, 0)
+	hasMoreRecentVolumeOfType := make(map[idxpersist.IndexVolumeType]struct{})
+	// Iterate filesets in reverse order to process higher volume indexes first.
+	for j := len(filesets) - 1; j >= 0; j-- {
+		f := filesets[j]
+
+		// NB: If the fileset info fields contains conflicting information, it means that info file
+		// is missing or corrupted. Delete such filesets, except when it is the most recent volume
+		// in the block.
+		//
+		// The most recent volume is excluded because it is more likely to be actively written to.
+		// If info file writes are not atomic, due to timing readers might observe the file
+		// to be corrupted, even though at that moment the file is being written/re-written.
+		if f.Corrupted && !f.ID.BlockStart.Equal(xtime.FromNanoseconds(f.Info.BlockStart)) {
+			if j != len(filesets)-1 {
+				toDelete = append(toDelete, f.AbsoluteFilePaths...)
+			}
 			continue
 		}
 
-		// This intentionally skips the latest block start.
-		if file.Info.BlockStart > latestBlockStart {
-			// Iterate through the accumulated corrupted filesets and enlist the stale ones for deletion.
-			for _, cf := range corrupted {
-				if cf.File.ID.VolumeIndex < latestVolumeIndexByVolumeType[cf.IndexVolumeType] {
-					toDelete = append(toDelete, cf.File.AbsoluteFilePaths...)
-				}
-			}
-			// Reset accumulating variables.
-			latestBlockStart = file.Info.BlockStart
-			corrupted = corrupted[:0]
-			for volType := range latestVolumeIndexByVolumeType {
-				latestVolumeIndexByVolumeType[volType] = 0
-			}
-		} else if file.Info.BlockStart < latestBlockStart {
-			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
-				l.Error("filesets are expected to be ordered by block start")
-			})
-		}
-
 		volType := idxpersist.DefaultIndexVolumeType
-		if file.Info.IndexVolumeType != nil {
-			volType = idxpersist.IndexVolumeType(file.Info.IndexVolumeType.Value)
+		if f.Info.IndexVolumeType != nil {
+			volType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
 		}
-		if latestVolumeIndexByVolumeType[volType] < file.ID.VolumeIndex {
-			latestVolumeIndexByVolumeType[volType] = file.ID.VolumeIndex
-		}
-
-		if file.Corrupted {
-			corrupted = append(corrupted, corruptedInfoFile{
-				IndexVolumeType: volType,
-				File:            file,
-			})
+		// Delete corrupted filesets if there are more recent volumes with with the same volume type.
+		if _, ok := hasMoreRecentVolumeOfType[volType]; !ok {
+			hasMoreRecentVolumeOfType[volType] = struct{}{}
+		} else if f.Corrupted {
+			toDelete = append(toDelete, f.AbsoluteFilePaths...)
 		}
 	}
-	return i.deleteFilesFn(toDelete)
+	return toDelete, nil
 }
 
 func (i *nsIndex) CleanupDuplicateFileSets(activeShards []uint32) error {
