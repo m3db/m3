@@ -134,9 +134,9 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Metadata, error) {
 
 		var clonedName, clonedValue []byte
 		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
-			distanceBetweenTagNameAndValue)
+			distanceBetweenTagNameAndValue, true)
 		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
-			distanceBetweenTagValueAndNextName)
+			distanceBetweenTagValueAndNextName, false)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -167,9 +167,9 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, 
 
 		var clonedName, clonedValue []byte
 		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
-			distanceBetweenTagNameAndValue)
+			distanceBetweenTagNameAndValue, true)
 		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
-			distanceBetweenTagValueAndNextName)
+			distanceBetweenTagValueAndNextName, false)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -248,9 +248,9 @@ func FromSeriesIDAndEncodedTags(id ident.BytesID, encodedTags ts.EncodedTags) (d
 
 		var clonedName, clonedValue []byte
 		clonedName, expectedStart = findSliceOrClone(clonedID, bytesName, expectedStart,
-			distanceBetweenTagNameAndValue)
+			distanceBetweenTagNameAndValue, true)
 		clonedValue, expectedStart = findSliceOrClone(clonedID, bytesValue, expectedStart,
-			distanceBetweenTagValueAndNextName)
+			distanceBetweenTagValueAndNextName, false)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -268,7 +268,16 @@ func FromSeriesIDAndEncodedTags(id ident.BytesID, encodedTags ts.EncodedTags) (d
 	return d, nil
 }
 
-func findSliceOrClone(id, tag []byte, expectedStart, nextPositionDistance int) ([]byte, int) { //nolint:unparam
+func findSliceOrClone(
+	id, tag []byte,
+	expectedStart, nextPositionDistance int,
+	tagName bool,
+) ([]byte, int) { //nolint:unparam
+	if tagName {
+		if idx, ok := graphite.TagIndex(tag); ok {
+			return graphite.TagName(idx), -1
+		}
+	}
 	n := len(tag)
 	expectedEnd := expectedStart + n
 	if expectedStart != -1 && expectedEnd <= len(id) &&
