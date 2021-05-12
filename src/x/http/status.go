@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package http adds extension to the stdlib http package.
 package http
 
 import (
@@ -32,12 +33,14 @@ type StatusCodeTracker struct {
 	WroteHeader bool
 }
 
+// WriteHeader saves the status .
 func (w *StatusCodeTracker) WriteHeader(status int) {
 	w.Status = status
 	w.WroteHeader = true
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// Write saves the status as 200 if it has not already been set.
 func (w *StatusCodeTracker) Write(b []byte) (int, error) {
 	if !w.WroteHeader {
 		w.WroteHeader = true

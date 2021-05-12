@@ -90,8 +90,8 @@ func TestQueryResponse(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			core, recorded := observer.New(zapcore.InfoLevel)
 			iOpts := instrument.NewOptions().SetLogger(zap.New(core))
 			h := QueryResponse(tc.threshold, iOpts).Middleware(
@@ -118,6 +118,7 @@ func TestQueryResponse(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, err)
 			resp, err := server.Client().Do(req)
+			require.NoError(t, resp.Body.Close())
 			require.NoError(t, err)
 			require.Equal(t, tc.code, resp.StatusCode)
 			msgs := recorded.FilterMessage("finished handling query request").All()
@@ -132,5 +133,4 @@ func TestQueryResponse(t *testing.T) {
 			require.Len(t, fields, len(tc.fields)+2)
 		})
 	}
-
 }
