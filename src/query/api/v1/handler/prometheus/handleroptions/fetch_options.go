@@ -427,6 +427,11 @@ func ParseRequestTimeout(
 	if v := r.Header.Get(TimeoutParam); v != "" {
 		timeout = v
 	}
+	// Prefer the M3-Timeout header to the incorrect header using the param name. The param name should have never been
+	// allowed as a header, but we continue to support it for backwards compatibility.
+	if v := r.Header.Get(headers.TimeoutHeader); v != "" {
+		timeout = v
+	}
 
 	if timeout == "" {
 		return configFetchTimeout, nil
