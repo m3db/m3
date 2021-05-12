@@ -22,6 +22,7 @@ package middleware
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -53,7 +54,9 @@ func TestTracing(t *testing.T) {
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
 
-	assert.NotEmpty(t, mtr.FinishedSpans())
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 1)
+	require.Equal(t, fmt.Sprintf("GET %s", testRoute), spans[0].OperationName)
 	require.Len(t, recorded.All(), 1)
 	entry := recorded.All()[0]
 	require.Equal(t, "test", entry.Message)
