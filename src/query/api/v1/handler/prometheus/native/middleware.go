@@ -52,7 +52,7 @@ func QueryResponse(threshold time.Duration, iOpts instrument.Options) mux.Middle
 				if err != nil {
 					logger.Warn("failed to parse start for response logging", zap.Error(err))
 				}
-				endTime, err := util.ParseTimeStringWithDefault(r.FormValue(endParam), startTime)
+				endTime, err := util.ParseTimeStringWithDefault(r.FormValue(endParam), time.Time{})
 				if err != nil {
 					logger.Warn("failed to parse end for response logging", zap.Error(err))
 				}
