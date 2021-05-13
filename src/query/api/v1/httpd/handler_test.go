@@ -45,7 +45,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
-	"github.com/gorilla/mux"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -304,7 +303,7 @@ type customHandler struct {
 	routeName  string
 	methods    []string
 	assertFn   assertFn
-	middleware []mux.MiddlewareFunc
+	middleware options.RegisterMiddleware
 }
 
 func (h *customHandler) Route() string     { return h.routeName }
@@ -322,7 +321,7 @@ func (h *customHandler) Handler(
 
 	return http.HandlerFunc(fn), nil
 }
-func (h *customHandler) Middleware() []mux.MiddlewareFunc {
+func (h *customHandler) Middleware() options.RegisterMiddleware {
 	return h.middleware
 }
 
