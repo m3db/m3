@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -44,24 +45,24 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	// Test setup
 	var (
 		rOpts        = retention.NewOptions().SetRetentionPeriod(48 * time.Hour)
 		nsBlockSize  = time.Hour
 		idxBlockSize = 2 * time.Hour
-		nsROpts      = rOpts.SetBlockSize(nsBlockSize)
+
+		nsROpts = rOpts.SetBlockSize(nsBlockSize)
+		idxOpts = namespace.NewIndexOptions().SetBlockSize(idxBlockSize).SetEnabled(true)
+		nsOpts  = namespace.NewOptions().
+			SetCleanupEnabled(true).
+			SetRetentionOptions(nsROpts).
+			SetIndexOptions(idxOpts)
 	)
 
-	ns, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().
-		SetCleanupEnabled(true).
-		SetRetentionOptions(nsROpts).SetIndexOptions(
-		namespace.NewIndexOptions().SetBlockSize(idxBlockSize).SetEnabled(true)))
+	ns, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns})
-
-	// Test setup
 	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
@@ -91,15 +92,12 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 	}
 	writeIndexFileSetFiles(t, setup.StorageOpts(), ns, filesetsIdentifiers)
 
-	// Corrupt some of the written filesets.
-	deltaNow := now.Add(time.Minute)
 	filesets := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
 		FilePathPrefix:   filePathPrefix,
 		Namespace:        ns.ID(),
 		ReaderBufferSize: setup.FilesystemOpts().InfoReaderBufferSize(),
 	})
-	require.NoError(t, err)
-	require.NotEmpty(t, filesets)
+	require.Len(t, filesets, len(blockStarts)*(maxVolumeIndex+1))
 
 	var (
 		filesThatShouldBeKept = make([]string, 0)
@@ -172,10 +170,15 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 	// Check if corrupted files have been deleted
 	waitTimeout := 30 * time.Second
 	deleted := xclock.WaitUntil(func() bool {
-		files, err := fs.IndexFileSetsBefore(filePathPrefix, ns.ID(), deltaNow)
+		files, err := fs.IndexFileSetsBefore(filePathPrefix, ns.ID(), now.Add(time.Minute))
 		require.NoError(t, err)
 		sort.Strings(files)
 		return reflect.DeepEqual(files, filesThatShouldBeKept)
 	}, waitTimeout)
-	require.True(t, deleted)
+	if !assert.True(t, deleted) {
+		files, err := fs.IndexFileSetsBefore(filePathPrefix, ns.ID(), now.Add(time.Minute))
+		require.NoError(t, err)
+		sort.Strings(files)
+		require.Equal(t, filesThatShouldBeKept, files)
+	}
 }
