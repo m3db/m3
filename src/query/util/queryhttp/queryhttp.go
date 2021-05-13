@@ -88,6 +88,7 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 	}
 
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
+		route.Path(p).Handler(handler).Methods(opts.Methods...)
 		for _, method := range opts.Methods {
 			key := routeKey{
 				path:   p,
@@ -97,7 +98,7 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 				return fmt.Errorf("route already exists: path=%s, method=%s",
 					p, method)
 			}
-			r.registered[key] = r.router.Handle(p, handler).Methods(method)
+			r.registered[key] = route
 		}
 	} else if p := opts.PathPrefix; p != "" {
 		key := routeKey{
@@ -107,7 +108,7 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 			return fmt.Errorf("route already exists: pathPrefix=%s", p)
 		}
 
-		r.registered[key] = r.router.Handle(p, handler)
+		r.registered[key] = route.PathPrefix(p).Handler(handler)
 	} else {
 		return fmt.Errorf("no path and methods or path prefix set: +%v", opts)
 	}
