@@ -71,10 +71,14 @@ type RegisterOptions struct {
 
 // Register registers an endpoint.
 func (r *EndpointRegistry) Register(opts RegisterOptions) error {
+	route := r.router.NewRoute()
 	if opts.Middleware == nil {
 		opts.Middleware = middleware.Default
 	}
-	middle := opts.Middleware(r.instrumentOpts)
+	middle := opts.Middleware(options.MiddlewareOptions{
+		InstrumentOpts: r.instrumentOpts,
+		Route:          route,
+	})
 	handler := opts.Handler
 	// iterate through in reverse order so each middleware fn gets the proper next handler to dispatch. this ensures the
 	// middleware is dispatched in the expected order (first -> last).
@@ -84,6 +88,7 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 	}
 
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
+		route.Path(p).Handler(handler).Methods(opts.Methods...)
 		for _, method := range opts.Methods {
 			key := routeKey{
 				path:   p,
@@ -93,8 +98,6 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 				return fmt.Errorf("route already exists: path=%s, method=%s",
 					p, method)
 			}
-
-			route := r.router.Handle(p, handler).Methods(method)
 			r.registered[key] = route
 		}
 	} else if p := opts.PathPrefix; p != "" {
@@ -104,8 +107,8 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 		if _, ok := r.registered[key]; ok {
 			return fmt.Errorf("route already exists: pathPrefix=%s", p)
 		}
-		route := r.router.PathPrefix(p).Handler(handler)
-		r.registered[key] = route
+
+		r.registered[key] = route.PathPrefix(p).Handler(handler)
 	} else {
 		return fmt.Errorf("no path and methods or path prefix set: +%v", opts)
 	}

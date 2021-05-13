@@ -36,6 +36,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -105,11 +106,10 @@ func TestCors(t *testing.T) {
 
 // TestDefaults is a quick check to see if a new MiddlewareFunc was added to all the appropriate default sets.
 func TestDefaults(t *testing.T) {
-	iOpts := instrument.NewOptions()
-	noResponse := NoResponseLogging(iOpts)
-	defaultSet := Default(iOpts)
-	query := Query(iOpts)
-	promQuery := PromQuery(iOpts)
+	noResponse := NoResponseLogging(options.MiddlewareOptions{})
+	defaultSet := Default(options.MiddlewareOptions{})
+	query := Query(options.MiddlewareOptions{})
+	promQuery := PromQuery(options.MiddlewareOptions{})
 
 	// If these checks fail and you're adding a new MiddlewareFunc you need to either:
 	// 1. Add the new MiddlewareFunc to all the appropriate default sets

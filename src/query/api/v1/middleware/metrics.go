@@ -40,7 +40,7 @@ var histogramTimerOptions = instrument.NewHistogramTimerOptions(
 	})
 
 // ResponseMetrics records metrics for the http response.
-func ResponseMetrics(iOpts instrument.Options) mux.MiddlewareFunc {
+func ResponseMetrics(iOpts instrument.Options, route *mux.Route) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
@@ -54,8 +54,13 @@ func ResponseMetrics(iOpts instrument.Options) mux.MiddlewareFunc {
 				return
 			}
 
+			path, err := route.GetPathTemplate()
+			if err != nil {
+				path = "unknown"
+			}
+
 			metrics := newRouteMetrics(iOpts)
-			counter, timer := metrics.metric(r.URL.RequestURI(), statusCodeTracking.Status)
+			counter, timer := metrics.metric(path, statusCodeTracking.Status)
 			counter.Inc(1)
 			timer.Record(d)
 		})
