@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"io/ioutil"
 	"os"
 	"reflect"
 	"sort"
@@ -72,7 +71,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 	// Now create some fileset files
 	var (
 		filesetsIdentifiers = make([]fs.FileSetFileIdentifier, 0)
-		maxVolumeIndex      = 3
+		numVolumes          = 4
 
 		now         = setup.NowFn()().Truncate(idxBlockSize)
 		blockStarts = []time.Time{
@@ -82,7 +81,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		}
 	)
 	for _, blockStart := range blockStarts {
-		for idx := 0; idx <= maxVolumeIndex; idx++ {
+		for idx := 0; idx < numVolumes; idx++ {
 			filesetsIdentifiers = append(filesetsIdentifiers, fs.FileSetFileIdentifier{
 				Namespace:   ns.ID(),
 				BlockStart:  blockStart,
@@ -97,63 +96,33 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		Namespace:        ns.ID(),
 		ReaderBufferSize: setup.FilesystemOpts().InfoReaderBufferSize(),
 	})
-	require.Len(t, filesets, len(blockStarts)*(maxVolumeIndex+1))
+	require.Len(t, filesets, len(blockStarts)*numVolumes)
 
-	var (
-		filesThatShouldBeKept = make([]string, 0)
-		filesDeletedByTest    = make(map[string]struct{})
-	)
-	// Corrupt some filesets.
-	for _, fileset := range filesets {
-		shouldKeep := false
-		switch {
-		case fileset.ID.BlockStart.Equal(blockStarts[0]) && fileset.ID.VolumeIndex != maxVolumeIndex/2:
-			// Corrupt non-info file. Keep the most recent volume index non-corrupted to allow
-			// cleanup of corrupted volumes.
-			for _, file := range fileset.AbsoluteFilePaths {
-				if strings.Contains(file, "digest.db") {
-					require.NoError(t, os.Remove(file))
-					filesDeletedByTest[file] = struct{}{}
-				}
-			}
-			if fileset.ID.VolumeIndex == maxVolumeIndex {
-				// This volume is chosen as the most recent for the volume type.
-				shouldKeep = true
-			}
-
-		case fileset.ID.BlockStart.Equal(blockStarts[1]) && fileset.ID.VolumeIndex > 0:
-			// Overwrite info file to simulate incomplete write.
-			for _, file := range fileset.AbsoluteFilePaths {
-				if strings.Contains(file, "info.db") {
-					require.NoError(t, ioutil.WriteFile(file, []byte{}, setup.FilesystemOpts().NewFileMode()))
-				}
-			}
-			if fileset.ID.VolumeIndex == maxVolumeIndex {
-				// This volume is the most recent and it also has incomplete info file, so it is kept.
-				shouldKeep = true
-			}
-
-		case fileset.ID.BlockStart.Equal(blockStarts[2]) && fileset.ID.VolumeIndex < maxVolumeIndex:
-			// Delete info file to simulate corruptions from M3DB versions where info file
-			// had not been written first.
-			for _, file := range fileset.AbsoluteFilePaths {
-				if strings.Contains(file, "info.db") {
-					require.NoError(t, os.Remove(file))
-					filesDeletedByTest[file] = struct{}{}
-				}
-			}
-		default:
-			shouldKeep = true
-		}
-
-		if shouldKeep {
-			for _, file := range fileset.AbsoluteFilePaths {
-				if _, ok := filesDeletedByTest[file]; !ok {
-					filesThatShouldBeKept = append(filesThatShouldBeKept, file)
-				}
-			}
-		}
+	filesThatShouldBeKept := make([]string, 0)
+	keep := func(files []string) {
+		filesThatShouldBeKept = append(filesThatShouldBeKept, files...)
 	}
+	// Corrupt some filesets.
+	forBlockStart(blockStarts[0], filesets, func(filesets []fs.ReadIndexInfoFileResult) {
+		keep(missingDigest(t, filesets[0])) // most recent volume index for volume type
+		corruptedInfo(t, filesets[1])
+		missingInfo(t, filesets[2])
+		keep(corruptedInfo(t, filesets[3])) // corrupt info files are kept if it's most recent volume index
+	})
+
+	forBlockStart(blockStarts[1], filesets, func(filesets []fs.ReadIndexInfoFileResult) {
+		keep(filesets[0].AbsoluteFilePaths)
+		missingDigest(t, filesets[1])
+		missingDigest(t, filesets[2])
+		keep(missingDigest(t, filesets[3])) // most recent volume index for volume type
+	})
+
+	forBlockStart(blockStarts[2], filesets, func(filesets []fs.ReadIndexInfoFileResult) {
+		missingInfo(t, filesets[0])
+		corruptedInfo(t, filesets[1])
+		missingDigest(t, filesets[2])
+		keep(filesets[3].AbsoluteFilePaths) // most recent volume index for volume type
+	})
 	sort.Strings(filesThatShouldBeKept)
 
 	// Start the server
@@ -181,4 +150,60 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		sort.Strings(files)
 		require.Equal(t, filesThatShouldBeKept, files)
 	}
+}
+
+func forBlockStart(
+	blockStart time.Time,
+	filesets []fs.ReadIndexInfoFileResult,
+	fn func([]fs.ReadIndexInfoFileResult),
+) {
+	res := make([]fs.ReadIndexInfoFileResult, 0)
+	for _, f := range filesets {
+		if f.ID.BlockStart.Equal(blockStart) {
+			res = append(res, f)
+		}
+	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].ID.VolumeIndex < res[j].ID.VolumeIndex
+	})
+	fn(res)
+}
+
+func corruptedInfo(t *testing.T, fileset fs.ReadIndexInfoFileResult) []string {
+	for _, f := range fileset.AbsoluteFilePaths {
+		if strings.Contains(f, "info.db") {
+			require.NoError(t, os.Truncate(f, 0))
+			return fileset.AbsoluteFilePaths
+		}
+	}
+	require.Fail(t, "could not find info file")
+	return nil
+}
+
+func missingInfo(t *testing.T, fileset fs.ReadIndexInfoFileResult) []string { //nolint:unparam
+	for i, f := range fileset.AbsoluteFilePaths {
+		if strings.Contains(f, "info.db") {
+			require.NoError(t, os.Remove(f))
+			res := make([]string, 0)
+			res = append(res, fileset.AbsoluteFilePaths[:i]...)
+			res = append(res, fileset.AbsoluteFilePaths[i+1:]...)
+			return res
+		}
+	}
+	require.Fail(t, "could not find info file")
+	return nil
+}
+
+func missingDigest(t *testing.T, fileset fs.ReadIndexInfoFileResult) []string {
+	for i, f := range fileset.AbsoluteFilePaths {
+		if strings.Contains(f, "digest.db") {
+			require.NoError(t, os.Remove(f))
+			res := make([]string, 0)
+			res = append(res, fileset.AbsoluteFilePaths[:i]...)
+			res = append(res, fileset.AbsoluteFilePaths[i+1:]...)
+			return res
+		}
+	}
+	require.Fail(t, "could not find digest file")
+	return nil
 }
