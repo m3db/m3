@@ -560,13 +560,16 @@ func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
 		return infoFiles
 	}
 
+	deleteFilesFnInvoked := false
 	idx.deleteFilesFn = func(s []string) error {
 		sort.Strings(s)
 		sort.Strings(expectedFilenames)
 		require.Equal(t, expectedFilenames, s)
+		deleteFilesFnInvoked = true
 		return nil
 	}
 	require.NoError(t, idx.CleanupCorruptedFileSets())
+	require.True(t, deleteFilesFnInvoked)
 }
 
 func TestNamespaceIndexFlushSuccess(t *testing.T) {

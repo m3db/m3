@@ -2124,14 +2124,14 @@ func (i *nsIndex) getCorruptedVolumesForDeletion(filesets []fs.ReadIndexInfoFile
 	}
 
 	// Check for invariants.
-	for j := 0; j+1 < len(filesets); j++ {
-		if !filesets[j].ID.BlockStart.Equal(filesets[j+1].ID.BlockStart) {
+	for j := 1; j < len(filesets); j++ {
+		if !filesets[j-1].ID.BlockStart.Equal(filesets[j].ID.BlockStart) {
 			errorMessage := "all the filesets passed to this function should have the same block start"
 			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error(errorMessage)
 			})
 			return nil, instrument.InvariantErrorf(errorMessage)
-		} else if filesets[j].ID.VolumeIndex >= filesets[j+1].ID.VolumeIndex {
+		} else if filesets[j-1].ID.VolumeIndex >= filesets[j].ID.VolumeIndex {
 			errorMessage := "filesets should be ordered by volume index in increasing order"
 			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error(errorMessage)
@@ -2146,7 +2146,8 @@ func (i *nsIndex) getCorruptedVolumesForDeletion(filesets []fs.ReadIndexInfoFile
 	for j := len(filesets) - 1; j >= 0; j-- {
 		f := filesets[j]
 
-		// NB: If the fileset info fields contains conflicting information, it means that info file
+		// NB: If the fileset info fields contains conflicting information (e.g. block start inside
+		// info file doesn't match the block start extracted from the filename), it means that info file
 		// is missing or corrupted. Delete such filesets, except when it is the most recent volume
 		// in the block.
 		//
@@ -2164,7 +2165,7 @@ func (i *nsIndex) getCorruptedVolumesForDeletion(filesets []fs.ReadIndexInfoFile
 		if f.Info.IndexVolumeType != nil {
 			volType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
 		}
-		// Delete corrupted filesets if there are more recent volumes with with the same volume type.
+		// Delete corrupted filesets if there are more recent volumes with the same volume type.
 		if _, ok := hasMoreRecentVolumeOfType[volType]; !ok {
 			hasMoreRecentVolumeOfType[volType] = struct{}{}
 		} else if f.Corrupted {

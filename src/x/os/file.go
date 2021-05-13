@@ -20,7 +20,11 @@
 
 package xos
 
-import "os"
+import (
+	"os"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
+)
 
 // File is the interface implemented by *os.File.
 type File interface {
@@ -39,12 +43,5 @@ func WriteFileSync(name string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	_, err = f.Write(data)
-	// Store the first error.
-	if err1 := f.Sync(); err1 != nil && err == nil {
-		err = err1
-	}
-	if err1 := f.Close(); err1 != nil && err == nil {
-		err = err1
-	}
-	return err
+	return xerrors.FirstError(err, f.Sync(), f.Close())
 }

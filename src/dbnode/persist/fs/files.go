@@ -1394,13 +1394,10 @@ func readAndValidate(
 	}
 	defer fd.Close()
 
-	stat, err := os.Stat(filePath)
+	buf, err := bufferForEntireFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-
-	size := int(stat.Size())
-	buf := make([]byte, size)
 
 	fwd := digest.NewFdWithDigestReader(readerBufferSize)
 	fwd.Reset(fd)
@@ -1418,6 +1415,19 @@ func read(filePath string) ([]byte, error) {
 	}
 	defer fd.Close() //nolint:errcheck,gosec
 
+	buf, err := bufferForEntireFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	n, err := fd.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func bufferForEntireFile(filePath string) ([]byte, error) {
 	stat, err := os.Stat(filePath)
 	if err != nil {
 		return nil, err
@@ -1425,12 +1435,7 @@ func read(filePath string) ([]byte, error) {
 
 	size := int(stat.Size())
 	buf := make([]byte, size)
-
-	n, err := fd.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf[:n], nil
+	return buf, nil
 }
 
 // DataDirPath returns the path to the data directory belonging to a db
