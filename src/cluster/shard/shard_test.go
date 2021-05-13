@@ -66,10 +66,13 @@ func TestShardEqualsWithRedirectShardID(t *testing.T) {
 }
 
 func TestShards(t *testing.T) {
+	redirectToShardID := new(uint32)
+	*redirectToShardID = 9
+
 	shards := NewShards(nil)
 	assert.Equal(t, 0, shards.NumShards())
 
-	s1 := NewShard(1).SetState(Initializing).SetSourceID("id")
+	s1 := NewShard(1).SetState(Initializing).SetSourceID("id").SetRedirectToShardID(redirectToShardID)
 	shards.Add(s1)
 	assert.Equal(t, 1, shards.NumShards())
 	assert.Equal(t, 1, shards.NumShardsForState(Initializing))
@@ -103,7 +106,7 @@ func TestShards(t *testing.T) {
 	assert.Equal(t, 2, shards.NumShards())
 
 	shards.Add(NewShard(3).SetState(Leaving))
-	assert.Equal(t, "[Initializing=[1], Available=[2], Leaving=[3]]", shards.String())
+	assert.Equal(t, "[Initializing=[1 -> 9], Available=[2], Leaving=[3]]", shards.String())
 
 	shards.Add(NewShard(4))
 	shards.Add(NewShard(4))

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gogo/protobuf/types"
@@ -367,8 +368,18 @@ func (ss *shards) Equals(other Shards) bool {
 func (ss *shards) String() string {
 	var strs []string
 	for _, state := range validStates() {
-		ids := NewShards(ss.ShardsForState(state)).AllIDs()
-		str := fmt.Sprintf("%s=%v", state.String(), ids)
+		shardsInState := ss.ShardsForState(state)
+		idStrs := make([]string, 0, len(shardsInState))
+		for _, shard := range shardsInState {
+			var idStr string
+			if shard.RedirectToShardID() != nil {
+				idStr = fmt.Sprintf("%d -> %d", shard.ID(), *shard.RedirectToShardID())
+			} else {
+				idStr = strconv.Itoa(int(shard.ID()))
+			}
+			idStrs = append(idStrs, idStr)
+		}
+		str := fmt.Sprintf("%s=%v", state.String(), idStrs)
 		strs = append(strs, str)
 	}
 	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))
