@@ -408,6 +408,10 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 		return nil, errShardNotOwned
 	}
 	shard := agg.shards[shardID]
+	if shard != nil && shard.redirectToShardID != nil {
+		shard = agg.shards[*shard.redirectToShardID]
+	}
+
 	agg.RUnlock()
 
 	if shard == nil {
@@ -600,6 +604,7 @@ func (agg *aggregator) updateShardsWithLock(
 			cutoffNanos:  shard.CutoffNanos(),
 		}
 		incoming[shardID].SetWriteableRange(shardTimeRange)
+		incoming[shardID].SetRedirectToShardID(shard.RedirectToShardID())
 	}
 
 	agg.shardIDs = newShardIDs

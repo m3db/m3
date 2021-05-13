@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
@@ -74,17 +75,26 @@ func NewShardFromProto(spb *placementpb.Shard) (Shard, error) {
 		return nil, err
 	}
 
+	var redirectToShardID *uint32
+	if spb.RedirectToShardId != nil {
+		redirectToShardID = new(uint32)
+		*redirectToShardID = spb.RedirectToShardId.Value
+	}
+
 	return &shard{
-		id:           spb.Id,
-		state:        state,
-		sourceID:     spb.SourceId,
-		cutoverNanos: spb.CutoverNanos,
-		cutoffNanos:  spb.CutoffNanos,
+		id:                spb.Id,
+		redirectToShardID: redirectToShardID,
+		state:             state,
+		sourceID:          spb.SourceId,
+		cutoverNanos:      spb.CutoverNanos,
+		cutoffNanos:       spb.CutoffNanos,
 	}, nil
 }
 
 type shard struct {
-	id           uint32
+	id                uint32
+	redirectToShardID *uint32
+
 	state        State
 	sourceID     string
 	cutoverNanos int64
@@ -139,6 +149,10 @@ func (s *shard) SetCutoffNanos(value int64) Shard {
 	return s
 }
 
+func (s *shard) RedirectToShardID() *uint32 {
+	return s.redirectToShardID
+}
+
 func (s *shard) Equals(other Shard) bool {
 	return s.ID() == other.ID() &&
 		s.State() == other.State() &&
@@ -153,12 +167,18 @@ func (s *shard) Proto() (*placementpb.Shard, error) {
 		return nil, err
 	}
 
+	var redirectToShardId *types.UInt32Value
+	if s.redirectToShardID != nil {
+		redirectToShardId = &types.UInt32Value{Value: *s.redirectToShardID}
+	}
+
 	return &placementpb.Shard{
-		Id:           s.id,
-		State:        ss,
-		SourceId:     s.sourceID,
-		CutoverNanos: s.cutoverNanos,
-		CutoffNanos:  s.cutoffNanos,
+		Id:                s.id,
+		RedirectToShardId: redirectToShardId,
+		State:             ss,
+		SourceId:          s.sourceID,
+		CutoverNanos:      s.cutoverNanos,
+		CutoffNanos:       s.cutoffNanos,
 	}, nil
 }
 
