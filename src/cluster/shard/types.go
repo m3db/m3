@@ -85,6 +85,9 @@ type Shard interface {
 	// RedirectToShardID returns optional shard to redirect incoming writes to.
 	RedirectToShardID() *uint32
 
+	// SetRedirectToShardID sets optional shard to redirect incoming writes to.
+	SetRedirectToShardID(*uint32) Shard
+
 	// Equals returns whether the shard equals to another shard.
 	Equals(s Shard) bool
 

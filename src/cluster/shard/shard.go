@@ -153,12 +153,25 @@ func (s *shard) RedirectToShardID() *uint32 {
 	return s.redirectToShardID
 }
 
+// SetRedirectToShardID sets optional shard to redirect incoming writes to.
+func (s *shard) SetRedirectToShardID(id *uint32) Shard {
+	s.redirectToShardID = nil
+	if id != nil {
+		s.redirectToShardID = new(uint32)
+		*s.redirectToShardID = *id
+	}
+	return s
+}
+
 func (s *shard) Equals(other Shard) bool {
 	return s.ID() == other.ID() &&
 		s.State() == other.State() &&
 		s.SourceID() == other.SourceID() &&
 		s.CutoverNanos() == other.CutoverNanos() &&
-		s.CutoffNanos() == other.CutoffNanos()
+		s.CutoffNanos() == other.CutoffNanos() &&
+		((s.RedirectToShardID() == nil && other.RedirectToShardID() == nil) ||
+			(s.RedirectToShardID() != nil && other.RedirectToShardID() != nil &&
+				*s.RedirectToShardID() == *other.RedirectToShardID()))
 }
 
 func (s *shard) Proto() (*placementpb.Shard, error) {
