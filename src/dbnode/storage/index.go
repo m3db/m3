@@ -2146,10 +2146,13 @@ func (i *nsIndex) getCorruptedVolumesForDeletion(filesets []fs.ReadIndexInfoFile
 	for j := len(filesets) - 1; j >= 0; j-- {
 		f := filesets[j]
 
-		// NB: If the fileset info fields contains conflicting information (e.g. block start inside
+		// NB: If the fileset info fields contains inconsistent information (e.g. block start inside
 		// info file doesn't match the block start extracted from the filename), it means that info file
-		// is missing or corrupted. Delete such filesets, except when it is the most recent volume
-		// in the block.
+		// is missing or corrupted. Thus we cannot trust the information of this fileset
+		// and we cannot be sure what's the actual volume type of it. However, a part of corrupted
+		// fileset cleanup logic depends on knowing the volume type.
+		//
+		// Such fileset is deleted, except when it is the most recent volume in the block.
 		//
 		// The most recent volume is excluded because it is more likely to be actively written to.
 		// If info file writes are not atomic, due to timing readers might observe the file

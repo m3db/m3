@@ -107,7 +107,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		keep(missingDigest(t, filesets[0])) // most recent volume index for volume type
 		corruptedInfo(t, filesets[1])
 		missingInfo(t, filesets[2])
-		keep(corruptedInfo(t, filesets[3])) // corrupt info files are kept if it's most recent volume index
+		keep(corruptedInfo(t, filesets[3])) // corrupted info files are kept if it's the most recent volume index
 	})
 
 	forBlockStart(blockStarts[1], filesets, func(filesets []fs.ReadIndexInfoFileResult) {
