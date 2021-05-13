@@ -100,6 +100,10 @@ func main() {
 
 	runTime := time.Since(start)
 
+	if err := reader.Close(); err != nil {
+		log.Fatalf("unable to close reader: %v", err)
+	}
+
 	fmt.Printf("\nRunning time: %s\n", runTime)                          // nolint: forbidigo
 	fmt.Printf("%d entries read\n", entryCount)                          // nolint: forbidigo
 	fmt.Printf("Total annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
