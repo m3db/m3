@@ -129,7 +129,14 @@ func newPromEngine() *promql.Engine {
 	return promql.NewEngine(promql.EngineOpts{
 		MaxSamples: 10000,
 		Timeout:    100 * time.Second,
+		NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {
+			return durationMilliseconds(1 * time.Minute)
+		},
 	})
+}
+
+func durationMilliseconds(d time.Duration) int64 {
+	return int64(d / (time.Millisecond / time.Nanosecond))
 }
 
 func TestPromRemoteReadGet(t *testing.T) {

@@ -187,8 +187,8 @@ func TestPromReadHandlerErrors(t *testing.T) {
 				sortSeries bool,
 				hints *promstorage.SelectHints,
 				labelMatchers ...*labels.Matcher,
-			) (promstorage.SeriesSet, promstorage.Warnings, error) {
-				return nil, nil, tc.err
+			) promstorage.SeriesSet {
+				return promstorage.ErrSeriesSet(tc.err)
 			}
 
 			req, _ := http.NewRequestWithContext(context.Background(), "GET", native.PromReadURL, nil)
@@ -198,7 +198,8 @@ func TestPromReadHandlerErrors(t *testing.T) {
 			setup.readHandler.ServeHTTP(recorder, req)
 
 			var resp response
-			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+			err := json.Unmarshal(recorder.Body.Bytes(), &resp)
+			require.NoError(t, err)
 			require.Equal(t, statusError, resp.Status)
 			require.Equal(t, tc.httpCode, recorder.Code)
 		})
@@ -244,10 +245,10 @@ func TestPromReadInstantHandlerParseMinTime(t *testing.T) {
 		sortSeries bool,
 		hints *promstorage.SelectHints,
 		labelMatchers ...*labels.Matcher,
-	) (promstorage.SeriesSet, promstorage.Warnings, error) {
+	) promstorage.SeriesSet {
 		selects++
 		query = hints
-		return &mockSeriesSet{}, nil, nil
+		return &mockSeriesSet{}
 	}
 
 	req, _ := http.NewRequest("GET", native.PromReadInstantURL, nil)
@@ -291,10 +292,10 @@ func TestPromReadInstantHandlerParseMaxTime(t *testing.T) {
 		sortSeries bool,
 		hints *promstorage.SelectHints,
 		labelMatchers ...*labels.Matcher,
-	) (promstorage.SeriesSet, promstorage.Warnings, error) {
+	) promstorage.SeriesSet {
 		selects++
 		query = hints
-		return &mockSeriesSet{}, nil, nil
+		return &mockSeriesSet{}
 	}
 
 	req, _ := http.NewRequest("GET", native.PromReadInstantURL, nil)

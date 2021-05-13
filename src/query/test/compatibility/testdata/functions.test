@@ -575,6 +575,13 @@ load 10s
 #	{type="some_nan3"} 1
 #	{type="only_nan"} NaN
 
+#eval instant at 1m last_over_time(data[1m])
+#	data{type="numbers"} 3
+#	data{type="some_nan"} NaN
+#	data{type="some_nan2"} 1
+#	data{type="some_nan3"} 1
+#	data{type="only_nan"} NaN
+
 clear
 
 # FAILING issue #6. Testdata for absent_over_time()

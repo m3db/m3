@@ -1241,7 +1241,14 @@ func newPromQLEngine(
 			MaxSamples:    cfg.Query.Prometheus.MaxSamplesPerQueryOrDefault(),
 			Timeout:       cfg.Query.TimeoutOrDefault(),
 			LookbackDelta: lookbackDelta,
+			NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {
+				return durationMilliseconds(1 * time.Minute)
+			},
 		}
 	)
 	return prometheuspromql.NewEngine(opts), nil
+}
+
+func durationMilliseconds(d time.Duration) int64 {
+	return int64(d / (time.Millisecond / time.Nanosecond))
 }
