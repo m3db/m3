@@ -25,6 +25,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/middleware"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gorilla/mux"
@@ -35,11 +36,13 @@ func NewEndpointRegistry(
 	router *mux.Router,
 	instrumentOpts instrument.Options,
 ) *EndpointRegistry {
+	instrumentOpts = instrumentOpts.SetMetricsScope(
+		// the double http_handler was accidentally introduced and now we are stuck with it for backwards compatibility.
+		instrumentOpts.MetricsScope().SubScope("http_handler_http_handler"))
 	return &EndpointRegistry{
-		router: router,
-		instrumentOpts: instrumentOpts.SetMetricsScope(
-			instrumentOpts.MetricsScope().SubScope("http_handler")),
-		registered: make(map[routeKey]*mux.Route),
+		router:         router,
+		instrumentOpts: instrumentOpts,
+		registered:     make(map[routeKey]*mux.Route),
 	}
 }
 
@@ -63,19 +66,21 @@ type RegisterOptions struct {
 	PathPrefix string
 	Handler    http.Handler
 	Methods    []string
-	Middleware []mux.MiddlewareFunc
+	Middleware options.RegisterMiddleware
 }
 
 // Register registers an endpoint.
 func (r *EndpointRegistry) Register(opts RegisterOptions) error {
-	if len(opts.Middleware) == 0 {
-		opts.Middleware = middleware.Default(r.instrumentOpts)
+	if opts.Middleware == nil {
+		opts.Middleware = middleware.Default
 	}
+	middle := opts.Middleware(r.instrumentOpts)
 	handler := opts.Handler
 	// iterate through in reverse order so each middleware fn gets the proper next handler to dispatch. this ensures the
 	// middleware is dispatched in the expected order (first -> last).
-	for i := len(opts.Middleware) - 1; i >= 0; i-- {
-		handler = opts.Middleware[i].Middleware(handler)
+
+	for i := len(middle) - 1; i >= 0; i-- {
+		handler = middle[i].Middleware(handler)
 	}
 
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
