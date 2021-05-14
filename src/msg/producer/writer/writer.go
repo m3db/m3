@@ -161,6 +161,7 @@ func (w *writer) process(update interface{}) error {
 	// We don't allow changing number of shards for topics, it will be
 	// prevented on topic service side, but also being defensive here as well.
 	numShards := w.NumShards()
+	w.logger.Info("writer.process", zap.Uint32("numShards", numShards), zap.Uint32("topic.NumberOfShards", t.NumberOfShards()))
 	if numShards != 0 && numShards != t.NumberOfShards() {
 		w.m.topicUpdateError.Inc(1)
 		return fmt.Errorf("invalid topic update with %d shards, expecting %d", t.NumberOfShards(), numShards)
