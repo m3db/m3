@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -40,11 +41,13 @@ import (
 )
 
 func TestQueryResponse(t *testing.T) {
-	startTime := time.Now().UTC().Round(0)
+	now := time.Now().UTC().Round(0)
+	startTime := now
 	endTime := startTime.Add(time.Hour)
 	cases := []struct {
 		name      string
 		code      int
+		duration  time.Duration
 		threshold time.Duration
 		form      map[string]string
 		headers   map[string]string
@@ -53,6 +56,7 @@ func TestQueryResponse(t *testing.T) {
 		{
 			name:      "happy path",
 			code:      200,
+			duration:  time.Second,
 			threshold: time.Microsecond,
 			form: map[string]string{
 				"query": "fooquery",
@@ -78,6 +82,7 @@ func TestQueryResponse(t *testing.T) {
 		{
 			name:      "no request data",
 			code:      504,
+			duration:  time.Second,
 			threshold: time.Microsecond,
 			fields: map[string]interface{}{
 				"query":      "",
@@ -87,6 +92,35 @@ func TestQueryResponse(t *testing.T) {
 				"queryRange": time.Duration(0),
 			},
 		},
+		{
+			name: "instant",
+			form: map[string]string{
+				"query": "fooquery",
+				"start": "now",
+				"end":   "now",
+			},
+			code:      200,
+			duration:  time.Second,
+			threshold: time.Microsecond,
+			fields: map[string]interface{}{
+				"query":      "fooquery",
+				"start":      now,
+				"end":        now,
+				"status":     int64(200),
+				"queryRange": time.Duration(0),
+			},
+		},
+		{
+			name: "below threshold",
+			form: map[string]string{
+				"query": "fooquery",
+				"start": "now",
+				"end":   "now",
+			},
+			code:      200,
+			duration:  time.Millisecond,
+			threshold: time.Second,
+		},
 	}
 
 	for _, tc := range cases {
@@ -94,9 +128,14 @@ func TestQueryResponse(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			core, recorded := observer.New(zapcore.InfoLevel)
 			iOpts := instrument.NewOptions().SetLogger(zap.New(core))
-			h := QueryResponse(tc.threshold, iOpts).Middleware(
+			clock := clockwork.NewFakeClockAt(now)
+			h := QueryResponse(QueryResponseOptions{
+				Threshold:      tc.threshold,
+				InstrumentOpts: iOpts,
+				Clock:          clock,
+			}).Middleware(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					time.Sleep(tc.threshold * 2)
+					clock.Advance(tc.duration)
 					w.WriteHeader(tc.code)
 				}))
 			r := mux.NewRouter()
@@ -108,9 +147,7 @@ func TestQueryResponse(t *testing.T) {
 			for k, v := range tc.form {
 				values.Add(k, v)
 			}
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
-			defer cancel()
-			req, err := http.NewRequestWithContext(ctx, "POST", server.URL+"/testRoute",
+			req, err := http.NewRequestWithContext(context.Background(), "POST", server.URL+"/testRoute",
 				strings.NewReader(values.Encode()))
 			for k, v := range tc.headers {
 				req.Header.Set(k, v)
@@ -122,15 +159,19 @@ func TestQueryResponse(t *testing.T) {
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, tc.code, resp.StatusCode)
 			msgs := recorded.FilterMessage("finished handling query request").All()
-			require.Len(t, msgs, 1)
-			fields := msgs[0].ContextMap()
-			require.Equal(t, "/testRoute", fields["url"])
-			require.True(t, fields["duration"].(time.Duration) >= tc.threshold*2)
+			if len(tc.fields) == 0 {
+				require.Len(t, msgs, 0)
+			} else {
+				require.Len(t, msgs, 1)
+				fields := msgs[0].ContextMap()
+				require.Equal(t, "/testRoute", fields["url"])
+				require.True(t, fields["duration"].(time.Duration) >= tc.duration)
 
-			for k, v := range tc.fields {
-				require.Equal(t, v, fields[k], "log field %v", k)
+				for k, v := range tc.fields {
+					require.Equal(t, v, fields[k], "log field %v", k)
+				}
+				require.Len(t, fields, len(tc.fields)+2)
 			}
-			require.Len(t, fields, len(tc.fields)+2)
 		})
 	}
 }
