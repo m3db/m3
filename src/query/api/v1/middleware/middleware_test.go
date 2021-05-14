@@ -22,6 +22,7 @@ package middleware
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +36,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -53,7 +55,9 @@ func TestTracing(t *testing.T) {
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
 
-	assert.NotEmpty(t, mtr.FinishedSpans())
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 1)
+	require.Equal(t, fmt.Sprintf("GET %s", testRoute), spans[0].OperationName)
 	require.Len(t, recorded.All(), 1)
 	entry := recorded.All()[0]
 	require.Equal(t, "test", entry.Message)
@@ -98,6 +102,23 @@ func TestCors(t *testing.T) {
 
 	assert.Equal(t, "hello!", res.Body.String())
 	assert.Equal(t, "*", res.Header().Get("Access-Control-Allow-Origin"))
+}
+
+// TestDefaults is a quick check to see if a new MiddlewareFunc was added to all the appropriate default sets.
+func TestDefaults(t *testing.T) {
+	noResponse := NoResponseLogging(options.MiddlewareOptions{})
+	defaultSet := Default(options.MiddlewareOptions{})
+	query := Query(options.MiddlewareOptions{})
+	promQuery := PromQuery(options.MiddlewareOptions{})
+
+	// If these checks fail and you're adding a new MiddlewareFunc you need to either:
+	// 1. Add the new MiddlewareFunc to all the appropriate default sets
+	// 2. Or, update these constraints if they no longer hold.
+	require.Equal(t, len(noResponse), len(defaultSet)-1,
+		"size of NoResponseLogging is not one less than Default. Did you add a new MiddlewareFunc?")
+	require.Equal(t, len(query), len(promQuery), "size of Query and PromQuery should be the same")
+	require.Equal(t, len(defaultSet), len(query)-1,
+		"size of Query is not one more than Default. Did you add a new MiddlewareFunc?")
 }
 
 const testRoute = "/foobar"

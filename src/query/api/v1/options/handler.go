@@ -68,6 +68,15 @@ type CustomHandlerOptions struct {
 	OptionTransformFn OptionTransformFn
 }
 
+// RegisterMiddleware is a func to build the set of middleware functions.
+type RegisterMiddleware func(opts MiddlewareOptions) []mux.MiddlewareFunc
+
+// MiddlewareOptions is the set of parameters passed to the RegisterMiddleware function.
+type MiddlewareOptions struct {
+	InstrumentOpts instrument.Options
+	Route          *mux.Route
+}
+
 // CustomHandler allows for custom third party http handlers.
 type CustomHandler interface {
 	// Route is the custom handler route.
@@ -80,7 +89,7 @@ type CustomHandler interface {
 	Handler(handlerOptions HandlerOptions, prev http.Handler) (http.Handler, error)
 	// Middleware is the middleware to run before the custom handler.
 	// If not set, the default set of middleware is installed.
-	Middleware() []mux.MiddlewareFunc
+	Middleware() RegisterMiddleware
 }
 
 // QueryRouter is responsible for routing queries between promql and m3query.
