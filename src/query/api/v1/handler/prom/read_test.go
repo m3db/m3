@@ -198,8 +198,7 @@ func TestPromReadHandlerErrors(t *testing.T) {
 			setup.readHandler.ServeHTTP(recorder, req)
 
 			var resp response
-			err := json.Unmarshal(recorder.Body.Bytes(), &resp)
-			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
 			require.Equal(t, statusError, resp.Status)
 			require.Equal(t, tc.httpCode, recorder.Code)
 		})
