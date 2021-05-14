@@ -40,6 +40,7 @@ require (
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
+	github.com/jonboulle/clockwork v0.1.0
 	github.com/json-iterator/go v1.1.9
 	github.com/klauspost/compress v1.11.8
 	github.com/leanovate/gopter v0.2.8

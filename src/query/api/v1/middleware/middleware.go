@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
 
@@ -59,7 +60,11 @@ func Query(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
 
 // PromQuery is the list of middleware functions for prometheus query endpoints.
 func PromQuery(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
-	return query(native.QueryResponse(time.Second, opts.InstrumentOpts), opts)
+	return query(native.QueryResponse(native.QueryResponseOptions{
+		Threshold:      time.Second,
+		InstrumentOpts: opts.InstrumentOpts,
+		Clock:          clockwork.NewRealClock(),
+	}), opts)
 }
 
 func query(response mux.MiddlewareFunc, opts options.MiddlewareOptions) []mux.MiddlewareFunc {
