@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"

@@ -31,7 +31,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"

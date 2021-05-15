@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
 )
 
 // MockInstance is a mock of Instance interface

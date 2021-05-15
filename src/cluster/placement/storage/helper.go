@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 )
 
 var (

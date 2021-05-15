@@ -35,7 +35,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"

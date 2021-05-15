@@ -27,7 +27,7 @@ import (
 	fmt "fmt"
 	math "math"
 
-	proto "github.com/golang/protobuf/proto"
+	proto "github.com/gogo/protobuf/proto"
 	admin "github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
@@ -40,7 +40,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type PlacementInitRequestYaml struct {
 	Operation            string                      `protobuf:"bytes,1,opt,name=operation,proto3" json:"operation,omitempty"`

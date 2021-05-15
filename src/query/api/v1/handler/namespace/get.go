@@ -38,7 +38,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
 )
 

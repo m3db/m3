@@ -53,7 +53,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )

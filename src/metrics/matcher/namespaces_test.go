@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/rules"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
