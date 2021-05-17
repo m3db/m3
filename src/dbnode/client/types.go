@@ -153,6 +153,10 @@ type FetchResponseMetadata struct {
 	Responses int
 	// EstimateTotalBytes is an approximation of the total byte size of the response.
 	EstimateTotalBytes int
+	// ThrottledIndex counts how many times index querying was throttled.
+	ThrottledIndex int
+	// ThrottledSeriesRead counts how many times series being read was throttled.
+	ThrottledSeriesRead int
 }
 
 // AggregatedTagsIterator iterates over a collection of tag names with optionally

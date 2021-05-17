@@ -70,6 +70,10 @@ type ResultMetadata struct {
 	Resolutions []time.Duration
 	// KeepNaNs indicates if NaNs should be kept when returning results.
 	KeepNaNs bool
+	// ThrottledIndex counts how many times index querying was throttled.
+	ThrottledIndex int
+	// ThrottledSeriesRead counts how many times series being read was throttled.
+	ThrottledSeriesRead int
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -143,16 +147,25 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 		}
 	}
 
+	if m.ThrottledIndex != n.ThrottledIndex {
+		return false
+	}
+	if m.ThrottledSeriesRead != n.ThrottledSeriesRead {
+		return false
+	}
+
 	return true
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	meta := ResultMetadata{
-		LocalOnly:   m.LocalOnly && other.LocalOnly,
-		Exhaustive:  m.Exhaustive && other.Exhaustive,
-		Warnings:    combineWarnings(m.Warnings, other.Warnings),
-		Resolutions: combineResolutions(m.Resolutions, other.Resolutions),
+		LocalOnly:           m.LocalOnly && other.LocalOnly,
+		Exhaustive:          m.Exhaustive && other.Exhaustive,
+		Warnings:            combineWarnings(m.Warnings, other.Warnings),
+		Resolutions:         combineResolutions(m.Resolutions, other.Resolutions),
+		ThrottledIndex:      m.ThrottledIndex + other.ThrottledIndex,
+		ThrottledSeriesRead: m.ThrottledSeriesRead + other.ThrottledSeriesRead,
 	}
 
 	return meta

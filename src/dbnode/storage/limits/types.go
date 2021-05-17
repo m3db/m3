@@ -77,6 +77,8 @@ type LookbackLimitOptions struct {
 	Lookback time.Duration
 	// ForceExceeded, if true, makes all calls to the limit behave as though the limit is exceeded.
 	ForceExceeded bool
+	// ForceThrottled, if true, makes all calls to the limit behave as though throttling is applied.
+	ForceThrottled bool
 }
 
 // SourceLoggerBuilder builds a SourceLogger given instrument options.

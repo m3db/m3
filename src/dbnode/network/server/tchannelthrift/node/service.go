@@ -738,16 +738,19 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	ctx := tchannelthrift.Context(tctx)
 	iter, err := s.FetchTaggedIter(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, convert.ToRPCError(err)
 	}
 
-	result, err := s.buildFetchTaggedResult(ctx, iter)
+	result, err := s.fetchTaggedResult(ctx, iter)
 	iter.Close(err)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
 
-	return result, err
+	return result, nil
 }
 
-func (s *service) buildFetchTaggedResult(ctx context.Context,
+func (s *service) fetchTaggedResult(ctx context.Context,
 	iter FetchTaggedResultsIter,
 ) (*rpc.FetchTaggedResult_, error) {
 	response := &rpc.FetchTaggedResult_{
@@ -774,6 +777,13 @@ func (s *service) buildFetchTaggedResult(ctx context.Context,
 	}
 	if iter.Err() != nil {
 		return nil, iter.Err()
+	}
+
+	if v := int64(iter.ThrottledIndex()); v > 0 {
+		response.ThrottledIndex = &v
+	}
+	if v := int64(iter.ThrottledSeriesRead()); v > 0 {
+		response.ThrottledSeriesRead = &v
 	}
 
 	return response, nil
@@ -839,16 +849,18 @@ func (s *service) fetchTaggedIter(
 	ctx.RegisterFinalizer(tagEncoder)
 
 	return newFetchTaggedResultsIter(fetchTaggedResultsIterOpts{
-		queryResult:     queryResult,
-		queryOpts:       opts,
-		fetchData:       fetchData,
-		db:              db,
-		docReader:       docs.NewEncodedDocumentReader(),
-		nsID:            ns,
-		tagEncoder:      tagEncoder,
-		iOpts:           s.opts.InstrumentOptions(),
-		instrumentClose: instrumentClose,
-		blockPermits:    permits,
+		queryResult:       queryResult,
+		queryOpts:         opts,
+		fetchData:         fetchData,
+		db:                db,
+		docReader:         docs.NewEncodedDocumentReader(),
+		nsID:              ns,
+		tagEncoder:        tagEncoder,
+		iOpts:             s.opts.InstrumentOptions(),
+		instrumentClose:   instrumentClose,
+		blockPermits:      permits,
+		requireNoThrottle: req.RequireNoThrottle,
+		indexThrottled:    queryResult.Throttled,
 	}), nil
 }
 
@@ -860,6 +872,12 @@ type FetchTaggedResultsIter interface {
 
 	// Exhaustive returns true if NumIDs is all IDs that the query could have returned.
 	Exhaustive() bool
+
+	// ThrottledIndex is the count of throttling occurred during index query.
+	ThrottledIndex() int
+
+	// ThrottledSeriesRead is the count of throttling occurred during reading series.
+	ThrottledSeriesRead() int
 
 	// Namespace is the namespace.
 	Namespace() ident.ID
@@ -883,26 +901,30 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	fetchTaggedResultsIterOpts
-	idResults       []idResult
-	idx             int
-	blockReadIdx    int
-	cur             IDResult
-	err             error
-	permits         []permits.Permit
-	unreleasedQuota int64
+	idResults           []idResult
+	idx                 int
+	blockReadIdx        int
+	cur                 IDResult
+	err                 error
+	permits             []permits.Permit
+	unreleasedQuota     int64
+	indexThrottled      int
+	seriesReadThrottled int
 }
 
 type fetchTaggedResultsIterOpts struct {
-	queryResult     index.QueryResult
-	queryOpts       index.QueryOptions
-	fetchData       bool
-	db              storage.Database
-	docReader       *docs.EncodedDocumentReader
-	nsID            ident.ID
-	tagEncoder      serialize.TagEncoder
-	iOpts           instrument.Options
-	instrumentClose func(error)
-	blockPermits    permits.Permits
+	queryResult       index.QueryResult
+	queryOpts         index.QueryOptions
+	fetchData         bool
+	db                storage.Database
+	docReader         *docs.EncodedDocumentReader
+	nsID              ident.ID
+	tagEncoder        serialize.TagEncoder
+	iOpts             instrument.Options
+	instrumentClose   func(error)
+	blockPermits      permits.Permits
+	requireNoThrottle bool
+	indexThrottled    int
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
@@ -919,6 +941,14 @@ func (i *fetchTaggedResultsIter) NumIDs() int {
 
 func (i *fetchTaggedResultsIter) Exhaustive() bool {
 	return i.queryResult.Exhaustive
+}
+
+func (i *fetchTaggedResultsIter) ThrottledIndex() int {
+	return i.indexThrottled
+}
+
+func (i *fetchTaggedResultsIter) ThrottledSeriesRead() int {
+	return i.seriesReadThrottled
 }
 
 func (i *fetchTaggedResultsIter) Namespace() ident.ID {
@@ -1004,7 +1034,14 @@ func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, er
 	if curPermit == nil || curPermit.QuotaRemaining() <= 0 {
 		if i.idx == idx {
 			// block acquiring if we need the block readers to fulfill the current fetch.
-			permit, err := i.blockPermits.Acquire(ctx)
+			permit, acquireResult, err := i.blockPermits.Acquire(ctx)
+			if acquireResult.Throttled {
+				if err == nil && i.requireNoThrottle {
+					// Fail iteration if request requires no throttling.
+					return false, permits.ErrOperationThrottleOnRequireNoThrottle
+				}
+				i.seriesReadThrottled++
+			}
 			if err != nil {
 				return false, err
 			}
@@ -1012,7 +1049,14 @@ func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, er
 			curPermit = permit
 		} else {
 			// don't block if we are prefetching for a future seriesID.
-			permit, err := i.blockPermits.TryAcquire(ctx)
+			permit, acquireResult, err := i.blockPermits.TryAcquire(ctx)
+			if acquireResult.Throttled {
+				if err == nil && i.requireNoThrottle {
+					// Fail iteration if request requires no throttling.
+					return false, permits.ErrOperationThrottleOnRequireNoThrottle
+				}
+				i.seriesReadThrottled++
+			}
 			if err != nil {
 				return false, err
 			}
@@ -1178,8 +1222,14 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		return nil, convert.ToRPCError(err)
 	}
 
+	var throttledIndex *int64
+	if v := int64(queryResult.Throttled); v > 0 {
+		throttledIndex = &v
+	}
+
 	response := &rpc.AggregateQueryRawResult_{
-		Exhaustive: queryResult.Exhaustive,
+		Exhaustive:     queryResult.Exhaustive,
+		ThrottledIndex: throttledIndex,
 	}
 	results := queryResult.Results
 	for _, entry := range results.Map().Iter() {

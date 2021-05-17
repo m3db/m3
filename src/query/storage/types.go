@@ -124,6 +124,8 @@ type FetchOptions struct {
 	ReturnedSeriesMetadataLimit int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
+	// RequireNoThrottle results in an error if the query execution is throttled.
+	RequireNoThrottle bool
 	// BlockType is the block type that the fetch function returns.
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.

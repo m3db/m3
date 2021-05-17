@@ -56,6 +56,19 @@ type ReturnedMetadataLimited struct {
 	Limited bool
 }
 
+// Throttling is info about an operation being throttled.
+type Throttling struct {
+	// ThrottledIndex counts how many times index querying was throttled.
+	ThrottledIndex int `json:"throttledIndex"`
+	// ThrottledSeriesRead counts how many times series being read was throttled.
+	ThrottledSeriesRead int `json:"throttledSeriesRead"`
+}
+
+// Any returns whether any throttling occurred.
+func (t Throttling) Any() bool {
+	return t.ThrottledIndex > 0 || t.ThrottledSeriesRead > 0
+}
+
 // AddResponseHeaders adds any warning headers present in the result's metadata,
 // and also effective parameters relative to the request such as effective
 // timeout in use.
@@ -82,6 +95,17 @@ func AddResponseHeaders(
 			return err
 		}
 		w.Header().Add(headers.ReturnedMetadataLimitedHeader, string(s))
+	}
+	throttling := Throttling{
+		ThrottledIndex:      meta.ThrottledIndex,
+		ThrottledSeriesRead: meta.ThrottledSeriesRead,
+	}
+	if throttling.Any() {
+		s, err := json.Marshal(throttling)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.ThrottledHeader, string(s))
 	}
 
 	ex := meta.Exhaustive

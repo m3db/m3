@@ -396,7 +396,8 @@ func (q *lookbackLimit) reset() {
 func (opts LookbackLimitOptions) Equals(other LookbackLimitOptions) bool {
 	return opts.Limit == other.Limit &&
 		opts.Lookback == other.Lookback &&
-		opts.ForceExceeded == other.ForceExceeded
+		opts.ForceExceeded == other.ForceExceeded &&
+		opts.ForceThrottled == other.ForceThrottled
 }
 
 func (opts LookbackLimitOptions) validate() error {

@@ -154,6 +154,32 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 	return defaultValue, nil
 }
 
+// ParseRequireNoThrottle parses request limit require no throttle from header or
+// query string.
+func ParseRequireNoThrottle(req *http.Request) (bool, error) {
+	if str := req.Header.Get(headers.LimitRequireNoThrottleHeader); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse limit: input=%s, err=%v", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	if str := req.FormValue("requireNoThrottle"); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse limit: input=%s, err=%v", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	return false, nil
+}
+
 // NewFetchOptions parses an http request into fetch options.
 func (b fetchOptionsBuilder) NewFetchOptions(
 	ctx context.Context,
@@ -223,6 +249,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.RequireExhaustive = requireExhaustive
+
+	requireNoThrottle, err := ParseRequireNoThrottle(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.RequireNoThrottle = requireNoThrottle
 
 	if str := req.Header.Get(headers.MetricsTypeHeader); str != "" {
 		mt, err := storagemetadata.ParseMetricsType(str)

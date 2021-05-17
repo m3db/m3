@@ -104,6 +104,10 @@ const (
 	// ensure M3 returns an error if the results set is not exhaustive.
 	LimitRequireExhaustiveHeader = M3HeaderPrefix + "Limit-Require-Exhaustive"
 
+	// LimitRequireNoThrottleHeader is the M3 limit no throttle header that will
+	// ensure M3 returns an error if query execution is throttled.
+	LimitRequireNoThrottleHeader = M3HeaderPrefix + "Limit-Require-NoThrottle"
+
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
 
@@ -141,6 +145,9 @@ const (
 	// LimitHeaderSeriesLimitApplied is the header applied when fetch results
 	// are maxed.
 	LimitHeaderSeriesLimitApplied = "max_fetch_series_limit_applied"
+
+	// ThrottledHeader is the header added when throttling occurred.
+	ThrottledHeader = M3HeaderPrefix + "Throttled"
 
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"

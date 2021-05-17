@@ -63,10 +63,12 @@ type fetchTaggedResultAccumulator struct {
 	numHostsPending         int32
 	numShardsPending        int32
 
-	errors         []error
-	fetchResponses fetchTaggedIDResults
-	aggResponses   aggregateResults
-	exhaustive     bool
+	errors              []error
+	fetchResponses      fetchTaggedIDResults
+	aggResponses        aggregateResults
+	exhaustive          bool
+	throttledIndex      int
+	throttledSeriesRead int
 
 	startTime        time.Time
 	endTime          time.Time
@@ -100,6 +102,12 @@ func (accum *fetchTaggedResultAccumulator) AddFetchTaggedResponse(
 ) (bool, error) {
 	if opts.response != nil && resultErr == nil {
 		accum.exhaustive = accum.exhaustive && opts.response.Exhaustive
+		if v := opts.response.ThrottledIndex; v != nil {
+			accum.throttledIndex += int(*v)
+		}
+		if v := opts.response.ThrottledSeriesRead; v != nil {
+			accum.throttledSeriesRead += int(*v)
+		}
 		for _, elem := range opts.response.Elements {
 			accum.fetchResponses = append(accum.fetchResponses, elem)
 		}
@@ -117,6 +125,9 @@ func (accum *fetchTaggedResultAccumulator) AddAggregateResponse(
 ) (bool, error) {
 	if opts.response != nil && resultErr == nil {
 		accum.exhaustive = accum.exhaustive && opts.response.Exhaustive
+		if v := opts.response.ThrottledIndex; v != nil {
+			accum.throttledIndex += int(*v)
+		}
 		for _, elem := range opts.response.Results {
 			accum.aggResponses = append(accum.aggResponses, elem)
 		}
@@ -246,6 +257,8 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 	accum.startTime, accum.endTime = time.Time{}, time.Time{}
 	accum.topoMap = nil
 	accum.exhaustive = true
+	accum.throttledIndex = 0
+	accum.throttledSeriesRead = 0
 	accum.calcTransport.Reset()
 }
 
@@ -257,6 +270,8 @@ func (accum *fetchTaggedResultAccumulator) Reset(
 	consistencyLevel topology.ReadConsistencyLevel,
 ) {
 	accum.exhaustive = true
+	accum.throttledIndex = 0
+	accum.throttledSeriesRead = 0
 	accum.startTime = startTime
 	accum.endTime = endTime
 	accum.topoMap = topoMap
@@ -349,9 +364,11 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
 	return result, FetchResponseMetadata{
-		Exhaustive:         exhaustive,
-		Responses:          len(accum.fetchResponses),
-		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		Exhaustive:          exhaustive,
+		Responses:           len(accum.fetchResponses),
+		EstimateTotalBytes:  accum.calcTransport.GetSize(),
+		ThrottledIndex:      accum.throttledIndex,
+		ThrottledSeriesRead: accum.throttledSeriesRead,
 	}, nil
 }
 
@@ -376,9 +393,11 @@ func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
 	return iter, FetchResponseMetadata{
-		Exhaustive:         exhaustive,
-		Responses:          len(accum.aggResponses),
-		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		Exhaustive:          exhaustive,
+		Responses:           len(accum.aggResponses),
+		EstimateTotalBytes:  accum.calcTransport.GetSize(),
+		ThrottledIndex:      accum.throttledIndex,
+		ThrottledSeriesRead: accum.throttledSeriesRead,
 	}, nil
 }
 
@@ -452,9 +471,11 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
 	return iter, FetchResponseMetadata{
-		Exhaustive:         exhaustive,
-		Responses:          len(accum.aggResponses),
-		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		Exhaustive:          exhaustive,
+		Responses:           len(accum.aggResponses),
+		EstimateTotalBytes:  accum.calcTransport.GetSize(),
+		ThrottledIndex:      accum.throttledIndex,
+		ThrottledSeriesRead: accum.throttledSeriesRead,
 	}, nil
 }
 

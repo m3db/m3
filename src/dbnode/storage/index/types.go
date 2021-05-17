@@ -88,6 +88,8 @@ type QueryOptions struct {
 	DocsLimit int
 	// RequireExhaustive requires queries to be under given limit sizes.
 	RequireExhaustive bool
+	// RequireNoThrottle requires queries to abort if execution is throttled.
+	RequireNoThrottle bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
 	// Source is an optional query source.
@@ -131,6 +133,8 @@ type QueryResult struct {
 	Results QueryResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Throttled is a count of the times a query has been throttled.
+	Throttled int
 }
 
 // AggregateQueryResult is the collection of results for an aggregate query.
@@ -139,6 +143,8 @@ type AggregateQueryResult struct {
 	Results AggregateResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Throttled is a count of the times a query has been throttled.
+	Throttled int
 }
 
 // BaseResults is a collection of basic results for a generic query, it is

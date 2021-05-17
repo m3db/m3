@@ -1320,9 +1320,10 @@ func updateQueryLimit(
 
 func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimitOptions {
 	return limits.LookbackLimitOptions{
-		Limit:         dynamicLimit.Limit,
-		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
-		ForceExceeded: dynamicLimit.ForceExceeded,
+		Limit:          dynamicLimit.Limit,
+		Lookback:       time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
+		ForceExceeded:  dynamicLimit.ForceExceeded,
+		ForceThrottled: dynamicLimit.ForceThrottled,
 	}
 }
 

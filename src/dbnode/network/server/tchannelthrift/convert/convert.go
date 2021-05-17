@@ -244,6 +244,7 @@ func FromRPCFetchTaggedRequest(
 		StartInclusive:    start,
 		EndExclusive:      end,
 		RequireExhaustive: req.RequireExhaustive,
+		RequireNoThrottle: req.RequireNoThrottle,
 	}
 	if l := req.SeriesLimit; l != nil {
 		opts.SeriesLimit = int(*l)
@@ -299,6 +300,7 @@ func ToRPCFetchTaggedRequest(
 		FetchData:         fetchData,
 		Query:             query,
 		RequireExhaustive: opts.RequireExhaustive,
+		RequireNoThrottle: opts.RequireNoThrottle,
 	}
 
 	if opts.SeriesLimit > 0 {
@@ -346,6 +348,9 @@ func FromRPCAggregateQueryRequest(
 	}
 	if r := req.RequireExhaustive; r != nil {
 		opts.RequireExhaustive = *r
+	}
+	if r := req.RequireNoThrottle; r != nil {
+		opts.RequireNoThrottle = *r
 	}
 
 	if len(req.Source) > 0 {
@@ -401,6 +406,9 @@ func FromRPCAggregateQueryRawRequest(
 	}
 	if r := req.RequireExhaustive; r != nil {
 		opts.RequireExhaustive = *r
+	}
+	if r := req.RequireNoThrottle; r != nil {
+		opts.RequireNoThrottle = *r
 	}
 
 	if len(req.Source) > 0 {
@@ -462,6 +470,10 @@ func ToRPCAggregateQueryRawRequest(
 	if opts.RequireExhaustive {
 		r := opts.RequireExhaustive
 		request.RequireExhaustive = &r
+	}
+	if opts.RequireNoThrottle {
+		r := opts.RequireNoThrottle
+		request.RequireNoThrottle = &r
 	}
 
 	if len(opts.Source) > 0 {
