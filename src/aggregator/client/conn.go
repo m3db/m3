@@ -206,8 +206,7 @@ func (c *connection) checkReconnectWithLock() error {
 	enoughFailuresToRetry := c.numFailures >= c.threshold
 	exhaustedMaxFailures := c.numFailures >= c.maxThreshold
 	sufficientTimePassed := c.nowFn().UnixNano()-c.lastConnectAttemptNanos >= c.maxDuration.Nanoseconds()
-	if (!enoughFailuresToRetry && !sufficientTimePassed) ||
-		(exhaustedMaxFailures && !sufficientTimePassed) {
+	if !sufficientTimePassed && (exhaustedMaxFailures || !enoughFailuresToRetry) {
 		return errNoActiveConnection
 	}
 	err := c.connectWithLockFn()
