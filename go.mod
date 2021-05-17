@@ -39,6 +39,7 @@ require (
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.8.4
 	github.com/jhump/protoreflect v1.6.1
+	github.com/jonboulle/clockwork v0.1.0
 	github.com/json-iterator/go v1.1.10
 	github.com/klauspost/compress v1.11.8
 	github.com/leanovate/gopter v0.2.8
@@ -117,7 +118,7 @@ require (
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.4.0
-	gotest.tools v2.2.0+incompatible
+	gotest.tools v2.2.0+incompatible // indirect
 )
 
 // branch 0.9.3-patch
