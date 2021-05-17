@@ -62,262 +62,65 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockIndexedErrorHandler is a mock of IndexedErrorHandler interface
+// MockIndexedErrorHandler is a mock of IndexedErrorHandler interface.
 type MockIndexedErrorHandler struct {
 	ctrl     *gomock.Controller
 	recorder *MockIndexedErrorHandlerMockRecorder
 }
 
-// MockIndexedErrorHandlerMockRecorder is the mock recorder for MockIndexedErrorHandler
+// MockIndexedErrorHandlerMockRecorder is the mock recorder for MockIndexedErrorHandler.
 type MockIndexedErrorHandlerMockRecorder struct {
 	mock *MockIndexedErrorHandler
 }
 
-// NewMockIndexedErrorHandler creates a new mock instance
+// NewMockIndexedErrorHandler creates a new mock instance.
 func NewMockIndexedErrorHandler(ctrl *gomock.Controller) *MockIndexedErrorHandler {
 	mock := &MockIndexedErrorHandler{ctrl: ctrl}
 	mock.recorder = &MockIndexedErrorHandlerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIndexedErrorHandler) EXPECT() *MockIndexedErrorHandlerMockRecorder {
 	return m.recorder
 }
 
-// HandleError mocks base method
+// HandleError mocks base method.
 func (m *MockIndexedErrorHandler) HandleError(index int, err error) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "HandleError", index, err)
 }
 
-// HandleError indicates an expected call of HandleError
+// HandleError indicates an expected call of HandleError.
 func (mr *MockIndexedErrorHandlerMockRecorder) HandleError(index, err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleError", reflect.TypeOf((*MockIndexedErrorHandler)(nil).HandleError), index, err)
 }
 
-// MockDatabase is a mock of Database interface
+// MockDatabase is a mock of Database interface.
 type MockDatabase struct {
 	ctrl     *gomock.Controller
 	recorder *MockDatabaseMockRecorder
 }
 
-// MockDatabaseMockRecorder is the mock recorder for MockDatabase
+// MockDatabaseMockRecorder is the mock recorder for MockDatabase.
 type MockDatabaseMockRecorder struct {
 	mock *MockDatabase
 }
 
-// NewMockDatabase creates a new mock instance
+// NewMockDatabase creates a new mock instance.
 func NewMockDatabase(ctrl *gomock.Controller) *MockDatabase {
 	mock := &MockDatabase{ctrl: ctrl}
 	mock.recorder = &MockDatabaseMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDatabase) EXPECT() *MockDatabaseMockRecorder {
 	return m.recorder
 }
 
-// Options mocks base method
-func (m *MockDatabase) Options() Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Options")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// Options indicates an expected call of Options
-func (mr *MockDatabaseMockRecorder) Options() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockDatabase)(nil).Options))
-}
-
-// AssignShardSet mocks base method
-func (m *MockDatabase) AssignShardSet(shardSet sharding.ShardSet) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AssignShardSet", shardSet)
-}
-
-// AssignShardSet indicates an expected call of AssignShardSet
-func (mr *MockDatabaseMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockDatabase)(nil).AssignShardSet), shardSet)
-}
-
-// Namespaces mocks base method
-func (m *MockDatabase) Namespaces() []Namespace {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Namespaces")
-	ret0, _ := ret[0].([]Namespace)
-	return ret0
-}
-
-// Namespaces indicates an expected call of Namespaces
-func (mr *MockDatabaseMockRecorder) Namespaces() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespaces", reflect.TypeOf((*MockDatabase)(nil).Namespaces))
-}
-
-// Namespace mocks base method
-func (m *MockDatabase) Namespace(ns ident.ID) (Namespace, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Namespace", ns)
-	ret0, _ := ret[0].(Namespace)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// Namespace indicates an expected call of Namespace
-func (mr *MockDatabaseMockRecorder) Namespace(ns interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockDatabase)(nil).Namespace), ns)
-}
-
-// Open mocks base method
-func (m *MockDatabase) Open() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Open")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Open indicates an expected call of Open
-func (mr *MockDatabaseMockRecorder) Open() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDatabase)(nil).Open))
-}
-
-// Close mocks base method
-func (m *MockDatabase) Close() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Close indicates an expected call of Close
-func (mr *MockDatabaseMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabase)(nil).Close))
-}
-
-// ShardSet mocks base method
-func (m *MockDatabase) ShardSet() sharding.ShardSet {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ShardSet")
-	ret0, _ := ret[0].(sharding.ShardSet)
-	return ret0
-}
-
-// ShardSet indicates an expected call of ShardSet
-func (mr *MockDatabaseMockRecorder) ShardSet() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSet", reflect.TypeOf((*MockDatabase)(nil).ShardSet))
-}
-
-// Terminate mocks base method
-func (m *MockDatabase) Terminate() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Terminate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Terminate indicates an expected call of Terminate
-func (mr *MockDatabaseMockRecorder) Terminate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*MockDatabase)(nil).Terminate))
-}
-
-// Write mocks base method
-func (m *MockDatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Write indicates an expected call of Write
-func (mr *MockDatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDatabase)(nil).Write), ctx, namespace, id, timestamp, value, unit, annotation)
-}
-
-// WriteTagged mocks base method
-func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteTagged indicates an expected call of WriteTagged
-func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockDatabase)(nil).WriteTagged), ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
-}
-
-// BatchWriter mocks base method
-func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
-	ret0, _ := ret[0].(writes.BatchWriter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BatchWriter indicates an expected call of BatchWriter
-func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*MockDatabase)(nil).BatchWriter), namespace, batchSize)
-}
-
-// WriteBatch mocks base method
-func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteBatch indicates an expected call of WriteBatch
-func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
-}
-
-// WriteTaggedBatch mocks base method
-func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
-func (mr *MockDatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockDatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
-}
-
-// QueryIDs mocks base method
-func (m *MockDatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryIDs", ctx, namespace, query, opts)
-	ret0, _ := ret[0].(index.QueryResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// QueryIDs indicates an expected call of QueryIDs
-func (mr *MockDatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), ctx, namespace, query, opts)
-}
-
-// AggregateQuery mocks base method
+// AggregateQuery mocks base method.
 func (m *MockDatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts)
@@ -326,43 +129,40 @@ func (m *MockDatabase) AggregateQuery(ctx context.Context, namespace ident.ID, q
 	return ret0, ret1
 }
 
-// AggregateQuery indicates an expected call of AggregateQuery
+// AggregateQuery indicates an expected call of AggregateQuery.
 func (mr *MockDatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockDatabase)(nil).AggregateQuery), ctx, namespace, query, opts)
 }
 
-// ReadEncoded mocks base method
-func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+// AggregateTiles mocks base method.
+func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].(series.BlockReaderIter)
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
+	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadEncoded indicates an expected call of ReadEncoded
-func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
+// AggregateTiles indicates an expected call of AggregateTiles.
+func (mr *MockDatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockDatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
 }
 
-// WideQuery mocks base method
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+// AssignShardSet mocks base method.
+func (m *MockDatabase) AssignShardSet(shardSet sharding.ShardSet) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.WideEntry)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	m.ctrl.Call(m, "AssignShardSet", shardSet)
 }
 
-// WideQuery indicates an expected call of WideQuery
-func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
+// AssignShardSet indicates an expected call of AssignShardSet.
+func (mr *MockDatabaseMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockDatabase)(nil).AssignShardSet), shardSet)
 }
 
-// BatchProcessWideQuery mocks base method
+// BatchProcessWideQuery mocks base method.
 func (m *MockDatabase) BatchProcessWideQuery(ctx context.Context, n Namespace, query index.Query, batchProcessor IDBatchProcessor, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchProcessWideQuery", ctx, n, query, batchProcessor, opts)
@@ -370,13 +170,70 @@ func (m *MockDatabase) BatchProcessWideQuery(ctx context.Context, n Namespace, q
 	return ret0
 }
 
-// BatchProcessWideQuery indicates an expected call of BatchProcessWideQuery
+// BatchProcessWideQuery indicates an expected call of BatchProcessWideQuery.
 func (mr *MockDatabaseMockRecorder) BatchProcessWideQuery(ctx, n, query, batchProcessor, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchProcessWideQuery", reflect.TypeOf((*MockDatabase)(nil).BatchProcessWideQuery), ctx, n, query, batchProcessor, opts)
 }
 
-// FetchBlocks mocks base method
+// BatchWriter mocks base method.
+func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
+	ret0, _ := ret[0].(writes.BatchWriter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BatchWriter indicates an expected call of BatchWriter.
+func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*MockDatabase)(nil).BatchWriter), namespace, batchSize)
+}
+
+// Bootstrap mocks base method.
+func (m *MockDatabase) Bootstrap() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Bootstrap")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Bootstrap indicates an expected call of Bootstrap.
+func (mr *MockDatabaseMockRecorder) Bootstrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabase)(nil).Bootstrap))
+}
+
+// BootstrapState mocks base method.
+func (m *MockDatabase) BootstrapState() DatabaseBootstrapState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapState")
+	ret0, _ := ret[0].(DatabaseBootstrapState)
+	return ret0
+}
+
+// BootstrapState indicates an expected call of BootstrapState.
+func (mr *MockDatabaseMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockDatabase)(nil).BootstrapState))
+}
+
+// Close mocks base method.
+func (m *MockDatabase) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockDatabaseMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabase)(nil).Close))
+}
+
+// FetchBlocks mocks base method.
 func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, namespace, shard, id, starts)
@@ -385,13 +242,13 @@ func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shar
 	return ret0, ret1
 }
 
-// FetchBlocks indicates an expected call of FetchBlocks
+// FetchBlocks indicates an expected call of FetchBlocks.
 func (mr *MockDatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, starts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabase)(nil).FetchBlocks), ctx, namespace, shard, id, starts)
 }
 
-// FetchBlocksMetadataV2 mocks base method
+// FetchBlocksMetadataV2 mocks base method.
 func (m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
@@ -401,112 +258,13 @@ func (m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace iden
 	return ret0, ret1, ret2
 }
 
-// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
+// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2.
 func (mr *MockDatabaseMockRecorder) FetchBlocksMetadataV2(ctx, namespace, shard, start, end, limit, pageToken, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockDatabase)(nil).FetchBlocksMetadataV2), ctx, namespace, shard, start, end, limit, pageToken, opts)
 }
 
-// Bootstrap mocks base method
-func (m *MockDatabase) Bootstrap() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockDatabaseMockRecorder) Bootstrap() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabase)(nil).Bootstrap))
-}
-
-// IsBootstrapped mocks base method
-func (m *MockDatabase) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockDatabaseMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockDatabase)(nil).IsBootstrapped))
-}
-
-// IsBootstrappedAndDurable mocks base method
-func (m *MockDatabase) IsBootstrappedAndDurable() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrappedAndDurable")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrappedAndDurable indicates an expected call of IsBootstrappedAndDurable
-func (mr *MockDatabaseMockRecorder) IsBootstrappedAndDurable() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrappedAndDurable", reflect.TypeOf((*MockDatabase)(nil).IsBootstrappedAndDurable))
-}
-
-// IsOverloaded mocks base method
-func (m *MockDatabase) IsOverloaded() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsOverloaded")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsOverloaded indicates an expected call of IsOverloaded
-func (mr *MockDatabaseMockRecorder) IsOverloaded() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOverloaded", reflect.TypeOf((*MockDatabase)(nil).IsOverloaded))
-}
-
-// Repair mocks base method
-func (m *MockDatabase) Repair() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Repair indicates an expected call of Repair
-func (mr *MockDatabaseMockRecorder) Repair() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockDatabase)(nil).Repair))
-}
-
-// Truncate mocks base method
-func (m *MockDatabase) Truncate(namespace ident.ID) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Truncate", namespace)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Truncate indicates an expected call of Truncate
-func (mr *MockDatabaseMockRecorder) Truncate(namespace interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockDatabase)(nil).Truncate), namespace)
-}
-
-// BootstrapState mocks base method
-func (m *MockDatabase) BootstrapState() DatabaseBootstrapState {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapState")
-	ret0, _ := ret[0].(DatabaseBootstrapState)
-	return ret0
-}
-
-// BootstrapState indicates an expected call of BootstrapState
-func (mr *MockDatabaseMockRecorder) BootstrapState() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockDatabase)(nil).BootstrapState))
-}
-
-// FlushState mocks base method
+// FlushState mocks base method.
 func (m *MockDatabase) FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", namespace, shardID, blockStart)
@@ -515,92 +273,56 @@ func (m *MockDatabase) FlushState(namespace ident.ID, shardID uint32, blockStart
 	return ret0, ret1
 }
 
-// FlushState indicates an expected call of FlushState
+// FlushState indicates an expected call of FlushState.
 func (mr *MockDatabaseMockRecorder) FlushState(namespace, shardID, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockDatabase)(nil).FlushState), namespace, shardID, blockStart)
 }
 
-// AggregateTiles mocks base method
-func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
+// IsBootstrapped mocks base method.
+func (m *MockDatabase) IsBootstrapped() bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockDatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockDatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
-}
-
-// Mockdatabase is a mock of database interface
-type Mockdatabase struct {
-	ctrl     *gomock.Controller
-	recorder *MockdatabaseMockRecorder
-}
-
-// MockdatabaseMockRecorder is the mock recorder for Mockdatabase
-type MockdatabaseMockRecorder struct {
-	mock *Mockdatabase
-}
-
-// NewMockdatabase creates a new mock instance
-func NewMockdatabase(ctrl *gomock.Controller) *Mockdatabase {
-	mock := &Mockdatabase{ctrl: ctrl}
-	mock.recorder = &MockdatabaseMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *Mockdatabase) EXPECT() *MockdatabaseMockRecorder {
-	return m.recorder
-}
-
-// Options mocks base method
-func (m *Mockdatabase) Options() Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Options")
-	ret0, _ := ret[0].(Options)
+	ret := m.ctrl.Call(m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// Options indicates an expected call of Options
-func (mr *MockdatabaseMockRecorder) Options() *gomock.Call {
+// IsBootstrapped indicates an expected call of IsBootstrapped.
+func (mr *MockDatabaseMockRecorder) IsBootstrapped() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*Mockdatabase)(nil).Options))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockDatabase)(nil).IsBootstrapped))
 }
 
-// AssignShardSet mocks base method
-func (m *Mockdatabase) AssignShardSet(shardSet sharding.ShardSet) {
+// IsBootstrappedAndDurable mocks base method.
+func (m *MockDatabase) IsBootstrappedAndDurable() bool {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AssignShardSet", shardSet)
-}
-
-// AssignShardSet indicates an expected call of AssignShardSet
-func (mr *MockdatabaseMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*Mockdatabase)(nil).AssignShardSet), shardSet)
-}
-
-// Namespaces mocks base method
-func (m *Mockdatabase) Namespaces() []Namespace {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Namespaces")
-	ret0, _ := ret[0].([]Namespace)
+	ret := m.ctrl.Call(m, "IsBootstrappedAndDurable")
+	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// Namespaces indicates an expected call of Namespaces
-func (mr *MockdatabaseMockRecorder) Namespaces() *gomock.Call {
+// IsBootstrappedAndDurable indicates an expected call of IsBootstrappedAndDurable.
+func (mr *MockDatabaseMockRecorder) IsBootstrappedAndDurable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespaces", reflect.TypeOf((*Mockdatabase)(nil).Namespaces))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrappedAndDurable", reflect.TypeOf((*MockDatabase)(nil).IsBootstrappedAndDurable))
 }
 
-// Namespace mocks base method
-func (m *Mockdatabase) Namespace(ns ident.ID) (Namespace, bool) {
+// IsOverloaded mocks base method.
+func (m *MockDatabase) IsOverloaded() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOverloaded")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOverloaded indicates an expected call of IsOverloaded.
+func (mr *MockDatabaseMockRecorder) IsOverloaded() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOverloaded", reflect.TypeOf((*MockDatabase)(nil).IsOverloaded))
+}
+
+// Namespace mocks base method.
+func (m *MockDatabase) Namespace(ns ident.ID) (Namespace, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespace", ns)
 	ret0, _ := ret[0].(Namespace)
@@ -608,141 +330,56 @@ func (m *Mockdatabase) Namespace(ns ident.ID) (Namespace, bool) {
 	return ret0, ret1
 }
 
-// Namespace indicates an expected call of Namespace
-func (mr *MockdatabaseMockRecorder) Namespace(ns interface{}) *gomock.Call {
+// Namespace indicates an expected call of Namespace.
+func (mr *MockDatabaseMockRecorder) Namespace(ns interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*Mockdatabase)(nil).Namespace), ns)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockDatabase)(nil).Namespace), ns)
 }
 
-// Open mocks base method
-func (m *Mockdatabase) Open() error {
+// Namespaces mocks base method.
+func (m *MockDatabase) Namespaces() []Namespace {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Namespaces")
+	ret0, _ := ret[0].([]Namespace)
+	return ret0
+}
+
+// Namespaces indicates an expected call of Namespaces.
+func (mr *MockDatabaseMockRecorder) Namespaces() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespaces", reflect.TypeOf((*MockDatabase)(nil).Namespaces))
+}
+
+// Open mocks base method.
+func (m *MockDatabase) Open() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Open indicates an expected call of Open
-func (mr *MockdatabaseMockRecorder) Open() *gomock.Call {
+// Open indicates an expected call of Open.
+func (mr *MockDatabaseMockRecorder) Open() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*Mockdatabase)(nil).Open))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDatabase)(nil).Open))
 }
 
-// Close mocks base method
-func (m *Mockdatabase) Close() error {
+// Options mocks base method.
+func (m *MockDatabase) Options() Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "Options")
+	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// Close indicates an expected call of Close
-func (mr *MockdatabaseMockRecorder) Close() *gomock.Call {
+// Options indicates an expected call of Options.
+func (mr *MockDatabaseMockRecorder) Options() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*Mockdatabase)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockDatabase)(nil).Options))
 }
 
-// ShardSet mocks base method
-func (m *Mockdatabase) ShardSet() sharding.ShardSet {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ShardSet")
-	ret0, _ := ret[0].(sharding.ShardSet)
-	return ret0
-}
-
-// ShardSet indicates an expected call of ShardSet
-func (mr *MockdatabaseMockRecorder) ShardSet() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSet", reflect.TypeOf((*Mockdatabase)(nil).ShardSet))
-}
-
-// Terminate mocks base method
-func (m *Mockdatabase) Terminate() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Terminate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Terminate indicates an expected call of Terminate
-func (mr *MockdatabaseMockRecorder) Terminate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*Mockdatabase)(nil).Terminate))
-}
-
-// Write mocks base method
-func (m *Mockdatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Write indicates an expected call of Write
-func (mr *MockdatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*Mockdatabase)(nil).Write), ctx, namespace, id, timestamp, value, unit, annotation)
-}
-
-// WriteTagged mocks base method
-func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteTagged indicates an expected call of WriteTagged
-func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*Mockdatabase)(nil).WriteTagged), ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
-}
-
-// BatchWriter mocks base method
-func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
-	ret0, _ := ret[0].(writes.BatchWriter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BatchWriter indicates an expected call of BatchWriter
-func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*Mockdatabase)(nil).BatchWriter), namespace, batchSize)
-}
-
-// WriteBatch mocks base method
-func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteBatch indicates an expected call of WriteBatch
-func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
-}
-
-// WriteTaggedBatch mocks base method
-func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
-func (mr *MockdatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
-}
-
-// QueryIDs mocks base method
-func (m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
+// QueryIDs mocks base method.
+func (m *MockDatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryIDs", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.QueryResult)
@@ -750,13 +387,179 @@ func (m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query i
 	return ret0, ret1
 }
 
-// QueryIDs indicates an expected call of QueryIDs
-func (mr *MockdatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interface{}) *gomock.Call {
+// QueryIDs indicates an expected call of QueryIDs.
+func (mr *MockDatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), ctx, namespace, query, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), ctx, namespace, query, opts)
 }
 
-// AggregateQuery mocks base method
+// ReadEncoded mocks base method.
+func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
+	ret0, _ := ret[0].(series.BlockReaderIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadEncoded indicates an expected call of ReadEncoded.
+func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
+}
+
+// Repair mocks base method.
+func (m *MockDatabase) Repair() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Repair")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Repair indicates an expected call of Repair.
+func (mr *MockDatabaseMockRecorder) Repair() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockDatabase)(nil).Repair))
+}
+
+// ShardSet mocks base method.
+func (m *MockDatabase) ShardSet() sharding.ShardSet {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardSet")
+	ret0, _ := ret[0].(sharding.ShardSet)
+	return ret0
+}
+
+// ShardSet indicates an expected call of ShardSet.
+func (mr *MockDatabaseMockRecorder) ShardSet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSet", reflect.TypeOf((*MockDatabase)(nil).ShardSet))
+}
+
+// Terminate mocks base method.
+func (m *MockDatabase) Terminate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Terminate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Terminate indicates an expected call of Terminate.
+func (mr *MockDatabaseMockRecorder) Terminate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*MockDatabase)(nil).Terminate))
+}
+
+// Truncate mocks base method.
+func (m *MockDatabase) Truncate(namespace ident.ID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Truncate", namespace)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Truncate indicates an expected call of Truncate.
+func (mr *MockDatabaseMockRecorder) Truncate(namespace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockDatabase)(nil).Truncate), namespace)
+}
+
+// WideQuery mocks base method.
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
+	ret0, _ := ret[0].([]xio.WideEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WideQuery indicates an expected call of WideQuery.
+func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
+}
+
+// Write mocks base method.
+func (m *MockDatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Write indicates an expected call of Write.
+func (mr *MockDatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDatabase)(nil).Write), ctx, namespace, id, timestamp, value, unit, annotation)
+}
+
+// WriteBatch mocks base method.
+func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch.
+func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
+}
+
+// WriteTagged mocks base method.
+func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTagged indicates an expected call of WriteTagged.
+func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockDatabase)(nil).WriteTagged), ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
+}
+
+// WriteTaggedBatch mocks base method.
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch.
+func (mr *MockDatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockDatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
+}
+
+// Mockdatabase is a mock of database interface.
+type Mockdatabase struct {
+	ctrl     *gomock.Controller
+	recorder *MockdatabaseMockRecorder
+}
+
+// MockdatabaseMockRecorder is the mock recorder for Mockdatabase.
+type MockdatabaseMockRecorder struct {
+	mock *Mockdatabase
+}
+
+// NewMockdatabase creates a new mock instance.
+func NewMockdatabase(ctrl *gomock.Controller) *Mockdatabase {
+	mock := &Mockdatabase{ctrl: ctrl}
+	mock.recorder = &MockdatabaseMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *Mockdatabase) EXPECT() *MockdatabaseMockRecorder {
+	return m.recorder
+}
+
+// AggregateQuery mocks base method.
 func (m *Mockdatabase) AggregateQuery(ctx context.Context, namespace ident.ID, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateQuery", ctx, namespace, query, opts)
@@ -765,43 +568,40 @@ func (m *Mockdatabase) AggregateQuery(ctx context.Context, namespace ident.ID, q
 	return ret0, ret1
 }
 
-// AggregateQuery indicates an expected call of AggregateQuery
+// AggregateQuery indicates an expected call of AggregateQuery.
 func (mr *MockdatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*Mockdatabase)(nil).AggregateQuery), ctx, namespace, query, opts)
 }
 
-// ReadEncoded mocks base method
-func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+// AggregateTiles mocks base method.
+func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].(series.BlockReaderIter)
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
+	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadEncoded indicates an expected call of ReadEncoded
-func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
+// AggregateTiles indicates an expected call of AggregateTiles.
+func (mr *MockdatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*Mockdatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*Mockdatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
 }
 
-// WideQuery mocks base method
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+// AssignShardSet mocks base method.
+func (m *Mockdatabase) AssignShardSet(shardSet sharding.ShardSet) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.WideEntry)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	m.ctrl.Call(m, "AssignShardSet", shardSet)
 }
 
-// WideQuery indicates an expected call of WideQuery
-func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
+// AssignShardSet indicates an expected call of AssignShardSet.
+func (mr *MockdatabaseMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*Mockdatabase)(nil).AssignShardSet), shardSet)
 }
 
-// BatchProcessWideQuery mocks base method
+// BatchProcessWideQuery mocks base method.
 func (m *Mockdatabase) BatchProcessWideQuery(ctx context.Context, n Namespace, query index.Query, batchProcessor IDBatchProcessor, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchProcessWideQuery", ctx, n, query, batchProcessor, opts)
@@ -809,13 +609,70 @@ func (m *Mockdatabase) BatchProcessWideQuery(ctx context.Context, n Namespace, q
 	return ret0
 }
 
-// BatchProcessWideQuery indicates an expected call of BatchProcessWideQuery
+// BatchProcessWideQuery indicates an expected call of BatchProcessWideQuery.
 func (mr *MockdatabaseMockRecorder) BatchProcessWideQuery(ctx, n, query, batchProcessor, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchProcessWideQuery", reflect.TypeOf((*Mockdatabase)(nil).BatchProcessWideQuery), ctx, n, query, batchProcessor, opts)
 }
 
-// FetchBlocks mocks base method
+// BatchWriter mocks base method.
+func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
+	ret0, _ := ret[0].(writes.BatchWriter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BatchWriter indicates an expected call of BatchWriter.
+func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*Mockdatabase)(nil).BatchWriter), namespace, batchSize)
+}
+
+// Bootstrap mocks base method.
+func (m *Mockdatabase) Bootstrap() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Bootstrap")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Bootstrap indicates an expected call of Bootstrap.
+func (mr *MockdatabaseMockRecorder) Bootstrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*Mockdatabase)(nil).Bootstrap))
+}
+
+// BootstrapState mocks base method.
+func (m *Mockdatabase) BootstrapState() DatabaseBootstrapState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapState")
+	ret0, _ := ret[0].(DatabaseBootstrapState)
+	return ret0
+}
+
+// BootstrapState indicates an expected call of BootstrapState.
+func (mr *MockdatabaseMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*Mockdatabase)(nil).BootstrapState))
+}
+
+// Close mocks base method.
+func (m *Mockdatabase) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockdatabaseMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*Mockdatabase)(nil).Close))
+}
+
+// FetchBlocks mocks base method.
 func (m *Mockdatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, namespace, shard, id, starts)
@@ -824,13 +681,13 @@ func (m *Mockdatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shar
 	return ret0, ret1
 }
 
-// FetchBlocks indicates an expected call of FetchBlocks
+// FetchBlocks indicates an expected call of FetchBlocks.
 func (mr *MockdatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, starts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*Mockdatabase)(nil).FetchBlocks), ctx, namespace, shard, id, starts)
 }
 
-// FetchBlocksMetadataV2 mocks base method
+// FetchBlocksMetadataV2 mocks base method.
 func (m *Mockdatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
@@ -840,112 +697,13 @@ func (m *Mockdatabase) FetchBlocksMetadataV2(ctx context.Context, namespace iden
 	return ret0, ret1, ret2
 }
 
-// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
+// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2.
 func (mr *MockdatabaseMockRecorder) FetchBlocksMetadataV2(ctx, namespace, shard, start, end, limit, pageToken, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*Mockdatabase)(nil).FetchBlocksMetadataV2), ctx, namespace, shard, start, end, limit, pageToken, opts)
 }
 
-// Bootstrap mocks base method
-func (m *Mockdatabase) Bootstrap() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseMockRecorder) Bootstrap() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*Mockdatabase)(nil).Bootstrap))
-}
-
-// IsBootstrapped mocks base method
-func (m *Mockdatabase) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockdatabaseMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*Mockdatabase)(nil).IsBootstrapped))
-}
-
-// IsBootstrappedAndDurable mocks base method
-func (m *Mockdatabase) IsBootstrappedAndDurable() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrappedAndDurable")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrappedAndDurable indicates an expected call of IsBootstrappedAndDurable
-func (mr *MockdatabaseMockRecorder) IsBootstrappedAndDurable() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrappedAndDurable", reflect.TypeOf((*Mockdatabase)(nil).IsBootstrappedAndDurable))
-}
-
-// IsOverloaded mocks base method
-func (m *Mockdatabase) IsOverloaded() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsOverloaded")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsOverloaded indicates an expected call of IsOverloaded
-func (mr *MockdatabaseMockRecorder) IsOverloaded() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOverloaded", reflect.TypeOf((*Mockdatabase)(nil).IsOverloaded))
-}
-
-// Repair mocks base method
-func (m *Mockdatabase) Repair() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Repair indicates an expected call of Repair
-func (mr *MockdatabaseMockRecorder) Repair() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*Mockdatabase)(nil).Repair))
-}
-
-// Truncate mocks base method
-func (m *Mockdatabase) Truncate(namespace ident.ID) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Truncate", namespace)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Truncate indicates an expected call of Truncate
-func (mr *MockdatabaseMockRecorder) Truncate(namespace interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*Mockdatabase)(nil).Truncate), namespace)
-}
-
-// BootstrapState mocks base method
-func (m *Mockdatabase) BootstrapState() DatabaseBootstrapState {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapState")
-	ret0, _ := ret[0].(DatabaseBootstrapState)
-	return ret0
-}
-
-// BootstrapState indicates an expected call of BootstrapState
-func (mr *MockdatabaseMockRecorder) BootstrapState() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*Mockdatabase)(nil).BootstrapState))
-}
-
-// FlushState mocks base method
+// FlushState mocks base method.
 func (m *Mockdatabase) FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", namespace, shardID, blockStart)
@@ -954,28 +712,112 @@ func (m *Mockdatabase) FlushState(namespace ident.ID, shardID uint32, blockStart
 	return ret0, ret1
 }
 
-// FlushState indicates an expected call of FlushState
+// FlushState indicates an expected call of FlushState.
 func (mr *MockdatabaseMockRecorder) FlushState(namespace, shardID, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*Mockdatabase)(nil).FlushState), namespace, shardID, blockStart)
 }
 
-// AggregateTiles mocks base method
-func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
+// IsBootstrapped mocks base method.
+func (m *Mockdatabase) IsBootstrapped() bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
+	ret := m.ctrl.Call(m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBootstrapped indicates an expected call of IsBootstrapped.
+func (mr *MockdatabaseMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*Mockdatabase)(nil).IsBootstrapped))
+}
+
+// IsBootstrappedAndDurable mocks base method.
+func (m *Mockdatabase) IsBootstrappedAndDurable() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBootstrappedAndDurable")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBootstrappedAndDurable indicates an expected call of IsBootstrappedAndDurable.
+func (mr *MockdatabaseMockRecorder) IsBootstrappedAndDurable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrappedAndDurable", reflect.TypeOf((*Mockdatabase)(nil).IsBootstrappedAndDurable))
+}
+
+// IsOverloaded mocks base method.
+func (m *Mockdatabase) IsOverloaded() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOverloaded")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOverloaded indicates an expected call of IsOverloaded.
+func (mr *MockdatabaseMockRecorder) IsOverloaded() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOverloaded", reflect.TypeOf((*Mockdatabase)(nil).IsOverloaded))
+}
+
+// Namespace mocks base method.
+func (m *Mockdatabase) Namespace(ns ident.ID) (Namespace, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Namespace", ns)
+	ret0, _ := ret[0].(Namespace)
+	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-// AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
+// Namespace indicates an expected call of Namespace.
+func (mr *MockdatabaseMockRecorder) Namespace(ns interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*Mockdatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*Mockdatabase)(nil).Namespace), ns)
 }
 
-// OwnedNamespaces mocks base method
+// Namespaces mocks base method.
+func (m *Mockdatabase) Namespaces() []Namespace {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Namespaces")
+	ret0, _ := ret[0].([]Namespace)
+	return ret0
+}
+
+// Namespaces indicates an expected call of Namespaces.
+func (mr *MockdatabaseMockRecorder) Namespaces() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespaces", reflect.TypeOf((*Mockdatabase)(nil).Namespaces))
+}
+
+// Open mocks base method.
+func (m *Mockdatabase) Open() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Open")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Open indicates an expected call of Open.
+func (mr *MockdatabaseMockRecorder) Open() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*Mockdatabase)(nil).Open))
+}
+
+// Options mocks base method.
+func (m *Mockdatabase) Options() Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Options")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// Options indicates an expected call of Options.
+func (mr *MockdatabaseMockRecorder) Options() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*Mockdatabase)(nil).Options))
+}
+
+// OwnedNamespaces mocks base method.
 func (m *Mockdatabase) OwnedNamespaces() ([]databaseNamespace, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OwnedNamespaces")
@@ -984,13 +826,100 @@ func (m *Mockdatabase) OwnedNamespaces() ([]databaseNamespace, error) {
 	return ret0, ret1
 }
 
-// OwnedNamespaces indicates an expected call of OwnedNamespaces
+// OwnedNamespaces indicates an expected call of OwnedNamespaces.
 func (mr *MockdatabaseMockRecorder) OwnedNamespaces() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OwnedNamespaces", reflect.TypeOf((*Mockdatabase)(nil).OwnedNamespaces))
 }
 
-// UpdateOwnedNamespaces mocks base method
+// QueryIDs mocks base method.
+func (m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryIDs", ctx, namespace, query, opts)
+	ret0, _ := ret[0].(index.QueryResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryIDs indicates an expected call of QueryIDs.
+func (mr *MockdatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), ctx, namespace, query, opts)
+}
+
+// ReadEncoded mocks base method.
+func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
+	ret0, _ := ret[0].(series.BlockReaderIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadEncoded indicates an expected call of ReadEncoded.
+func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*Mockdatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
+}
+
+// Repair mocks base method.
+func (m *Mockdatabase) Repair() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Repair")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Repair indicates an expected call of Repair.
+func (mr *MockdatabaseMockRecorder) Repair() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*Mockdatabase)(nil).Repair))
+}
+
+// ShardSet mocks base method.
+func (m *Mockdatabase) ShardSet() sharding.ShardSet {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardSet")
+	ret0, _ := ret[0].(sharding.ShardSet)
+	return ret0
+}
+
+// ShardSet indicates an expected call of ShardSet.
+func (mr *MockdatabaseMockRecorder) ShardSet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSet", reflect.TypeOf((*Mockdatabase)(nil).ShardSet))
+}
+
+// Terminate mocks base method.
+func (m *Mockdatabase) Terminate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Terminate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Terminate indicates an expected call of Terminate.
+func (mr *MockdatabaseMockRecorder) Terminate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*Mockdatabase)(nil).Terminate))
+}
+
+// Truncate mocks base method.
+func (m *Mockdatabase) Truncate(namespace ident.ID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Truncate", namespace)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Truncate indicates an expected call of Truncate.
+func (mr *MockdatabaseMockRecorder) Truncate(namespace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*Mockdatabase)(nil).Truncate), namespace)
+}
+
+// UpdateOwnedNamespaces mocks base method.
 func (m *Mockdatabase) UpdateOwnedNamespaces(namespaces namespace.Map) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOwnedNamespaces", namespaces)
@@ -998,205 +927,107 @@ func (m *Mockdatabase) UpdateOwnedNamespaces(namespaces namespace.Map) error {
 	return ret0
 }
 
-// UpdateOwnedNamespaces indicates an expected call of UpdateOwnedNamespaces
+// UpdateOwnedNamespaces indicates an expected call of UpdateOwnedNamespaces.
 func (mr *MockdatabaseMockRecorder) UpdateOwnedNamespaces(namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOwnedNamespaces", reflect.TypeOf((*Mockdatabase)(nil).UpdateOwnedNamespaces), namespaces)
 }
 
-// MockNamespace is a mock of Namespace interface
+// WideQuery mocks base method.
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
+	ret0, _ := ret[0].([]xio.WideEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WideQuery indicates an expected call of WideQuery.
+func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
+}
+
+// Write mocks base method.
+func (m *Mockdatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Write indicates an expected call of Write.
+func (mr *MockdatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*Mockdatabase)(nil).Write), ctx, namespace, id, timestamp, value, unit, annotation)
+}
+
+// WriteBatch mocks base method.
+func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch.
+func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
+}
+
+// WriteTagged mocks base method.
+func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTagged indicates an expected call of WriteTagged.
+func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*Mockdatabase)(nil).WriteTagged), ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
+}
+
+// WriteTaggedBatch mocks base method.
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch.
+func (mr *MockdatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
+}
+
+// MockNamespace is a mock of Namespace interface.
 type MockNamespace struct {
 	ctrl     *gomock.Controller
 	recorder *MockNamespaceMockRecorder
 }
 
-// MockNamespaceMockRecorder is the mock recorder for MockNamespace
+// MockNamespaceMockRecorder is the mock recorder for MockNamespace.
 type MockNamespaceMockRecorder struct {
 	mock *MockNamespace
 }
 
-// NewMockNamespace creates a new mock instance
+// NewMockNamespace creates a new mock instance.
 func NewMockNamespace(ctrl *gomock.Controller) *MockNamespace {
 	mock := &MockNamespace{ctrl: ctrl}
 	mock.recorder = &MockNamespaceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockNamespace) EXPECT() *MockNamespaceMockRecorder {
 	return m.recorder
 }
 
-// Options mocks base method
-func (m *MockNamespace) Options() namespace.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Options")
-	ret0, _ := ret[0].(namespace.Options)
-	return ret0
-}
-
-// Options indicates an expected call of Options
-func (mr *MockNamespaceMockRecorder) Options() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockNamespace)(nil).Options))
-}
-
-// ID mocks base method
-func (m *MockNamespace) ID() ident.ID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ID")
-	ret0, _ := ret[0].(ident.ID)
-	return ret0
-}
-
-// ID indicates an expected call of ID
-func (mr *MockNamespaceMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockNamespace)(nil).ID))
-}
-
-// Metadata mocks base method
-func (m *MockNamespace) Metadata() namespace.Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Metadata")
-	ret0, _ := ret[0].(namespace.Metadata)
-	return ret0
-}
-
-// Metadata indicates an expected call of Metadata
-func (mr *MockNamespaceMockRecorder) Metadata() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockNamespace)(nil).Metadata))
-}
-
-// Schema mocks base method
-func (m *MockNamespace) Schema() namespace.SchemaDescr {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Schema")
-	ret0, _ := ret[0].(namespace.SchemaDescr)
-	return ret0
-}
-
-// Schema indicates an expected call of Schema
-func (mr *MockNamespaceMockRecorder) Schema() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockNamespace)(nil).Schema))
-}
-
-// NumSeries mocks base method
-func (m *MockNamespace) NumSeries() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NumSeries")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// NumSeries indicates an expected call of NumSeries
-func (mr *MockNamespaceMockRecorder) NumSeries() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockNamespace)(nil).NumSeries))
-}
-
-// Shards mocks base method
-func (m *MockNamespace) Shards() []Shard {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Shards")
-	ret0, _ := ret[0].([]Shard)
-	return ret0
-}
-
-// Shards indicates an expected call of Shards
-func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
-}
-
-// ReadableShardAt mocks base method
-func (m *MockNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadableShardAt", shardID)
-	ret0, _ := ret[0].(databaseShard)
-	ret1, _ := ret[1].(namespace.Context)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// ReadableShardAt indicates an expected call of ReadableShardAt
-func (mr *MockNamespaceMockRecorder) ReadableShardAt(shardID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadableShardAt", reflect.TypeOf((*MockNamespace)(nil).ReadableShardAt), shardID)
-}
-
-// SetIndex mocks base method
-func (m *MockNamespace) SetIndex(reverseIndex NamespaceIndex) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetIndex", reverseIndex)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetIndex indicates an expected call of SetIndex
-func (mr *MockNamespaceMockRecorder) SetIndex(reverseIndex interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndex", reflect.TypeOf((*MockNamespace)(nil).SetIndex), reverseIndex)
-}
-
-// Index mocks base method
-func (m *MockNamespace) Index() (NamespaceIndex, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Index")
-	ret0, _ := ret[0].(NamespaceIndex)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Index indicates an expected call of Index
-func (mr *MockNamespaceMockRecorder) Index() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockNamespace)(nil).Index))
-}
-
-// StorageOptions mocks base method
-func (m *MockNamespace) StorageOptions() Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StorageOptions")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// StorageOptions indicates an expected call of StorageOptions
-func (mr *MockNamespaceMockRecorder) StorageOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockNamespace)(nil).StorageOptions))
-}
-
-// ReadOnly mocks base method
-func (m *MockNamespace) ReadOnly() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadOnly")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// ReadOnly indicates an expected call of ReadOnly
-func (mr *MockNamespaceMockRecorder) ReadOnly() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockNamespace)(nil).ReadOnly))
-}
-
-// SetReadOnly mocks base method
-func (m *MockNamespace) SetReadOnly(value bool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetReadOnly", value)
-}
-
-// SetReadOnly indicates an expected call of SetReadOnly
-func (mr *MockNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockNamespace)(nil).SetReadOnly), value)
-}
-
-// DocRef mocks base method
+// DocRef mocks base method.
 func (m *MockNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
@@ -1206,27 +1037,13 @@ func (m *MockNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	return ret0, ret1, ret2
 }
 
-// DocRef indicates an expected call of DocRef
+// DocRef indicates an expected call of DocRef.
 func (mr *MockNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockNamespace)(nil).DocRef), id)
 }
 
-// WideQueryIDs mocks base method
-func (m *MockNamespace) WideQueryIDs(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQueryIDs", ctx, query, collector, opts)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WideQueryIDs indicates an expected call of WideQueryIDs
-func (mr *MockNamespaceMockRecorder) WideQueryIDs(ctx, query, collector, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockNamespace)(nil).WideQueryIDs), ctx, query, collector, opts)
-}
-
-// FetchWideEntry mocks base method
+// FetchWideEntry mocks base method.
 func (m *MockNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter)
@@ -1235,121 +1052,99 @@ func (m *MockNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockSt
 	return ret0, ret1
 }
 
-// FetchWideEntry indicates an expected call of FetchWideEntry
+// FetchWideEntry indicates an expected call of FetchWideEntry.
 func (mr *MockNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart, filter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockNamespace)(nil).FetchWideEntry), ctx, id, blockStart, filter)
 }
 
-// MockdatabaseNamespace is a mock of databaseNamespace interface
-type MockdatabaseNamespace struct {
-	ctrl     *gomock.Controller
-	recorder *MockdatabaseNamespaceMockRecorder
-}
-
-// MockdatabaseNamespaceMockRecorder is the mock recorder for MockdatabaseNamespace
-type MockdatabaseNamespaceMockRecorder struct {
-	mock *MockdatabaseNamespace
-}
-
-// NewMockdatabaseNamespace creates a new mock instance
-func NewMockdatabaseNamespace(ctrl *gomock.Controller) *MockdatabaseNamespace {
-	mock := &MockdatabaseNamespace{ctrl: ctrl}
-	mock.recorder = &MockdatabaseNamespaceMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockdatabaseNamespace) EXPECT() *MockdatabaseNamespaceMockRecorder {
-	return m.recorder
-}
-
-// Options mocks base method
-func (m *MockdatabaseNamespace) Options() namespace.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Options")
-	ret0, _ := ret[0].(namespace.Options)
-	return ret0
-}
-
-// Options indicates an expected call of Options
-func (mr *MockdatabaseNamespaceMockRecorder) Options() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockdatabaseNamespace)(nil).Options))
-}
-
-// ID mocks base method
-func (m *MockdatabaseNamespace) ID() ident.ID {
+// ID mocks base method.
+func (m *MockNamespace) ID() ident.ID {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(ident.ID)
 	return ret0
 }
 
-// ID indicates an expected call of ID
-func (mr *MockdatabaseNamespaceMockRecorder) ID() *gomock.Call {
+// ID indicates an expected call of ID.
+func (mr *MockNamespaceMockRecorder) ID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockdatabaseNamespace)(nil).ID))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockNamespace)(nil).ID))
 }
 
-// Metadata mocks base method
-func (m *MockdatabaseNamespace) Metadata() namespace.Metadata {
+// Index mocks base method.
+func (m *MockNamespace) Index() (NamespaceIndex, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Index")
+	ret0, _ := ret[0].(NamespaceIndex)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Index indicates an expected call of Index.
+func (mr *MockNamespaceMockRecorder) Index() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockNamespace)(nil).Index))
+}
+
+// Metadata mocks base method.
+func (m *MockNamespace) Metadata() namespace.Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadata")
 	ret0, _ := ret[0].(namespace.Metadata)
 	return ret0
 }
 
-// Metadata indicates an expected call of Metadata
-func (mr *MockdatabaseNamespaceMockRecorder) Metadata() *gomock.Call {
+// Metadata indicates an expected call of Metadata.
+func (mr *MockNamespaceMockRecorder) Metadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockdatabaseNamespace)(nil).Metadata))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockNamespace)(nil).Metadata))
 }
 
-// Schema mocks base method
-func (m *MockdatabaseNamespace) Schema() namespace.SchemaDescr {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Schema")
-	ret0, _ := ret[0].(namespace.SchemaDescr)
-	return ret0
-}
-
-// Schema indicates an expected call of Schema
-func (mr *MockdatabaseNamespaceMockRecorder) Schema() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockdatabaseNamespace)(nil).Schema))
-}
-
-// NumSeries mocks base method
-func (m *MockdatabaseNamespace) NumSeries() int64 {
+// NumSeries mocks base method.
+func (m *MockNamespace) NumSeries() int64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumSeries")
 	ret0, _ := ret[0].(int64)
 	return ret0
 }
 
-// NumSeries indicates an expected call of NumSeries
-func (mr *MockdatabaseNamespaceMockRecorder) NumSeries() *gomock.Call {
+// NumSeries indicates an expected call of NumSeries.
+func (mr *MockNamespaceMockRecorder) NumSeries() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockdatabaseNamespace)(nil).NumSeries))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockNamespace)(nil).NumSeries))
 }
 
-// Shards mocks base method
-func (m *MockdatabaseNamespace) Shards() []Shard {
+// Options mocks base method.
+func (m *MockNamespace) Options() namespace.Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Shards")
-	ret0, _ := ret[0].([]Shard)
+	ret := m.ctrl.Call(m, "Options")
+	ret0, _ := ret[0].(namespace.Options)
 	return ret0
 }
 
-// Shards indicates an expected call of Shards
-func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
+// Options indicates an expected call of Options.
+func (mr *MockNamespaceMockRecorder) Options() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockNamespace)(nil).Options))
 }
 
-// ReadableShardAt mocks base method
-func (m *MockdatabaseNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+// ReadOnly mocks base method.
+func (m *MockNamespace) ReadOnly() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadOnly")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ReadOnly indicates an expected call of ReadOnly.
+func (mr *MockNamespaceMockRecorder) ReadOnly() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockNamespace)(nil).ReadOnly))
+}
+
+// ReadableShardAt mocks base method.
+func (m *MockNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadableShardAt", shardID)
 	ret0, _ := ret[0].(databaseShard)
@@ -1358,82 +1153,216 @@ func (m *MockdatabaseNamespace) ReadableShardAt(shardID uint32) (databaseShard, 
 	return ret0, ret1, ret2
 }
 
-// ReadableShardAt indicates an expected call of ReadableShardAt
-func (mr *MockdatabaseNamespaceMockRecorder) ReadableShardAt(shardID interface{}) *gomock.Call {
+// ReadableShardAt indicates an expected call of ReadableShardAt.
+func (mr *MockNamespaceMockRecorder) ReadableShardAt(shardID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadableShardAt", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadableShardAt), shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadableShardAt", reflect.TypeOf((*MockNamespace)(nil).ReadableShardAt), shardID)
 }
 
-// SetIndex mocks base method
-func (m *MockdatabaseNamespace) SetIndex(reverseIndex NamespaceIndex) error {
+// Schema mocks base method.
+func (m *MockNamespace) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema.
+func (mr *MockNamespaceMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockNamespace)(nil).Schema))
+}
+
+// SetIndex mocks base method.
+func (m *MockNamespace) SetIndex(reverseIndex NamespaceIndex) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIndex", reverseIndex)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetIndex indicates an expected call of SetIndex
-func (mr *MockdatabaseNamespaceMockRecorder) SetIndex(reverseIndex interface{}) *gomock.Call {
+// SetIndex indicates an expected call of SetIndex.
+func (mr *MockNamespaceMockRecorder) SetIndex(reverseIndex interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetIndex), reverseIndex)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndex", reflect.TypeOf((*MockNamespace)(nil).SetIndex), reverseIndex)
 }
 
-// Index mocks base method
-func (m *MockdatabaseNamespace) Index() (NamespaceIndex, error) {
+// SetReadOnly mocks base method.
+func (m *MockNamespace) SetReadOnly(value bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Index")
-	ret0, _ := ret[0].(NamespaceIndex)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	m.ctrl.Call(m, "SetReadOnly", value)
 }
 
-// Index indicates an expected call of Index
-func (mr *MockdatabaseNamespaceMockRecorder) Index() *gomock.Call {
+// SetReadOnly indicates an expected call of SetReadOnly.
+func (mr *MockNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockdatabaseNamespace)(nil).Index))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockNamespace)(nil).SetReadOnly), value)
 }
 
-// StorageOptions mocks base method
-func (m *MockdatabaseNamespace) StorageOptions() Options {
+// Shards mocks base method.
+func (m *MockNamespace) Shards() []Shard {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Shards")
+	ret0, _ := ret[0].([]Shard)
+	return ret0
+}
+
+// Shards indicates an expected call of Shards.
+func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
+}
+
+// StorageOptions mocks base method.
+func (m *MockNamespace) StorageOptions() Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StorageOptions")
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// StorageOptions indicates an expected call of StorageOptions
-func (mr *MockdatabaseNamespaceMockRecorder) StorageOptions() *gomock.Call {
+// StorageOptions indicates an expected call of StorageOptions.
+func (mr *MockNamespaceMockRecorder) StorageOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockdatabaseNamespace)(nil).StorageOptions))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockNamespace)(nil).StorageOptions))
 }
 
-// ReadOnly mocks base method
-func (m *MockdatabaseNamespace) ReadOnly() bool {
+// WideQueryIDs mocks base method.
+func (m *MockNamespace) WideQueryIDs(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadOnly")
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "WideQueryIDs", ctx, query, collector, opts)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ReadOnly indicates an expected call of ReadOnly
-func (mr *MockdatabaseNamespaceMockRecorder) ReadOnly() *gomock.Call {
+// WideQueryIDs indicates an expected call of WideQueryIDs.
+func (mr *MockNamespaceMockRecorder) WideQueryIDs(ctx, query, collector, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadOnly))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockNamespace)(nil).WideQueryIDs), ctx, query, collector, opts)
 }
 
-// SetReadOnly mocks base method
-func (m *MockdatabaseNamespace) SetReadOnly(value bool) {
+// MockdatabaseNamespace is a mock of databaseNamespace interface.
+type MockdatabaseNamespace struct {
+	ctrl     *gomock.Controller
+	recorder *MockdatabaseNamespaceMockRecorder
+}
+
+// MockdatabaseNamespaceMockRecorder is the mock recorder for MockdatabaseNamespace.
+type MockdatabaseNamespaceMockRecorder struct {
+	mock *MockdatabaseNamespace
+}
+
+// NewMockdatabaseNamespace creates a new mock instance.
+func NewMockdatabaseNamespace(ctrl *gomock.Controller) *MockdatabaseNamespace {
+	mock := &MockdatabaseNamespace{ctrl: ctrl}
+	mock.recorder = &MockdatabaseNamespaceMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockdatabaseNamespace) EXPECT() *MockdatabaseNamespaceMockRecorder {
+	return m.recorder
+}
+
+// AggregateQuery mocks base method.
+func (m *MockdatabaseNamespace) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetReadOnly", value)
+	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts)
+	ret0, _ := ret[0].(index.AggregateQueryResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// SetReadOnly indicates an expected call of SetReadOnly
-func (mr *MockdatabaseNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
+// AggregateQuery indicates an expected call of AggregateQuery.
+func (mr *MockdatabaseNamespaceMockRecorder) AggregateQuery(ctx, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetReadOnly), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateQuery), ctx, query, opts)
 }
 
-// DocRef mocks base method
+// AggregateTiles mocks base method.
+func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, opts AggregateTilesOptions) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, opts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles.
+func (mr *MockdatabaseNamespaceMockRecorder) AggregateTiles(ctx, sourceNs, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateTiles), ctx, sourceNs, opts)
+}
+
+// AssignShardSet mocks base method.
+func (m *MockdatabaseNamespace) AssignShardSet(shardSet sharding.ShardSet) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AssignShardSet", shardSet)
+}
+
+// AssignShardSet indicates an expected call of AssignShardSet.
+func (mr *MockdatabaseNamespaceMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockdatabaseNamespace)(nil).AssignShardSet), shardSet)
+}
+
+// Bootstrap mocks base method.
+func (m *MockdatabaseNamespace) Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, bootstrapResult)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Bootstrap indicates an expected call of Bootstrap.
+func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(ctx, bootstrapResult interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), ctx, bootstrapResult)
+}
+
+// BootstrapState mocks base method.
+func (m *MockdatabaseNamespace) BootstrapState() BootstrapState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapState")
+	ret0, _ := ret[0].(BootstrapState)
+	return ret0
+}
+
+// BootstrapState indicates an expected call of BootstrapState.
+func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
+}
+
+// Close mocks base method.
+func (m *MockdatabaseNamespace) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockdatabaseNamespaceMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseNamespace)(nil).Close))
+}
+
+// ColdFlush mocks base method.
+func (m *MockdatabaseNamespace) ColdFlush(flush persist.FlushPreparer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlush", flush)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ColdFlush indicates an expected call of ColdFlush.
+func (mr *MockdatabaseNamespaceMockRecorder) ColdFlush(flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).ColdFlush), flush)
+}
+
+// DocRef mocks base method.
 func (m *MockdatabaseNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
@@ -1443,171 +1372,13 @@ func (m *MockdatabaseNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) 
 	return ret0, ret1, ret2
 }
 
-// DocRef indicates an expected call of DocRef
+// DocRef indicates an expected call of DocRef.
 func (mr *MockdatabaseNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).DocRef), id)
 }
 
-// WideQueryIDs mocks base method
-func (m *MockdatabaseNamespace) WideQueryIDs(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQueryIDs", ctx, query, collector, opts)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WideQueryIDs indicates an expected call of WideQueryIDs
-func (mr *MockdatabaseNamespaceMockRecorder) WideQueryIDs(ctx, query, collector, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).WideQueryIDs), ctx, query, collector, opts)
-}
-
-// FetchWideEntry mocks base method
-func (m *MockdatabaseNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter)
-	ret0, _ := ret[0].(block.StreamedWideEntry)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchWideEntry indicates an expected call of FetchWideEntry
-func (mr *MockdatabaseNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart, filter interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchWideEntry), ctx, id, blockStart, filter)
-}
-
-// Close mocks base method
-func (m *MockdatabaseNamespace) Close() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Close indicates an expected call of Close
-func (mr *MockdatabaseNamespaceMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseNamespace)(nil).Close))
-}
-
-// AssignShardSet mocks base method
-func (m *MockdatabaseNamespace) AssignShardSet(shardSet sharding.ShardSet) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AssignShardSet", shardSet)
-}
-
-// AssignShardSet indicates an expected call of AssignShardSet
-func (mr *MockdatabaseNamespaceMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockdatabaseNamespace)(nil).AssignShardSet), shardSet)
-}
-
-// OwnedShards mocks base method
-func (m *MockdatabaseNamespace) OwnedShards() []databaseShard {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OwnedShards")
-	ret0, _ := ret[0].([]databaseShard)
-	return ret0
-}
-
-// OwnedShards indicates an expected call of OwnedShards
-func (mr *MockdatabaseNamespaceMockRecorder) OwnedShards() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OwnedShards", reflect.TypeOf((*MockdatabaseNamespace)(nil).OwnedShards))
-}
-
-// Tick mocks base method
-func (m *MockdatabaseNamespace) Tick(c context.Cancellable, startTime time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", c, startTime)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Tick indicates an expected call of Tick
-func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, startTime)
-}
-
-// Write mocks base method
-func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(SeriesWrite)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Write indicates an expected call of Write
-func (mr *MockdatabaseNamespaceMockRecorder) Write(ctx, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseNamespace)(nil).Write), ctx, id, timestamp, value, unit, annotation)
-}
-
-// WriteTagged mocks base method
-func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(SeriesWrite)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WriteTagged indicates an expected call of WriteTagged
-func (mr *MockdatabaseNamespaceMockRecorder) WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseNamespace)(nil).WriteTagged), ctx, id, tagResolver, timestamp, value, unit, annotation)
-}
-
-// QueryIDs mocks base method
-func (m *MockdatabaseNamespace) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryIDs", ctx, query, opts)
-	ret0, _ := ret[0].(index.QueryResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// QueryIDs indicates an expected call of QueryIDs
-func (mr *MockdatabaseNamespaceMockRecorder) QueryIDs(ctx, query, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).QueryIDs), ctx, query, opts)
-}
-
-// AggregateQuery mocks base method
-func (m *MockdatabaseNamespace) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts)
-	ret0, _ := ret[0].(index.AggregateQueryResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AggregateQuery indicates an expected call of AggregateQuery
-func (mr *MockdatabaseNamespaceMockRecorder) AggregateQuery(ctx, query, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateQuery), ctx, query, opts)
-}
-
-// ReadEncoded mocks base method
-func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end)
-	ret0, _ := ret[0].(series.BlockReaderIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ReadEncoded indicates an expected call of ReadEncoded
-func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
-}
-
-// FetchBlocks mocks base method
+// FetchBlocks mocks base method.
 func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, shardID, id, starts)
@@ -1616,13 +1387,13 @@ func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32,
 	return ret0, ret1
 }
 
-// FetchBlocks indicates an expected call of FetchBlocks
+// FetchBlocks indicates an expected call of FetchBlocks.
 func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocks(ctx, shardID, id, starts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchBlocks), ctx, shardID, id, starts)
 }
 
-// FetchBlocksMetadataV2 mocks base method
+// FetchBlocksMetadataV2 mocks base method.
 func (m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shardID uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, shardID, start, end, limit, pageToken, opts)
@@ -1632,56 +1403,28 @@ func (m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shard
 	return ret0, ret1, ret2
 }
 
-// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
+// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2.
 func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadataV2(ctx, shardID, start, end, limit, pageToken, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchBlocksMetadataV2), ctx, shardID, start, end, limit, pageToken, opts)
 }
 
-// PrepareBootstrap mocks base method
-func (m *MockdatabaseNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, error) {
+// FetchWideEntry mocks base method.
+func (m *MockdatabaseNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
-	ret0, _ := ret[0].([]databaseShard)
+	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter)
+	ret0, _ := ret[0].(block.StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PrepareBootstrap indicates an expected call of PrepareBootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
+// FetchWideEntry indicates an expected call of FetchWideEntry.
+func (mr *MockdatabaseNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart, filter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).PrepareBootstrap), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchWideEntry), ctx, id, blockStart, filter)
 }
 
-// Bootstrap mocks base method
-func (m *MockdatabaseNamespace) Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", ctx, bootstrapResult)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(ctx, bootstrapResult interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), ctx, bootstrapResult)
-}
-
-// WarmFlush mocks base method
-func (m *MockdatabaseNamespace) WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WarmFlush indicates an expected call of WarmFlush
-func (mr *MockdatabaseNamespaceMockRecorder) WarmFlush(blockStart, flush interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).WarmFlush), blockStart, flush)
-}
-
-// FlushIndex mocks base method
+// FlushIndex mocks base method.
 func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushIndex", flush)
@@ -1689,113 +1432,13 @@ func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) error {
 	return ret0
 }
 
-// FlushIndex indicates an expected call of FlushIndex
+// FlushIndex indicates an expected call of FlushIndex.
 func (mr *MockdatabaseNamespaceMockRecorder) FlushIndex(flush interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushIndex), flush)
 }
 
-// ColdFlush mocks base method
-func (m *MockdatabaseNamespace) ColdFlush(flush persist.FlushPreparer) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlush", flush)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ColdFlush indicates an expected call of ColdFlush
-func (mr *MockdatabaseNamespaceMockRecorder) ColdFlush(flush interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).ColdFlush), flush)
-}
-
-// Snapshot mocks base method
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush)
-}
-
-// NeedsFlush mocks base method
-func (m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd time.Time) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NeedsFlush", alignedInclusiveStart, alignedInclusiveEnd)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// NeedsFlush indicates an expected call of NeedsFlush
-func (mr *MockdatabaseNamespaceMockRecorder) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).NeedsFlush), alignedInclusiveStart, alignedInclusiveEnd)
-}
-
-// Truncate mocks base method
-func (m *MockdatabaseNamespace) Truncate() (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Truncate")
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Truncate indicates an expected call of Truncate
-func (mr *MockdatabaseNamespaceMockRecorder) Truncate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockdatabaseNamespace)(nil).Truncate))
-}
-
-// Repair mocks base method
-func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.Range) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair", repairer, tr)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Repair indicates an expected call of Repair
-func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseNamespace)(nil).Repair), repairer, tr)
-}
-
-// BootstrapState mocks base method
-func (m *MockdatabaseNamespace) BootstrapState() BootstrapState {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapState")
-	ret0, _ := ret[0].(BootstrapState)
-	return ret0
-}
-
-// BootstrapState indicates an expected call of BootstrapState
-func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
-}
-
-// ShardBootstrapState mocks base method
-func (m *MockdatabaseNamespace) ShardBootstrapState() ShardBootstrapStates {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ShardBootstrapState")
-	ret0, _ := ret[0].(ShardBootstrapStates)
-	return ret0
-}
-
-// ShardBootstrapState indicates an expected call of ShardBootstrapState
-func (mr *MockdatabaseNamespaceMockRecorder) ShardBootstrapState() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardBootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).ShardBootstrapState))
-}
-
-// FlushState mocks base method
+// FlushState mocks base method.
 func (m *MockdatabaseNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", shardID, blockStart)
@@ -1804,13 +1447,216 @@ func (m *MockdatabaseNamespace) FlushState(shardID uint32, blockStart time.Time)
 	return ret0, ret1
 }
 
-// FlushState indicates an expected call of FlushState
+// FlushState indicates an expected call of FlushState.
 func (mr *MockdatabaseNamespaceMockRecorder) FlushState(shardID, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushState), shardID, blockStart)
 }
 
-// SeriesRefResolver mocks base method
+// ID mocks base method.
+func (m *MockdatabaseNamespace) ID() ident.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ID")
+	ret0, _ := ret[0].(ident.ID)
+	return ret0
+}
+
+// ID indicates an expected call of ID.
+func (mr *MockdatabaseNamespaceMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockdatabaseNamespace)(nil).ID))
+}
+
+// Index mocks base method.
+func (m *MockdatabaseNamespace) Index() (NamespaceIndex, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Index")
+	ret0, _ := ret[0].(NamespaceIndex)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Index indicates an expected call of Index.
+func (mr *MockdatabaseNamespaceMockRecorder) Index() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockdatabaseNamespace)(nil).Index))
+}
+
+// Metadata mocks base method.
+func (m *MockdatabaseNamespace) Metadata() namespace.Metadata {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Metadata")
+	ret0, _ := ret[0].(namespace.Metadata)
+	return ret0
+}
+
+// Metadata indicates an expected call of Metadata.
+func (mr *MockdatabaseNamespaceMockRecorder) Metadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockdatabaseNamespace)(nil).Metadata))
+}
+
+// NeedsFlush mocks base method.
+func (m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd time.Time) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsFlush", alignedInclusiveStart, alignedInclusiveEnd)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NeedsFlush indicates an expected call of NeedsFlush.
+func (mr *MockdatabaseNamespaceMockRecorder) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).NeedsFlush), alignedInclusiveStart, alignedInclusiveEnd)
+}
+
+// NumSeries mocks base method.
+func (m *MockdatabaseNamespace) NumSeries() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumSeries")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// NumSeries indicates an expected call of NumSeries.
+func (mr *MockdatabaseNamespaceMockRecorder) NumSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockdatabaseNamespace)(nil).NumSeries))
+}
+
+// Options mocks base method.
+func (m *MockdatabaseNamespace) Options() namespace.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Options")
+	ret0, _ := ret[0].(namespace.Options)
+	return ret0
+}
+
+// Options indicates an expected call of Options.
+func (mr *MockdatabaseNamespaceMockRecorder) Options() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockdatabaseNamespace)(nil).Options))
+}
+
+// OwnedShards mocks base method.
+func (m *MockdatabaseNamespace) OwnedShards() []databaseShard {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OwnedShards")
+	ret0, _ := ret[0].([]databaseShard)
+	return ret0
+}
+
+// OwnedShards indicates an expected call of OwnedShards.
+func (mr *MockdatabaseNamespaceMockRecorder) OwnedShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OwnedShards", reflect.TypeOf((*MockdatabaseNamespace)(nil).OwnedShards))
+}
+
+// PrepareBootstrap mocks base method.
+func (m *MockdatabaseNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
+	ret0, _ := ret[0].([]databaseShard)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PrepareBootstrap indicates an expected call of PrepareBootstrap.
+func (mr *MockdatabaseNamespaceMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).PrepareBootstrap), ctx)
+}
+
+// QueryIDs mocks base method.
+func (m *MockdatabaseNamespace) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryIDs", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryIDs indicates an expected call of QueryIDs.
+func (mr *MockdatabaseNamespaceMockRecorder) QueryIDs(ctx, query, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).QueryIDs), ctx, query, opts)
+}
+
+// ReadEncoded mocks base method.
+func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end)
+	ret0, _ := ret[0].(series.BlockReaderIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadEncoded indicates an expected call of ReadEncoded.
+func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
+}
+
+// ReadOnly mocks base method.
+func (m *MockdatabaseNamespace) ReadOnly() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadOnly")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ReadOnly indicates an expected call of ReadOnly.
+func (mr *MockdatabaseNamespaceMockRecorder) ReadOnly() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadOnly))
+}
+
+// ReadableShardAt mocks base method.
+func (m *MockdatabaseNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadableShardAt", shardID)
+	ret0, _ := ret[0].(databaseShard)
+	ret1, _ := ret[1].(namespace.Context)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReadableShardAt indicates an expected call of ReadableShardAt.
+func (mr *MockdatabaseNamespaceMockRecorder) ReadableShardAt(shardID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadableShardAt", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadableShardAt), shardID)
+}
+
+// Repair mocks base method.
+func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.Range) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Repair", repairer, tr)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Repair indicates an expected call of Repair.
+func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseNamespace)(nil).Repair), repairer, tr)
+}
+
+// Schema mocks base method.
+func (m *MockdatabaseNamespace) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema.
+func (mr *MockdatabaseNamespaceMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockdatabaseNamespace)(nil).Schema))
+}
+
+// SeriesRefResolver mocks base method.
 func (m *MockdatabaseNamespace) SeriesRefResolver(shardID uint32, id ident.ID, tags ident.TagIterator) (bootstrap.SeriesRefResolver, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesRefResolver", shardID, id, tags)
@@ -1820,13 +1666,167 @@ func (m *MockdatabaseNamespace) SeriesRefResolver(shardID uint32, id ident.ID, t
 	return ret0, ret1, ret2
 }
 
-// SeriesRefResolver indicates an expected call of SeriesRefResolver
+// SeriesRefResolver indicates an expected call of SeriesRefResolver.
 func (mr *MockdatabaseNamespaceMockRecorder) SeriesRefResolver(shardID, id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesRefResolver", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesRefResolver), shardID, id, tags)
 }
 
-// WritePendingIndexInserts mocks base method
+// SetIndex mocks base method.
+func (m *MockdatabaseNamespace) SetIndex(reverseIndex NamespaceIndex) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndex", reverseIndex)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetIndex indicates an expected call of SetIndex.
+func (mr *MockdatabaseNamespaceMockRecorder) SetIndex(reverseIndex interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetIndex), reverseIndex)
+}
+
+// SetReadOnly mocks base method.
+func (m *MockdatabaseNamespace) SetReadOnly(value bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetReadOnly", value)
+}
+
+// SetReadOnly indicates an expected call of SetReadOnly.
+func (mr *MockdatabaseNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetReadOnly), value)
+}
+
+// ShardBootstrapState mocks base method.
+func (m *MockdatabaseNamespace) ShardBootstrapState() ShardBootstrapStates {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardBootstrapState")
+	ret0, _ := ret[0].(ShardBootstrapStates)
+	return ret0
+}
+
+// ShardBootstrapState indicates an expected call of ShardBootstrapState.
+func (mr *MockdatabaseNamespaceMockRecorder) ShardBootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardBootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).ShardBootstrapState))
+}
+
+// Shards mocks base method.
+func (m *MockdatabaseNamespace) Shards() []Shard {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Shards")
+	ret0, _ := ret[0].([]Shard)
+	return ret0
+}
+
+// Shards indicates an expected call of Shards.
+func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
+}
+
+// Snapshot mocks base method.
+func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot.
+func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush)
+}
+
+// StorageOptions mocks base method.
+func (m *MockdatabaseNamespace) StorageOptions() Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StorageOptions")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// StorageOptions indicates an expected call of StorageOptions.
+func (mr *MockdatabaseNamespaceMockRecorder) StorageOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockdatabaseNamespace)(nil).StorageOptions))
+}
+
+// Tick mocks base method.
+func (m *MockdatabaseNamespace) Tick(c context.Cancellable, startTime time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Tick", c, startTime)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Tick indicates an expected call of Tick.
+func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, startTime)
+}
+
+// Truncate mocks base method.
+func (m *MockdatabaseNamespace) Truncate() (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Truncate")
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Truncate indicates an expected call of Truncate.
+func (mr *MockdatabaseNamespaceMockRecorder) Truncate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockdatabaseNamespace)(nil).Truncate))
+}
+
+// WarmFlush mocks base method.
+func (m *MockdatabaseNamespace) WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WarmFlush indicates an expected call of WarmFlush.
+func (mr *MockdatabaseNamespaceMockRecorder) WarmFlush(blockStart, flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).WarmFlush), blockStart, flush)
+}
+
+// WideQueryIDs mocks base method.
+func (m *MockdatabaseNamespace) WideQueryIDs(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideQueryIDs", ctx, query, collector, opts)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WideQueryIDs indicates an expected call of WideQueryIDs.
+func (mr *MockdatabaseNamespaceMockRecorder) WideQueryIDs(ctx, query, collector, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).WideQueryIDs), ctx, query, collector, opts)
+}
+
+// Write mocks base method.
+func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(SeriesWrite)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Write indicates an expected call of Write.
+func (mr *MockdatabaseNamespaceMockRecorder) Write(ctx, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseNamespace)(nil).Write), ctx, id, timestamp, value, unit, annotation)
+}
+
+// WritePendingIndexInserts mocks base method.
 func (m *MockdatabaseNamespace) WritePendingIndexInserts(pending []writes.PendingIndexInsert) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WritePendingIndexInserts", pending)
@@ -1834,93 +1834,51 @@ func (m *MockdatabaseNamespace) WritePendingIndexInserts(pending []writes.Pendin
 	return ret0
 }
 
-// WritePendingIndexInserts indicates an expected call of WritePendingIndexInserts
+// WritePendingIndexInserts indicates an expected call of WritePendingIndexInserts.
 func (mr *MockdatabaseNamespaceMockRecorder) WritePendingIndexInserts(pending interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePendingIndexInserts", reflect.TypeOf((*MockdatabaseNamespace)(nil).WritePendingIndexInserts), pending)
 }
 
-// AggregateTiles mocks base method
-func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, opts AggregateTilesOptions) (int64, error) {
+// WriteTagged mocks base method.
+func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, opts)
-	ret0, _ := ret[0].(int64)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(SeriesWrite)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseNamespaceMockRecorder) AggregateTiles(ctx, sourceNs, opts interface{}) *gomock.Call {
+// WriteTagged indicates an expected call of WriteTagged.
+func (mr *MockdatabaseNamespaceMockRecorder) WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateTiles), ctx, sourceNs, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseNamespace)(nil).WriteTagged), ctx, id, tagResolver, timestamp, value, unit, annotation)
 }
 
-// MockShard is a mock of Shard interface
+// MockShard is a mock of Shard interface.
 type MockShard struct {
 	ctrl     *gomock.Controller
 	recorder *MockShardMockRecorder
 }
 
-// MockShardMockRecorder is the mock recorder for MockShard
+// MockShardMockRecorder is the mock recorder for MockShard.
 type MockShardMockRecorder struct {
 	mock *MockShard
 }
 
-// NewMockShard creates a new mock instance
+// NewMockShard creates a new mock instance.
 func NewMockShard(ctrl *gomock.Controller) *MockShard {
 	mock := &MockShard{ctrl: ctrl}
 	mock.recorder = &MockShardMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockShard) EXPECT() *MockShardMockRecorder {
 	return m.recorder
 }
 
-// ID mocks base method
-func (m *MockShard) ID() uint32 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ID")
-	ret0, _ := ret[0].(uint32)
-	return ret0
-}
-
-// ID indicates an expected call of ID
-func (mr *MockShardMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockShard)(nil).ID))
-}
-
-// NumSeries mocks base method
-func (m *MockShard) NumSeries() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NumSeries")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// NumSeries indicates an expected call of NumSeries
-func (mr *MockShardMockRecorder) NumSeries() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockShard)(nil).NumSeries))
-}
-
-// IsBootstrapped mocks base method
-func (m *MockShard) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockShardMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockShard)(nil).IsBootstrapped))
-}
-
-// BootstrapState mocks base method
+// BootstrapState mocks base method.
 func (m *MockShard) BootstrapState() BootstrapState {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapState")
@@ -1928,13 +1886,55 @@ func (m *MockShard) BootstrapState() BootstrapState {
 	return ret0
 }
 
-// BootstrapState indicates an expected call of BootstrapState
+// BootstrapState indicates an expected call of BootstrapState.
 func (mr *MockShardMockRecorder) BootstrapState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockShard)(nil).BootstrapState))
 }
 
-// OpenStreamingReader mocks base method
+// ID mocks base method.
+func (m *MockShard) ID() uint32 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// ID indicates an expected call of ID.
+func (mr *MockShardMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockShard)(nil).ID))
+}
+
+// IsBootstrapped mocks base method.
+func (m *MockShard) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBootstrapped indicates an expected call of IsBootstrapped.
+func (mr *MockShardMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockShard)(nil).IsBootstrapped))
+}
+
+// NumSeries mocks base method.
+func (m *MockShard) NumSeries() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumSeries")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// NumSeries indicates an expected call of NumSeries.
+func (mr *MockShardMockRecorder) NumSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockShard)(nil).NumSeries))
+}
+
+// OpenStreamingReader mocks base method.
 func (m *MockShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OpenStreamingReader", blockStart)
@@ -1943,268 +1943,51 @@ func (m *MockShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetRea
 	return ret0, ret1
 }
 
-// OpenStreamingReader indicates an expected call of OpenStreamingReader
+// OpenStreamingReader indicates an expected call of OpenStreamingReader.
 func (mr *MockShardMockRecorder) OpenStreamingReader(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockShard)(nil).OpenStreamingReader), blockStart)
 }
 
-// MockdatabaseShard is a mock of databaseShard interface
+// MockdatabaseShard is a mock of databaseShard interface.
 type MockdatabaseShard struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseShardMockRecorder
 }
 
-// MockdatabaseShardMockRecorder is the mock recorder for MockdatabaseShard
+// MockdatabaseShardMockRecorder is the mock recorder for MockdatabaseShard.
 type MockdatabaseShardMockRecorder struct {
 	mock *MockdatabaseShard
 }
 
-// NewMockdatabaseShard creates a new mock instance
+// NewMockdatabaseShard creates a new mock instance.
 func NewMockdatabaseShard(ctrl *gomock.Controller) *MockdatabaseShard {
 	mock := &MockdatabaseShard{ctrl: ctrl}
 	mock.recorder = &MockdatabaseShardMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseShard) EXPECT() *MockdatabaseShardMockRecorder {
 	return m.recorder
 }
 
-// ID mocks base method
-func (m *MockdatabaseShard) ID() uint32 {
+// AggregateTiles mocks base method.
+func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, sourceNs, targetNs Namespace, shardID uint32, onFlushSeries persist.OnFlushSeries, opts AggregateTilesOptions) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ID")
-	ret0, _ := ret[0].(uint32)
-	return ret0
-}
-
-// ID indicates an expected call of ID
-func (mr *MockdatabaseShardMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockdatabaseShard)(nil).ID))
-}
-
-// NumSeries mocks base method
-func (m *MockdatabaseShard) NumSeries() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NumSeries")
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
 	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// NumSeries indicates an expected call of NumSeries
-func (mr *MockdatabaseShardMockRecorder) NumSeries() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockdatabaseShard)(nil).NumSeries))
-}
-
-// IsBootstrapped mocks base method
-func (m *MockdatabaseShard) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockdatabaseShardMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseShard)(nil).IsBootstrapped))
-}
-
-// BootstrapState mocks base method
-func (m *MockdatabaseShard) BootstrapState() BootstrapState {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapState")
-	ret0, _ := ret[0].(BootstrapState)
-	return ret0
-}
-
-// BootstrapState indicates an expected call of BootstrapState
-func (mr *MockdatabaseShardMockRecorder) BootstrapState() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseShard)(nil).BootstrapState))
-}
-
-// OpenStreamingReader mocks base method
-func (m *MockdatabaseShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OpenStreamingReader", blockStart)
-	ret0, _ := ret[0].(fs.DataFileSetReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// OpenStreamingReader indicates an expected call of OpenStreamingReader
-func (mr *MockdatabaseShardMockRecorder) OpenStreamingReader(blockStart interface{}) *gomock.Call {
+// AggregateTiles indicates an expected call of AggregateTiles.
+func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, sourceNs, targetNs, shardID, onFlushSeries, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockdatabaseShard)(nil).OpenStreamingReader), blockStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
 }
 
-// OnEvictedFromWiredList mocks base method
-func (m *MockdatabaseShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnEvictedFromWiredList", id, blockStart)
-}
-
-// OnEvictedFromWiredList indicates an expected call of OnEvictedFromWiredList
-func (mr *MockdatabaseShardMockRecorder) OnEvictedFromWiredList(id, blockStart interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnEvictedFromWiredList", reflect.TypeOf((*MockdatabaseShard)(nil).OnEvictedFromWiredList), id, blockStart)
-}
-
-// Close mocks base method
-func (m *MockdatabaseShard) Close() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Close indicates an expected call of Close
-func (mr *MockdatabaseShardMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseShard)(nil).Close))
-}
-
-// Tick mocks base method
-func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", c, startTime, nsCtx)
-	ret0, _ := ret[0].(tickResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Tick indicates an expected call of Tick
-func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, startTime, nsCtx)
-}
-
-// Write mocks base method
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
-	ret0, _ := ret[0].(SeriesWrite)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Write indicates an expected call of Write
-func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseShard)(nil).Write), ctx, id, timestamp, value, unit, annotation, wOpts)
-}
-
-// WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts)
-	ret0, _ := ret[0].(SeriesWrite)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WriteTagged indicates an expected call of WriteTagged
-func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseShard)(nil).WriteTagged), ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts)
-}
-
-// ReadEncoded mocks base method
-func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) (series.BlockReaderIter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end, nsCtx)
-	ret0, _ := ret[0].(series.BlockReaderIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ReadEncoded indicates an expected call of ReadEncoded
-func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end, nsCtx)
-}
-
-// FetchWideEntry mocks base method
-func (m *MockdatabaseShard) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter, nsCtx namespace.Context) (block.StreamedWideEntry, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter, nsCtx)
-	ret0, _ := ret[0].(block.StreamedWideEntry)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchWideEntry indicates an expected call of FetchWideEntry
-func (mr *MockdatabaseShardMockRecorder) FetchWideEntry(ctx, id, blockStart, filter, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseShard)(nil).FetchWideEntry), ctx, id, blockStart, filter, nsCtx)
-}
-
-// FetchBlocks mocks base method
-func (m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts []time.Time, nsCtx namespace.Context) ([]block.FetchBlockResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlocks", ctx, id, starts, nsCtx)
-	ret0, _ := ret[0].([]block.FetchBlockResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBlocks indicates an expected call of FetchBlocks
-func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocks), ctx, id, starts, nsCtx)
-}
-
-// FetchBlocksForColdFlush mocks base method
-func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, seriesID, start, version, nsCtx)
-	ret0, _ := ret[0].(block.FetchBlockResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBlocksForColdFlush indicates an expected call of FetchBlocksForColdFlush
-func (mr *MockdatabaseShardMockRecorder) FetchBlocksForColdFlush(ctx, seriesID, start, version, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksForColdFlush", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksForColdFlush), ctx, seriesID, start, version, nsCtx)
-}
-
-// FetchBlocksMetadataV2 mocks base method
-func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, start, end, limit, pageToken, opts)
-	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
-	ret1, _ := ret[1].(PageToken)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
-func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(ctx, start, end, limit, pageToken, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksMetadataV2), ctx, start, end, limit, pageToken, opts)
-}
-
-// PrepareBootstrap mocks base method
-func (m *MockdatabaseShard) PrepareBootstrap(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// PrepareBootstrap indicates an expected call of PrepareBootstrap
-func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).PrepareBootstrap), ctx)
-}
-
-// Bootstrap mocks base method
+// Bootstrap mocks base method.
 func (m *MockdatabaseShard) Bootstrap(ctx context.Context, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", ctx, nsCtx)
@@ -2212,53 +1995,69 @@ func (m *MockdatabaseShard) Bootstrap(ctx context.Context, nsCtx namespace.Conte
 	return ret0
 }
 
-// Bootstrap indicates an expected call of Bootstrap
+// Bootstrap indicates an expected call of Bootstrap.
 func (mr *MockdatabaseShardMockRecorder) Bootstrap(ctx, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), ctx, nsCtx)
 }
 
-// UpdateFlushStates mocks base method
-func (m *MockdatabaseShard) UpdateFlushStates() {
+// BootstrapState mocks base method.
+func (m *MockdatabaseShard) BootstrapState() BootstrapState {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateFlushStates")
+	ret := m.ctrl.Call(m, "BootstrapState")
+	ret0, _ := ret[0].(BootstrapState)
+	return ret0
 }
 
-// UpdateFlushStates indicates an expected call of UpdateFlushStates
-func (mr *MockdatabaseShardMockRecorder) UpdateFlushStates() *gomock.Call {
+// BootstrapState indicates an expected call of BootstrapState.
+func (mr *MockdatabaseShardMockRecorder) BootstrapState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFlushStates", reflect.TypeOf((*MockdatabaseShard)(nil).UpdateFlushStates))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseShard)(nil).BootstrapState))
 }
 
-// LoadBlocks mocks base method
-func (m *MockdatabaseShard) LoadBlocks(series *result.Map) error {
+// CleanupCompactedFileSets mocks base method.
+func (m *MockdatabaseShard) CleanupCompactedFileSets() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LoadBlocks", series)
+	ret := m.ctrl.Call(m, "CleanupCompactedFileSets")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// LoadBlocks indicates an expected call of LoadBlocks
-func (mr *MockdatabaseShardMockRecorder) LoadBlocks(series interface{}) *gomock.Call {
+// CleanupCompactedFileSets indicates an expected call of CleanupCompactedFileSets.
+func (mr *MockdatabaseShardMockRecorder) CleanupCompactedFileSets() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).LoadBlocks), series)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupCompactedFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupCompactedFileSets))
 }
 
-// WarmFlush mocks base method
-func (m *MockdatabaseShard) WarmFlush(blockStart time.Time, flush persist.FlushPreparer, nsCtx namespace.Context) error {
+// CleanupExpiredFileSets mocks base method.
+func (m *MockdatabaseShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush, nsCtx)
+	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", earliestToRetain)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// WarmFlush indicates an expected call of WarmFlush
-func (mr *MockdatabaseShardMockRecorder) WarmFlush(blockStart, flush, nsCtx interface{}) *gomock.Call {
+// CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets.
+func (mr *MockdatabaseShardMockRecorder) CleanupExpiredFileSets(earliestToRetain interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseShard)(nil).WarmFlush), blockStart, flush, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupExpiredFileSets), earliestToRetain)
 }
 
-// ColdFlush mocks base method
+// Close mocks base method.
+func (m *MockdatabaseShard) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockdatabaseShardMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseShard)(nil).Close))
+}
+
+// ColdFlush mocks base method.
 func (m *MockdatabaseShard) ColdFlush(flush persist.FlushPreparer, resources coldFlushReusableResources, nsCtx namespace.Context, onFlush persist.OnFlushSeries) (ShardColdFlush, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlush", flush, resources, nsCtx, onFlush)
@@ -2267,101 +2066,13 @@ func (m *MockdatabaseShard) ColdFlush(flush persist.FlushPreparer, resources col
 	return ret0, ret1
 }
 
-// ColdFlush indicates an expected call of ColdFlush
+// ColdFlush indicates an expected call of ColdFlush.
 func (mr *MockdatabaseShardMockRecorder) ColdFlush(flush, resources, nsCtx, onFlush interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockdatabaseShard)(nil).ColdFlush), flush, resources, nsCtx, onFlush)
 }
 
-// Snapshot mocks base method
-func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) (ShardSnapshotResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush, nsCtx)
-	ret0, _ := ret[0].(ShardSnapshotResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseShardMockRecorder) Snapshot(blockStart, snapshotStart, flush, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseShard)(nil).Snapshot), blockStart, snapshotStart, flush, nsCtx)
-}
-
-// FlushState mocks base method
-func (m *MockdatabaseShard) FlushState(blockStart time.Time) (fileOpState, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FlushState", blockStart)
-	ret0, _ := ret[0].(fileOpState)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FlushState indicates an expected call of FlushState
-func (mr *MockdatabaseShardMockRecorder) FlushState(blockStart interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseShard)(nil).FlushState), blockStart)
-}
-
-// CleanupExpiredFileSets mocks base method
-func (m *MockdatabaseShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", earliestToRetain)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets
-func (mr *MockdatabaseShardMockRecorder) CleanupExpiredFileSets(earliestToRetain interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupExpiredFileSets), earliestToRetain)
-}
-
-// CleanupCompactedFileSets mocks base method
-func (m *MockdatabaseShard) CleanupCompactedFileSets() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CleanupCompactedFileSets")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CleanupCompactedFileSets indicates an expected call of CleanupCompactedFileSets
-func (mr *MockdatabaseShardMockRecorder) CleanupCompactedFileSets() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupCompactedFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupCompactedFileSets))
-}
-
-// Repair mocks base method
-func (m *MockdatabaseShard) Repair(ctx context.Context, nsCtx namespace.Context, nsMeta namespace.Metadata, tr time0.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair", ctx, nsCtx, nsMeta, tr, repairer)
-	ret0, _ := ret[0].(repair.MetadataComparisonResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Repair indicates an expected call of Repair
-func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, repairer interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, nsCtx, nsMeta, tr, repairer)
-}
-
-// SeriesRefResolver mocks base method
-func (m *MockdatabaseShard) SeriesRefResolver(id ident.ID, tags ident.TagIterator) (bootstrap.SeriesRefResolver, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesRefResolver", id, tags)
-	ret0, _ := ret[0].(bootstrap.SeriesRefResolver)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SeriesRefResolver indicates an expected call of SeriesRefResolver
-func (mr *MockdatabaseShardMockRecorder) SeriesRefResolver(id, tags interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesRefResolver", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesRefResolver), id, tags)
-}
-
-// DocRef mocks base method
+// DocRef mocks base method.
 func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
@@ -2371,28 +2082,117 @@ func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	return ret0, ret1, ret2
 }
 
-// DocRef indicates an expected call of DocRef
+// DocRef indicates an expected call of DocRef.
 func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockdatabaseShard)(nil).DocRef), id)
 }
 
-// AggregateTiles mocks base method
-func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, sourceNs, targetNs Namespace, shardID uint32, onFlushSeries persist.OnFlushSeries, opts AggregateTilesOptions) (int64, error) {
+// FetchBlocks mocks base method.
+func (m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts []time.Time, nsCtx namespace.Context) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
-	ret0, _ := ret[0].(int64)
+	ret := m.ctrl.Call(m, "FetchBlocks", ctx, id, starts, nsCtx)
+	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, sourceNs, targetNs, shardID, onFlushSeries, opts interface{}) *gomock.Call {
+// FetchBlocks indicates an expected call of FetchBlocks.
+func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocks), ctx, id, starts, nsCtx)
 }
 
-// LatestVolume mocks base method
+// FetchBlocksForColdFlush mocks base method.
+func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, seriesID, start, version, nsCtx)
+	ret0, _ := ret[0].(block.FetchBlockResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksForColdFlush indicates an expected call of FetchBlocksForColdFlush.
+func (mr *MockdatabaseShardMockRecorder) FetchBlocksForColdFlush(ctx, seriesID, start, version, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksForColdFlush", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksForColdFlush), ctx, seriesID, start, version, nsCtx)
+}
+
+// FetchBlocksMetadataV2 mocks base method.
+func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, start, end, limit, pageToken, opts)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
+	ret1, _ := ret[1].(PageToken)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2.
+func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(ctx, start, end, limit, pageToken, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksMetadataV2), ctx, start, end, limit, pageToken, opts)
+}
+
+// FetchWideEntry mocks base method.
+func (m *MockdatabaseShard) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter, nsCtx namespace.Context) (block.StreamedWideEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter, nsCtx)
+	ret0, _ := ret[0].(block.StreamedWideEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchWideEntry indicates an expected call of FetchWideEntry.
+func (mr *MockdatabaseShardMockRecorder) FetchWideEntry(ctx, id, blockStart, filter, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseShard)(nil).FetchWideEntry), ctx, id, blockStart, filter, nsCtx)
+}
+
+// FlushState mocks base method.
+func (m *MockdatabaseShard) FlushState(blockStart time.Time) (fileOpState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FlushState", blockStart)
+	ret0, _ := ret[0].(fileOpState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FlushState indicates an expected call of FlushState.
+func (mr *MockdatabaseShardMockRecorder) FlushState(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseShard)(nil).FlushState), blockStart)
+}
+
+// ID mocks base method.
+func (m *MockdatabaseShard) ID() uint32 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// ID indicates an expected call of ID.
+func (mr *MockdatabaseShardMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockdatabaseShard)(nil).ID))
+}
+
+// IsBootstrapped mocks base method.
+func (m *MockdatabaseShard) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBootstrapped indicates an expected call of IsBootstrapped.
+func (mr *MockdatabaseShardMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseShard)(nil).IsBootstrapped))
+}
+
+// LatestVolume mocks base method.
 func (m *MockdatabaseShard) LatestVolume(blockStart time.Time) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LatestVolume", blockStart)
@@ -2401,36 +2201,236 @@ func (m *MockdatabaseShard) LatestVolume(blockStart time.Time) (int, error) {
 	return ret0, ret1
 }
 
-// LatestVolume indicates an expected call of LatestVolume
+// LatestVolume indicates an expected call of LatestVolume.
 func (mr *MockdatabaseShardMockRecorder) LatestVolume(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LatestVolume", reflect.TypeOf((*MockdatabaseShard)(nil).LatestVolume), blockStart)
 }
 
-// MockShardColdFlush is a mock of ShardColdFlush interface
+// LoadBlocks mocks base method.
+func (m *MockdatabaseShard) LoadBlocks(series *result.Map) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LoadBlocks", series)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LoadBlocks indicates an expected call of LoadBlocks.
+func (mr *MockdatabaseShardMockRecorder) LoadBlocks(series interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).LoadBlocks), series)
+}
+
+// NumSeries mocks base method.
+func (m *MockdatabaseShard) NumSeries() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumSeries")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// NumSeries indicates an expected call of NumSeries.
+func (mr *MockdatabaseShardMockRecorder) NumSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockdatabaseShard)(nil).NumSeries))
+}
+
+// OnEvictedFromWiredList mocks base method.
+func (m *MockdatabaseShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "OnEvictedFromWiredList", id, blockStart)
+}
+
+// OnEvictedFromWiredList indicates an expected call of OnEvictedFromWiredList.
+func (mr *MockdatabaseShardMockRecorder) OnEvictedFromWiredList(id, blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnEvictedFromWiredList", reflect.TypeOf((*MockdatabaseShard)(nil).OnEvictedFromWiredList), id, blockStart)
+}
+
+// OpenStreamingReader mocks base method.
+func (m *MockdatabaseShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenStreamingReader", blockStart)
+	ret0, _ := ret[0].(fs.DataFileSetReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenStreamingReader indicates an expected call of OpenStreamingReader.
+func (mr *MockdatabaseShardMockRecorder) OpenStreamingReader(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockdatabaseShard)(nil).OpenStreamingReader), blockStart)
+}
+
+// PrepareBootstrap mocks base method.
+func (m *MockdatabaseShard) PrepareBootstrap(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PrepareBootstrap indicates an expected call of PrepareBootstrap.
+func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).PrepareBootstrap), ctx)
+}
+
+// ReadEncoded mocks base method.
+func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) (series.BlockReaderIter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end, nsCtx)
+	ret0, _ := ret[0].(series.BlockReaderIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadEncoded indicates an expected call of ReadEncoded.
+func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end, nsCtx)
+}
+
+// Repair mocks base method.
+func (m *MockdatabaseShard) Repair(ctx context.Context, nsCtx namespace.Context, nsMeta namespace.Metadata, tr time0.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Repair", ctx, nsCtx, nsMeta, tr, repairer)
+	ret0, _ := ret[0].(repair.MetadataComparisonResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Repair indicates an expected call of Repair.
+func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, repairer interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, nsCtx, nsMeta, tr, repairer)
+}
+
+// SeriesRefResolver mocks base method.
+func (m *MockdatabaseShard) SeriesRefResolver(id ident.ID, tags ident.TagIterator) (bootstrap.SeriesRefResolver, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeriesRefResolver", id, tags)
+	ret0, _ := ret[0].(bootstrap.SeriesRefResolver)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SeriesRefResolver indicates an expected call of SeriesRefResolver.
+func (mr *MockdatabaseShardMockRecorder) SeriesRefResolver(id, tags interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesRefResolver", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesRefResolver), id, tags)
+}
+
+// Snapshot mocks base method.
+func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) (ShardSnapshotResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush, nsCtx)
+	ret0, _ := ret[0].(ShardSnapshotResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Snapshot indicates an expected call of Snapshot.
+func (mr *MockdatabaseShardMockRecorder) Snapshot(blockStart, snapshotStart, flush, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseShard)(nil).Snapshot), blockStart, snapshotStart, flush, nsCtx)
+}
+
+// Tick mocks base method.
+func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Tick", c, startTime, nsCtx)
+	ret0, _ := ret[0].(tickResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Tick indicates an expected call of Tick.
+func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, startTime, nsCtx)
+}
+
+// UpdateFlushStates mocks base method.
+func (m *MockdatabaseShard) UpdateFlushStates() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateFlushStates")
+}
+
+// UpdateFlushStates indicates an expected call of UpdateFlushStates.
+func (mr *MockdatabaseShardMockRecorder) UpdateFlushStates() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFlushStates", reflect.TypeOf((*MockdatabaseShard)(nil).UpdateFlushStates))
+}
+
+// WarmFlush mocks base method.
+func (m *MockdatabaseShard) WarmFlush(blockStart time.Time, flush persist.FlushPreparer, nsCtx namespace.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush, nsCtx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WarmFlush indicates an expected call of WarmFlush.
+func (mr *MockdatabaseShardMockRecorder) WarmFlush(blockStart, flush, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseShard)(nil).WarmFlush), blockStart, flush, nsCtx)
+}
+
+// Write mocks base method.
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
+	ret0, _ := ret[0].(SeriesWrite)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Write indicates an expected call of Write.
+func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseShard)(nil).Write), ctx, id, timestamp, value, unit, annotation, wOpts)
+}
+
+// WriteTagged mocks base method.
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts)
+	ret0, _ := ret[0].(SeriesWrite)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WriteTagged indicates an expected call of WriteTagged.
+func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseShard)(nil).WriteTagged), ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts)
+}
+
+// MockShardColdFlush is a mock of ShardColdFlush interface.
 type MockShardColdFlush struct {
 	ctrl     *gomock.Controller
 	recorder *MockShardColdFlushMockRecorder
 }
 
-// MockShardColdFlushMockRecorder is the mock recorder for MockShardColdFlush
+// MockShardColdFlushMockRecorder is the mock recorder for MockShardColdFlush.
 type MockShardColdFlushMockRecorder struct {
 	mock *MockShardColdFlush
 }
 
-// NewMockShardColdFlush creates a new mock instance
+// NewMockShardColdFlush creates a new mock instance.
 func NewMockShardColdFlush(ctrl *gomock.Controller) *MockShardColdFlush {
 	mock := &MockShardColdFlush{ctrl: ctrl}
 	mock.recorder = &MockShardColdFlushMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockShardColdFlush) EXPECT() *MockShardColdFlushMockRecorder {
 	return m.recorder
 }
 
-// Done mocks base method
+// Done mocks base method.
 func (m *MockShardColdFlush) Done() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Done")
@@ -2438,134 +2438,36 @@ func (m *MockShardColdFlush) Done() error {
 	return ret0
 }
 
-// Done indicates an expected call of Done
+// Done indicates an expected call of Done.
 func (mr *MockShardColdFlushMockRecorder) Done() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockShardColdFlush)(nil).Done))
 }
 
-// MockNamespaceIndex is a mock of NamespaceIndex interface
+// MockNamespaceIndex is a mock of NamespaceIndex interface.
 type MockNamespaceIndex struct {
 	ctrl     *gomock.Controller
 	recorder *MockNamespaceIndexMockRecorder
 }
 
-// MockNamespaceIndexMockRecorder is the mock recorder for MockNamespaceIndex
+// MockNamespaceIndexMockRecorder is the mock recorder for MockNamespaceIndex.
 type MockNamespaceIndexMockRecorder struct {
 	mock *MockNamespaceIndex
 }
 
-// NewMockNamespaceIndex creates a new mock instance
+// NewMockNamespaceIndex creates a new mock instance.
 func NewMockNamespaceIndex(ctrl *gomock.Controller) *MockNamespaceIndex {
 	mock := &MockNamespaceIndex{ctrl: ctrl}
 	mock.recorder = &MockNamespaceIndexMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockNamespaceIndex) EXPECT() *MockNamespaceIndexMockRecorder {
 	return m.recorder
 }
 
-// AssignShardSet mocks base method
-func (m *MockNamespaceIndex) AssignShardSet(shardSet sharding.ShardSet) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AssignShardSet", shardSet)
-}
-
-// AssignShardSet indicates an expected call of AssignShardSet
-func (mr *MockNamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockNamespaceIndex)(nil).AssignShardSet), shardSet)
-}
-
-// BlockStartForWriteTime mocks base method
-func (m *MockNamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BlockStartForWriteTime", writeTime)
-	ret0, _ := ret[0].(time0.UnixNano)
-	return ret0
-}
-
-// BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime
-func (mr *MockNamespaceIndexMockRecorder) BlockStartForWriteTime(writeTime interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockStartForWriteTime), writeTime)
-}
-
-// BlockForBlockStart mocks base method
-func (m *MockNamespaceIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BlockForBlockStart", blockStart)
-	ret0, _ := ret[0].(index.Block)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BlockForBlockStart indicates an expected call of BlockForBlockStart
-func (mr *MockNamespaceIndexMockRecorder) BlockForBlockStart(blockStart interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockForBlockStart", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockForBlockStart), blockStart)
-}
-
-// WriteBatch mocks base method
-func (m *MockNamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteBatch", batch)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteBatch indicates an expected call of WriteBatch
-func (mr *MockNamespaceIndexMockRecorder) WriteBatch(batch interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockNamespaceIndex)(nil).WriteBatch), batch)
-}
-
-// WritePending mocks base method
-func (m *MockNamespaceIndex) WritePending(pending []writes.PendingIndexInsert) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WritePending", pending)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WritePending indicates an expected call of WritePending
-func (mr *MockNamespaceIndexMockRecorder) WritePending(pending interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePending", reflect.TypeOf((*MockNamespaceIndex)(nil).WritePending), pending)
-}
-
-// Query mocks base method
-func (m *MockNamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Query", ctx, query, opts)
-	ret0, _ := ret[0].(index.QueryResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Query indicates an expected call of Query
-func (mr *MockNamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockNamespaceIndex)(nil).Query), ctx, query, opts)
-}
-
-// WideQuery mocks base method
-func (m *MockNamespaceIndex) WideQuery(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, query, collector, opts)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WideQuery indicates an expected call of WideQuery
-func (mr *MockNamespaceIndexMockRecorder) WideQuery(ctx, query, collector, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockNamespaceIndex)(nil).WideQuery), ctx, query, collector, opts)
-}
-
-// AggregateQuery mocks base method
+// AggregateQuery mocks base method.
 func (m *MockNamespaceIndex) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts)
@@ -2574,13 +2476,54 @@ func (m *MockNamespaceIndex) AggregateQuery(ctx context.Context, query index.Que
 	return ret0, ret1
 }
 
-// AggregateQuery indicates an expected call of AggregateQuery
+// AggregateQuery indicates an expected call of AggregateQuery.
 func (mr *MockNamespaceIndexMockRecorder) AggregateQuery(ctx, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockNamespaceIndex)(nil).AggregateQuery), ctx, query, opts)
 }
 
-// Bootstrap mocks base method
+// AssignShardSet mocks base method.
+func (m *MockNamespaceIndex) AssignShardSet(shardSet sharding.ShardSet) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AssignShardSet", shardSet)
+}
+
+// AssignShardSet indicates an expected call of AssignShardSet.
+func (mr *MockNamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockNamespaceIndex)(nil).AssignShardSet), shardSet)
+}
+
+// BlockForBlockStart mocks base method.
+func (m *MockNamespaceIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockForBlockStart", blockStart)
+	ret0, _ := ret[0].(index.Block)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BlockForBlockStart indicates an expected call of BlockForBlockStart.
+func (mr *MockNamespaceIndexMockRecorder) BlockForBlockStart(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockForBlockStart", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockForBlockStart), blockStart)
+}
+
+// BlockStartForWriteTime mocks base method.
+func (m *MockNamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockStartForWriteTime", writeTime)
+	ret0, _ := ret[0].(time0.UnixNano)
+	return ret0
+}
+
+// BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime.
+func (mr *MockNamespaceIndexMockRecorder) BlockStartForWriteTime(writeTime interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockStartForWriteTime), writeTime)
+}
+
+// Bootstrap mocks base method.
 func (m *MockNamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", bootstrapResults)
@@ -2588,13 +2531,13 @@ func (m *MockNamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) err
 	return ret0
 }
 
-// Bootstrap indicates an expected call of Bootstrap
+// Bootstrap indicates an expected call of Bootstrap.
 func (mr *MockNamespaceIndexMockRecorder) Bootstrap(bootstrapResults interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockNamespaceIndex)(nil).Bootstrap), bootstrapResults)
 }
 
-// Bootstrapped mocks base method
+// Bootstrapped mocks base method.
 func (m *MockNamespaceIndex) Bootstrapped() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrapped")
@@ -2602,27 +2545,13 @@ func (m *MockNamespaceIndex) Bootstrapped() bool {
 	return ret0
 }
 
-// Bootstrapped indicates an expected call of Bootstrapped
+// Bootstrapped indicates an expected call of Bootstrapped.
 func (mr *MockNamespaceIndexMockRecorder) Bootstrapped() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrapped", reflect.TypeOf((*MockNamespaceIndex)(nil).Bootstrapped))
 }
 
-// CleanupExpiredFileSets mocks base method
-func (m *MockNamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", t)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets
-func (mr *MockNamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupExpiredFileSets), t)
-}
-
-// CleanupDuplicateFileSets mocks base method
+// CleanupDuplicateFileSets mocks base method.
 func (m *MockNamespaceIndex) CleanupDuplicateFileSets(activeShards []uint32) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupDuplicateFileSets", activeShards)
@@ -2630,42 +2559,41 @@ func (m *MockNamespaceIndex) CleanupDuplicateFileSets(activeShards []uint32) err
 	return ret0
 }
 
-// CleanupDuplicateFileSets indicates an expected call of CleanupDuplicateFileSets
+// CleanupDuplicateFileSets indicates an expected call of CleanupDuplicateFileSets.
 func (mr *MockNamespaceIndexMockRecorder) CleanupDuplicateFileSets(activeShards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDuplicateFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupDuplicateFileSets), activeShards)
 }
 
-// Tick mocks base method
-func (m *MockNamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
+// CleanupExpiredFileSets mocks base method.
+func (m *MockNamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", c, startTime)
-	ret0, _ := ret[0].(namespaceIndexTickResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Tick indicates an expected call of Tick
-func (mr *MockNamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockNamespaceIndex)(nil).Tick), c, startTime)
-}
-
-// WarmFlush mocks base method
-func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", flush, shards)
+	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", t)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// WarmFlush indicates an expected call of WarmFlush
-func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *gomock.Call {
+// CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets.
+func (mr *MockNamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupExpiredFileSets), t)
 }
 
-// ColdFlush mocks base method
+// Close mocks base method.
+func (m *MockNamespaceIndex) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockNamespaceIndexMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockNamespaceIndex)(nil).Close))
+}
+
+// ColdFlush mocks base method.
 func (m *MockNamespaceIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlush", shards)
@@ -2674,13 +2602,13 @@ func (m *MockNamespaceIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone,
 	return ret0, ret1
 }
 
-// ColdFlush indicates an expected call of ColdFlush
+// ColdFlush indicates an expected call of ColdFlush.
 func (mr *MockNamespaceIndexMockRecorder) ColdFlush(shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).ColdFlush), shards)
 }
 
-// DebugMemorySegments mocks base method
+// DebugMemorySegments mocks base method.
 func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DebugMemorySegments", opts)
@@ -2688,78 +2616,122 @@ func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions
 	return ret0
 }
 
-// DebugMemorySegments indicates an expected call of DebugMemorySegments
+// DebugMemorySegments indicates an expected call of DebugMemorySegments.
 func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugMemorySegments", reflect.TypeOf((*MockNamespaceIndex)(nil).DebugMemorySegments), opts)
 }
 
-// Close mocks base method
-func (m *MockNamespaceIndex) Close() error {
+// Query mocks base method.
+func (m *MockNamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
+	ret := m.ctrl.Call(m, "Query", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Query indicates an expected call of Query.
+func (mr *MockNamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockNamespaceIndex)(nil).Query), ctx, query, opts)
+}
+
+// Tick mocks base method.
+func (m *MockNamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Tick", c, startTime)
+	ret0, _ := ret[0].(namespaceIndexTickResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Tick indicates an expected call of Tick.
+func (mr *MockNamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockNamespaceIndex)(nil).Tick), c, startTime)
+}
+
+// WarmFlush mocks base method.
+func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlush", flush, shards)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
-func (mr *MockNamespaceIndexMockRecorder) Close() *gomock.Call {
+// WarmFlush indicates an expected call of WarmFlush.
+func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockNamespaceIndex)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
 }
 
-// MocknamespaceIndexInsertQueue is a mock of namespaceIndexInsertQueue interface
+// WideQuery mocks base method.
+func (m *MockNamespaceIndex) WideQuery(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideQuery", ctx, query, collector, opts)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WideQuery indicates an expected call of WideQuery.
+func (mr *MockNamespaceIndexMockRecorder) WideQuery(ctx, query, collector, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockNamespaceIndex)(nil).WideQuery), ctx, query, collector, opts)
+}
+
+// WriteBatch mocks base method.
+func (m *MockNamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatch", batch)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch.
+func (mr *MockNamespaceIndexMockRecorder) WriteBatch(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockNamespaceIndex)(nil).WriteBatch), batch)
+}
+
+// WritePending mocks base method.
+func (m *MockNamespaceIndex) WritePending(pending []writes.PendingIndexInsert) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WritePending", pending)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WritePending indicates an expected call of WritePending.
+func (mr *MockNamespaceIndexMockRecorder) WritePending(pending interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePending", reflect.TypeOf((*MockNamespaceIndex)(nil).WritePending), pending)
+}
+
+// MocknamespaceIndexInsertQueue is a mock of namespaceIndexInsertQueue interface.
 type MocknamespaceIndexInsertQueue struct {
 	ctrl     *gomock.Controller
 	recorder *MocknamespaceIndexInsertQueueMockRecorder
 }
 
-// MocknamespaceIndexInsertQueueMockRecorder is the mock recorder for MocknamespaceIndexInsertQueue
+// MocknamespaceIndexInsertQueueMockRecorder is the mock recorder for MocknamespaceIndexInsertQueue.
 type MocknamespaceIndexInsertQueueMockRecorder struct {
 	mock *MocknamespaceIndexInsertQueue
 }
 
-// NewMocknamespaceIndexInsertQueue creates a new mock instance
+// NewMocknamespaceIndexInsertQueue creates a new mock instance.
 func NewMocknamespaceIndexInsertQueue(ctrl *gomock.Controller) *MocknamespaceIndexInsertQueue {
 	mock := &MocknamespaceIndexInsertQueue{ctrl: ctrl}
 	mock.recorder = &MocknamespaceIndexInsertQueueMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MocknamespaceIndexInsertQueue) EXPECT() *MocknamespaceIndexInsertQueueMockRecorder {
 	return m.recorder
 }
 
-// Start mocks base method
-func (m *MocknamespaceIndexInsertQueue) Start() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Start indicates an expected call of Start
-func (mr *MocknamespaceIndexInsertQueueMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Start))
-}
-
-// Stop mocks base method
-func (m *MocknamespaceIndexInsertQueue) Stop() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Stop indicates an expected call of Stop
-func (mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Stop))
-}
-
-// InsertBatch mocks base method
+// InsertBatch mocks base method.
 func (m *MocknamespaceIndexInsertQueue) InsertBatch(batch *index.WriteBatch) (*sync.WaitGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertBatch", batch)
@@ -2768,13 +2740,13 @@ func (m *MocknamespaceIndexInsertQueue) InsertBatch(batch *index.WriteBatch) (*s
 	return ret0, ret1
 }
 
-// InsertBatch indicates an expected call of InsertBatch
+// InsertBatch indicates an expected call of InsertBatch.
 func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertBatch(batch interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertBatch), batch)
 }
 
-// InsertPending mocks base method
+// InsertPending mocks base method.
 func (m *MocknamespaceIndexInsertQueue) InsertPending(pending []writes.PendingIndexInsert) (*sync.WaitGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertPending", pending)
@@ -2783,65 +2755,64 @@ func (m *MocknamespaceIndexInsertQueue) InsertPending(pending []writes.PendingIn
 	return ret0, ret1
 }
 
-// InsertPending indicates an expected call of InsertPending
+// InsertPending indicates an expected call of InsertPending.
 func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertPending(pending interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPending", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertPending), pending)
 }
 
-// MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface
+// Start mocks base method.
+func (m *MocknamespaceIndexInsertQueue) Start() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Start")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Start indicates an expected call of Start.
+func (mr *MocknamespaceIndexInsertQueueMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Start))
+}
+
+// Stop mocks base method.
+func (m *MocknamespaceIndexInsertQueue) Stop() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stop")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Stop))
+}
+
+// MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface.
 type MockdatabaseBootstrapManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseBootstrapManagerMockRecorder
 }
 
-// MockdatabaseBootstrapManagerMockRecorder is the mock recorder for MockdatabaseBootstrapManager
+// MockdatabaseBootstrapManagerMockRecorder is the mock recorder for MockdatabaseBootstrapManager.
 type MockdatabaseBootstrapManagerMockRecorder struct {
 	mock *MockdatabaseBootstrapManager
 }
 
-// NewMockdatabaseBootstrapManager creates a new mock instance
+// NewMockdatabaseBootstrapManager creates a new mock instance.
 func NewMockdatabaseBootstrapManager(ctrl *gomock.Controller) *MockdatabaseBootstrapManager {
 	mock := &MockdatabaseBootstrapManager{ctrl: ctrl}
 	mock.recorder = &MockdatabaseBootstrapManagerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseBootstrapManager) EXPECT() *MockdatabaseBootstrapManagerMockRecorder {
 	return m.recorder
 }
 
-// IsBootstrapped mocks base method
-func (m *MockdatabaseBootstrapManager) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockdatabaseBootstrapManagerMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).IsBootstrapped))
-}
-
-// LastBootstrapCompletionTime mocks base method
-func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
-	ret0, _ := ret[0].(time0.UnixNano)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// LastBootstrapCompletionTime indicates an expected call of LastBootstrapCompletionTime
-func (mr *MockdatabaseBootstrapManagerMockRecorder) LastBootstrapCompletionTime() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastBootstrapCompletionTime", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).LastBootstrapCompletionTime))
-}
-
-// Bootstrap mocks base method
+// Bootstrap mocks base method.
 func (m *MockdatabaseBootstrapManager) Bootstrap() (BootstrapResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
@@ -2850,13 +2821,13 @@ func (m *MockdatabaseBootstrapManager) Bootstrap() (BootstrapResult, error) {
 	return ret0, ret1
 }
 
-// Bootstrap indicates an expected call of Bootstrap
+// Bootstrap indicates an expected call of Bootstrap.
 func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Bootstrap))
 }
 
-// BootstrapEnqueue mocks base method
+// BootstrapEnqueue mocks base method.
 func (m *MockdatabaseBootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapEnqueue")
@@ -2864,48 +2835,77 @@ func (m *MockdatabaseBootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult 
 	return ret0
 }
 
-// BootstrapEnqueue indicates an expected call of BootstrapEnqueue
+// BootstrapEnqueue indicates an expected call of BootstrapEnqueue.
 func (mr *MockdatabaseBootstrapManagerMockRecorder) BootstrapEnqueue() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).BootstrapEnqueue))
 }
 
-// Report mocks base method
+// IsBootstrapped mocks base method.
+func (m *MockdatabaseBootstrapManager) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBootstrapped indicates an expected call of IsBootstrapped.
+func (mr *MockdatabaseBootstrapManagerMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).IsBootstrapped))
+}
+
+// LastBootstrapCompletionTime mocks base method.
+func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
+	ret0, _ := ret[0].(time0.UnixNano)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// LastBootstrapCompletionTime indicates an expected call of LastBootstrapCompletionTime.
+func (mr *MockdatabaseBootstrapManagerMockRecorder) LastBootstrapCompletionTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastBootstrapCompletionTime", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).LastBootstrapCompletionTime))
+}
+
+// Report mocks base method.
 func (m *MockdatabaseBootstrapManager) Report() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
-// Report indicates an expected call of Report
+// Report indicates an expected call of Report.
 func (mr *MockdatabaseBootstrapManagerMockRecorder) Report() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Report))
 }
 
-// MockdatabaseFlushManager is a mock of databaseFlushManager interface
+// MockdatabaseFlushManager is a mock of databaseFlushManager interface.
 type MockdatabaseFlushManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseFlushManagerMockRecorder
 }
 
-// MockdatabaseFlushManagerMockRecorder is the mock recorder for MockdatabaseFlushManager
+// MockdatabaseFlushManagerMockRecorder is the mock recorder for MockdatabaseFlushManager.
 type MockdatabaseFlushManagerMockRecorder struct {
 	mock *MockdatabaseFlushManager
 }
 
-// NewMockdatabaseFlushManager creates a new mock instance
+// NewMockdatabaseFlushManager creates a new mock instance.
 func NewMockdatabaseFlushManager(ctrl *gomock.Controller) *MockdatabaseFlushManager {
 	mock := &MockdatabaseFlushManager{ctrl: ctrl}
 	mock.recorder = &MockdatabaseFlushManagerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseFlushManager) EXPECT() *MockdatabaseFlushManagerMockRecorder {
 	return m.recorder
 }
 
-// Flush mocks base method
+// Flush mocks base method.
 func (m *MockdatabaseFlushManager) Flush(startTime time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", startTime)
@@ -2913,13 +2913,13 @@ func (m *MockdatabaseFlushManager) Flush(startTime time.Time) error {
 	return ret0
 }
 
-// Flush indicates an expected call of Flush
+// Flush indicates an expected call of Flush.
 func (mr *MockdatabaseFlushManagerMockRecorder) Flush(startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), startTime)
 }
 
-// LastSuccessfulSnapshotStartTime mocks base method
+// LastSuccessfulSnapshotStartTime mocks base method.
 func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
@@ -2928,62 +2928,48 @@ func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time0.Unix
 	return ret0, ret1
 }
 
-// LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime
+// LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime.
 func (mr *MockdatabaseFlushManagerMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseFlushManager)(nil).LastSuccessfulSnapshotStartTime))
 }
 
-// Report mocks base method
+// Report mocks base method.
 func (m *MockdatabaseFlushManager) Report() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
-// Report indicates an expected call of Report
+// Report indicates an expected call of Report.
 func (mr *MockdatabaseFlushManagerMockRecorder) Report() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Report))
 }
 
-// MockdatabaseCleanupManager is a mock of databaseCleanupManager interface
+// MockdatabaseCleanupManager is a mock of databaseCleanupManager interface.
 type MockdatabaseCleanupManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseCleanupManagerMockRecorder
 }
 
-// MockdatabaseCleanupManagerMockRecorder is the mock recorder for MockdatabaseCleanupManager
+// MockdatabaseCleanupManagerMockRecorder is the mock recorder for MockdatabaseCleanupManager.
 type MockdatabaseCleanupManagerMockRecorder struct {
 	mock *MockdatabaseCleanupManager
 }
 
-// NewMockdatabaseCleanupManager creates a new mock instance
+// NewMockdatabaseCleanupManager creates a new mock instance.
 func NewMockdatabaseCleanupManager(ctrl *gomock.Controller) *MockdatabaseCleanupManager {
 	mock := &MockdatabaseCleanupManager{ctrl: ctrl}
 	mock.recorder = &MockdatabaseCleanupManagerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRecorder {
 	return m.recorder
 }
 
-// WarmFlushCleanup mocks base method
-func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WarmFlushCleanup indicates an expected call of WarmFlushCleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t)
-}
-
-// ColdFlushCleanup mocks base method
+// ColdFlushCleanup mocks base method.
 func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
@@ -2991,62 +2977,62 @@ func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time) error {
 	return ret0
 }
 
-// ColdFlushCleanup indicates an expected call of ColdFlushCleanup
+// ColdFlushCleanup indicates an expected call of ColdFlushCleanup.
 func (mr *MockdatabaseCleanupManagerMockRecorder) ColdFlushCleanup(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).ColdFlushCleanup), t)
 }
 
-// Report mocks base method
+// Report mocks base method.
 func (m *MockdatabaseCleanupManager) Report() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
-// Report indicates an expected call of Report
+// Report indicates an expected call of Report.
 func (mr *MockdatabaseCleanupManagerMockRecorder) Report() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Report))
 }
 
-// MockdatabaseFileSystemManager is a mock of databaseFileSystemManager interface
+// WarmFlushCleanup mocks base method.
+func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WarmFlushCleanup indicates an expected call of WarmFlushCleanup.
+func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t)
+}
+
+// MockdatabaseFileSystemManager is a mock of databaseFileSystemManager interface.
 type MockdatabaseFileSystemManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseFileSystemManagerMockRecorder
 }
 
-// MockdatabaseFileSystemManagerMockRecorder is the mock recorder for MockdatabaseFileSystemManager
+// MockdatabaseFileSystemManagerMockRecorder is the mock recorder for MockdatabaseFileSystemManager.
 type MockdatabaseFileSystemManagerMockRecorder struct {
 	mock *MockdatabaseFileSystemManager
 }
 
-// NewMockdatabaseFileSystemManager creates a new mock instance
+// NewMockdatabaseFileSystemManager creates a new mock instance.
 func NewMockdatabaseFileSystemManager(ctrl *gomock.Controller) *MockdatabaseFileSystemManager {
 	mock := &MockdatabaseFileSystemManager{ctrl: ctrl}
 	mock.recorder = &MockdatabaseFileSystemManagerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseFileSystemManager) EXPECT() *MockdatabaseFileSystemManagerMockRecorder {
 	return m.recorder
 }
 
-// Flush mocks base method
-func (m *MockdatabaseFileSystemManager) Flush(t time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", t)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Flush indicates an expected call of Flush
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Flush(t interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Flush), t)
-}
-
-// Disable mocks base method
+// Disable mocks base method.
 func (m *MockdatabaseFileSystemManager) Disable() fileOpStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Disable")
@@ -3054,13 +3040,13 @@ func (m *MockdatabaseFileSystemManager) Disable() fileOpStatus {
 	return ret0
 }
 
-// Disable indicates an expected call of Disable
+// Disable indicates an expected call of Disable.
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Disable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Disable", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Disable))
 }
 
-// Enable mocks base method
+// Enable mocks base method.
 func (m *MockdatabaseFileSystemManager) Enable() fileOpStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Enable")
@@ -3068,53 +3054,27 @@ func (m *MockdatabaseFileSystemManager) Enable() fileOpStatus {
 	return ret0
 }
 
-// Enable indicates an expected call of Enable
+// Enable indicates an expected call of Enable.
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Enable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enable", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Enable))
 }
 
-// Status mocks base method
-func (m *MockdatabaseFileSystemManager) Status() fileOpStatus {
+// Flush mocks base method.
+func (m *MockdatabaseFileSystemManager) Flush(t time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Status")
-	ret0, _ := ret[0].(fileOpStatus)
+	ret := m.ctrl.Call(m, "Flush", t)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Status indicates an expected call of Status
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Status() *gomock.Call {
+// Flush indicates an expected call of Flush.
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Flush(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Status))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Flush), t)
 }
 
-// Run mocks base method
-func (m *MockdatabaseFileSystemManager) Run(t time.Time) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", t)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Run indicates an expected call of Run
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Run(t interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Run), t)
-}
-
-// Report mocks base method
-func (m *MockdatabaseFileSystemManager) Report() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Report")
-}
-
-// Report indicates an expected call of Report
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Report() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Report))
-}
-
-// LastSuccessfulSnapshotStartTime mocks base method
+// LastSuccessfulSnapshotStartTime mocks base method.
 func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
@@ -3123,50 +3083,76 @@ func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time0
 	return ret0, ret1
 }
 
-// LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime
+// LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime.
 func (mr *MockdatabaseFileSystemManagerMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).LastSuccessfulSnapshotStartTime))
 }
 
-// MockdatabaseColdFlushManager is a mock of databaseColdFlushManager interface
+// Report mocks base method.
+func (m *MockdatabaseFileSystemManager) Report() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Report")
+}
+
+// Report indicates an expected call of Report.
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Report))
+}
+
+// Run mocks base method.
+func (m *MockdatabaseFileSystemManager) Run(t time.Time) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Run", t)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Run indicates an expected call of Run.
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Run(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Run), t)
+}
+
+// Status mocks base method.
+func (m *MockdatabaseFileSystemManager) Status() fileOpStatus {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Status")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+// Status indicates an expected call of Status.
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Status() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Status))
+}
+
+// MockdatabaseColdFlushManager is a mock of databaseColdFlushManager interface.
 type MockdatabaseColdFlushManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseColdFlushManagerMockRecorder
 }
 
-// MockdatabaseColdFlushManagerMockRecorder is the mock recorder for MockdatabaseColdFlushManager
+// MockdatabaseColdFlushManagerMockRecorder is the mock recorder for MockdatabaseColdFlushManager.
 type MockdatabaseColdFlushManagerMockRecorder struct {
 	mock *MockdatabaseColdFlushManager
 }
 
-// NewMockdatabaseColdFlushManager creates a new mock instance
+// NewMockdatabaseColdFlushManager creates a new mock instance.
 func NewMockdatabaseColdFlushManager(ctrl *gomock.Controller) *MockdatabaseColdFlushManager {
 	mock := &MockdatabaseColdFlushManager{ctrl: ctrl}
 	mock.recorder = &MockdatabaseColdFlushManagerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseColdFlushManager) EXPECT() *MockdatabaseColdFlushManagerMockRecorder {
 	return m.recorder
 }
 
-// WarmFlushCleanup mocks base method
-func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WarmFlushCleanup indicates an expected call of WarmFlushCleanup
-func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t)
-}
-
-// ColdFlushCleanup mocks base method
+// ColdFlushCleanup mocks base method.
 func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
@@ -3174,25 +3160,13 @@ func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time) error {
 	return ret0
 }
 
-// ColdFlushCleanup indicates an expected call of ColdFlushCleanup
+// ColdFlushCleanup indicates an expected call of ColdFlushCleanup.
 func (mr *MockdatabaseColdFlushManagerMockRecorder) ColdFlushCleanup(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).ColdFlushCleanup), t)
 }
 
-// Report mocks base method
-func (m *MockdatabaseColdFlushManager) Report() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Report")
-}
-
-// Report indicates an expected call of Report
-func (mr *MockdatabaseColdFlushManagerMockRecorder) Report() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Report))
-}
-
-// Disable mocks base method
+// Disable mocks base method.
 func (m *MockdatabaseColdFlushManager) Disable() fileOpStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Disable")
@@ -3200,13 +3174,13 @@ func (m *MockdatabaseColdFlushManager) Disable() fileOpStatus {
 	return ret0
 }
 
-// Disable indicates an expected call of Disable
+// Disable indicates an expected call of Disable.
 func (mr *MockdatabaseColdFlushManagerMockRecorder) Disable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Disable", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Disable))
 }
 
-// Enable mocks base method
+// Enable mocks base method.
 func (m *MockdatabaseColdFlushManager) Enable() fileOpStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Enable")
@@ -3214,27 +3188,25 @@ func (m *MockdatabaseColdFlushManager) Enable() fileOpStatus {
 	return ret0
 }
 
-// Enable indicates an expected call of Enable
+// Enable indicates an expected call of Enable.
 func (mr *MockdatabaseColdFlushManagerMockRecorder) Enable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enable", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Enable))
 }
 
-// Status mocks base method
-func (m *MockdatabaseColdFlushManager) Status() fileOpStatus {
+// Report mocks base method.
+func (m *MockdatabaseColdFlushManager) Report() {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Status")
-	ret0, _ := ret[0].(fileOpStatus)
-	return ret0
+	m.ctrl.Call(m, "Report")
 }
 
-// Status indicates an expected call of Status
-func (mr *MockdatabaseColdFlushManagerMockRecorder) Status() *gomock.Call {
+// Report indicates an expected call of Report.
+func (mr *MockdatabaseColdFlushManagerMockRecorder) Report() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Status))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Report))
 }
 
-// Run mocks base method
+// Run mocks base method.
 func (m *MockdatabaseColdFlushManager) Run(t time.Time) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", t)
@@ -3242,36 +3214,64 @@ func (m *MockdatabaseColdFlushManager) Run(t time.Time) bool {
 	return ret0
 }
 
-// Run indicates an expected call of Run
+// Run indicates an expected call of Run.
 func (mr *MockdatabaseColdFlushManagerMockRecorder) Run(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Run), t)
 }
 
-// MockdatabaseShardRepairer is a mock of databaseShardRepairer interface
+// Status mocks base method.
+func (m *MockdatabaseColdFlushManager) Status() fileOpStatus {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Status")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+// Status indicates an expected call of Status.
+func (mr *MockdatabaseColdFlushManagerMockRecorder) Status() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Status))
+}
+
+// WarmFlushCleanup mocks base method.
+func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WarmFlushCleanup indicates an expected call of WarmFlushCleanup.
+func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t)
+}
+
+// MockdatabaseShardRepairer is a mock of databaseShardRepairer interface.
 type MockdatabaseShardRepairer struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseShardRepairerMockRecorder
 }
 
-// MockdatabaseShardRepairerMockRecorder is the mock recorder for MockdatabaseShardRepairer
+// MockdatabaseShardRepairerMockRecorder is the mock recorder for MockdatabaseShardRepairer.
 type MockdatabaseShardRepairerMockRecorder struct {
 	mock *MockdatabaseShardRepairer
 }
 
-// NewMockdatabaseShardRepairer creates a new mock instance
+// NewMockdatabaseShardRepairer creates a new mock instance.
 func NewMockdatabaseShardRepairer(ctrl *gomock.Controller) *MockdatabaseShardRepairer {
 	mock := &MockdatabaseShardRepairer{ctrl: ctrl}
 	mock.recorder = &MockdatabaseShardRepairerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseShardRepairer) EXPECT() *MockdatabaseShardRepairerMockRecorder {
 	return m.recorder
 }
 
-// Options mocks base method
+// Options mocks base method.
 func (m *MockdatabaseShardRepairer) Options() repair.Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
@@ -3279,13 +3279,13 @@ func (m *MockdatabaseShardRepairer) Options() repair.Options {
 	return ret0
 }
 
-// Options indicates an expected call of Options
+// Options indicates an expected call of Options.
 func (mr *MockdatabaseShardRepairerMockRecorder) Options() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockdatabaseShardRepairer)(nil).Options))
 }
 
-// Repair mocks base method
+// Repair mocks base method.
 func (m *MockdatabaseShardRepairer) Repair(ctx context.Context, nsCtx namespace.Context, nsMeta namespace.Metadata, tr time0.Range, shard databaseShard) (repair.MetadataComparisonResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair", ctx, nsCtx, nsMeta, tr, shard)
@@ -3294,166 +3294,130 @@ func (m *MockdatabaseShardRepairer) Repair(ctx context.Context, nsCtx namespace.
 	return ret0, ret1
 }
 
-// Repair indicates an expected call of Repair
+// Repair indicates an expected call of Repair.
 func (mr *MockdatabaseShardRepairerMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, shard interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShardRepairer)(nil).Repair), ctx, nsCtx, nsMeta, tr, shard)
 }
 
-// MockBackgroundProcess is a mock of BackgroundProcess interface
+// MockBackgroundProcess is a mock of BackgroundProcess interface.
 type MockBackgroundProcess struct {
 	ctrl     *gomock.Controller
 	recorder *MockBackgroundProcessMockRecorder
 }
 
-// MockBackgroundProcessMockRecorder is the mock recorder for MockBackgroundProcess
+// MockBackgroundProcessMockRecorder is the mock recorder for MockBackgroundProcess.
 type MockBackgroundProcessMockRecorder struct {
 	mock *MockBackgroundProcess
 }
 
-// NewMockBackgroundProcess creates a new mock instance
+// NewMockBackgroundProcess creates a new mock instance.
 func NewMockBackgroundProcess(ctrl *gomock.Controller) *MockBackgroundProcess {
 	mock := &MockBackgroundProcess{ctrl: ctrl}
 	mock.recorder = &MockBackgroundProcessMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBackgroundProcess) EXPECT() *MockBackgroundProcessMockRecorder {
 	return m.recorder
 }
 
-// Start mocks base method
-func (m *MockBackgroundProcess) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
-}
-
-// Start indicates an expected call of Start
-func (mr *MockBackgroundProcessMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockBackgroundProcess)(nil).Start))
-}
-
-// Stop mocks base method
-func (m *MockBackgroundProcess) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
-}
-
-// Stop indicates an expected call of Stop
-func (mr *MockBackgroundProcessMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockBackgroundProcess)(nil).Stop))
-}
-
-// Report mocks base method
+// Report mocks base method.
 func (m *MockBackgroundProcess) Report() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
-// Report indicates an expected call of Report
+// Report indicates an expected call of Report.
 func (mr *MockBackgroundProcessMockRecorder) Report() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockBackgroundProcess)(nil).Report))
 }
 
-// MockFileOpsProcess is a mock of FileOpsProcess interface
+// Start mocks base method.
+func (m *MockBackgroundProcess) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start.
+func (mr *MockBackgroundProcessMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockBackgroundProcess)(nil).Start))
+}
+
+// Stop mocks base method.
+func (m *MockBackgroundProcess) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockBackgroundProcessMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockBackgroundProcess)(nil).Stop))
+}
+
+// MockFileOpsProcess is a mock of FileOpsProcess interface.
 type MockFileOpsProcess struct {
 	ctrl     *gomock.Controller
 	recorder *MockFileOpsProcessMockRecorder
 }
 
-// MockFileOpsProcessMockRecorder is the mock recorder for MockFileOpsProcess
+// MockFileOpsProcessMockRecorder is the mock recorder for MockFileOpsProcess.
 type MockFileOpsProcessMockRecorder struct {
 	mock *MockFileOpsProcess
 }
 
-// NewMockFileOpsProcess creates a new mock instance
+// NewMockFileOpsProcess creates a new mock instance.
 func NewMockFileOpsProcess(ctrl *gomock.Controller) *MockFileOpsProcess {
 	mock := &MockFileOpsProcess{ctrl: ctrl}
 	mock.recorder = &MockFileOpsProcessMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockFileOpsProcess) EXPECT() *MockFileOpsProcessMockRecorder {
 	return m.recorder
 }
 
-// Start mocks base method
+// Start mocks base method.
 func (m *MockFileOpsProcess) Start() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Start")
 }
 
-// Start indicates an expected call of Start
+// Start indicates an expected call of Start.
 func (mr *MockFileOpsProcessMockRecorder) Start() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockFileOpsProcess)(nil).Start))
 }
 
-// MockdatabaseRepairer is a mock of databaseRepairer interface
+// MockdatabaseRepairer is a mock of databaseRepairer interface.
 type MockdatabaseRepairer struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseRepairerMockRecorder
 }
 
-// MockdatabaseRepairerMockRecorder is the mock recorder for MockdatabaseRepairer
+// MockdatabaseRepairerMockRecorder is the mock recorder for MockdatabaseRepairer.
 type MockdatabaseRepairerMockRecorder struct {
 	mock *MockdatabaseRepairer
 }
 
-// NewMockdatabaseRepairer creates a new mock instance
+// NewMockdatabaseRepairer creates a new mock instance.
 func NewMockdatabaseRepairer(ctrl *gomock.Controller) *MockdatabaseRepairer {
 	mock := &MockdatabaseRepairer{ctrl: ctrl}
 	mock.recorder = &MockdatabaseRepairerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseRepairer) EXPECT() *MockdatabaseRepairerMockRecorder {
 	return m.recorder
 }
 
-// Start mocks base method
-func (m *MockdatabaseRepairer) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
-}
-
-// Start indicates an expected call of Start
-func (mr *MockdatabaseRepairerMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockdatabaseRepairer)(nil).Start))
-}
-
-// Stop mocks base method
-func (m *MockdatabaseRepairer) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
-}
-
-// Stop indicates an expected call of Stop
-func (mr *MockdatabaseRepairerMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockdatabaseRepairer)(nil).Stop))
-}
-
-// Report mocks base method
-func (m *MockdatabaseRepairer) Report() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Report")
-}
-
-// Report indicates an expected call of Report
-func (mr *MockdatabaseRepairerMockRecorder) Report() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseRepairer)(nil).Report))
-}
-
-// Repair mocks base method
+// Repair mocks base method.
 func (m *MockdatabaseRepairer) Repair() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair")
@@ -3461,36 +3425,72 @@ func (m *MockdatabaseRepairer) Repair() error {
 	return ret0
 }
 
-// Repair indicates an expected call of Repair
+// Repair indicates an expected call of Repair.
 func (mr *MockdatabaseRepairerMockRecorder) Repair() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseRepairer)(nil).Repair))
 }
 
-// MockdatabaseTickManager is a mock of databaseTickManager interface
+// Report mocks base method.
+func (m *MockdatabaseRepairer) Report() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Report")
+}
+
+// Report indicates an expected call of Report.
+func (mr *MockdatabaseRepairerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseRepairer)(nil).Report))
+}
+
+// Start mocks base method.
+func (m *MockdatabaseRepairer) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start.
+func (mr *MockdatabaseRepairerMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockdatabaseRepairer)(nil).Start))
+}
+
+// Stop mocks base method.
+func (m *MockdatabaseRepairer) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockdatabaseRepairerMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockdatabaseRepairer)(nil).Stop))
+}
+
+// MockdatabaseTickManager is a mock of databaseTickManager interface.
 type MockdatabaseTickManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseTickManagerMockRecorder
 }
 
-// MockdatabaseTickManagerMockRecorder is the mock recorder for MockdatabaseTickManager
+// MockdatabaseTickManagerMockRecorder is the mock recorder for MockdatabaseTickManager.
 type MockdatabaseTickManagerMockRecorder struct {
 	mock *MockdatabaseTickManager
 }
 
-// NewMockdatabaseTickManager creates a new mock instance
+// NewMockdatabaseTickManager creates a new mock instance.
 func NewMockdatabaseTickManager(ctrl *gomock.Controller) *MockdatabaseTickManager {
 	mock := &MockdatabaseTickManager{ctrl: ctrl}
 	mock.recorder = &MockdatabaseTickManagerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseTickManager) EXPECT() *MockdatabaseTickManagerMockRecorder {
 	return m.recorder
 }
 
-// Tick mocks base method
+// Tick mocks base method.
 func (m *MockdatabaseTickManager) Tick(forceType forceType, startTime time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", forceType, startTime)
@@ -3498,107 +3498,36 @@ func (m *MockdatabaseTickManager) Tick(forceType forceType, startTime time.Time)
 	return ret0
 }
 
-// Tick indicates an expected call of Tick
+// Tick indicates an expected call of Tick.
 func (mr *MockdatabaseTickManagerMockRecorder) Tick(forceType, startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseTickManager)(nil).Tick), forceType, startTime)
 }
 
-// MockdatabaseMediator is a mock of databaseMediator interface
+// MockdatabaseMediator is a mock of databaseMediator interface.
 type MockdatabaseMediator struct {
 	ctrl     *gomock.Controller
 	recorder *MockdatabaseMediatorMockRecorder
 }
 
-// MockdatabaseMediatorMockRecorder is the mock recorder for MockdatabaseMediator
+// MockdatabaseMediatorMockRecorder is the mock recorder for MockdatabaseMediator.
 type MockdatabaseMediatorMockRecorder struct {
 	mock *MockdatabaseMediator
 }
 
-// NewMockdatabaseMediator creates a new mock instance
+// NewMockdatabaseMediator creates a new mock instance.
 func NewMockdatabaseMediator(ctrl *gomock.Controller) *MockdatabaseMediator {
 	mock := &MockdatabaseMediator{ctrl: ctrl}
 	mock.recorder = &MockdatabaseMediatorMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdatabaseMediator) EXPECT() *MockdatabaseMediatorMockRecorder {
 	return m.recorder
 }
 
-// Open mocks base method
-func (m *MockdatabaseMediator) Open() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Open")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Open indicates an expected call of Open
-func (mr *MockdatabaseMediatorMockRecorder) Open() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockdatabaseMediator)(nil).Open))
-}
-
-// RegisterBackgroundProcess mocks base method
-func (m *MockdatabaseMediator) RegisterBackgroundProcess(process BackgroundProcess) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RegisterBackgroundProcess", process)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RegisterBackgroundProcess indicates an expected call of RegisterBackgroundProcess
-func (mr *MockdatabaseMediatorMockRecorder) RegisterBackgroundProcess(process interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterBackgroundProcess", reflect.TypeOf((*MockdatabaseMediator)(nil).RegisterBackgroundProcess), process)
-}
-
-// IsBootstrapped mocks base method
-func (m *MockdatabaseMediator) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseMediator)(nil).IsBootstrapped))
-}
-
-// IsOpen mocks base method
-func (m *MockdatabaseMediator) IsOpen() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsOpen")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsOpen indicates an expected call of IsOpen
-func (mr *MockdatabaseMediatorMockRecorder) IsOpen() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpen", reflect.TypeOf((*MockdatabaseMediator)(nil).IsOpen))
-}
-
-// LastBootstrapCompletionTime mocks base method
-func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
-	ret0, _ := ret[0].(time0.UnixNano)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// LastBootstrapCompletionTime indicates an expected call of LastBootstrapCompletionTime
-func (mr *MockdatabaseMediatorMockRecorder) LastBootstrapCompletionTime() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastBootstrapCompletionTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastBootstrapCompletionTime))
-}
-
-// Bootstrap mocks base method
+// Bootstrap mocks base method.
 func (m *MockdatabaseMediator) Bootstrap() (BootstrapResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
@@ -3607,13 +3536,13 @@ func (m *MockdatabaseMediator) Bootstrap() (BootstrapResult, error) {
 	return ret0, ret1
 }
 
-// Bootstrap indicates an expected call of Bootstrap
+// Bootstrap indicates an expected call of Bootstrap.
 func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap))
 }
 
-// BootstrapEnqueue mocks base method
+// BootstrapEnqueue mocks base method.
 func (m *MockdatabaseMediator) BootstrapEnqueue() *BootstrapAsyncResult {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapEnqueue")
@@ -3621,51 +3550,13 @@ func (m *MockdatabaseMediator) BootstrapEnqueue() *BootstrapAsyncResult {
 	return ret0
 }
 
-// BootstrapEnqueue indicates an expected call of BootstrapEnqueue
+// BootstrapEnqueue indicates an expected call of BootstrapEnqueue.
 func (mr *MockdatabaseMediatorMockRecorder) BootstrapEnqueue() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseMediator)(nil).BootstrapEnqueue))
 }
 
-// DisableFileOpsAndWait mocks base method
-func (m *MockdatabaseMediator) DisableFileOpsAndWait() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DisableFileOpsAndWait")
-}
-
-// DisableFileOpsAndWait indicates an expected call of DisableFileOpsAndWait
-func (mr *MockdatabaseMediatorMockRecorder) DisableFileOpsAndWait() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableFileOpsAndWait", reflect.TypeOf((*MockdatabaseMediator)(nil).DisableFileOpsAndWait))
-}
-
-// EnableFileOps mocks base method
-func (m *MockdatabaseMediator) EnableFileOps() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "EnableFileOps")
-}
-
-// EnableFileOps indicates an expected call of EnableFileOps
-func (mr *MockdatabaseMediatorMockRecorder) EnableFileOps() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableFileOps", reflect.TypeOf((*MockdatabaseMediator)(nil).EnableFileOps))
-}
-
-// Tick mocks base method
-func (m *MockdatabaseMediator) Tick(forceType forceType, startTime time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", forceType, startTime)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Tick indicates an expected call of Tick
-func (mr *MockdatabaseMediatorMockRecorder) Tick(forceType, startTime interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseMediator)(nil).Tick), forceType, startTime)
-}
-
-// Close mocks base method
+// Close mocks base method.
 func (m *MockdatabaseMediator) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -3673,25 +3564,94 @@ func (m *MockdatabaseMediator) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockdatabaseMediatorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseMediator)(nil).Close))
 }
 
-// Report mocks base method
-func (m *MockdatabaseMediator) Report() {
+// DisableFileOpsAndWait mocks base method.
+func (m *MockdatabaseMediator) DisableFileOpsAndWait() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Report")
+	m.ctrl.Call(m, "DisableFileOpsAndWait")
 }
 
-// Report indicates an expected call of Report
-func (mr *MockdatabaseMediatorMockRecorder) Report() *gomock.Call {
+// DisableFileOpsAndWait indicates an expected call of DisableFileOpsAndWait.
+func (mr *MockdatabaseMediatorMockRecorder) DisableFileOpsAndWait() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseMediator)(nil).Report))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableFileOpsAndWait", reflect.TypeOf((*MockdatabaseMediator)(nil).DisableFileOpsAndWait))
 }
 
-// LastSuccessfulSnapshotStartTime mocks base method
+// EnableFileOps mocks base method.
+func (m *MockdatabaseMediator) EnableFileOps() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EnableFileOps")
+}
+
+// EnableFileOps indicates an expected call of EnableFileOps.
+func (mr *MockdatabaseMediatorMockRecorder) EnableFileOps() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableFileOps", reflect.TypeOf((*MockdatabaseMediator)(nil).EnableFileOps))
+}
+
+// EnqueueMutuallyExclusiveFn mocks base method.
+func (m *MockdatabaseMediator) EnqueueMutuallyExclusiveFn(fn func()) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueMutuallyExclusiveFn", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnqueueMutuallyExclusiveFn indicates an expected call of EnqueueMutuallyExclusiveFn.
+func (mr *MockdatabaseMediatorMockRecorder) EnqueueMutuallyExclusiveFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueMutuallyExclusiveFn", reflect.TypeOf((*MockdatabaseMediator)(nil).EnqueueMutuallyExclusiveFn), fn)
+}
+
+// IsBootstrapped mocks base method.
+func (m *MockdatabaseMediator) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBootstrapped indicates an expected call of IsBootstrapped.
+func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseMediator)(nil).IsBootstrapped))
+}
+
+// IsOpen mocks base method.
+func (m *MockdatabaseMediator) IsOpen() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOpen")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOpen indicates an expected call of IsOpen.
+func (mr *MockdatabaseMediatorMockRecorder) IsOpen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpen", reflect.TypeOf((*MockdatabaseMediator)(nil).IsOpen))
+}
+
+// LastBootstrapCompletionTime mocks base method.
+func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
+	ret0, _ := ret[0].(time0.UnixNano)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// LastBootstrapCompletionTime indicates an expected call of LastBootstrapCompletionTime.
+func (mr *MockdatabaseMediatorMockRecorder) LastBootstrapCompletionTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastBootstrapCompletionTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastBootstrapCompletionTime))
+}
+
+// LastSuccessfulSnapshotStartTime mocks base method.
 func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
@@ -3700,50 +3660,90 @@ func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time0.UnixNano
 	return ret0, ret1
 }
 
-// LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime
+// LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime.
 func (mr *MockdatabaseMediatorMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastSuccessfulSnapshotStartTime))
 }
 
-// EnqueueMutuallyExclusiveFn mocks base method
-func (m *MockdatabaseMediator) EnqueueMutuallyExclusiveFn(fn func()) error {
+// Open mocks base method.
+func (m *MockdatabaseMediator) Open() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnqueueMutuallyExclusiveFn", fn)
+	ret := m.ctrl.Call(m, "Open")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// EnqueueMutuallyExclusiveFn indicates an expected call of EnqueueMutuallyExclusiveFn
-func (mr *MockdatabaseMediatorMockRecorder) EnqueueMutuallyExclusiveFn(fn interface{}) *gomock.Call {
+// Open indicates an expected call of Open.
+func (mr *MockdatabaseMediatorMockRecorder) Open() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueMutuallyExclusiveFn", reflect.TypeOf((*MockdatabaseMediator)(nil).EnqueueMutuallyExclusiveFn), fn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockdatabaseMediator)(nil).Open))
 }
 
-// MockColdFlushNsOpts is a mock of ColdFlushNsOpts interface
+// RegisterBackgroundProcess mocks base method.
+func (m *MockdatabaseMediator) RegisterBackgroundProcess(process BackgroundProcess) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterBackgroundProcess", process)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RegisterBackgroundProcess indicates an expected call of RegisterBackgroundProcess.
+func (mr *MockdatabaseMediatorMockRecorder) RegisterBackgroundProcess(process interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterBackgroundProcess", reflect.TypeOf((*MockdatabaseMediator)(nil).RegisterBackgroundProcess), process)
+}
+
+// Report mocks base method.
+func (m *MockdatabaseMediator) Report() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Report")
+}
+
+// Report indicates an expected call of Report.
+func (mr *MockdatabaseMediatorMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseMediator)(nil).Report))
+}
+
+// Tick mocks base method.
+func (m *MockdatabaseMediator) Tick(forceType forceType, startTime time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Tick", forceType, startTime)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Tick indicates an expected call of Tick.
+func (mr *MockdatabaseMediatorMockRecorder) Tick(forceType, startTime interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseMediator)(nil).Tick), forceType, startTime)
+}
+
+// MockColdFlushNsOpts is a mock of ColdFlushNsOpts interface.
 type MockColdFlushNsOpts struct {
 	ctrl     *gomock.Controller
 	recorder *MockColdFlushNsOptsMockRecorder
 }
 
-// MockColdFlushNsOptsMockRecorder is the mock recorder for MockColdFlushNsOpts
+// MockColdFlushNsOptsMockRecorder is the mock recorder for MockColdFlushNsOpts.
 type MockColdFlushNsOptsMockRecorder struct {
 	mock *MockColdFlushNsOpts
 }
 
-// NewMockColdFlushNsOpts creates a new mock instance
+// NewMockColdFlushNsOpts creates a new mock instance.
 func NewMockColdFlushNsOpts(ctrl *gomock.Controller) *MockColdFlushNsOpts {
 	mock := &MockColdFlushNsOpts{ctrl: ctrl}
 	mock.recorder = &MockColdFlushNsOptsMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockColdFlushNsOpts) EXPECT() *MockColdFlushNsOptsMockRecorder {
 	return m.recorder
 }
 
-// ReuseResources mocks base method
+// ReuseResources mocks base method.
 func (m *MockColdFlushNsOpts) ReuseResources() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReuseResources")
@@ -3751,36 +3751,36 @@ func (m *MockColdFlushNsOpts) ReuseResources() bool {
 	return ret0
 }
 
-// ReuseResources indicates an expected call of ReuseResources
+// ReuseResources indicates an expected call of ReuseResources.
 func (mr *MockColdFlushNsOptsMockRecorder) ReuseResources() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReuseResources", reflect.TypeOf((*MockColdFlushNsOpts)(nil).ReuseResources))
 }
 
-// MockOnColdFlush is a mock of OnColdFlush interface
+// MockOnColdFlush is a mock of OnColdFlush interface.
 type MockOnColdFlush struct {
 	ctrl     *gomock.Controller
 	recorder *MockOnColdFlushMockRecorder
 }
 
-// MockOnColdFlushMockRecorder is the mock recorder for MockOnColdFlush
+// MockOnColdFlushMockRecorder is the mock recorder for MockOnColdFlush.
 type MockOnColdFlushMockRecorder struct {
 	mock *MockOnColdFlush
 }
 
-// NewMockOnColdFlush creates a new mock instance
+// NewMockOnColdFlush creates a new mock instance.
 func NewMockOnColdFlush(ctrl *gomock.Controller) *MockOnColdFlush {
 	mock := &MockOnColdFlush{ctrl: ctrl}
 	mock.recorder = &MockOnColdFlushMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockOnColdFlush) EXPECT() *MockOnColdFlushMockRecorder {
 	return m.recorder
 }
 
-// ColdFlushNamespace mocks base method
+// ColdFlushNamespace mocks base method.
 func (m *MockOnColdFlush) ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts) (OnColdFlushNamespace, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushNamespace", ns, opts)
@@ -3789,64 +3789,36 @@ func (m *MockOnColdFlush) ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts)
 	return ret0, ret1
 }
 
-// ColdFlushNamespace indicates an expected call of ColdFlushNamespace
+// ColdFlushNamespace indicates an expected call of ColdFlushNamespace.
 func (mr *MockOnColdFlushMockRecorder) ColdFlushNamespace(ns, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushNamespace", reflect.TypeOf((*MockOnColdFlush)(nil).ColdFlushNamespace), ns, opts)
 }
 
-// MockOnColdFlushNamespace is a mock of OnColdFlushNamespace interface
+// MockOnColdFlushNamespace is a mock of OnColdFlushNamespace interface.
 type MockOnColdFlushNamespace struct {
 	ctrl     *gomock.Controller
 	recorder *MockOnColdFlushNamespaceMockRecorder
 }
 
-// MockOnColdFlushNamespaceMockRecorder is the mock recorder for MockOnColdFlushNamespace
+// MockOnColdFlushNamespaceMockRecorder is the mock recorder for MockOnColdFlushNamespace.
 type MockOnColdFlushNamespaceMockRecorder struct {
 	mock *MockOnColdFlushNamespace
 }
 
-// NewMockOnColdFlushNamespace creates a new mock instance
+// NewMockOnColdFlushNamespace creates a new mock instance.
 func NewMockOnColdFlushNamespace(ctrl *gomock.Controller) *MockOnColdFlushNamespace {
 	mock := &MockOnColdFlushNamespace{ctrl: ctrl}
 	mock.recorder = &MockOnColdFlushNamespaceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockOnColdFlushNamespace) EXPECT() *MockOnColdFlushNamespaceMockRecorder {
 	return m.recorder
 }
 
-// OnFlushNewSeries mocks base method
-func (m *MockOnColdFlushNamespace) OnFlushNewSeries(arg0 persist.OnFlushNewSeriesEvent) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OnFlushNewSeries", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// OnFlushNewSeries indicates an expected call of OnFlushNewSeries
-func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), arg0)
-}
-
-// CheckpointAndMaybeCompact mocks base method
-func (m *MockOnColdFlushNamespace) CheckpointAndMaybeCompact() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckpointAndMaybeCompact")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CheckpointAndMaybeCompact indicates an expected call of CheckpointAndMaybeCompact
-func (mr *MockOnColdFlushNamespaceMockRecorder) CheckpointAndMaybeCompact() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckpointAndMaybeCompact", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).CheckpointAndMaybeCompact))
-}
-
-// Abort mocks base method
+// Abort mocks base method.
 func (m *MockOnColdFlushNamespace) Abort() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Abort")
@@ -3854,13 +3826,27 @@ func (m *MockOnColdFlushNamespace) Abort() error {
 	return ret0
 }
 
-// Abort indicates an expected call of Abort
+// Abort indicates an expected call of Abort.
 func (mr *MockOnColdFlushNamespaceMockRecorder) Abort() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Abort", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).Abort))
 }
 
-// Done mocks base method
+// CheckpointAndMaybeCompact mocks base method.
+func (m *MockOnColdFlushNamespace) CheckpointAndMaybeCompact() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckpointAndMaybeCompact")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckpointAndMaybeCompact indicates an expected call of CheckpointAndMaybeCompact.
+func (mr *MockOnColdFlushNamespaceMockRecorder) CheckpointAndMaybeCompact() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckpointAndMaybeCompact", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).CheckpointAndMaybeCompact))
+}
+
+// Done mocks base method.
 func (m *MockOnColdFlushNamespace) Done() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Done")
@@ -3868,1338 +3854,50 @@ func (m *MockOnColdFlushNamespace) Done() error {
 	return ret0
 }
 
-// Done indicates an expected call of Done
+// Done indicates an expected call of Done.
 func (mr *MockOnColdFlushNamespaceMockRecorder) Done() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).Done))
 }
 
-// MockOptions is a mock of Options interface
+// OnFlushNewSeries mocks base method.
+func (m *MockOnColdFlushNamespace) OnFlushNewSeries(arg0 persist.OnFlushNewSeriesEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OnFlushNewSeries", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// OnFlushNewSeries indicates an expected call of OnFlushNewSeries.
+func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), arg0)
+}
+
+// MockOptions is a mock of Options interface.
 type MockOptions struct {
 	ctrl     *gomock.Controller
 	recorder *MockOptionsMockRecorder
 }
 
-// MockOptionsMockRecorder is the mock recorder for MockOptions
+// MockOptionsMockRecorder is the mock recorder for MockOptions.
 type MockOptionsMockRecorder struct {
 	mock *MockOptions
 }
 
-// NewMockOptions creates a new mock instance
+// NewMockOptions creates a new mock instance.
 func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
 	mock := &MockOptions{ctrl: ctrl}
 	mock.recorder = &MockOptionsMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 	return m.recorder
 }
 
-// Validate mocks base method
-func (m *MockOptions) Validate() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Validate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Validate indicates an expected call of Validate
-func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
-}
-
-// SetEncodingM3TSZPooled mocks base method
-func (m *MockOptions) SetEncodingM3TSZPooled() Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetEncodingM3TSZPooled")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetEncodingM3TSZPooled indicates an expected call of SetEncodingM3TSZPooled
-func (mr *MockOptionsMockRecorder) SetEncodingM3TSZPooled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingM3TSZPooled", reflect.TypeOf((*MockOptions)(nil).SetEncodingM3TSZPooled))
-}
-
-// SetClockOptions mocks base method
-func (m *MockOptions) SetClockOptions(value clock.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetClockOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetClockOptions indicates an expected call of SetClockOptions
-func (mr *MockOptionsMockRecorder) SetClockOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClockOptions", reflect.TypeOf((*MockOptions)(nil).SetClockOptions), value)
-}
-
-// ClockOptions mocks base method
-func (m *MockOptions) ClockOptions() clock.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClockOptions")
-	ret0, _ := ret[0].(clock.Options)
-	return ret0
-}
-
-// ClockOptions indicates an expected call of ClockOptions
-func (mr *MockOptionsMockRecorder) ClockOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClockOptions", reflect.TypeOf((*MockOptions)(nil).ClockOptions))
-}
-
-// SetInstrumentOptions mocks base method
-func (m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetInstrumentOptions indicates an expected call of SetInstrumentOptions
-func (mr *MockOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), value)
-}
-
-// InstrumentOptions mocks base method
-func (m *MockOptions) InstrumentOptions() instrument.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InstrumentOptions")
-	ret0, _ := ret[0].(instrument.Options)
-	return ret0
-}
-
-// InstrumentOptions indicates an expected call of InstrumentOptions
-func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
-}
-
-// SetNamespaceInitializer mocks base method
-func (m *MockOptions) SetNamespaceInitializer(value namespace.Initializer) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetNamespaceInitializer", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetNamespaceInitializer indicates an expected call of SetNamespaceInitializer
-func (mr *MockOptionsMockRecorder) SetNamespaceInitializer(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).SetNamespaceInitializer), value)
-}
-
-// NamespaceInitializer mocks base method
-func (m *MockOptions) NamespaceInitializer() namespace.Initializer {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NamespaceInitializer")
-	ret0, _ := ret[0].(namespace.Initializer)
-	return ret0
-}
-
-// NamespaceInitializer indicates an expected call of NamespaceInitializer
-func (mr *MockOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).NamespaceInitializer))
-}
-
-// SetDatabaseBlockOptions mocks base method
-func (m *MockOptions) SetDatabaseBlockOptions(value block.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetDatabaseBlockOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetDatabaseBlockOptions indicates an expected call of SetDatabaseBlockOptions
-func (mr *MockOptionsMockRecorder) SetDatabaseBlockOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseBlockOptions", reflect.TypeOf((*MockOptions)(nil).SetDatabaseBlockOptions), value)
-}
-
-// DatabaseBlockOptions mocks base method
-func (m *MockOptions) DatabaseBlockOptions() block.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DatabaseBlockOptions")
-	ret0, _ := ret[0].(block.Options)
-	return ret0
-}
-
-// DatabaseBlockOptions indicates an expected call of DatabaseBlockOptions
-func (mr *MockOptionsMockRecorder) DatabaseBlockOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseBlockOptions", reflect.TypeOf((*MockOptions)(nil).DatabaseBlockOptions))
-}
-
-// SetCommitLogOptions mocks base method
-func (m *MockOptions) SetCommitLogOptions(value commitlog.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetCommitLogOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetCommitLogOptions indicates an expected call of SetCommitLogOptions
-func (mr *MockOptionsMockRecorder) SetCommitLogOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCommitLogOptions", reflect.TypeOf((*MockOptions)(nil).SetCommitLogOptions), value)
-}
-
-// CommitLogOptions mocks base method
-func (m *MockOptions) CommitLogOptions() commitlog.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CommitLogOptions")
-	ret0, _ := ret[0].(commitlog.Options)
-	return ret0
-}
-
-// CommitLogOptions indicates an expected call of CommitLogOptions
-func (mr *MockOptionsMockRecorder) CommitLogOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitLogOptions", reflect.TypeOf((*MockOptions)(nil).CommitLogOptions))
-}
-
-// SetRuntimeOptionsManager mocks base method
-func (m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetRuntimeOptionsManager", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
-func (mr *MockOptionsMockRecorder) SetRuntimeOptionsManager(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).SetRuntimeOptionsManager), value)
-}
-
-// RuntimeOptionsManager mocks base method
-func (m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RuntimeOptionsManager")
-	ret0, _ := ret[0].(runtime.OptionsManager)
-	return ret0
-}
-
-// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
-func (mr *MockOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).RuntimeOptionsManager))
-}
-
-// SetErrorWindowForLoad mocks base method
-func (m *MockOptions) SetErrorWindowForLoad(value time.Duration) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetErrorWindowForLoad", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetErrorWindowForLoad indicates an expected call of SetErrorWindowForLoad
-func (mr *MockOptionsMockRecorder) SetErrorWindowForLoad(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorWindowForLoad", reflect.TypeOf((*MockOptions)(nil).SetErrorWindowForLoad), value)
-}
-
-// ErrorWindowForLoad mocks base method
-func (m *MockOptions) ErrorWindowForLoad() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ErrorWindowForLoad")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// ErrorWindowForLoad indicates an expected call of ErrorWindowForLoad
-func (mr *MockOptionsMockRecorder) ErrorWindowForLoad() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorWindowForLoad", reflect.TypeOf((*MockOptions)(nil).ErrorWindowForLoad))
-}
-
-// SetErrorThresholdForLoad mocks base method
-func (m *MockOptions) SetErrorThresholdForLoad(value int64) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetErrorThresholdForLoad", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetErrorThresholdForLoad indicates an expected call of SetErrorThresholdForLoad
-func (mr *MockOptionsMockRecorder) SetErrorThresholdForLoad(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorThresholdForLoad", reflect.TypeOf((*MockOptions)(nil).SetErrorThresholdForLoad), value)
-}
-
-// ErrorThresholdForLoad mocks base method
-func (m *MockOptions) ErrorThresholdForLoad() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ErrorThresholdForLoad")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// ErrorThresholdForLoad indicates an expected call of ErrorThresholdForLoad
-func (mr *MockOptionsMockRecorder) ErrorThresholdForLoad() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorThresholdForLoad", reflect.TypeOf((*MockOptions)(nil).ErrorThresholdForLoad))
-}
-
-// SetIndexOptions mocks base method
-func (m *MockOptions) SetIndexOptions(value index.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetIndexOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetIndexOptions indicates an expected call of SetIndexOptions
-func (mr *MockOptionsMockRecorder) SetIndexOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexOptions", reflect.TypeOf((*MockOptions)(nil).SetIndexOptions), value)
-}
-
-// IndexOptions mocks base method
-func (m *MockOptions) IndexOptions() index.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexOptions")
-	ret0, _ := ret[0].(index.Options)
-	return ret0
-}
-
-// IndexOptions indicates an expected call of IndexOptions
-func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
-}
-
-// SetTruncateType mocks base method
-func (m *MockOptions) SetTruncateType(value series.TruncateType) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetTruncateType", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTruncateType indicates an expected call of SetTruncateType
-func (mr *MockOptionsMockRecorder) SetTruncateType(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTruncateType", reflect.TypeOf((*MockOptions)(nil).SetTruncateType), value)
-}
-
-// TruncateType mocks base method
-func (m *MockOptions) TruncateType() series.TruncateType {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TruncateType")
-	ret0, _ := ret[0].(series.TruncateType)
-	return ret0
-}
-
-// TruncateType indicates an expected call of TruncateType
-func (mr *MockOptionsMockRecorder) TruncateType() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TruncateType", reflect.TypeOf((*MockOptions)(nil).TruncateType))
-}
-
-// SetWriteTransformOptions mocks base method
-func (m *MockOptions) SetWriteTransformOptions(value series.WriteTransformOptions) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetWriteTransformOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteTransformOptions indicates an expected call of SetWriteTransformOptions
-func (mr *MockOptionsMockRecorder) SetWriteTransformOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteTransformOptions", reflect.TypeOf((*MockOptions)(nil).SetWriteTransformOptions), value)
-}
-
-// WriteTransformOptions mocks base method
-func (m *MockOptions) WriteTransformOptions() series.WriteTransformOptions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTransformOptions")
-	ret0, _ := ret[0].(series.WriteTransformOptions)
-	return ret0
-}
-
-// WriteTransformOptions indicates an expected call of WriteTransformOptions
-func (mr *MockOptionsMockRecorder) WriteTransformOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTransformOptions", reflect.TypeOf((*MockOptions)(nil).WriteTransformOptions))
-}
-
-// SetRepairEnabled mocks base method
-func (m *MockOptions) SetRepairEnabled(b bool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetRepairEnabled", b)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetRepairEnabled indicates an expected call of SetRepairEnabled
-func (mr *MockOptionsMockRecorder) SetRepairEnabled(b interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepairEnabled", reflect.TypeOf((*MockOptions)(nil).SetRepairEnabled), b)
-}
-
-// RepairEnabled mocks base method
-func (m *MockOptions) RepairEnabled() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RepairEnabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// RepairEnabled indicates an expected call of RepairEnabled
-func (mr *MockOptionsMockRecorder) RepairEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairEnabled", reflect.TypeOf((*MockOptions)(nil).RepairEnabled))
-}
-
-// SetRepairOptions mocks base method
-func (m *MockOptions) SetRepairOptions(value repair.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetRepairOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetRepairOptions indicates an expected call of SetRepairOptions
-func (mr *MockOptionsMockRecorder) SetRepairOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepairOptions", reflect.TypeOf((*MockOptions)(nil).SetRepairOptions), value)
-}
-
-// RepairOptions mocks base method
-func (m *MockOptions) RepairOptions() repair.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RepairOptions")
-	ret0, _ := ret[0].(repair.Options)
-	return ret0
-}
-
-// RepairOptions indicates an expected call of RepairOptions
-func (mr *MockOptionsMockRecorder) RepairOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairOptions", reflect.TypeOf((*MockOptions)(nil).RepairOptions))
-}
-
-// SetBootstrapProcessProvider mocks base method
-func (m *MockOptions) SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetBootstrapProcessProvider", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBootstrapProcessProvider indicates an expected call of SetBootstrapProcessProvider
-func (mr *MockOptionsMockRecorder) SetBootstrapProcessProvider(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).SetBootstrapProcessProvider), value)
-}
-
-// BootstrapProcessProvider mocks base method
-func (m *MockOptions) BootstrapProcessProvider() bootstrap.ProcessProvider {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapProcessProvider")
-	ret0, _ := ret[0].(bootstrap.ProcessProvider)
-	return ret0
-}
-
-// BootstrapProcessProvider indicates an expected call of BootstrapProcessProvider
-func (mr *MockOptionsMockRecorder) BootstrapProcessProvider() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).BootstrapProcessProvider))
-}
-
-// SetPersistManager mocks base method
-func (m *MockOptions) SetPersistManager(value persist.Manager) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetPersistManager", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetPersistManager indicates an expected call of SetPersistManager
-func (mr *MockOptionsMockRecorder) SetPersistManager(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPersistManager", reflect.TypeOf((*MockOptions)(nil).SetPersistManager), value)
-}
-
-// PersistManager mocks base method
-func (m *MockOptions) PersistManager() persist.Manager {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PersistManager")
-	ret0, _ := ret[0].(persist.Manager)
-	return ret0
-}
-
-// PersistManager indicates an expected call of PersistManager
-func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
-}
-
-// SetIndexClaimsManager mocks base method
-func (m *MockOptions) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetIndexClaimsManager", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetIndexClaimsManager indicates an expected call of SetIndexClaimsManager
-func (mr *MockOptionsMockRecorder) SetIndexClaimsManager(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).SetIndexClaimsManager), value)
-}
-
-// IndexClaimsManager mocks base method
-func (m *MockOptions) IndexClaimsManager() fs.IndexClaimsManager {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexClaimsManager")
-	ret0, _ := ret[0].(fs.IndexClaimsManager)
-	return ret0
-}
-
-// IndexClaimsManager indicates an expected call of IndexClaimsManager
-func (mr *MockOptionsMockRecorder) IndexClaimsManager() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).IndexClaimsManager))
-}
-
-// SetDatabaseBlockRetrieverManager mocks base method
-func (m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetDatabaseBlockRetrieverManager", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetDatabaseBlockRetrieverManager indicates an expected call of SetDatabaseBlockRetrieverManager
-func (mr *MockOptionsMockRecorder) SetDatabaseBlockRetrieverManager(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseBlockRetrieverManager", reflect.TypeOf((*MockOptions)(nil).SetDatabaseBlockRetrieverManager), value)
-}
-
-// DatabaseBlockRetrieverManager mocks base method
-func (m *MockOptions) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DatabaseBlockRetrieverManager")
-	ret0, _ := ret[0].(block.DatabaseBlockRetrieverManager)
-	return ret0
-}
-
-// DatabaseBlockRetrieverManager indicates an expected call of DatabaseBlockRetrieverManager
-func (mr *MockOptionsMockRecorder) DatabaseBlockRetrieverManager() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseBlockRetrieverManager", reflect.TypeOf((*MockOptions)(nil).DatabaseBlockRetrieverManager))
-}
-
-// SetContextPool mocks base method
-func (m *MockOptions) SetContextPool(value context.Pool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetContextPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetContextPool indicates an expected call of SetContextPool
-func (mr *MockOptionsMockRecorder) SetContextPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContextPool", reflect.TypeOf((*MockOptions)(nil).SetContextPool), value)
-}
-
-// ContextPool mocks base method
-func (m *MockOptions) ContextPool() context.Pool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContextPool")
-	ret0, _ := ret[0].(context.Pool)
-	return ret0
-}
-
-// ContextPool indicates an expected call of ContextPool
-func (mr *MockOptionsMockRecorder) ContextPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextPool", reflect.TypeOf((*MockOptions)(nil).ContextPool))
-}
-
-// SetSeriesCachePolicy mocks base method
-func (m *MockOptions) SetSeriesCachePolicy(value series.CachePolicy) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSeriesCachePolicy", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSeriesCachePolicy indicates an expected call of SetSeriesCachePolicy
-func (mr *MockOptionsMockRecorder) SetSeriesCachePolicy(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesCachePolicy", reflect.TypeOf((*MockOptions)(nil).SetSeriesCachePolicy), value)
-}
-
-// SeriesCachePolicy mocks base method
-func (m *MockOptions) SeriesCachePolicy() series.CachePolicy {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesCachePolicy")
-	ret0, _ := ret[0].(series.CachePolicy)
-	return ret0
-}
-
-// SeriesCachePolicy indicates an expected call of SeriesCachePolicy
-func (mr *MockOptionsMockRecorder) SeriesCachePolicy() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesCachePolicy", reflect.TypeOf((*MockOptions)(nil).SeriesCachePolicy))
-}
-
-// SetSeriesOptions mocks base method
-func (m *MockOptions) SetSeriesOptions(value series.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSeriesOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSeriesOptions indicates an expected call of SetSeriesOptions
-func (mr *MockOptionsMockRecorder) SetSeriesOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesOptions", reflect.TypeOf((*MockOptions)(nil).SetSeriesOptions), value)
-}
-
-// SeriesOptions mocks base method
-func (m *MockOptions) SeriesOptions() series.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesOptions")
-	ret0, _ := ret[0].(series.Options)
-	return ret0
-}
-
-// SeriesOptions indicates an expected call of SeriesOptions
-func (mr *MockOptionsMockRecorder) SeriesOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesOptions", reflect.TypeOf((*MockOptions)(nil).SeriesOptions))
-}
-
-// SetDatabaseSeriesPool mocks base method
-func (m *MockOptions) SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetDatabaseSeriesPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetDatabaseSeriesPool indicates an expected call of SetDatabaseSeriesPool
-func (mr *MockOptionsMockRecorder) SetDatabaseSeriesPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseSeriesPool", reflect.TypeOf((*MockOptions)(nil).SetDatabaseSeriesPool), value)
-}
-
-// DatabaseSeriesPool mocks base method
-func (m *MockOptions) DatabaseSeriesPool() series.DatabaseSeriesPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DatabaseSeriesPool")
-	ret0, _ := ret[0].(series.DatabaseSeriesPool)
-	return ret0
-}
-
-// DatabaseSeriesPool indicates an expected call of DatabaseSeriesPool
-func (mr *MockOptionsMockRecorder) DatabaseSeriesPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseSeriesPool", reflect.TypeOf((*MockOptions)(nil).DatabaseSeriesPool))
-}
-
-// SetBytesPool mocks base method
-func (m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetBytesPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBytesPool indicates an expected call of SetBytesPool
-func (mr *MockOptionsMockRecorder) SetBytesPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBytesPool", reflect.TypeOf((*MockOptions)(nil).SetBytesPool), value)
-}
-
-// BytesPool mocks base method
-func (m *MockOptions) BytesPool() pool.CheckedBytesPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BytesPool")
-	ret0, _ := ret[0].(pool.CheckedBytesPool)
-	return ret0
-}
-
-// BytesPool indicates an expected call of BytesPool
-func (mr *MockOptionsMockRecorder) BytesPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BytesPool", reflect.TypeOf((*MockOptions)(nil).BytesPool))
-}
-
-// SetEncoderPool mocks base method
-func (m *MockOptions) SetEncoderPool(value encoding.EncoderPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetEncoderPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetEncoderPool indicates an expected call of SetEncoderPool
-func (mr *MockOptionsMockRecorder) SetEncoderPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncoderPool", reflect.TypeOf((*MockOptions)(nil).SetEncoderPool), value)
-}
-
-// EncoderPool mocks base method
-func (m *MockOptions) EncoderPool() encoding.EncoderPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EncoderPool")
-	ret0, _ := ret[0].(encoding.EncoderPool)
-	return ret0
-}
-
-// EncoderPool indicates an expected call of EncoderPool
-func (mr *MockOptionsMockRecorder) EncoderPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncoderPool", reflect.TypeOf((*MockOptions)(nil).EncoderPool))
-}
-
-// SetSegmentReaderPool mocks base method
-func (m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSegmentReaderPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSegmentReaderPool indicates an expected call of SetSegmentReaderPool
-func (mr *MockOptionsMockRecorder) SetSegmentReaderPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SetSegmentReaderPool), value)
-}
-
-// SegmentReaderPool mocks base method
-func (m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SegmentReaderPool")
-	ret0, _ := ret[0].(xio.SegmentReaderPool)
-	return ret0
-}
-
-// SegmentReaderPool indicates an expected call of SegmentReaderPool
-func (mr *MockOptionsMockRecorder) SegmentReaderPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SegmentReaderPool))
-}
-
-// SetReaderIteratorPool mocks base method
-func (m *MockOptions) SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetReaderIteratorPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetReaderIteratorPool indicates an expected call of SetReaderIteratorPool
-func (mr *MockOptionsMockRecorder) SetReaderIteratorPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).SetReaderIteratorPool), value)
-}
-
-// ReaderIteratorPool mocks base method
-func (m *MockOptions) ReaderIteratorPool() encoding.ReaderIteratorPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReaderIteratorPool")
-	ret0, _ := ret[0].(encoding.ReaderIteratorPool)
-	return ret0
-}
-
-// ReaderIteratorPool indicates an expected call of ReaderIteratorPool
-func (mr *MockOptionsMockRecorder) ReaderIteratorPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).ReaderIteratorPool))
-}
-
-// SetMultiReaderIteratorPool mocks base method
-func (m *MockOptions) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetMultiReaderIteratorPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMultiReaderIteratorPool indicates an expected call of SetMultiReaderIteratorPool
-func (mr *MockOptionsMockRecorder) SetMultiReaderIteratorPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultiReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).SetMultiReaderIteratorPool), value)
-}
-
-// MultiReaderIteratorPool mocks base method
-func (m *MockOptions) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MultiReaderIteratorPool")
-	ret0, _ := ret[0].(encoding.MultiReaderIteratorPool)
-	return ret0
-}
-
-// MultiReaderIteratorPool indicates an expected call of MultiReaderIteratorPool
-func (mr *MockOptionsMockRecorder) MultiReaderIteratorPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).MultiReaderIteratorPool))
-}
-
-// SetIdentifierPool mocks base method
-func (m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetIdentifierPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetIdentifierPool indicates an expected call of SetIdentifierPool
-func (mr *MockOptionsMockRecorder) SetIdentifierPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockOptions)(nil).SetIdentifierPool), value)
-}
-
-// IdentifierPool mocks base method
-func (m *MockOptions) IdentifierPool() ident.Pool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IdentifierPool")
-	ret0, _ := ret[0].(ident.Pool)
-	return ret0
-}
-
-// IdentifierPool indicates an expected call of IdentifierPool
-func (mr *MockOptionsMockRecorder) IdentifierPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IdentifierPool", reflect.TypeOf((*MockOptions)(nil).IdentifierPool))
-}
-
-// SetFetchBlockMetadataResultsPool mocks base method
-func (m *MockOptions) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetFetchBlockMetadataResultsPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchBlockMetadataResultsPool indicates an expected call of SetFetchBlockMetadataResultsPool
-func (mr *MockOptionsMockRecorder) SetFetchBlockMetadataResultsPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBlockMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).SetFetchBlockMetadataResultsPool), value)
-}
-
-// FetchBlockMetadataResultsPool mocks base method
-func (m *MockOptions) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlockMetadataResultsPool")
-	ret0, _ := ret[0].(block.FetchBlockMetadataResultsPool)
-	return ret0
-}
-
-// FetchBlockMetadataResultsPool indicates an expected call of FetchBlockMetadataResultsPool
-func (mr *MockOptionsMockRecorder) FetchBlockMetadataResultsPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlockMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlockMetadataResultsPool))
-}
-
-// SetFetchBlocksMetadataResultsPool mocks base method
-func (m *MockOptions) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetadataResultsPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetFetchBlocksMetadataResultsPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchBlocksMetadataResultsPool indicates an expected call of SetFetchBlocksMetadataResultsPool
-func (mr *MockOptionsMockRecorder) SetFetchBlocksMetadataResultsPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).SetFetchBlocksMetadataResultsPool), value)
-}
-
-// FetchBlocksMetadataResultsPool mocks base method
-func (m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlocksMetadataResultsPool")
-	ret0, _ := ret[0].(block.FetchBlocksMetadataResultsPool)
-	return ret0
-}
-
-// FetchBlocksMetadataResultsPool indicates an expected call of FetchBlocksMetadataResultsPool
-func (mr *MockOptionsMockRecorder) FetchBlocksMetadataResultsPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlocksMetadataResultsPool))
-}
-
-// SetWriteBatchPool mocks base method
-func (m *MockOptions) SetWriteBatchPool(value *writes.WriteBatchPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetWriteBatchPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteBatchPool indicates an expected call of SetWriteBatchPool
-func (mr *MockOptionsMockRecorder) SetWriteBatchPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteBatchPool", reflect.TypeOf((*MockOptions)(nil).SetWriteBatchPool), value)
-}
-
-// WriteBatchPool mocks base method
-func (m *MockOptions) WriteBatchPool() *writes.WriteBatchPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteBatchPool")
-	ret0, _ := ret[0].(*writes.WriteBatchPool)
-	return ret0
-}
-
-// WriteBatchPool indicates an expected call of WriteBatchPool
-func (mr *MockOptionsMockRecorder) WriteBatchPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchPool", reflect.TypeOf((*MockOptions)(nil).WriteBatchPool))
-}
-
-// SetBufferBucketPool mocks base method
-func (m *MockOptions) SetBufferBucketPool(value *series.BufferBucketPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetBufferBucketPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBufferBucketPool indicates an expected call of SetBufferBucketPool
-func (mr *MockOptionsMockRecorder) SetBufferBucketPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketPool), value)
-}
-
-// BufferBucketPool mocks base method
-func (m *MockOptions) BufferBucketPool() *series.BufferBucketPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BufferBucketPool")
-	ret0, _ := ret[0].(*series.BufferBucketPool)
-	return ret0
-}
-
-// BufferBucketPool indicates an expected call of BufferBucketPool
-func (mr *MockOptionsMockRecorder) BufferBucketPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketPool))
-}
-
-// SetBufferBucketVersionsPool mocks base method
-func (m *MockOptions) SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetBufferBucketVersionsPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBufferBucketVersionsPool indicates an expected call of SetBufferBucketVersionsPool
-func (mr *MockOptionsMockRecorder) SetBufferBucketVersionsPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketVersionsPool), value)
-}
-
-// BufferBucketVersionsPool mocks base method
-func (m *MockOptions) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BufferBucketVersionsPool")
-	ret0, _ := ret[0].(*series.BufferBucketVersionsPool)
-	return ret0
-}
-
-// BufferBucketVersionsPool indicates an expected call of BufferBucketVersionsPool
-func (mr *MockOptionsMockRecorder) BufferBucketVersionsPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketVersionsPool))
-}
-
-// SetRetrieveRequestPool mocks base method
-func (m *MockOptions) SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetRetrieveRequestPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetRetrieveRequestPool indicates an expected call of SetRetrieveRequestPool
-func (mr *MockOptionsMockRecorder) SetRetrieveRequestPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetrieveRequestPool", reflect.TypeOf((*MockOptions)(nil).SetRetrieveRequestPool), value)
-}
-
-// RetrieveRequestPool mocks base method
-func (m *MockOptions) RetrieveRequestPool() fs.RetrieveRequestPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetrieveRequestPool")
-	ret0, _ := ret[0].(fs.RetrieveRequestPool)
-	return ret0
-}
-
-// RetrieveRequestPool indicates an expected call of RetrieveRequestPool
-func (mr *MockOptionsMockRecorder) RetrieveRequestPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrieveRequestPool", reflect.TypeOf((*MockOptions)(nil).RetrieveRequestPool))
-}
-
-// SetCheckedBytesWrapperPool mocks base method
-func (m *MockOptions) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetCheckedBytesWrapperPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetCheckedBytesWrapperPool indicates an expected call of SetCheckedBytesWrapperPool
-func (mr *MockOptionsMockRecorder) SetCheckedBytesWrapperPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesWrapperPool", reflect.TypeOf((*MockOptions)(nil).SetCheckedBytesWrapperPool), value)
-}
-
-// CheckedBytesWrapperPool mocks base method
-func (m *MockOptions) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckedBytesWrapperPool")
-	ret0, _ := ret[0].(xpool.CheckedBytesWrapperPool)
-	return ret0
-}
-
-// CheckedBytesWrapperPool indicates an expected call of CheckedBytesWrapperPool
-func (mr *MockOptionsMockRecorder) CheckedBytesWrapperPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesWrapperPool", reflect.TypeOf((*MockOptions)(nil).CheckedBytesWrapperPool))
-}
-
-// SetSchemaRegistry mocks base method
-func (m *MockOptions) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSchemaRegistry", registry)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
-func (mr *MockOptionsMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SetSchemaRegistry), registry)
-}
-
-// SchemaRegistry mocks base method
-func (m *MockOptions) SchemaRegistry() namespace.SchemaRegistry {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SchemaRegistry")
-	ret0, _ := ret[0].(namespace.SchemaRegistry)
-	return ret0
-}
-
-// SchemaRegistry indicates an expected call of SchemaRegistry
-func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
-}
-
-// SetBlockLeaseManager mocks base method
-func (m *MockOptions) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetBlockLeaseManager", leaseMgr)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBlockLeaseManager indicates an expected call of SetBlockLeaseManager
-func (mr *MockOptionsMockRecorder) SetBlockLeaseManager(leaseMgr interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).SetBlockLeaseManager), leaseMgr)
-}
-
-// BlockLeaseManager mocks base method
-func (m *MockOptions) BlockLeaseManager() block.LeaseManager {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BlockLeaseManager")
-	ret0, _ := ret[0].(block.LeaseManager)
-	return ret0
-}
-
-// BlockLeaseManager indicates an expected call of BlockLeaseManager
-func (mr *MockOptionsMockRecorder) BlockLeaseManager() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).BlockLeaseManager))
-}
-
-// SetOnColdFlush mocks base method
-func (m *MockOptions) SetOnColdFlush(value OnColdFlush) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetOnColdFlush", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetOnColdFlush indicates an expected call of SetOnColdFlush
-func (mr *MockOptionsMockRecorder) SetOnColdFlush(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOnColdFlush", reflect.TypeOf((*MockOptions)(nil).SetOnColdFlush), value)
-}
-
-// OnColdFlush mocks base method
-func (m *MockOptions) OnColdFlush() OnColdFlush {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OnColdFlush")
-	ret0, _ := ret[0].(OnColdFlush)
-	return ret0
-}
-
-// OnColdFlush indicates an expected call of OnColdFlush
-func (mr *MockOptionsMockRecorder) OnColdFlush() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnColdFlush", reflect.TypeOf((*MockOptions)(nil).OnColdFlush))
-}
-
-// SetIterationOptions mocks base method
-func (m *MockOptions) SetIterationOptions(arg0 index.IterationOptions) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetIterationOptions", arg0)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetIterationOptions indicates an expected call of SetIterationOptions
-func (mr *MockOptionsMockRecorder) SetIterationOptions(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterationOptions", reflect.TypeOf((*MockOptions)(nil).SetIterationOptions), arg0)
-}
-
-// IterationOptions mocks base method
-func (m *MockOptions) IterationOptions() index.IterationOptions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IterationOptions")
-	ret0, _ := ret[0].(index.IterationOptions)
-	return ret0
-}
-
-// IterationOptions indicates an expected call of IterationOptions
-func (mr *MockOptionsMockRecorder) IterationOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockOptions)(nil).IterationOptions))
-}
-
-// SetForceColdWritesEnabled mocks base method
-func (m *MockOptions) SetForceColdWritesEnabled(value bool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetForceColdWritesEnabled", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetForceColdWritesEnabled indicates an expected call of SetForceColdWritesEnabled
-func (mr *MockOptionsMockRecorder) SetForceColdWritesEnabled(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetForceColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).SetForceColdWritesEnabled), value)
-}
-
-// ForceColdWritesEnabled mocks base method
-func (m *MockOptions) ForceColdWritesEnabled() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ForceColdWritesEnabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// ForceColdWritesEnabled indicates an expected call of ForceColdWritesEnabled
-func (mr *MockOptionsMockRecorder) ForceColdWritesEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForceColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).ForceColdWritesEnabled))
-}
-
-// SetSourceLoggerBuilder mocks base method
-func (m *MockOptions) SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSourceLoggerBuilder", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSourceLoggerBuilder indicates an expected call of SetSourceLoggerBuilder
-func (mr *MockOptionsMockRecorder) SetSourceLoggerBuilder(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSourceLoggerBuilder", reflect.TypeOf((*MockOptions)(nil).SetSourceLoggerBuilder), value)
-}
-
-// SourceLoggerBuilder mocks base method
-func (m *MockOptions) SourceLoggerBuilder() limits.SourceLoggerBuilder {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SourceLoggerBuilder")
-	ret0, _ := ret[0].(limits.SourceLoggerBuilder)
-	return ret0
-}
-
-// SourceLoggerBuilder indicates an expected call of SourceLoggerBuilder
-func (mr *MockOptionsMockRecorder) SourceLoggerBuilder() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SourceLoggerBuilder", reflect.TypeOf((*MockOptions)(nil).SourceLoggerBuilder))
-}
-
-// SetMemoryTracker mocks base method
-func (m *MockOptions) SetMemoryTracker(memTracker MemoryTracker) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetMemoryTracker", memTracker)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMemoryTracker indicates an expected call of SetMemoryTracker
-func (mr *MockOptionsMockRecorder) SetMemoryTracker(memTracker interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMemoryTracker", reflect.TypeOf((*MockOptions)(nil).SetMemoryTracker), memTracker)
-}
-
-// MemoryTracker mocks base method
-func (m *MockOptions) MemoryTracker() MemoryTracker {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MemoryTracker")
-	ret0, _ := ret[0].(MemoryTracker)
-	return ret0
-}
-
-// MemoryTracker indicates an expected call of MemoryTracker
-func (mr *MockOptionsMockRecorder) MemoryTracker() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemoryTracker", reflect.TypeOf((*MockOptions)(nil).MemoryTracker))
-}
-
-// SetMmapReporter mocks base method
-func (m *MockOptions) SetMmapReporter(mmapReporter mmap.Reporter) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetMmapReporter", mmapReporter)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMmapReporter indicates an expected call of SetMmapReporter
-func (mr *MockOptionsMockRecorder) SetMmapReporter(mmapReporter interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMmapReporter", reflect.TypeOf((*MockOptions)(nil).SetMmapReporter), mmapReporter)
-}
-
-// MmapReporter mocks base method
-func (m *MockOptions) MmapReporter() mmap.Reporter {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MmapReporter")
-	ret0, _ := ret[0].(mmap.Reporter)
-	return ret0
-}
-
-// MmapReporter indicates an expected call of MmapReporter
-func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
-}
-
-// SetDoNotIndexWithFieldsMap mocks base method
-func (m *MockOptions) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetDoNotIndexWithFieldsMap", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetDoNotIndexWithFieldsMap indicates an expected call of SetDoNotIndexWithFieldsMap
-func (mr *MockOptionsMockRecorder) SetDoNotIndexWithFieldsMap(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).SetDoNotIndexWithFieldsMap), value)
-}
-
-// DoNotIndexWithFieldsMap mocks base method
-func (m *MockOptions) DoNotIndexWithFieldsMap() map[string]string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DoNotIndexWithFieldsMap")
-	ret0, _ := ret[0].(map[string]string)
-	return ret0
-}
-
-// DoNotIndexWithFieldsMap indicates an expected call of DoNotIndexWithFieldsMap
-func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
-}
-
-// SetNamespaceRuntimeOptionsManagerRegistry mocks base method
-func (m *MockOptions) SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetNamespaceRuntimeOptionsManagerRegistry", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetNamespaceRuntimeOptionsManagerRegistry indicates an expected call of SetNamespaceRuntimeOptionsManagerRegistry
-func (mr *MockOptionsMockRecorder) SetNamespaceRuntimeOptionsManagerRegistry(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).SetNamespaceRuntimeOptionsManagerRegistry), value)
-}
-
-// NamespaceRuntimeOptionsManagerRegistry mocks base method
-func (m *MockOptions) NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NamespaceRuntimeOptionsManagerRegistry")
-	ret0, _ := ret[0].(namespace.RuntimeOptionsManagerRegistry)
-	return ret0
-}
-
-// NamespaceRuntimeOptionsManagerRegistry indicates an expected call of NamespaceRuntimeOptionsManagerRegistry
-func (mr *MockOptionsMockRecorder) NamespaceRuntimeOptionsManagerRegistry() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).NamespaceRuntimeOptionsManagerRegistry))
-}
-
-// SetMediatorTickInterval mocks base method
-func (m *MockOptions) SetMediatorTickInterval(value time.Duration) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetMediatorTickInterval", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMediatorTickInterval indicates an expected call of SetMediatorTickInterval
-func (mr *MockOptionsMockRecorder) SetMediatorTickInterval(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).SetMediatorTickInterval), value)
-}
-
-// MediatorTickInterval mocks base method
-func (m *MockOptions) MediatorTickInterval() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MediatorTickInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// MediatorTickInterval indicates an expected call of MediatorTickInterval
-func (mr *MockOptionsMockRecorder) MediatorTickInterval() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).MediatorTickInterval))
-}
-
-// SetAdminClient mocks base method
-func (m *MockOptions) SetAdminClient(value client.AdminClient) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetAdminClient", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetAdminClient indicates an expected call of SetAdminClient
-func (mr *MockOptionsMockRecorder) SetAdminClient(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminClient", reflect.TypeOf((*MockOptions)(nil).SetAdminClient), value)
-}
-
-// AdminClient mocks base method
+// AdminClient mocks base method.
 func (m *MockOptions) AdminClient() client.AdminClient {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AdminClient")
@@ -5207,55 +3905,13 @@ func (m *MockOptions) AdminClient() client.AdminClient {
 	return ret0
 }
 
-// AdminClient indicates an expected call of AdminClient
+// AdminClient indicates an expected call of AdminClient.
 func (mr *MockOptionsMockRecorder) AdminClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdminClient", reflect.TypeOf((*MockOptions)(nil).AdminClient))
 }
 
-// SetWideBatchSize mocks base method
-func (m *MockOptions) SetWideBatchSize(value int) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetWideBatchSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWideBatchSize indicates an expected call of SetWideBatchSize
-func (mr *MockOptionsMockRecorder) SetWideBatchSize(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWideBatchSize", reflect.TypeOf((*MockOptions)(nil).SetWideBatchSize), value)
-}
-
-// WideBatchSize mocks base method
-func (m *MockOptions) WideBatchSize() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideBatchSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// WideBatchSize indicates an expected call of WideBatchSize
-func (mr *MockOptionsMockRecorder) WideBatchSize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideBatchSize", reflect.TypeOf((*MockOptions)(nil).WideBatchSize))
-}
-
-// SetBackgroundProcessFns mocks base method
-func (m *MockOptions) SetBackgroundProcessFns(arg0 []NewBackgroundProcessFn) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetBackgroundProcessFns", arg0)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundProcessFns indicates an expected call of SetBackgroundProcessFns
-func (mr *MockOptionsMockRecorder) SetBackgroundProcessFns(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundProcessFns", reflect.TypeOf((*MockOptions)(nil).SetBackgroundProcessFns), arg0)
-}
-
-// BackgroundProcessFns mocks base method
+// BackgroundProcessFns mocks base method.
 func (m *MockOptions) BackgroundProcessFns() []NewBackgroundProcessFn {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BackgroundProcessFns")
@@ -5263,97 +3919,349 @@ func (m *MockOptions) BackgroundProcessFns() []NewBackgroundProcessFn {
 	return ret0
 }
 
-// BackgroundProcessFns indicates an expected call of BackgroundProcessFns
+// BackgroundProcessFns indicates an expected call of BackgroundProcessFns.
 func (mr *MockOptionsMockRecorder) BackgroundProcessFns() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundProcessFns", reflect.TypeOf((*MockOptions)(nil).BackgroundProcessFns))
 }
 
-// SetNamespaceHooks mocks base method
-func (m *MockOptions) SetNamespaceHooks(hooks NamespaceHooks) Options {
+// BlockLeaseManager mocks base method.
+func (m *MockOptions) BlockLeaseManager() block.LeaseManager {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetNamespaceHooks", hooks)
-	ret0, _ := ret[0].(Options)
+	ret := m.ctrl.Call(m, "BlockLeaseManager")
+	ret0, _ := ret[0].(block.LeaseManager)
 	return ret0
 }
 
-// SetNamespaceHooks indicates an expected call of SetNamespaceHooks
-func (mr *MockOptionsMockRecorder) SetNamespaceHooks(hooks interface{}) *gomock.Call {
+// BlockLeaseManager indicates an expected call of BlockLeaseManager.
+func (mr *MockOptionsMockRecorder) BlockLeaseManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceHooks", reflect.TypeOf((*MockOptions)(nil).SetNamespaceHooks), hooks)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).BlockLeaseManager))
 }
 
-// NamespaceHooks mocks base method
-func (m *MockOptions) NamespaceHooks() NamespaceHooks {
+// BootstrapProcessProvider mocks base method.
+func (m *MockOptions) BootstrapProcessProvider() bootstrap.ProcessProvider {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NamespaceHooks")
-	ret0, _ := ret[0].(NamespaceHooks)
+	ret := m.ctrl.Call(m, "BootstrapProcessProvider")
+	ret0, _ := ret[0].(bootstrap.ProcessProvider)
 	return ret0
 }
 
-// NamespaceHooks indicates an expected call of NamespaceHooks
-func (mr *MockOptionsMockRecorder) NamespaceHooks() *gomock.Call {
+// BootstrapProcessProvider indicates an expected call of BootstrapProcessProvider.
+func (mr *MockOptionsMockRecorder) BootstrapProcessProvider() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceHooks", reflect.TypeOf((*MockOptions)(nil).NamespaceHooks))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).BootstrapProcessProvider))
 }
 
-// SetTileAggregator mocks base method
-func (m *MockOptions) SetTileAggregator(aggregator TileAggregator) Options {
+// BufferBucketPool mocks base method.
+func (m *MockOptions) BufferBucketPool() *series.BufferBucketPool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetTileAggregator", aggregator)
-	ret0, _ := ret[0].(Options)
+	ret := m.ctrl.Call(m, "BufferBucketPool")
+	ret0, _ := ret[0].(*series.BufferBucketPool)
 	return ret0
 }
 
-// SetTileAggregator indicates an expected call of SetTileAggregator
-func (mr *MockOptionsMockRecorder) SetTileAggregator(aggregator interface{}) *gomock.Call {
+// BufferBucketPool indicates an expected call of BufferBucketPool.
+func (mr *MockOptionsMockRecorder) BufferBucketPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTileAggregator", reflect.TypeOf((*MockOptions)(nil).SetTileAggregator), aggregator)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketPool))
 }
 
-// TileAggregator mocks base method
-func (m *MockOptions) TileAggregator() TileAggregator {
+// BufferBucketVersionsPool mocks base method.
+func (m *MockOptions) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TileAggregator")
-	ret0, _ := ret[0].(TileAggregator)
+	ret := m.ctrl.Call(m, "BufferBucketVersionsPool")
+	ret0, _ := ret[0].(*series.BufferBucketVersionsPool)
 	return ret0
 }
 
-// TileAggregator indicates an expected call of TileAggregator
-func (mr *MockOptionsMockRecorder) TileAggregator() *gomock.Call {
+// BufferBucketVersionsPool indicates an expected call of BufferBucketVersionsPool.
+func (mr *MockOptionsMockRecorder) BufferBucketVersionsPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TileAggregator", reflect.TypeOf((*MockOptions)(nil).TileAggregator))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketVersionsPool))
 }
 
-// PermitsOptions mocks base method
-func (m *MockOptions) PermitsOptions() permits.Options {
+// BytesPool mocks base method.
+func (m *MockOptions) BytesPool() pool.CheckedBytesPool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PermitsOptions")
-	ret0, _ := ret[0].(permits.Options)
+	ret := m.ctrl.Call(m, "BytesPool")
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
 	return ret0
 }
 
-// PermitsOptions indicates an expected call of PermitsOptions
-func (mr *MockOptionsMockRecorder) PermitsOptions() *gomock.Call {
+// BytesPool indicates an expected call of BytesPool.
+func (mr *MockOptionsMockRecorder) BytesPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PermitsOptions", reflect.TypeOf((*MockOptions)(nil).PermitsOptions))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BytesPool", reflect.TypeOf((*MockOptions)(nil).BytesPool))
 }
 
-// SetPermitsOptions mocks base method
-func (m *MockOptions) SetPermitsOptions(value permits.Options) Options {
+// CheckedBytesWrapperPool mocks base method.
+func (m *MockOptions) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetPermitsOptions", value)
-	ret0, _ := ret[0].(Options)
+	ret := m.ctrl.Call(m, "CheckedBytesWrapperPool")
+	ret0, _ := ret[0].(xpool.CheckedBytesWrapperPool)
 	return ret0
 }
 
-// SetPermitsOptions indicates an expected call of SetPermitsOptions
-func (mr *MockOptionsMockRecorder) SetPermitsOptions(value interface{}) *gomock.Call {
+// CheckedBytesWrapperPool indicates an expected call of CheckedBytesWrapperPool.
+func (mr *MockOptionsMockRecorder) CheckedBytesWrapperPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPermitsOptions", reflect.TypeOf((*MockOptions)(nil).SetPermitsOptions), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesWrapperPool", reflect.TypeOf((*MockOptions)(nil).CheckedBytesWrapperPool))
 }
 
-// LimitsOptions mocks base method
+// ClockOptions mocks base method.
+func (m *MockOptions) ClockOptions() clock.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+// ClockOptions indicates an expected call of ClockOptions.
+func (mr *MockOptionsMockRecorder) ClockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClockOptions", reflect.TypeOf((*MockOptions)(nil).ClockOptions))
+}
+
+// CommitLogOptions mocks base method.
+func (m *MockOptions) CommitLogOptions() commitlog.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CommitLogOptions")
+	ret0, _ := ret[0].(commitlog.Options)
+	return ret0
+}
+
+// CommitLogOptions indicates an expected call of CommitLogOptions.
+func (mr *MockOptionsMockRecorder) CommitLogOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitLogOptions", reflect.TypeOf((*MockOptions)(nil).CommitLogOptions))
+}
+
+// ContextPool mocks base method.
+func (m *MockOptions) ContextPool() context.Pool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+// ContextPool indicates an expected call of ContextPool.
+func (mr *MockOptionsMockRecorder) ContextPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextPool", reflect.TypeOf((*MockOptions)(nil).ContextPool))
+}
+
+// DatabaseBlockOptions mocks base method.
+func (m *MockOptions) DatabaseBlockOptions() block.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DatabaseBlockOptions")
+	ret0, _ := ret[0].(block.Options)
+	return ret0
+}
+
+// DatabaseBlockOptions indicates an expected call of DatabaseBlockOptions.
+func (mr *MockOptionsMockRecorder) DatabaseBlockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseBlockOptions", reflect.TypeOf((*MockOptions)(nil).DatabaseBlockOptions))
+}
+
+// DatabaseBlockRetrieverManager mocks base method.
+func (m *MockOptions) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DatabaseBlockRetrieverManager")
+	ret0, _ := ret[0].(block.DatabaseBlockRetrieverManager)
+	return ret0
+}
+
+// DatabaseBlockRetrieverManager indicates an expected call of DatabaseBlockRetrieverManager.
+func (mr *MockOptionsMockRecorder) DatabaseBlockRetrieverManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseBlockRetrieverManager", reflect.TypeOf((*MockOptions)(nil).DatabaseBlockRetrieverManager))
+}
+
+// DatabaseSeriesPool mocks base method.
+func (m *MockOptions) DatabaseSeriesPool() series.DatabaseSeriesPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DatabaseSeriesPool")
+	ret0, _ := ret[0].(series.DatabaseSeriesPool)
+	return ret0
+}
+
+// DatabaseSeriesPool indicates an expected call of DatabaseSeriesPool.
+func (mr *MockOptionsMockRecorder) DatabaseSeriesPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseSeriesPool", reflect.TypeOf((*MockOptions)(nil).DatabaseSeriesPool))
+}
+
+// DoNotIndexWithFieldsMap mocks base method.
+func (m *MockOptions) DoNotIndexWithFieldsMap() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoNotIndexWithFieldsMap")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// DoNotIndexWithFieldsMap indicates an expected call of DoNotIndexWithFieldsMap.
+func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
+}
+
+// EncoderPool mocks base method.
+func (m *MockOptions) EncoderPool() encoding.EncoderPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EncoderPool")
+	ret0, _ := ret[0].(encoding.EncoderPool)
+	return ret0
+}
+
+// EncoderPool indicates an expected call of EncoderPool.
+func (mr *MockOptionsMockRecorder) EncoderPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncoderPool", reflect.TypeOf((*MockOptions)(nil).EncoderPool))
+}
+
+// ErrorThresholdForLoad mocks base method.
+func (m *MockOptions) ErrorThresholdForLoad() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ErrorThresholdForLoad")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// ErrorThresholdForLoad indicates an expected call of ErrorThresholdForLoad.
+func (mr *MockOptionsMockRecorder) ErrorThresholdForLoad() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorThresholdForLoad", reflect.TypeOf((*MockOptions)(nil).ErrorThresholdForLoad))
+}
+
+// ErrorWindowForLoad mocks base method.
+func (m *MockOptions) ErrorWindowForLoad() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ErrorWindowForLoad")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// ErrorWindowForLoad indicates an expected call of ErrorWindowForLoad.
+func (mr *MockOptionsMockRecorder) ErrorWindowForLoad() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorWindowForLoad", reflect.TypeOf((*MockOptions)(nil).ErrorWindowForLoad))
+}
+
+// FetchBlockMetadataResultsPool mocks base method.
+func (m *MockOptions) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlockMetadataResultsPool")
+	ret0, _ := ret[0].(block.FetchBlockMetadataResultsPool)
+	return ret0
+}
+
+// FetchBlockMetadataResultsPool indicates an expected call of FetchBlockMetadataResultsPool.
+func (mr *MockOptionsMockRecorder) FetchBlockMetadataResultsPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlockMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlockMetadataResultsPool))
+}
+
+// FetchBlocksMetadataResultsPool mocks base method.
+func (m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocksMetadataResultsPool")
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResultsPool)
+	return ret0
+}
+
+// FetchBlocksMetadataResultsPool indicates an expected call of FetchBlocksMetadataResultsPool.
+func (mr *MockOptionsMockRecorder) FetchBlocksMetadataResultsPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlocksMetadataResultsPool))
+}
+
+// ForceColdWritesEnabled mocks base method.
+func (m *MockOptions) ForceColdWritesEnabled() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ForceColdWritesEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ForceColdWritesEnabled indicates an expected call of ForceColdWritesEnabled.
+func (mr *MockOptionsMockRecorder) ForceColdWritesEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForceColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).ForceColdWritesEnabled))
+}
+
+// IdentifierPool mocks base method.
+func (m *MockOptions) IdentifierPool() ident.Pool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IdentifierPool")
+	ret0, _ := ret[0].(ident.Pool)
+	return ret0
+}
+
+// IdentifierPool indicates an expected call of IdentifierPool.
+func (mr *MockOptionsMockRecorder) IdentifierPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IdentifierPool", reflect.TypeOf((*MockOptions)(nil).IdentifierPool))
+}
+
+// IndexClaimsManager mocks base method.
+func (m *MockOptions) IndexClaimsManager() fs.IndexClaimsManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexClaimsManager")
+	ret0, _ := ret[0].(fs.IndexClaimsManager)
+	return ret0
+}
+
+// IndexClaimsManager indicates an expected call of IndexClaimsManager.
+func (mr *MockOptionsMockRecorder) IndexClaimsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).IndexClaimsManager))
+}
+
+// IndexOptions mocks base method.
+func (m *MockOptions) IndexOptions() index.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexOptions")
+	ret0, _ := ret[0].(index.Options)
+	return ret0
+}
+
+// IndexOptions indicates an expected call of IndexOptions.
+func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
+}
+
+// InstrumentOptions mocks base method.
+func (m *MockOptions) InstrumentOptions() instrument.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+// InstrumentOptions indicates an expected call of InstrumentOptions.
+func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
+}
+
+// IterationOptions mocks base method.
+func (m *MockOptions) IterationOptions() index.IterationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IterationOptions")
+	ret0, _ := ret[0].(index.IterationOptions)
+	return ret0
+}
+
+// IterationOptions indicates an expected call of IterationOptions.
+func (mr *MockOptionsMockRecorder) IterationOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockOptions)(nil).IterationOptions))
+}
+
+// LimitsOptions mocks base method.
 func (m *MockOptions) LimitsOptions() limits.Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LimitsOptions")
@@ -5361,13 +4269,657 @@ func (m *MockOptions) LimitsOptions() limits.Options {
 	return ret0
 }
 
-// LimitsOptions indicates an expected call of LimitsOptions
+// LimitsOptions indicates an expected call of LimitsOptions.
 func (mr *MockOptionsMockRecorder) LimitsOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LimitsOptions", reflect.TypeOf((*MockOptions)(nil).LimitsOptions))
 }
 
-// SetLimitsOptions mocks base method
+// MediatorTickInterval mocks base method.
+func (m *MockOptions) MediatorTickInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MediatorTickInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// MediatorTickInterval indicates an expected call of MediatorTickInterval.
+func (mr *MockOptionsMockRecorder) MediatorTickInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).MediatorTickInterval))
+}
+
+// MemoryTracker mocks base method.
+func (m *MockOptions) MemoryTracker() MemoryTracker {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MemoryTracker")
+	ret0, _ := ret[0].(MemoryTracker)
+	return ret0
+}
+
+// MemoryTracker indicates an expected call of MemoryTracker.
+func (mr *MockOptionsMockRecorder) MemoryTracker() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemoryTracker", reflect.TypeOf((*MockOptions)(nil).MemoryTracker))
+}
+
+// MmapReporter mocks base method.
+func (m *MockOptions) MmapReporter() mmap.Reporter {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MmapReporter")
+	ret0, _ := ret[0].(mmap.Reporter)
+	return ret0
+}
+
+// MmapReporter indicates an expected call of MmapReporter.
+func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
+}
+
+// MultiReaderIteratorPool mocks base method.
+func (m *MockOptions) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MultiReaderIteratorPool")
+	ret0, _ := ret[0].(encoding.MultiReaderIteratorPool)
+	return ret0
+}
+
+// MultiReaderIteratorPool indicates an expected call of MultiReaderIteratorPool.
+func (mr *MockOptionsMockRecorder) MultiReaderIteratorPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).MultiReaderIteratorPool))
+}
+
+// NamespaceHooks mocks base method.
+func (m *MockOptions) NamespaceHooks() NamespaceHooks {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceHooks")
+	ret0, _ := ret[0].(NamespaceHooks)
+	return ret0
+}
+
+// NamespaceHooks indicates an expected call of NamespaceHooks.
+func (mr *MockOptionsMockRecorder) NamespaceHooks() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceHooks", reflect.TypeOf((*MockOptions)(nil).NamespaceHooks))
+}
+
+// NamespaceInitializer mocks base method.
+func (m *MockOptions) NamespaceInitializer() namespace.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceInitializer")
+	ret0, _ := ret[0].(namespace.Initializer)
+	return ret0
+}
+
+// NamespaceInitializer indicates an expected call of NamespaceInitializer.
+func (mr *MockOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).NamespaceInitializer))
+}
+
+// NamespaceRuntimeOptionsManagerRegistry mocks base method.
+func (m *MockOptions) NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceRuntimeOptionsManagerRegistry")
+	ret0, _ := ret[0].(namespace.RuntimeOptionsManagerRegistry)
+	return ret0
+}
+
+// NamespaceRuntimeOptionsManagerRegistry indicates an expected call of NamespaceRuntimeOptionsManagerRegistry.
+func (mr *MockOptionsMockRecorder) NamespaceRuntimeOptionsManagerRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).NamespaceRuntimeOptionsManagerRegistry))
+}
+
+// OnColdFlush mocks base method.
+func (m *MockOptions) OnColdFlush() OnColdFlush {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OnColdFlush")
+	ret0, _ := ret[0].(OnColdFlush)
+	return ret0
+}
+
+// OnColdFlush indicates an expected call of OnColdFlush.
+func (mr *MockOptionsMockRecorder) OnColdFlush() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnColdFlush", reflect.TypeOf((*MockOptions)(nil).OnColdFlush))
+}
+
+// PermitsOptions mocks base method.
+func (m *MockOptions) PermitsOptions() permits.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PermitsOptions")
+	ret0, _ := ret[0].(permits.Options)
+	return ret0
+}
+
+// PermitsOptions indicates an expected call of PermitsOptions.
+func (mr *MockOptionsMockRecorder) PermitsOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PermitsOptions", reflect.TypeOf((*MockOptions)(nil).PermitsOptions))
+}
+
+// PersistManager mocks base method.
+func (m *MockOptions) PersistManager() persist.Manager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PersistManager")
+	ret0, _ := ret[0].(persist.Manager)
+	return ret0
+}
+
+// PersistManager indicates an expected call of PersistManager.
+func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
+}
+
+// ReaderIteratorPool mocks base method.
+func (m *MockOptions) ReaderIteratorPool() encoding.ReaderIteratorPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReaderIteratorPool")
+	ret0, _ := ret[0].(encoding.ReaderIteratorPool)
+	return ret0
+}
+
+// ReaderIteratorPool indicates an expected call of ReaderIteratorPool.
+func (mr *MockOptionsMockRecorder) ReaderIteratorPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).ReaderIteratorPool))
+}
+
+// RepairEnabled mocks base method.
+func (m *MockOptions) RepairEnabled() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RepairEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// RepairEnabled indicates an expected call of RepairEnabled.
+func (mr *MockOptionsMockRecorder) RepairEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairEnabled", reflect.TypeOf((*MockOptions)(nil).RepairEnabled))
+}
+
+// RepairOptions mocks base method.
+func (m *MockOptions) RepairOptions() repair.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RepairOptions")
+	ret0, _ := ret[0].(repair.Options)
+	return ret0
+}
+
+// RepairOptions indicates an expected call of RepairOptions.
+func (mr *MockOptionsMockRecorder) RepairOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairOptions", reflect.TypeOf((*MockOptions)(nil).RepairOptions))
+}
+
+// RetrieveRequestPool mocks base method.
+func (m *MockOptions) RetrieveRequestPool() fs.RetrieveRequestPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetrieveRequestPool")
+	ret0, _ := ret[0].(fs.RetrieveRequestPool)
+	return ret0
+}
+
+// RetrieveRequestPool indicates an expected call of RetrieveRequestPool.
+func (mr *MockOptionsMockRecorder) RetrieveRequestPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrieveRequestPool", reflect.TypeOf((*MockOptions)(nil).RetrieveRequestPool))
+}
+
+// RuntimeOptionsManager mocks base method.
+func (m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager.
+func (mr *MockOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).RuntimeOptionsManager))
+}
+
+// SchemaRegistry mocks base method.
+func (m *MockOptions) SchemaRegistry() namespace.SchemaRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(namespace.SchemaRegistry)
+	return ret0
+}
+
+// SchemaRegistry indicates an expected call of SchemaRegistry.
+func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
+}
+
+// SegmentReaderPool mocks base method.
+func (m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentReaderPool")
+	ret0, _ := ret[0].(xio.SegmentReaderPool)
+	return ret0
+}
+
+// SegmentReaderPool indicates an expected call of SegmentReaderPool.
+func (mr *MockOptionsMockRecorder) SegmentReaderPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SegmentReaderPool))
+}
+
+// SeriesCachePolicy mocks base method.
+func (m *MockOptions) SeriesCachePolicy() series.CachePolicy {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeriesCachePolicy")
+	ret0, _ := ret[0].(series.CachePolicy)
+	return ret0
+}
+
+// SeriesCachePolicy indicates an expected call of SeriesCachePolicy.
+func (mr *MockOptionsMockRecorder) SeriesCachePolicy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesCachePolicy", reflect.TypeOf((*MockOptions)(nil).SeriesCachePolicy))
+}
+
+// SeriesOptions mocks base method.
+func (m *MockOptions) SeriesOptions() series.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeriesOptions")
+	ret0, _ := ret[0].(series.Options)
+	return ret0
+}
+
+// SeriesOptions indicates an expected call of SeriesOptions.
+func (mr *MockOptionsMockRecorder) SeriesOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesOptions", reflect.TypeOf((*MockOptions)(nil).SeriesOptions))
+}
+
+// SetAdminClient mocks base method.
+func (m *MockOptions) SetAdminClient(value client.AdminClient) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAdminClient", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAdminClient indicates an expected call of SetAdminClient.
+func (mr *MockOptionsMockRecorder) SetAdminClient(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminClient", reflect.TypeOf((*MockOptions)(nil).SetAdminClient), value)
+}
+
+// SetBackgroundProcessFns mocks base method.
+func (m *MockOptions) SetBackgroundProcessFns(arg0 []NewBackgroundProcessFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundProcessFns", arg0)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundProcessFns indicates an expected call of SetBackgroundProcessFns.
+func (mr *MockOptionsMockRecorder) SetBackgroundProcessFns(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundProcessFns", reflect.TypeOf((*MockOptions)(nil).SetBackgroundProcessFns), arg0)
+}
+
+// SetBlockLeaseManager mocks base method.
+func (m *MockOptions) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBlockLeaseManager", leaseMgr)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBlockLeaseManager indicates an expected call of SetBlockLeaseManager.
+func (mr *MockOptionsMockRecorder) SetBlockLeaseManager(leaseMgr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).SetBlockLeaseManager), leaseMgr)
+}
+
+// SetBootstrapProcessProvider mocks base method.
+func (m *MockOptions) SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBootstrapProcessProvider", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBootstrapProcessProvider indicates an expected call of SetBootstrapProcessProvider.
+func (mr *MockOptionsMockRecorder) SetBootstrapProcessProvider(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).SetBootstrapProcessProvider), value)
+}
+
+// SetBufferBucketPool mocks base method.
+func (m *MockOptions) SetBufferBucketPool(value *series.BufferBucketPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBufferBucketPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBufferBucketPool indicates an expected call of SetBufferBucketPool.
+func (mr *MockOptionsMockRecorder) SetBufferBucketPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketPool), value)
+}
+
+// SetBufferBucketVersionsPool mocks base method.
+func (m *MockOptions) SetBufferBucketVersionsPool(value *series.BufferBucketVersionsPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBufferBucketVersionsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBufferBucketVersionsPool indicates an expected call of SetBufferBucketVersionsPool.
+func (mr *MockOptionsMockRecorder) SetBufferBucketVersionsPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).SetBufferBucketVersionsPool), value)
+}
+
+// SetBytesPool mocks base method.
+func (m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBytesPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBytesPool indicates an expected call of SetBytesPool.
+func (mr *MockOptionsMockRecorder) SetBytesPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBytesPool", reflect.TypeOf((*MockOptions)(nil).SetBytesPool), value)
+}
+
+// SetCheckedBytesWrapperPool mocks base method.
+func (m *MockOptions) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesWrapperPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPool indicates an expected call of SetCheckedBytesWrapperPool.
+func (mr *MockOptionsMockRecorder) SetCheckedBytesWrapperPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesWrapperPool", reflect.TypeOf((*MockOptions)(nil).SetCheckedBytesWrapperPool), value)
+}
+
+// SetClockOptions mocks base method.
+func (m *MockOptions) SetClockOptions(value clock.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClockOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClockOptions indicates an expected call of SetClockOptions.
+func (mr *MockOptionsMockRecorder) SetClockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClockOptions", reflect.TypeOf((*MockOptions)(nil).SetClockOptions), value)
+}
+
+// SetCommitLogOptions mocks base method.
+func (m *MockOptions) SetCommitLogOptions(value commitlog.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCommitLogOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCommitLogOptions indicates an expected call of SetCommitLogOptions.
+func (mr *MockOptionsMockRecorder) SetCommitLogOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCommitLogOptions", reflect.TypeOf((*MockOptions)(nil).SetCommitLogOptions), value)
+}
+
+// SetContextPool mocks base method.
+func (m *MockOptions) SetContextPool(value context.Pool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetContextPool indicates an expected call of SetContextPool.
+func (mr *MockOptionsMockRecorder) SetContextPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContextPool", reflect.TypeOf((*MockOptions)(nil).SetContextPool), value)
+}
+
+// SetDatabaseBlockOptions mocks base method.
+func (m *MockOptions) SetDatabaseBlockOptions(value block.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDatabaseBlockOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDatabaseBlockOptions indicates an expected call of SetDatabaseBlockOptions.
+func (mr *MockOptionsMockRecorder) SetDatabaseBlockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseBlockOptions", reflect.TypeOf((*MockOptions)(nil).SetDatabaseBlockOptions), value)
+}
+
+// SetDatabaseBlockRetrieverManager mocks base method.
+func (m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDatabaseBlockRetrieverManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDatabaseBlockRetrieverManager indicates an expected call of SetDatabaseBlockRetrieverManager.
+func (mr *MockOptionsMockRecorder) SetDatabaseBlockRetrieverManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseBlockRetrieverManager", reflect.TypeOf((*MockOptions)(nil).SetDatabaseBlockRetrieverManager), value)
+}
+
+// SetDatabaseSeriesPool mocks base method.
+func (m *MockOptions) SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDatabaseSeriesPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDatabaseSeriesPool indicates an expected call of SetDatabaseSeriesPool.
+func (mr *MockOptionsMockRecorder) SetDatabaseSeriesPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseSeriesPool", reflect.TypeOf((*MockOptions)(nil).SetDatabaseSeriesPool), value)
+}
+
+// SetDoNotIndexWithFieldsMap mocks base method.
+func (m *MockOptions) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDoNotIndexWithFieldsMap", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDoNotIndexWithFieldsMap indicates an expected call of SetDoNotIndexWithFieldsMap.
+func (mr *MockOptionsMockRecorder) SetDoNotIndexWithFieldsMap(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).SetDoNotIndexWithFieldsMap), value)
+}
+
+// SetEncoderPool mocks base method.
+func (m *MockOptions) SetEncoderPool(value encoding.EncoderPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncoderPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncoderPool indicates an expected call of SetEncoderPool.
+func (mr *MockOptionsMockRecorder) SetEncoderPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncoderPool", reflect.TypeOf((*MockOptions)(nil).SetEncoderPool), value)
+}
+
+// SetEncodingM3TSZPooled mocks base method.
+func (m *MockOptions) SetEncodingM3TSZPooled() Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodingM3TSZPooled")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingM3TSZPooled indicates an expected call of SetEncodingM3TSZPooled.
+func (mr *MockOptionsMockRecorder) SetEncodingM3TSZPooled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingM3TSZPooled", reflect.TypeOf((*MockOptions)(nil).SetEncodingM3TSZPooled))
+}
+
+// SetErrorThresholdForLoad mocks base method.
+func (m *MockOptions) SetErrorThresholdForLoad(value int64) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetErrorThresholdForLoad", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetErrorThresholdForLoad indicates an expected call of SetErrorThresholdForLoad.
+func (mr *MockOptionsMockRecorder) SetErrorThresholdForLoad(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorThresholdForLoad", reflect.TypeOf((*MockOptions)(nil).SetErrorThresholdForLoad), value)
+}
+
+// SetErrorWindowForLoad mocks base method.
+func (m *MockOptions) SetErrorWindowForLoad(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetErrorWindowForLoad", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetErrorWindowForLoad indicates an expected call of SetErrorWindowForLoad.
+func (mr *MockOptionsMockRecorder) SetErrorWindowForLoad(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorWindowForLoad", reflect.TypeOf((*MockOptions)(nil).SetErrorWindowForLoad), value)
+}
+
+// SetFetchBlockMetadataResultsPool mocks base method.
+func (m *MockOptions) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchBlockMetadataResultsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBlockMetadataResultsPool indicates an expected call of SetFetchBlockMetadataResultsPool.
+func (mr *MockOptionsMockRecorder) SetFetchBlockMetadataResultsPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBlockMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).SetFetchBlockMetadataResultsPool), value)
+}
+
+// SetFetchBlocksMetadataResultsPool mocks base method.
+func (m *MockOptions) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetadataResultsPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchBlocksMetadataResultsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBlocksMetadataResultsPool indicates an expected call of SetFetchBlocksMetadataResultsPool.
+func (mr *MockOptionsMockRecorder) SetFetchBlocksMetadataResultsPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).SetFetchBlocksMetadataResultsPool), value)
+}
+
+// SetForceColdWritesEnabled mocks base method.
+func (m *MockOptions) SetForceColdWritesEnabled(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetForceColdWritesEnabled", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetForceColdWritesEnabled indicates an expected call of SetForceColdWritesEnabled.
+func (mr *MockOptionsMockRecorder) SetForceColdWritesEnabled(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetForceColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).SetForceColdWritesEnabled), value)
+}
+
+// SetIdentifierPool mocks base method.
+func (m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIdentifierPool indicates an expected call of SetIdentifierPool.
+func (mr *MockOptionsMockRecorder) SetIdentifierPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockOptions)(nil).SetIdentifierPool), value)
+}
+
+// SetIndexClaimsManager mocks base method.
+func (m *MockOptions) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndexClaimsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexClaimsManager indicates an expected call of SetIndexClaimsManager.
+func (mr *MockOptionsMockRecorder) SetIndexClaimsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).SetIndexClaimsManager), value)
+}
+
+// SetIndexOptions mocks base method.
+func (m *MockOptions) SetIndexOptions(value index.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndexOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexOptions indicates an expected call of SetIndexOptions.
+func (mr *MockOptionsMockRecorder) SetIndexOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexOptions", reflect.TypeOf((*MockOptions)(nil).SetIndexOptions), value)
+}
+
+// SetInstrumentOptions mocks base method.
+func (m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetInstrumentOptions indicates an expected call of SetInstrumentOptions.
+func (mr *MockOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), value)
+}
+
+// SetIterationOptions mocks base method.
+func (m *MockOptions) SetIterationOptions(arg0 index.IterationOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIterationOptions", arg0)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIterationOptions indicates an expected call of SetIterationOptions.
+func (mr *MockOptionsMockRecorder) SetIterationOptions(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterationOptions", reflect.TypeOf((*MockOptions)(nil).SetIterationOptions), arg0)
+}
+
+// SetLimitsOptions mocks base method.
 func (m *MockOptions) SetLimitsOptions(value limits.Options) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetLimitsOptions", value)
@@ -5375,36 +4927,496 @@ func (m *MockOptions) SetLimitsOptions(value limits.Options) Options {
 	return ret0
 }
 
-// SetLimitsOptions indicates an expected call of SetLimitsOptions
+// SetLimitsOptions indicates an expected call of SetLimitsOptions.
 func (mr *MockOptionsMockRecorder) SetLimitsOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLimitsOptions", reflect.TypeOf((*MockOptions)(nil).SetLimitsOptions), value)
 }
 
-// MockMemoryTracker is a mock of MemoryTracker interface
+// SetMediatorTickInterval mocks base method.
+func (m *MockOptions) SetMediatorTickInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMediatorTickInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMediatorTickInterval indicates an expected call of SetMediatorTickInterval.
+func (mr *MockOptionsMockRecorder) SetMediatorTickInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).SetMediatorTickInterval), value)
+}
+
+// SetMemoryTracker mocks base method.
+func (m *MockOptions) SetMemoryTracker(memTracker MemoryTracker) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMemoryTracker", memTracker)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMemoryTracker indicates an expected call of SetMemoryTracker.
+func (mr *MockOptionsMockRecorder) SetMemoryTracker(memTracker interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMemoryTracker", reflect.TypeOf((*MockOptions)(nil).SetMemoryTracker), memTracker)
+}
+
+// SetMmapReporter mocks base method.
+func (m *MockOptions) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMmapReporter", mmapReporter)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMmapReporter indicates an expected call of SetMmapReporter.
+func (mr *MockOptionsMockRecorder) SetMmapReporter(mmapReporter interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMmapReporter", reflect.TypeOf((*MockOptions)(nil).SetMmapReporter), mmapReporter)
+}
+
+// SetMultiReaderIteratorPool mocks base method.
+func (m *MockOptions) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMultiReaderIteratorPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMultiReaderIteratorPool indicates an expected call of SetMultiReaderIteratorPool.
+func (mr *MockOptionsMockRecorder) SetMultiReaderIteratorPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultiReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).SetMultiReaderIteratorPool), value)
+}
+
+// SetNamespaceHooks mocks base method.
+func (m *MockOptions) SetNamespaceHooks(hooks NamespaceHooks) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceHooks", hooks)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceHooks indicates an expected call of SetNamespaceHooks.
+func (mr *MockOptionsMockRecorder) SetNamespaceHooks(hooks interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceHooks", reflect.TypeOf((*MockOptions)(nil).SetNamespaceHooks), hooks)
+}
+
+// SetNamespaceInitializer mocks base method.
+func (m *MockOptions) SetNamespaceInitializer(value namespace.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceInitializer indicates an expected call of SetNamespaceInitializer.
+func (mr *MockOptionsMockRecorder) SetNamespaceInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).SetNamespaceInitializer), value)
+}
+
+// SetNamespaceRuntimeOptionsManagerRegistry mocks base method.
+func (m *MockOptions) SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceRuntimeOptionsManagerRegistry", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceRuntimeOptionsManagerRegistry indicates an expected call of SetNamespaceRuntimeOptionsManagerRegistry.
+func (mr *MockOptionsMockRecorder) SetNamespaceRuntimeOptionsManagerRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).SetNamespaceRuntimeOptionsManagerRegistry), value)
+}
+
+// SetOnColdFlush mocks base method.
+func (m *MockOptions) SetOnColdFlush(value OnColdFlush) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetOnColdFlush", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetOnColdFlush indicates an expected call of SetOnColdFlush.
+func (mr *MockOptionsMockRecorder) SetOnColdFlush(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOnColdFlush", reflect.TypeOf((*MockOptions)(nil).SetOnColdFlush), value)
+}
+
+// SetPermitsOptions mocks base method.
+func (m *MockOptions) SetPermitsOptions(value permits.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetPermitsOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetPermitsOptions indicates an expected call of SetPermitsOptions.
+func (mr *MockOptionsMockRecorder) SetPermitsOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPermitsOptions", reflect.TypeOf((*MockOptions)(nil).SetPermitsOptions), value)
+}
+
+// SetPersistManager mocks base method.
+func (m *MockOptions) SetPersistManager(value persist.Manager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetPersistManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetPersistManager indicates an expected call of SetPersistManager.
+func (mr *MockOptionsMockRecorder) SetPersistManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPersistManager", reflect.TypeOf((*MockOptions)(nil).SetPersistManager), value)
+}
+
+// SetReaderIteratorPool mocks base method.
+func (m *MockOptions) SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetReaderIteratorPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReaderIteratorPool indicates an expected call of SetReaderIteratorPool.
+func (mr *MockOptionsMockRecorder) SetReaderIteratorPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).SetReaderIteratorPool), value)
+}
+
+// SetRepairEnabled mocks base method.
+func (m *MockOptions) SetRepairEnabled(b bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRepairEnabled", b)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRepairEnabled indicates an expected call of SetRepairEnabled.
+func (mr *MockOptionsMockRecorder) SetRepairEnabled(b interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepairEnabled", reflect.TypeOf((*MockOptions)(nil).SetRepairEnabled), b)
+}
+
+// SetRepairOptions mocks base method.
+func (m *MockOptions) SetRepairOptions(value repair.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRepairOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRepairOptions indicates an expected call of SetRepairOptions.
+func (mr *MockOptionsMockRecorder) SetRepairOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepairOptions", reflect.TypeOf((*MockOptions)(nil).SetRepairOptions), value)
+}
+
+// SetRetrieveRequestPool mocks base method.
+func (m *MockOptions) SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRetrieveRequestPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRetrieveRequestPool indicates an expected call of SetRetrieveRequestPool.
+func (mr *MockOptionsMockRecorder) SetRetrieveRequestPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetrieveRequestPool", reflect.TypeOf((*MockOptions)(nil).SetRetrieveRequestPool), value)
+}
+
+// SetRuntimeOptionsManager mocks base method.
+func (m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager.
+func (mr *MockOptionsMockRecorder) SetRuntimeOptionsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).SetRuntimeOptionsManager), value)
+}
+
+// SetSchemaRegistry mocks base method.
+func (m *MockOptions) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", registry)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry.
+func (mr *MockOptionsMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SetSchemaRegistry), registry)
+}
+
+// SetSegmentReaderPool mocks base method.
+func (m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSegmentReaderPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSegmentReaderPool indicates an expected call of SetSegmentReaderPool.
+func (mr *MockOptionsMockRecorder) SetSegmentReaderPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SetSegmentReaderPool), value)
+}
+
+// SetSeriesCachePolicy mocks base method.
+func (m *MockOptions) SetSeriesCachePolicy(value series.CachePolicy) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSeriesCachePolicy", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesCachePolicy indicates an expected call of SetSeriesCachePolicy.
+func (mr *MockOptionsMockRecorder) SetSeriesCachePolicy(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesCachePolicy", reflect.TypeOf((*MockOptions)(nil).SetSeriesCachePolicy), value)
+}
+
+// SetSeriesOptions mocks base method.
+func (m *MockOptions) SetSeriesOptions(value series.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSeriesOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesOptions indicates an expected call of SetSeriesOptions.
+func (mr *MockOptionsMockRecorder) SetSeriesOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesOptions", reflect.TypeOf((*MockOptions)(nil).SetSeriesOptions), value)
+}
+
+// SetSourceLoggerBuilder mocks base method.
+func (m *MockOptions) SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSourceLoggerBuilder", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSourceLoggerBuilder indicates an expected call of SetSourceLoggerBuilder.
+func (mr *MockOptionsMockRecorder) SetSourceLoggerBuilder(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSourceLoggerBuilder", reflect.TypeOf((*MockOptions)(nil).SetSourceLoggerBuilder), value)
+}
+
+// SetTileAggregator mocks base method.
+func (m *MockOptions) SetTileAggregator(aggregator TileAggregator) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTileAggregator", aggregator)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTileAggregator indicates an expected call of SetTileAggregator.
+func (mr *MockOptionsMockRecorder) SetTileAggregator(aggregator interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTileAggregator", reflect.TypeOf((*MockOptions)(nil).SetTileAggregator), aggregator)
+}
+
+// SetTruncateType mocks base method.
+func (m *MockOptions) SetTruncateType(value series.TruncateType) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTruncateType", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTruncateType indicates an expected call of SetTruncateType.
+func (mr *MockOptionsMockRecorder) SetTruncateType(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTruncateType", reflect.TypeOf((*MockOptions)(nil).SetTruncateType), value)
+}
+
+// SetWideBatchSize mocks base method.
+func (m *MockOptions) SetWideBatchSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWideBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWideBatchSize indicates an expected call of SetWideBatchSize.
+func (mr *MockOptionsMockRecorder) SetWideBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWideBatchSize", reflect.TypeOf((*MockOptions)(nil).SetWideBatchSize), value)
+}
+
+// SetWriteBatchPool mocks base method.
+func (m *MockOptions) SetWriteBatchPool(value *writes.WriteBatchPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteBatchPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteBatchPool indicates an expected call of SetWriteBatchPool.
+func (mr *MockOptionsMockRecorder) SetWriteBatchPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteBatchPool", reflect.TypeOf((*MockOptions)(nil).SetWriteBatchPool), value)
+}
+
+// SetWriteTransformOptions mocks base method.
+func (m *MockOptions) SetWriteTransformOptions(value series.WriteTransformOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteTransformOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTransformOptions indicates an expected call of SetWriteTransformOptions.
+func (mr *MockOptionsMockRecorder) SetWriteTransformOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteTransformOptions", reflect.TypeOf((*MockOptions)(nil).SetWriteTransformOptions), value)
+}
+
+// SourceLoggerBuilder mocks base method.
+func (m *MockOptions) SourceLoggerBuilder() limits.SourceLoggerBuilder {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SourceLoggerBuilder")
+	ret0, _ := ret[0].(limits.SourceLoggerBuilder)
+	return ret0
+}
+
+// SourceLoggerBuilder indicates an expected call of SourceLoggerBuilder.
+func (mr *MockOptionsMockRecorder) SourceLoggerBuilder() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SourceLoggerBuilder", reflect.TypeOf((*MockOptions)(nil).SourceLoggerBuilder))
+}
+
+// TileAggregator mocks base method.
+func (m *MockOptions) TileAggregator() TileAggregator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TileAggregator")
+	ret0, _ := ret[0].(TileAggregator)
+	return ret0
+}
+
+// TileAggregator indicates an expected call of TileAggregator.
+func (mr *MockOptionsMockRecorder) TileAggregator() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TileAggregator", reflect.TypeOf((*MockOptions)(nil).TileAggregator))
+}
+
+// TruncateType mocks base method.
+func (m *MockOptions) TruncateType() series.TruncateType {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TruncateType")
+	ret0, _ := ret[0].(series.TruncateType)
+	return ret0
+}
+
+// TruncateType indicates an expected call of TruncateType.
+func (mr *MockOptionsMockRecorder) TruncateType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TruncateType", reflect.TypeOf((*MockOptions)(nil).TruncateType))
+}
+
+// Validate mocks base method.
+func (m *MockOptions) Validate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate.
+func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
+}
+
+// WideBatchSize mocks base method.
+func (m *MockOptions) WideBatchSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WideBatchSize indicates an expected call of WideBatchSize.
+func (mr *MockOptionsMockRecorder) WideBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideBatchSize", reflect.TypeOf((*MockOptions)(nil).WideBatchSize))
+}
+
+// WriteBatchPool mocks base method.
+func (m *MockOptions) WriteBatchPool() *writes.WriteBatchPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatchPool")
+	ret0, _ := ret[0].(*writes.WriteBatchPool)
+	return ret0
+}
+
+// WriteBatchPool indicates an expected call of WriteBatchPool.
+func (mr *MockOptionsMockRecorder) WriteBatchPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchPool", reflect.TypeOf((*MockOptions)(nil).WriteBatchPool))
+}
+
+// WriteTransformOptions mocks base method.
+func (m *MockOptions) WriteTransformOptions() series.WriteTransformOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTransformOptions")
+	ret0, _ := ret[0].(series.WriteTransformOptions)
+	return ret0
+}
+
+// WriteTransformOptions indicates an expected call of WriteTransformOptions.
+func (mr *MockOptionsMockRecorder) WriteTransformOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTransformOptions", reflect.TypeOf((*MockOptions)(nil).WriteTransformOptions))
+}
+
+// MockMemoryTracker is a mock of MemoryTracker interface.
 type MockMemoryTracker struct {
 	ctrl     *gomock.Controller
 	recorder *MockMemoryTrackerMockRecorder
 }
 
-// MockMemoryTrackerMockRecorder is the mock recorder for MockMemoryTracker
+// MockMemoryTrackerMockRecorder is the mock recorder for MockMemoryTracker.
 type MockMemoryTrackerMockRecorder struct {
 	mock *MockMemoryTracker
 }
 
-// NewMockMemoryTracker creates a new mock instance
+// NewMockMemoryTracker creates a new mock instance.
 func NewMockMemoryTracker(ctrl *gomock.Controller) *MockMemoryTracker {
 	mock := &MockMemoryTracker{ctrl: ctrl}
 	mock.recorder = &MockMemoryTrackerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockMemoryTracker) EXPECT() *MockMemoryTrackerMockRecorder {
 	return m.recorder
 }
 
-// IncNumLoadedBytes mocks base method
+// DecPendingLoadedBytes mocks base method.
+func (m *MockMemoryTracker) DecPendingLoadedBytes() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DecPendingLoadedBytes")
+}
+
+// DecPendingLoadedBytes indicates an expected call of DecPendingLoadedBytes.
+func (mr *MockMemoryTrackerMockRecorder) DecPendingLoadedBytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecPendingLoadedBytes", reflect.TypeOf((*MockMemoryTracker)(nil).DecPendingLoadedBytes))
+}
+
+// IncNumLoadedBytes mocks base method.
 func (m *MockMemoryTracker) IncNumLoadedBytes(x int64) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IncNumLoadedBytes", x)
@@ -5412,13 +5424,25 @@ func (m *MockMemoryTracker) IncNumLoadedBytes(x int64) bool {
 	return ret0
 }
 
-// IncNumLoadedBytes indicates an expected call of IncNumLoadedBytes
+// IncNumLoadedBytes indicates an expected call of IncNumLoadedBytes.
 func (mr *MockMemoryTrackerMockRecorder) IncNumLoadedBytes(x interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncNumLoadedBytes", reflect.TypeOf((*MockMemoryTracker)(nil).IncNumLoadedBytes), x)
 }
 
-// NumLoadedBytes mocks base method
+// MarkLoadedAsPending mocks base method.
+func (m *MockMemoryTracker) MarkLoadedAsPending() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MarkLoadedAsPending")
+}
+
+// MarkLoadedAsPending indicates an expected call of MarkLoadedAsPending.
+func (mr *MockMemoryTrackerMockRecorder) MarkLoadedAsPending() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkLoadedAsPending", reflect.TypeOf((*MockMemoryTracker)(nil).MarkLoadedAsPending))
+}
+
+// NumLoadedBytes mocks base method.
 func (m *MockMemoryTracker) NumLoadedBytes() int64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumLoadedBytes")
@@ -5426,72 +5450,48 @@ func (m *MockMemoryTracker) NumLoadedBytes() int64 {
 	return ret0
 }
 
-// NumLoadedBytes indicates an expected call of NumLoadedBytes
+// NumLoadedBytes indicates an expected call of NumLoadedBytes.
 func (mr *MockMemoryTrackerMockRecorder) NumLoadedBytes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumLoadedBytes", reflect.TypeOf((*MockMemoryTracker)(nil).NumLoadedBytes))
 }
 
-// MarkLoadedAsPending mocks base method
-func (m *MockMemoryTracker) MarkLoadedAsPending() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "MarkLoadedAsPending")
-}
-
-// MarkLoadedAsPending indicates an expected call of MarkLoadedAsPending
-func (mr *MockMemoryTrackerMockRecorder) MarkLoadedAsPending() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkLoadedAsPending", reflect.TypeOf((*MockMemoryTracker)(nil).MarkLoadedAsPending))
-}
-
-// DecPendingLoadedBytes mocks base method
-func (m *MockMemoryTracker) DecPendingLoadedBytes() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DecPendingLoadedBytes")
-}
-
-// DecPendingLoadedBytes indicates an expected call of DecPendingLoadedBytes
-func (mr *MockMemoryTrackerMockRecorder) DecPendingLoadedBytes() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecPendingLoadedBytes", reflect.TypeOf((*MockMemoryTracker)(nil).DecPendingLoadedBytes))
-}
-
-// WaitForDec mocks base method
+// WaitForDec mocks base method.
 func (m *MockMemoryTracker) WaitForDec() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "WaitForDec")
 }
 
-// WaitForDec indicates an expected call of WaitForDec
+// WaitForDec indicates an expected call of WaitForDec.
 func (mr *MockMemoryTrackerMockRecorder) WaitForDec() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForDec", reflect.TypeOf((*MockMemoryTracker)(nil).WaitForDec))
 }
 
-// MockTileAggregator is a mock of TileAggregator interface
+// MockTileAggregator is a mock of TileAggregator interface.
 type MockTileAggregator struct {
 	ctrl     *gomock.Controller
 	recorder *MockTileAggregatorMockRecorder
 }
 
-// MockTileAggregatorMockRecorder is the mock recorder for MockTileAggregator
+// MockTileAggregatorMockRecorder is the mock recorder for MockTileAggregator.
 type MockTileAggregatorMockRecorder struct {
 	mock *MockTileAggregator
 }
 
-// NewMockTileAggregator creates a new mock instance
+// NewMockTileAggregator creates a new mock instance.
 func NewMockTileAggregator(ctrl *gomock.Controller) *MockTileAggregator {
 	mock := &MockTileAggregator{ctrl: ctrl}
 	mock.recorder = &MockTileAggregatorMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTileAggregator) EXPECT() *MockTileAggregatorMockRecorder {
 	return m.recorder
 }
 
-// AggregateTiles mocks base method
+// AggregateTiles mocks base method.
 func (m *MockTileAggregator) AggregateTiles(ctx context.Context, sourceNs, targetNs Namespace, shardID uint32, onFlushSeries persist.OnFlushSeries, opts AggregateTilesOptions) (int64, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
@@ -5501,36 +5501,36 @@ func (m *MockTileAggregator) AggregateTiles(ctx context.Context, sourceNs, targe
 	return ret0, ret1, ret2
 }
 
-// AggregateTiles indicates an expected call of AggregateTiles
+// AggregateTiles indicates an expected call of AggregateTiles.
 func (mr *MockTileAggregatorMockRecorder) AggregateTiles(ctx, sourceNs, targetNs, shardID, onFlushSeries, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockTileAggregator)(nil).AggregateTiles), ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
 }
 
-// MockNamespaceHooks is a mock of NamespaceHooks interface
+// MockNamespaceHooks is a mock of NamespaceHooks interface.
 type MockNamespaceHooks struct {
 	ctrl     *gomock.Controller
 	recorder *MockNamespaceHooksMockRecorder
 }
 
-// MockNamespaceHooksMockRecorder is the mock recorder for MockNamespaceHooks
+// MockNamespaceHooksMockRecorder is the mock recorder for MockNamespaceHooks.
 type MockNamespaceHooksMockRecorder struct {
 	mock *MockNamespaceHooks
 }
 
-// NewMockNamespaceHooks creates a new mock instance
+// NewMockNamespaceHooks creates a new mock instance.
 func NewMockNamespaceHooks(ctrl *gomock.Controller) *MockNamespaceHooks {
 	mock := &MockNamespaceHooks{ctrl: ctrl}
 	mock.recorder = &MockNamespaceHooksMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockNamespaceHooks) EXPECT() *MockNamespaceHooksMockRecorder {
 	return m.recorder
 }
 
-// OnCreatedNamespace mocks base method
+// OnCreatedNamespace mocks base method.
 func (m *MockNamespaceHooks) OnCreatedNamespace(arg0 Namespace, arg1 GetNamespaceFn) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OnCreatedNamespace", arg0, arg1)
@@ -5538,7 +5538,7 @@ func (m *MockNamespaceHooks) OnCreatedNamespace(arg0 Namespace, arg1 GetNamespac
 	return ret0
 }
 
-// OnCreatedNamespace indicates an expected call of OnCreatedNamespace
+// OnCreatedNamespace indicates an expected call of OnCreatedNamespace.
 func (mr *MockNamespaceHooksMockRecorder) OnCreatedNamespace(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnCreatedNamespace", reflect.TypeOf((*MockNamespaceHooks)(nil).OnCreatedNamespace), arg0, arg1)

@@ -37,30 +37,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockStorage is a mock of Storage interface
+// MockStorage is a mock of Storage interface.
 type MockStorage struct {
 	ctrl     *gomock.Controller
 	recorder *MockStorageMockRecorder
 }
 
-// MockStorageMockRecorder is the mock recorder for MockStorage
+// MockStorageMockRecorder is the mock recorder for MockStorage.
 type MockStorageMockRecorder struct {
 	mock *MockStorage
 }
 
-// NewMockStorage creates a new mock instance
+// NewMockStorage creates a new mock instance.
 func NewMockStorage(ctrl *gomock.Controller) *MockStorage {
 	mock := &MockStorage{ctrl: ctrl}
 	mock.recorder = &MockStorageMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockStorage) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -68,13 +68,13 @@ func (m *MockStorage) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockStorageMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStorage)(nil).Close))
 }
 
-// CompleteTags mocks base method
+// CompleteTags mocks base method.
 func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*consolidators.CompleteTagsResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompleteTags", arg0, arg1, arg2)
@@ -83,13 +83,13 @@ func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *storage.CompleteT
 	return ret0, ret1
 }
 
-// CompleteTags indicates an expected call of CompleteTags
+// CompleteTags indicates an expected call of CompleteTags.
 func (mr *MockStorageMockRecorder) CompleteTags(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTags", reflect.TypeOf((*MockStorage)(nil).CompleteTags), arg0, arg1, arg2)
 }
 
-// CompleteTagsCompressed mocks base method
+// CompleteTagsCompressed mocks base method.
 func (m *MockStorage) CompleteTagsCompressed(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*consolidators.CompleteTagsResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompleteTagsCompressed", arg0, arg1, arg2)
@@ -98,13 +98,13 @@ func (m *MockStorage) CompleteTagsCompressed(arg0 context.Context, arg1 *storage
 	return ret0, ret1
 }
 
-// CompleteTagsCompressed indicates an expected call of CompleteTagsCompressed
+// CompleteTagsCompressed indicates an expected call of CompleteTagsCompressed.
 func (mr *MockStorageMockRecorder) CompleteTagsCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTagsCompressed", reflect.TypeOf((*MockStorage)(nil).CompleteTagsCompressed), arg0, arg1, arg2)
 }
 
-// ErrorBehavior mocks base method
+// ErrorBehavior mocks base method.
 func (m *MockStorage) ErrorBehavior() storage.ErrorBehavior {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ErrorBehavior")
@@ -112,13 +112,13 @@ func (m *MockStorage) ErrorBehavior() storage.ErrorBehavior {
 	return ret0
 }
 
-// ErrorBehavior indicates an expected call of ErrorBehavior
+// ErrorBehavior indicates an expected call of ErrorBehavior.
 func (mr *MockStorageMockRecorder) ErrorBehavior() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorBehavior", reflect.TypeOf((*MockStorage)(nil).ErrorBehavior))
 }
 
-// FetchBlocks mocks base method
+// FetchBlocks mocks base method.
 func (m *MockStorage) FetchBlocks(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (block.Result, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", arg0, arg1, arg2)
@@ -127,13 +127,13 @@ func (m *MockStorage) FetchBlocks(arg0 context.Context, arg1 *storage.FetchQuery
 	return ret0, ret1
 }
 
-// FetchBlocks indicates an expected call of FetchBlocks
+// FetchBlocks indicates an expected call of FetchBlocks.
 func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockStorage)(nil).FetchBlocks), arg0, arg1, arg2)
 }
 
-// FetchCompressed mocks base method
+// FetchCompressed mocks base method.
 func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.SeriesFetchResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchCompressed", arg0, arg1, arg2)
@@ -143,13 +143,13 @@ func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQ
 	return ret0, ret1, ret2
 }
 
-// FetchCompressed indicates an expected call of FetchCompressed
+// FetchCompressed indicates an expected call of FetchCompressed.
 func (mr *MockStorageMockRecorder) FetchCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressed", reflect.TypeOf((*MockStorage)(nil).FetchCompressed), arg0, arg1, arg2)
 }
 
-// FetchProm mocks base method
+// FetchProm mocks base method.
 func (m *MockStorage) FetchProm(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (storage.PromResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchProm", arg0, arg1, arg2)
@@ -158,13 +158,13 @@ func (m *MockStorage) FetchProm(arg0 context.Context, arg1 *storage.FetchQuery, 
 	return ret0, ret1
 }
 
-// FetchProm indicates an expected call of FetchProm
+// FetchProm indicates an expected call of FetchProm.
 func (mr *MockStorageMockRecorder) FetchProm(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchProm", reflect.TypeOf((*MockStorage)(nil).FetchProm), arg0, arg1, arg2)
 }
 
-// Name mocks base method
+// Name mocks base method.
 func (m *MockStorage) Name() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Name")
@@ -172,13 +172,13 @@ func (m *MockStorage) Name() string {
 	return ret0
 }
 
-// Name indicates an expected call of Name
+// Name indicates an expected call of Name.
 func (mr *MockStorageMockRecorder) Name() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockStorage)(nil).Name))
 }
 
-// SearchCompressed mocks base method
+// SearchCompressed mocks base method.
 func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.TagResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchCompressed", arg0, arg1, arg2)
@@ -188,13 +188,13 @@ func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.Fetch
 	return ret0, ret1, ret2
 }
 
-// SearchCompressed indicates an expected call of SearchCompressed
+// SearchCompressed indicates an expected call of SearchCompressed.
 func (mr *MockStorageMockRecorder) SearchCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchCompressed", reflect.TypeOf((*MockStorage)(nil).SearchCompressed), arg0, arg1, arg2)
 }
 
-// SearchSeries mocks base method
+// SearchSeries mocks base method.
 func (m *MockStorage) SearchSeries(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (*storage.SearchResults, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchSeries", arg0, arg1, arg2)
@@ -203,13 +203,13 @@ func (m *MockStorage) SearchSeries(arg0 context.Context, arg1 *storage.FetchQuer
 	return ret0, ret1
 }
 
-// SearchSeries indicates an expected call of SearchSeries
+// SearchSeries indicates an expected call of SearchSeries.
 func (mr *MockStorageMockRecorder) SearchSeries(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchSeries", reflect.TypeOf((*MockStorage)(nil).SearchSeries), arg0, arg1, arg2)
 }
 
-// Type mocks base method
+// Type mocks base method.
 func (m *MockStorage) Type() storage.Type {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
@@ -217,13 +217,13 @@ func (m *MockStorage) Type() storage.Type {
 	return ret0
 }
 
-// Type indicates an expected call of Type
+// Type indicates an expected call of Type.
 func (mr *MockStorageMockRecorder) Type() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockStorage)(nil).Type))
 }
 
-// Write mocks base method
+// Write mocks base method.
 func (m *MockStorage) Write(arg0 context.Context, arg1 *storage.WriteQuery) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0, arg1)
@@ -231,36 +231,36 @@ func (m *MockStorage) Write(arg0 context.Context, arg1 *storage.WriteQuery) erro
 	return ret0
 }
 
-// Write indicates an expected call of Write
+// Write indicates an expected call of Write.
 func (mr *MockStorageMockRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockStorage)(nil).Write), arg0, arg1)
 }
 
-// MockClusterNamespace is a mock of ClusterNamespace interface
+// MockClusterNamespace is a mock of ClusterNamespace interface.
 type MockClusterNamespace struct {
 	ctrl     *gomock.Controller
 	recorder *MockClusterNamespaceMockRecorder
 }
 
-// MockClusterNamespaceMockRecorder is the mock recorder for MockClusterNamespace
+// MockClusterNamespaceMockRecorder is the mock recorder for MockClusterNamespace.
 type MockClusterNamespaceMockRecorder struct {
 	mock *MockClusterNamespace
 }
 
-// NewMockClusterNamespace creates a new mock instance
+// NewMockClusterNamespace creates a new mock instance.
 func NewMockClusterNamespace(ctrl *gomock.Controller) *MockClusterNamespace {
 	mock := &MockClusterNamespace{ctrl: ctrl}
 	mock.recorder = &MockClusterNamespaceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockClusterNamespace) EXPECT() *MockClusterNamespaceMockRecorder {
 	return m.recorder
 }
 
-// NamespaceID mocks base method
+// NamespaceID mocks base method.
 func (m *MockClusterNamespace) NamespaceID() ident.ID {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NamespaceID")
@@ -268,13 +268,13 @@ func (m *MockClusterNamespace) NamespaceID() ident.ID {
 	return ret0
 }
 
-// NamespaceID indicates an expected call of NamespaceID
+// NamespaceID indicates an expected call of NamespaceID.
 func (mr *MockClusterNamespaceMockRecorder) NamespaceID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceID", reflect.TypeOf((*MockClusterNamespace)(nil).NamespaceID))
 }
 
-// Options mocks base method
+// Options mocks base method.
 func (m *MockClusterNamespace) Options() ClusterNamespaceOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
@@ -282,13 +282,13 @@ func (m *MockClusterNamespace) Options() ClusterNamespaceOptions {
 	return ret0
 }
 
-// Options indicates an expected call of Options
+// Options indicates an expected call of Options.
 func (mr *MockClusterNamespaceMockRecorder) Options() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockClusterNamespace)(nil).Options))
 }
 
-// Session mocks base method
+// Session mocks base method.
 func (m *MockClusterNamespace) Session() client.Session {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Session")
@@ -296,7 +296,7 @@ func (m *MockClusterNamespace) Session() client.Session {
 	return ret0
 }
 
-// Session indicates an expected call of Session
+// Session indicates an expected call of Session.
 func (mr *MockClusterNamespaceMockRecorder) Session() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Session", reflect.TypeOf((*MockClusterNamespace)(nil).Session))

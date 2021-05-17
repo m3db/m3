@@ -35,30 +35,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockWriteBatch is a mock of WriteBatch interface
+// MockWriteBatch is a mock of WriteBatch interface.
 type MockWriteBatch struct {
 	ctrl     *gomock.Controller
 	recorder *MockWriteBatchMockRecorder
 }
 
-// MockWriteBatchMockRecorder is the mock recorder for MockWriteBatch
+// MockWriteBatchMockRecorder is the mock recorder for MockWriteBatch.
 type MockWriteBatchMockRecorder struct {
 	mock *MockWriteBatch
 }
 
-// NewMockWriteBatch creates a new mock instance
+// NewMockWriteBatch creates a new mock instance.
 func NewMockWriteBatch(ctrl *gomock.Controller) *MockWriteBatch {
 	mock := &MockWriteBatch{ctrl: ctrl}
 	mock.recorder = &MockWriteBatchMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockWriteBatch) EXPECT() *MockWriteBatchMockRecorder {
 	return m.recorder
 }
 
-// Add mocks base method
+// Add mocks base method.
 func (m *MockWriteBatch) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
@@ -66,13 +66,13 @@ func (m *MockWriteBatch) Add(originalIndex int, id ident.ID, timestamp time.Time
 	return ret0
 }
 
-// Add indicates an expected call of Add
+// Add indicates an expected call of Add.
 func (mr *MockWriteBatchMockRecorder) Add(originalIndex, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockWriteBatch)(nil).Add), originalIndex, id, timestamp, value, unit, annotation)
 }
 
-// AddTagged mocks base method
+// AddTagged mocks base method.
 func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, encodedTags ts.EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, encodedTags, timestamp, value, unit, annotation)
@@ -80,37 +80,25 @@ func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, encodedTags t
 	return ret0
 }
 
-// AddTagged indicates an expected call of AddTagged
+// AddTagged indicates an expected call of AddTagged.
 func (mr *MockWriteBatchMockRecorder) AddTagged(originalIndex, id, encodedTags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockWriteBatch)(nil).AddTagged), originalIndex, id, encodedTags, timestamp, value, unit, annotation)
 }
 
-// SetFinalizeEncodedTagsFn mocks base method
-func (m *MockWriteBatch) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
+// Finalize mocks base method.
+func (m *MockWriteBatch) Finalize() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetFinalizeEncodedTagsFn", f)
+	m.ctrl.Call(m, "Finalize")
 }
 
-// SetFinalizeEncodedTagsFn indicates an expected call of SetFinalizeEncodedTagsFn
-func (mr *MockWriteBatchMockRecorder) SetFinalizeEncodedTagsFn(f interface{}) *gomock.Call {
+// Finalize indicates an expected call of Finalize.
+func (mr *MockWriteBatchMockRecorder) Finalize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeEncodedTagsFn", reflect.TypeOf((*MockWriteBatch)(nil).SetFinalizeEncodedTagsFn), f)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockWriteBatch)(nil).Finalize))
 }
 
-// SetFinalizeAnnotationFn mocks base method
-func (m *MockWriteBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetFinalizeAnnotationFn", f)
-}
-
-// SetFinalizeAnnotationFn indicates an expected call of SetFinalizeAnnotationFn
-func (mr *MockWriteBatchMockRecorder) SetFinalizeAnnotationFn(f interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeAnnotationFn", reflect.TypeOf((*MockWriteBatch)(nil).SetFinalizeAnnotationFn), f)
-}
-
-// Iter mocks base method
+// Iter mocks base method.
 func (m *MockWriteBatch) Iter() []BatchWrite {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iter")
@@ -118,25 +106,13 @@ func (m *MockWriteBatch) Iter() []BatchWrite {
 	return ret0
 }
 
-// Iter indicates an expected call of Iter
+// Iter indicates an expected call of Iter.
 func (mr *MockWriteBatchMockRecorder) Iter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iter", reflect.TypeOf((*MockWriteBatch)(nil).Iter))
 }
 
-// SetPendingIndex mocks base method
-func (m *MockWriteBatch) SetPendingIndex(idx int, pending PendingIndexInsert) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetPendingIndex", idx, pending)
-}
-
-// SetPendingIndex indicates an expected call of SetPendingIndex
-func (mr *MockWriteBatchMockRecorder) SetPendingIndex(idx, pending interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPendingIndex", reflect.TypeOf((*MockWriteBatch)(nil).SetPendingIndex), idx, pending)
-}
-
-// PendingIndex mocks base method
+// PendingIndex mocks base method.
 func (m *MockWriteBatch) PendingIndex() []PendingIndexInsert {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PendingIndex")
@@ -144,73 +120,97 @@ func (m *MockWriteBatch) PendingIndex() []PendingIndexInsert {
 	return ret0
 }
 
-// PendingIndex indicates an expected call of PendingIndex
+// PendingIndex indicates an expected call of PendingIndex.
 func (mr *MockWriteBatchMockRecorder) PendingIndex() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PendingIndex", reflect.TypeOf((*MockWriteBatch)(nil).PendingIndex))
 }
 
-// SetError mocks base method
-func (m *MockWriteBatch) SetError(idx int, err error) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetError", idx, err)
-}
-
-// SetError indicates an expected call of SetError
-func (mr *MockWriteBatchMockRecorder) SetError(idx, err interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetError", reflect.TypeOf((*MockWriteBatch)(nil).SetError), idx, err)
-}
-
-// SetSeries mocks base method
-func (m *MockWriteBatch) SetSeries(idx int, series ts.Series) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetSeries", idx, series)
-}
-
-// SetSeries indicates an expected call of SetSeries
-func (mr *MockWriteBatchMockRecorder) SetSeries(idx, series interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeries", reflect.TypeOf((*MockWriteBatch)(nil).SetSeries), idx, series)
-}
-
-// SetSkipWrite mocks base method
-func (m *MockWriteBatch) SetSkipWrite(idx int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetSkipWrite", idx)
-}
-
-// SetSkipWrite indicates an expected call of SetSkipWrite
-func (mr *MockWriteBatchMockRecorder) SetSkipWrite(idx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSkipWrite", reflect.TypeOf((*MockWriteBatch)(nil).SetSkipWrite), idx)
-}
-
-// Reset mocks base method
+// Reset mocks base method.
 func (m *MockWriteBatch) Reset(batchSize int, ns ident.ID) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", batchSize, ns)
 }
 
-// Reset indicates an expected call of Reset
+// Reset indicates an expected call of Reset.
 func (mr *MockWriteBatchMockRecorder) Reset(batchSize, ns interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockWriteBatch)(nil).Reset), batchSize, ns)
 }
 
-// Finalize mocks base method
-func (m *MockWriteBatch) Finalize() {
+// SetError mocks base method.
+func (m *MockWriteBatch) SetError(idx int, err error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Finalize")
+	m.ctrl.Call(m, "SetError", idx, err)
 }
 
-// Finalize indicates an expected call of Finalize
-func (mr *MockWriteBatchMockRecorder) Finalize() *gomock.Call {
+// SetError indicates an expected call of SetError.
+func (mr *MockWriteBatchMockRecorder) SetError(idx, err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockWriteBatch)(nil).Finalize))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetError", reflect.TypeOf((*MockWriteBatch)(nil).SetError), idx, err)
 }
 
-// cap mocks base method
+// SetFinalizeAnnotationFn mocks base method.
+func (m *MockWriteBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizeAnnotationFn", f)
+}
+
+// SetFinalizeAnnotationFn indicates an expected call of SetFinalizeAnnotationFn.
+func (mr *MockWriteBatchMockRecorder) SetFinalizeAnnotationFn(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeAnnotationFn", reflect.TypeOf((*MockWriteBatch)(nil).SetFinalizeAnnotationFn), f)
+}
+
+// SetFinalizeEncodedTagsFn mocks base method.
+func (m *MockWriteBatch) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizeEncodedTagsFn", f)
+}
+
+// SetFinalizeEncodedTagsFn indicates an expected call of SetFinalizeEncodedTagsFn.
+func (mr *MockWriteBatchMockRecorder) SetFinalizeEncodedTagsFn(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeEncodedTagsFn", reflect.TypeOf((*MockWriteBatch)(nil).SetFinalizeEncodedTagsFn), f)
+}
+
+// SetPendingIndex mocks base method.
+func (m *MockWriteBatch) SetPendingIndex(idx int, pending PendingIndexInsert) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetPendingIndex", idx, pending)
+}
+
+// SetPendingIndex indicates an expected call of SetPendingIndex.
+func (mr *MockWriteBatchMockRecorder) SetPendingIndex(idx, pending interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPendingIndex", reflect.TypeOf((*MockWriteBatch)(nil).SetPendingIndex), idx, pending)
+}
+
+// SetSeries mocks base method.
+func (m *MockWriteBatch) SetSeries(idx int, series ts.Series) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSeries", idx, series)
+}
+
+// SetSeries indicates an expected call of SetSeries.
+func (mr *MockWriteBatchMockRecorder) SetSeries(idx, series interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeries", reflect.TypeOf((*MockWriteBatch)(nil).SetSeries), idx, series)
+}
+
+// SetSkipWrite mocks base method.
+func (m *MockWriteBatch) SetSkipWrite(idx int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSkipWrite", idx)
+}
+
+// SetSkipWrite indicates an expected call of SetSkipWrite.
+func (mr *MockWriteBatchMockRecorder) SetSkipWrite(idx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSkipWrite", reflect.TypeOf((*MockWriteBatch)(nil).SetSkipWrite), idx)
+}
+
+// cap mocks base method.
 func (m *MockWriteBatch) cap() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "cap")
@@ -218,36 +218,36 @@ func (m *MockWriteBatch) cap() int {
 	return ret0
 }
 
-// cap indicates an expected call of cap
+// cap indicates an expected call of cap.
 func (mr *MockWriteBatchMockRecorder) cap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "cap", reflect.TypeOf((*MockWriteBatch)(nil).cap))
 }
 
-// MockBatchWriter is a mock of BatchWriter interface
+// MockBatchWriter is a mock of BatchWriter interface.
 type MockBatchWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockBatchWriterMockRecorder
 }
 
-// MockBatchWriterMockRecorder is the mock recorder for MockBatchWriter
+// MockBatchWriterMockRecorder is the mock recorder for MockBatchWriter.
 type MockBatchWriterMockRecorder struct {
 	mock *MockBatchWriter
 }
 
-// NewMockBatchWriter creates a new mock instance
+// NewMockBatchWriter creates a new mock instance.
 func NewMockBatchWriter(ctrl *gomock.Controller) *MockBatchWriter {
 	mock := &MockBatchWriter{ctrl: ctrl}
 	mock.recorder = &MockBatchWriterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBatchWriter) EXPECT() *MockBatchWriterMockRecorder {
 	return m.recorder
 }
 
-// Add mocks base method
+// Add mocks base method.
 func (m *MockBatchWriter) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
@@ -255,13 +255,13 @@ func (m *MockBatchWriter) Add(originalIndex int, id ident.ID, timestamp time.Tim
 	return ret0
 }
 
-// Add indicates an expected call of Add
+// Add indicates an expected call of Add.
 func (mr *MockBatchWriterMockRecorder) Add(originalIndex, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockBatchWriter)(nil).Add), originalIndex, id, timestamp, value, unit, annotation)
 }
 
-// AddTagged mocks base method
+// AddTagged mocks base method.
 func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, encodedTags ts.EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, encodedTags, timestamp, value, unit, annotation)
@@ -269,32 +269,32 @@ func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, encodedTags 
 	return ret0
 }
 
-// AddTagged indicates an expected call of AddTagged
+// AddTagged indicates an expected call of AddTagged.
 func (mr *MockBatchWriterMockRecorder) AddTagged(originalIndex, id, encodedTags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockBatchWriter)(nil).AddTagged), originalIndex, id, encodedTags, timestamp, value, unit, annotation)
 }
 
-// SetFinalizeEncodedTagsFn mocks base method
-func (m *MockBatchWriter) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetFinalizeEncodedTagsFn", f)
-}
-
-// SetFinalizeEncodedTagsFn indicates an expected call of SetFinalizeEncodedTagsFn
-func (mr *MockBatchWriterMockRecorder) SetFinalizeEncodedTagsFn(f interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeEncodedTagsFn", reflect.TypeOf((*MockBatchWriter)(nil).SetFinalizeEncodedTagsFn), f)
-}
-
-// SetFinalizeAnnotationFn mocks base method
+// SetFinalizeAnnotationFn mocks base method.
 func (m *MockBatchWriter) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetFinalizeAnnotationFn", f)
 }
 
-// SetFinalizeAnnotationFn indicates an expected call of SetFinalizeAnnotationFn
+// SetFinalizeAnnotationFn indicates an expected call of SetFinalizeAnnotationFn.
 func (mr *MockBatchWriterMockRecorder) SetFinalizeAnnotationFn(f interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeAnnotationFn", reflect.TypeOf((*MockBatchWriter)(nil).SetFinalizeAnnotationFn), f)
+}
+
+// SetFinalizeEncodedTagsFn mocks base method.
+func (m *MockBatchWriter) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizeEncodedTagsFn", f)
+}
+
+// SetFinalizeEncodedTagsFn indicates an expected call of SetFinalizeEncodedTagsFn.
+func (mr *MockBatchWriterMockRecorder) SetFinalizeEncodedTagsFn(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeEncodedTagsFn", reflect.TypeOf((*MockBatchWriter)(nil).SetFinalizeEncodedTagsFn), f)
 }
