@@ -32,58 +32,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockinstanceQueue is a mock of instanceQueue interface
+// MockinstanceQueue is a mock of instanceQueue interface.
 type MockinstanceQueue struct {
 	ctrl     *gomock.Controller
 	recorder *MockinstanceQueueMockRecorder
 }
 
-// MockinstanceQueueMockRecorder is the mock recorder for MockinstanceQueue
+// MockinstanceQueueMockRecorder is the mock recorder for MockinstanceQueue.
 type MockinstanceQueueMockRecorder struct {
 	mock *MockinstanceQueue
 }
 
-// NewMockinstanceQueue creates a new mock instance
+// NewMockinstanceQueue creates a new mock instance.
 func NewMockinstanceQueue(ctrl *gomock.Controller) *MockinstanceQueue {
 	mock := &MockinstanceQueue{ctrl: ctrl}
 	mock.recorder = &MockinstanceQueueMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockinstanceQueue) EXPECT() *MockinstanceQueueMockRecorder {
 	return m.recorder
 }
 
-// Enqueue mocks base method
-func (m *MockinstanceQueue) Enqueue(buf protobuf.Buffer) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Enqueue", buf)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Enqueue indicates an expected call of Enqueue
-func (mr *MockinstanceQueueMockRecorder) Enqueue(buf interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MockinstanceQueue)(nil).Enqueue), buf)
-}
-
-// Size mocks base method
-func (m *MockinstanceQueue) Size() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Size")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// Size indicates an expected call of Size
-func (mr *MockinstanceQueueMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockinstanceQueue)(nil).Size))
-}
-
-// Close mocks base method
+// Close mocks base method.
 func (m *MockinstanceQueue) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -91,20 +63,48 @@ func (m *MockinstanceQueue) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockinstanceQueueMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockinstanceQueue)(nil).Close))
 }
 
-// Flush mocks base method
+// Enqueue mocks base method.
+func (m *MockinstanceQueue) Enqueue(buf protobuf.Buffer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Enqueue", buf)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Enqueue indicates an expected call of Enqueue.
+func (mr *MockinstanceQueueMockRecorder) Enqueue(buf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MockinstanceQueue)(nil).Enqueue), buf)
+}
+
+// Flush mocks base method.
 func (m *MockinstanceQueue) Flush() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Flush")
 }
 
-// Flush indicates an expected call of Flush
+// Flush indicates an expected call of Flush.
 func (mr *MockinstanceQueueMockRecorder) Flush() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockinstanceQueue)(nil).Flush))
+}
+
+// Size mocks base method.
+func (m *MockinstanceQueue) Size() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockinstanceQueueMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockinstanceQueue)(nil).Size))
 }

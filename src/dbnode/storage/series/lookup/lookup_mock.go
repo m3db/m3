@@ -34,30 +34,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockIndexWriter is a mock of IndexWriter interface
+// MockIndexWriter is a mock of IndexWriter interface.
 type MockIndexWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockIndexWriterMockRecorder
 }
 
-// MockIndexWriterMockRecorder is the mock recorder for MockIndexWriter
+// MockIndexWriterMockRecorder is the mock recorder for MockIndexWriter.
 type MockIndexWriterMockRecorder struct {
 	mock *MockIndexWriter
 }
 
-// NewMockIndexWriter creates a new mock instance
+// NewMockIndexWriter creates a new mock instance.
 func NewMockIndexWriter(ctrl *gomock.Controller) *MockIndexWriter {
 	mock := &MockIndexWriter{ctrl: ctrl}
 	mock.recorder = &MockIndexWriterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIndexWriter) EXPECT() *MockIndexWriterMockRecorder {
 	return m.recorder
 }
 
-// BlockStartForWriteTime mocks base method
+// BlockStartForWriteTime mocks base method.
 func (m *MockIndexWriter) BlockStartForWriteTime(arg0 time.Time) time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStartForWriteTime", arg0)
@@ -65,13 +65,13 @@ func (m *MockIndexWriter) BlockStartForWriteTime(arg0 time.Time) time0.UnixNano 
 	return ret0
 }
 
-// BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime
+// BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime.
 func (mr *MockIndexWriterMockRecorder) BlockStartForWriteTime(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MockIndexWriter)(nil).BlockStartForWriteTime), arg0)
 }
 
-// WritePending mocks base method
+// WritePending mocks base method.
 func (m *MockIndexWriter) WritePending(arg0 []writes.PendingIndexInsert) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WritePending", arg0)
@@ -79,7 +79,7 @@ func (m *MockIndexWriter) WritePending(arg0 []writes.PendingIndexInsert) error {
 	return ret0
 }
 
-// WritePending indicates an expected call of WritePending
+// WritePending indicates an expected call of WritePending.
 func (mr *MockIndexWriterMockRecorder) WritePending(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePending", reflect.TypeOf((*MockIndexWriter)(nil).WritePending), arg0)

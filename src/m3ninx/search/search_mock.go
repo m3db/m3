@@ -36,30 +36,44 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockExecutor is a mock of Executor interface
+// MockExecutor is a mock of Executor interface.
 type MockExecutor struct {
 	ctrl     *gomock.Controller
 	recorder *MockExecutorMockRecorder
 }
 
-// MockExecutorMockRecorder is the mock recorder for MockExecutor
+// MockExecutorMockRecorder is the mock recorder for MockExecutor.
 type MockExecutorMockRecorder struct {
 	mock *MockExecutor
 }
 
-// NewMockExecutor creates a new mock instance
+// NewMockExecutor creates a new mock instance.
 func NewMockExecutor(ctrl *gomock.Controller) *MockExecutor {
 	mock := &MockExecutor{ctrl: ctrl}
 	mock.recorder = &MockExecutorMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 	return m.recorder
 }
 
-// Execute mocks base method
+// Close mocks base method.
+func (m *MockExecutor) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockExecutorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockExecutor)(nil).Close))
+}
+
+// Execute mocks base method.
 func (m *MockExecutor) Execute(ctx context.Context, q Query) (doc.QueryDocIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", ctx, q)
@@ -68,64 +82,50 @@ func (m *MockExecutor) Execute(ctx context.Context, q Query) (doc.QueryDocIterat
 	return ret0, ret1
 }
 
-// Execute indicates an expected call of Execute
+// Execute indicates an expected call of Execute.
 func (mr *MockExecutorMockRecorder) Execute(ctx, q interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), ctx, q)
 }
 
-// Close mocks base method
-func (m *MockExecutor) Close() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Close indicates an expected call of Close
-func (mr *MockExecutorMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockExecutor)(nil).Close))
-}
-
-// MockQuery is a mock of Query interface
+// MockQuery is a mock of Query interface.
 type MockQuery struct {
 	ctrl     *gomock.Controller
 	recorder *MockQueryMockRecorder
 }
 
-// MockQueryMockRecorder is the mock recorder for MockQuery
+// MockQueryMockRecorder is the mock recorder for MockQuery.
 type MockQueryMockRecorder struct {
 	mock *MockQuery
 }
 
-// NewMockQuery creates a new mock instance
+// NewMockQuery creates a new mock instance.
 func NewMockQuery(ctrl *gomock.Controller) *MockQuery {
 	mock := &MockQuery{ctrl: ctrl}
 	mock.recorder = &MockQueryMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockQuery) EXPECT() *MockQueryMockRecorder {
 	return m.recorder
 }
 
-// String mocks base method
-func (m *MockQuery) String() string {
+// Equal mocks base method.
+func (m *MockQuery) Equal(q Query) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "String")
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "Equal", q)
+	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// String indicates an expected call of String
-func (mr *MockQueryMockRecorder) String() *gomock.Call {
+// Equal indicates an expected call of Equal.
+func (mr *MockQueryMockRecorder) Equal(q interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockQuery)(nil).String))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockQuery)(nil).Equal), q)
 }
 
-// Searcher mocks base method
+// Searcher mocks base method.
 func (m *MockQuery) Searcher() (Searcher, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Searcher")
@@ -134,27 +134,27 @@ func (m *MockQuery) Searcher() (Searcher, error) {
 	return ret0, ret1
 }
 
-// Searcher indicates an expected call of Searcher
+// Searcher indicates an expected call of Searcher.
 func (mr *MockQueryMockRecorder) Searcher() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Searcher", reflect.TypeOf((*MockQuery)(nil).Searcher))
 }
 
-// Equal mocks base method
-func (m *MockQuery) Equal(q Query) bool {
+// String mocks base method.
+func (m *MockQuery) String() string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Equal", q)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "String")
+	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// Equal indicates an expected call of Equal
-func (mr *MockQueryMockRecorder) Equal(q interface{}) *gomock.Call {
+// String indicates an expected call of String.
+func (mr *MockQueryMockRecorder) String() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockQuery)(nil).Equal), q)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockQuery)(nil).String))
 }
 
-// ToProto mocks base method
+// ToProto mocks base method.
 func (m *MockQuery) ToProto() *querypb.Query {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ToProto")
@@ -162,36 +162,36 @@ func (m *MockQuery) ToProto() *querypb.Query {
 	return ret0
 }
 
-// ToProto indicates an expected call of ToProto
+// ToProto indicates an expected call of ToProto.
 func (mr *MockQueryMockRecorder) ToProto() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToProto", reflect.TypeOf((*MockQuery)(nil).ToProto))
 }
 
-// MockSearcher is a mock of Searcher interface
+// MockSearcher is a mock of Searcher interface.
 type MockSearcher struct {
 	ctrl     *gomock.Controller
 	recorder *MockSearcherMockRecorder
 }
 
-// MockSearcherMockRecorder is the mock recorder for MockSearcher
+// MockSearcherMockRecorder is the mock recorder for MockSearcher.
 type MockSearcherMockRecorder struct {
 	mock *MockSearcher
 }
 
-// NewMockSearcher creates a new mock instance
+// NewMockSearcher creates a new mock instance.
 func NewMockSearcher(ctrl *gomock.Controller) *MockSearcher {
 	mock := &MockSearcher{ctrl: ctrl}
 	mock.recorder = &MockSearcherMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockSearcher) EXPECT() *MockSearcherMockRecorder {
 	return m.recorder
 }
 
-// Search mocks base method
+// Search mocks base method.
 func (m *MockSearcher) Search(arg0 index.Reader) (postings.List, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Search", arg0)
@@ -200,7 +200,7 @@ func (m *MockSearcher) Search(arg0 index.Reader) (postings.List, error) {
 	return ret0, ret1
 }
 
-// Search indicates an expected call of Search
+// Search indicates an expected call of Search.
 func (mr *MockSearcherMockRecorder) Search(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockSearcher)(nil).Search), arg0)
