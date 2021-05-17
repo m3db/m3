@@ -95,9 +95,12 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 				conn.threshold = int(threshold)
 				conn.multiplier = 2
 				conn.numFailures = conn.threshold + 1
-				conn.maxThreshold = 2 * conn.numFailures
+				conn.maxThreshold = testMaxReconnectThreshold
 
 				expectedNewThreshold := conn.threshold * conn.multiplier
+				if expectedNewThreshold > conn.maxThreshold {
+					expectedNewThreshold = conn.maxThreshold
+				}
 				if err := conn.Write(nil); !errors.Is(err, errTestConnect) {
 					return false, fmt.Errorf("unexpected error: %w", err)
 				}
