@@ -81,17 +81,23 @@ func QueryResponse(opts QueryResponseOptions) mux.MiddlewareFunc {
 					zap.Time("end", endTime),
 					zap.Duration("queryRange", endTime.Sub(startTime)),
 				}
-				for k, v := range r.Header {
-					if strings.HasPrefix(k, headers.M3HeaderPrefix) {
-						if len(v) == 1 {
-							fields = append(fields, zap.String(k, v[0]))
-						} else {
-							fields = append(fields, zap.Strings(k, v))
-						}
-					}
-				}
+				fields = appendM3Headers(r.Header, fields)
+				fields = appendM3Headers(w.Header(), fields)
 				logger.Info("finished handling query request", fields...)
 			}
 		})
 	}
+}
+
+func appendM3Headers(h http.Header, fields []zap.Field) []zap.Field {
+	for k, v := range h {
+		if strings.HasPrefix(k, headers.M3HeaderPrefix) {
+			if len(v) == 1 {
+				fields = append(fields, zap.String(k, v[0]))
+			} else {
+				fields = append(fields, zap.Strings(k, v))
+			}
+		}
+	}
+	return fields
 }
