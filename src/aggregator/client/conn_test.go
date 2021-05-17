@@ -94,6 +94,7 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 				conn.connectWithLockFn = func() error { return errTestConnect }
 				conn.threshold = int(threshold)
 				conn.numFailures = conn.threshold + 1
+				conn.maxThreshold = 2 * conn.numFailures
 
 				if err := conn.Write(nil); err != errTestConnect {
 					return false, fmt.Errorf("unexpected error: %v", err)
@@ -101,6 +102,49 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 				return true, nil
 			},
 			gen.Int32Range(1, testMaxReconnectThreshold),
+		))
+	props.Property(
+		"When the number of failures is greater than the max threshold writes must not attempt to reconnect",
+		prop.ForAll(
+			func(threshold int32) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				// Exhausted max threshold
+				conn.threshold = int(threshold)
+				conn.maxThreshold = conn.threshold
+				conn.numFailures = conn.maxThreshold + 1
+
+				if err := conn.Write(nil); err != errNoActiveConnection {
+					return false, fmt.Errorf("unexpected error: %v", err)
+				}
+				return true, nil
+			},
+			gen.Int32Range(1, testMaxReconnectThreshold),
+		))
+	props.Property(
+		`When the number of failures is greater than the max threshold
+		 but time since last connection attempt is greater than the maximum duration
+		 then writes should attempt to reconnect`,
+		prop.ForAll(
+			func(delay int64) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				// Exhausted max threshold
+				conn.threshold = 1
+				conn.maxThreshold = conn.threshold
+				conn.numFailures = conn.maxThreshold + 1
+
+				now := time.Now()
+				conn.nowFn = func() time.Time { return now }
+				conn.lastConnectAttemptNanos = now.UnixNano() - int64(delay)
+				conn.maxDuration = time.Duration(delay)
+
+				if err := conn.Write(nil); err != errTestConnect {
+					return false, fmt.Errorf("unexpected error: %v", err)
+				}
+				return true, nil
+			},
+			gen.Int64Range(1, math.MaxInt64),
 		))
 
 	props.TestingRun(t)
