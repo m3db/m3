@@ -87,6 +87,27 @@ func TestConnectionDontReconnectProperties(t *testing.T) {
 func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 	props := testConnectionProperties()
 	props.Property(
+		"When number of failures is greater than the threshold, it is multiplied",
+		prop.ForAll(
+			func(threshold int32) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				conn.threshold = int(threshold)
+				conn.multiplier = 2
+				conn.numFailures = conn.threshold + 1
+				conn.maxThreshold = 2 * conn.numFailures
+
+				expectedNewThreshold := conn.threshold * conn.multiplier
+				if err := conn.Write(nil); !errors.Is(err, errTestConnect) {
+					return false, fmt.Errorf("unexpected error: %w", err)
+				}
+
+				require.Equal(t, expectedNewThreshold, conn.threshold)
+				return true, nil
+			},
+			gen.Int32Range(1, testMaxReconnectThreshold),
+		))
+	props.Property(
 		"When the number of failures is greater than the threshold writes should attempt to reconnect",
 		prop.ForAll(
 			func(threshold int32) (bool, error) {
