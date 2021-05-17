@@ -22,7 +22,16 @@
 package permits
 
 import (
+	"errors"
+
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+)
+
+var (
+	// ErrOperationWaitedOnRequireNoWait is raised when an operation
+	// waits for permits but explicitly required not waiting.
+	ErrOperationWaitedOnRequireNoWait = xerrors.NewInvalidParamsError(errors.New("operation waited for permits when requiring no waiting"))
 )
 
 // Options is the permit options.
@@ -47,15 +56,22 @@ type Manager interface {
 type Permits interface {
 	// Acquire blocks until a Permit is available. The returned Permit is guaranteed to be non-nil if error is
 	// non-nil.
-	Acquire(ctx context.Context) (Permit, error)
+	Acquire(ctx context.Context) (Permit, AcquireResult, error)
 
 	// TryAcquire attempts to acquire an available resource without blocking, returning
 	// a non-nil a Permit if one is available. Returns nil if no Permit is currently available.
-	TryAcquire(ctx context.Context) (Permit, error)
+	TryAcquire(ctx context.Context) (Permit, AcquireResult, error)
 
 	// Release gives back one acquired permit from the specific permits instance.
 	// Cannot release more permits than have been acquired.
 	Release(permit Permit)
+}
+
+// AcquireResult contains metadata about acquiring a permit.
+type AcquireResult struct {
+	// Waited is true if the acquire called waited before being granted permits.
+	// If false, the permits were granted immediately.
+	Waited bool
 }
 
 // Permit is granted to a caller which is allowed to consume some amount of quota.

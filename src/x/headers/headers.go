@@ -104,6 +104,10 @@ const (
 	// ensure M3 returns an error if the results set is not exhaustive.
 	LimitRequireExhaustiveHeader = M3HeaderPrefix + "Limit-Require-Exhaustive"
 
+	// LimitRequireNoWaitHeader is the M3 header that ensures
+	// M3 returns an error if query execution must wait for permits.
+	LimitRequireNoWaitHeader = M3HeaderPrefix + "Limit-Require-NoWait"
+
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
 
@@ -141,6 +145,9 @@ const (
 	// LimitHeaderSeriesLimitApplied is the header applied when fetch results
 	// are maxed.
 	LimitHeaderSeriesLimitApplied = "max_fetch_series_limit_applied"
+
+	// WaitedHeader is the header added when permits had to be waited for.
+	WaitedHeader = M3HeaderPrefix + "Waited"
 
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"

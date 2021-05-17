@@ -154,6 +154,32 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 	return defaultValue, nil
 }
 
+// ParseRequireNoWait parses the no-wait behavior from header or
+// query string.
+func ParseRequireNoWait(req *http.Request) (bool, error) {
+	if str := req.Header.Get(headers.LimitRequireNoWaitHeader); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%v", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	if str := req.FormValue("requireNoWait"); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%v", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	return false, nil
+}
+
 // NewFetchOptions parses an http request into fetch options.
 func (b fetchOptionsBuilder) NewFetchOptions(
 	ctx context.Context,
@@ -223,6 +249,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.RequireExhaustive = requireExhaustive
+
+	requireNoWait, err := ParseRequireNoWait(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.RequireNoWait = requireNoWait
 
 	if str := req.Header.Get(headers.MetricsTypeHeader); str != "" {
 		mt, err := storagemetadata.ParseMetricsType(str)

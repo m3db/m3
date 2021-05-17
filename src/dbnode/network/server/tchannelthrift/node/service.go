@@ -738,16 +738,19 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	ctx := tchannelthrift.Context(tctx)
 	iter, err := s.FetchTaggedIter(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, convert.ToRPCError(err)
 	}
 
-	result, err := s.buildFetchTaggedResult(ctx, iter)
+	result, err := s.fetchTaggedResult(ctx, iter)
 	iter.Close(err)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
 
-	return result, err
+	return result, nil
 }
 
-func (s *service) buildFetchTaggedResult(ctx context.Context,
+func (s *service) fetchTaggedResult(ctx context.Context,
 	iter FetchTaggedResultsIter,
 ) (*rpc.FetchTaggedResult_, error) {
 	response := &rpc.FetchTaggedResult_{
@@ -774,6 +777,13 @@ func (s *service) buildFetchTaggedResult(ctx context.Context,
 	}
 	if iter.Err() != nil {
 		return nil, iter.Err()
+	}
+
+	if v := int64(iter.WaitedIndex()); v > 0 {
+		response.WaitedIndex = &v
+	}
+	if v := int64(iter.WaitedSeriesRead()); v > 0 {
+		response.WaitedSeriesRead = &v
 	}
 
 	return response, nil
@@ -849,6 +859,8 @@ func (s *service) fetchTaggedIter(
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
 		blockPermits:    permits,
+		requireNoWait:   req.RequireNoWait,
+		indexWaited:     queryResult.Waited,
 	}), nil
 }
 
@@ -860,6 +872,12 @@ type FetchTaggedResultsIter interface {
 
 	// Exhaustive returns true if NumIDs is all IDs that the query could have returned.
 	Exhaustive() bool
+
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex() int
+
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead() int
 
 	// Namespace is the namespace.
 	Namespace() ident.ID
@@ -883,13 +901,15 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	fetchTaggedResultsIterOpts
-	idResults       []idResult
-	idx             int
-	blockReadIdx    int
-	cur             IDResult
-	err             error
-	permits         []permits.Permit
-	unreleasedQuota int64
+	idResults        []idResult
+	idx              int
+	blockReadIdx     int
+	cur              IDResult
+	err              error
+	permits          []permits.Permit
+	unreleasedQuota  int64
+	indexWaited      int
+	seriesReadWaited int
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -903,6 +923,8 @@ type fetchTaggedResultsIterOpts struct {
 	iOpts           instrument.Options
 	instrumentClose func(error)
 	blockPermits    permits.Permits
+	requireNoWait   bool
+	indexWaited     int
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
@@ -919,6 +941,14 @@ func (i *fetchTaggedResultsIter) NumIDs() int {
 
 func (i *fetchTaggedResultsIter) Exhaustive() bool {
 	return i.queryResult.Exhaustive
+}
+
+func (i *fetchTaggedResultsIter) WaitedIndex() int {
+	return i.indexWaited
+}
+
+func (i *fetchTaggedResultsIter) WaitedSeriesRead() int {
+	return i.seriesReadWaited
 }
 
 func (i *fetchTaggedResultsIter) Namespace() ident.ID {
@@ -1004,7 +1034,14 @@ func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, er
 	if curPermit == nil || curPermit.QuotaRemaining() <= 0 {
 		if i.idx == idx {
 			// block acquiring if we need the block readers to fulfill the current fetch.
-			permit, err := i.blockPermits.Acquire(ctx)
+			permit, acquireResult, err := i.blockPermits.Acquire(ctx)
+			if acquireResult.Waited {
+				if err == nil && i.requireNoWait {
+					// Fail iteration if request requires no waiting.
+					return false, permits.ErrOperationWaitedOnRequireNoWait
+				}
+				i.seriesReadWaited++
+			}
 			if err != nil {
 				return false, err
 			}
@@ -1012,7 +1049,14 @@ func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, er
 			curPermit = permit
 		} else {
 			// don't block if we are prefetching for a future seriesID.
-			permit, err := i.blockPermits.TryAcquire(ctx)
+			permit, acquireResult, err := i.blockPermits.TryAcquire(ctx)
+			if acquireResult.Waited {
+				if err == nil && i.requireNoWait {
+					// Fail iteration if request requires no waiting.
+					return false, permits.ErrOperationWaitedOnRequireNoWait
+				}
+				i.seriesReadWaited++
+			}
 			if err != nil {
 				return false, err
 			}
@@ -1178,8 +1222,14 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		return nil, convert.ToRPCError(err)
 	}
 
+	var WaitedIndex *int64
+	if v := int64(queryResult.Waited); v > 0 {
+		WaitedIndex = &v
+	}
+
 	response := &rpc.AggregateQueryRawResult_{
-		Exhaustive: queryResult.Exhaustive,
+		Exhaustive:  queryResult.Exhaustive,
+		WaitedIndex: WaitedIndex,
 	}
 	results := queryResult.Results
 	for _, entry := range results.Map().Iter() {

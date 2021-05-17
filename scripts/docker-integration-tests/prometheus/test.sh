@@ -314,6 +314,74 @@ function test_query_limits_applied {
     '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 2" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data | length") -eq 2 ]]'
 }
 
+function test_query_limits_global_applied {
+  TAG_NAME_0="query_global_limit_test" TAG_VALUE_0="series_label_0" \
+    prometheus_remote_write \
+    metadata_test_series now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+  TAG_NAME_0="query_global_limit_test" TAG_VALUE_0="series_label_1" \
+    prometheus_remote_write \
+    metadata_test_series now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+  TAG_NAME_0="query_global_limit_test" TAG_VALUE_0="series_label_2" \
+    prometheus_remote_write \
+    metadata_test_series now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
+  # Set global limits.
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+    "key": "m3db.query.limits",
+    "value": {
+      "maxRecentlyQueriedSeriesDiskRead": {
+        "limit": 1,
+        "lookbackSeconds": 5
+      }
+    },
+    "commit": true
+  }'
+
+  # Test that global limits are tripped.
+  ATTEMPTS=20 TIMEOUT=1 MAX_TIMEOUT=1 retry_with_backoff  \
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{query_global_limit_test!=\"\"\\} | jq -r ."status") = "error" ]]'
+
+  # Force waited for permit.
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+    "key": "m3db.query.limits",
+    "value": {
+      "maxRecentlyQueriedSeriesDiskRead": {
+        "limit": 10000,
+        "lookbackSeconds": 5,
+        "forceWaited": true
+      }
+    },
+    "commit": true
+  }'
+
+  # Check that success and waited header is returned.
+  ATTEMPTS=20 TIMEOUT=1 MAX_TIMEOUT=1 retry_with_backoff  \
+    '[[ $(curl -s -D headers.out 0.0.0.0:7201/api/v1/query?query=\\{query_global_limit_test!=\"\"\\} | jq -r ."status") = "success" ]] && [[ $(cat headers.out | grep M3-Waited | wc -l | xargs) = "1" ]]'
+
+  # Check that error when require no wait header set and waited header is returned.
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Require-NoWait: true" 0.0.0.0:7201/api/v1/query?query=\\{query_global_limit_test!=\"\"\\})
+  test "$STATUS" = "400"
+
+  # Restore global limits.
+  curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+    "key": "m3db.query.limits",
+    "value": {
+      "maxRecentlyQueriedSeriesDiskRead": {
+        "limit": 0,
+        "lookbackSeconds": 15,
+        "forceWaited": false
+      }
+    },
+    "commit": true
+  }'
+}
+
 function test_query_timeouts {
   echo "Test query timeouts"
 
@@ -576,6 +644,7 @@ test_prometheus_remote_write_map_tags
 test_series 
 test_label_query_limits_applied 
 test_labels 
+test_query_limits_global_applied
 
 echo "Running function correctness tests"
 test_correctness
