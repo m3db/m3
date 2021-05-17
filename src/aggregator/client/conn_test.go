@@ -96,8 +96,8 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 				conn.numFailures = conn.threshold + 1
 				conn.maxThreshold = 2 * conn.numFailures
 
-				if err := conn.Write(nil); err != errTestConnect {
-					return false, fmt.Errorf("unexpected error: %v", err)
+				if err := conn.Write(nil); !errors.Is(err, errTestConnect) {
+					return false, fmt.Errorf("unexpected error: %w", err)
 				}
 				return true, nil
 			},
@@ -114,8 +114,8 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 				conn.maxThreshold = conn.threshold
 				conn.numFailures = conn.maxThreshold + 1
 
-				if err := conn.Write(nil); err != errNoActiveConnection {
-					return false, fmt.Errorf("unexpected error: %v", err)
+				if err := conn.Write(nil); !errors.Is(err, errNoActiveConnection) {
+					return false, fmt.Errorf("unexpected error: %w", err)
 				}
 				return true, nil
 			},
@@ -136,11 +136,11 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 
 				now := time.Now()
 				conn.nowFn = func() time.Time { return now }
-				conn.lastConnectAttemptNanos = now.UnixNano() - int64(delay)
+				conn.lastConnectAttemptNanos = now.UnixNano() - delay
 				conn.maxDuration = time.Duration(delay)
 
-				if err := conn.Write(nil); err != errTestConnect {
-					return false, fmt.Errorf("unexpected error: %v", err)
+				if err := conn.Write(nil); !errors.Is(err, errTestConnect) {
+					return false, fmt.Errorf("unexpected error: %w", err)
 				}
 				return true, nil
 			},
@@ -160,7 +160,7 @@ func TestConnectionMaxDurationReconnectProperty(t *testing.T) {
 				conn.connectWithLockFn = func() error { return errTestConnect }
 				now := time.Now()
 				conn.nowFn = func() time.Time { return now }
-				conn.lastConnectAttemptNanos = now.UnixNano() - int64(delay)
+				conn.lastConnectAttemptNanos = now.UnixNano() - delay
 				conn.maxDuration = time.Duration(delay)
 
 				if err := conn.Write(nil); err != errTestConnect {
