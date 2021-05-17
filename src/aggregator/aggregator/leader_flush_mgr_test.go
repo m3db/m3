@@ -234,11 +234,13 @@ func TestLeaderFlushManagerPrepareNoFlushNoPersist(t *testing.T) {
 		doneCh          = make(chan struct{})
 	)
 
-	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
+
 	opts := NewFlushManagerOptions().SetJitterEnabled(false)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
-	mgr.flushTimesManager = flushTimesManager
+	mgr.placementManager = placementManager
 
 	buckets := testFlushBuckets(ctrl)
 	mgr.Init(buckets)
@@ -272,6 +274,9 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
 			return nil
 		})
 
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
+
 	opts := NewFlushManagerOptions().
 		SetJitterEnabled(false).
 		SetFlushTimesPersistEvery(time.Second)
@@ -279,6 +284,7 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
 	mgr.nowFn = nowFn
 	mgr.flushedSincePersist = true
 	mgr.flushTimesManager = flushTimesManager
+	mgr.placementManager = placementManager
 
 	buckets := testFlushBuckets(ctrl)
 	mgr.Init(buckets)
@@ -315,6 +321,9 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
 		}).
 		Times(2)
 
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil).Times(2)
+
 	opts := NewFlushManagerOptions().
 		SetJitterEnabled(false).
 		SetFlushTimesPersistEvery(time.Second)
@@ -323,6 +332,7 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
 	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
 	mgr.flushedSincePersist = true
 	mgr.flushTimesManager = flushTimesManager
+	mgr.placementManager = placementManager
 
 	// Persist for the first time.
 	buckets := testFlushBuckets(ctrl)
@@ -375,6 +385,8 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 			stored = value
 			return nil
 		})
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
 
 	opts := NewFlushManagerOptions().
 		SetJitterEnabled(false).
@@ -384,6 +396,7 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	mgr.lastPersistAtNanos = now.UnixNano()
 	mgr.flushedSincePersist = true
 	mgr.flushTimesManager = flushTimesManager
+	mgr.placementManager = placementManager
 
 	buckets := testFlushBuckets(ctrl)
 	mgr.Init(buckets)
