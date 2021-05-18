@@ -329,12 +329,15 @@ func (mgr *leaderFlushManager) updateStandardFlushTimesWithLock(
 		if !exists {
 			continue
 		}
+
 		redirectToFlushTimesByResolution := getFlushTimesByResolutionFn(redirectToFlushTimes)
 
-		flushTimes := mgr.getOrCreateFlushTimesWithLock(shard.ID())
-		flushTimesByResolution := getFlushTimesByResolutionFn(flushTimes)
-		flushTimesByResolution[int64(resolution)] = redirectToFlushTimesByResolution[int64(resolution)]
-		flushTimes.Tombstoned = flushTimes.Tombstoned && redirectToFlushTimes.Tombstoned
+		if redirectToFlushTime, ok := redirectToFlushTimesByResolution[int64(resolution)]; ok {
+			flushTimes := mgr.getOrCreateFlushTimesWithLock(shard.ID())
+			flushTimesByResolution := getFlushTimesByResolutionFn(flushTimes)
+			flushTimesByResolution[int64(resolution)] = redirectToFlushTime
+			flushTimes.Tombstoned = flushTimes.Tombstoned && redirectToFlushTimes.Tombstoned
+		}
 	}
 
 	metrics.updateFlushTimes.Inc(int64(len(flushers)))
@@ -373,11 +376,12 @@ func (mgr *leaderFlushManager) updateForwardedFlushTimesWithLock(
 			continue
 		}
 
-		flushTimes := mgr.getOrCreateFlushTimesWithLock(shard.ID())
-		forwardedFlushTimes := mgr.getOrCreateForwarderFlushTimesForResolutionWithLock(flushTimes, resolution)
-		forwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes] =
-			redirectToForwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes]
-		flushTimes.Tombstoned = flushTimes.Tombstoned && redirectToFlushTimes.Tombstoned
+		if redirectToFlushTime, ok := redirectToForwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes]; ok {
+			flushTimes := mgr.getOrCreateFlushTimesWithLock(shard.ID())
+			forwardedFlushTimes := mgr.getOrCreateForwarderFlushTimesForResolutionWithLock(flushTimes, resolution)
+			forwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes] = redirectToFlushTime
+			flushTimes.Tombstoned = flushTimes.Tombstoned && redirectToFlushTimes.Tombstoned
+		}
 	}
 
 	mgr.metrics.forwarded.updateFlushTimes.Inc(int64(len(flushers)))
