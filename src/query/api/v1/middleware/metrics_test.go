@@ -24,12 +24,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/tallytest"
 )
 
 func TestResponseMetrics(t *testing.T) {
@@ -38,7 +43,12 @@ func TestResponseMetrics(t *testing.T) {
 
 	r := mux.NewRouter()
 	route := r.NewRoute()
-	h := ResponseMetrics(iOpts, route).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	opts := options.MiddlewareOptions{
+		InstrumentOpts: iOpts,
+		Route:          route,
+	}
+
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))
 	route.Path("/test").Handler(h)
@@ -53,8 +63,71 @@ func TestResponseMetrics(t *testing.T) {
 	snapshot := scope.Snapshot()
 	counters := snapshot.Counters()
 	require.Len(t, counters, 1)
-	require.Equal(t, int64(1), counters["request+path=/test,status=200"].Value())
+
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":   "/test",
+		"size":   "small",
+		"status": "200",
+	})
+
 	hist := snapshot.Histograms()
-	require.NotNil(t, hist["latency+path=/test"])
-	require.Len(t, hist, 1)
+	require.True(t, len(hist) == 1)
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+		require.Equal(t, map[string]string{
+			"path": "/test",
+			"size": "small",
+		}, h.Tags())
+	}
+}
+
+func TestLargeResponseMetrics(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	r := mux.NewRouter()
+	route := r.NewRoute()
+	opts := options.MiddlewareOptions{
+		InstrumentOpts: iOpts,
+		Route:          route,
+		Config: &config.MiddlewareConfiguration{
+			InspectQuerySize:          true,
+			LargeSeriesCountThreshold: 10,
+			LargeSeriesRangeThreshold: time.Minute,
+		},
+	}
+
+	h := ResponseMetrics(opts).Middleware(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add(headers.FetchedSeriesCount, "15")
+			w.WriteHeader(200)
+		}))
+	route.Path("/test").Handler(h)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/test?query=rate(up[20m])") //nolint: noctx
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+	require.Len(t, counters, 1)
+
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":   "/test",
+		"size":   "large",
+		"status": "200",
+	})
+
+	hist := snapshot.Histograms()
+	require.True(t, len(hist) == 1)
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+		require.Equal(t, map[string]string{
+			"path": "/test",
+			"size": "large",
+		}, h.Tags())
+	}
 }

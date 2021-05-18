@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -40,7 +41,12 @@ var histogramTimerOptions = instrument.NewHistogramTimerOptions(
 	})
 
 // ResponseMetrics records metrics for the http response.
-func ResponseMetrics(iOpts instrument.Options, route *mux.Route) mux.MiddlewareFunc {
+func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
+	var (
+		iOpts = opts.InstrumentOpts
+		route = opts.Route
+		cfg   = opts.Config
+	)
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
@@ -59,8 +65,10 @@ func ResponseMetrics(iOpts instrument.Options, route *mux.Route) mux.MiddlewareF
 				path = "unknown"
 			}
 
+			querySize := calculateQuerySize(w, r, cfg)
+			tags := map[string]string{querySizeMetricName: querySize}
 			metrics := newRouteMetrics(iOpts)
-			counter, timer := metrics.metric(path, statusCodeTracking.Status)
+			counter, timer := metrics.metric(path, statusCodeTracking.Status, tags)
 			counter.Inc(1)
 			timer.Record(d)
 		})
@@ -91,7 +99,11 @@ func newRouteMetrics(instrumentOpts instrument.Options) *routeMetrics {
 	}
 }
 
-func (m *routeMetrics) metric(path string, status int) (tally.Counter, tally.Timer) {
+func (m *routeMetrics) metric(
+	path string,
+	status int,
+	tags map[string]string,
+) (tally.Counter, tally.Timer) {
 	key := routeMetricKey{
 		path:   path,
 		status: status,
@@ -113,10 +125,14 @@ func (m *routeMetrics) metric(path string, status int) (tally.Counter, tally.Tim
 		return metric.status, timer
 	}
 
-	scopePath := m.instrumentOpts.MetricsScope().Tagged(map[string]string{
-		"path": path,
-	})
+	if tags == nil {
+		tags = map[string]string{"path": path}
+	} else {
+		// NB: add path to passed in tags.
+		tags["path"] = path
+	}
 
+	scopePath := m.instrumentOpts.MetricsScope().Tagged(tags)
 	scopePathAndStatus := scopePath.Tagged(map[string]string{
 		"status": strconv.Itoa(status),
 	})

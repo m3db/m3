@@ -120,7 +120,7 @@ func parseParams(
 	}
 	params.Step = fetchOpts.Step
 
-	query, err := parseQuery(r)
+	query, err := ParseQuery(r)
 	if err != nil {
 		return params, xerrors.NewInvalidParamsError(
 			fmt.Errorf(formatErrStr, queryParam, err))
@@ -199,7 +199,8 @@ func parseInstantaneousParams(
 	return params, nil
 }
 
-func parseQuery(r *http.Request) (string, error) {
+// ParseQuery parses a query out of an HTTP request.
+func ParseQuery(r *http.Request) (string, error) {
 	if err := r.ParseForm(); err != nil {
 		return "", err
 	}

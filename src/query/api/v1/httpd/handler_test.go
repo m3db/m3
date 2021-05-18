@@ -121,7 +121,7 @@ func setupHandler(
 		return nil, err
 	}
 
-	return NewHandler(opts, customHandlers...), nil
+	return NewHandler(opts, nil, customHandlers...), nil
 }
 
 func newPromEngine() *promql.Engine {
@@ -384,7 +384,7 @@ func TestCustomRoutes(t *testing.T) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
-	handler := NewHandler(opts, custom, customShadowGet, customShadowHead, customNew)
+	handler := NewHandler(opts, nil, custom, customShadowGet, customShadowHead, customNew)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
