@@ -365,7 +365,7 @@ function test_query_limits_global_applied {
     '[[ $(curl -s -D headers.out 0.0.0.0:7201/api/v1/query?query=\\{query_global_limit_test!=\"\"\\} | jq -r ."status") = "success" ]] && [[ $(cat headers.out | grep M3-Waited | wc -l | xargs) = "1" ]]'
 
   # Check that error when require no wait header set and waited header is returned.
-  STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Require-NoWait: true" 0.0.0.0:7201/api/v1/query?query=\\{query_global_limit_test!=\"\"\\})
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Require-No-Wait: true" 0.0.0.0:7201/api/v1/query?query=\\{query_global_limit_test!=\"\"\\})
   test "$STATUS" = "400"
 
   # Restore global limits.

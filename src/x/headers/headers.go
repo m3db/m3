@@ -106,7 +106,7 @@ const (
 
 	// LimitRequireNoWaitHeader is the M3 header that ensures
 	// M3 returns an error if query execution must wait for permits.
-	LimitRequireNoWaitHeader = M3HeaderPrefix + "Limit-Require-NoWait"
+	LimitRequireNoWaitHeader = M3HeaderPrefix + "Limit-Require-No-Wait"
 
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
