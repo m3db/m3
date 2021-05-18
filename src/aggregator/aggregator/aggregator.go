@@ -395,6 +395,7 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 	var (
 		numShards = agg.currNumShards.Load()
 		shardID   uint32
+		shard     *aggregatorShard
 	)
 
 	if numShards > 0 {
@@ -403,15 +404,16 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 
 	// Maintain the rlock as long as we're accessing agg.shards (since it can be mutated otherwise).
 	agg.RLock()
-	if int(shardID) >= len(agg.shards) {
-		agg.RUnlock()
-		return nil, errShardNotOwned
+	if int(shardID) < len(agg.shards) {
+		shard = agg.shards[shardID]
+		if shard != nil && shard.redirectToShardID != nil {
+			redirectToShardID := *shard.redirectToShardID
+			shard = nil
+			if int(redirectToShardID) < len(agg.shards) {
+				shard = agg.shards[redirectToShardID]
+			}
+		}
 	}
-	shard := agg.shards[shardID]
-	if shard != nil && shard.redirectToShardID != nil {
-		shard = agg.shards[*shard.redirectToShardID]
-	}
-
 	agg.RUnlock()
 
 	if shard == nil {
