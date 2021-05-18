@@ -1642,7 +1642,7 @@ func (i *nsIndex) queryWithSpan(
 			return nil, 0
 		}
 		startWait := time.Now()
-		permit, acquireResult, err := perms.Acquire(ctx)
+		acquireResult, err := perms.Acquire(ctx)
 		if acquireResult.Waited {
 			if err == nil && opts.RequireNoWait {
 				// Fail iteration if request requires no waiting occurs.
@@ -1657,10 +1657,10 @@ func (i *nsIndex) queryWithSpan(
 		}
 		// make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
-			perms.Release(permit)
+			perms.Release(acquireResult.Permit)
 			return nil, waitTime
 		}
-		return permit, waitTime
+		return acquireResult.Permit, waitTime
 	}
 
 	// We're looping through all the blocks that we need to query and kicking

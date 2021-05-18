@@ -92,24 +92,19 @@ func (p *LookbackLimitPermitManager) Stop() {
 }
 
 // Acquire increments the underlying querying limit.
-func (p *LookbackLimitPermit) Acquire(context.Context) (Permit, AcquireResult, error) {
+func (p *LookbackLimitPermit) Acquire(context.Context) (AcquireResult, error) {
 	err := p.limit.Inc(1, p.source)
 	waited := err != nil
 	if p.limit.Options().ForceWaited {
 		waited = true
 	}
-	return singlePermit, AcquireResult{Waited: waited}, err
+	return AcquireResult{Permit: singlePermit, Waited: waited}, err
 }
 
 // TryAcquire increments the underlying querying limit. Functionally equivalent
 // to Acquire.
-func (p *LookbackLimitPermit) TryAcquire(context.Context) (Permit, AcquireResult, error) {
-	err := p.limit.Inc(1, p.source)
-	waited := err != nil
-	if p.limit.Options().ForceWaited {
-		waited = true
-	}
-	return singlePermit, AcquireResult{Waited: waited}, err
+func (p *LookbackLimitPermit) TryAcquire(context.Context) (Permit, error) {
+	return singlePermit, p.limit.Inc(1, p.source)
 }
 
 // Release is a no-op in this implementation.

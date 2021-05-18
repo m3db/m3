@@ -54,13 +54,13 @@ type Manager interface {
 
 // Permits are the set of permits that individual codepaths will utilize.
 type Permits interface {
-	// Acquire blocks until a Permit is available. The returned Permit is guaranteed to be non-nil if error is
-	// non-nil.
-	Acquire(ctx context.Context) (Permit, AcquireResult, error)
+	// Acquire blocks until a Permit is available. The returned Permit is
+	// guaranteed to be non-nil if error is non-nil.
+	Acquire(ctx context.Context) (AcquireResult, error)
 
 	// TryAcquire attempts to acquire an available resource without blocking, returning
 	// a non-nil a Permit if one is available. Returns nil if no Permit is currently available.
-	TryAcquire(ctx context.Context) (Permit, AcquireResult, error)
+	TryAcquire(ctx context.Context) (Permit, error)
 
 	// Release gives back one acquired permit from the specific permits instance.
 	// Cannot release more permits than have been acquired.
@@ -69,6 +69,8 @@ type Permits interface {
 
 // AcquireResult contains metadata about acquiring a permit.
 type AcquireResult struct {
+	// Permit is the acquired permit.
+	Permit Permit
 	// Waited is true if the acquire called waited before being granted permits.
 	// If false, the permits were granted immediately.
 	Waited bool

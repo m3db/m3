@@ -1034,7 +1034,7 @@ func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, er
 	if curPermit == nil || curPermit.QuotaRemaining() <= 0 {
 		if i.idx == idx {
 			// block acquiring if we need the block readers to fulfill the current fetch.
-			permit, acquireResult, err := i.blockPermits.Acquire(ctx)
+			acquireResult, err := i.blockPermits.Acquire(ctx)
 			if acquireResult.Waited {
 				if err == nil && i.requireNoWait {
 					// Fail iteration if request requires no waiting.
@@ -1045,18 +1045,11 @@ func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, er
 			if err != nil {
 				return false, err
 			}
-			i.permits = append(i.permits, permit)
-			curPermit = permit
+			i.permits = append(i.permits, acquireResult.Permit)
+			curPermit = acquireResult.Permit
 		} else {
 			// don't block if we are prefetching for a future seriesID.
-			permit, acquireResult, err := i.blockPermits.TryAcquire(ctx)
-			if acquireResult.Waited {
-				if err == nil && i.requireNoWait {
-					// Fail iteration if request requires no waiting.
-					return false, permits.ErrOperationWaitedOnRequireNoWait
-				}
-				i.seriesReadWaited++
-			}
+			permit, err := i.blockPermits.TryAcquire(ctx)
 			if err != nil {
 				return false, err
 			}
