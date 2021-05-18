@@ -95,7 +95,7 @@ func calculateQuerySize(
 
 	fetchedCount := w.Header().Get(headers.FetchedSeriesCount)
 	fetched, err := strconv.Atoi(fetchedCount)
-	if err != nil || fetched < int(cfg.LargeSeriesCountThreshold) {
+	if err != nil || fetched < cfg.LargeSeriesCountThreshold {
 		// NB: header does not exist, or value is below the large query threshold.
 		// Classify this as a small query.
 		return querySizeSmall
