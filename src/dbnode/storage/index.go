@@ -1640,25 +1640,37 @@ func (i *nsIndex) queryWithSpan(
 		if queryCanceled() {
 			return nil, 0
 		}
+
 		startWait := time.Now()
 		acquireResult, err := perms.Acquire(ctx)
+		waitTime := time.Since(startWait)
+		var success bool
+		defer func() {
+			// Note: ALWAYS release if we do not successfully return back
+			// the permit and we checked one out.
+			if !success && acquireResult.Permit != nil {
+				perms.Release(acquireResult.Permit)
+			}
+		}()
 		if acquireResult.Waited {
+			// Potentially break an error if require no wait set.
 			if err == nil && opts.RequireNoWait {
 				// Fail iteration if request requires no waiting occurs.
 				err = permits.ErrOperationWaitedOnRequireNoWait
 			}
 			state.incWaited(1)
 		}
-		waitTime := time.Since(startWait)
 		if err != nil {
 			state.addErr(err)
 			return nil, waitTime
 		}
+
 		// make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
-			perms.Release(acquireResult.Permit)
 			return nil, waitTime
 		}
+
+		success = true
 		return acquireResult.Permit, waitTime
 	}
 
