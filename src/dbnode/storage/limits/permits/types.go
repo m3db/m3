@@ -31,9 +31,8 @@ import (
 var (
 	// ErrOperationWaitedOnRequireNoWait is raised when an operation
 	// waits for permits but explicitly required not waiting.
-	ErrOperationWaitedOnRequireNoWait = xerrors.NewInvalidParamsError(
-		errors.New("operation waited for permits when requiring no waiting"),
-	)
+	ErrOperationWaitedOnRequireNoWait = xerrors.NewInvalidParamsError(errors.New(
+		"operation waited for permits when requiring no waiting"))
 )
 
 // Options is the permit options.
