@@ -28,7 +28,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-
 	"github.com/apache/thrift/lib/go/thrift"
 )
 
@@ -4020,14 +4019,14 @@ func (p *FetchTaggedResult_) writeField2(oprot thrift.TProtocol) (err error) {
 
 func (p *FetchTaggedResult_) writeField3(oprot thrift.TProtocol) (err error) {
 	if p.IsSetWaitedIndex() {
-		if err := oprot.WriteFieldBegin("WaitedIndex", thrift.I64, 3); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:WaitedIndex: ", p), err)
+		if err := oprot.WriteFieldBegin("waitedIndex", thrift.I64, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:waitedIndex: ", p), err)
 		}
 		if err := oprot.WriteI64(int64(*p.WaitedIndex)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.WaitedIndex (3) field write error: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T.waitedIndex (3) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:WaitedIndex: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:waitedIndex: ", p), err)
 		}
 	}
 	return err
@@ -4035,14 +4034,14 @@ func (p *FetchTaggedResult_) writeField3(oprot thrift.TProtocol) (err error) {
 
 func (p *FetchTaggedResult_) writeField4(oprot thrift.TProtocol) (err error) {
 	if p.IsSetWaitedSeriesRead() {
-		if err := oprot.WriteFieldBegin("WaitedSeriesRead", thrift.I64, 4); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:WaitedSeriesRead: ", p), err)
+		if err := oprot.WriteFieldBegin("waitedSeriesRead", thrift.I64, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:waitedSeriesRead: ", p), err)
 		}
 		if err := oprot.WriteI64(int64(*p.WaitedSeriesRead)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.WaitedSeriesRead (4) field write error: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T.waitedSeriesRead (4) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:WaitedSeriesRead: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:waitedSeriesRead: ", p), err)
 		}
 	}
 	return err
@@ -10355,7 +10354,7 @@ func (p *AggregateQueryRawRequest) String() string {
 type AggregateQueryRawResult_ struct {
 	Results     []*AggregateQueryRawResultTagNameElement `thrift:"results,1,required" db:"results" json:"results"`
 	Exhaustive  bool                                     `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
-	WaitedIndex *int64                                   `thrift:"WaitedIndex,3" db:"WaitedIndex" json:"WaitedIndex,omitempty"`
+	WaitedIndex *int64                                   `thrift:"waitedIndex,3" db:"waitedIndex" json:"waitedIndex,omitempty"`
 }
 
 func NewAggregateQueryRawResult_() *AggregateQueryRawResult_ {
@@ -10532,14 +10531,14 @@ func (p *AggregateQueryRawResult_) writeField2(oprot thrift.TProtocol) (err erro
 
 func (p *AggregateQueryRawResult_) writeField3(oprot thrift.TProtocol) (err error) {
 	if p.IsSetWaitedIndex() {
-		if err := oprot.WriteFieldBegin("WaitedIndex", thrift.I64, 3); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:WaitedIndex: ", p), err)
+		if err := oprot.WriteFieldBegin("waitedIndex", thrift.I64, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:waitedIndex: ", p), err)
 		}
 		if err := oprot.WriteI64(int64(*p.WaitedIndex)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.WaitedIndex (3) field write error: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T.waitedIndex (3) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:WaitedIndex: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:waitedIndex: ", p), err)
 		}
 	}
 	return err
