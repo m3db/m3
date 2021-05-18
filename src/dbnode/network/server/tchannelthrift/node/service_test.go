@@ -1866,7 +1866,7 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 		SeriesLimit: &seriesLimit,
 		DocsLimit:   &docsLimit,
 	})
-	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+	require.Equal(t, convert.ToRPCError(tterrors.NewInternalError(errServerIsOverloaded)), err)
 }
 
 func TestServiceFetchTaggedDatabaseNotSet(t *testing.T) {
@@ -1911,7 +1911,7 @@ func TestServiceFetchTaggedDatabaseNotSet(t *testing.T) {
 		SeriesLimit: &seriesLimit,
 		DocsLimit:   &docsLimit,
 	})
-	require.Equal(t, tterrors.NewInternalError(errDatabaseIsNotInitializedYet), err)
+	require.Equal(t, convert.ToRPCError(tterrors.NewInternalError(errDatabaseIsNotInitializedYet)), err)
 }
 
 func TestServiceFetchTaggedNoData(t *testing.T) {

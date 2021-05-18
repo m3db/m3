@@ -112,19 +112,23 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 	)
 	ns := ident.StringID("abc")
 	opts := index.QueryOptions{
-		StartInclusive: time.Now().Add(-900 * time.Hour),
-		EndExclusive:   time.Now(),
-		SeriesLimit:    int(seriesLimit),
-		DocsLimit:      int(docsLimit),
+		StartInclusive:    time.Now().Add(-900 * time.Hour),
+		EndExclusive:      time.Now(),
+		SeriesLimit:       int(seriesLimit),
+		DocsLimit:         int(docsLimit),
+		RequireExhaustive: true,
+		RequireNoWait:     true,
 	}
 	fetchData := true
 	requestSkeleton := &rpc.FetchTaggedRequest{
-		NameSpace:   ns.Bytes(),
-		RangeStart:  mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:    mustToRpcTime(t, opts.EndExclusive),
-		FetchData:   fetchData,
-		SeriesLimit: &seriesLimit,
-		DocsLimit:   &docsLimit,
+		NameSpace:         ns.Bytes(),
+		RangeStart:        mustToRpcTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRpcTime(t, opts.EndExclusive),
+		FetchData:         fetchData,
+		SeriesLimit:       &seriesLimit,
+		DocsLimit:         &docsLimit,
+		RequireExhaustive: true,
+		RequireNoWait:     true,
 	}
 	requireEqual := func(a, b interface{}) {
 		d := cmp.Diff(a, b)
@@ -180,6 +184,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 		seriesLimit       int64 = 10
 		docsLimit         int64 = 10
 		requireExhaustive       = true
+		requireNoWait           = true
 		ns                      = ident.StringID("abc")
 	)
 	opts := index.AggregationOptions{
@@ -189,6 +194,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 			SeriesLimit:       int(seriesLimit),
 			DocsLimit:         int(docsLimit),
 			RequireExhaustive: requireExhaustive,
+			RequireNoWait:     requireNoWait,
 		},
 		Type: index.AggregateTagNamesAndValues,
 		FieldFilter: index.AggregateFieldFilter{
@@ -203,6 +209,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 		SeriesLimit:       &seriesLimit,
 		DocsLimit:         &docsLimit,
 		RequireExhaustive: &requireExhaustive,
+		RequireNoWait:     &requireNoWait,
 		TagNameFilter: [][]byte{
 			[]byte("some"),
 			[]byte("string"),

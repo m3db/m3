@@ -70,6 +70,10 @@ type ResultMetadata struct {
 	Resolutions []time.Duration
 	// KeepNaNs indicates if NaNs should be kept when returning results.
 	KeepNaNs bool
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -143,16 +147,25 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 		}
 	}
 
+	if m.WaitedIndex != n.WaitedIndex {
+		return false
+	}
+	if m.WaitedSeriesRead != n.WaitedSeriesRead {
+		return false
+	}
+
 	return true
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	meta := ResultMetadata{
-		LocalOnly:   m.LocalOnly && other.LocalOnly,
-		Exhaustive:  m.Exhaustive && other.Exhaustive,
-		Warnings:    combineWarnings(m.Warnings, other.Warnings),
-		Resolutions: combineResolutions(m.Resolutions, other.Resolutions),
+		LocalOnly:        m.LocalOnly && other.LocalOnly,
+		Exhaustive:       m.Exhaustive && other.Exhaustive,
+		Warnings:         combineWarnings(m.Warnings, other.Warnings),
+		Resolutions:      combineResolutions(m.Resolutions, other.Resolutions),
+		WaitedIndex:      m.WaitedIndex + other.WaitedIndex,
+		WaitedSeriesRead: m.WaitedSeriesRead + other.WaitedSeriesRead,
 	}
 
 	return meta

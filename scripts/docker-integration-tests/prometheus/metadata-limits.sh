@@ -43,7 +43,7 @@ function test_correct_label_values {
 }
 
 function test_failing_label_values {
-  RESULT=$(curl "http://0.0.0.0:7201/api/v1/label/${METRIC_NAME}/values" )
+  RESULT=$(curl -D $HEADER_FILE "http://0.0.0.0:7201/api/v1/label/${METRIC_NAME}/values" )
   STATUS=$(echo $RESULT | jq .status)
   test $STATUS = '"error"'
 }

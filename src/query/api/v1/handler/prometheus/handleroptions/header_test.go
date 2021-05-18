@@ -91,4 +91,13 @@ func TestAddResponseHeaders(t *testing.T) {
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, "{\"Results\":3,\"TotalResults\":3,\"Limited\":false}",
 		recorder.Header().Get(headers.ReturnedMetadataLimitedHeader))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	meta.WaitedIndex = 3
+	meta.WaitedSeriesRead = 42
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, nil))
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, "{\"waitedIndex\":3,\"waitedSeriesRead\":42}",
+		recorder.Header().Get(headers.WaitedHeader))
 }

@@ -22,7 +22,6 @@ package storage
 
 import (
 	"bytes"
-	gocontext "context"
 	"errors"
 	"fmt"
 	"io"
@@ -70,6 +69,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -224,7 +224,8 @@ type newBlockIterFn func(
 // asyncQueryExecState tracks the async execution errors for a query.
 type asyncQueryExecState struct {
 	sync.RWMutex
-	multiErr xerrors.MultiError
+	multiErr  xerrors.MultiError
+	waitCount atomic.Uint64
 }
 
 func (s *asyncQueryExecState) hasErr() bool {
@@ -237,6 +238,14 @@ func (s *asyncQueryExecState) addErr(err error) {
 	s.Lock()
 	s.multiErr = s.multiErr.Add(err)
 	s.Unlock()
+}
+
+func (s *asyncQueryExecState) incWaited(i int) {
+	s.waitCount.Add(uint64(i))
+}
+
+func (s *asyncQueryExecState) waited() int {
+	return int(s.waitCount.Load())
 }
 
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
@@ -1366,7 +1375,7 @@ func (i *nsIndex) Query(
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
-	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn,
+	queryRes, err := i.query(ctx, query, results, opts, i.execBlockQueryFn,
 		i.newBlockQueryIterFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -1374,7 +1383,8 @@ func (i *nsIndex) Query(
 	}
 	return index.QueryResult{
 		Results:    results,
-		Exhaustive: exhaustive,
+		Exhaustive: queryRes.exhaustive,
+		Waited:     queryRes.waited,
 	}, nil
 }
 
@@ -1466,15 +1476,21 @@ func (i *nsIndex) AggregateQuery(
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(id, aopts)
-	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn,
+	queryRes, err := i.query(ctx, query, results, opts.QueryOptions, fn,
 		i.newBlockAggregatorIterFn, logFields)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
 	return index.AggregateQueryResult{
 		Results:    results,
-		Exhaustive: exhaustive,
+		Exhaustive: queryRes.exhaustive,
+		Waited:     queryRes.waited,
 	}, nil
+}
+
+type queryResult struct {
+	exhaustive bool
+	waited     int
 }
 
 func (i *nsIndex) query(
@@ -1485,27 +1501,27 @@ func (i *nsIndex) query(
 	execBlockFn execBlockQueryFn,
 	newBlockIterFn newBlockIterFn,
 	logFields []opentracinglog.Field,
-) (bool, error) {
+) (queryResult, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQueryHelper)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn,
+	queryRes, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn,
 		newBlockIterFn, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 
-		if exhaustive {
+		if queryRes.exhaustive {
 			i.metrics.queryExhaustiveInternalError.Inc(1)
 		} else {
 			i.metrics.queryNonExhaustiveInternalError.Inc(1)
 		}
-		return exhaustive, err
+		return queryRes, err
 	}
 
-	if exhaustive {
+	if queryRes.exhaustive {
 		i.metrics.queryExhaustiveSuccess.Inc(1)
-		return exhaustive, nil
+		return queryRes, nil
 	}
 
 	// If require exhaustive but not, return error.
@@ -1521,7 +1537,7 @@ func (i *nsIndex) query(
 		}
 
 		// NB(r): Make sure error is not retried and returns as bad request.
-		return exhaustive, xerrors.NewInvalidParamsError(limits.NewQueryLimitExceededError(fmt.Sprintf(
+		return queryRes, xerrors.NewInvalidParamsError(limits.NewQueryLimitExceededError(fmt.Sprintf(
 			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
 			opts.SeriesLimit,
@@ -1533,7 +1549,7 @@ func (i *nsIndex) query(
 
 	// Otherwise non-exhaustive but not required to be.
 	i.metrics.queryNonExhaustiveSuccess.Inc(1)
-	return exhaustive, nil
+	return queryRes, nil
 }
 
 // blockIter is a composite type to hold various state about a block while iterating over the results.
@@ -1554,11 +1570,11 @@ func (i *nsIndex) queryWithSpan(
 	newBlockIterFn newBlockIterFn,
 	span opentracing.Span,
 	logFields []opentracinglog.Field,
-) (bool, error) {
+) (queryResult, error) {
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		return false, errDbIndexUnableToQueryClosed
+		return queryResult{}, errDbIndexUnableToQueryClosed
 	}
 
 	// Track this as an inflight query that needs to finish
@@ -1581,7 +1597,7 @@ func (i *nsIndex) queryWithSpan(
 	i.state.RUnlock()
 
 	if err != nil {
-		return false, err
+		return queryResult{}, err
 	}
 
 	var (
@@ -1591,14 +1607,14 @@ func (i *nsIndex) queryWithSpan(
 	)
 	perms, err := i.permitsManager.NewPermits(ctx)
 	if err != nil {
-		return false, err
+		return queryResult{}, err
 	}
 
 	blockIters := make([]*blockIter, 0, len(blocks))
 	for _, block := range blocks {
 		iter, err := newBlockIterFn(ctx, block, query, results)
 		if err != nil {
-			return false, err
+			return queryResult{}, err
 		}
 		blockIters = append(blockIters, &blockIter{
 			iter:       iter,
@@ -1625,7 +1641,14 @@ func (i *nsIndex) queryWithSpan(
 			return nil, 0
 		}
 		startWait := time.Now()
-		permit, err := perms.Acquire(ctx)
+		acquireResult, err := perms.Acquire(ctx)
+		if acquireResult.Waited {
+			if err == nil && opts.RequireNoWait {
+				// Fail iteration if request requires no waiting occurs.
+				err = permits.ErrOperationWaitedOnRequireNoWait
+			}
+			state.incWaited(1)
+		}
 		waitTime := time.Since(startWait)
 		if err != nil {
 			state.addErr(err)
@@ -1633,10 +1656,10 @@ func (i *nsIndex) queryWithSpan(
 		}
 		// make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
-			perms.Release(permit)
+			perms.Release(acquireResult.Permit)
 			return nil, waitTime
 		}
-		return permit, waitTime
+		return acquireResult.Permit, waitTime
 	}
 
 	// We're looping through all the blocks that we need to query and kicking
@@ -1702,12 +1725,10 @@ func (i *nsIndex) queryWithSpan(
 	multiErr := state.multiErr
 	err = multiErr.FinalError()
 
-	if err != nil && !multiErr.Contains(gocontext.DeadlineExceeded) && !multiErr.Contains(gocontext.Canceled) {
-		// an unexpected error occurred processing the query, bail without updating timing metrics.
-		return false, err
-	}
-
-	return exhaustive, err
+	return queryResult{
+		exhaustive: exhaustive,
+		waited:     state.waited(),
+	}, err
 }
 
 func (i *nsIndex) newBlockQueryIterFn(
