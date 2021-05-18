@@ -22,6 +22,7 @@ package handleroptions
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -82,6 +83,7 @@ func AddResponseHeaders(
 	if fetchOpts != nil {
 		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
 	}
+
 	if limited := returnedDataLimited; limited != nil {
 		s, err := json.Marshal(limited)
 		if err != nil {
@@ -89,6 +91,7 @@ func AddResponseHeaders(
 		}
 		w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
 	}
+
 	if limited := returnedMetadataLimited; limited != nil {
 		s, err := json.Marshal(limited)
 		if err != nil {
@@ -96,10 +99,17 @@ func AddResponseHeaders(
 		}
 		w.Header().Add(headers.ReturnedMetadataLimitedHeader, string(s))
 	}
+
 	waiting := Waiting{
 		WaitedIndex:      meta.WaitedIndex,
 		WaitedSeriesRead: meta.WaitedSeriesRead,
 	}
+
+	// NB: only add series count header if there are series present.
+	if meta.SeriesCount > 0 {
+		w.Header().Add(headers.SeriesCount, fmt.Sprint(meta.SeriesCount))
+	}
+
 	if waiting.WaitedAny() {
 		s, err := json.Marshal(waiting)
 		if err != nil {

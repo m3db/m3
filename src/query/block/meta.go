@@ -74,6 +74,8 @@ type ResultMetadata struct {
 	WaitedIndex int
 	// WaitedSeriesRead counts how many times series being read had to wait for permits.
 	WaitedSeriesRead int
+	// SeriesCount is the total number of series within all fetches in this result.
+	SeriesCount int
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -150,25 +152,25 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 	if m.WaitedIndex != n.WaitedIndex {
 		return false
 	}
+
 	if m.WaitedSeriesRead != n.WaitedSeriesRead {
 		return false
 	}
 
-	return true
+	return m.SeriesCount == n.SeriesCount
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
-	meta := ResultMetadata{
+	return ResultMetadata{
 		LocalOnly:        m.LocalOnly && other.LocalOnly,
 		Exhaustive:       m.Exhaustive && other.Exhaustive,
 		Warnings:         combineWarnings(m.Warnings, other.Warnings),
 		Resolutions:      combineResolutions(m.Resolutions, other.Resolutions),
 		WaitedIndex:      m.WaitedIndex + other.WaitedIndex,
 		WaitedSeriesRead: m.WaitedSeriesRead + other.WaitedSeriesRead,
+		SeriesCount:      m.SeriesCount + other.SeriesCount,
 	}
-
-	return meta
 }
 
 // IsDefault returns true if this result metadata matches the unchanged default.

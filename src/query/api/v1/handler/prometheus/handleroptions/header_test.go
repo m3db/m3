@@ -100,4 +100,11 @@ func TestAddResponseHeaders(t *testing.T) {
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, "{\"waitedIndex\":3,\"waitedSeriesRead\":42}",
 		recorder.Header().Get(headers.WaitedHeader))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	meta.SeriesCount = 42
+	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, nil))
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, "42", recorder.Header().Get(headers.SeriesCount))
 }

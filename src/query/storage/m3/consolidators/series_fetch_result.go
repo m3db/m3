@@ -36,19 +36,15 @@ func NewSeriesFetchResult(
 	meta block.ResultMetadata,
 ) (SeriesFetchResult, error) {
 	if iters == nil || iters.Len() == 0 {
-		return SeriesFetchResult{
-			Metadata: meta,
-			seriesData: seriesData{
-				seriesIterators: nil,
-				tags:            []*models.Tags{},
-			},
-		}, nil
+		return NewEmptyFetchResult(meta), nil
 	}
 
 	if tags == nil {
 		tags = make([]*models.Tags, iters.Len())
 	}
 
+	// NB: explicitly set series count here to get the count post-duplication.
+	meta.SeriesCount = iters.Len()
 	return SeriesFetchResult{
 		Metadata: meta,
 		seriesData: seriesData{
