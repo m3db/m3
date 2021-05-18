@@ -49,10 +49,12 @@ const (
 	// LookbackParam is the lookback parameter.
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
-	TimeoutParam = "timeout"
-	maxInt64     = float64(math.MaxInt64)
-	minInt64     = float64(math.MinInt64)
-	maxTimeout   = 10 * time.Minute
+	TimeoutParam           = "timeout"
+	requireExhaustiveParam = "requireExhaustive"
+	requireNoWaitParam     = "requireNoWait"
+	maxInt64               = float64(math.MaxInt64)
+	minInt64               = float64(math.MinInt64)
+	maxTimeout             = 10 * time.Minute
 )
 
 // FetchOptionsBuilder builds fetch options based on a request and default
@@ -141,7 +143,7 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 		return v, nil
 	}
 
-	if str := req.FormValue("requireExhaustive"); str != "" {
+	if str := req.FormValue(requireExhaustiveParam); str != "" {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -167,7 +169,7 @@ func ParseRequireNoWait(req *http.Request) (bool, error) {
 		return v, nil
 	}
 
-	if str := req.FormValue("requireNoWait"); str != "" {
+	if str := req.FormValue(requireNoWaitParam); str != "" {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(

@@ -35,19 +35,23 @@ func TestFixedPermits(t *testing.T) {
 	iOpts := instrument.NewOptions()
 	fp, err := NewFixedPermitsManager(3, 1, iOpts).NewPermits(ctx)
 	require.NoError(t, err)
+
 	expectedP := NewPermit(1, iOpts)
 	expectedP.(*permit).refCount.Inc()
+
 	r, err := fp.Acquire(ctx)
+	require.NoError(t, err)
 	p := r.Permit
-	require.NoError(t, err)
 	require.Equal(t, expectedP, p)
+
 	r, err = fp.Acquire(ctx)
-	p = r.Permit
 	require.NoError(t, err)
+	p = r.Permit
 	require.Equal(t, expectedP, p)
+
 	r, err = fp.Acquire(ctx)
-	p = r.Permit
 	require.NoError(t, err)
+	p = r.Permit
 	require.Equal(t, expectedP, p)
 
 	tryP, err := fp.TryAcquire(ctx)
@@ -55,20 +59,24 @@ func TestFixedPermits(t *testing.T) {
 	require.Nil(t, tryP)
 
 	fp.Release(p)
+
 	r, err = fp.Acquire(ctx)
-	p = r.Permit
 	require.NoError(t, err)
+	p = r.Permit
 	require.Equal(t, expectedP, p)
 }
 
 func TestPanics(t *testing.T) {
 	ctx := context.NewBackground()
 	iOpts := instrument.NewOptions()
+
 	fp, err := NewFixedPermitsManager(3, 1, iOpts).NewPermits(ctx)
 	require.NoError(t, err)
+
 	r, err := fp.Acquire(ctx)
-	p := r.Permit
 	require.NoError(t, err)
+	p := r.Permit
+
 	fp.Release(p)
 
 	defer instrument.SetShouldPanicEnvironmentVariable(true)()
@@ -78,13 +86,15 @@ func TestPanics(t *testing.T) {
 func TestFixedPermitsTimeouts(t *testing.T) {
 	ctx := context.NewBackground()
 	iOpts := instrument.NewOptions()
+
 	fp, err := NewFixedPermitsManager(1, 1, iOpts).NewPermits(ctx)
+	require.NoError(t, err)
 	expectedP := NewPermit(1, iOpts)
 	expectedP.(*permit).refCount.Inc()
-	require.NoError(t, err)
+
 	r, err := fp.Acquire(ctx)
-	p := r.Permit
 	require.NoError(t, err)
+	p := r.Permit
 	require.Equal(t, expectedP, p)
 
 	tryP, err := fp.TryAcquire(ctx)

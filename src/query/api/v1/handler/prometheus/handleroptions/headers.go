@@ -64,8 +64,8 @@ type Waiting struct {
 	WaitedSeriesRead int `json:"waitedSeriesRead"`
 }
 
-// Any returns whether any waiting occurred.
-func (w Waiting) Any() bool {
+// WaitedAny returns whether any waiting occurred.
+func (w Waiting) WaitedAny() bool {
 	return w.WaitedIndex > 0 || w.WaitedSeriesRead > 0
 }
 
@@ -100,7 +100,7 @@ func AddResponseHeaders(
 		WaitedIndex:      meta.WaitedIndex,
 		WaitedSeriesRead: meta.WaitedSeriesRead,
 	}
-	if waiting.Any() {
+	if waiting.WaitedAny() {
 		s, err := json.Marshal(waiting)
 		if err != nil {
 			return err
