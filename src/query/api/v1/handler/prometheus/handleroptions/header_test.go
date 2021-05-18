@@ -103,8 +103,8 @@ func TestAddResponseHeaders(t *testing.T) {
 
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
-	meta.SeriesCount = 42
+	meta.FetchedSeriesCount = 42
 	require.NoError(t, AddResponseHeaders(recorder, meta, nil, nil, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, "42", recorder.Header().Get(headers.SeriesCount))
+	assert.Equal(t, "42", recorder.Header().Get(headers.FetchedSeriesCount))
 }

@@ -78,7 +78,7 @@ func (r *multiSearchResult) FinalResult() (TagResult, error) {
 	}
 
 	// NB: explicitly set series count here to get the count post-duplication.
-	r.meta.SeriesCount = len(r.dedupeMap)
+	r.meta.FetchedSeriesCount = len(r.dedupeMap)
 	return TagResult{
 		Tags:     result,
 		Metadata: r.meta,

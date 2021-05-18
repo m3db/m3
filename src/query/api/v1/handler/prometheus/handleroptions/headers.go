@@ -106,8 +106,8 @@ func AddResponseHeaders(
 	}
 
 	// NB: only add series count header if there are series present.
-	if meta.SeriesCount > 0 {
-		w.Header().Add(headers.SeriesCount, fmt.Sprint(meta.SeriesCount))
+	if meta.FetchedSeriesCount > 0 {
+		w.Header().Add(headers.FetchedSeriesCount, fmt.Sprint(meta.FetchedSeriesCount))
 	}
 
 	if waiting.WaitedAny() {

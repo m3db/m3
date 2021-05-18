@@ -44,7 +44,7 @@ func NewSeriesFetchResult(
 	}
 
 	// NB: explicitly set series count here to get the count post-duplication.
-	meta.SeriesCount = iters.Len()
+	meta.FetchedSeriesCount = iters.Len()
 	return SeriesFetchResult{
 		Metadata: meta,
 		seriesData: seriesData{
