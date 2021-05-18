@@ -204,6 +204,13 @@ func ToRPCError(err error) *rpc.Error {
 	if err == nil {
 		return nil
 	}
+
+	// If already an RPC error then just return it.
+	var rpcErr *rpc.Error
+	if errors.As(err, &rpcErr) {
+		return rpcErr
+	}
+
 	if limits.IsQueryLimitExceededError(err) {
 		return tterrors.NewResourceExhaustedError(err)
 	}
