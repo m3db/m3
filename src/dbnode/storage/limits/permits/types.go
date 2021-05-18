@@ -32,11 +32,9 @@ const (
 	msgOpWaitedOnNoRequire = "operation waited for permits when requiring no waiting"
 )
 
-var (
-	// ErrOperationWaitedOnRequireNoWait is raised when an operation
-	// waits for permits but explicitly required not waiting.
-	ErrOperationWaitedOnRequireNoWait = xerrors.NewInvalidParamsError(errors.New(msgOpWaitedOnNoRequire))
-)
+// ErrOperationWaitedOnRequireNoWait is raised when an operation
+// waits for permits but explicitly required not waiting.
+var ErrOperationWaitedOnRequireNoWait = xerrors.NewInvalidParamsError(errors.New(msgOpWaitedOnNoRequire))
 
 // Options is the permit options.
 type Options interface {
