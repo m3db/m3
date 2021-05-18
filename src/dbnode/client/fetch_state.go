@@ -191,18 +191,24 @@ func (f *fetchState) asTaggedIDsIterator(
 	f.Lock()
 	defer f.Unlock()
 
+	// NB(r): Important to return even in the case of an error so we can
+	// record metrics properly in the case of a consistency error.
+	meta := FetchResponseMetadata{
+		Stats: f.tagResultAccumulator.FetchStats(),
+	}
+
 	if expected := fetchTaggedFetchState; f.stateType != expected {
-		return nil, FetchResponseMetadata{},
+		return nil, meta,
 			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
 				expected, f.stateType)
 	}
 
 	if !f.done {
-		return nil, FetchResponseMetadata{}, errFetchStateStillProcessing
+		return nil, meta, errFetchStateStillProcessing
 	}
 
 	if err := f.err; err != nil {
-		return nil, FetchResponseMetadata{}, err
+		return nil, meta, err
 	}
 
 	limit := f.fetchTaggedOp.requestSeriesLimit(maxInt)
@@ -217,18 +223,24 @@ func (f *fetchState) asEncodingSeriesIterators(
 	f.Lock()
 	defer f.Unlock()
 
+	// NB(r): Important to return even in the case of an error so we can
+	// record metrics properly in the case of a consistency error.
+	meta := FetchResponseMetadata{
+		Stats: f.tagResultAccumulator.FetchStats(),
+	}
+
 	if expected := fetchTaggedFetchState; f.stateType != expected {
-		return nil, FetchResponseMetadata{},
+		return nil, meta,
 			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
 				expected, f.stateType)
 	}
 
 	if !f.done {
-		return nil, FetchResponseMetadata{}, errFetchStateStillProcessing
+		return nil, meta, errFetchStateStillProcessing
 	}
 
 	if err := f.err; err != nil {
-		return nil, FetchResponseMetadata{}, err
+		return nil, meta, err
 	}
 
 	limit := f.fetchTaggedOp.requestSeriesLimit(maxInt)
@@ -239,18 +251,24 @@ func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (Aggregate
 	f.Lock()
 	defer f.Unlock()
 
+	// NB(r): Important to return even in the case of an error so we can
+	// record metrics properly in the case of a consistency error.
+	meta := FetchResponseMetadata{
+		Stats: f.tagResultAccumulator.AggregateStats(),
+	}
+
 	if expected := aggregateFetchState; f.stateType != expected {
-		return nil, FetchResponseMetadata{},
+		return nil, meta,
 			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
 				expected, f.stateType)
 	}
 
 	if !f.done {
-		return nil, FetchResponseMetadata{}, errFetchStateStillProcessing
+		return nil, meta, errFetchStateStillProcessing
 	}
 
 	if err := f.err; err != nil {
-		return nil, FetchResponseMetadata{}, err
+		return nil, meta, err
 	}
 
 	limit := f.aggregateOp.requestSeriesLimit(maxInt)

@@ -144,15 +144,24 @@ type Session interface {
 	Close() error
 }
 
+// FetchResponseStats is a set of fetch response stats.
+type FetchResponseStats struct {
+	// ResponsesTotal is the count of node responses.
+	ResponsesTotal int
+	// ErrorsPerShardAvailableMax is the max of errors return for any single shard
+	// that is available.
+	ErrorsPerShardAvailableMax int
+	// EstimateTotalBytes is an approximation of the total byte size of the response.
+	EstimateTotalBytes int
+}
+
 // FetchResponseMetadata is metadata about a fetch response.
 type FetchResponseMetadata struct {
 	// Exhaustive indicates whether the underlying data set presents a full
 	// collection of retrieved data.
 	Exhaustive bool
-	// Responses is the count of responses.
-	Responses int
-	// EstimateTotalBytes is an approximation of the total byte size of the response.
-	EstimateTotalBytes int
+	// Stats is the fetch response stats.
+	Stats FetchResponseStats
 }
 
 // AggregatedTagsIterator iterates over a collection of tag names with optionally

@@ -39,8 +39,10 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -197,7 +199,10 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
+	scope := tally.NewTestScope("", nil)
+	instrumentOpts := instrument.NewTestOptions(t).SetMetricsScope(scope)
+	opts := newSessionTestOptions().
+		SetInstrumentOptions(instrumentOpts)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -246,6 +251,12 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 		numOpAllocs++
 	})
 	require.Equal(t, 1, numOpAllocs)
+
+	// Check that the max errors per available shard metric is
+	// propagated and reported correctly from recordFetchMetrics.
+	counters := scope.Snapshot().Counters()
+	v := counters["fetch.nodes-responding-error+error_type=bad_request_error,nodes=3"]
+	require.Equal(t, int(1), int(v.Value()))
 }
 
 func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {

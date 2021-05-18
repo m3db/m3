@@ -59,7 +59,7 @@ type fetchTaggedResultAccumulator struct {
 	// NB(prateek): a fetchTagged request requires we fan out to each shard in the
 	// topology. As a result, we track the response consistency per shard.
 	// Length of this slice == 1 + max shard id in topology
-	shardConsistencyResults []fetchTaggedShardConsistencyResult
+	shardConsistencyResults fetchTaggedShardConsistencyResults
 	numHostsPending         int32
 	numShardsPending        int32
 
@@ -78,10 +78,11 @@ type fetchTaggedResultAccumulator struct {
 }
 
 type fetchTaggedShardConsistencyResult struct {
-	enqueued int8
-	success  int8
-	errors   int8
-	done     bool
+	enqueued             int8
+	success              int8
+	errorsAvailableShard int8
+	errorsAll            int8
+	done                 bool
 }
 
 type fetchTaggedResultAccumulatorStats struct {
@@ -91,7 +92,7 @@ type fetchTaggedResultAccumulatorStats struct {
 }
 
 func (rs fetchTaggedShardConsistencyResult) pending() int32 {
-	return int32(rs.enqueued - (rs.success + rs.errors))
+	return int32(rs.enqueued - (rs.success + rs.errorsAll))
 }
 
 func (accum *fetchTaggedResultAccumulator) AddFetchTaggedResponse(
@@ -170,11 +171,12 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 			// NB: as a possible enhancement, we could accept a response from
 			// a shard that's not available if we tracked response pairs from
 			// a LEAVING+INITIALIZING shard; this would help during node replaces.
-			shardResult.errors++
+			shardResult.errorsAll++
 		} else if resultErr == nil {
 			shardResult.success++
 		} else {
-			shardResult.errors++
+			shardResult.errorsAll++
+			shardResult.errorsAvailableShard++
 		}
 
 		pending := shardResult.pending()
@@ -267,8 +269,7 @@ func (accum *fetchTaggedResultAccumulator) Reset(
 
 	// expand shardResults as much as necessary
 	targetLen := 1 + int(topoMap.ShardSet().Max())
-	accum.shardConsistencyResults = fetchTaggedShardConsistencyResults(
-		accum.shardConsistencyResults).initialize(targetLen)
+	accum.shardConsistencyResults = accum.shardConsistencyResults.initialize(targetLen)
 	// initialize shardResults based on current topology
 	for _, hss := range topoMap.HostShardSets() {
 		for _, hShard := range hss.ShardSet().All() {
@@ -321,6 +322,14 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	return seriesIter
 }
 
+func (accum *fetchTaggedResultAccumulator) FetchStats() FetchResponseStats {
+	return FetchResponseStats{
+		ResponsesTotal:             len(accum.fetchResponses),
+		ErrorsPerShardAvailableMax: accum.shardConsistencyResults.errorsPerShardAvailableMax(),
+		EstimateTotalBytes:         accum.calcTransport.GetSize(),
+	}
+}
+
 func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	limit int, pools fetchTaggedPools,
 	descr namespace.SchemaDescr, opts index.IterationOptions,
@@ -349,9 +358,8 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
 	return result, FetchResponseMetadata{
-		Exhaustive:         exhaustive,
-		Responses:          len(accum.fetchResponses),
-		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		Exhaustive: exhaustive,
+		Stats:      accum.FetchStats(),
 	}, nil
 }
 
@@ -376,10 +384,17 @@ func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
 	return iter, FetchResponseMetadata{
-		Exhaustive:         exhaustive,
-		Responses:          len(accum.aggResponses),
-		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		Exhaustive: exhaustive,
+		Stats:      accum.FetchStats(),
 	}, nil
+}
+
+func (accum *fetchTaggedResultAccumulator) AggregateStats() FetchResponseStats {
+	return FetchResponseStats{
+		ResponsesTotal:             len(accum.aggResponses),
+		ErrorsPerShardAvailableMax: accum.shardConsistencyResults.errorsPerShardAvailableMax(),
+		EstimateTotalBytes:         accum.calcTransport.GetSize(),
+	}
 }
 
 func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
@@ -452,9 +467,8 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
 	return iter, FetchResponseMetadata{
-		Exhaustive:         exhaustive,
-		Responses:          len(accum.aggResponses),
-		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		Exhaustive: exhaustive,
+		Stats:      accum.AggregateStats(),
 	}, nil
 }
 
@@ -471,6 +485,17 @@ func (res fetchTaggedShardConsistencyResults) initialize(length int) fetchTagged
 		res[i] = fetchTaggedShardConsistencyResult{}
 	}
 	return res
+}
+
+func (res fetchTaggedShardConsistencyResults) errorsPerShardAvailableMax() int {
+	var errorsPerShardAvailableMax int
+	for i := range res {
+		n := int(res[i].errorsAvailableShard)
+		if n > errorsPerShardAvailableMax {
+			errorsPerShardAvailableMax = n
+		}
+	}
+	return errorsPerShardAvailableMax
 }
 
 type fetchTaggedIDResults []*rpc.FetchTaggedIDResult_
