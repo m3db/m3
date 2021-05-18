@@ -149,6 +149,10 @@ const (
 	// WaitedHeader is the header added when permits had to be waited for.
 	WaitedHeader = M3HeaderPrefix + "Waited"
 
+	// FetchedSeriesCount is the header added that tracks the total number of
+	// series that were fetched by the query, before computation.
+	FetchedSeriesCount = M3HeaderPrefix + "Series-Count"
+
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"
 

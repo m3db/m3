@@ -131,6 +131,7 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 		defaultTestOpts, models.NewTagOptions())
 
 	meta := block.NewResultMetadata()
+	meta.FetchedSeriesCount = 4
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
 		r.Add(iters, meta, ns.attrs, nil)
