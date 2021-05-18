@@ -1035,16 +1035,25 @@ func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, er
 		if i.idx == idx {
 			// block acquiring if we need the block readers to fulfill the current fetch.
 			acquireResult, err := i.blockPermits.Acquire(ctx)
+			var success bool
+			defer func() {
+				// Note: ALWAYS release if we do not successfully return back
+				// the permit and we checked one out.
+				if !success && acquireResult.Permit != nil {
+					i.blockPermits.Release(acquireResult.Permit)
+				}
+			}()
 			if acquireResult.Waited {
+				i.seriesReadWaited++
 				if err == nil && i.requireNoWait {
 					// Fail iteration if request requires no waiting.
 					return false, permits.ErrOperationWaitedOnRequireNoWait
 				}
-				i.seriesReadWaited++
 			}
 			if err != nil {
 				return false, err
 			}
+			success = true
 			i.permits = append(i.permits, acquireResult.Permit)
 			curPermit = acquireResult.Permit
 		} else {
