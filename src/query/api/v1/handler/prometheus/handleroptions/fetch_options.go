@@ -161,7 +161,7 @@ func ParseRequireNoWait(req *http.Request) (bool, error) {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse no-wait: input=%s, err=%v", str, err)
+				"could not parse no-wait: input=%s, err=%w", str, err)
 			return false, err
 		}
 		return v, nil
@@ -171,7 +171,7 @@ func ParseRequireNoWait(req *http.Request) (bool, error) {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse no-wait: input=%s, err=%v", str, err)
+				"could not parse no-wait: input=%s, err=%w", str, err)
 			return false, err
 		}
 		return v, nil
