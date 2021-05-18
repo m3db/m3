@@ -354,7 +354,7 @@ func (mgr *leaderFlushManager) updateForwardedFlushTimesWithLock(
 	)
 	for _, flusher := range flushers {
 		flushTimes := mgr.getOrCreateFlushTimesWithLock(flusher.Shard())
-		forwardedFlushTimes := mgr.getOrCreateForwarderFlushTimesForResolutionWithLock(flushTimes,resolution)
+		forwardedFlushTimes := mgr.getOrCreateForwarderFlushTimesForResolutionWithLock(flushTimes, resolution)
 		forwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes] = flusher.LastFlushedNanos()
 		flushTimes.Tombstoned = false
 	}

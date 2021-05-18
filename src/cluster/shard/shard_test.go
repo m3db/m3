@@ -291,7 +291,7 @@ func makeTestShards(num int) []Shard {
 }
 
 func shardsAreSorted(t *testing.T, shards Shards) {
-	var prev = -1
+	prev := -1
 	for _, shard := range shards.All() {
 		id := int(shard.ID())
 		if id <= prev {

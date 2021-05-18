@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gogo/protobuf/types"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
@@ -181,14 +182,14 @@ func (s *shard) Proto() (*placementpb.Shard, error) {
 		return nil, err
 	}
 
-	var redirectToShardId *types.UInt32Value
+	var redirectToShardID *types.UInt32Value
 	if s.redirectToShardID != nil {
-		redirectToShardId = &types.UInt32Value{Value: *s.redirectToShardID}
+		redirectToShardID = &types.UInt32Value{Value: *s.redirectToShardID}
 	}
 
 	return &placementpb.Shard{
 		Id:                s.id,
-		RedirectToShardId: redirectToShardId,
+		RedirectToShardId: redirectToShardID,
 		State:             ss,
 		SourceId:          s.sourceID,
 		CutoverNanos:      s.cutoverNanos,
