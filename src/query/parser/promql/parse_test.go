@@ -80,7 +80,7 @@ func TestDAGWithOffset(t *testing.T) {
 func TestInvalidOffset(t *testing.T) {
 	q := "up offset -2m"
 	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
-	require.Error(t, err)
+	require.NoError(t, err)
 }
 
 func TestNegativeUnary(t *testing.T) {
@@ -614,7 +614,7 @@ func TestCustomParseOptions(t *testing.T) {
 	assert.Equal(t, 1, called)
 	parse, ok := ex.(*promParser)
 	require.True(t, ok)
-	assert.Equal(t, pql.ValueTypeString, string(parse.expr.Type()))
+	assert.Equal(t, pql.ValueTypeString, parse.expr.Type())
 	str, ok := parse.expr.(*pql.StringLiteral)
 	require.True(t, ok)
 	assert.Equal(t, v, str.Val)
