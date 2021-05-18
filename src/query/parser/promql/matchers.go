@@ -330,7 +330,7 @@ func getBinaryOpType(opType promql.ItemType) string {
 	case promql.MOD:
 		return binary.ModType
 
-	case promql.EQL:
+	case promql.EQL, promql.EQLC:
 		return binary.EqType
 	case promql.NEQ:
 		return binary.NotEqType
