@@ -45,13 +45,14 @@ func TestQueryResponse(t *testing.T) {
 	startTime := now
 	endTime := startTime.Add(time.Hour)
 	cases := []struct {
-		name      string
-		code      int
-		duration  time.Duration
-		threshold time.Duration
-		form      map[string]string
-		headers   map[string]string
-		fields    map[string]interface{}
+		name            string
+		code            int
+		duration        time.Duration
+		threshold       time.Duration
+		form            map[string]string
+		requestHeaders  map[string]string
+		responseHeaders map[string]string
+		fields          map[string]interface{}
 	}{
 		{
 			name:      "happy path",
@@ -64,19 +65,26 @@ func TestQueryResponse(t *testing.T) {
 				"end":   endTime.Format(time.RFC3339Nano),
 				"extra": "foobar",
 			},
-			headers: map[string]string{
+			requestHeaders: map[string]string{
 				headers.LimitHeader:        "10",
 				headers.LimitMaxDocsHeader: "100",
 				"foo":                      "bar",
 			},
+			responseHeaders: map[string]string{
+				headers.TimeoutHeader:                 "10",
+				headers.ReturnedMetadataLimitedHeader: "100",
+				"foo":                                 "bar",
+			},
 			fields: map[string]interface{}{
-				"query":                    "fooquery",
-				"start":                    startTime,
-				"end":                      endTime,
-				"status":                   int64(200),
-				"queryRange":               time.Hour,
-				headers.LimitHeader:        "10",
-				headers.LimitMaxDocsHeader: "100",
+				"query":                               "fooquery",
+				"start":                               startTime,
+				"end":                                 endTime,
+				"status":                              int64(200),
+				"queryRange":                          time.Hour,
+				headers.LimitHeader:                   "10",
+				headers.LimitMaxDocsHeader:            "100",
+				headers.TimeoutHeader:                 "10",
+				headers.ReturnedMetadataLimitedHeader: "100",
 			},
 		},
 		{
@@ -136,6 +144,9 @@ func TestQueryResponse(t *testing.T) {
 			}).Middleware(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					clock.Advance(tc.duration)
+					for k, v := range tc.responseHeaders {
+						w.Header().Set(k, v)
+					}
 					w.WriteHeader(tc.code)
 				}))
 			r := mux.NewRouter()
@@ -149,7 +160,7 @@ func TestQueryResponse(t *testing.T) {
 			}
 			req, err := http.NewRequestWithContext(context.Background(), "POST", server.URL+"/testRoute",
 				strings.NewReader(values.Encode()))
-			for k, v := range tc.headers {
+			for k, v := range tc.requestHeaders {
 				req.Header.Set(k, v)
 			}
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
