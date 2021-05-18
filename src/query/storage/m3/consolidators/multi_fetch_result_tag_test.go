@@ -56,6 +56,7 @@ type expectedSeries struct {
 	dps  []dp
 }
 
+//nolint:dupl
 func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
