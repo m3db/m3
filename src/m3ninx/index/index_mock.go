@@ -33,30 +33,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockReader is a mock of Reader interface
+// MockReader is a mock of Reader interface.
 type MockReader struct {
 	ctrl     *gomock.Controller
 	recorder *MockReaderMockRecorder
 }
 
-// MockReaderMockRecorder is the mock recorder for MockReader
+// MockReaderMockRecorder is the mock recorder for MockReader.
 type MockReaderMockRecorder struct {
 	mock *MockReader
 }
 
-// NewMockReader creates a new mock instance
+// NewMockReader creates a new mock instance.
 func NewMockReader(ctrl *gomock.Controller) *MockReader {
 	mock := &MockReader{ctrl: ctrl}
 	mock.recorder = &MockReaderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockReader) EXPECT() *MockReaderMockRecorder {
 	return m.recorder
 }
 
-// AllDocs mocks base method
+// AllDocs mocks base method.
 func (m *MockReader) AllDocs() (IDDocIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AllDocs")
@@ -65,13 +65,13 @@ func (m *MockReader) AllDocs() (IDDocIterator, error) {
 	return ret0, ret1
 }
 
-// AllDocs indicates an expected call of AllDocs
+// AllDocs indicates an expected call of AllDocs.
 func (mr *MockReaderMockRecorder) AllDocs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllDocs", reflect.TypeOf((*MockReader)(nil).AllDocs))
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockReader) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -79,13 +79,13 @@ func (m *MockReader) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockReaderMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReader)(nil).Close))
 }
 
-// Doc mocks base method
+// Doc mocks base method.
 func (m *MockReader) Doc(arg0 postings.ID) (doc.Document, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", arg0)
@@ -94,13 +94,13 @@ func (m *MockReader) Doc(arg0 postings.ID) (doc.Document, error) {
 	return ret0, ret1
 }
 
-// Doc indicates an expected call of Doc
+// Doc indicates an expected call of Doc.
 func (mr *MockReaderMockRecorder) Doc(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockReader)(nil).Doc), arg0)
 }
 
-// Docs mocks base method
+// Docs mocks base method.
 func (m *MockReader) Docs(arg0 postings.List) (doc.Iterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs", arg0)
@@ -109,13 +109,13 @@ func (m *MockReader) Docs(arg0 postings.List) (doc.Iterator, error) {
 	return ret0, ret1
 }
 
-// Docs indicates an expected call of Docs
+// Docs indicates an expected call of Docs.
 func (mr *MockReaderMockRecorder) Docs(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockReader)(nil).Docs), arg0)
 }
 
-// MatchAll mocks base method
+// MatchAll mocks base method.
 func (m *MockReader) MatchAll() (postings.MutableList, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchAll")
@@ -124,13 +124,13 @@ func (m *MockReader) MatchAll() (postings.MutableList, error) {
 	return ret0, ret1
 }
 
-// MatchAll indicates an expected call of MatchAll
+// MatchAll indicates an expected call of MatchAll.
 func (mr *MockReaderMockRecorder) MatchAll() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchAll", reflect.TypeOf((*MockReader)(nil).MatchAll))
 }
 
-// MatchField mocks base method
+// MatchField mocks base method.
 func (m *MockReader) MatchField(arg0 []byte) (postings.List, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchField", arg0)
@@ -139,13 +139,13 @@ func (m *MockReader) MatchField(arg0 []byte) (postings.List, error) {
 	return ret0, ret1
 }
 
-// MatchField indicates an expected call of MatchField
+// MatchField indicates an expected call of MatchField.
 func (mr *MockReaderMockRecorder) MatchField(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchField", reflect.TypeOf((*MockReader)(nil).MatchField), arg0)
 }
 
-// MatchRegexp mocks base method
+// MatchRegexp mocks base method.
 func (m *MockReader) MatchRegexp(arg0 []byte, arg1 CompiledRegex) (postings.List, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1)
@@ -154,13 +154,13 @@ func (m *MockReader) MatchRegexp(arg0 []byte, arg1 CompiledRegex) (postings.List
 	return ret0, ret1
 }
 
-// MatchRegexp indicates an expected call of MatchRegexp
+// MatchRegexp indicates an expected call of MatchRegexp.
 func (mr *MockReaderMockRecorder) MatchRegexp(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchRegexp", reflect.TypeOf((*MockReader)(nil).MatchRegexp), arg0, arg1)
 }
 
-// MatchTerm mocks base method
+// MatchTerm mocks base method.
 func (m *MockReader) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
@@ -169,13 +169,13 @@ func (m *MockReader) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
 	return ret0, ret1
 }
 
-// MatchTerm indicates an expected call of MatchTerm
+// MatchTerm indicates an expected call of MatchTerm.
 func (mr *MockReaderMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockReader)(nil).MatchTerm), arg0, arg1)
 }
 
-// Metadata mocks base method
+// Metadata mocks base method.
 func (m *MockReader) Metadata(arg0 postings.ID) (doc.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadata", arg0)
@@ -184,13 +184,13 @@ func (m *MockReader) Metadata(arg0 postings.ID) (doc.Metadata, error) {
 	return ret0, ret1
 }
 
-// Metadata indicates an expected call of Metadata
+// Metadata indicates an expected call of Metadata.
 func (mr *MockReaderMockRecorder) Metadata(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockReader)(nil).Metadata), arg0)
 }
 
-// MetadataIterator mocks base method
+// MetadataIterator mocks base method.
 func (m *MockReader) MetadataIterator(arg0 postings.List) (doc.MetadataIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MetadataIterator", arg0)
@@ -199,36 +199,36 @@ func (m *MockReader) MetadataIterator(arg0 postings.List) (doc.MetadataIterator,
 	return ret0, ret1
 }
 
-// MetadataIterator indicates an expected call of MetadataIterator
+// MetadataIterator indicates an expected call of MetadataIterator.
 func (mr *MockReaderMockRecorder) MetadataIterator(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MetadataIterator", reflect.TypeOf((*MockReader)(nil).MetadataIterator), arg0)
 }
 
-// MockDocRetriever is a mock of DocRetriever interface
+// MockDocRetriever is a mock of DocRetriever interface.
 type MockDocRetriever struct {
 	ctrl     *gomock.Controller
 	recorder *MockDocRetrieverMockRecorder
 }
 
-// MockDocRetrieverMockRecorder is the mock recorder for MockDocRetriever
+// MockDocRetrieverMockRecorder is the mock recorder for MockDocRetriever.
 type MockDocRetrieverMockRecorder struct {
 	mock *MockDocRetriever
 }
 
-// NewMockDocRetriever creates a new mock instance
+// NewMockDocRetriever creates a new mock instance.
 func NewMockDocRetriever(ctrl *gomock.Controller) *MockDocRetriever {
 	mock := &MockDocRetriever{ctrl: ctrl}
 	mock.recorder = &MockDocRetrieverMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDocRetriever) EXPECT() *MockDocRetrieverMockRecorder {
 	return m.recorder
 }
 
-// Doc mocks base method
+// Doc mocks base method.
 func (m *MockDocRetriever) Doc(arg0 postings.ID) (doc.Document, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", arg0)
@@ -237,36 +237,36 @@ func (m *MockDocRetriever) Doc(arg0 postings.ID) (doc.Document, error) {
 	return ret0, ret1
 }
 
-// Doc indicates an expected call of Doc
+// Doc indicates an expected call of Doc.
 func (mr *MockDocRetrieverMockRecorder) Doc(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockDocRetriever)(nil).Doc), arg0)
 }
 
-// MockMetadataRetriever is a mock of MetadataRetriever interface
+// MockMetadataRetriever is a mock of MetadataRetriever interface.
 type MockMetadataRetriever struct {
 	ctrl     *gomock.Controller
 	recorder *MockMetadataRetrieverMockRecorder
 }
 
-// MockMetadataRetrieverMockRecorder is the mock recorder for MockMetadataRetriever
+// MockMetadataRetrieverMockRecorder is the mock recorder for MockMetadataRetriever.
 type MockMetadataRetrieverMockRecorder struct {
 	mock *MockMetadataRetriever
 }
 
-// NewMockMetadataRetriever creates a new mock instance
+// NewMockMetadataRetriever creates a new mock instance.
 func NewMockMetadataRetriever(ctrl *gomock.Controller) *MockMetadataRetriever {
 	mock := &MockMetadataRetriever{ctrl: ctrl}
 	mock.recorder = &MockMetadataRetrieverMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockMetadataRetriever) EXPECT() *MockMetadataRetrieverMockRecorder {
 	return m.recorder
 }
 
-// Metadata mocks base method
+// Metadata mocks base method.
 func (m *MockMetadataRetriever) Metadata(arg0 postings.ID) (doc.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadata", arg0)
@@ -275,7 +275,7 @@ func (m *MockMetadataRetriever) Metadata(arg0 postings.ID) (doc.Metadata, error)
 	return ret0, ret1
 }
 
-// Metadata indicates an expected call of Metadata
+// Metadata indicates an expected call of Metadata.
 func (mr *MockMetadataRetrieverMockRecorder) Metadata(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockMetadataRetriever)(nil).Metadata), arg0)

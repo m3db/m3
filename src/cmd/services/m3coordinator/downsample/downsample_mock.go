@@ -31,30 +31,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockDownsampler is a mock of Downsampler interface
+// MockDownsampler is a mock of Downsampler interface.
 type MockDownsampler struct {
 	ctrl     *gomock.Controller
 	recorder *MockDownsamplerMockRecorder
 }
 
-// MockDownsamplerMockRecorder is the mock recorder for MockDownsampler
+// MockDownsamplerMockRecorder is the mock recorder for MockDownsampler.
 type MockDownsamplerMockRecorder struct {
 	mock *MockDownsampler
 }
 
-// NewMockDownsampler creates a new mock instance
+// NewMockDownsampler creates a new mock instance.
 func NewMockDownsampler(ctrl *gomock.Controller) *MockDownsampler {
 	mock := &MockDownsampler{ctrl: ctrl}
 	mock.recorder = &MockDownsamplerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDownsampler) EXPECT() *MockDownsamplerMockRecorder {
 	return m.recorder
 }
 
-// Enabled mocks base method
+// Enabled mocks base method.
 func (m *MockDownsampler) Enabled() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Enabled")
@@ -62,13 +62,13 @@ func (m *MockDownsampler) Enabled() bool {
 	return ret0
 }
 
-// Enabled indicates an expected call of Enabled
+// Enabled indicates an expected call of Enabled.
 func (mr *MockDownsamplerMockRecorder) Enabled() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enabled", reflect.TypeOf((*MockDownsampler)(nil).Enabled))
 }
 
-// NewMetricsAppender mocks base method
+// NewMetricsAppender mocks base method.
 func (m *MockDownsampler) NewMetricsAppender() (MetricsAppender, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewMetricsAppender")
@@ -77,72 +77,72 @@ func (m *MockDownsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return ret0, ret1
 }
 
-// NewMetricsAppender indicates an expected call of NewMetricsAppender
+// NewMetricsAppender indicates an expected call of NewMetricsAppender.
 func (mr *MockDownsamplerMockRecorder) NewMetricsAppender() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewMetricsAppender", reflect.TypeOf((*MockDownsampler)(nil).NewMetricsAppender))
 }
 
-// MockMetricsAppender is a mock of MetricsAppender interface
+// MockMetricsAppender is a mock of MetricsAppender interface.
 type MockMetricsAppender struct {
 	ctrl     *gomock.Controller
 	recorder *MockMetricsAppenderMockRecorder
 }
 
-// MockMetricsAppenderMockRecorder is the mock recorder for MockMetricsAppender
+// MockMetricsAppenderMockRecorder is the mock recorder for MockMetricsAppender.
 type MockMetricsAppenderMockRecorder struct {
 	mock *MockMetricsAppender
 }
 
-// NewMockMetricsAppender creates a new mock instance
+// NewMockMetricsAppender creates a new mock instance.
 func NewMockMetricsAppender(ctrl *gomock.Controller) *MockMetricsAppender {
 	mock := &MockMetricsAppender{ctrl: ctrl}
 	mock.recorder = &MockMetricsAppenderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockMetricsAppender) EXPECT() *MockMetricsAppenderMockRecorder {
 	return m.recorder
 }
 
-// AddTag mocks base method
+// AddTag mocks base method.
 func (m *MockMetricsAppender) AddTag(arg0, arg1 []byte) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddTag", arg0, arg1)
 }
 
-// AddTag indicates an expected call of AddTag
+// AddTag indicates an expected call of AddTag.
 func (mr *MockMetricsAppenderMockRecorder) AddTag(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTag", reflect.TypeOf((*MockMetricsAppender)(nil).AddTag), arg0, arg1)
 }
 
-// Finalize mocks base method
+// Finalize mocks base method.
 func (m *MockMetricsAppender) Finalize() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Finalize")
 }
 
-// Finalize indicates an expected call of Finalize
+// Finalize indicates an expected call of Finalize.
 func (mr *MockMetricsAppenderMockRecorder) Finalize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockMetricsAppender)(nil).Finalize))
 }
 
-// NextMetric mocks base method
+// NextMetric mocks base method.
 func (m *MockMetricsAppender) NextMetric() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "NextMetric")
 }
 
-// NextMetric indicates an expected call of NextMetric
+// NextMetric indicates an expected call of NextMetric.
 func (mr *MockMetricsAppenderMockRecorder) NextMetric() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextMetric", reflect.TypeOf((*MockMetricsAppender)(nil).NextMetric))
 }
 
-// SamplesAppender mocks base method
+// SamplesAppender mocks base method.
 func (m *MockMetricsAppender) SamplesAppender(arg0 SampleAppenderOptions) (SamplesAppenderResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SamplesAppender", arg0)
@@ -151,36 +151,36 @@ func (m *MockMetricsAppender) SamplesAppender(arg0 SampleAppenderOptions) (Sampl
 	return ret0, ret1
 }
 
-// SamplesAppender indicates an expected call of SamplesAppender
+// SamplesAppender indicates an expected call of SamplesAppender.
 func (mr *MockMetricsAppenderMockRecorder) SamplesAppender(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SamplesAppender", reflect.TypeOf((*MockMetricsAppender)(nil).SamplesAppender), arg0)
 }
 
-// MockSamplesAppender is a mock of SamplesAppender interface
+// MockSamplesAppender is a mock of SamplesAppender interface.
 type MockSamplesAppender struct {
 	ctrl     *gomock.Controller
 	recorder *MockSamplesAppenderMockRecorder
 }
 
-// MockSamplesAppenderMockRecorder is the mock recorder for MockSamplesAppender
+// MockSamplesAppenderMockRecorder is the mock recorder for MockSamplesAppender.
 type MockSamplesAppenderMockRecorder struct {
 	mock *MockSamplesAppender
 }
 
-// NewMockSamplesAppender creates a new mock instance
+// NewMockSamplesAppender creates a new mock instance.
 func NewMockSamplesAppender(ctrl *gomock.Controller) *MockSamplesAppender {
 	mock := &MockSamplesAppender{ctrl: ctrl}
 	mock.recorder = &MockSamplesAppenderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockSamplesAppender) EXPECT() *MockSamplesAppenderMockRecorder {
 	return m.recorder
 }
 
-// AppendCounterSample mocks base method
+// AppendCounterSample mocks base method.
 func (m *MockSamplesAppender) AppendCounterSample(arg0 time.Time, arg1 int64, arg2 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendCounterSample", arg0, arg1, arg2)
@@ -188,13 +188,13 @@ func (m *MockSamplesAppender) AppendCounterSample(arg0 time.Time, arg1 int64, ar
 	return ret0
 }
 
-// AppendCounterSample indicates an expected call of AppendCounterSample
+// AppendCounterSample indicates an expected call of AppendCounterSample.
 func (mr *MockSamplesAppenderMockRecorder) AppendCounterSample(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendCounterSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendCounterSample), arg0, arg1, arg2)
 }
 
-// AppendGaugeSample mocks base method
+// AppendGaugeSample mocks base method.
 func (m *MockSamplesAppender) AppendGaugeSample(arg0 time.Time, arg1 float64, arg2 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendGaugeSample", arg0, arg1, arg2)
@@ -202,13 +202,13 @@ func (m *MockSamplesAppender) AppendGaugeSample(arg0 time.Time, arg1 float64, ar
 	return ret0
 }
 
-// AppendGaugeSample indicates an expected call of AppendGaugeSample
+// AppendGaugeSample indicates an expected call of AppendGaugeSample.
 func (mr *MockSamplesAppenderMockRecorder) AppendGaugeSample(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendGaugeSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendGaugeSample), arg0, arg1, arg2)
 }
 
-// AppendTimerSample mocks base method
+// AppendTimerSample mocks base method.
 func (m *MockSamplesAppender) AppendTimerSample(arg0 time.Time, arg1 float64, arg2 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendTimerSample", arg0, arg1, arg2)
@@ -216,13 +216,13 @@ func (m *MockSamplesAppender) AppendTimerSample(arg0 time.Time, arg1 float64, ar
 	return ret0
 }
 
-// AppendTimerSample indicates an expected call of AppendTimerSample
+// AppendTimerSample indicates an expected call of AppendTimerSample.
 func (mr *MockSamplesAppenderMockRecorder) AppendTimerSample(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendTimerSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendTimerSample), arg0, arg1, arg2)
 }
 
-// AppendUntimedCounterSample mocks base method
+// AppendUntimedCounterSample mocks base method.
 func (m *MockSamplesAppender) AppendUntimedCounterSample(arg0 int64, arg1 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendUntimedCounterSample", arg0, arg1)
@@ -230,13 +230,13 @@ func (m *MockSamplesAppender) AppendUntimedCounterSample(arg0 int64, arg1 []byte
 	return ret0
 }
 
-// AppendUntimedCounterSample indicates an expected call of AppendUntimedCounterSample
+// AppendUntimedCounterSample indicates an expected call of AppendUntimedCounterSample.
 func (mr *MockSamplesAppenderMockRecorder) AppendUntimedCounterSample(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedCounterSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedCounterSample), arg0, arg1)
 }
 
-// AppendUntimedGaugeSample mocks base method
+// AppendUntimedGaugeSample mocks base method.
 func (m *MockSamplesAppender) AppendUntimedGaugeSample(arg0 float64, arg1 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendUntimedGaugeSample", arg0, arg1)
@@ -244,13 +244,13 @@ func (m *MockSamplesAppender) AppendUntimedGaugeSample(arg0 float64, arg1 []byte
 	return ret0
 }
 
-// AppendUntimedGaugeSample indicates an expected call of AppendUntimedGaugeSample
+// AppendUntimedGaugeSample indicates an expected call of AppendUntimedGaugeSample.
 func (mr *MockSamplesAppenderMockRecorder) AppendUntimedGaugeSample(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedGaugeSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedGaugeSample), arg0, arg1)
 }
 
-// AppendUntimedTimerSample mocks base method
+// AppendUntimedTimerSample mocks base method.
 func (m *MockSamplesAppender) AppendUntimedTimerSample(arg0 float64, arg1 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendUntimedTimerSample", arg0, arg1)
@@ -258,7 +258,7 @@ func (m *MockSamplesAppender) AppendUntimedTimerSample(arg0 float64, arg1 []byte
 	return ret0
 }
 
-// AppendUntimedTimerSample indicates an expected call of AppendUntimedTimerSample
+// AppendUntimedTimerSample indicates an expected call of AppendUntimedTimerSample.
 func (mr *MockSamplesAppenderMockRecorder) AppendUntimedTimerSample(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedTimerSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedTimerSample), arg0, arg1)

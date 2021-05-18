@@ -37,15 +37,16 @@ func TestResponseMetrics(t *testing.T) {
 	iOpts := instrument.NewOptions().SetMetricsScope(scope)
 
 	r := mux.NewRouter()
-	h := ResponseMetrics(iOpts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	route := r.NewRoute()
+	h := ResponseMetrics(iOpts, route).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))
-	r.Handle("/test", h)
+	route.Path("/test").Handler(h)
 
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	resp, err := server.Client().Get(server.URL + "/test") //nolint: noctx
+	resp, err := server.Client().Get(server.URL + "/test?foo=bar") //nolint: noctx
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 

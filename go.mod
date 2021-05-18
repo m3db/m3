@@ -27,7 +27,7 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/gogo/protobuf v1.3.1
-	github.com/golang/mock v1.4.4
+	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1
 	github.com/golangci/golangci-lint v1.37.0
@@ -40,6 +40,7 @@ require (
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
+	github.com/jonboulle/clockwork v0.1.0
 	github.com/json-iterator/go v1.1.9
 	github.com/klauspost/compress v1.11.8
 	github.com/leanovate/gopter v0.2.8
