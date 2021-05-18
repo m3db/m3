@@ -103,7 +103,6 @@ func NewHandler(
 	)
 
 	return &Handler{
-		// NB: pass through here.
 		registry:       registry,
 		handler:        r,
 		options:        handlerOptions,

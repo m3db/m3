@@ -25,10 +25,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/prometheus/promql/parser"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/x/headers"
-	"github.com/prometheus/prometheus/promql/parser"
 )
 
 const (
