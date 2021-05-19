@@ -23,6 +23,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -131,4 +132,138 @@ func TestLargeResponseMetrics(t *testing.T) {
 			"range_threshold": "15m0s",
 		}, h.Tags())
 	}
+}
+
+func TestMultipleLargeResponseMetricsWithLatencyStatus(t *testing.T) {
+	testMultipleLargeResponseMetrics(t, true)
+}
+
+func TestMultipleLargeResponseMetricsWithoutLatencyStatus(t *testing.T) {
+	testMultipleLargeResponseMetrics(t, false)
+}
+
+func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	r := mux.NewRouter()
+	route := r.NewRoute()
+	opts := options.MiddlewareOptions{
+		InstrumentOpts: iOpts,
+		Route:          route,
+		Config: &config.MiddlewareConfiguration{
+			InspectQuerySize:          true,
+			LargeSeriesCountThreshold: 10,
+			LargeSeriesRangeThreshold: time.Minute * 15,
+			AddStatusToLatencies:      addStatus,
+		},
+	}
+
+	// NB: pass expected seriesCount from qs to the test.
+	seriesCount := "series_count"
+	responseCode := "response_code"
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := r.URL.Query().Get(seriesCount)
+		w.Header().Add(headers.FetchedSeriesCount, count)
+		code := r.URL.Query().Get(responseCode)
+		c, err := strconv.Atoi(code)
+		require.NoError(t, err)
+		w.WriteHeader(c)
+	}))
+
+	route.Path("/api/v1/query_range").Handler(h)
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	urls := []string{
+		"query=rate(up[20m])&series_count=15&response_code=200",
+		"query=rate(up[10m])&series_count=15&response_code=200",
+		"query=rate(up[10m])&series_count=5&response_code=200",
+		"query=rate(up[20m])&series_count=15&response_code=300",
+	}
+
+	for _, url := range urls {
+		resp, err := server.Client().Get(server.URL + "/api/v1/query_range?" + url) //nolint: noctx
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	snapshot := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":            "/api/v1/query_range",
+		"status":          "200",
+		"size":            "large",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
+	})
+
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":            "/api/v1/query_range",
+		"status":          "300",
+		"size":            "large",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
+	})
+
+	tallytest.AssertCounterValue(t, 2, snapshot, "request", map[string]string{
+		"path":            "/api/v1/query_range",
+		"status":          "200",
+		"size":            "small",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
+	})
+
+	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+		"status": "below_range_threshold",
+	})
+	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+		"status": "below_count_threshold",
+	})
+	tallytest.AssertCounterValue(t, 2, snapshot, "count", map[string]string{
+		"status": "large_query",
+	})
+
+	var (
+		hist       = snapshot.Histograms()
+		exHistLen  = 2
+		exLarge    = 1
+		exTagCount = 4
+	)
+
+	if addStatus {
+		// NB: if status is added, we expect to see three histogram entries,
+		// since they will also include the status code in the tags list; otherwise
+		// code:200 and code:300 queries are expected to go to the same histogram
+		// metric.
+		exHistLen++
+		exLarge++
+		exTagCount++
+	}
+
+	require.True(t, len(hist) == exHistLen)
+	sizes := map[string]int{}
+	statuses := map[string]int{}
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+
+		tags := h.Tags()
+		require.Equal(t, exTagCount, len(tags))
+		require.Equal(t, "/api/v1/query_range", tags["path"])
+		require.Equal(t, "10", tags["count_threshold"])
+		require.Equal(t, "15m0s", tags["range_threshold"])
+
+		sizeVal := tags["size"]
+		sizes[sizeVal] = sizes[sizeVal] + 1
+
+		if addStatus {
+			statusVal := tags["status"]
+			statuses[statusVal] = statuses[statusVal] + 1
+		}
+	}
+
+	if addStatus {
+		require.Equal(t, map[string]int{"200": 2, "300": 1}, statuses)
+	}
+
+	require.Equal(t, map[string]int{"small": 1, "large": exLarge}, sizes)
 }

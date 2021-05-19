@@ -30,6 +30,7 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/models"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -54,6 +55,7 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 	}
 
 	queryMetrics := newQueryInspectionMetrics(scope)
+	metrics := newRouteMetrics(iOpts)
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
@@ -72,9 +74,15 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 				path = "unknown"
 			}
 
-			tags := inspectQuerySize(w, r, path, queryMetrics, cfg)
-			metrics := newRouteMetrics(iOpts)
-			counter, timer := metrics.metric(path, statusCodeTracking.Status, tags)
+			querySize := inspectQuerySize(w, r, path, queryMetrics, cfg)
+
+			addLatencyStatus := false
+			if cfg != nil && cfg.AddStatusToLatencies {
+				addLatencyStatus = true
+			}
+
+			counter, timer := metrics.metric(
+				path, statusCodeTracking.Status, addLatencyStatus, querySize)
 			counter.Inc(1)
 			timer.Record(d)
 		})
@@ -85,11 +93,12 @@ type routeMetrics struct {
 	sync.RWMutex
 	instrumentOpts instrument.Options
 	metrics        map[routeMetricKey]routeMetric
-	timers         map[string]tally.Timer
+	timers         map[routeMetricKey]tally.Timer
 }
 
 type routeMetricKey struct {
 	path   string
+	size   string
 	status int
 }
 
@@ -101,22 +110,39 @@ func newRouteMetrics(instrumentOpts instrument.Options) *routeMetrics {
 	return &routeMetrics{
 		instrumentOpts: instrumentOpts,
 		metrics:        make(map[routeMetricKey]routeMetric),
-		timers:         make(map[string]tally.Timer),
+		timers:         make(map[routeMetricKey]tally.Timer),
 	}
+}
+
+func keyForTags(tags map[string]string) []byte {
+	modelTags := models.NewTags(len(tags), nil)
+	for k, v := range tags {
+		modelTags.AddTagWithoutNormalizing(models.Tag{Name: []byte(k), Value: []byte(v)})
+	}
+
+	return modelTags.ID()
 }
 
 func (m *routeMetrics) metric(
 	path string,
 	status int,
-	tags map[string]string,
+	addLatencyStatus bool,
+	querySize querySize,
+	// tags map[string]string,
 ) (tally.Counter, tally.Timer) {
-	key := routeMetricKey{
-		path:   path,
-		status: status,
+	querySize.toTags()
+	metricKey := querySize.toRouteMetricKey(path, status)
+	// NB: use 0 as the status for all latency operations unless status should be
+	// explicitly included in written metrics.
+	latencyStatus := 0
+	if addLatencyStatus {
+		latencyStatus = status
 	}
+
+	timerKey := querySize.toRouteMetricKey(path, latencyStatus)
 	m.RLock()
-	metric, ok1 := m.metrics[key]
-	timer, ok2 := m.timers[path]
+	metric, ok1 := m.metrics[metricKey]
+	timer, ok2 := m.timers[timerKey]
 	m.RUnlock()
 	if ok1 && ok2 {
 		return metric.status, timer
@@ -125,19 +151,14 @@ func (m *routeMetrics) metric(
 	m.Lock()
 	defer m.Unlock()
 
-	metric, ok1 = m.metrics[key]
-	timer, ok2 = m.timers[path]
+	metric, ok1 = m.metrics[metricKey]
+	timer, ok2 = m.timers[timerKey]
 	if ok1 && ok2 {
 		return metric.status, timer
 	}
 
-	if tags == nil {
-		tags = map[string]string{"path": path}
-	} else {
-		// NB: add path to passed in tags.
-		tags["path"] = path
-	}
-
+	tags := querySize.toTags()
+	tags["path"] = path
 	scopePath := m.instrumentOpts.MetricsScope().Tagged(tags)
 	scopePathAndStatus := scopePath.Tagged(map[string]string{
 		"status": strconv.Itoa(status),
@@ -147,11 +168,16 @@ func (m *routeMetrics) metric(
 		metric = routeMetric{
 			status: scopePathAndStatus.Counter("request"),
 		}
-		m.metrics[key] = metric
+		m.metrics[metricKey] = metric
 	}
 	if !ok2 {
-		timer = instrument.NewTimer(scopePath, "latency", histogramTimerOptions)
-		m.timers[path] = timer
+		scope := scopePath
+		if addLatencyStatus {
+			scope = scopePathAndStatus
+		}
+
+		timer = instrument.NewTimer(scope, "latency", histogramTimerOptions)
+		m.timers[timerKey] = timer
 	}
 
 	return metric.status, timer

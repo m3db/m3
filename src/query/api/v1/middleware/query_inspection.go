@@ -53,7 +53,7 @@ type queryInspectionMetrics struct {
 	belowCountThreshold tally.Counter
 	badQuery            tally.Counter
 	belowRangeThreshold tally.Counter
-	largeTags           tally.Counter
+	largeQuery          tally.Counter
 }
 
 func newQueryInspectionMetrics(scope tally.Scope) queryInspectionMetrics {
@@ -62,12 +62,12 @@ func newQueryInspectionMetrics(scope tally.Scope) queryInspectionMetrics {
 	}
 
 	return queryInspectionMetrics{
-		notQuery:            buildCounter("notQuery"),
-		notInspected:        buildCounter("notInspected"),
-		belowCountThreshold: buildCounter("belowCountThreshold"),
-		badQuery:            buildCounter("badQuery"),
-		belowRangeThreshold: buildCounter("belowRangeThreshold"),
-		largeTags:           buildCounter("largeTags"),
+		notQuery:            buildCounter("not_query"),
+		notInspected:        buildCounter("not_inspected"),
+		belowCountThreshold: buildCounter("below_count_threshold"),
+		badQuery:            buildCounter("bad_query"),
+		belowRangeThreshold: buildCounter("below_range_threshold"),
+		largeQuery:          buildCounter("large_query"),
 	}
 }
 
@@ -119,6 +119,28 @@ func isQueryPath(path string) bool {
 	return path == "query" || path == "query_range"
 }
 
+type querySize struct {
+	size           string
+	countThreshold string
+	rangeThreshold string
+}
+
+func (s querySize) toRouteMetricKey(path string, status int) routeMetricKey {
+	return routeMetricKey{
+		path:   path,
+		size:   s.size,
+		status: status,
+	}
+}
+
+func (s querySize) toTags() map[string]string {
+	return map[string]string{
+		querySizeMetricName:      s.size,
+		countThresholdMetricName: s.countThreshold,
+		rangeThresholdMetricName: s.rangeThreshold,
+	}
+}
+
 // NB: inspectQuerySize determines this query's size; if the number of fetched
 // series exceeds a certain number, and the query range exceeds a certain range,
 // the query is classified as "large"; otherwise, this query is "small".
@@ -128,55 +150,55 @@ func inspectQuerySize(
 	path string,
 	metrics queryInspectionMetrics,
 	cfg *config.MiddlewareConfiguration,
-) map[string]string {
-	tags := map[string]string{
-		querySizeMetricName:      querySizeSmall,
-		countThresholdMetricName: "0",
-		rangeThresholdMetricName: "0",
+) querySize {
+	size := querySize{
+		size:           querySizeSmall,
+		countThreshold: "0",
+		rangeThreshold: "0",
 	}
 
 	// NB: query categorization is only relevant for query and query_range endpoints.
 	if !isQueryPath(path) {
 		metrics.notQuery.Inc(1)
-		return tags
+		return size
 	}
 
 	// NB: query inspection is disabled
 	if cfg == nil || !cfg.InspectQuerySize {
 		metrics.notInspected.Inc(1)
-		return tags
+		return size
 	}
 
-	tags[countThresholdMetricName] = fmt.Sprint(cfg.LargeSeriesCountThreshold)
-	tags[rangeThresholdMetricName] = cfg.LargeSeriesRangeThreshold.String()
+	size.countThreshold = fmt.Sprint(cfg.LargeSeriesCountThreshold)
+	size.rangeThreshold = cfg.LargeSeriesRangeThreshold.String()
 
 	fetchedCount := w.Header().Get(headers.FetchedSeriesCount)
 	fetched, err := strconv.Atoi(fetchedCount)
 	if err != nil || fetched < cfg.LargeSeriesCountThreshold {
 		// NB: header does not exist, or value is below the large query threshold.
 		metrics.belowCountThreshold.Inc(1)
-		return tags
+		return size
 	}
 
 	query, err := native.ParseQuery(r)
 	if err != nil {
 		metrics.badQuery.Inc(1)
-		return tags
+		return size
 	}
 
 	expr, err := parser.ParseExpr(query)
 	if err != nil {
 		metrics.badQuery.Inc(1)
-		return tags
+		return size
 	}
 
 	queryRange := retrieveQueryRange(expr, 0)
 	if queryRange < cfg.LargeSeriesRangeThreshold {
 		metrics.belowRangeThreshold.Inc(1)
-		return tags
+		return size
 	}
 
-	metrics.largeTags.Inc(1)
-	tags[querySizeMetricName] = fmt.Sprint(querySizeLarge)
-	return tags
+	metrics.largeQuery.Inc(1)
+	size.size = querySizeLarge
+	return size
 }

@@ -475,6 +475,11 @@ type MiddlewareConfiguration struct {
 	// LargeSeriesCountThreshold is the minimum query range for a query necessary
 	// to classify it as large.
 	LargeSeriesRangeThreshold time.Duration `yaml:"largeSeriesRangeThreshold"`
+	// AddStatusToLatencies will add a tag with the query's response code to
+	// middleware latency metrics.
+	// NB: Setting this to true will increase cardinality by the number of
+	// expected response codes (likely around ~10).
+	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
