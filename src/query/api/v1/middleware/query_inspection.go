@@ -81,7 +81,7 @@ func retrieveQueryRange(expr parser.Node, rangeSoFar time.Duration) time.Duratio
 		switch n := node.(type) {
 		case *parser.SubqueryExpr:
 			useLookback = false
-			d := retrieveQueryRange(n.Expr, n.Range+n.Offset+rangeSoFar)
+			d := retrieveQueryRange(n.Expr, n.Range+n.OriginalOffset+rangeSoFar)
 			if d > queryRange {
 				queryRange = d
 			}
@@ -89,11 +89,11 @@ func retrieveQueryRange(expr parser.Node, rangeSoFar time.Duration) time.Duratio
 			useLookback = false
 			// nolint
 			v := n.VectorSelector.(*parser.VectorSelector)
-			if d := v.Offset + n.Range + rangeSoFar; d > queryRange {
+			if d := v.OriginalOffset + n.Range + rangeSoFar; d > queryRange {
 				queryRange = d
 			}
 		case *parser.VectorSelector:
-			if d := n.Offset + rangeSoFar; d > queryRange {
+			if d := n.OriginalOffset + rangeSoFar; d > queryRange {
 				queryRange = d
 			}
 		}
@@ -102,7 +102,7 @@ func retrieveQueryRange(expr parser.Node, rangeSoFar time.Duration) time.Duratio
 	})
 
 	if useLookback {
-		// NB: no range provided in any query selecturs; use lookback time.
+		// NB: no range provided in any query selectors; use lookback time.
 		queryRange += promDefaultLookback
 	}
 
