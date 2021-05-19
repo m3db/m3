@@ -1806,7 +1806,16 @@ func (i *nsIndex) execBlockQueryFn(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, results, logFields)
+	docResults, ok := results.(index.DocumentResults)
+	if !ok { // should never happen
+		state.Lock()
+		defer state.Unlock()
+		err := fmt.Errorf("unknown results type [%T] received during wide query", results)
+		state.multiErr = state.multiErr.Add(err)
+		return
+	}
+
+	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, docResults, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1844,7 +1853,16 @@ func (i *nsIndex) execBlockWideQueryFn(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	_, err := block.Query(ctx, cancellable, query, opts, results, logFields)
+	docResults, ok := results.(index.DocumentResults)
+	if !ok { // should never happen
+		state.Lock()
+		defer state.Unlock()
+		err := fmt.Errorf("unknown results type [%T] received during wide query", results)
+		state.multiErr = state.multiErr.Add(err)
+		return
+	}
+
+	_, err := block.Query(ctx, cancellable, query, opts, docResults, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in

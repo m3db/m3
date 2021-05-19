@@ -38,6 +38,8 @@ var ErrWideQueryResultsExhausted = errors.New("no more values to add to wide que
 
 type shardFilterFn func(ident.ID) (uint32, bool)
 
+var _ DocumentResults = (*wideResults)(nil)
+
 type wideResults struct {
 	sync.RWMutex
 	size           int
@@ -72,7 +74,7 @@ func NewWideQueryResults(
 	shardFilter shardFilterFn,
 	collector chan *ident.IDBatch,
 	opts WideQueryOptions,
-) BaseResults {
+) DocumentResults {
 	batchSize := opts.BatchSize
 	results := &wideResults{
 		nsID:        namespaceID,
@@ -94,11 +96,6 @@ func (r *wideResults) EnforceLimits() bool {
 	// NB: wide results should not enforce limits, as they may span an entire
 	// block in a memory constrained batch-wise fashion.
 	return false
-}
-
-func (r *wideResults) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
-	// Not supported.
-	return nil, false
 }
 
 func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
