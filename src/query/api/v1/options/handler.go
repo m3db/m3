@@ -74,6 +74,7 @@ type RegisterMiddleware func(opts MiddlewareOptions) []mux.MiddlewareFunc
 // MiddlewareOptions is the set of parameters passed to the RegisterMiddleware function.
 type MiddlewareOptions struct {
 	InstrumentOpts instrument.Options
+	Config         *config.MiddlewareConfiguration
 	Route          *mux.Route
 }
 

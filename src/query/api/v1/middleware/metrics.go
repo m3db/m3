@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -40,7 +41,20 @@ var histogramTimerOptions = instrument.NewHistogramTimerOptions(
 	})
 
 // ResponseMetrics records metrics for the http response.
-func ResponseMetrics(iOpts instrument.Options, route *mux.Route) mux.MiddlewareFunc {
+func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
+	var (
+		iOpts = opts.InstrumentOpts
+		route = opts.Route
+		cfg   = opts.Config
+	)
+
+	scope := tally.NoopScope
+	if iOpts != nil {
+		scope = iOpts.MetricsScope()
+	}
+
+	queryMetrics := newQueryInspectionMetrics(scope)
+	metrics := newRouteMetrics(iOpts)
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
@@ -59,8 +73,15 @@ func ResponseMetrics(iOpts instrument.Options, route *mux.Route) mux.MiddlewareF
 				path = "unknown"
 			}
 
-			metrics := newRouteMetrics(iOpts)
-			counter, timer := metrics.metric(path, statusCodeTracking.Status)
+			querySize := inspectQuerySize(w, r, path, queryMetrics, cfg)
+
+			addLatencyStatus := false
+			if cfg != nil && cfg.AddStatusToLatencies {
+				addLatencyStatus = true
+			}
+
+			counter, timer := metrics.metric(
+				path, statusCodeTracking.Status, addLatencyStatus, querySize)
 			counter.Inc(1)
 			timer.Record(d)
 		})
@@ -71,11 +92,12 @@ type routeMetrics struct {
 	sync.RWMutex
 	instrumentOpts instrument.Options
 	metrics        map[routeMetricKey]routeMetric
-	timers         map[string]tally.Timer
+	timers         map[routeMetricKey]tally.Timer
 }
 
 type routeMetricKey struct {
 	path   string
+	size   string
 	status int
 }
 
@@ -87,18 +109,29 @@ func newRouteMetrics(instrumentOpts instrument.Options) *routeMetrics {
 	return &routeMetrics{
 		instrumentOpts: instrumentOpts,
 		metrics:        make(map[routeMetricKey]routeMetric),
-		timers:         make(map[string]tally.Timer),
+		timers:         make(map[routeMetricKey]tally.Timer),
 	}
 }
 
-func (m *routeMetrics) metric(path string, status int) (tally.Counter, tally.Timer) {
-	key := routeMetricKey{
-		path:   path,
-		status: status,
+func (m *routeMetrics) metric(
+	path string,
+	status int,
+	addLatencyStatus bool,
+	querySize querySize,
+) (tally.Counter, tally.Timer) {
+	querySize.toTags()
+	metricKey := querySize.toRouteMetricKey(path, status)
+	// NB: use 0 as the status for all latency operations unless status should be
+	// explicitly included in written metrics.
+	latencyStatus := 0
+	if addLatencyStatus {
+		latencyStatus = status
 	}
+
+	timerKey := querySize.toRouteMetricKey(path, latencyStatus)
 	m.RLock()
-	metric, ok1 := m.metrics[key]
-	timer, ok2 := m.timers[path]
+	metric, ok1 := m.metrics[metricKey]
+	timer, ok2 := m.timers[timerKey]
 	m.RUnlock()
 	if ok1 && ok2 {
 		return metric.status, timer
@@ -107,16 +140,15 @@ func (m *routeMetrics) metric(path string, status int) (tally.Counter, tally.Tim
 	m.Lock()
 	defer m.Unlock()
 
-	metric, ok1 = m.metrics[key]
-	timer, ok2 = m.timers[path]
+	metric, ok1 = m.metrics[metricKey]
+	timer, ok2 = m.timers[timerKey]
 	if ok1 && ok2 {
 		return metric.status, timer
 	}
 
-	scopePath := m.instrumentOpts.MetricsScope().Tagged(map[string]string{
-		"path": path,
-	})
-
+	tags := querySize.toTags()
+	tags["path"] = path
+	scopePath := m.instrumentOpts.MetricsScope().Tagged(tags)
 	scopePathAndStatus := scopePath.Tagged(map[string]string{
 		"status": strconv.Itoa(status),
 	})
@@ -125,11 +157,16 @@ func (m *routeMetrics) metric(path string, status int) (tally.Counter, tally.Tim
 		metric = routeMetric{
 			status: scopePathAndStatus.Counter("request"),
 		}
-		m.metrics[key] = metric
+		m.metrics[metricKey] = metric
 	}
 	if !ok2 {
-		timer = instrument.NewTimer(scopePath, "latency", histogramTimerOptions)
-		m.timers[path] = timer
+		scope := scopePath
+		if addLatencyStatus {
+			scope = scopePathAndStatus
+		}
+
+		timer = instrument.NewTimer(scope, "latency", histogramTimerOptions)
+		m.timers[timerKey] = timer
 	}
 
 	return metric.status, timer
