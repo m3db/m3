@@ -162,14 +162,12 @@ func inspectQuerySize(
 	if lastPath == "query_range" {
 		// NB: for a query range, add the length of the range to the query duration
 		// to get the full time range.
-		fmt.Println("a")
 		if err := r.ParseForm(); err != nil {
 			// NB: invalid query.
 			metrics.badQuery.Inc(1)
 			return size
 		}
 
-		fmt.Println("b")
 		now := time.Now()
 		start, err := native.ParseTime(r, "start", now)
 		if err != nil {
@@ -178,7 +176,6 @@ func inspectQuerySize(
 			return size
 		}
 
-		fmt.Println("c")
 		end, err := native.ParseTime(r, "end", now)
 		if err != nil {
 			// NB: invalid query.
@@ -187,7 +184,6 @@ func inspectQuerySize(
 		}
 
 		duration = end.Sub(start)
-		fmt.Println("d", duration.String())
 	} else if lastPath != "query" {
 		metrics.notQuery.Inc(1)
 		return size
@@ -223,7 +219,6 @@ func inspectQuerySize(
 	}
 
 	queryRange := retrieveQueryRange(expr, 0)
-	fmt.Println("QUERY "+lastPath, duration.String(), queryRange.String(), cfg.LargeSeriesRangeThreshold.String())
 	if duration+queryRange < cfg.LargeSeriesRangeThreshold {
 		metrics.belowRangeThreshold.Inc(1)
 		return size

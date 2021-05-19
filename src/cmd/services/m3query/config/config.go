@@ -469,7 +469,7 @@ type MiddlewareConfiguration struct {
 	// LargeSeriesCountThreshold is the minimum number of series fetched by
 	// a query necessary to classify it as large.
 	LargeSeriesCountThreshold int `yaml:"largeSeriesCountThreshold"`
-	// LargeSeriesCountThreshold is the minimum query range for a query necessary
+	// LargeSeriesRangeThreshold is the minimum query range for a query necessary
 	// to classify it as large.
 	LargeSeriesRangeThreshold time.Duration `yaml:"largeSeriesRangeThreshold"`
 	// InspectQuerySize will tag query metrics as large if they exceed both of the

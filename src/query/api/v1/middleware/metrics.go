@@ -118,7 +118,6 @@ func (m *routeMetrics) metric(
 	status int,
 	addLatencyStatus bool,
 	querySize querySize,
-	// tags map[string]string,
 ) (tally.Counter, tally.Timer) {
 	querySize.toTags()
 	metricKey := querySize.toRouteMetricKey(path, status)
