@@ -344,7 +344,7 @@ func parseExpr(
 
 			vectorsInspected = append(vectorsInspected, vectorSelector)
 
-			offset = vectorSelector.Offset
+			offset = vectorSelector.OriginalOffset
 			labelMatchers = vectorSelector.LabelMatchers
 		} else if n, ok := node.(*promql.VectorSelector); ok {
 			// Check already inspected (matrix can be walked further into
@@ -357,7 +357,7 @@ func parseExpr(
 
 			vectorsInspected = append(vectorsInspected, n)
 
-			offset = n.Offset
+			offset = n.OriginalOffset
 			labelMatchers = n.LabelMatchers
 		} else {
 			return nil

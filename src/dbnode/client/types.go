@@ -153,6 +153,10 @@ type FetchResponseMetadata struct {
 	Responses int
 	// EstimateTotalBytes is an approximation of the total byte size of the response.
 	EstimateTotalBytes int
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int
 }
 
 // AggregatedTagsIterator iterates over a collection of tag names with optionally

@@ -69,7 +69,13 @@ type CustomHandlerOptions struct {
 }
 
 // RegisterMiddleware is a func to build the set of middleware functions.
-type RegisterMiddleware func(iOpts instrument.Options) []mux.MiddlewareFunc
+type RegisterMiddleware func(opts MiddlewareOptions) []mux.MiddlewareFunc
+
+// MiddlewareOptions is the set of parameters passed to the RegisterMiddleware function.
+type MiddlewareOptions struct {
+	InstrumentOpts instrument.Options
+	Route          *mux.Route
+}
 
 // CustomHandler allows for custom third party http handlers.
 type CustomHandler interface {

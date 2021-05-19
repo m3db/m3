@@ -27,34 +27,50 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
 
-	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
+// QueryResponseOptions are the options to construct the QueryResponse middleware func.
+type QueryResponseOptions struct {
+	Threshold      time.Duration
+	InstrumentOpts instrument.Options
+	Clock          clockwork.Clock
+}
+
 // QueryResponse logs the query response time if the request took longer than the configured threshold.
-func QueryResponse(threshold time.Duration, iOpts instrument.Options) mux.MiddlewareFunc {
+func QueryResponse(opts QueryResponseOptions) mux.MiddlewareFunc {
+	if opts.Clock == nil {
+		opts.Clock = clockwork.NewRealClock()
+	}
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
+			start := opts.Clock.Now()
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
 			w = statusCodeTracking.WrappedResponseWriter()
 			base.ServeHTTP(w, r)
-			d := time.Since(start)
-			if threshold > 0 && d >= threshold {
-				logger := logging.WithContext(r.Context(), iOpts)
+			d := opts.Clock.Now().Sub(start)
+			if opts.Threshold > 0 && d >= opts.Threshold {
+				logger := logging.WithContext(r.Context(), opts.InstrumentOpts)
 				query := r.FormValue(queryParam)
-				startTime, err := util.ParseTimeStringWithDefault(r.FormValue(startParam), time.Time{})
+				// N.B - instant queries set startParam/endParam to "now" if not set. parseTime can handle this special
+				// "now" value. Use when this middleware ran as the approximate now value.
+				startTime, err := parseTime(r, startParam, start)
 				if err != nil {
-					logger.Warn("failed to parse start for response logging", zap.Error(err))
+					logger.Warn("failed to parse start for response logging",
+						zap.Error(err),
+						zap.String("start", r.FormValue(startParam)))
 				}
-				endTime, err := util.ParseTimeStringWithDefault(r.FormValue(endParam), time.Time{})
+				endTime, err := parseTime(r, endParam, start)
 				if err != nil {
-					logger.Warn("failed to parse end for response logging", zap.Error(err))
+					logger.Warn("failed to parse end for response logging",
+						zap.Error(err),
+						zap.String("end", r.FormValue(endParam)))
 				}
 				fields := []zap.Field{
 					zap.Duration("duration", d),
@@ -65,17 +81,23 @@ func QueryResponse(threshold time.Duration, iOpts instrument.Options) mux.Middle
 					zap.Time("end", endTime),
 					zap.Duration("queryRange", endTime.Sub(startTime)),
 				}
-				for k, v := range r.Header {
-					if strings.HasPrefix(k, headers.M3HeaderPrefix) {
-						if len(v) == 1 {
-							fields = append(fields, zap.String(k, v[0]))
-						} else {
-							fields = append(fields, zap.Strings(k, v))
-						}
-					}
-				}
+				fields = appendM3Headers(r.Header, fields)
+				fields = appendM3Headers(w.Header(), fields)
 				logger.Info("finished handling query request", fields...)
 			}
 		})
 	}
+}
+
+func appendM3Headers(h http.Header, fields []zap.Field) []zap.Field {
+	for k, v := range h {
+		if strings.HasPrefix(k, headers.M3HeaderPrefix) {
+			if len(v) == 1 {
+				fields = append(fields, zap.String(k, v[0]))
+			} else {
+				fields = append(fields, zap.Strings(k, v))
+			}
+		}
+	}
+	return fields
 }

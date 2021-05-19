@@ -49,10 +49,12 @@ const (
 	// LookbackParam is the lookback parameter.
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
-	TimeoutParam = "timeout"
-	maxInt64     = float64(math.MaxInt64)
-	minInt64     = float64(math.MinInt64)
-	maxTimeout   = 10 * time.Minute
+	TimeoutParam           = "timeout"
+	requireExhaustiveParam = "requireExhaustive"
+	requireNoWaitParam     = "requireNoWait"
+	maxInt64               = float64(math.MaxInt64)
+	minInt64               = float64(math.MinInt64)
+	maxTimeout             = 10 * time.Minute
 )
 
 // FetchOptionsBuilder builds fetch options based on a request and default
@@ -141,7 +143,7 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 		return v, nil
 	}
 
-	if str := req.FormValue("requireExhaustive"); str != "" {
+	if str := req.FormValue(requireExhaustiveParam); str != "" {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -152,6 +154,32 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 	}
 
 	return defaultValue, nil
+}
+
+// ParseRequireNoWait parses the no-wait behavior from header or
+// query string.
+func ParseRequireNoWait(req *http.Request) (bool, error) {
+	if str := req.Header.Get(headers.LimitRequireNoWaitHeader); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%w", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	if str := req.FormValue(requireNoWaitParam); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%w", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	return false, nil
 }
 
 // NewFetchOptions parses an http request into fetch options.
@@ -223,6 +251,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.RequireExhaustive = requireExhaustive
+
+	requireNoWait, err := ParseRequireNoWait(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.RequireNoWait = requireNoWait
 
 	if str := req.Header.Get(headers.MetricsTypeHeader); str != "" {
 		mt, err := storagemetadata.ParseMetricsType(str)

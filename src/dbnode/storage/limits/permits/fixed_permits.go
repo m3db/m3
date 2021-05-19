@@ -54,20 +54,22 @@ func (f *fixedPermitsManager) NewPermits(_ context.Context) (Permits, error) {
 	return &f.fp, nil
 }
 
-func (f *fixedPermits) Acquire(ctx context.Context) (Permit, error) {
+func (f *fixedPermits) Acquire(ctx context.Context) (AcquireResult, error) {
 	// don't acquire a permit if ctx is already done.
 	select {
 	case <-ctx.GoContext().Done():
-		return nil, ctx.GoContext().Err()
+		return AcquireResult{}, ctx.GoContext().Err()
 	default:
 	}
 
 	select {
 	case <-ctx.GoContext().Done():
-		return nil, ctx.GoContext().Err()
+		return AcquireResult{}, ctx.GoContext().Err()
 	case p := <-f.permits:
 		p.PreAcquire()
-		return p, nil
+		return AcquireResult{
+			Permit: p,
+		}, nil
 	}
 }
 

@@ -22,6 +22,7 @@ package handleroptions
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -56,6 +57,19 @@ type ReturnedMetadataLimited struct {
 	Limited bool
 }
 
+// Waiting is info about an operation waiting for permits.
+type Waiting struct {
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int `json:"waitedIndex"`
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int `json:"waitedSeriesRead"`
+}
+
+// WaitedAny returns whether any waiting occurred.
+func (w Waiting) WaitedAny() bool {
+	return w.WaitedIndex > 0 || w.WaitedSeriesRead > 0
+}
+
 // AddResponseHeaders adds any warning headers present in the result's metadata,
 // and also effective parameters relative to the request such as effective
 // timeout in use.
@@ -69,6 +83,7 @@ func AddResponseHeaders(
 	if fetchOpts != nil {
 		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
 	}
+
 	if limited := returnedDataLimited; limited != nil {
 		s, err := json.Marshal(limited)
 		if err != nil {
@@ -76,12 +91,31 @@ func AddResponseHeaders(
 		}
 		w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
 	}
+
 	if limited := returnedMetadataLimited; limited != nil {
 		s, err := json.Marshal(limited)
 		if err != nil {
 			return err
 		}
 		w.Header().Add(headers.ReturnedMetadataLimitedHeader, string(s))
+	}
+
+	waiting := Waiting{
+		WaitedIndex:      meta.WaitedIndex,
+		WaitedSeriesRead: meta.WaitedSeriesRead,
+	}
+
+	// NB: only add series count header if there are series present.
+	if meta.FetchedSeriesCount > 0 {
+		w.Header().Add(headers.FetchedSeriesCount, fmt.Sprint(meta.FetchedSeriesCount))
+	}
+
+	if waiting.WaitedAny() {
+		s, err := json.Marshal(waiting)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.WaitedHeader, string(s))
 	}
 
 	ex := meta.Exhaustive

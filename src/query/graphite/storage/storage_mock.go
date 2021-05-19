@@ -35,30 +35,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockStorage is a mock of Storage interface
+// MockStorage is a mock of Storage interface.
 type MockStorage struct {
 	ctrl     *gomock.Controller
 	recorder *MockStorageMockRecorder
 }
 
-// MockStorageMockRecorder is the mock recorder for MockStorage
+// MockStorageMockRecorder is the mock recorder for MockStorage.
 type MockStorageMockRecorder struct {
 	mock *MockStorage
 }
 
-// NewMockStorage creates a new mock instance
+// NewMockStorage creates a new mock instance.
 func NewMockStorage(ctrl *gomock.Controller) *MockStorage {
 	mock := &MockStorage{ctrl: ctrl}
 	mock.recorder = &MockStorageMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 	return m.recorder
 }
 
-// CompleteTags mocks base method
+// CompleteTags mocks base method.
 func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *storage0.CompleteTagsQuery, arg2 *storage0.FetchOptions) (*consolidators.CompleteTagsResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompleteTags", arg0, arg1, arg2)
@@ -67,13 +67,13 @@ func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *storage0.Complete
 	return ret0, ret1
 }
 
-// CompleteTags indicates an expected call of CompleteTags
+// CompleteTags indicates an expected call of CompleteTags.
 func (mr *MockStorageMockRecorder) CompleteTags(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTags", reflect.TypeOf((*MockStorage)(nil).CompleteTags), arg0, arg1, arg2)
 }
 
-// FetchByQuery mocks base method
+// FetchByQuery mocks base method.
 func (m *MockStorage) FetchByQuery(arg0 context0.Context, arg1 string, arg2 FetchOptions) (*FetchResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchByQuery", arg0, arg1, arg2)
@@ -82,7 +82,7 @@ func (m *MockStorage) FetchByQuery(arg0 context0.Context, arg1 string, arg2 Fetc
 	return ret0, ret1
 }
 
-// FetchByQuery indicates an expected call of FetchByQuery
+// FetchByQuery indicates an expected call of FetchByQuery.
 func (mr *MockStorageMockRecorder) FetchByQuery(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByQuery", reflect.TypeOf((*MockStorage)(nil).FetchByQuery), arg0, arg1, arg2)

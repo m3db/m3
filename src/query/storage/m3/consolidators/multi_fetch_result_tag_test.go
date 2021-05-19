@@ -56,6 +56,7 @@ type expectedSeries struct {
 	dps  []dp
 }
 
+//nolint:dupl
 func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -76,7 +77,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 	combinedMeta := warn1Meta.CombineMetadata(warn2Meta)
 
 	tests := []dedupeTest{
-		dedupeTest{
+		{
 			name: "same tags, same ids",
 			entries: []insertEntry{
 				{
@@ -90,9 +91,9 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 				},
 			},
 			expected: []expectedSeries{
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar"},
-					dps:  []dp{dp{t: step(1), val: 1}, dp{t: step(5), val: 6}},
+					dps:  []dp{{t: step(1), val: 1}, {t: step(5), val: 6}},
 				},
 			},
 			exMeta:  warn1Meta,
@@ -100,7 +101,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exAttrs: []storagemetadata.Attributes{unaggHr},
 		},
 
-		dedupeTest{
+		{
 			name: "same tags, different ids",
 			entries: []insertEntry{
 				{
@@ -114,9 +115,9 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 				},
 			},
 			expected: []expectedSeries{
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar"},
-					dps:  []dp{dp{t: step(1), val: 1}, dp{t: step(5), val: 6}},
+					dps:  []dp{{t: step(1), val: 1}, {t: step(5), val: 6}},
 				},
 			},
 			exMeta:  warn1Meta,
@@ -124,7 +125,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exAttrs: []storagemetadata.Attributes{unaggHr},
 		},
 
-		dedupeTest{
+		{
 			name: "different tags, same ids",
 			entries: []insertEntry{
 				{
@@ -138,13 +139,13 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 				},
 			},
 			expected: []expectedSeries{
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar"},
-					dps:  []dp{dp{t: step(1), val: 1}},
+					dps:  []dp{{t: step(1), val: 1}},
 				},
-				expectedSeries{
+				{
 					tags: []string{"foo", "baz"},
-					dps:  []dp{dp{t: step(5), val: 6}},
+					dps:  []dp{{t: step(5), val: 6}},
 				},
 			},
 			exMeta:  warn1Meta,
@@ -152,7 +153,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exAttrs: []storagemetadata.Attributes{unaggHr, unaggHr},
 		},
 
-		dedupeTest{
+		{
 			name: "one iterator, mixed scenario",
 			entries: []insertEntry{
 				{
@@ -173,21 +174,21 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 				},
 			},
 			expected: []expectedSeries{
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "quail"},
-					dps:  []dp{dp{t: step(1), val: 1}, dp{t: step(2), val: 2}},
+					dps:  []dp{{t: step(1), val: 1}, {t: step(2), val: 2}},
 				},
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "quart"},
-					dps:  []dp{dp{t: step(1), val: 3}},
+					dps:  []dp{{t: step(1), val: 3}},
 				},
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "queen"},
-					dps:  []dp{dp{t: step(1), val: 5}, dp{t: step(2), val: 6}},
+					dps:  []dp{{t: step(1), val: 5}, {t: step(2), val: 6}},
 				},
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "quz"},
-					dps:  []dp{dp{t: step(2), val: 4}},
+					dps:  []dp{{t: step(2), val: 4}},
 				},
 			},
 			exMeta:  warn1Meta,
@@ -195,10 +196,10 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exAttrs: []storagemetadata.Attributes{unaggHr, unaggHr, unaggHr, unaggHr},
 		},
 
-		dedupeTest{
+		{
 			name: "multiple iterators, mixed scenario",
 			entries: []insertEntry{
-				insertEntry{
+				{
 					attr: unaggHr,
 					meta: warn1Meta,
 					err:  nil,
@@ -207,7 +208,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 						it(ctrl, dp{t: step(2), val: 2}, "id2", "foo", "bar", "qux", "quail"),
 					}, nil),
 				},
-				insertEntry{
+				{
 					attr: unaggHr,
 					meta: warn2Meta,
 					err:  nil,
@@ -216,7 +217,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 						it(ctrl, dp{t: step(2), val: 4}, "id3", "foo", "bar", "qux", "quz"),
 					}, nil),
 				},
-				insertEntry{
+				{
 					attr: unaggHr,
 					meta: warn1Meta,
 					err:  nil,
@@ -227,21 +228,21 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 				},
 			},
 			expected: []expectedSeries{
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "quail"},
-					dps:  []dp{dp{t: step(1), val: 1}, dp{t: step(2), val: 2}},
+					dps:  []dp{{t: step(1), val: 1}, {t: step(2), val: 2}},
 				},
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "quart"},
-					dps:  []dp{dp{t: step(1), val: 3}},
+					dps:  []dp{{t: step(1), val: 3}},
 				},
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "queen"},
-					dps:  []dp{dp{t: step(1), val: 5}, dp{t: step(2), val: 6}},
+					dps:  []dp{{t: step(1), val: 5}, {t: step(2), val: 6}},
 				},
-				expectedSeries{
+				{
 					tags: []string{"foo", "bar", "qux", "quz"},
-					dps:  []dp{dp{t: step(2), val: 4}},
+					dps:  []dp{{t: step(2), val: 4}},
 				},
 			},
 			exMeta:  combinedMeta,
@@ -281,6 +282,7 @@ func testMultiFetchResultTagDedupeMap(
 	result, attrs, err := r.FinalResultWithAttrs()
 	require.NoError(t, err)
 
+	test.exMeta.FetchedSeriesCount = len(test.expected)
 	assert.Equal(t, test.exMeta, result.Metadata)
 	require.Equal(t, len(test.exAttrs), len(attrs))
 	for i, ex := range test.exAttrs {
@@ -322,9 +324,11 @@ func TestFilteredInsert(t *testing.T) {
 
 	warn1Meta := block.NewResultMetadata()
 	warn1Meta.AddWarning("warn", "1")
+	warn1Meta.FetchedSeriesCount = 1
 
 	warn2Meta := block.NewResultMetadata()
 	warn2Meta.AddWarning("warn", "2")
+	warn2Meta.FetchedSeriesCount = 1
 
 	dedupe := dedupeTest{
 		name: "same tags, same ids",
@@ -340,9 +344,9 @@ func TestFilteredInsert(t *testing.T) {
 			},
 		},
 		expected: []expectedSeries{
-			expectedSeries{
+			{
 				tags: []string{"foo", "bar"},
-				dps:  []dp{dp{t: step(1), val: 1}, dp{t: step(5), val: 6}},
+				dps:  []dp{{t: step(1), val: 1}, {t: step(5), val: 6}},
 			},
 		},
 		exMeta:  warn1Meta,

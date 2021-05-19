@@ -26,69 +26,74 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/source"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/net/http/cors"
 )
 
 // Default is the default list of middleware functions applied if no middleware functions are set in the
 // HandlerOptions.
-func Default(iOpts instrument.Options) []mux.MiddlewareFunc {
+func Default(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
 	// The order of middleware is important. Be very careful when reordering existing middleware.
 	return []mux.MiddlewareFunc{
 		Cors(),
 		// install tracing before logging so the trace_id is available for response logging.
-		Tracing(opentracing.GlobalTracer(), iOpts),
-		RequestID(iOpts),
-		ResponseLogging(time.Second, iOpts),
-		ResponseMetrics(iOpts),
+		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
+		RequestID(opts.InstrumentOpts),
+		ResponseLogging(time.Second, opts.InstrumentOpts),
+		ResponseMetrics(opts.InstrumentOpts, opts.Route),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
-		Panic(iOpts),
+		Panic(opts.InstrumentOpts),
 		Compression(),
 	}
 }
 
 // Query is the list of middleware functions for query endpoints.
-func Query(iOpts instrument.Options) []mux.MiddlewareFunc {
-	return query(ResponseLogging(time.Second, iOpts), iOpts)
+func Query(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
+	return query(ResponseLogging(time.Second, opts.InstrumentOpts), opts)
 }
 
 // PromQuery is the list of middleware functions for prometheus query endpoints.
-func PromQuery(iOpts instrument.Options) []mux.MiddlewareFunc {
-	return query(native.QueryResponse(time.Second, iOpts), iOpts)
+func PromQuery(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
+	return query(native.QueryResponse(native.QueryResponseOptions{
+		Threshold:      time.Second,
+		InstrumentOpts: opts.InstrumentOpts,
+		Clock:          clockwork.NewRealClock(),
+	}), opts)
 }
 
-func query(response mux.MiddlewareFunc, iOpts instrument.Options) []mux.MiddlewareFunc {
+func query(response mux.MiddlewareFunc, opts options.MiddlewareOptions) []mux.MiddlewareFunc {
 	// The order of middleware is important. Be very careful when reordering existing middleware.
 	return []mux.MiddlewareFunc{
 		Cors(),
 		// install tracing before logging so the trace_id is available for response logging.
-		Tracing(opentracing.GlobalTracer(), iOpts),
-		RequestID(iOpts),
+		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
+		RequestID(opts.InstrumentOpts),
 		// install source before logging so the source is available for response logging.
-		source.Middleware(nil, iOpts),
+		source.Middleware(nil, opts.InstrumentOpts),
 		response,
-		ResponseMetrics(iOpts),
+		ResponseMetrics(opts.InstrumentOpts, opts.Route),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
-		Panic(iOpts),
+		Panic(opts.InstrumentOpts),
 		Compression(),
 	}
 }
 
 // NoResponseLogging removes response logging from the set of Default.
-func NoResponseLogging(iOpts instrument.Options) []mux.MiddlewareFunc {
+func NoResponseLogging(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
 	// The order of middleware is important. Be very careful when reordering existing middleware.
 	return []mux.MiddlewareFunc{
 		Cors(),
-		Tracing(opentracing.GlobalTracer(), iOpts),
-		RequestID(iOpts),
-		ResponseMetrics(iOpts),
+		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
+		RequestID(opts.InstrumentOpts),
+		ResponseMetrics(opts.InstrumentOpts, opts.Route),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
-		Panic(iOpts),
+		Panic(opts.InstrumentOpts),
 		Compression(),
 	}
 }

@@ -44,30 +44,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockDataFileSetWriter is a mock of DataFileSetWriter interface
+// MockDataFileSetWriter is a mock of DataFileSetWriter interface.
 type MockDataFileSetWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockDataFileSetWriterMockRecorder
 }
 
-// MockDataFileSetWriterMockRecorder is the mock recorder for MockDataFileSetWriter
+// MockDataFileSetWriterMockRecorder is the mock recorder for MockDataFileSetWriter.
 type MockDataFileSetWriterMockRecorder struct {
 	mock *MockDataFileSetWriter
 }
 
-// NewMockDataFileSetWriter creates a new mock instance
+// NewMockDataFileSetWriter creates a new mock instance.
 func NewMockDataFileSetWriter(ctrl *gomock.Controller) *MockDataFileSetWriter {
 	mock := &MockDataFileSetWriter{ctrl: ctrl}
 	mock.recorder = &MockDataFileSetWriterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDataFileSetWriter) EXPECT() *MockDataFileSetWriterMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockDataFileSetWriter) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -75,13 +75,13 @@ func (m *MockDataFileSetWriter) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockDataFileSetWriterMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataFileSetWriter)(nil).Close))
 }
 
-// DeferClose mocks base method
+// DeferClose mocks base method.
 func (m *MockDataFileSetWriter) DeferClose() (persist.DataCloser, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeferClose")
@@ -90,13 +90,13 @@ func (m *MockDataFileSetWriter) DeferClose() (persist.DataCloser, error) {
 	return ret0, ret1
 }
 
-// DeferClose indicates an expected call of DeferClose
+// DeferClose indicates an expected call of DeferClose.
 func (mr *MockDataFileSetWriterMockRecorder) DeferClose() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeferClose", reflect.TypeOf((*MockDataFileSetWriter)(nil).DeferClose))
 }
 
-// Open mocks base method
+// Open mocks base method.
 func (m *MockDataFileSetWriter) Open(arg0 DataWriterOpenOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0)
@@ -104,13 +104,13 @@ func (m *MockDataFileSetWriter) Open(arg0 DataWriterOpenOptions) error {
 	return ret0
 }
 
-// Open indicates an expected call of Open
+// Open indicates an expected call of Open.
 func (mr *MockDataFileSetWriterMockRecorder) Open(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetWriter)(nil).Open), arg0)
 }
 
-// Write mocks base method
+// Write mocks base method.
 func (m *MockDataFileSetWriter) Write(arg0 persist.Metadata, arg1 checked.Bytes, arg2 uint32) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2)
@@ -118,13 +118,13 @@ func (m *MockDataFileSetWriter) Write(arg0 persist.Metadata, arg1 checked.Bytes,
 	return ret0
 }
 
-// Write indicates an expected call of Write
+// Write indicates an expected call of Write.
 func (mr *MockDataFileSetWriterMockRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDataFileSetWriter)(nil).Write), arg0, arg1, arg2)
 }
 
-// WriteAll mocks base method
+// WriteAll mocks base method.
 func (m *MockDataFileSetWriter) WriteAll(arg0 persist.Metadata, arg1 []checked.Bytes, arg2 uint32) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteAll", arg0, arg1, arg2)
@@ -132,36 +132,36 @@ func (m *MockDataFileSetWriter) WriteAll(arg0 persist.Metadata, arg1 []checked.B
 	return ret0
 }
 
-// WriteAll indicates an expected call of WriteAll
+// WriteAll indicates an expected call of WriteAll.
 func (mr *MockDataFileSetWriterMockRecorder) WriteAll(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockDataFileSetWriter)(nil).WriteAll), arg0, arg1, arg2)
 }
 
-// MockDataFileSetReader is a mock of DataFileSetReader interface
+// MockDataFileSetReader is a mock of DataFileSetReader interface.
 type MockDataFileSetReader struct {
 	ctrl     *gomock.Controller
 	recorder *MockDataFileSetReaderMockRecorder
 }
 
-// MockDataFileSetReaderMockRecorder is the mock recorder for MockDataFileSetReader
+// MockDataFileSetReaderMockRecorder is the mock recorder for MockDataFileSetReader.
 type MockDataFileSetReaderMockRecorder struct {
 	mock *MockDataFileSetReader
 }
 
-// NewMockDataFileSetReader creates a new mock instance
+// NewMockDataFileSetReader creates a new mock instance.
 func NewMockDataFileSetReader(ctrl *gomock.Controller) *MockDataFileSetReader {
 	mock := &MockDataFileSetReader{ctrl: ctrl}
 	mock.recorder = &MockDataFileSetReaderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDataFileSetReader) EXPECT() *MockDataFileSetReaderMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockDataFileSetReader) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -169,13 +169,13 @@ func (m *MockDataFileSetReader) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockDataFileSetReaderMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataFileSetReader)(nil).Close))
 }
 
-// Entries mocks base method
+// Entries mocks base method.
 func (m *MockDataFileSetReader) Entries() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Entries")
@@ -183,13 +183,13 @@ func (m *MockDataFileSetReader) Entries() int {
 	return ret0
 }
 
-// Entries indicates an expected call of Entries
+// Entries indicates an expected call of Entries.
 func (mr *MockDataFileSetReaderMockRecorder) Entries() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Entries", reflect.TypeOf((*MockDataFileSetReader)(nil).Entries))
 }
 
-// EntriesRead mocks base method
+// EntriesRead mocks base method.
 func (m *MockDataFileSetReader) EntriesRead() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EntriesRead")
@@ -197,13 +197,13 @@ func (m *MockDataFileSetReader) EntriesRead() int {
 	return ret0
 }
 
-// EntriesRead indicates an expected call of EntriesRead
+// EntriesRead indicates an expected call of EntriesRead.
 func (mr *MockDataFileSetReaderMockRecorder) EntriesRead() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EntriesRead", reflect.TypeOf((*MockDataFileSetReader)(nil).EntriesRead))
 }
 
-// MetadataRead mocks base method
+// MetadataRead mocks base method.
 func (m *MockDataFileSetReader) MetadataRead() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MetadataRead")
@@ -211,13 +211,13 @@ func (m *MockDataFileSetReader) MetadataRead() int {
 	return ret0
 }
 
-// MetadataRead indicates an expected call of MetadataRead
+// MetadataRead indicates an expected call of MetadataRead.
 func (mr *MockDataFileSetReaderMockRecorder) MetadataRead() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MetadataRead", reflect.TypeOf((*MockDataFileSetReader)(nil).MetadataRead))
 }
 
-// Open mocks base method
+// Open mocks base method.
 func (m *MockDataFileSetReader) Open(arg0 DataReaderOpenOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0)
@@ -225,13 +225,13 @@ func (m *MockDataFileSetReader) Open(arg0 DataReaderOpenOptions) error {
 	return ret0
 }
 
-// Open indicates an expected call of Open
+// Open indicates an expected call of Open.
 func (mr *MockDataFileSetReaderMockRecorder) Open(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetReader)(nil).Open), arg0)
 }
 
-// Range mocks base method
+// Range mocks base method.
 func (m *MockDataFileSetReader) Range() time0.Range {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Range")
@@ -239,13 +239,13 @@ func (m *MockDataFileSetReader) Range() time0.Range {
 	return ret0
 }
 
-// Range indicates an expected call of Range
+// Range indicates an expected call of Range.
 func (mr *MockDataFileSetReaderMockRecorder) Range() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Range", reflect.TypeOf((*MockDataFileSetReader)(nil).Range))
 }
 
-// Read mocks base method
+// Read mocks base method.
 func (m *MockDataFileSetReader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read")
@@ -257,13 +257,13 @@ func (m *MockDataFileSetReader) Read() (ident.ID, ident.TagIterator, checked.Byt
 	return ret0, ret1, ret2, ret3, ret4
 }
 
-// Read indicates an expected call of Read
+// Read indicates an expected call of Read.
 func (mr *MockDataFileSetReaderMockRecorder) Read() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockDataFileSetReader)(nil).Read))
 }
 
-// ReadBloomFilter mocks base method
+// ReadBloomFilter mocks base method.
 func (m *MockDataFileSetReader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadBloomFilter")
@@ -272,13 +272,13 @@ func (m *MockDataFileSetReader) ReadBloomFilter() (*ManagedConcurrentBloomFilter
 	return ret0, ret1
 }
 
-// ReadBloomFilter indicates an expected call of ReadBloomFilter
+// ReadBloomFilter indicates an expected call of ReadBloomFilter.
 func (mr *MockDataFileSetReaderMockRecorder) ReadBloomFilter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadBloomFilter", reflect.TypeOf((*MockDataFileSetReader)(nil).ReadBloomFilter))
 }
 
-// ReadMetadata mocks base method
+// ReadMetadata mocks base method.
 func (m *MockDataFileSetReader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadMetadata")
@@ -290,13 +290,13 @@ func (m *MockDataFileSetReader) ReadMetadata() (ident.ID, ident.TagIterator, int
 	return ret0, ret1, ret2, ret3, ret4
 }
 
-// ReadMetadata indicates an expected call of ReadMetadata
+// ReadMetadata indicates an expected call of ReadMetadata.
 func (mr *MockDataFileSetReaderMockRecorder) ReadMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMetadata", reflect.TypeOf((*MockDataFileSetReader)(nil).ReadMetadata))
 }
 
-// Status mocks base method
+// Status mocks base method.
 func (m *MockDataFileSetReader) Status() DataFileSetReaderStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Status")
@@ -304,13 +304,13 @@ func (m *MockDataFileSetReader) Status() DataFileSetReaderStatus {
 	return ret0
 }
 
-// Status indicates an expected call of Status
+// Status indicates an expected call of Status.
 func (mr *MockDataFileSetReaderMockRecorder) Status() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockDataFileSetReader)(nil).Status))
 }
 
-// StreamingEnabled mocks base method
+// StreamingEnabled mocks base method.
 func (m *MockDataFileSetReader) StreamingEnabled() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamingEnabled")
@@ -318,13 +318,13 @@ func (m *MockDataFileSetReader) StreamingEnabled() bool {
 	return ret0
 }
 
-// StreamingEnabled indicates an expected call of StreamingEnabled
+// StreamingEnabled indicates an expected call of StreamingEnabled.
 func (mr *MockDataFileSetReaderMockRecorder) StreamingEnabled() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingEnabled", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingEnabled))
 }
 
-// StreamingRead mocks base method
+// StreamingRead mocks base method.
 func (m *MockDataFileSetReader) StreamingRead() (StreamedDataEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamingRead")
@@ -333,13 +333,13 @@ func (m *MockDataFileSetReader) StreamingRead() (StreamedDataEntry, error) {
 	return ret0, ret1
 }
 
-// StreamingRead indicates an expected call of StreamingRead
+// StreamingRead indicates an expected call of StreamingRead.
 func (mr *MockDataFileSetReaderMockRecorder) StreamingRead() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingRead", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingRead))
 }
 
-// StreamingReadMetadata mocks base method
+// StreamingReadMetadata mocks base method.
 func (m *MockDataFileSetReader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamingReadMetadata")
@@ -348,13 +348,13 @@ func (m *MockDataFileSetReader) StreamingReadMetadata() (StreamedMetadataEntry, 
 	return ret0, ret1
 }
 
-// StreamingReadMetadata indicates an expected call of StreamingReadMetadata
+// StreamingReadMetadata indicates an expected call of StreamingReadMetadata.
 func (mr *MockDataFileSetReaderMockRecorder) StreamingReadMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingReadMetadata", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingReadMetadata))
 }
 
-// Validate mocks base method
+// Validate mocks base method.
 func (m *MockDataFileSetReader) Validate() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
@@ -362,13 +362,13 @@ func (m *MockDataFileSetReader) Validate() error {
 	return ret0
 }
 
-// Validate indicates an expected call of Validate
+// Validate indicates an expected call of Validate.
 func (mr *MockDataFileSetReaderMockRecorder) Validate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockDataFileSetReader)(nil).Validate))
 }
 
-// ValidateData mocks base method
+// ValidateData mocks base method.
 func (m *MockDataFileSetReader) ValidateData() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateData")
@@ -376,13 +376,13 @@ func (m *MockDataFileSetReader) ValidateData() error {
 	return ret0
 }
 
-// ValidateData indicates an expected call of ValidateData
+// ValidateData indicates an expected call of ValidateData.
 func (mr *MockDataFileSetReaderMockRecorder) ValidateData() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateData", reflect.TypeOf((*MockDataFileSetReader)(nil).ValidateData))
 }
 
-// ValidateMetadata mocks base method
+// ValidateMetadata mocks base method.
 func (m *MockDataFileSetReader) ValidateMetadata() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateMetadata")
@@ -390,36 +390,36 @@ func (m *MockDataFileSetReader) ValidateMetadata() error {
 	return ret0
 }
 
-// ValidateMetadata indicates an expected call of ValidateMetadata
+// ValidateMetadata indicates an expected call of ValidateMetadata.
 func (mr *MockDataFileSetReaderMockRecorder) ValidateMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateMetadata", reflect.TypeOf((*MockDataFileSetReader)(nil).ValidateMetadata))
 }
 
-// MockDataFileSetSeeker is a mock of DataFileSetSeeker interface
+// MockDataFileSetSeeker is a mock of DataFileSetSeeker interface.
 type MockDataFileSetSeeker struct {
 	ctrl     *gomock.Controller
 	recorder *MockDataFileSetSeekerMockRecorder
 }
 
-// MockDataFileSetSeekerMockRecorder is the mock recorder for MockDataFileSetSeeker
+// MockDataFileSetSeekerMockRecorder is the mock recorder for MockDataFileSetSeeker.
 type MockDataFileSetSeekerMockRecorder struct {
 	mock *MockDataFileSetSeeker
 }
 
-// NewMockDataFileSetSeeker creates a new mock instance
+// NewMockDataFileSetSeeker creates a new mock instance.
 func NewMockDataFileSetSeeker(ctrl *gomock.Controller) *MockDataFileSetSeeker {
 	mock := &MockDataFileSetSeeker{ctrl: ctrl}
 	mock.recorder = &MockDataFileSetSeekerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDataFileSetSeeker) EXPECT() *MockDataFileSetSeekerMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockDataFileSetSeeker) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -427,13 +427,13 @@ func (m *MockDataFileSetSeeker) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockDataFileSetSeekerMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataFileSetSeeker)(nil).Close))
 }
 
-// ConcurrentClone mocks base method
+// ConcurrentClone mocks base method.
 func (m *MockDataFileSetSeeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConcurrentClone")
@@ -442,13 +442,13 @@ func (m *MockDataFileSetSeeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, 
 	return ret0, ret1
 }
 
-// ConcurrentClone indicates an expected call of ConcurrentClone
+// ConcurrentClone indicates an expected call of ConcurrentClone.
 func (mr *MockDataFileSetSeekerMockRecorder) ConcurrentClone() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConcurrentClone", reflect.TypeOf((*MockDataFileSetSeeker)(nil).ConcurrentClone))
 }
 
-// ConcurrentIDBloomFilter mocks base method
+// ConcurrentIDBloomFilter mocks base method.
 func (m *MockDataFileSetSeeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConcurrentIDBloomFilter")
@@ -456,13 +456,13 @@ func (m *MockDataFileSetSeeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloo
 	return ret0
 }
 
-// ConcurrentIDBloomFilter indicates an expected call of ConcurrentIDBloomFilter
+// ConcurrentIDBloomFilter indicates an expected call of ConcurrentIDBloomFilter.
 func (mr *MockDataFileSetSeekerMockRecorder) ConcurrentIDBloomFilter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConcurrentIDBloomFilter", reflect.TypeOf((*MockDataFileSetSeeker)(nil).ConcurrentIDBloomFilter))
 }
 
-// Open mocks base method
+// Open mocks base method.
 func (m *MockDataFileSetSeeker) Open(arg0 ident.ID, arg1 uint32, arg2 time.Time, arg3 int, arg4 ReusableSeekerResources) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0, arg1, arg2, arg3, arg4)
@@ -470,13 +470,13 @@ func (m *MockDataFileSetSeeker) Open(arg0 ident.ID, arg1 uint32, arg2 time.Time,
 	return ret0
 }
 
-// Open indicates an expected call of Open
+// Open indicates an expected call of Open.
 func (mr *MockDataFileSetSeekerMockRecorder) Open(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeeker)(nil).Open), arg0, arg1, arg2, arg3, arg4)
 }
 
-// Range mocks base method
+// Range mocks base method.
 func (m *MockDataFileSetSeeker) Range() time0.Range {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Range")
@@ -484,13 +484,13 @@ func (m *MockDataFileSetSeeker) Range() time0.Range {
 	return ret0
 }
 
-// Range indicates an expected call of Range
+// Range indicates an expected call of Range.
 func (mr *MockDataFileSetSeekerMockRecorder) Range() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Range", reflect.TypeOf((*MockDataFileSetSeeker)(nil).Range))
 }
 
-// SeekByID mocks base method
+// SeekByID mocks base method.
 func (m *MockDataFileSetSeeker) SeekByID(arg0 ident.ID, arg1 ReusableSeekerResources) (checked.Bytes, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekByID", arg0, arg1)
@@ -499,13 +499,13 @@ func (m *MockDataFileSetSeeker) SeekByID(arg0 ident.ID, arg1 ReusableSeekerResou
 	return ret0, ret1
 }
 
-// SeekByID indicates an expected call of SeekByID
+// SeekByID indicates an expected call of SeekByID.
 func (mr *MockDataFileSetSeekerMockRecorder) SeekByID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekByID", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekByID), arg0, arg1)
 }
 
-// SeekByIndexEntry mocks base method
+// SeekByIndexEntry mocks base method.
 func (m *MockDataFileSetSeeker) SeekByIndexEntry(arg0 IndexEntry, arg1 ReusableSeekerResources) (checked.Bytes, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekByIndexEntry", arg0, arg1)
@@ -514,13 +514,13 @@ func (m *MockDataFileSetSeeker) SeekByIndexEntry(arg0 IndexEntry, arg1 ReusableS
 	return ret0, ret1
 }
 
-// SeekByIndexEntry indicates an expected call of SeekByIndexEntry
+// SeekByIndexEntry indicates an expected call of SeekByIndexEntry.
 func (mr *MockDataFileSetSeekerMockRecorder) SeekByIndexEntry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekByIndexEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekByIndexEntry), arg0, arg1)
 }
 
-// SeekIndexEntry mocks base method
+// SeekIndexEntry mocks base method.
 func (m *MockDataFileSetSeeker) SeekIndexEntry(arg0 ident.ID, arg1 ReusableSeekerResources) (IndexEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntry", arg0, arg1)
@@ -529,13 +529,13 @@ func (m *MockDataFileSetSeeker) SeekIndexEntry(arg0 ident.ID, arg1 ReusableSeeke
 	return ret0, ret1
 }
 
-// SeekIndexEntry indicates an expected call of SeekIndexEntry
+// SeekIndexEntry indicates an expected call of SeekIndexEntry.
 func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekIndexEntry), arg0, arg1)
 }
 
-// SeekWideEntry mocks base method
+// SeekWideEntry mocks base method.
 func (m *MockDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 schema.WideEntryFilter, arg2 ReusableSeekerResources) (xio.WideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1, arg2)
@@ -544,36 +544,36 @@ func (m *MockDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 schema.WideEnt
 	return ret0, ret1
 }
 
-// SeekWideEntry indicates an expected call of SeekWideEntry
+// SeekWideEntry indicates an expected call of SeekWideEntry.
 func (mr *MockDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1, arg2)
 }
 
-// MockIndexFileSetWriter is a mock of IndexFileSetWriter interface
+// MockIndexFileSetWriter is a mock of IndexFileSetWriter interface.
 type MockIndexFileSetWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockIndexFileSetWriterMockRecorder
 }
 
-// MockIndexFileSetWriterMockRecorder is the mock recorder for MockIndexFileSetWriter
+// MockIndexFileSetWriterMockRecorder is the mock recorder for MockIndexFileSetWriter.
 type MockIndexFileSetWriterMockRecorder struct {
 	mock *MockIndexFileSetWriter
 }
 
-// NewMockIndexFileSetWriter creates a new mock instance
+// NewMockIndexFileSetWriter creates a new mock instance.
 func NewMockIndexFileSetWriter(ctrl *gomock.Controller) *MockIndexFileSetWriter {
 	mock := &MockIndexFileSetWriter{ctrl: ctrl}
 	mock.recorder = &MockIndexFileSetWriterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIndexFileSetWriter) EXPECT() *MockIndexFileSetWriterMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockIndexFileSetWriter) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -581,13 +581,13 @@ func (m *MockIndexFileSetWriter) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockIndexFileSetWriterMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIndexFileSetWriter)(nil).Close))
 }
 
-// Open mocks base method
+// Open mocks base method.
 func (m *MockIndexFileSetWriter) Open(arg0 IndexWriterOpenOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0)
@@ -595,13 +595,13 @@ func (m *MockIndexFileSetWriter) Open(arg0 IndexWriterOpenOptions) error {
 	return ret0
 }
 
-// Open indicates an expected call of Open
+// Open indicates an expected call of Open.
 func (mr *MockIndexFileSetWriterMockRecorder) Open(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockIndexFileSetWriter)(nil).Open), arg0)
 }
 
-// WriteSegmentFileSet mocks base method
+// WriteSegmentFileSet mocks base method.
 func (m *MockIndexFileSetWriter) WriteSegmentFileSet(arg0 persist0.IndexSegmentFileSetWriter) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteSegmentFileSet", arg0)
@@ -609,36 +609,36 @@ func (m *MockIndexFileSetWriter) WriteSegmentFileSet(arg0 persist0.IndexSegmentF
 	return ret0
 }
 
-// WriteSegmentFileSet indicates an expected call of WriteSegmentFileSet
+// WriteSegmentFileSet indicates an expected call of WriteSegmentFileSet.
 func (mr *MockIndexFileSetWriterMockRecorder) WriteSegmentFileSet(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteSegmentFileSet", reflect.TypeOf((*MockIndexFileSetWriter)(nil).WriteSegmentFileSet), arg0)
 }
 
-// MockIndexFileSetReader is a mock of IndexFileSetReader interface
+// MockIndexFileSetReader is a mock of IndexFileSetReader interface.
 type MockIndexFileSetReader struct {
 	ctrl     *gomock.Controller
 	recorder *MockIndexFileSetReaderMockRecorder
 }
 
-// MockIndexFileSetReaderMockRecorder is the mock recorder for MockIndexFileSetReader
+// MockIndexFileSetReaderMockRecorder is the mock recorder for MockIndexFileSetReader.
 type MockIndexFileSetReaderMockRecorder struct {
 	mock *MockIndexFileSetReader
 }
 
-// NewMockIndexFileSetReader creates a new mock instance
+// NewMockIndexFileSetReader creates a new mock instance.
 func NewMockIndexFileSetReader(ctrl *gomock.Controller) *MockIndexFileSetReader {
 	mock := &MockIndexFileSetReader{ctrl: ctrl}
 	mock.recorder = &MockIndexFileSetReaderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIndexFileSetReader) EXPECT() *MockIndexFileSetReaderMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockIndexFileSetReader) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -646,13 +646,13 @@ func (m *MockIndexFileSetReader) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockIndexFileSetReaderMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIndexFileSetReader)(nil).Close))
 }
 
-// IndexVolumeType mocks base method
+// IndexVolumeType mocks base method.
 func (m *MockIndexFileSetReader) IndexVolumeType() persist0.IndexVolumeType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexVolumeType")
@@ -660,13 +660,13 @@ func (m *MockIndexFileSetReader) IndexVolumeType() persist0.IndexVolumeType {
 	return ret0
 }
 
-// IndexVolumeType indicates an expected call of IndexVolumeType
+// IndexVolumeType indicates an expected call of IndexVolumeType.
 func (mr *MockIndexFileSetReaderMockRecorder) IndexVolumeType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexVolumeType", reflect.TypeOf((*MockIndexFileSetReader)(nil).IndexVolumeType))
 }
 
-// Open mocks base method
+// Open mocks base method.
 func (m *MockIndexFileSetReader) Open(arg0 IndexReaderOpenOptions) (IndexReaderOpenResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0)
@@ -675,13 +675,13 @@ func (m *MockIndexFileSetReader) Open(arg0 IndexReaderOpenOptions) (IndexReaderO
 	return ret0, ret1
 }
 
-// Open indicates an expected call of Open
+// Open indicates an expected call of Open.
 func (mr *MockIndexFileSetReaderMockRecorder) Open(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockIndexFileSetReader)(nil).Open), arg0)
 }
 
-// ReadSegmentFileSet mocks base method
+// ReadSegmentFileSet mocks base method.
 func (m *MockIndexFileSetReader) ReadSegmentFileSet() (persist0.IndexSegmentFileSet, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadSegmentFileSet")
@@ -690,13 +690,13 @@ func (m *MockIndexFileSetReader) ReadSegmentFileSet() (persist0.IndexSegmentFile
 	return ret0, ret1
 }
 
-// ReadSegmentFileSet indicates an expected call of ReadSegmentFileSet
+// ReadSegmentFileSet indicates an expected call of ReadSegmentFileSet.
 func (mr *MockIndexFileSetReaderMockRecorder) ReadSegmentFileSet() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSegmentFileSet", reflect.TypeOf((*MockIndexFileSetReader)(nil).ReadSegmentFileSet))
 }
 
-// SegmentFileSets mocks base method
+// SegmentFileSets mocks base method.
 func (m *MockIndexFileSetReader) SegmentFileSets() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentFileSets")
@@ -704,13 +704,13 @@ func (m *MockIndexFileSetReader) SegmentFileSets() int {
 	return ret0
 }
 
-// SegmentFileSets indicates an expected call of SegmentFileSets
+// SegmentFileSets indicates an expected call of SegmentFileSets.
 func (mr *MockIndexFileSetReaderMockRecorder) SegmentFileSets() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentFileSets", reflect.TypeOf((*MockIndexFileSetReader)(nil).SegmentFileSets))
 }
 
-// Validate mocks base method
+// Validate mocks base method.
 func (m *MockIndexFileSetReader) Validate() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
@@ -718,36 +718,36 @@ func (m *MockIndexFileSetReader) Validate() error {
 	return ret0
 }
 
-// Validate indicates an expected call of Validate
+// Validate indicates an expected call of Validate.
 func (mr *MockIndexFileSetReaderMockRecorder) Validate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockIndexFileSetReader)(nil).Validate))
 }
 
-// MockIndexSegmentFileSetWriter is a mock of IndexSegmentFileSetWriter interface
+// MockIndexSegmentFileSetWriter is a mock of IndexSegmentFileSetWriter interface.
 type MockIndexSegmentFileSetWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockIndexSegmentFileSetWriterMockRecorder
 }
 
-// MockIndexSegmentFileSetWriterMockRecorder is the mock recorder for MockIndexSegmentFileSetWriter
+// MockIndexSegmentFileSetWriterMockRecorder is the mock recorder for MockIndexSegmentFileSetWriter.
 type MockIndexSegmentFileSetWriterMockRecorder struct {
 	mock *MockIndexSegmentFileSetWriter
 }
 
-// NewMockIndexSegmentFileSetWriter creates a new mock instance
+// NewMockIndexSegmentFileSetWriter creates a new mock instance.
 func NewMockIndexSegmentFileSetWriter(ctrl *gomock.Controller) *MockIndexSegmentFileSetWriter {
 	mock := &MockIndexSegmentFileSetWriter{ctrl: ctrl}
 	mock.recorder = &MockIndexSegmentFileSetWriterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIndexSegmentFileSetWriter) EXPECT() *MockIndexSegmentFileSetWriterMockRecorder {
 	return m.recorder
 }
 
-// Files mocks base method
+// Files mocks base method.
 func (m *MockIndexSegmentFileSetWriter) Files() []persist0.IndexSegmentFileType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
@@ -755,13 +755,13 @@ func (m *MockIndexSegmentFileSetWriter) Files() []persist0.IndexSegmentFileType 
 	return ret0
 }
 
-// Files indicates an expected call of Files
+// Files indicates an expected call of Files.
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) Files() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).Files))
 }
 
-// MajorVersion mocks base method
+// MajorVersion mocks base method.
 func (m *MockIndexSegmentFileSetWriter) MajorVersion() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MajorVersion")
@@ -769,13 +769,13 @@ func (m *MockIndexSegmentFileSetWriter) MajorVersion() int {
 	return ret0
 }
 
-// MajorVersion indicates an expected call of MajorVersion
+// MajorVersion indicates an expected call of MajorVersion.
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) MajorVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).MajorVersion))
 }
 
-// MinorVersion mocks base method
+// MinorVersion mocks base method.
 func (m *MockIndexSegmentFileSetWriter) MinorVersion() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinorVersion")
@@ -783,13 +783,13 @@ func (m *MockIndexSegmentFileSetWriter) MinorVersion() int {
 	return ret0
 }
 
-// MinorVersion indicates an expected call of MinorVersion
+// MinorVersion indicates an expected call of MinorVersion.
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) MinorVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).MinorVersion))
 }
 
-// SegmentMetadata mocks base method
+// SegmentMetadata mocks base method.
 func (m *MockIndexSegmentFileSetWriter) SegmentMetadata() []byte {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentMetadata")
@@ -797,13 +797,13 @@ func (m *MockIndexSegmentFileSetWriter) SegmentMetadata() []byte {
 	return ret0
 }
 
-// SegmentMetadata indicates an expected call of SegmentMetadata
+// SegmentMetadata indicates an expected call of SegmentMetadata.
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentMetadata))
 }
 
-// SegmentType mocks base method
+// SegmentType mocks base method.
 func (m *MockIndexSegmentFileSetWriter) SegmentType() persist0.IndexSegmentType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
@@ -811,13 +811,13 @@ func (m *MockIndexSegmentFileSetWriter) SegmentType() persist0.IndexSegmentType 
 	return ret0
 }
 
-// SegmentType indicates an expected call of SegmentType
+// SegmentType indicates an expected call of SegmentType.
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentType))
 }
 
-// WriteFile mocks base method
+// WriteFile mocks base method.
 func (m *MockIndexSegmentFileSetWriter) WriteFile(arg0 persist0.IndexSegmentFileType, arg1 io.Writer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteFile", arg0, arg1)
@@ -825,36 +825,36 @@ func (m *MockIndexSegmentFileSetWriter) WriteFile(arg0 persist0.IndexSegmentFile
 	return ret0
 }
 
-// WriteFile indicates an expected call of WriteFile
+// WriteFile indicates an expected call of WriteFile.
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) WriteFile(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).WriteFile), arg0, arg1)
 }
 
-// MockIndexSegmentFileSet is a mock of IndexSegmentFileSet interface
+// MockIndexSegmentFileSet is a mock of IndexSegmentFileSet interface.
 type MockIndexSegmentFileSet struct {
 	ctrl     *gomock.Controller
 	recorder *MockIndexSegmentFileSetMockRecorder
 }
 
-// MockIndexSegmentFileSetMockRecorder is the mock recorder for MockIndexSegmentFileSet
+// MockIndexSegmentFileSetMockRecorder is the mock recorder for MockIndexSegmentFileSet.
 type MockIndexSegmentFileSetMockRecorder struct {
 	mock *MockIndexSegmentFileSet
 }
 
-// NewMockIndexSegmentFileSet creates a new mock instance
+// NewMockIndexSegmentFileSet creates a new mock instance.
 func NewMockIndexSegmentFileSet(ctrl *gomock.Controller) *MockIndexSegmentFileSet {
 	mock := &MockIndexSegmentFileSet{ctrl: ctrl}
 	mock.recorder = &MockIndexSegmentFileSetMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIndexSegmentFileSet) EXPECT() *MockIndexSegmentFileSetMockRecorder {
 	return m.recorder
 }
 
-// Files mocks base method
+// Files mocks base method.
 func (m *MockIndexSegmentFileSet) Files() []persist0.IndexSegmentFile {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
@@ -862,13 +862,13 @@ func (m *MockIndexSegmentFileSet) Files() []persist0.IndexSegmentFile {
 	return ret0
 }
 
-// Files indicates an expected call of Files
+// Files indicates an expected call of Files.
 func (mr *MockIndexSegmentFileSetMockRecorder) Files() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).Files))
 }
 
-// MajorVersion mocks base method
+// MajorVersion mocks base method.
 func (m *MockIndexSegmentFileSet) MajorVersion() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MajorVersion")
@@ -876,13 +876,13 @@ func (m *MockIndexSegmentFileSet) MajorVersion() int {
 	return ret0
 }
 
-// MajorVersion indicates an expected call of MajorVersion
+// MajorVersion indicates an expected call of MajorVersion.
 func (mr *MockIndexSegmentFileSetMockRecorder) MajorVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).MajorVersion))
 }
 
-// MinorVersion mocks base method
+// MinorVersion mocks base method.
 func (m *MockIndexSegmentFileSet) MinorVersion() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinorVersion")
@@ -890,13 +890,13 @@ func (m *MockIndexSegmentFileSet) MinorVersion() int {
 	return ret0
 }
 
-// MinorVersion indicates an expected call of MinorVersion
+// MinorVersion indicates an expected call of MinorVersion.
 func (mr *MockIndexSegmentFileSetMockRecorder) MinorVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).MinorVersion))
 }
 
-// SegmentMetadata mocks base method
+// SegmentMetadata mocks base method.
 func (m *MockIndexSegmentFileSet) SegmentMetadata() []byte {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentMetadata")
@@ -904,13 +904,13 @@ func (m *MockIndexSegmentFileSet) SegmentMetadata() []byte {
 	return ret0
 }
 
-// SegmentMetadata indicates an expected call of SegmentMetadata
+// SegmentMetadata indicates an expected call of SegmentMetadata.
 func (mr *MockIndexSegmentFileSetMockRecorder) SegmentMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).SegmentMetadata))
 }
 
-// SegmentType mocks base method
+// SegmentType mocks base method.
 func (m *MockIndexSegmentFileSet) SegmentType() persist0.IndexSegmentType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
@@ -918,36 +918,36 @@ func (m *MockIndexSegmentFileSet) SegmentType() persist0.IndexSegmentType {
 	return ret0
 }
 
-// SegmentType indicates an expected call of SegmentType
+// SegmentType indicates an expected call of SegmentType.
 func (mr *MockIndexSegmentFileSetMockRecorder) SegmentType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).SegmentType))
 }
 
-// MockIndexSegmentFile is a mock of IndexSegmentFile interface
+// MockIndexSegmentFile is a mock of IndexSegmentFile interface.
 type MockIndexSegmentFile struct {
 	ctrl     *gomock.Controller
 	recorder *MockIndexSegmentFileMockRecorder
 }
 
-// MockIndexSegmentFileMockRecorder is the mock recorder for MockIndexSegmentFile
+// MockIndexSegmentFileMockRecorder is the mock recorder for MockIndexSegmentFile.
 type MockIndexSegmentFileMockRecorder struct {
 	mock *MockIndexSegmentFile
 }
 
-// NewMockIndexSegmentFile creates a new mock instance
+// NewMockIndexSegmentFile creates a new mock instance.
 func NewMockIndexSegmentFile(ctrl *gomock.Controller) *MockIndexSegmentFile {
 	mock := &MockIndexSegmentFile{ctrl: ctrl}
 	mock.recorder = &MockIndexSegmentFileMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIndexSegmentFile) EXPECT() *MockIndexSegmentFileMockRecorder {
 	return m.recorder
 }
 
-// Files mocks base method
+// Files mocks base method.
 func (m *MockIndexSegmentFile) Files() []persist0.IndexSegmentFile {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
@@ -955,13 +955,13 @@ func (m *MockIndexSegmentFile) Files() []persist0.IndexSegmentFile {
 	return ret0
 }
 
-// Files indicates an expected call of Files
+// Files indicates an expected call of Files.
 func (mr *MockIndexSegmentFileMockRecorder) Files() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockIndexSegmentFile)(nil).Files))
 }
 
-// MajorVersion mocks base method
+// MajorVersion mocks base method.
 func (m *MockIndexSegmentFile) MajorVersion() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MajorVersion")
@@ -969,13 +969,13 @@ func (m *MockIndexSegmentFile) MajorVersion() int {
 	return ret0
 }
 
-// MajorVersion indicates an expected call of MajorVersion
+// MajorVersion indicates an expected call of MajorVersion.
 func (mr *MockIndexSegmentFileMockRecorder) MajorVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockIndexSegmentFile)(nil).MajorVersion))
 }
 
-// MinorVersion mocks base method
+// MinorVersion mocks base method.
 func (m *MockIndexSegmentFile) MinorVersion() int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinorVersion")
@@ -983,13 +983,13 @@ func (m *MockIndexSegmentFile) MinorVersion() int {
 	return ret0
 }
 
-// MinorVersion indicates an expected call of MinorVersion
+// MinorVersion indicates an expected call of MinorVersion.
 func (mr *MockIndexSegmentFileMockRecorder) MinorVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockIndexSegmentFile)(nil).MinorVersion))
 }
 
-// SegmentMetadata mocks base method
+// SegmentMetadata mocks base method.
 func (m *MockIndexSegmentFile) SegmentMetadata() []byte {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentMetadata")
@@ -997,13 +997,13 @@ func (m *MockIndexSegmentFile) SegmentMetadata() []byte {
 	return ret0
 }
 
-// SegmentMetadata indicates an expected call of SegmentMetadata
+// SegmentMetadata indicates an expected call of SegmentMetadata.
 func (mr *MockIndexSegmentFileMockRecorder) SegmentMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockIndexSegmentFile)(nil).SegmentMetadata))
 }
 
-// SegmentType mocks base method
+// SegmentType mocks base method.
 func (m *MockIndexSegmentFile) SegmentType() persist0.IndexSegmentType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
@@ -1011,36 +1011,36 @@ func (m *MockIndexSegmentFile) SegmentType() persist0.IndexSegmentType {
 	return ret0
 }
 
-// SegmentType indicates an expected call of SegmentType
+// SegmentType indicates an expected call of SegmentType.
 func (mr *MockIndexSegmentFileMockRecorder) SegmentType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockIndexSegmentFile)(nil).SegmentType))
 }
 
-// MockSnapshotMetadataFileWriter is a mock of SnapshotMetadataFileWriter interface
+// MockSnapshotMetadataFileWriter is a mock of SnapshotMetadataFileWriter interface.
 type MockSnapshotMetadataFileWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockSnapshotMetadataFileWriterMockRecorder
 }
 
-// MockSnapshotMetadataFileWriterMockRecorder is the mock recorder for MockSnapshotMetadataFileWriter
+// MockSnapshotMetadataFileWriterMockRecorder is the mock recorder for MockSnapshotMetadataFileWriter.
 type MockSnapshotMetadataFileWriterMockRecorder struct {
 	mock *MockSnapshotMetadataFileWriter
 }
 
-// NewMockSnapshotMetadataFileWriter creates a new mock instance
+// NewMockSnapshotMetadataFileWriter creates a new mock instance.
 func NewMockSnapshotMetadataFileWriter(ctrl *gomock.Controller) *MockSnapshotMetadataFileWriter {
 	mock := &MockSnapshotMetadataFileWriter{ctrl: ctrl}
 	mock.recorder = &MockSnapshotMetadataFileWriterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockSnapshotMetadataFileWriter) EXPECT() *MockSnapshotMetadataFileWriterMockRecorder {
 	return m.recorder
 }
 
-// Write mocks base method
+// Write mocks base method.
 func (m *MockSnapshotMetadataFileWriter) Write(arg0 SnapshotMetadataWriteArgs) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0)
@@ -1048,48 +1048,48 @@ func (m *MockSnapshotMetadataFileWriter) Write(arg0 SnapshotMetadataWriteArgs) e
 	return ret0
 }
 
-// Write indicates an expected call of Write
+// Write indicates an expected call of Write.
 func (mr *MockSnapshotMetadataFileWriterMockRecorder) Write(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockSnapshotMetadataFileWriter)(nil).Write), arg0)
 }
 
-// MockDataFileSetSeekerManager is a mock of DataFileSetSeekerManager interface
+// MockDataFileSetSeekerManager is a mock of DataFileSetSeekerManager interface.
 type MockDataFileSetSeekerManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockDataFileSetSeekerManagerMockRecorder
 }
 
-// MockDataFileSetSeekerManagerMockRecorder is the mock recorder for MockDataFileSetSeekerManager
+// MockDataFileSetSeekerManagerMockRecorder is the mock recorder for MockDataFileSetSeekerManager.
 type MockDataFileSetSeekerManagerMockRecorder struct {
 	mock *MockDataFileSetSeekerManager
 }
 
-// NewMockDataFileSetSeekerManager creates a new mock instance
+// NewMockDataFileSetSeekerManager creates a new mock instance.
 func NewMockDataFileSetSeekerManager(ctrl *gomock.Controller) *MockDataFileSetSeekerManager {
 	mock := &MockDataFileSetSeekerManager{ctrl: ctrl}
 	mock.recorder = &MockDataFileSetSeekerManagerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDataFileSetSeekerManager) EXPECT() *MockDataFileSetSeekerManagerMockRecorder {
 	return m.recorder
 }
 
-// AssignShardSet mocks base method
+// AssignShardSet mocks base method.
 func (m *MockDataFileSetSeekerManager) AssignShardSet(arg0 sharding.ShardSet) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AssignShardSet", arg0)
 }
 
-// AssignShardSet indicates an expected call of AssignShardSet
+// AssignShardSet indicates an expected call of AssignShardSet.
 func (mr *MockDataFileSetSeekerManagerMockRecorder) AssignShardSet(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).AssignShardSet), arg0)
 }
 
-// Borrow mocks base method
+// Borrow mocks base method.
 func (m *MockDataFileSetSeekerManager) Borrow(arg0 uint32, arg1 time.Time) (ConcurrentDataFileSetSeeker, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Borrow", arg0, arg1)
@@ -1098,13 +1098,13 @@ func (m *MockDataFileSetSeekerManager) Borrow(arg0 uint32, arg1 time.Time) (Conc
 	return ret0, ret1
 }
 
-// Borrow indicates an expected call of Borrow
+// Borrow indicates an expected call of Borrow.
 func (mr *MockDataFileSetSeekerManagerMockRecorder) Borrow(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Borrow", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Borrow), arg0, arg1)
 }
 
-// CacheShardIndices mocks base method
+// CacheShardIndices mocks base method.
 func (m *MockDataFileSetSeekerManager) CacheShardIndices(arg0 []uint32) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CacheShardIndices", arg0)
@@ -1112,13 +1112,13 @@ func (m *MockDataFileSetSeekerManager) CacheShardIndices(arg0 []uint32) error {
 	return ret0
 }
 
-// CacheShardIndices indicates an expected call of CacheShardIndices
+// CacheShardIndices indicates an expected call of CacheShardIndices.
 func (mr *MockDataFileSetSeekerManagerMockRecorder) CacheShardIndices(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheShardIndices", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).CacheShardIndices), arg0)
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockDataFileSetSeekerManager) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -1126,13 +1126,13 @@ func (m *MockDataFileSetSeekerManager) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockDataFileSetSeekerManagerMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Close))
 }
 
-// Open mocks base method
+// Open mocks base method.
 func (m *MockDataFileSetSeekerManager) Open(arg0 namespace.Metadata, arg1 sharding.ShardSet) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0, arg1)
@@ -1140,13 +1140,13 @@ func (m *MockDataFileSetSeekerManager) Open(arg0 namespace.Metadata, arg1 shardi
 	return ret0
 }
 
-// Open indicates an expected call of Open
+// Open indicates an expected call of Open.
 func (mr *MockDataFileSetSeekerManagerMockRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Open), arg0, arg1)
 }
 
-// Return mocks base method
+// Return mocks base method.
 func (m *MockDataFileSetSeekerManager) Return(arg0 uint32, arg1 time.Time, arg2 ConcurrentDataFileSetSeeker) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Return", arg0, arg1, arg2)
@@ -1154,13 +1154,13 @@ func (m *MockDataFileSetSeekerManager) Return(arg0 uint32, arg1 time.Time, arg2 
 	return ret0
 }
 
-// Return indicates an expected call of Return
+// Return indicates an expected call of Return.
 func (mr *MockDataFileSetSeekerManagerMockRecorder) Return(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Return", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Return), arg0, arg1, arg2)
 }
 
-// Test mocks base method
+// Test mocks base method.
 func (m *MockDataFileSetSeekerManager) Test(arg0 ident.ID, arg1 uint32, arg2 time.Time) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Test", arg0, arg1, arg2)
@@ -1169,36 +1169,36 @@ func (m *MockDataFileSetSeekerManager) Test(arg0 ident.ID, arg1 uint32, arg2 tim
 	return ret0, ret1
 }
 
-// Test indicates an expected call of Test
+// Test indicates an expected call of Test.
 func (mr *MockDataFileSetSeekerManagerMockRecorder) Test(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Test", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Test), arg0, arg1, arg2)
 }
 
-// MockConcurrentDataFileSetSeeker is a mock of ConcurrentDataFileSetSeeker interface
+// MockConcurrentDataFileSetSeeker is a mock of ConcurrentDataFileSetSeeker interface.
 type MockConcurrentDataFileSetSeeker struct {
 	ctrl     *gomock.Controller
 	recorder *MockConcurrentDataFileSetSeekerMockRecorder
 }
 
-// MockConcurrentDataFileSetSeekerMockRecorder is the mock recorder for MockConcurrentDataFileSetSeeker
+// MockConcurrentDataFileSetSeekerMockRecorder is the mock recorder for MockConcurrentDataFileSetSeeker.
 type MockConcurrentDataFileSetSeekerMockRecorder struct {
 	mock *MockConcurrentDataFileSetSeeker
 }
 
-// NewMockConcurrentDataFileSetSeeker creates a new mock instance
+// NewMockConcurrentDataFileSetSeeker creates a new mock instance.
 func NewMockConcurrentDataFileSetSeeker(ctrl *gomock.Controller) *MockConcurrentDataFileSetSeeker {
 	mock := &MockConcurrentDataFileSetSeeker{ctrl: ctrl}
 	mock.recorder = &MockConcurrentDataFileSetSeekerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockConcurrentDataFileSetSeeker) EXPECT() *MockConcurrentDataFileSetSeekerMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockConcurrentDataFileSetSeeker) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -1206,13 +1206,13 @@ func (m *MockConcurrentDataFileSetSeeker) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockConcurrentDataFileSetSeekerMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).Close))
 }
 
-// ConcurrentIDBloomFilter mocks base method
+// ConcurrentIDBloomFilter mocks base method.
 func (m *MockConcurrentDataFileSetSeeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConcurrentIDBloomFilter")
@@ -1220,13 +1220,13 @@ func (m *MockConcurrentDataFileSetSeeker) ConcurrentIDBloomFilter() *ManagedConc
 	return ret0
 }
 
-// ConcurrentIDBloomFilter indicates an expected call of ConcurrentIDBloomFilter
+// ConcurrentIDBloomFilter indicates an expected call of ConcurrentIDBloomFilter.
 func (mr *MockConcurrentDataFileSetSeekerMockRecorder) ConcurrentIDBloomFilter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConcurrentIDBloomFilter", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).ConcurrentIDBloomFilter))
 }
 
-// SeekByID mocks base method
+// SeekByID mocks base method.
 func (m *MockConcurrentDataFileSetSeeker) SeekByID(arg0 ident.ID, arg1 ReusableSeekerResources) (checked.Bytes, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekByID", arg0, arg1)
@@ -1235,13 +1235,13 @@ func (m *MockConcurrentDataFileSetSeeker) SeekByID(arg0 ident.ID, arg1 ReusableS
 	return ret0, ret1
 }
 
-// SeekByID indicates an expected call of SeekByID
+// SeekByID indicates an expected call of SeekByID.
 func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekByID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekByID", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekByID), arg0, arg1)
 }
 
-// SeekByIndexEntry mocks base method
+// SeekByIndexEntry mocks base method.
 func (m *MockConcurrentDataFileSetSeeker) SeekByIndexEntry(arg0 IndexEntry, arg1 ReusableSeekerResources) (checked.Bytes, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekByIndexEntry", arg0, arg1)
@@ -1250,13 +1250,13 @@ func (m *MockConcurrentDataFileSetSeeker) SeekByIndexEntry(arg0 IndexEntry, arg1
 	return ret0, ret1
 }
 
-// SeekByIndexEntry indicates an expected call of SeekByIndexEntry
+// SeekByIndexEntry indicates an expected call of SeekByIndexEntry.
 func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekByIndexEntry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekByIndexEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekByIndexEntry), arg0, arg1)
 }
 
-// SeekIndexEntry mocks base method
+// SeekIndexEntry mocks base method.
 func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntry(arg0 ident.ID, arg1 ReusableSeekerResources) (IndexEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntry", arg0, arg1)
@@ -1265,13 +1265,13 @@ func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntry(arg0 ident.ID, arg1 Reu
 	return ret0, ret1
 }
 
-// SeekIndexEntry indicates an expected call of SeekIndexEntry
+// SeekIndexEntry indicates an expected call of SeekIndexEntry.
 func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekIndexEntry), arg0, arg1)
 }
 
-// SeekWideEntry mocks base method
+// SeekWideEntry mocks base method.
 func (m *MockConcurrentDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 schema.WideEntryFilter, arg2 ReusableSeekerResources) (xio.WideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1, arg2)
@@ -1280,36 +1280,36 @@ func (m *MockConcurrentDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 sche
 	return ret0, ret1
 }
 
-// SeekWideEntry indicates an expected call of SeekWideEntry
+// SeekWideEntry indicates an expected call of SeekWideEntry.
 func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1, arg2)
 }
 
-// MockMergeWith is a mock of MergeWith interface
+// MockMergeWith is a mock of MergeWith interface.
 type MockMergeWith struct {
 	ctrl     *gomock.Controller
 	recorder *MockMergeWithMockRecorder
 }
 
-// MockMergeWithMockRecorder is the mock recorder for MockMergeWith
+// MockMergeWithMockRecorder is the mock recorder for MockMergeWith.
 type MockMergeWithMockRecorder struct {
 	mock *MockMergeWith
 }
 
-// NewMockMergeWith creates a new mock instance
+// NewMockMergeWith creates a new mock instance.
 func NewMockMergeWith(ctrl *gomock.Controller) *MockMergeWith {
 	mock := &MockMergeWith{ctrl: ctrl}
 	mock.recorder = &MockMergeWithMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockMergeWith) EXPECT() *MockMergeWithMockRecorder {
 	return m.recorder
 }
 
-// ForEachRemaining mocks base method
+// ForEachRemaining mocks base method.
 func (m *MockMergeWith) ForEachRemaining(arg0 context.Context, arg1 time0.UnixNano, arg2 ForEachRemainingFn, arg3 namespace.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForEachRemaining", arg0, arg1, arg2, arg3)
@@ -1317,13 +1317,13 @@ func (m *MockMergeWith) ForEachRemaining(arg0 context.Context, arg1 time0.UnixNa
 	return ret0
 }
 
-// ForEachRemaining indicates an expected call of ForEachRemaining
+// ForEachRemaining indicates an expected call of ForEachRemaining.
 func (mr *MockMergeWithMockRecorder) ForEachRemaining(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachRemaining", reflect.TypeOf((*MockMergeWith)(nil).ForEachRemaining), arg0, arg1, arg2, arg3)
 }
 
-// Read mocks base method
+// Read mocks base method.
 func (m *MockMergeWith) Read(arg0 context.Context, arg1 ident.ID, arg2 time0.UnixNano, arg3 namespace.Context) ([]xio.BlockReader, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read", arg0, arg1, arg2, arg3)
@@ -1333,36 +1333,36 @@ func (m *MockMergeWith) Read(arg0 context.Context, arg1 ident.ID, arg2 time0.Uni
 	return ret0, ret1, ret2
 }
 
-// Read indicates an expected call of Read
+// Read indicates an expected call of Read.
 func (mr *MockMergeWithMockRecorder) Read(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockMergeWith)(nil).Read), arg0, arg1, arg2, arg3)
 }
 
-// MockStreamingWriter is a mock of StreamingWriter interface
+// MockStreamingWriter is a mock of StreamingWriter interface.
 type MockStreamingWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockStreamingWriterMockRecorder
 }
 
-// MockStreamingWriterMockRecorder is the mock recorder for MockStreamingWriter
+// MockStreamingWriterMockRecorder is the mock recorder for MockStreamingWriter.
 type MockStreamingWriterMockRecorder struct {
 	mock *MockStreamingWriter
 }
 
-// NewMockStreamingWriter creates a new mock instance
+// NewMockStreamingWriter creates a new mock instance.
 func NewMockStreamingWriter(ctrl *gomock.Controller) *MockStreamingWriter {
 	mock := &MockStreamingWriter{ctrl: ctrl}
 	mock.recorder = &MockStreamingWriterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStreamingWriter) EXPECT() *MockStreamingWriterMockRecorder {
 	return m.recorder
 }
 
-// Abort mocks base method
+// Abort mocks base method.
 func (m *MockStreamingWriter) Abort() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Abort")
@@ -1370,13 +1370,13 @@ func (m *MockStreamingWriter) Abort() error {
 	return ret0
 }
 
-// Abort indicates an expected call of Abort
+// Abort indicates an expected call of Abort.
 func (mr *MockStreamingWriterMockRecorder) Abort() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Abort", reflect.TypeOf((*MockStreamingWriter)(nil).Abort))
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockStreamingWriter) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -1384,13 +1384,13 @@ func (m *MockStreamingWriter) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockStreamingWriterMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStreamingWriter)(nil).Close))
 }
 
-// Open mocks base method
+// Open mocks base method.
 func (m *MockStreamingWriter) Open(arg0 StreamingWriterOpenOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0)
@@ -1398,13 +1398,13 @@ func (m *MockStreamingWriter) Open(arg0 StreamingWriterOpenOptions) error {
 	return ret0
 }
 
-// Open indicates an expected call of Open
+// Open indicates an expected call of Open.
 func (mr *MockStreamingWriterMockRecorder) Open(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockStreamingWriter)(nil).Open), arg0)
 }
 
-// WriteAll mocks base method
+// WriteAll mocks base method.
 func (m *MockStreamingWriter) WriteAll(arg0 ident.BytesID, arg1 ts.EncodedTags, arg2 [][]byte, arg3 uint32) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteAll", arg0, arg1, arg2, arg3)
@@ -1412,7 +1412,7 @@ func (m *MockStreamingWriter) WriteAll(arg0 ident.BytesID, arg1 ts.EncodedTags, 
 	return ret0
 }
 
-// WriteAll indicates an expected call of WriteAll
+// WriteAll indicates an expected call of WriteAll.
 func (mr *MockStreamingWriterMockRecorder) WriteAll(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockStreamingWriter)(nil).WriteAll), arg0, arg1, arg2, arg3)

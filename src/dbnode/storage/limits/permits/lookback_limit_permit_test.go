@@ -71,7 +71,7 @@ type testLookbackLimit struct {
 }
 
 func (t *testLookbackLimit) Options() limits.LookbackLimitOptions {
-	panic("implement me")
+	return limits.LookbackLimitOptions{}
 }
 
 func (t *testLookbackLimit) Inc(inc int, _ []byte) error {
