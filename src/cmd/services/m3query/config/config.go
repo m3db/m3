@@ -164,6 +164,9 @@ type Configuration struct {
 	// Carbon is the carbon configuration.
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
+	// Middleware is middleware-specific configuration.
+	Middleware *MiddlewareConfiguration `yaml:"middleware"`
+
 	// Query is the query configuration.
 	Query QueryConfiguration `yaml:"query"`
 
@@ -459,6 +462,24 @@ type CarbonConfiguration struct {
 	// CompileEscapeAllNotOnlyQuotes will escape all characters when using a backslash
 	// in a quoted string rather than just reserving for escaping quotes.
 	CompileEscapeAllNotOnlyQuotes bool `yaml:"compileEscapeAllNotOnlyQuotes"`
+}
+
+// MiddlewareConfiguration is middleware-specific configuration.
+type MiddlewareConfiguration struct {
+	// LargeSeriesCountThreshold is the minimum number of series fetched by
+	// a query necessary to classify it as large.
+	LargeSeriesCountThreshold int `yaml:"largeSeriesCountThreshold"`
+	// LargeSeriesRangeThreshold is the minimum query range for a query necessary
+	// to classify it as large.
+	LargeSeriesRangeThreshold time.Duration `yaml:"largeSeriesRangeThreshold"`
+	// InspectQuerySize will tag query metrics as large if they exceed both of the
+	// given thresholds.
+	InspectQuerySize bool `yaml:"inspectQueries"`
+	// AddStatusToLatencies will add a tag with the query's response code to
+	// middleware latency metrics.
+	// NB: Setting this to true will increase cardinality by the number of
+	// expected response codes (likely around ~10).
+	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.

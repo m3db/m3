@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/x/instrument"
@@ -34,24 +35,28 @@ import (
 // NewEndpointRegistry returns a new endpoint registry.
 func NewEndpointRegistry(
 	router *mux.Router,
+	middlewareConfig *config.MiddlewareConfiguration,
 	instrumentOpts instrument.Options,
 ) *EndpointRegistry {
 	instrumentOpts = instrumentOpts.SetMetricsScope(
-		// the double http_handler was accidentally introduced and now we are stuck with it for backwards compatibility.
+		// NB: the double http_handler was accidentally introduced and now we are
+		// stuck with it for backwards compatibility.
 		instrumentOpts.MetricsScope().SubScope("http_handler_http_handler"))
 	return &EndpointRegistry{
-		router:         router,
-		instrumentOpts: instrumentOpts,
-		registered:     make(map[routeKey]*mux.Route),
+		router:           router,
+		instrumentOpts:   instrumentOpts,
+		middlewareConfig: middlewareConfig,
+		registered:       make(map[routeKey]*mux.Route),
 	}
 }
 
 // EndpointRegistry is an endpoint registry that can register routes
 // and instrument them.
 type EndpointRegistry struct {
-	router         *mux.Router
-	instrumentOpts instrument.Options
-	registered     map[routeKey]*mux.Route
+	router           *mux.Router
+	instrumentOpts   instrument.Options
+	middlewareConfig *config.MiddlewareConfiguration
+	registered       map[routeKey]*mux.Route
 }
 
 type routeKey struct {
@@ -78,6 +83,7 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 	middle := opts.Middleware(options.MiddlewareOptions{
 		InstrumentOpts: r.instrumentOpts,
 		Route:          route,
+		Config:         r.middlewareConfig,
 	})
 	handler := opts.Handler
 	// iterate through in reverse order so each middleware fn gets the proper next handler to dispatch. this ensures the
