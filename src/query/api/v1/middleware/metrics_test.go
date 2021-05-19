@@ -61,13 +61,12 @@ func TestResponseMetrics(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 
 	snapshot := scope.Snapshot()
-	counters := snapshot.Counters()
-	require.Len(t, counters, 1)
-
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":   "/test",
-		"size":   "small",
-		"status": "200",
+		"path":            "/test",
+		"status":          "200",
+		"size":            "small",
+		"count_threshold": "0",
+		"range_threshold": "0",
 	})
 
 	hist := snapshot.Histograms()
@@ -75,8 +74,10 @@ func TestResponseMetrics(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path": "/test",
-			"size": "small",
+			"path":            "/test",
+			"size":            "small",
+			"count_threshold": "0",
+			"range_threshold": "0",
 		}, h.Tags())
 	}
 }
@@ -93,32 +94,30 @@ func TestLargeResponseMetrics(t *testing.T) {
 		Config: &config.MiddlewareConfiguration{
 			InspectQuerySize:          true,
 			LargeSeriesCountThreshold: 10,
-			LargeSeriesRangeThreshold: time.Minute,
+			LargeSeriesRangeThreshold: time.Minute * 15,
 		},
 	}
 
-	h := ResponseMetrics(opts).Middleware(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add(headers.FetchedSeriesCount, "15")
-			w.WriteHeader(200)
-		}))
-	route.Path("/test").Handler(h)
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add(headers.FetchedSeriesCount, "15")
+		w.WriteHeader(200)
+	}))
+	route.Path("/api/v1/query_range").Handler(h)
 
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	resp, err := server.Client().Get(server.URL + "/test?query=rate(up[20m])") //nolint: noctx
+	resp, err := server.Client().Get(server.URL + "/api/v1/query_range?query=rate(up[20m])") //nolint: noctx
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
 	snapshot := scope.Snapshot()
-	counters := snapshot.Counters()
-	require.Len(t, counters, 1)
-
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":   "/test",
-		"size":   "large",
-		"status": "200",
+		"path":            "/api/v1/query_range",
+		"status":          "200",
+		"size":            "large",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
 	})
 
 	hist := snapshot.Histograms()
@@ -126,8 +125,10 @@ func TestLargeResponseMetrics(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path": "/test",
-			"size": "large",
+			"path":            "/api/v1/query_range",
+			"size":            "large",
+			"count_threshold": "10",
+			"range_threshold": "15m0s",
 		}, h.Tags())
 	}
 }

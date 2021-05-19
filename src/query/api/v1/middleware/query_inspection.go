@@ -21,11 +21,14 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/prometheus/promql/parser"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -33,14 +36,40 @@ import (
 )
 
 const (
-	querySizeMetricName = "size"
-	querySizeSmall      = "small"
-	querySizeLarge      = "large"
+	querySizeMetricName      = "size"
+	countThresholdMetricName = "count_threshold"
+	rangeThresholdMetricName = "range_threshold"
+	querySizeSmall           = "small"
+	querySizeLarge           = "large"
 
 	// promDefaultLookback is the default lookback in Prometheus, that affects
 	// the actual range it fetches datapoints from.
 	promDefaultLookback = time.Minute * 5
 )
+
+type queryInspectionMetrics struct {
+	notQuery            tally.Counter
+	notInspected        tally.Counter
+	belowCountThreshold tally.Counter
+	badQuery            tally.Counter
+	belowRangeThreshold tally.Counter
+	largeTags           tally.Counter
+}
+
+func newQueryInspectionMetrics(scope tally.Scope) queryInspectionMetrics {
+	buildCounter := func(status string) tally.Counter {
+		return scope.Tagged(map[string]string{"status": status}).Counter("count")
+	}
+
+	return queryInspectionMetrics{
+		notQuery:            buildCounter("notQuery"),
+		notInspected:        buildCounter("notInspected"),
+		belowCountThreshold: buildCounter("belowCountThreshold"),
+		badQuery:            buildCounter("badQuery"),
+		belowRangeThreshold: buildCounter("belowRangeThreshold"),
+		largeTags:           buildCounter("largeTags"),
+	}
+}
 
 func retrieveQueryRange(expr parser.Node, rangeSoFar time.Duration) time.Duration {
 	var (
@@ -80,41 +109,74 @@ func retrieveQueryRange(expr parser.Node, rangeSoFar time.Duration) time.Duratio
 	return queryRange
 }
 
-// NB: calculateQuerySize determines this query's size; if the number of fetched
+func isQueryPath(path string) bool {
+	idx := strings.LastIndex(path, "/")
+	if idx < 0 {
+		return false
+	}
+
+	path = path[idx+1:]
+	return path == "query" || path == "query_range"
+}
+
+// NB: inspectQuerySize determines this query's size; if the number of fetched
 // series exceeds a certain number, and the query range exceeds a certain range,
 // the query is classified as "large"; otherwise, this query is "small".
-func calculateQuerySize(
+func inspectQuerySize(
 	w http.ResponseWriter,
 	r *http.Request,
+	path string,
+	metrics queryInspectionMetrics,
 	cfg *config.MiddlewareConfiguration,
-) string {
-	if cfg == nil || !cfg.InspectQuerySize {
-		// NB: query inspection is disabled.
-		return querySizeSmall
+) map[string]string {
+	tags := map[string]string{
+		querySizeMetricName:      querySizeSmall,
+		countThresholdMetricName: "0",
+		rangeThresholdMetricName: "0",
 	}
+
+	// NB: query categorization is only relevant for query and query_range endpoints.
+	if !isQueryPath(path) {
+		metrics.notQuery.Inc(1)
+		return tags
+	}
+
+	// NB: query inspection is disabled
+	if cfg == nil || !cfg.InspectQuerySize {
+		metrics.notInspected.Inc(1)
+		return tags
+	}
+
+	tags[countThresholdMetricName] = fmt.Sprint(cfg.LargeSeriesCountThreshold)
+	tags[rangeThresholdMetricName] = cfg.LargeSeriesRangeThreshold.String()
 
 	fetchedCount := w.Header().Get(headers.FetchedSeriesCount)
 	fetched, err := strconv.Atoi(fetchedCount)
 	if err != nil || fetched < cfg.LargeSeriesCountThreshold {
 		// NB: header does not exist, or value is below the large query threshold.
-		// Classify this as a small query.
-		return querySizeSmall
+		metrics.belowCountThreshold.Inc(1)
+		return tags
 	}
 
 	query, err := native.ParseQuery(r)
 	if err != nil {
-		return querySizeSmall
+		metrics.badQuery.Inc(1)
+		return tags
 	}
 
 	expr, err := parser.ParseExpr(query)
 	if err != nil {
-		return querySizeSmall
+		metrics.badQuery.Inc(1)
+		return tags
 	}
 
 	queryRange := retrieveQueryRange(expr, 0)
 	if queryRange < cfg.LargeSeriesRangeThreshold {
-		return querySizeSmall
+		metrics.belowRangeThreshold.Inc(1)
+		return tags
 	}
 
-	return querySizeLarge
+	metrics.largeTags.Inc(1)
+	tags[querySizeMetricName] = fmt.Sprint(querySizeLarge)
+	return tags
 }

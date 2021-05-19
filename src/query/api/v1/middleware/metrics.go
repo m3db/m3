@@ -47,6 +47,13 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 		route = opts.Route
 		cfg   = opts.Config
 	)
+
+	scope := tally.NoopScope
+	if iOpts != nil {
+		scope = iOpts.MetricsScope()
+	}
+
+	queryMetrics := newQueryInspectionMetrics(scope)
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
@@ -65,8 +72,7 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 				path = "unknown"
 			}
 
-			querySize := calculateQuerySize(w, r, cfg)
-			tags := map[string]string{querySizeMetricName: querySize}
+			tags := inspectQuerySize(w, r, path, queryMetrics, cfg)
 			metrics := newRouteMetrics(iOpts)
 			counter, timer := metrics.metric(path, statusCodeTracking.Status, tags)
 			counter.Inc(1)
