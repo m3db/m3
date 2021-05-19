@@ -28,7 +28,7 @@ By default the official M3 Docker image configures a single instance as one bina
 -   An M3DB storage instance for time series storage. It includes an embedded tag-based metrics index and an etcd server for storing the cluster topology and runtime configuration.
 -   A M3 Coordinator instance for writing and querying tagged metrics, as well as managing cluster topology and runtime configuration.
 
-The Docker container exposes three ports:
+The Docker container exposes two ports:
 
 -   `7201` to manage the cluster topology, you make most API calls to this endpoint
 -   `7203` for Prometheus to scrape the metrics produced by M3DB and M3 Coordinator
