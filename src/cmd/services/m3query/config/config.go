@@ -466,15 +466,15 @@ type CarbonConfiguration struct {
 
 // MiddlewareConfiguration is middleware-specific configuration.
 type MiddlewareConfiguration struct {
-	// InspectQuerySize will tag query metrics as large if they exceed both of the
-	// given thresholds.
-	InspectQuerySize bool `yaml:"inspectQueries"`
 	// LargeSeriesCountThreshold is the minimum number of series fetched by
 	// a query necessary to classify it as large.
 	LargeSeriesCountThreshold int `yaml:"largeSeriesCountThreshold"`
 	// LargeSeriesCountThreshold is the minimum query range for a query necessary
 	// to classify it as large.
 	LargeSeriesRangeThreshold time.Duration `yaml:"largeSeriesRangeThreshold"`
+	// InspectQuerySize will tag query metrics as large if they exceed both of the
+	// given thresholds.
+	InspectQuerySize bool `yaml:"inspectQueries"`
 	// AddStatusToLatencies will add a tag with the query's response code to
 	// middleware latency metrics.
 	// NB: Setting this to true will increase cardinality by the number of

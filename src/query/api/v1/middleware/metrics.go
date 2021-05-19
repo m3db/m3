@@ -30,7 +30,6 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/models"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -112,15 +111,6 @@ func newRouteMetrics(instrumentOpts instrument.Options) *routeMetrics {
 		metrics:        make(map[routeMetricKey]routeMetric),
 		timers:         make(map[routeMetricKey]tally.Timer),
 	}
-}
-
-func keyForTags(tags map[string]string) []byte {
-	modelTags := models.NewTags(len(tags), nil)
-	for k, v := range tags {
-		modelTags.AddTagWithoutNormalizing(models.Tag{Name: []byte(k), Value: []byte(v)})
-	}
-
-	return modelTags.ID()
 }
 
 func (m *routeMetrics) metric(

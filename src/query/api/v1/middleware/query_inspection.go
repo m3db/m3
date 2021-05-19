@@ -109,14 +109,13 @@ func retrieveQueryRange(expr parser.Node, rangeSoFar time.Duration) time.Duratio
 	return queryRange
 }
 
-func isQueryPath(path string) bool {
+func lastPathSegment(path string) string {
 	idx := strings.LastIndex(path, "/")
 	if idx < 0 {
-		return false
+		return ""
 	}
 
-	path = path[idx+1:]
-	return path == "query" || path == "query_range"
+	return path[idx+1:]
 }
 
 type querySize struct {
@@ -157,8 +156,35 @@ func inspectQuerySize(
 		rangeThreshold: "0",
 	}
 
+	duration := time.Duration(0)
 	// NB: query categorization is only relevant for query and query_range endpoints.
-	if !isQueryPath(path) {
+	lastPath := lastPathSegment(path)
+	if lastPath == "query_range" {
+		// NB: for a query range, add the length of the range to the query duration
+		// to get the full time range.
+		if err := r.ParseForm(); err != nil {
+			// NB: invalid query.
+			metrics.badQuery.Inc(1)
+			return size
+		}
+
+		now := time.Now()
+		start, err := native.ParseTime(r, "start", now)
+		if err != nil {
+			// NB: invalid query.
+			metrics.badQuery.Inc(1)
+			return size
+		}
+
+		end, err := native.ParseTime(r, "end", now)
+		if err != nil {
+			// NB: invalid query.
+			metrics.badQuery.Inc(1)
+			return size
+		}
+
+		duration = end.Sub(start)
+	} else if lastPath != "query" {
 		metrics.notQuery.Inc(1)
 		return size
 	}
@@ -193,7 +219,7 @@ func inspectQuerySize(
 	}
 
 	queryRange := retrieveQueryRange(expr, 0)
-	if queryRange < cfg.LargeSeriesRangeThreshold {
+	if duration+queryRange < cfg.LargeSeriesRangeThreshold {
 		metrics.belowRangeThreshold.Inc(1)
 		return size
 	}

@@ -176,20 +176,22 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 	defer server.Close()
 
 	urls := []string{
-		"query=rate(up[20m])&series_count=15&response_code=200",
-		"query=rate(up[10m])&series_count=15&response_code=200",
-		"query=rate(up[10m])&series_count=5&response_code=200",
-		"query=rate(up[20m])&series_count=15&response_code=300",
+		"query_range?query=rate(up[20m])&series_count=15&response_code=200&start=1&end=1",
+		"query_range?query=rate(up[10m])&series_count=15&response_code=200&start=1&end=1",
+		"query_range?query=rate(up[10m])&series_count=5&response_code=200&start=1&end=1",
+		"query_range?query=rate(up[20m])&series_count=15&response_code=300&start=1&end=1",
+		// NB: this should be large since the end-start + query duration is 15m.
+		"query_range?query=rate(up[14m])&series_count=15&response_code=200&start=1621458000&end=1621458060",
 	}
 
 	for _, url := range urls {
-		resp, err := server.Client().Get(server.URL + "/api/v1/query_range?" + url) //nolint: noctx
+		resp, err := server.Client().Get(server.URL + "/api/v1/" + url) //nolint: noctx
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
 	}
 
 	snapshot := scope.Snapshot()
-	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+	tallytest.AssertCounterValue(t, 2, snapshot, "request", map[string]string{
 		"path":            "/api/v1/query_range",
 		"status":          "200",
 		"size":            "large",
@@ -219,7 +221,7 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
 		"status": "below_count_threshold",
 	})
-	tallytest.AssertCounterValue(t, 2, snapshot, "count", map[string]string{
+	tallytest.AssertCounterValue(t, 3, snapshot, "count", map[string]string{
 		"status": "large_query",
 	})
 
@@ -252,12 +254,9 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		require.Equal(t, "10", tags["count_threshold"])
 		require.Equal(t, "15m0s", tags["range_threshold"])
 
-		sizeVal := tags["size"]
-		sizes[sizeVal] = sizes[sizeVal] + 1
-
+		sizes[tags["size"]]++
 		if addStatus {
-			statusVal := tags["status"]
-			statuses[statusVal] = statuses[statusVal] + 1
+			statuses[tags["status"]]++
 		}
 	}
 
