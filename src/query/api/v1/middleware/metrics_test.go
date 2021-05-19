@@ -103,18 +103,18 @@ func TestLargeResponseMetrics(t *testing.T) {
 		w.Header().Add(headers.FetchedSeriesCount, "15")
 		w.WriteHeader(200)
 	}))
-	route.Path("/api/v1/query_range").Handler(h)
+	route.Path("/api/v1/query").Handler(h)
 
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	resp, err := server.Client().Get(server.URL + "/api/v1/query_range?query=rate(up[20m])") //nolint: noctx
+	resp, err := server.Client().Get(server.URL + "/api/v1/query?query=rate(up[20m])") //nolint: noctx
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
 	snapshot := scope.Snapshot()
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":            "/api/v1/query_range",
+		"path":            "/api/v1/query",
 		"status":          "200",
 		"size":            "large",
 		"count_threshold": "10",
@@ -126,7 +126,7 @@ func TestLargeResponseMetrics(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path":            "/api/v1/query_range",
+			"path":            "/api/v1/query",
 			"size":            "large",
 			"count_threshold": "10",
 			"range_threshold": "15m0s",
@@ -176,16 +176,16 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 	defer server.Close()
 
 	urls := []string{
-		"query_range?query=rate(up[20m])&series_count=15&response_code=200&start=1&end=1",
-		"query_range?query=rate(up[10m])&series_count=15&response_code=200&start=1&end=1",
-		"query_range?query=rate(up[10m])&series_count=5&response_code=200&start=1&end=1",
-		"query_range?query=rate(up[20m])&series_count=15&response_code=300&start=1&end=1",
+		"query=rate(up[20m])&series_count=15&response_code=200&start=1&end=1",
+		"query=rate(up[10m])&series_count=15&response_code=200&start=1&end=1",
+		"query=rate(up[10m])&series_count=5&response_code=200&start=1&end=1",
+		"query=rate(up[20m])&series_count=15&response_code=300&start=1&end=1",
 		// NB: this should be large since the end-start + query duration is 15m.
-		"query_range?query=rate(up[14m])&series_count=15&response_code=200&start=1621458000&end=1621458060",
+		"query=rate(up[14m])&series_count=15&response_code=200&start=1621458000&end=1621458060",
 	}
 
 	for _, url := range urls {
-		resp, err := server.Client().Get(server.URL + "/api/v1/" + url) //nolint: noctx
+		resp, err := server.Client().Get(server.URL + "/api/v1/query_range?" + url) //nolint: noctx
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
 	}
