@@ -62,19 +62,38 @@ func transformIncrease() BinaryTransform {
 	return transformIncreaseFn
 }
 
+type TransformationFeatureFlags struct {
+	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
+}
+
 // increase computes the difference between consecutive datapoints, unlike
 // perSecond it does not account for the time interval between the values.
 // Note:
 // * It skips NaN values.
 // * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
 //   If either of the two conditions is not met, an empty datapoint is returned.
-func increase(prev, curr Datapoint) Datapoint {
-	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
+func increase(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint {
+	if prev.TimeNanos >= curr.TimeNanos {
 		return emptyDatapoint
 	}
+	if math.IsNaN(curr.Value) {
+		return emptyDatapoint
+	}
+	if math.IsNaN(prev.Value) {
+		if !flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease {
+			return emptyDatapoint
+		}
+		prev.Value = 0
+	}
+
 	diff := curr.Value - prev.Value
 	if diff < 0 {
 		return emptyDatapoint
 	}
 	return Datapoint{TimeNanos: curr.TimeNanos, Value: diff}
 }
+
+// [nan,1,nan,nan,nan,5,nan,nan,nan,nan,7]
+// call increase(...) only when something changes and only passed the changed values in
+// ideally:
+// [(nan,1),(1,5),(5,7)]
