@@ -14,6 +14,7 @@ PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.4.3
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 METRIC_NAME_TEST_RESTRICT_WRITE=bar_metric
 QUERY_LIMIT_MESSAGE="${QUERY_LIMIT_MESSAGE:-query exceeded limit}"
+RUN_GLOBAL_LIMIT_TEST="${RUN_GLOBAL_LIMIT_TEST:-true}"
 QUERY_TIMEOUT_STATUS_CODE="${QUERY_TIMEOUT_STATUS_CODE:-504}"
 export REVISION
 
@@ -643,8 +644,10 @@ test_query_restrict_tags
 test_prometheus_remote_write_map_tags
 test_series 
 test_label_query_limits_applied 
-test_labels 
-test_query_limits_global_applied
+test_labels
+if [[ "$RUN_GLOBAL_LIMIT_TEST" == "true" ]]; then
+  test_query_limits_global_applied
+fi
 
 echo "Running function correctness tests"
 test_correctness

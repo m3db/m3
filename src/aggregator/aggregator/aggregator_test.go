@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -321,7 +322,7 @@ func TestAggregatorAddUntimedInvalidMetricType(t *testing.T) {
 	require.Equal(t, errInvalidMetricType, err)
 }
 
-func TestAggregatorAddUntimedNotOpen(t *testing.T) {
+func TestAggregatorAddUntimedShardNotOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -429,7 +430,19 @@ func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 	}
 }
 
-func TestAggregatorAddTimedNotOpen(t *testing.T) {
+func TestAggregatorAddUntimedWithShardRedirect(t *testing.T) {
+	testAddWithShardRedirect(t, func(agg *aggregator) error {
+		return agg.AddUntimed(testUntimedMetric, testStagedMetadatas)
+	})
+}
+
+func TestAggregatorAddUntimedWithShardRedirectToNotOwned(t *testing.T) {
+	testAddWithShardRedirectToNotOwned(t, func(agg *aggregator) error {
+		return agg.AddUntimed(testUntimedMetric, testStagedMetadatas)
+	})
+}
+
+func TestAggregatorAddTimedShardNotOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -540,7 +553,19 @@ func TestAggregatorAddTimedSuccessWithPlacementUpdate(t *testing.T) {
 	}
 }
 
-func TestAggregatorAddForwardedNotOpen(t *testing.T) {
+func TestAggregatorAddTimedWithShardRedirect(t *testing.T) {
+	testAddWithShardRedirect(t, func(agg *aggregator) error {
+		return agg.AddTimed(testTimedMetric, testTimedMetadata)
+	})
+}
+
+func TestAggregatorAddTimedWithShardRedirectToNotOwned(t *testing.T) {
+	testAddWithShardRedirectToNotOwned(t, func(agg *aggregator) error {
+		return agg.AddTimed(testTimedMetric, testTimedMetadata)
+	})
+}
+
+func TestAggregatorAddForwardedShardNotOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -649,6 +674,18 @@ func TestAggregatorAddForwardedSuccessWithPlacementUpdate(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func TestAggregatorAddForwardedWithShardRedirect(t *testing.T) {
+	testAddWithShardRedirect(t, func(agg *aggregator) error {
+		return agg.AddForwarded(testForwardedMetric, testForwardMetadata)
+	})
+}
+
+func TestAggregatorAddForwardedWithShardRedirectToNotOwned(t *testing.T) {
+	testAddWithShardRedirectToNotOwned(t, func(agg *aggregator) error {
+		return agg.AddForwarded(testForwardedMetric, testForwardMetadata)
+	})
 }
 
 func TestAggregatorResignError(t *testing.T) {
@@ -1043,8 +1080,43 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	require.Equal(t, 0, len(gauges))
 }
 
+func testAddWithShardRedirect(t *testing.T, addFn func(*aggregator) error) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregatorWithShardRedirect(t, ctrl, 3, 1)
+	require.NoError(t, agg.Open())
+	agg.shardFn = func([]byte, uint32) uint32 { return 3 }
+	err := addFn(agg)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+}
+
+func testAddWithShardRedirectToNotOwned(t *testing.T, addFn func(*aggregator) error) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregatorWithShardRedirect(t, ctrl, 3, 100)
+	require.NoError(t, agg.Open())
+	agg.shardFn = func([]byte, uint32) uint32 { return 3 }
+	err := addFn(agg)
+	require.Equal(t, errShardNotOwned, err)
+}
+
 func testAggregator(t *testing.T, ctrl *gomock.Controller) (*aggregator, kv.Store) {
 	proto := testStagedPlacementProtoWithNumShards(t, testInstanceID, testShardSetID, testNumShards)
+	return testAggregatorWithCustomPlacements(t, ctrl, proto)
+}
+
+func testAggregatorWithShardRedirect(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	fromShard, toShard uint32,
+) (*aggregator, kv.Store) {
+	proto := testStagedPlacementProtoWithNumShards(t, testInstanceID, testShardSetID, testNumShards)
+	shards := proto.Snapshots[0].Instances[testInstanceID].Shards
+	shards[fromShard].RedirectToShardId = &types.UInt32Value{Value: toShard}
+
 	return testAggregatorWithCustomPlacements(t, ctrl, proto)
 }
 

@@ -77,6 +77,7 @@ type aggregatorShard struct {
 	sync.RWMutex
 
 	shard                            uint32
+	redirectToShardID                *uint32
 	nowFn                            clock.NowFn
 	bufferDurationBeforeShardCutover time.Duration
 	bufferDurationAfterShardCutoff   time.Duration
@@ -139,6 +140,10 @@ func (s *aggregatorShard) IsCutoff() bool {
 	isCutoff := nowNanos >= s.cutoffNanos
 	s.RUnlock()
 	return isCutoff
+}
+
+func (s *aggregatorShard) SetRedirectToShardID(id *uint32) {
+	s.redirectToShardID = id
 }
 
 func (s *aggregatorShard) SetWriteableRange(rng timeRange) {
