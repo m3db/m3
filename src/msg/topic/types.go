@@ -64,7 +64,7 @@ type Topic interface {
 	// String returns the string representation of the topic.
 	String() string
 
-	// Validate() validates the topic.
+	// Validate validates the topic.
 	Validate() error
 }
 

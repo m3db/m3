@@ -50,7 +50,7 @@ type Options interface {
 	// BytesPool returns the bytes pool.
 	BytesPool() pool.BytesPool
 
-	// SetEncodingTimeSampleRate sets the sampling rate at which the encoding time is
+	// SetEncodingTimeSamplingRate sets the sampling rate at which the encoding time is
 	// included in the encoded data. A value of 0 means the encoding time is never included,
 	// and a value of 1 means the encoding time is always included.
 	SetEncodingTimeSamplingRate(value float64) Options
