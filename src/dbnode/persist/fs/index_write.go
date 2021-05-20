@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xos "github.com/m3db/m3/src/x/os"
 
 	protobuftypes "github.com/gogo/protobuf/types"
 )
@@ -149,7 +150,14 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 			w.checkpointFilePath)
 	}
 
-	return nil
+	// NB: Write out an incomplete index info file when we start writing a volume,
+	// this is later used in the cleanup of corrupted/incomplete index filesets.
+	infoFileData, err := w.infoFileData()
+	if err != nil {
+		return err
+	}
+
+	return w.writeInfoFile(infoFileData)
 }
 
 func (w *indexWriter) WriteSegmentFileSet(
@@ -297,8 +305,8 @@ func (w *indexWriter) Close() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(w.infoFilePath, infoFileData, w.newFileMode)
-	if err != nil {
+
+	if err := w.writeInfoFile(infoFileData); err != nil {
 		return err
 	}
 
@@ -316,4 +324,11 @@ func (w *indexWriter) Close() error {
 	digestBuffer := digest.NewBuffer()
 	digestBuffer.WriteDigest(digest.Checksum(digestsFileData))
 	return ioutil.WriteFile(w.checkpointFilePath, digestBuffer, w.newFileMode)
+}
+
+func (w *indexWriter) writeInfoFile(infoFileData []byte) error {
+	// NB: corrupted index fileset cleanup logic depends on info files being written ahead of
+	// all the other files. To avoid cases where writes could be observed in a different order,
+	// info files are being fsync'ed immediately after being written.
+	return xos.WriteFileSync(w.infoFilePath, infoFileData, w.newFileMode)
 }

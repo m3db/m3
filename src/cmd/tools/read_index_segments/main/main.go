@@ -80,7 +80,6 @@ func main() {
 		validateConcurrency: *optValidateConcurrency,
 		log:                 log,
 	})
-
 }
 
 type runOptions struct {
