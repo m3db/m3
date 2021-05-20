@@ -24,7 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/gogo/protobuf/types"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
@@ -74,17 +77,26 @@ func NewShardFromProto(spb *placementpb.Shard) (Shard, error) {
 		return nil, err
 	}
 
+	var redirectToShardID *uint32
+	if spb.RedirectToShardId != nil {
+		redirectToShardID = new(uint32)
+		*redirectToShardID = spb.RedirectToShardId.Value
+	}
+
 	return &shard{
-		id:           spb.Id,
-		state:        state,
-		sourceID:     spb.SourceId,
-		cutoverNanos: spb.CutoverNanos,
-		cutoffNanos:  spb.CutoffNanos,
+		id:                spb.Id,
+		redirectToShardID: redirectToShardID,
+		state:             state,
+		sourceID:          spb.SourceId,
+		cutoverNanos:      spb.CutoverNanos,
+		cutoffNanos:       spb.CutoffNanos,
 	}, nil
 }
 
 type shard struct {
-	id           uint32
+	id                uint32
+	redirectToShardID *uint32
+
 	state        State
 	sourceID     string
 	cutoverNanos int64
@@ -139,12 +151,29 @@ func (s *shard) SetCutoffNanos(value int64) Shard {
 	return s
 }
 
+func (s *shard) RedirectToShardID() *uint32 {
+	return s.redirectToShardID
+}
+
+// SetRedirectToShardID sets optional shard to redirect incoming writes to.
+func (s *shard) SetRedirectToShardID(id *uint32) Shard {
+	s.redirectToShardID = nil
+	if id != nil {
+		s.redirectToShardID = new(uint32)
+		*s.redirectToShardID = *id
+	}
+	return s
+}
+
 func (s *shard) Equals(other Shard) bool {
 	return s.ID() == other.ID() &&
 		s.State() == other.State() &&
 		s.SourceID() == other.SourceID() &&
 		s.CutoverNanos() == other.CutoverNanos() &&
-		s.CutoffNanos() == other.CutoffNanos()
+		s.CutoffNanos() == other.CutoffNanos() &&
+		((s.RedirectToShardID() == nil && other.RedirectToShardID() == nil) ||
+			(s.RedirectToShardID() != nil && other.RedirectToShardID() != nil &&
+				*s.RedirectToShardID() == *other.RedirectToShardID()))
 }
 
 func (s *shard) Proto() (*placementpb.Shard, error) {
@@ -153,12 +182,18 @@ func (s *shard) Proto() (*placementpb.Shard, error) {
 		return nil, err
 	}
 
+	var redirectToShardID *types.UInt32Value
+	if s.redirectToShardID != nil {
+		redirectToShardID = &types.UInt32Value{Value: *s.redirectToShardID}
+	}
+
 	return &placementpb.Shard{
-		Id:           s.id,
-		State:        ss,
-		SourceId:     s.sourceID,
-		CutoverNanos: s.cutoverNanos,
-		CutoffNanos:  s.cutoffNanos,
+		Id:                s.id,
+		RedirectToShardId: redirectToShardID,
+		State:             ss,
+		SourceId:          s.sourceID,
+		CutoverNanos:      s.cutoverNanos,
+		CutoffNanos:       s.cutoffNanos,
 	}, nil
 }
 
@@ -334,8 +369,18 @@ func (ss *shards) Equals(other Shards) bool {
 func (ss *shards) String() string {
 	var strs []string
 	for _, state := range validStates() {
-		ids := NewShards(ss.ShardsForState(state)).AllIDs()
-		str := fmt.Sprintf("%s=%v", state.String(), ids)
+		shardsInState := ss.ShardsForState(state)
+		idStrs := make([]string, 0, len(shardsInState))
+		for _, shard := range shardsInState {
+			var idStr string
+			if shard.RedirectToShardID() != nil {
+				idStr = fmt.Sprintf("%d -> %d", shard.ID(), *shard.RedirectToShardID())
+			} else {
+				idStr = strconv.Itoa(int(shard.ID()))
+			}
+			idStrs = append(idStrs, idStr)
+		}
+		str := fmt.Sprintf("%s=%v", state.String(), idStrs)
 		strs = append(strs, str)
 	}
 	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))

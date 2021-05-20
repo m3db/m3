@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
@@ -61,10 +62,6 @@ func NewM3MsgClient(opts Options) (Client, error) {
 		return nil, err
 	}
 
-	var (
-		instrumentOpts = opts.InstrumentOptions()
-		msgClient      m3msgClient
-	)
 	m3msgOpts := opts.M3MsgOptions()
 	if err := m3msgOpts.Validate(); err != nil {
 		return nil, err
@@ -75,17 +72,24 @@ func NewM3MsgClient(opts Options) (Client, error) {
 		return nil, err
 	}
 
-	msgClient = m3msgClient{
+	msgClient := m3msgClient{
 		producer:    producer,
 		numShards:   producer.NumShards(),
 		messagePool: newMessagePool(),
 	}
+
+	var (
+		iOpts  = opts.InstrumentOptions()
+		logger = iOpts.Logger()
+	)
+
+	logger.Info("creating M3MsgClient", zap.Uint32("numShards", msgClient.numShards))
+
 	return &M3MsgClient{
 		m3msg:   msgClient,
 		nowFn:   opts.ClockOptions().NowFn(),
 		shardFn: opts.ShardFn(),
-		metrics: newM3msgClientMetrics(instrumentOpts.MetricsScope(),
-			instrumentOpts.TimerOptions()),
+		metrics: newM3msgClientMetrics(iOpts.MetricsScope(), iOpts.TimerOptions()),
 	}, nil
 }
 

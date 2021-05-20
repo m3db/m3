@@ -46,7 +46,7 @@ import (
 
 func TestPlacementDeleteHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		ctrl := gomock.NewController(t)
+		ctrl := xtest.NewController(t)
 		defer ctrl.Finish()
 
 		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
@@ -148,7 +148,6 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 
 func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 	ctrl := xtest.NewController(t)
-	ctrl = gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
@@ -365,10 +364,10 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 	require.NoError(t, err)
 	switch serviceName {
 	case handleroptions.M3CoordinatorServiceName:
-		require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
+		require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body)) // nolint:lll
 	case handleroptions.M3AggregatorServiceName:
-		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"300000000000"}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"300000000000","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":1,"hostname":"","port":0,"metadata":{"debugPort":0}}},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":2},"version":2}`, string(body))
+		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"300000000000","redirectToShardId":null}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"300000000000","cutoffNanos":"0","redirectToShardId":null},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0","redirectToShardId":null}],"shardSetId":1,"hostname":"","port":0,"metadata":{"debugPort":0}}},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":2},"version":2}`, string(body)) // nolint:lll
 	default:
-		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}},"host3":{"id":"host3","isolationGroup":"c","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"0","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}}},"replicaFactor":2,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":2},"version":2}`, string(body))
+		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"0","redirectToShardId":null}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0","redirectToShardId":null},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0","redirectToShardId":null}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}},"host3":{"id":"host3","isolationGroup":"c","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"0","cutoffNanos":"0","redirectToShardId":null},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0","redirectToShardId":null}],"shardSetId":0,"hostname":"","port":0,"metadata":{"debugPort":0}}},"replicaFactor":2,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":2},"version":2}`, string(body)) // nolint:lll
 	}
 }

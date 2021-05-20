@@ -30,16 +30,24 @@ import (
 )
 
 func TestShard(t *testing.T) {
-	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
+	s := NewShard(1).
+		SetState(Initializing).
+		SetSourceID("id").
+		SetCutoffNanos(1000).
+		SetCutoverNanos(100).
+		SetRedirectToShardID(uint32Ptr(5))
+
 	assert.Equal(t, uint32(1), s.ID())
 	assert.Equal(t, Initializing, s.State())
 	assert.Equal(t, "id", s.SourceID())
 	assert.Equal(t, int64(1000), s.CutoffNanos())
 	assert.Equal(t, int64(100), s.CutoverNanos())
+	assert.Equal(t, uint32(5), *s.RedirectToShardID())
 }
 
 func TestShardEquals(t *testing.T) {
 	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
+	assert.True(t, s.Equals(s))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000)))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoverNanos(100)))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetCutoffNanos(1000).SetCutoverNanos(100)))
@@ -48,11 +56,23 @@ func TestShardEquals(t *testing.T) {
 	assert.False(t, s.Equals(NewShard(2).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)))
 }
 
+func TestShardEqualsWithRedirectShardID(t *testing.T) {
+	s := NewShard(1).SetRedirectToShardID(uint32Ptr(1))
+	assert.True(t, s.Equals(s))
+	assert.False(t, s.Equals(NewShard(1).SetRedirectToShardID(nil)))
+	assert.False(t, NewShard(1).SetRedirectToShardID(nil).Equals(s))
+	assert.False(t, s.Equals(NewShard(1).SetRedirectToShardID(uint32Ptr(0))))
+	assert.True(t, s.Equals(NewShard(1).SetRedirectToShardID(uint32Ptr(1))))
+}
+
 func TestShards(t *testing.T) {
+	redirectToShardID := new(uint32)
+	*redirectToShardID = 9
+
 	shards := NewShards(nil)
 	assert.Equal(t, 0, shards.NumShards())
 
-	s1 := NewShard(1).SetState(Initializing).SetSourceID("id")
+	s1 := NewShard(1).SetState(Initializing).SetSourceID("id").SetRedirectToShardID(redirectToShardID)
 	shards.Add(s1)
 	assert.Equal(t, 1, shards.NumShards())
 	assert.Equal(t, 1, shards.NumShardsForState(Initializing))
@@ -86,7 +106,7 @@ func TestShards(t *testing.T) {
 	assert.Equal(t, 2, shards.NumShards())
 
 	shards.Add(NewShard(3).SetState(Leaving))
-	assert.Equal(t, "[Initializing=[1], Available=[2], Leaving=[3]]", shards.String())
+	assert.Equal(t, "[Initializing=[1 -> 9], Available=[2], Leaving=[3]]", shards.String())
 
 	shards.Add(NewShard(4))
 	shards.Add(NewShard(4))
@@ -271,7 +291,7 @@ func makeTestShards(num int) []Shard {
 }
 
 func shardsAreSorted(t *testing.T, shards Shards) {
-	var prev int = -1
+	prev := -1
 	for _, shard := range shards.All() {
 		id := int(shard.ID())
 		if id <= prev {
@@ -279,4 +299,10 @@ func shardsAreSorted(t *testing.T, shards Shards) {
 		}
 		prev = id
 	}
+}
+
+func uint32Ptr(value uint32) *uint32 {
+	ptr := new(uint32)
+	*ptr = value
+	return ptr
 }
