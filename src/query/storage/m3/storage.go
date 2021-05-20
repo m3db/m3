@@ -335,6 +335,8 @@ func (s *m3storage) fetchCompressed(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
+			blockMeta.WaitedIndex = metadata.WaitedIndex
+			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
 			result.Add(iters, blockMeta, namespace.Options().Attributes(), err)
@@ -524,6 +526,8 @@ func (s *m3storage) CompleteTags(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
+			blockMeta.WaitedIndex = metadata.WaitedIndex
+			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
 			result := &consolidators.CompleteTagsResult{
 				CompleteNameOnly: query.CompleteNameOnly,
 				CompletedTags:    completedTags,
@@ -622,6 +626,8 @@ func (s *m3storage) SearchCompressed(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
+			blockMeta.WaitedIndex = metadata.WaitedIndex
+			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
 			result.Add(iter, blockMeta, err)
 			wg.Done()
 		}()

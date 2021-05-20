@@ -117,8 +117,9 @@ func TestSelectWithMetaInContext(t *testing.T) {
 			}, nil
 		})
 
-	series, warnings, err := q.Select(true, hints, matchers...)
-	assert.NoError(t, err)
+	series := q.Select(true, hints, matchers...)
+	warnings := series.Warnings()
+	assert.NoError(t, series.Err())
 
 	type dp struct {
 		v float64

@@ -557,7 +557,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	customHandlers := runOpts.CustomHandlerOptions.CustomHandlers
-	handler := httpd.NewHandler(handlerOptions, customHandlers...)
+	handler := httpd.NewHandler(handlerOptions, cfg.Middleware, customHandlers...)
 	if err := handler.RegisterRoutes(); err != nil {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
@@ -1241,7 +1241,14 @@ func newPromQLEngine(
 			MaxSamples:    cfg.Query.Prometheus.MaxSamplesPerQueryOrDefault(),
 			Timeout:       cfg.Query.TimeoutOrDefault(),
 			LookbackDelta: lookbackDelta,
+			NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {
+				return durationMilliseconds(1 * time.Minute)
+			},
 		}
 	)
 	return prometheuspromql.NewEngine(opts), nil
+}
+
+func durationMilliseconds(d time.Duration) int64 {
+	return int64(d / (time.Millisecond / time.Nanosecond))
 }

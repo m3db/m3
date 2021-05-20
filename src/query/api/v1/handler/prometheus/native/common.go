@@ -53,7 +53,8 @@ const (
 	nowTimeValue = "now"
 )
 
-func parseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
+// ParseTime parses a time out of a request key, with a default value.
+func ParseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
 	if t := r.FormValue(key); t != "" {
 		if t == nowTimeValue {
 			return now, nil
@@ -79,21 +80,21 @@ func parseParams(
 	params.Now = time.Now()
 	if v := r.FormValue(timeParam); v != "" {
 		var err error
-		params.Now, err = parseTime(r, timeParam, params.Now)
+		params.Now, err = ParseTime(r, timeParam, params.Now)
 		if err != nil {
 			err = fmt.Errorf(formatErrStr, timeParam, err)
 			return params, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
-	start, err := parseTime(r, startParam, params.Now)
+	start, err := ParseTime(r, startParam, params.Now)
 	if err != nil {
 		err = fmt.Errorf(formatErrStr, startParam, err)
 		return params, xerrors.NewInvalidParamsError(err)
 	}
 
 	params.Start = start
-	end, err := parseTime(r, endParam, params.Now)
+	end, err := ParseTime(r, endParam, params.Now)
 	if err != nil {
 		err = fmt.Errorf(formatErrStr, endParam, err)
 		return params, xerrors.NewInvalidParamsError(err)
@@ -120,7 +121,7 @@ func parseParams(
 	}
 	params.Step = fetchOpts.Step
 
-	query, err := parseQuery(r)
+	query, err := ParseQuery(r)
 	if err != nil {
 		return params, xerrors.NewInvalidParamsError(
 			fmt.Errorf(formatErrStr, queryParam, err))
@@ -199,7 +200,8 @@ func parseInstantaneousParams(
 	return params, nil
 }
 
-func parseQuery(r *http.Request) (string, error) {
+// ParseQuery parses a query out of an HTTP request.
+func ParseQuery(r *http.Request) (string, error) {
 	if err := r.ParseForm(); err != nil {
 		return "", err
 	}

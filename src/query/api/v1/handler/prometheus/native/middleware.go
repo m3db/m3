@@ -58,15 +58,15 @@ func QueryResponse(opts QueryResponseOptions) mux.MiddlewareFunc {
 			if opts.Threshold > 0 && d >= opts.Threshold {
 				logger := logging.WithContext(r.Context(), opts.InstrumentOpts)
 				query := r.FormValue(queryParam)
-				// N.B - instant queries set startParam/endParam to "now" if not set. parseTime can handle this special
+				// N.B - instant queries set startParam/endParam to "now" if not set. ParseTime can handle this special
 				// "now" value. Use when this middleware ran as the approximate now value.
-				startTime, err := parseTime(r, startParam, start)
+				startTime, err := ParseTime(r, startParam, start)
 				if err != nil {
 					logger.Warn("failed to parse start for response logging",
 						zap.Error(err),
 						zap.String("start", r.FormValue(startParam)))
 				}
-				endTime, err := parseTime(r, endParam, start)
+				endTime, err := ParseTime(r, endParam, start)
 				if err != nil {
 					logger.Warn("failed to parse end for response logging",
 						zap.Error(err),

@@ -46,7 +46,7 @@ func Default(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
 		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
 		RequestID(opts.InstrumentOpts),
 		ResponseLogging(time.Second, opts.InstrumentOpts),
-		ResponseMetrics(opts.InstrumentOpts, opts.Route),
+		ResponseMetrics(opts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
 		Panic(opts.InstrumentOpts),
 		Compression(),
@@ -77,7 +77,7 @@ func query(response mux.MiddlewareFunc, opts options.MiddlewareOptions) []mux.Mi
 		// install source before logging so the source is available for response logging.
 		source.Middleware(nil, opts.InstrumentOpts),
 		response,
-		ResponseMetrics(opts.InstrumentOpts, opts.Route),
+		ResponseMetrics(opts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
 		Panic(opts.InstrumentOpts),
 		Compression(),
@@ -91,7 +91,7 @@ func NoResponseLogging(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
 		Cors(),
 		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
 		RequestID(opts.InstrumentOpts),
-		ResponseMetrics(opts.InstrumentOpts, opts.Route),
+		ResponseMetrics(opts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
 		Panic(opts.InstrumentOpts),
 		Compression(),

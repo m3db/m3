@@ -201,7 +201,7 @@ func (p *parseState) walk(node pql.Node) error {
 	case *pql.MatrixSelector:
 		// Align offset to stepSize.
 		vectorSelector := n.VectorSelector.(*pql.VectorSelector)
-		vectorSelector.Offset = adjustOffset(vectorSelector.Offset, p.stepSize)
+		vectorSelector.Offset = adjustOffset(vectorSelector.OriginalOffset, p.stepSize)
 		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -211,11 +211,11 @@ func (p *parseState) walk(node pql.Node) error {
 			p.transforms,
 			parser.NewTransformFromOperation(operation, p.transformLen()),
 		)
-		return p.addLazyOffsetTransform(vectorSelector.Offset)
+		return p.addLazyOffsetTransform(vectorSelector.OriginalOffset)
 
 	case *pql.VectorSelector:
 		// Align offset to stepSize.
-		n.Offset = adjustOffset(n.Offset, p.stepSize)
+		n.Offset = adjustOffset(n.OriginalOffset, p.stepSize)
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -226,7 +226,7 @@ func (p *parseState) walk(node pql.Node) error {
 			parser.NewTransformFromOperation(operation, p.transformLen()),
 		)
 
-		return p.addLazyOffsetTransform(n.Offset)
+		return p.addLazyOffsetTransform(n.OriginalOffset)
 
 	case *pql.Call:
 		if n.Func.Name == scalar.VectorType {

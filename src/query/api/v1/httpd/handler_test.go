@@ -121,14 +121,21 @@ func setupHandler(
 		return nil, err
 	}
 
-	return NewHandler(opts, customHandlers...), nil
+	return NewHandler(opts, nil, customHandlers...), nil
 }
 
 func newPromEngine() *promql.Engine {
 	return promql.NewEngine(promql.EngineOpts{
 		MaxSamples: 10000,
 		Timeout:    100 * time.Second,
+		NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {
+			return durationMilliseconds(1 * time.Minute)
+		},
 	})
+}
+
+func durationMilliseconds(d time.Duration) int64 {
+	return int64(d / (time.Millisecond / time.Nanosecond))
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -377,7 +384,7 @@ func TestCustomRoutes(t *testing.T) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
-	handler := NewHandler(opts, custom, customShadowGet, customShadowHead, customNew)
+	handler := NewHandler(opts, nil, custom, customShadowGet, customShadowHead, customNew)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
