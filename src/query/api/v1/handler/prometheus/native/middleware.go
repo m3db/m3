@@ -51,7 +51,7 @@ func QueryResponse(opts QueryResponseOptions) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := opts.Clock.Now()
-			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
+			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w, TrackError: true}
 			w = statusCodeTracking.WrappedResponseWriter()
 			base.ServeHTTP(w, r)
 			d := opts.Clock.Now().Sub(start)
@@ -80,6 +80,9 @@ func QueryResponse(opts QueryResponseOptions) mux.MiddlewareFunc {
 					zap.Time("start", startTime),
 					zap.Time("end", endTime),
 					zap.Duration("queryRange", endTime.Sub(startTime)),
+				}
+				if statusCodeTracking.ErrMsg != "" {
+					fields = append(fields, zap.String("error", statusCodeTracking.ErrMsg))
 				}
 				fields = appendM3Headers(r.Header, fields)
 				fields = appendM3Headers(w.Header(), fields)
