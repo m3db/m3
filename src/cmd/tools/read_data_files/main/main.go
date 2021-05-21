@@ -22,7 +22,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -38,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/getopt"
+	"github.com/pkg/profile"
 	"go.uber.org/zap"
 )
 
@@ -143,6 +143,8 @@ func main() {
 		log.Fatalf("unable to open reader: %v", err)
 	}
 
+	var seriesData [][]byte
+
 	for {
 		id, _, data, _, err := reader.Read()
 		if err == io.EOF {
@@ -157,31 +159,56 @@ func main() {
 		}
 
 		if benchMode != benchmarkSeries {
+
 			data.IncRef()
 
-			iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
-			for iter.Next() {
-				dp, _, annotation := iter.Current()
-				if benchMode == benchmarkNone {
-					// Use fmt package so it goes to stdout instead of stderr
-					fmt.Printf("{id: %s, dp: %+v", id.String(), dp)
-					if len(annotation) > 0 {
-						fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(annotation))
-					}
-					fmt.Println("}")
-				}
-				datapointCount++
-			}
-			if err := iter.Err(); err != nil {
-				log.Fatalf("unable to iterate original data: %v", err)
-			}
-			iter.Close()
+			copied := append(make([]byte, 0, len(data.Bytes())), data.Bytes()...)
+			seriesData = append(seriesData, copied)
+
+			// iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
+			// for iter.Next() {
+			// 	dp, _, annotation := iter.Current()
+			// 	if benchMode == benchmarkNone {
+			// 		// Use fmt package so it goes to stdout instead of stderr
+			// 		fmt.Printf("{id: %s, dp: %+v", id.String(), dp)
+			// 		if len(annotation) > 0 {
+			// 			fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(annotation))
+			// 		}
+			// 		fmt.Println("}")
+			// 	}
+			// 	datapointCount++
+			// }
+			// if err := iter.Err(); err != nil {
+			// 	log.Fatalf("unable to iterate original data: %v", err)
+			// }
+			// iter.Close()
 
 			data.DecRef()
 		}
 
 		data.Finalize()
 		seriesCount++
+	}
+
+	prof := profile.Start(profile.CPUProfile)
+	defer prof.Stop()
+
+	iter := m3tsz.NewReaderIterator(bytes.NewReader(nil), true, encodingOpts)
+	bytesReader := bytes.NewReader(nil)
+
+	for _, data := range seriesData {
+		bytesReader.Reset(data)
+		iter.Reset(bytesReader, nil)
+		for iter.Next() {
+			dp, _, _ := iter.Current()
+			if dp.TimestampNanos > 0 {
+				datapointCount++
+			}
+		}
+		if err := iter.Err(); err != nil {
+			log.Fatalf("unable to iterate original data: %v", err)
+		}
+		iter.Close()
 	}
 
 	if benchMode != benchmarkNone {
