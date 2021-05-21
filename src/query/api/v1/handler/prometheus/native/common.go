@@ -367,8 +367,8 @@ func RenderResultsJSON(
 	}
 }
 
-// renderResultsInstantaneousJSON renders results in JSON for instant queries.
-func renderResultsInstantaneousJSON(
+// RenderResultsInstantaneousJSON renders results in JSON for instant queries.
+func RenderResultsInstantaneousJSON(
 	jw json.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,

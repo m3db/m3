@@ -174,7 +174,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		noopWriter   = json.NewNoopWriter()
 	)
 	if h.instant {
-		renderResult = renderResultsInstantaneousJSON(noopWriter, result, renderOpts)
+		renderResult = RenderResultsInstantaneousJSON(noopWriter, result, renderOpts)
 	} else {
 		renderResult = RenderResultsJSON(noopWriter, result, renderOpts)
 	}
@@ -199,7 +199,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Write the actual results after having checked for limits and wrote headers if needed.
 	responseWriter := json.NewWriter(w)
 	if h.instant {
-		_ = renderResultsInstantaneousJSON(responseWriter, result, renderOpts)
+		_ = RenderResultsInstantaneousJSON(responseWriter, result, renderOpts)
 	} else {
 		_ = RenderResultsJSON(responseWriter, result, renderOpts)
 	}
