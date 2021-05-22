@@ -84,6 +84,7 @@ func (o FetchOptionsBuilderOptions) Validate() error {
 // creating a fetch options builder.
 type FetchOptionsBuilderLimitsOptions struct {
 	SeriesLimit                 int
+	InstanceMultiple            float32
 	DocsLimit                   int
 	ReturnedSeriesLimit         int
 	ReturnedDatapointsLimit     int
@@ -212,6 +213,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.SeriesLimit = seriesLimit
+	fetchOpts.InstanceMultiple = b.opts.Limits.InstanceMultiple
 
 	docsLimit, err := ParseLimit(req, headers.LimitMaxDocsHeader,
 		"docsLimit", b.opts.Limits.DocsLimit)

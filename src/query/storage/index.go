@@ -71,6 +71,7 @@ func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
 	return index.QueryOptions{
 		SeriesLimit:       fetchOptions.SeriesLimit,
+		InstanceMultiple:  fetchOptions.InstanceMultiple,
 		DocsLimit:         fetchOptions.DocsLimit,
 		RequireExhaustive: fetchOptions.RequireExhaustive,
 		RequireNoWait:     fetchOptions.RequireNoWait,

@@ -366,6 +366,17 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
 
+	// InstanceMultiple increases the per database instance series limit.
+	// The series limit per database instance is calculated as:
+	//
+	// InstanceSeriesLimit = MaxFetchesSeries / (instances per replica) * InstanceMultiple.
+	//
+	// A value > 1 allows a buffer in case data is not uniformly sharded across instances in a replica.
+	// If set to 0 the feature is disabled and the MaxFetchedSeries is used as the limit for database instance.
+	// For large clusters, enabling this feature this can dramatically decrease the amount of wasted series read from a
+	// single database instance.
+	InstanceMultiple float32 `yaml:"instanceMultiple"`
+
 	// MaxFetchedDocs limits the number of index documents matched for any given
 	// individual storage node per query, before returning result to query
 	// service.
@@ -395,6 +406,7 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
 		SeriesLimit:       int(seriesLimit),
+		InstanceMultiple:  l.InstanceMultiple,
 		DocsLimit:         int(docsLimit),
 		RequireExhaustive: requireExhaustive,
 	}
