@@ -2046,27 +2046,56 @@ func TestRemoveEmptySeries(t *testing.T) {
 
 	nan := math.NaN()
 	tests := []struct {
-		inputs  []common.TestSeries
-		outputs []common.TestSeries
+		inputs       []common.TestSeries
+		xFilesFactor float64
+		outputs      []common.TestSeries
 	}{
 		{
 			[]common.TestSeries{
-				{"foo", []float64{nan, 601, nan, nan}},
-				{"bar", []float64{500, nan}},
-				{"baz", []float64{nan, nan, nan}},
+				{"foo", []float64{500, 600, 700}},
+				{"bar", []float64{500, 600, nan}},
+				{"baz", []float64{500, nan, nan}},
+				{"qux", []float64{nan, nan, nan}},
 			},
+			0,
 			[]common.TestSeries{
-				{"foo", []float64{nan, 601, nan, nan}},
-				{"bar", []float64{500, nan}},
+				{"foo", []float64{500, 600, 700}},
+				{"bar", []float64{500, 600, nan}},
+				{"baz", []float64{500, nan, nan}},
+			},
+		},
+		{
+			[]common.TestSeries{
+				{"foo", []float64{500, 600, 700}},
+				{"bar", []float64{500, 600, nan}},
+				{"baz", []float64{500, nan, nan}},
+				{"qux", []float64{nan, nan, nan}},
+			},
+			0.5,
+			[]common.TestSeries{
+				{"foo", []float64{500, 600, 700}},
+				{"bar", []float64{500, 600, nan}},
+			},
+		},
+		{
+			[]common.TestSeries{
+				{"foo", []float64{500, 600, 700}},
+				{"bar", []float64{500, 600, nan}},
+				{"baz", []float64{500, nan, nan}},
+				{"qux", []float64{nan, nan, nan}},
+			},
+			1,
+			[]common.TestSeries{
+				{"foo", []float64{500, 600, 700}},
 			},
 		},
 	}
 	start := time.Now()
 	step := 100
 	for _, test := range tests {
-		outputs, err := removeEmptySeries(ctx, singlePathSpec{
-			Values: generateSeriesList(ctx, start, test.inputs, step),
-		})
+		outputs, err := removeEmptySeries(ctx,
+			singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step)},
+			test.xFilesFactor)
 		require.NoError(t, err)
 		common.CompareOutputsAndExpected(t, step, start,
 			test.outputs, outputs.Values)
