@@ -373,7 +373,7 @@ type PerQueryLimitsConfiguration struct {
 	//
 	// A value > 1 allows a buffer in case data is not uniformly sharded across instances in a replica.
 	// If set to 0 the feature is disabled and the MaxFetchedSeries is used as the limit for database instance.
-	// For large clusters, enabling this feature this can dramatically decrease the amount of wasted series read from a
+	// For large clusters, enabling this feature can dramatically decrease the amount of wasted series read from a
 	// single database instance.
 	InstanceMultiple float32 `yaml:"instanceMultiple"`
 
