@@ -26,7 +26,6 @@ package aggregator
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"math"
 	"sync"

@@ -509,7 +509,7 @@ func (e *GenericElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 
-				res := binaryOp.Evaluate(prev, curr)
+				res := binaryOp.Evaluate(prev, curr, transformation.TransformationFeatureFlags{})
 
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
