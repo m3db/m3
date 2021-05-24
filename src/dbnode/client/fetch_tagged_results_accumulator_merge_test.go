@@ -198,8 +198,9 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	)
 
 	var (
-		startTime = time.Now().Add(-time.Hour).Truncate(time.Hour)
-		endTime   = time.Now().Truncate(time.Hour)
+		now       = xtime.Now()
+		startTime = now.Add(-time.Hour).Truncate(time.Hour)
+		endTime   = now.Truncate(time.Hour)
 		numPoints = 100
 	)
 	sg0.addDatapoints(numPoints, startTime, endTime)
@@ -249,8 +250,9 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 
 	var (
 		sg0       = newTestSerieses(1, 10)
-		startTime = time.Now().Add(-time.Hour).Truncate(time.Hour)
-		endTime   = time.Now().Truncate(time.Hour)
+		now       = xtime.Now()
+		startTime = now.Add(-time.Hour).Truncate(time.Hour)
+		endTime   = now.Truncate(time.Hour)
 		numPoints = 100
 	)
 	sg0.addDatapoints(numPoints, startTime, endTime)
@@ -300,8 +302,8 @@ type testFetchStateWorkflow struct {
 	t         *testing.T
 	topoMap   topology.Map
 	level     topology.ReadConsistencyLevel
-	startTime time.Time
-	endTime   time.Time
+	startTime xtime.UnixNano
+	endTime   xtime.UnixNano
 	steps     []testFetchStateWorklowStep
 }
 
@@ -372,7 +374,7 @@ func (ts testSerieses) nsplit(n int) []testSerieses {
 	return groups
 }
 
-func (ts testSerieses) addDatapoints(numPerSeries int, start, end time.Time) {
+func (ts testSerieses) addDatapoints(numPerSeries int, start, end xtime.UnixNano) {
 	dps := newTestDatapoints(numPerSeries, start, end)
 	for i := range ts {
 		ts[i].datapoints = dps
@@ -436,7 +438,11 @@ func (ts testSerieses) indexMatcher() TaggedIDsIteratorMatcher {
 	return MustNewTaggedIDsIteratorMatcher(opts...)
 }
 
-func (ts testSerieses) toRPCResult(th testFetchTaggedHelper, start time.Time, exhaustive bool) *rpc.FetchTaggedResult_ {
+func (ts testSerieses) toRPCResult(
+	th testFetchTaggedHelper,
+	start xtime.UnixNano,
+	exhaustive bool,
+) *rpc.FetchTaggedResult_ {
 	res := &rpc.FetchTaggedResult_{}
 	res.Exhaustive = exhaustive
 	res.Elements = make([]*rpc.FetchTaggedIDResult_, 0, len(ts))
@@ -463,7 +469,11 @@ func (ts testSerieses) toRPCAggResultMap() map[string]map[string]struct{} {
 	return aggedMap
 }
 
-func (ts testSerieses) toRPCAggResult(th testFetchTaggedHelper, start time.Time, exhaustive bool) *rpc.AggregateQueryRawResult_ {
+func (ts testSerieses) toRPCAggResult(
+	th testFetchTaggedHelper,
+	start xtime.UnixNano,
+	exhaustive bool,
+) *rpc.AggregateQueryRawResult_ {
 	aggedMap := ts.toRPCAggResultMap()
 	res := &rpc.AggregateQueryRawResult_{
 		Exhaustive: exhaustive,
@@ -562,7 +572,10 @@ func (ts testSeries) matcherOption() TaggedIDsIteratorMatcherOption {
 	}
 }
 
-func (ts testSeries) toRPCResult(th testFetchTaggedHelper, startTime time.Time) *rpc.FetchTaggedIDResult_ {
+func (ts testSeries) toRPCResult(
+	th testFetchTaggedHelper,
+	startTime xtime.UnixNano,
+) *rpc.FetchTaggedIDResult_ {
 	return &rpc.FetchTaggedIDResult_{
 		NameSpace:   ts.ns.Bytes(),
 		ID:          ts.id.Bytes(),
@@ -573,12 +586,12 @@ func (ts testSeries) toRPCResult(th testFetchTaggedHelper, startTime time.Time) 
 
 type testDatapoints []ts.Datapoint
 
-func newTestDatapoints(num int, start, end time.Time) testDatapoints {
+func newTestDatapoints(num int, start, end xtime.UnixNano) testDatapoints {
 	dps := make(testDatapoints, 0, num)
 	step := end.Sub(start) / time.Duration(num)
 	for i := 0; i < num; i++ {
 		dps = append(dps, ts.Datapoint{
-			TimestampNanos: xtime.ToUnixNano(start.Add(step * time.Duration(i))),
+			TimestampNanos: start.Add(step * time.Duration(i)),
 			Value:          float64(i),
 		})
 	}
@@ -598,9 +611,12 @@ func (td testDatapoints) assertMatchesEncodingIter(t *testing.T, iter encoding.S
 	require.Equal(t, len(td), i)
 }
 
-func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time) []*rpc.Segments {
+func (td testDatapoints) toRPCSegments(
+	th testFetchTaggedHelper,
+	start xtime.UnixNano,
+) []*rpc.Segments {
 	enc := th.encPool.Get()
-	enc.Reset(xtime.ToUnixNano(start), len(td), nil)
+	enc.Reset(start, len(td), nil)
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}

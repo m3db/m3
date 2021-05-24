@@ -87,7 +87,7 @@ func (f testFetches) IDsIter() ident.Iterator {
 
 type testValue struct {
 	value      float64
-	t          time.Time
+	t          xtime.UnixNano
 	unit       xtime.Unit
 	annotation []byte
 }
@@ -116,7 +116,8 @@ func TestSessionFetchNotOpenError(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 
-	_, err = s.Fetch(ident.StringID("namespace"), ident.StringID("foo"), time.Now().Add(-time.Hour), time.Now())
+	now := xtime.Now()
+	_, err = s.Fetch(ident.StringID("namespace"), ident.StringID("foo"), now.Add(-time.Hour), now)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStatusNotOpen, err)
 }
@@ -138,7 +139,7 @@ func testSessionFetchIDs(t *testing.T, testOpts testOptions) {
 	require.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
@@ -207,7 +208,7 @@ func TestSessionFetchIDsWithRetries(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
@@ -246,7 +247,7 @@ func TestSessionFetchIDsTrimsWindowsInTimeWindow(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
@@ -286,7 +287,7 @@ func TestSessionFetchIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
@@ -388,7 +389,7 @@ func testFetchConsistencyLevel(
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
@@ -547,8 +548,7 @@ func fulfillFetchBatchOps(
 				}
 				for _, value := range f.values {
 					dp := ts.Datapoint{
-						Timestamp:      value.t,
-						TimestampNanos: xtime.ToUnixNano(value.t),
+						TimestampNanos: value.t,
 						Value:          value.value,
 					}
 					encoder.Encode(dp, value.unit, value.annotation)
@@ -574,7 +574,7 @@ func bytesIfNotNil(data checked.Bytes) []byte {
 
 func assertFetchResults(
 	t *testing.T,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	fetches []testFetch,
 	results encoding.SeriesIterators,
 	annEqual assertAnnotationEqual,
@@ -608,7 +608,7 @@ func assertFetchResults(
 			value := expectedValues[j]
 			dp, unit, annotation := series.Current()
 
-			assert.True(t, dp.Timestamp.Equal(value.t))
+			assert.Equal(t, value.t, dp.TimestampNanos)
 			assert.Equal(t, value.value, dp.Value)
 			assert.Equal(t, value.unit, unit)
 			if annEqual != nil {

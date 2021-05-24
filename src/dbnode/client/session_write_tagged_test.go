@@ -54,7 +54,7 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 	s := newDefaultTestSession(t)
 
 	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
-		ident.EmptyTagIterator, time.Now(), 1.337, xtime.Second, nil)
+		ident.EmptyTagIterator, xtime.Now(), 1.337, xtime.Second, nil)
 	assert.Equal(t, errSessionStatusNotOpen, err)
 
 }
@@ -68,7 +68,8 @@ func TestSessionWriteTaggedEmptyTagName(t *testing.T) {
 	assert.NoError(t, s.Open())
 
 	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
-		ident.MustNewTagStringsIterator("", "something"), time.Now(), 1.337, xtime.Second, nil)
+		ident.MustNewTagStringsIterator("", "something"), xtime.Now(),
+		1.337, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, IsBadRequestError(err))
 	require.NoError(t, s.Close())
@@ -93,7 +94,8 @@ func TestSessionWriteTaggedEmptyTagValue(t *testing.T) {
 	s.state.RUnlock()
 
 	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
-		ident.MustNewTagStringsIterator("something", ""), time.Now(), 1.337, xtime.Second, nil)
+		ident.MustNewTagStringsIterator("something", ""), xtime.Now(),
+		1.337, xtime.Second, nil)
 	require.NoError(t, err)
 	require.NoError(t, s.Close())
 }
@@ -124,7 +126,7 @@ func TestSessionWriteTagged(t *testing.T) {
 		assert.Equal(t, w.id.String(), string(write.request.ID))
 		assert.Equal(t, testEncodeTags(w.tags).Bytes(), write.request.EncodedTags)
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
-		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
+		assert.Equal(t, w.t.ToNormalizedTime(time.Second), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 		assert.NotNil(t, write.completionFn)
 	}})
@@ -226,7 +228,7 @@ func TestSessionWriteTaggedBadUnitErr(t *testing.T) {
 		id         ident.ID
 		tags       ident.Tags
 		value      float64
-		t          time.Time
+		t          xtime.UnixNano
 		unit       xtime.Unit
 		annotation []byte
 	}{
@@ -234,7 +236,7 @@ func TestSessionWriteTaggedBadUnitErr(t *testing.T) {
 		id:         ident.StringID("foo"),
 		tags:       ident.NewTags(ident.StringTag("abc", "def")),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Unit(byte(255)),
 		annotation: nil,
 	}
@@ -260,7 +262,7 @@ func TestSessionWriteTaggedBadTags(t *testing.T) {
 		id         ident.ID
 		tags       ident.Tags
 		value      float64
-		t          time.Time
+		t          xtime.UnixNano
 		unit       xtime.Unit
 		annotation []byte
 	}{
@@ -268,7 +270,7 @@ func TestSessionWriteTaggedBadTags(t *testing.T) {
 		id:         ident.StringID("foo"),
 		tags:       ident.Tags{},
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Second,
 		annotation: nil,
 	}
@@ -298,7 +300,7 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 		id         ident.ID
 		tags       ident.Tags
 		value      float64
-		t          time.Time
+		t          xtime.UnixNano
 		unit       xtime.Unit
 		annotation []byte
 	}{
@@ -306,7 +308,7 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 		id:         ident.StringID("foo"),
 		tags:       ident.NewTags(ident.StringTag("abc", "def")),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Second,
 		annotation: nil,
 	}
@@ -386,7 +388,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 			assert.Equal(t, w.id.String(), string(write.request.ID))
 			assert.Equal(t, string(testEncodeTags(w.tags).Bytes()), string(write.request.EncodedTags))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)
-			assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
+			assert.Equal(t, w.t.ToNormalizedTime(time.Second), write.request.Datapoint.Timestamp)
 			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 			assert.NotNil(t, write.completionFn)
 			completionFn = write.completionFn
@@ -577,7 +579,7 @@ type writeTaggedStub struct {
 	id         ident.ID
 	tags       ident.Tags
 	value      float64
-	t          time.Time
+	t          xtime.UnixNano
 	unit       xtime.Unit
 	annotation []byte
 }
@@ -591,7 +593,7 @@ func newWriteTaggedStub() writeTaggedStub {
 			ident.StringTag("baz", "bah"),
 		),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Second,
 		annotation: nil,
 	}

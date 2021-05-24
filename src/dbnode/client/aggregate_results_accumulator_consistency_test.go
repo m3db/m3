@@ -23,16 +23,16 @@ package client
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
-	testStartTime, testEndTime   time.Time
+	testStartTime, testEndTime   xtime.UnixNano
 	testAggregateSuccessResponse = rpc.AggregateQueryRawResult_{}
 	errTestAggregate             = fmt.Errorf("random error")
 )
