@@ -50,7 +50,7 @@ type testMultiReaderError struct {
 }
 
 func TestMultiReaderIteratorMergesMulti(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -102,7 +102,7 @@ func TestMultiReaderIteratorMergesEmpty(t *testing.T) {
 }
 
 func TestMultiReaderIteratorReadsSlicesInOrder(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -129,7 +129,7 @@ func TestMultiReaderIteratorReadsSlicesInOrder(t *testing.T) {
 }
 
 func TestMultiReaderIteratorReadsSlicesWithNoEntries(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -157,7 +157,7 @@ func TestMultiReaderIteratorReadsSlicesWithNoEntries(t *testing.T) {
 }
 
 func TestMultiReaderIteratorReadsSlicesWithEmptyEntries(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -186,7 +186,7 @@ func TestMultiReaderIteratorReadsSlicesWithEmptyEntries(t *testing.T) {
 }
 
 func TestMultiReaderIteratorDeduplicatesSingle(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -205,7 +205,7 @@ func TestMultiReaderIteratorDeduplicatesSingle(t *testing.T) {
 }
 
 func TestMultiReaderIteratorDeduplicatesMulti(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -228,7 +228,7 @@ func TestMultiReaderIteratorDeduplicatesMulti(t *testing.T) {
 }
 
 func TestMultiReaderIteratorErrorOnOutOfOrder(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -251,7 +251,7 @@ func TestMultiReaderIteratorErrorOnOutOfOrder(t *testing.T) {
 }
 
 func TestMultiReaderIteratorErrorOnInnerIteratorError(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -359,7 +359,7 @@ func assertTestMultiReaderIterator(
 		dp, unit, annotation := iter.Current()
 		expected := test.expected[i]
 		require.Equal(t, expected.value, dp.Value, fmt.Sprintf("mismatch for idx %d", i))
-		require.Equal(t, expected.t, dp.Timestamp, fmt.Sprintf("mismatch for idx %d", i))
+		require.Equal(t, expected.t, dp.TimestampNanos, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.unit, unit, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.annotation, []byte(annotation), fmt.Sprintf("mismatch for idx %d", i))
 	}

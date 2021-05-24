@@ -159,7 +159,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 			expectedAnnotation = nil
 		}
 
-		require.Equal(t, input[i].Timestamp, v.Timestamp)
+		require.Equal(t, input[i].TimestampNanos, v.TimestampNanos)
 		require.Equal(t, input[i].Value, v.Value)
 		require.Equal(t, timeUnits[i], u)
 		require.Equal(t, expectedAnnotation, a)
@@ -213,17 +213,17 @@ func generateMixSignIntDatapoints(numPoints int) []ts.Datapoint {
 func generateDataPoints(numPoints int, numDig, numDec int) []ts.Datapoint {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var startTime int64 = 1427162462
-	currentTime := time.Unix(startTime, 0)
+	currentTime := xtime.ToUnixNano(time.Unix(startTime, 0))
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := 1.0
-	res := []ts.Datapoint{{currentTime, xtime.ToUnixNano(currentTime), currentValue}}
+	res := []ts.Datapoint{{currentTime, currentValue}}
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(rand.Intn(1200)))
 		currentValue = testgen.GenerateFloatVal(r, numDig, numDec)
 		if !currentTime.Before(endTime) {
 			break
 		}
-		res = append(res, ts.Datapoint{Timestamp: currentTime, Value: currentValue})
+		res = append(res, ts.Datapoint{TimestampNanos: currentTime, Value: currentValue})
 	}
 	return res
 }
@@ -231,10 +231,10 @@ func generateDataPoints(numPoints int, numDig, numDec int) []ts.Datapoint {
 func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var startTime int64 = 1427162462
-	currentTime := time.Unix(startTime, 0)
+	currentTime := xtime.ToUnixNano(time.Unix(startTime, 0))
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := testgen.GenerateFloatVal(r, 3, 16)
-	res := []ts.Datapoint{{currentTime, xtime.ToUnixNano(currentTime), currentValue}}
+	res := []ts.Datapoint{{currentTime, currentValue}}
 
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(r.Intn(7200)))
@@ -247,14 +247,14 @@ func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 		if !currentTime.Before(endTime) {
 			break
 		}
-		res = append(res, ts.Datapoint{Timestamp: currentTime, Value: currentValue})
+		res = append(res, ts.Datapoint{TimestampNanos: currentTime, Value: currentValue})
 	}
 	return res
 }
 
 func generateOverflowDatapoints() []ts.Datapoint {
 	var startTime int64 = 1427162462
-	currentTime := time.Unix(startTime, 0)
+	currentTime := xtime.ToUnixNano(time.Unix(startTime, 0))
 	largeInt := float64(math.MaxInt64 - 1)
 	largeNegInt := float64(math.MinInt64 + 1)
 
@@ -262,7 +262,7 @@ func generateOverflowDatapoints() []ts.Datapoint {
 	res := make([]ts.Datapoint, len(vals))
 
 	for i, val := range vals {
-		res[i] = ts.Datapoint{Timestamp: currentTime, Value: val}
+		res[i] = ts.Datapoint{TimestampNanos: currentTime, Value: val}
 		currentTime = currentTime.Add(time.Second)
 	}
 
