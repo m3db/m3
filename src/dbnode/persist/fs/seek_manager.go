@@ -65,7 +65,7 @@ type openAnyUnopenSeekersFn func(*seekersByTime) error
 
 type newOpenSeekerFn func(
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	volume int,
 ) (DataFileSetSeeker, error)
 
@@ -173,7 +173,7 @@ type rotatableSeekers struct {
 
 type seekerManagerPendingClose struct {
 	shard      uint32
-	blockStart time.Time
+	blockStart xtime.UnixNano
 }
 
 // NewSeekerManager returns a new TSDB file set seeker manager.
@@ -290,8 +290,11 @@ func (m *seekerManager) AssignShardSet(shardSet sharding.ShardSet) {
 	m.Unlock()
 }
 
-func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, error) {
-	startNano := xtime.ToUnixNano(start)
+func (m *seekerManager) Test(
+	id ident.ID,
+	shard uint32,
+	start xtime.UnixNano,
+) (bool, error) {
 	byTime, ok := m.seekersByTime(shard)
 	if !ok {
 		return false, errShardNotExists
@@ -299,7 +302,7 @@ func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, 
 
 	// Try fast RLock() first.
 	byTime.RLock()
-	if seekers, ok := byTime.seekers[startNano]; ok && seekers.active.wg == nil {
+	if seekers, ok := byTime.seekers[start]; ok && seekers.active.wg == nil {
 		// Seekers are open: good to test but still hold RLock while doing so
 		idExists := seekers.active.bloomFilter.Test(id.Bytes())
 		byTime.RUnlock()
@@ -312,11 +315,11 @@ func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, 
 	defer byTime.Unlock()
 
 	// Check if raced with another call to this method
-	if seekers, ok := byTime.seekers[startNano]; ok && seekers.active.wg == nil {
+	if seekers, ok := byTime.seekers[start]; ok && seekers.active.wg == nil {
 		return seekers.active.bloomFilter.Test(id.Bytes()), nil
 	}
 
-	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
+	seekersAndBloom, err := m.getOrOpenSeekersWithLock(start, byTime)
 	if err != nil {
 		return false, err
 	}
@@ -326,7 +329,10 @@ func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, 
 
 // Borrow returns a "borrowed" seeker which the caller has exclusive access to
 // until it's returned later.
-func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
+func (m *seekerManager) Borrow(
+	shard uint32,
+	start xtime.UnixNano,
+) (ConcurrentDataFileSetSeeker, error) {
 	byTime, ok := m.seekersByTime(shard)
 	if !ok {
 		return nil, errShardNotExists
@@ -337,8 +343,7 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFil
 	// Track accessed to precache in open/close loop
 	byTime.accessed = true
 
-	startNano := xtime.ToUnixNano(start)
-	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
+	seekersAndBloom, err := m.getOrOpenSeekersWithLock(start, byTime)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +376,11 @@ func (m *seekerManager) shardExistsWithLock(shard uint32) bool {
 	return err == nil
 }
 
-func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error {
+func (m *seekerManager) Return(
+	shard uint32,
+	start xtime.UnixNano,
+	seeker ConcurrentDataFileSetSeeker,
+) error {
 	byTime, ok := m.seekersByTime(shard)
 	if !ok {
 		return errShardNotExists
@@ -380,8 +389,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 	byTime.Lock()
 	defer byTime.Unlock()
 
-	startNano := xtime.ToUnixNano(start)
-	seekers, ok := byTime.seekers[startNano]
+	seekers, ok := byTime.seekers[start]
 	// Should never happen - This either means that the caller (DataBlockRetriever) is trying to return seekers
 	// that it never requested, OR its trying to return seekers after the openCloseLoop has already
 	// determined that they were all no longer in use and safe to close. Either way it indicates there is
@@ -546,7 +554,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	}
 
 	var (
-		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
+		blockStartNano        = descriptor.BlockStart
 		updateOpenLeaseResult = block.NoOpenLease
 	)
 	seekers, ok := m.acquireByTimeLockWaitGroupAware(blockStartNano, byTime)
@@ -634,7 +642,7 @@ func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor
 			zap.Error(err),
 			zap.String("namespace", descriptor.Namespace.String()),
 			zap.Int("shard", int(descriptor.Shard)),
-			zap.Time("blockStart", descriptor.BlockStart))
+			zap.Time("blockStart", descriptor.BlockStart.ToTime()))
 	}
 }
 
@@ -703,20 +711,19 @@ func (m *seekerManager) openLatestSeekersWithActiveWaitGroup(
 	// Open first one - Do this outside the context of the lock because opening
 	// a seeker can be an expensive operation (validating index files).
 	blm := m.blockRetrieverOpts.BlockLeaseManager()
-	blockStart := start.ToTime()
 	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
 		Namespace:  m.namespace,
 		Shard:      byTime.shard,
-		BlockStart: blockStart,
+		BlockStart: start,
 	})
 	if err != nil {
 		return seekersAndBloom{}, fmt.Errorf("err opening latest lease: %v", err)
 	}
 
-	return m.newSeekersAndBloom(byTime.shard, blockStart, state.Volume)
+	return m.newSeekersAndBloom(byTime.shard, start, state.Volume)
 }
 
-func (m *seekerManager) newSeekersAndBloom(shard uint32, blockStart time.Time, volume int) (seekersAndBloom, error) {
+func (m *seekerManager) newSeekersAndBloom(shard uint32, blockStart xtime.UnixNano, volume int) (seekersAndBloom, error) {
 	seeker, err := m.newOpenSeekerFn(shard, blockStart, volume)
 	if err != nil {
 		return seekersAndBloom{}, err
@@ -763,7 +770,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
 		byTime.Lock()
-		_, err := m.getOrOpenSeekersWithLock(xtime.ToUnixNano(t), byTime)
+		_, err := m.getOrOpenSeekersWithLock(t, byTime)
 		byTime.Unlock()
 		if err != nil && err != errSeekerManagerFileSetNotFound {
 			multiErr = multiErr.Add(err)
@@ -775,7 +782,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 
 func (m *seekerManager) newOpenSeeker(
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	volume int,
 ) (DataFileSetSeeker, error) {
 	exists, err := DataFileSetExists(
@@ -912,9 +919,9 @@ func (m *seekerManager) Close() error {
 	return nil
 }
 
-func (m *seekerManager) earliestSeekableBlockStart() time.Time {
+func (m *seekerManager) earliestSeekableBlockStart() xtime.UnixNano {
 	nowFn := m.opts.ClockOptions().NowFn()
-	now := nowFn()
+	now := xtime.ToUnixNano(nowFn())
 	ropts := m.namespaceMetadata.Options().RetentionOptions()
 	blockSize := ropts.BlockSize()
 	earliestReachableBlockStart := retention.FlushTimeStart(ropts, now)
@@ -922,9 +929,9 @@ func (m *seekerManager) earliestSeekableBlockStart() time.Time {
 	return earliestSeekableBlockStart
 }
 
-func (m *seekerManager) latestSeekableBlockStart() time.Time {
+func (m *seekerManager) latestSeekableBlockStart() xtime.UnixNano {
 	nowFn := m.opts.ClockOptions().NowFn()
-	now := nowFn()
+	now := xtime.ToUnixNano(nowFn())
 	ropts := m.namespaceMetadata.Options().RetentionOptions()
 	return now.Truncate(ropts.BlockSize())
 }
@@ -981,8 +988,7 @@ func (m *seekerManager) openCloseLoop() {
 		m.RLock()
 		for shard, byTime := range m.seekersByShardIdx {
 			byTime.RLock()
-			for blockStartNano := range byTime.seekers {
-				blockStart := blockStartNano.ToTime()
+			for blockStart := range byTime.seekers {
 				if blockStart.Before(earliestSeekableBlockStart) ||
 					// Close seekers for shards that are no longer available. This
 					// ensure that seekers are eventually consistent w/ shard state.
@@ -999,9 +1005,8 @@ func (m *seekerManager) openCloseLoop() {
 		if len(shouldClose) > 0 {
 			for _, elem := range shouldClose {
 				byTime := m.seekersByShardIdx[elem.shard]
-				blockStartNano := xtime.ToUnixNano(elem.blockStart)
 				byTime.Lock()
-				seekers := byTime.seekers[blockStartNano]
+				seekers := byTime.seekers[elem.blockStart]
 				allSeekersAreReturned := true
 
 				// Ensure no active seekers are still borrowed.
@@ -1020,7 +1025,7 @@ func (m *seekerManager) openCloseLoop() {
 				if allSeekersAreReturned {
 					closing = append(closing, seekers.active)
 					closing = append(closing, seekers.inactive)
-					delete(byTime.seekers, blockStartNano)
+					delete(byTime.seekers, elem.blockStart)
 				}
 				byTime.Unlock()
 			}

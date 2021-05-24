@@ -1683,11 +1683,11 @@ func withEncodingAndPoolingOptions(
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
-			enc := proto.NewEncoder(time.Time{}, encodingOpts)
+			enc := proto.NewEncoder(0, encodingOpts)
 			return enc
 		}
 
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
@@ -1760,7 +1760,7 @@ func withEncodingAndPoolingOptions(
 			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+		return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)

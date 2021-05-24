@@ -45,9 +45,9 @@ const (
 // blockReplica contains the replicas for a single m3db block.
 type seriesBlock struct {
 	// internal start time for the block.
-	blockStart time.Time
+	blockStart xtime.UnixNano
 	// time at which the first point in the block will appear.
-	readStart time.Time
+	readStart xtime.UnixNano
 	blockSize time.Duration
 	replicas  []encoding.MultiReaderIterator
 }
@@ -201,7 +201,7 @@ func blockReplicasFromSeriesIterator(
 			iter.Reset(readers, start, bs, nil)
 			inserted := false
 			for _, bl := range blocks {
-				if bl.blockStart.Equal(start) {
+				if bl.blockStart == start {
 					inserted = true
 					bl.replicas = append(bl.replicas, iter)
 					break
@@ -243,7 +243,7 @@ func calculateFillDuration(fillSize, stepSize time.Duration) time.Duration {
 func updateSeriesBlockStarts(
 	blocks seriesBlocks,
 	stepSize time.Duration,
-	iterStart time.Time,
+	iterStart xtime.UnixNano,
 ) seriesBlocks {
 	if len(blocks) == 0 {
 		return blocks
@@ -298,8 +298,8 @@ func seriesBlocksFromBlockReplicas(
 		iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 			ID:             clonedID,
 			Namespace:      clonedNamespace,
-			StartInclusive: xtime.ToUnixNano(filterValuesStart),
-			EndExclusive:   xtime.ToUnixNano(filterValuesEnd),
+			StartInclusive: filterValuesStart,
+			EndExclusive:   filterValuesEnd,
 			Replicas:       block.replicas,
 		}, nil)
 

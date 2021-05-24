@@ -372,7 +372,7 @@ func translateTimeseriesFromIter(
 		m3series := iter.Current()
 		dps := m3series.Datapoints()
 		for _, datapoint := range dps.Datapoints() {
-			ts := datapoint.Timestamp
+			ts := datapoint.Timestamp.ToTime()
 			if ts.Before(start) {
 				// Outside of range requested.
 				continue
@@ -383,7 +383,7 @@ func translateTimeseriesFromIter(
 				break
 			}
 
-			index := int(datapoint.Timestamp.Sub(start) / resolution)
+			index := int(datapoint.Timestamp.ToTime().Sub(start) / resolution)
 			values.SetValueAt(index, datapoint.Value)
 		}
 

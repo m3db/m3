@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var flagParser = flag.NewFlagSet("Verify Index files", flag.ExitOnError)
@@ -101,7 +102,8 @@ func main() {
 			allHostSeriesChecksumsForShard := []seriesChecksums{}
 			// Accumulate all the series checksums for each host for this shard
 			for _, host := range hosts {
-				hostShardReader, err := newReader(namespaceStr, pathPrefix, host.Name(), shard, time.Unix(block, 0))
+				start := (xtime.UnixNano(block)).FromNormalizedTime(time.Second)
+				hostShardReader, err := newReader(namespaceStr, pathPrefix, host.Name(), shard, start)
 				if err != nil {
 					// Ignore folders for hosts that don't have this data
 					if err == fs.ErrCheckpointFileNotFound {
@@ -199,7 +201,7 @@ func mergeMaps(seriesMaps ...seriesMap) seriesMap {
 	return merged
 }
 
-func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.Time) (fs.DataFileSetReader, error) {
+func newReader(namespace, pathPrefix, hostName string, shard uint32, start xtime.UnixNano) (fs.DataFileSetReader, error) {
 	fsOpts := fs.NewOptions().SetFilePathPrefix(path.Join(pathPrefix, hostName))
 	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {

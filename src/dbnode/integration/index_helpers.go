@@ -131,7 +131,7 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 			if !ident.NewTagIterMatcher(wi.Tags.Duplicate()).Matches(iter.Tags().Duplicate()) {
 				require.FailNow(t, "tags don't match provided id", iter.ID().String())
 			}
-			if dp.Timestamp.Equal(wi.Timestamp) && dp.Value == wi.Value {
+			if dp.TimestampNanos == wi.Timestamp && dp.Value == wi.Value {
 				found[i] = true
 				break
 			}
@@ -196,12 +196,12 @@ func (w TestIndexWrites) NumIndexed(t *testing.T, ns ident.ID, s client.Session)
 type TestIndexWrite struct {
 	ID        ident.ID
 	Tags      ident.TagIterator
-	Timestamp time.Time
+	Timestamp xtime.UnixNano
 	Value     float64
 }
 
 // GenerateTestIndexWrite generates test index writes.
-func GenerateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime time.Time) TestIndexWrites {
+func GenerateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime xtime.UnixNano) TestIndexWrites {
 	writes := make([]TestIndexWrite, 0, numWrites)
 	step := endTime.Sub(startTime) / time.Duration(numWrites+1)
 	for i := 0; i < numWrites; i++ {
@@ -250,11 +250,12 @@ func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags id
 
 func isIndexedChecked(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) (bool, error) {
 	q := newQuery(t, tags)
+	tt := xtime.ToUnixNano(time.Now())
 	iter, _, err := s.FetchTaggedIDs(ContextWithDefaultTimeout(), ns,
 		index.Query{Query: q},
 		index.QueryOptions{
-			StartInclusive: time.Now(),
-			EndExclusive:   time.Now(),
+			StartInclusive: tt,
+			EndExclusive:   tt,
 			SeriesLimit:    10,
 		})
 	if err != nil {

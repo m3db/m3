@@ -27,14 +27,19 @@ const (
 	nanosPerMillis = int64(time.Millisecond)
 )
 
+// Now returns the current local time.
+func Now() UnixNano {
+	return ToUnixNano(time.Now())
+}
+
 // ToNormalizedTime returns the normalized units of time given a time unit.
 func ToNormalizedTime(t time.Time, u time.Duration) int64 {
 	return t.UnixNano() / u.Nanoseconds()
 }
 
 // FromNormalizedTime returns the time given the normalized time units and the time unit.
-func FromNormalizedTime(nt int64, u time.Duration) time.Time {
-	return time.Unix(0, int64(u/time.Nanosecond)*nt)
+func FromNormalizedTime(nt int64, u time.Duration) UnixNano {
+	return UnixNano(int64(u/time.Nanosecond) * nt)
 }
 
 // ToNormalizedDuration returns the normalized units of duration given a time unit.
@@ -85,8 +90,24 @@ func MinTime(t1, t2 time.Time) time.Time {
 	return t2
 }
 
+// MinUnixNano returns the earlier one of t1 and t2.
+func MinUnixNano(t1, t2 UnixNano) UnixNano {
+	if t1.Before(t2) {
+		return t1
+	}
+	return t2
+}
+
 // MaxTime returns the later one of t1 and t2.
 func MaxTime(t1, t2 time.Time) time.Time {
+	if t1.After(t2) {
+		return t1
+	}
+	return t2
+}
+
+// MaxUnixNano returns the later one of t1 and t2.
+func MaxUnixNano(t1, t2 UnixNano) UnixNano {
 	if t1.After(t2) {
 		return t1
 	}

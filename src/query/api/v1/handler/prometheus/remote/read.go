@@ -566,7 +566,7 @@ func datapointsConvert(dps ts.Datapoints) comparator.Datapoints {
 	for _, dp := range dps.Datapoints() {
 		val := comparator.Datapoint{
 			Value:     comparator.Value(dp.Value),
-			Timestamp: dp.Timestamp,
+			Timestamp: dp.Timestamp.ToTime(),
 		}
 		datapoints = append(datapoints, val)
 	}

@@ -72,7 +72,7 @@ func encodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 		for j := 0; j < vLen; j++ {
 			dp := result.Values().DatapointAt(j)
 			datapoints[j] = &rpc.Datapoint{
-				Timestamp: fromTime(dp.Timestamp),
+				Timestamp: int64(dp.Timestamp),
 				Value:     dp.Value,
 			}
 		}

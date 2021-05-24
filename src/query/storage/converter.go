@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/prometheus/common/model"
 )
@@ -192,7 +193,7 @@ func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (
 func PromSamplesToM3Datapoints(samples []prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
-		timestamp := PromTimestampToTime(sample.Timestamp)
+		timestamp := xtime.UnixNano(sample.Timestamp)
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
 	}
 
@@ -351,7 +352,7 @@ func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	)
 	for _, dp := range datapoints {
 		samples = append(samples, prompb.Sample{
-			Timestamp: TimeToPromTimestamp(dp.Timestamp),
+			Timestamp: int64(dp.Timestamp),
 			Value:     dp.Value,
 		})
 	}

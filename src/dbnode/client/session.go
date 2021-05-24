@@ -1178,7 +1178,7 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 
 func (s *session) Write(
 	nsID, id ident.ID,
-	t time.Time,
+	t xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -1187,8 +1187,8 @@ func (s *session) Write(
 	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = nsID, id
 	w.args.tags = ident.EmptyTagIterator
-	w.args.t, w.args.value, w.args.unit, w.args.annotation =
-		t, value, unit, annotation
+	w.args.t = t
+	w.args.value, w.args.unit, w.args.annotation = value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
@@ -1197,7 +1197,7 @@ func (s *session) Write(
 func (s *session) WriteTagged(
 	nsID, id ident.ID,
 	tags ident.TagIterator,
-	t time.Time,
+	t xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -1205,8 +1205,8 @@ func (s *session) WriteTagged(
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
 	w.args.namespace, w.args.id, w.args.tags = nsID, id, tags
-	w.args.t, w.args.value, w.args.unit, w.args.annotation =
-		t, value, unit, annotation
+	w.args.t = t
+	w.args.value, w.args.unit, w.args.annotation = value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
 	s.pools.writeAttempt.Put(w)
 	return err
@@ -1216,7 +1216,7 @@ func (s *session) writeAttempt(
 	wType writeAttemptType,
 	nsID, id ident.ID,
 	inputTags ident.TagIterator,
-	t time.Time,
+	t xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -1390,7 +1390,7 @@ func (s *session) writeAttemptWithRLock(
 func (s *session) Fetch(
 	nsID ident.ID,
 	id ident.ID,
-	startInclusive, endExclusive time.Time,
+	startInclusive, endExclusive xtime.UnixNano,
 ) (encoding.SeriesIterator, error) {
 	tsIDs := ident.NewIDsIterator(id)
 	results, err := s.FetchIDs(nsID, tsIDs, startInclusive, endExclusive)
@@ -1409,11 +1409,12 @@ func (s *session) Fetch(
 func (s *session) FetchIDs(
 	nsID ident.ID,
 	ids ident.Iterator,
-	startInclusive, endExclusive time.Time,
+	startInclusive, endExclusive xtime.UnixNano,
 ) (encoding.SeriesIterators, error) {
 	f := s.pools.fetchAttempt.Get()
 	f.args.namespace, f.args.ids = nsID, ids
-	f.args.start, f.args.end = startInclusive, endExclusive
+	f.args.start = startInclusive
+	f.args.end = endExclusive
 	err := s.fetchRetrier.Attempt(f.attemptFn)
 	result := f.result
 	s.pools.fetchAttempt.Put(f)
@@ -1641,8 +1642,8 @@ func (s *session) fetchTaggedIDsAttempt(
 
 type newFetchStateOpts struct {
 	stateType      fetchStateType
-	startInclusive time.Time
-	endExclusive   time.Time
+	startInclusive xtime.UnixNano
+	endExclusive   xtime.UnixNano
 
 	// only valid if stateType == fetchTaggedFetchState
 	fetchTaggedRequest rpc.FetchTaggedRequest
@@ -1728,7 +1729,7 @@ func (s *session) newFetchStateWithRLock(
 func (s *session) fetchIDsAttempt(
 	inputNamespace ident.ID,
 	inputIDs ident.Iterator,
-	startInclusive, endExclusive time.Time,
+	startInclusive, endExclusive xtime.UnixNano,
 ) (encoding.SeriesIterators, error) {
 	nsCtx, err := s.nsCtxFor(inputNamespace)
 	if err != nil {
@@ -1874,8 +1875,8 @@ func (s *session) fetchIDsAttempt(
 				iter.Reset(encoding.SeriesIteratorOptions{
 					ID:                         seriesID,
 					Namespace:                  namespaceID,
-					StartInclusive:             xtime.ToUnixNano(startInclusive),
-					EndExclusive:               xtime.ToUnixNano(endExclusive),
+					StartInclusive:             startInclusive,
+					EndExclusive:               endExclusive,
 					Replicas:                   itersToInclude,
 					SeriesIteratorConsolidator: consolidator,
 				})
@@ -2227,7 +2228,7 @@ func (s *session) peersForShard(shardID uint32) (peers, error) {
 func (s *session) FetchBootstrapBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	resultOpts result.Options,
 ) (PeerBlockMetadataIter, error) {
 	level := newSessionBootstrapRuntimeReadConsistencyLevel(s)
@@ -2238,7 +2239,7 @@ func (s *session) FetchBootstrapBlocksMetadataFromPeers(
 func (s *session) FetchBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	consistencyLevel topology.ReadConsistencyLevel,
 	resultOpts result.Options,
 ) (PeerBlockMetadataIter, error) {
@@ -2250,7 +2251,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 func (s *session) fetchBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	level runtimeReadConsistencyLevel,
 	resultOpts result.Options,
 ) (PeerBlockMetadataIter, error) {
@@ -2283,7 +2284,7 @@ func (s *session) fetchBlocksMetadataFromPeers(
 func (s *session) FetchBootstrapBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	opts result.Options,
 ) (result.ShardResult, error) {
 	nsCtx, err := s.nsCtxFromMetadata(nsMetadata)
@@ -2406,7 +2407,7 @@ func (s *session) FetchBlocksFromPeers(
 				logger.Warn("replica requested from unknown peer, skipping",
 					zap.Stringer("peer", rb.Host),
 					zap.Stringer("id", rb.ID),
-					zap.Time("start", rb.Start),
+					zap.Time("start", rb.Start.ToTime()),
 				)
 				continue
 			}
@@ -2440,7 +2441,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shardID uint32,
 	peers peers,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	level runtimeReadConsistencyLevel,
 	metadataCh chan<- receivedBlockMetadata,
 	resultOpts result.Options,
@@ -2570,7 +2571,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	namespace ident.ID,
 	shard uint32,
 	peer peer,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	startPageToken pageToken,
 	metadataCh chan<- receivedBlockMetadata,
 	resultOpts result.Options,
@@ -2605,8 +2606,8 @@ func (s *session) streamBlocksMetadataFromPeer(
 		req := rpc.NewFetchBlocksMetadataRawV2Request()
 		req.NameSpace = namespace.Bytes()
 		req.Shard = int32(shard)
-		req.RangeStart = start.UnixNano()
-		req.RangeEnd = end.UnixNano()
+		req.RangeStart = int64(start)
+		req.RangeEnd = int64(end)
 		req.Limit = int64(s.streamBlocksBatchSize)
 		req.PageToken = startPageToken
 		req.IncludeSizes = &optionIncludeSizes
@@ -2633,7 +2634,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		}
 
 		for _, elem := range result.Elements {
-			blockStart := time.Unix(0, elem.Start)
+			blockStart := xtime.UnixNano(elem.Start)
 
 			data := bytesPool.Get(len(elem.ID))
 			data.IncRef()
@@ -2659,7 +2660,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 				s.log.Error("error occurred retrieving block metadata",
 					zap.Uint32("shard", shard),
 					zap.String("peer", peerStr),
-					zap.Time("block", blockStart),
+					zap.Time("block", blockStart.ToTime()),
 					zap.Error(err),
 				)
 				// Enqueue with a zeroed checksum which triggers a fanout fetch
@@ -2685,7 +2686,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 				pChecksum = &value
 			}
 
-			var lastRead time.Time
+			var lastRead xtime.UnixNano
 			if elem.LastRead != nil {
 				value, err := convert.ToTime(*elem.LastRead, elem.LastReadTimeType)
 				if err == nil {
@@ -2705,7 +2706,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 				},
 			}
 			// Only used for logs
-			metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
+			metadataCountByBlock[blockStart]++
 		}
 		return nil
 	}
@@ -2851,7 +2852,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 
 		key := idAndBlockStart{
 			id:         m.id,
-			blockStart: m.block.start.UnixNano(),
+			blockStart: int64(m.block.start),
 		}
 		received, ok := metadata.Get(key)
 		if !ok {
@@ -3089,7 +3090,7 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 			m.fetchBlockFinalError.Inc(1)
 			s.log.Error(errMsg,
 				zap.Stringer("id", currID),
-				zap.Time("start", currBlock.start),
+				zap.Time("start", currBlock.start.ToTime()),
 				zap.Int("attempted", currBlock.reattempt.attempt),
 				zap.String("attemptErrs", xerrors.Errors(currBlock.reattempt.errs).Error()),
 				zap.Stringer("consistencyLevel", level),
@@ -3204,7 +3205,9 @@ func (s *session) streamBlocksBatchFromPeer(
 		nowFn              = opts.ClockOptions().NowFn()
 		ropts              = namespaceMetadata.Options().RetentionOptions()
 		retention          = ropts.RetentionPeriod()
-		earliestBlockStart = nowFn().Add(-retention).Truncate(ropts.BlockSize())
+		earliestBlockStart = xtime.ToUnixNano(nowFn()).
+					Add(-retention).
+					Truncate(ropts.BlockSize())
 	)
 	req.NameSpace = namespaceMetadata.ID().Bytes()
 	req.Shard = int32(shard)
@@ -3216,7 +3219,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 		req.Elements = append(req.Elements, &rpc.FetchBlocksRawRequestElement{
 			ID:     batch[i].id.Bytes(),
-			Starts: []int64{blockStart.UnixNano()},
+			Starts: []int64{int64(blockStart)},
 		})
 		reqBlocksLen++
 	}
@@ -3300,7 +3303,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 
 		for j, block := range result.Elements[i].Blocks {
-			if block.Start != batch[i].block.start.UnixNano() {
+			if block.Start != int64(batch[i].block.start) {
 				errMsg := "stream blocks returned different blocks than expected"
 				blocksErr := fmt.Errorf(errMsg+": expected=%s, actual=%d",
 					batch[i].block.start.String(), time.Unix(0, block.Start).String())
@@ -3572,7 +3575,7 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
 }
 
-func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
+func (b *baseBlocksResult) mergeReaders(start xtime.UnixNano, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
 	iter.Reset(readers, start, blockSize, b.nsCtx.Schema)
 	defer iter.Close()
@@ -3597,7 +3600,7 @@ func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration
 
 func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlock, error) {
 	var (
-		start    = time.Unix(0, block.Start)
+		start    = xtime.UnixNano(block.Start)
 		segments = block.Segments
 		result   = b.blockOpts.DatabaseBlockPool().Get()
 	)
@@ -3611,7 +3614,12 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
 		mergedBlock := segments.Merged
-		result.Reset(start, durationConvert(mergedBlock.BlockSize), b.segmentForBlock(mergedBlock), b.nsCtx)
+		result.Reset(
+			start,
+			durationConvert(mergedBlock.BlockSize),
+			b.segmentForBlock(mergedBlock),
+			b.nsCtx,
+		)
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
@@ -3787,7 +3795,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 	peer topology.Host,
 	block *rpc.Block,
 ) error {
-	start := time.Unix(0, block.Start)
+	start := xtime.UnixNano(block.Start)
 	result, err := r.newDatabaseBlock(block)
 	if err != nil {
 		return err
@@ -4187,10 +4195,10 @@ func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Less(i, j int)
 }
 
 type blockMetadata struct {
-	start     time.Time
+	start     xtime.UnixNano
 	size      int64
 	checksum  *uint32
-	lastRead  time.Time
+	lastRead  xtime.UnixNano
 	reattempt blockMetadataReattempt
 }
 

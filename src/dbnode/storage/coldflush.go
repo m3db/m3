@@ -22,11 +22,11 @@ package storage
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -92,7 +92,7 @@ func (m *coldFlushManager) Status() fileOpStatus {
 	return status
 }
 
-func (m *coldFlushManager) Run(t time.Time) bool {
+func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 	m.Lock()
 	if !m.shouldRunWithLock() {
 		m.Unlock()
@@ -107,7 +107,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
-	m.log.Debug("starting cold flush", zap.Time("time", t))
+	m.log.Debug("starting cold flush", zap.Time("time", t.ToTime()))
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	// NB(r): Use invariant here since flush errors were introduced
@@ -117,16 +117,18 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	if err := m.ColdFlushCleanup(t); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when cleaning up cold flush data",
+					zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
 	if err := m.trackedColdFlush(); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when cold flushing data",
+					zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
-	m.log.Debug("completed cold flush", zap.Time("time", t))
+	m.log.Debug("completed cold flush", zap.Time("time", t.ToTime()))
 	return true
 }
 

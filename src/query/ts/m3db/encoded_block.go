@@ -21,18 +21,17 @@
 package m3db
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	tsconsolidators "github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type consolidationSettings struct {
 	consolidationFn tsconsolidators.ConsolidationFunc
-	currentTime     time.Time
+	currentTime     xtime.UnixNano
 	bounds          models.Bounds
 }
 

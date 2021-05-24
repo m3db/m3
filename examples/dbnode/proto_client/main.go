@@ -110,12 +110,12 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 	}
 
 	// Write an untagged series ID. Pass 0 for value since it is ignored.
-	if err := session.Write(namespaceID, untaggedSeriesID, time.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
+	if err := session.Write(namespaceID, untaggedSeriesID, xtime.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
 		log.Fatalf("unable to write untagged series: %v", err)
 	}
 
 	// Fetch data for the untagged seriesID written within the last minute.
-	seriesIter, err := session.Fetch(namespaceID, untaggedSeriesID, time.Now().Add(-time.Minute), time.Now())
+	seriesIter, err := session.Fetch(namespaceID, untaggedSeriesID, xtime.Now().Add(-time.Minute), xtime.Now())
 	if err != nil {
 		log.Fatalf("error fetching data for untagged series: %v", err)
 	}
@@ -125,7 +125,7 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 		if err := m.Unmarshal(marshaledProto); err != nil {
 			log.Fatalf("error unmarshaling protobuf message: %v", err)
 		}
-		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
+		log.Printf("%s: %s", dp.TimestampNanos.ToTime().String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)
@@ -154,12 +154,12 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 	}
 
 	// Write a tagged series ID. Pass 0 for value since it is ignored.
-	if err := session.WriteTagged(namespaceID, seriesID, tagsIter, time.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
+	if err := session.WriteTagged(namespaceID, seriesID, tagsIter, xtime.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
 		log.Fatalf("error writing series %s, err: %v", seriesID.String(), err)
 	}
 
 	// Fetch data for the tagged seriesID using a direct ID lookup (only data written within the last minute).
-	seriesIter, err := session.Fetch(namespaceID, seriesID, time.Now().Add(-time.Minute), time.Now())
+	seriesIter, err := session.Fetch(namespaceID, seriesID, xtime.Now().Add(-time.Minute), xtime.Now())
 	if err != nil {
 		log.Fatalf("error fetching data for untagged series: %v", err)
 	}
@@ -169,7 +169,7 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 		if err := m.Unmarshal(marshaledProto); err != nil {
 			log.Fatalf("error unamrshaling protobuf message: %v", err)
 		}
-		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
+		log.Printf("%s: %s", dp.TimestampNanos.ToTime().String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)

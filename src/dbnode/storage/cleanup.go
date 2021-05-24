@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -33,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
@@ -129,7 +129,7 @@ func newCleanupManager(
 	}
 }
 
-func (m *cleanupManager) WarmFlushCleanup(t time.Time) error {
+func (m *cleanupManager) WarmFlushCleanup(t xtime.UnixNano) error {
 	m.Lock()
 	m.warmFlushCleanupInProgress = true
 	m.Unlock()
@@ -179,7 +179,7 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time) error {
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) ColdFlushCleanup(t time.Time) error {
+func (m *cleanupManager) ColdFlushCleanup(t xtime.UnixNano) error {
 	m.Lock()
 	m.coldFlushCleanupInProgress = true
 	m.Unlock()
@@ -269,7 +269,7 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupDataFiles(t time.Time, namespaces []databaseNamespace) error {
+func (m *cleanupManager) cleanupDataFiles(t xtime.UnixNano, namespaces []databaseNamespace) error {
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() {
@@ -283,7 +283,7 @@ func (m *cleanupManager) cleanupDataFiles(t time.Time, namespaces []databaseName
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []databaseNamespace) error {
+func (m *cleanupManager) cleanupExpiredIndexFiles(t xtime.UnixNano, namespaces []databaseNamespace) error {
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
@@ -335,7 +335,7 @@ func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespa
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.Time, shards []databaseShard) error {
+func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain xtime.UnixNano, shards []databaseShard) error {
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
 		if !shard.IsBootstrapped() {

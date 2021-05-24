@@ -332,7 +332,7 @@ func TestHistogramBucketsAddUp(t *testing.T) {
 			require.True(t, iter.Next(), "all buckets must have the same length")
 			vi, ti, _ := iter.Current()
 			assert.True(t, vi.Value >= v0.Value, "bucket values must be non decreasing")
-			assert.Equal(t, v0.Timestamp, vi.Timestamp, "bucket values timestamps must match")
+			assert.Equal(t, v0.TimestampNanos, vi.TimestampNanos, "bucket values timestamps must match")
 			assert.Equal(t, t1, ti)
 		}
 	}

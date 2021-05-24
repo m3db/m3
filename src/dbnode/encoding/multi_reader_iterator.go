@@ -54,7 +54,7 @@ func NewMultiReaderIterator(
 	pool MultiReaderIteratorPool,
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
-	it.Reset(nil, time.Time{}, 0, nil)
+	it.Reset(nil, 0, 0, nil)
 	return it
 }
 
@@ -161,7 +161,12 @@ func (it *multiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 	return it.slicesIter
 }
 
-func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, blockSize time.Duration, descr namespace.SchemaDescr) {
+func (it *multiReaderIterator) Reset(
+	blocks []xio.SegmentReader,
+	start xtime.UnixNano,
+	blockSize time.Duration,
+	descr namespace.SchemaDescr,
+) {
 	it.singleSlicesIter.readers = blocks
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
@@ -204,7 +209,7 @@ type singleSlicesOfSlicesIterator struct {
 	readers   []xio.SegmentReader
 	firstNext bool
 	closed    bool
-	start     time.Time
+	start     xtime.UnixNano
 	blockSize time.Duration
 }
 
@@ -216,7 +221,9 @@ func (it *singleSlicesOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *singleSlicesOfSlicesIterator) CurrentReaders() (int, time.Time, time.Duration) {
+func (it *singleSlicesOfSlicesIterator) CurrentReaders() (int, xtime.UnixNano, time.Duration) {
+	// FIXME: TIMECONVERT; determine if this is called often enough that we want to
+	// avoid the ToTime call here.
 	return len(it.readers), it.start, it.blockSize
 }
 

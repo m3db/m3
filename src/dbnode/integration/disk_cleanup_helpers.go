@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +45,7 @@ func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, er
 	return fs.NewWriter(fsOpts)
 }
 
-func writeDataFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
+func writeDataFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []xtime.UnixNano) {
 	rOpts := md.Options().RetentionOptions()
 	writer, err := newDataFileSetWriter(storageOpts)
 	require.NoError(t, err)
@@ -105,7 +106,7 @@ type cleanupTimesFileSet struct {
 	filePathPrefix string
 	namespace      ident.ID
 	shard          uint32
-	times          []time.Time
+	times          []xtime.UnixNano
 }
 
 func (fset *cleanupTimesFileSet) anyExist() bool {
@@ -211,7 +212,13 @@ func waitUntilDataFileSetsCleanedUp(clOpts commitlog.Options, namespaces []stora
 	return errDataCleanupTimedOut
 }
 
-func waitUntilDataCleanedUp(clOpts commitlog.Options, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
+func waitUntilDataCleanedUp(
+	clOpts commitlog.Options,
+	namespace ident.ID,
+	shard uint32,
+	toDelete xtime.UnixNano,
+	timeout time.Duration,
+) error {
 	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 	return waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileSet{
@@ -219,7 +226,7 @@ func waitUntilDataCleanedUp(clOpts commitlog.Options, namespace ident.ID, shard 
 				filePathPrefix: filePathPrefix,
 				namespace:      namespace,
 				shard:          shard,
-				times:          []time.Time{toDelete},
+				times:          []xtime.UnixNano{toDelete},
 			},
 		},
 		cleanupTimesCommitLog{

@@ -682,8 +682,8 @@ func (s *peersSource) flush(
 			iOpts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
 				l.With(
-					zap.Int64("start", tr.Start.Unix()),
-					zap.Int64("end", tr.End.Unix()),
+					zap.Int64("start", int64(tr.Start.ToNormalizedTime(time.Second))),
+					zap.Int64("end", int64(tr.End.ToNormalizedTime(time.Second))),
 					zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
 				).Error("error tried to remove series that still has blocks")
 			})
@@ -838,11 +838,11 @@ func (s *peersSource) processReaders(
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
 	resultLock *sync.Mutex,
-) (result.ShardTimeRanges, []time.Time) {
+) (result.ShardTimeRanges, []xtime.UnixNano) {
 	var (
 		metadataPool    = s.opts.IndexOptions().MetadataArrayPool()
 		batch           = metadataPool.Get()
-		timesWithErrors []time.Time
+		timesWithErrors []xtime.UnixNano
 		totalEntries    int
 	)
 
@@ -910,7 +910,7 @@ func (s *peersSource) processReaders(
 				))
 			} else {
 				s.log.Error("error processing readers", zap.Error(err),
-					zap.Time("timeRange.start", start))
+					zap.Time("timeRange.start", start.ToTime()))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
@@ -935,12 +935,13 @@ func (s *peersSource) processReaders(
 
 	// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
 	resultLock.Lock()
-	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
+	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(
+		r.IndexResults(), blockStart)
 	resultLock.Unlock()
 
 	if !ok {
 		err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
-			blockStart.String(), blockStart.UnixNano())
+			blockStart.String(), blockStart)
 		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 			l.Error("peers bootstrap failed",
 				zap.Error(err),
@@ -1021,7 +1022,8 @@ func (s *peersSource) processReaders(
 
 	// Replace index block for default index volume type.
 	resultLock.Lock()
-	r.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
+	r.IndexResults()[blockStart].
+		SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 	resultLock.Unlock()
 
 	return remainingRanges, timesWithErrors
@@ -1061,7 +1063,7 @@ func (s *peersSource) markRunResultErrorsAndUnfulfilled(
 	results result.IndexBootstrapResult,
 	requestedRanges result.ShardTimeRanges,
 	remainingRanges result.ShardTimeRanges,
-	timesWithErrors []time.Time,
+	timesWithErrors []xtime.UnixNano,
 ) {
 	// NB(xichen): this is the exceptional case where we encountered errors due to files
 	// being corrupted, which should be fairly rare so we can live with the overhead. We

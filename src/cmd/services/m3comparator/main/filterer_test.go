@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
@@ -248,7 +249,8 @@ func list(tagsList ...parser.Tags) []parser.IngestSeries {
 }
 
 func toSeriesIterators(series []parser.IngestSeries) (encoding.SeriesIterators, error) {
-	return parser.BuildSeriesIterators(series, time.Now(), time.Hour, iteratorOpts)
+	return parser.BuildSeriesIterators(
+		series, xtime.ToUnixNano(time.Now()), time.Hour, iteratorOpts)
 }
 
 func fromSeriesIterators(seriesIters encoding.SeriesIterators) []parser.IngestSeries {

@@ -36,6 +36,32 @@ func ToUnixNano(t time.Time) UnixNano {
 	return UnixNano(t.UnixNano())
 }
 
+func (u UnixNano) Truncate(d time.Duration) UnixNano {
+	return (u / UnixNano(d)) * UnixNano(d)
+}
+
+// Sub returns the duration u-o. If the result exceeds the maximum (or minimum)
+// value that can be stored in a Duration, the maximum (or minimum) duration
+// will be returned.
+func (u UnixNano) Sub(o UnixNano) time.Duration {
+	return time.Duration(u - o)
+}
+
+// Add returns the time u+d.
+func (u UnixNano) Add(d time.Duration) UnixNano {
+	return u + UnixNano(d)
+}
+
+// ToNormalizedTime returns the normalized units of time given a time unit.
+func (u UnixNano) ToNormalizedTime(d time.Duration) int64 {
+	return int64(u) / int64(d.Nanoseconds())
+}
+
+// FromNormalizedTime returns the time given the normalized time units and the time unit.
+func (u UnixNano) FromNormalizedTime(d time.Duration) UnixNano {
+	return u * UnixNano(d/time.Nanosecond)
+}
+
 // Before reports whether the time instant u is before t.
 func (u UnixNano) Before(t UnixNano) bool {
 	return u < t
@@ -49,4 +75,19 @@ func (u UnixNano) After(t UnixNano) bool {
 // Equal reports whether the time instant u is equal to t.
 func (u UnixNano) Equal(t UnixNano) bool {
 	return u == t
+}
+
+// IsZero reports whether the time instant u is 0.
+func (u UnixNano) IsZero() bool {
+	return u == 0
+}
+
+// Equal reports whether the time instant u is equal to t.
+func (u UnixNano) String() string {
+	return u.ToTime().String()
+}
+
+// Equal reports whether the time instant u is equal to t.
+func (u UnixNano) Format(blockTimeFormat string) string {
+	return u.ToTime().Format(blockTimeFormat)
 }

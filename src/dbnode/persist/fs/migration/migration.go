@@ -88,7 +88,7 @@ func (v *toVersion1_1Task) Run() (fs.ReadInfoFileResult, error) {
 	fsID := fs.FileSetFileIdentifier{
 		Namespace:   nsMd.ID(),
 		Shard:       shard,
-		BlockStart:  xtime.FromNanoseconds(infoFileResult.Info.BlockStart),
+		BlockStart:  xtime.UnixNano(infoFileResult.Info.BlockStart),
 		VolumeIndex: volIndex,
 	}
 

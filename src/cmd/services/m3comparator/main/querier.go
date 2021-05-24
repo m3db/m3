@@ -96,7 +96,6 @@ func (q *querier) generateSeriesBlock(
 			value = rand.Float64()
 		}
 		dp := ts.Datapoint{
-			Timestamp:      stamp,
 			TimestampNanos: xtime.ToUnixNano(stamp),
 			Value:          value,
 		}
@@ -187,7 +186,7 @@ func (q *querier) FetchCompressed(
 			return consolidators.SeriesFetchResult{}, noop, err
 		}
 		iters, err = parser.BuildSeriesIterators(
-			randomSeries, query.Start, q.blockSize, q.iteratorOpts)
+			randomSeries, xtime.ToUnixNano(query.Start), q.blockSize, q.iteratorOpts)
 		if err != nil {
 			return consolidators.SeriesFetchResult{}, noop, err
 		}

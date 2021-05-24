@@ -295,7 +295,8 @@ func (i *ingester) Handle(conn net.Conn) {
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
-			ok := i.write(ctx, resources, timestamp, value)
+			// TODO: convert timestamp.
+			ok := i.write(ctx, resources, xtime.ToUnixNano(timestamp), value)
 			if ok {
 				i.metrics.success.Inc(1)
 			}
@@ -336,7 +337,7 @@ func (i *ingester) Handle(conn net.Conn) {
 func (i *ingester) write(
 	ctx context.Context,
 	resources *lineResources,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 ) bool {
 	downsampleAndStoragePolicies := ingest.WriteOptions{
@@ -418,7 +419,7 @@ func (i *ingester) write(
 func (i *ingester) writeWithOptions(
 	ctx context.Context,
 	resources *lineResources,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	opts ingest.WriteOptions,
 ) error {

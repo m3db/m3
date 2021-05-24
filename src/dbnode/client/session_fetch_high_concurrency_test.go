@@ -75,11 +75,11 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
-	encoder := m3tsz.NewEncoder(start, nil, true, nil)
+	encoder := m3tsz.NewEncoder(xtime.ToUnixNano(start), nil, true, nil)
 	for at := start; at.Before(end); at = at.Add(30 * time.Second) {
 		dp := ts.Datapoint{
-			Timestamp: at,
-			Value:     rand.Float64() * math.MaxFloat64,
+			TimestampNanos: xtime.ToUnixNano(at),
+			Value:          rand.Float64() * math.MaxFloat64,
 		}
 		encoder.Encode(dp, xtime.Second, nil)
 	}

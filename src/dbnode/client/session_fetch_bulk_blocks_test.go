@@ -1441,10 +1441,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
+	enc := m3tsz.NewEncoder(xtime.ToUnixNano(start), nil, true, encoding.NewOptions())
 	require.NoError(t, enc.Encode(ts.Datapoint{
-		Timestamp: start.Add(10 * time.Second),
-		Value:     42,
+		TimestampNanos: xtime.ToUnixNano(start.Add(10 * time.Second)),
+		Value:          42,
 	}, xtime.Second, nil))
 
 	ctx := context.NewBackground()
@@ -1591,10 +1591,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
-	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
+	enc := m3tsz.NewEncoder(xtime.ToUnixNano(start), nil, true, encoding.NewOptions())
 	require.NoError(t, enc.Encode(ts.Datapoint{
-		Timestamp: start.Add(10 * time.Second),
-		Value:     42,
+		TimestampNanos: xtime.ToUnixNano(start.Add(10 * time.Second)),
+		Value:          42,
 	}, xtime.Second, nil))
 
 	ctx := context.NewBackground()
@@ -1778,7 +1778,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 
 	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
-		enc := m3tsz.NewEncoder(time.Time{}, nil, intopt, eops)
+		enc := m3tsz.NewEncoder(0, nil, intopt, eops)
 		if wrapEncoderFn != nil {
 			enc = wrapEncoderFn(enc)
 		}
@@ -1814,9 +1814,9 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	for _, vals := range [][]testValue{vals0, vals1, vals2} {
 		nsCtx := namespace.NewContextFor(ident.StringID("default"), opts.SchemaRegistry())
 		encoder := encoderPool.Get()
-		encoder.Reset(start, 0, nsCtx.Schema)
+		encoder.Reset(xtime.ToUnixNano(start), 0, nsCtx.Schema)
 		for _, val := range vals {
-			dp := ts.Datapoint{Timestamp: val.t, Value: val.value}
+			dp := ts.Datapoint{TimestampNanos: xtime.ToUnixNano(val.t), Value: val.value}
 			assert.NoError(t, encoder.Encode(dp, val.unit, val.annotation))
 			all = append(all, val)
 		}
@@ -1855,7 +1855,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		idx := asserted
 		dp, unit, annotation := iter.Current()
 		assert.Equal(t, all[idx].value, dp.Value)
-		assert.True(t, all[idx].t.Equal(dp.Timestamp))
+		assert.True(t, all[idx].t.Equal(dp.TimestampNanos.ToTime()))
 		assert.Equal(t, all[idx].unit, unit)
 		assert.Equal(t, all[idx].annotation, []byte(annotation))
 		asserted++

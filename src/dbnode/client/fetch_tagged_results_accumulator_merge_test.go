@@ -578,8 +578,8 @@ func newTestDatapoints(num int, start, end time.Time) testDatapoints {
 	step := end.Sub(start) / time.Duration(num)
 	for i := 0; i < num; i++ {
 		dps = append(dps, ts.Datapoint{
-			Timestamp: start.Add(step * time.Duration(i)),
-			Value:     float64(i),
+			TimestampNanos: xtime.ToUnixNano(start.Add(step * time.Duration(i))),
+			Value:          float64(i),
 		})
 	}
 	return dps
@@ -592,7 +592,7 @@ func (td testDatapoints) assertMatchesEncodingIter(t *testing.T, iter encoding.S
 		obs, _, _ := iter.Current()
 		exp := td[i]
 		require.Equal(t, exp.Value, obs.Value)
-		require.Equal(t, exp.Timestamp.UnixNano(), obs.Timestamp.UnixNano())
+		require.Equal(t, exp.TimestampNanos, obs.TimestampNanos)
 		i++
 	}
 	require.Equal(t, len(td), i)
@@ -600,7 +600,7 @@ func (td testDatapoints) assertMatchesEncodingIter(t *testing.T, iter encoding.S
 
 func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time) []*rpc.Segments {
 	enc := th.encPool.Get()
-	enc.Reset(start, len(td), nil)
+	enc.Reset(xtime.ToUnixNano(start), len(td), nil)
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}

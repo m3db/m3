@@ -80,9 +80,9 @@ func NewMockSeriesIterator(ctrl *gomock.Controller, tagGenerator func() ident.Ta
 func NewMockSeriesIteratorFromBase(mockIter *encoding.MockSeriesIterator, tagGenerator func() ident.TagIterator, numValues int) *encoding.MockSeriesIterator {
 	mockIter.EXPECT().Next().Return(true).MaxTimes(numValues)
 	mockIter.EXPECT().Next().Return(false).MaxTimes(1)
-	now := time.Now()
+	now := xtime.ToUnixNano(time.Now())
 	for i := 0; i < numValues; i++ {
-		mockIter.EXPECT().Current().Return(m3ts.Datapoint{Timestamp: now.Add(time.Duration(i*10) * time.Second), Value: float64(i)}, xtime.Millisecond, nil).MaxTimes(1)
+		mockIter.EXPECT().Current().Return(m3ts.Datapoint{TimestampNanos: now.Add(time.Duration(i*10) * time.Second), Value: float64(i)}, xtime.Millisecond, nil).MaxTimes(1)
 	}
 
 	tags := tagGenerator()

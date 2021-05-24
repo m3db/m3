@@ -21,8 +21,6 @@
 package writes
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -102,7 +100,7 @@ type BatchWriter interface {
 	Add(
 		originalIndex int,
 		id ident.ID,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -112,7 +110,7 @@ type BatchWriter interface {
 		originalIndex int,
 		id ident.ID,
 		encodedTags ts.EncodedTags,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,

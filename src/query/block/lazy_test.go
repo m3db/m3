@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -88,7 +89,7 @@ func TestLazyOpts(t *testing.T) {
 	off := time.Minute
 	lazyOpts := testLazyOpts(off, 1.0)
 
-	now := time.Now()
+	now := xtime.ToUnixNano(time.Now())
 	equalTimes := lazyOpts.TimeTransform()(now).Equal(now.Add(off))
 	assert.True(t, equalTimes)
 

@@ -79,9 +79,9 @@ type Query struct {
 // preferences on query execution.
 type QueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive	is the exclusive end for the query.
-	EndExclusive time.Time
+	EndExclusive xtime.UnixNano
 	// SeriesLimit is an optional limit for number of series matched.
 	SeriesLimit int
 	// DocsLimit is an optional limit for number of documents matched.
@@ -100,9 +100,9 @@ type QueryOptions struct {
 // preferences on wide query execution.
 type WideQueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive is the exclusive end for the query.
-	EndExclusive time.Time
+	EndExclusive xtime.UnixNano
 	// BatchSize controls wide query batch size.
 	BatchSize int
 	// ShardsQueried are the shards to query. These must be in ascending order.
@@ -399,10 +399,10 @@ type OnIndexSeries interface {
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
 	// StartTime returns the start time of the period this Block indexes.
-	StartTime() time.Time
+	StartTime() xtime.UnixNano
 
 	// EndTime returns the end time of the period this Block indexes.
-	EndTime() time.Time
+	EndTime() xtime.UnixNano
 
 	// WriteBatch writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
@@ -655,7 +655,7 @@ func (b *WriteBatch) ForEach(fn ForEachWriteBatchEntryFn) {
 // reference to a restricted set of the write batch for each unique block
 // start.
 type ForEachWriteBatchByBlockStartFn func(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	batch *WriteBatch,
 )
 
@@ -694,14 +694,13 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
 			if len(b.entries) != 0 {
-				fn(lastBlockStart.ToTime(), b)
+				fn(lastBlockStart, b)
 			}
 			return
 		}
 
 		blockStart := allEntries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
-			prevLastBlockStart := lastBlockStart.ToTime()
 			lastBlockStart = blockStart
 			// We only want to call the the ForEachUnmarkedBatchByBlockStart once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given blockStart, but the first element
@@ -711,7 +710,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			}
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
-			fn(prevLastBlockStart, b)
+			fn(lastBlockStart, b)
 			startIdx = i
 		}
 	}
@@ -722,7 +721,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	if startIdx < len(allEntries) {
 		b.entries = allEntries[startIdx:]
 		b.docs = allDocs[startIdx:]
-		fn(lastBlockStart.ToTime(), b)
+		fn(lastBlockStart, b)
 	}
 }
 
@@ -865,7 +864,7 @@ func (b *WriteBatch) Less(i, j int) bool {
 // being inserted.
 type WriteBatchEntry struct {
 	// Timestamp is the timestamp that this entry should be indexed for
-	Timestamp time.Time
+	Timestamp xtime.UnixNano
 	// OnIndexSeries is a listener/callback for when this entry is marked done
 	// it is set to nil when the entry is marked done
 	OnIndexSeries OnIndexSeries
@@ -894,7 +893,7 @@ type WriteBatchEntryResult struct {
 func (e WriteBatchEntry) indexBlockStart(
 	indexBlockSize time.Duration,
 ) xtime.UnixNano {
-	return xtime.ToUnixNano(e.Timestamp.Truncate(indexBlockSize))
+	return e.Timestamp.Truncate(indexBlockSize)
 }
 
 // Result returns the result for this entry.

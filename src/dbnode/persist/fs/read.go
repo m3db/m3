@@ -69,7 +69,7 @@ type reader struct {
 	filePathPrefix string
 	namespace      ident.ID
 
-	start     time.Time
+	start     xtime.UnixNano
 	blockSize time.Duration
 
 	infoFdWithDigest           digest.FdWithDigestReader
@@ -332,7 +332,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.start = xtime.FromNanoseconds(info.BlockStart)
+	r.start = xtime.UnixNano(info.BlockStart)
 	r.volume = info.VolumeIndex
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)

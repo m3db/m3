@@ -50,7 +50,7 @@ type IndexWriter interface {
 	// BlockStartForWriteTime returns the index block start
 	// time for the given writeTime.
 	BlockStartForWriteTime(
-		writeTime time.Time,
+		writeTime xtime.UnixNano,
 	) xtime.UnixNano
 }
 
@@ -190,7 +190,7 @@ func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 // Write writes a new value.
 func (entry *Entry) Write(
 	ctx context.Context,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -227,7 +227,7 @@ func (entry *Entry) UniqueIndex() uint64 {
 	return entry.Series.UniqueIndex()
 }
 
-func (entry *Entry) maybeIndex(timestamp time.Time) error {
+func (entry *Entry) maybeIndex(timestamp xtime.UnixNano) error {
 	idx := entry.indexWriter
 	if idx == nil {
 		return nil

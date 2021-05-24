@@ -21,19 +21,18 @@
 package block
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // NewMetadata creates a new block metadata
 func NewMetadata(
 	id ident.ID,
 	tags ident.Tags,
-	start time.Time,
+	start xtime.UnixNano,
 	size int64,
 	checksum *uint32,
-	lastRead time.Time,
+	lastRead xtime.UnixNano,
 ) Metadata {
 	return Metadata{
 		ID:       id,

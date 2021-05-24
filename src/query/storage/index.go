@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -75,8 +76,8 @@ func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery)
 		RequireExhaustive: fetchOptions.RequireExhaustive,
 		RequireNoWait:     fetchOptions.RequireNoWait,
 		Source:            fetchOptions.Source,
-		StartInclusive:    fetchQuery.Start,
-		EndExclusive:      fetchQuery.End,
+		StartInclusive:    xtime.ToUnixNano(fetchQuery.Start),
+		EndExclusive:      xtime.ToUnixNano(fetchQuery.End),
 	}
 }
 

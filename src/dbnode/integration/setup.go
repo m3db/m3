@@ -451,7 +451,7 @@ func NewTestSetup(
 		// Have to manually set the blockpool because the default one uses a constructor
 		// function that doesn't have the updated blockOpts.
 		blockPool.Init(func() block.DatabaseBlock {
-			return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+			return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 		})
 		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)

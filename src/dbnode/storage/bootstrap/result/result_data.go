@@ -21,10 +21,9 @@
 package result
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type dataBootstrapResult struct {
@@ -122,7 +121,7 @@ func (sr *shardResult) AddResult(other ShardResult) {
 }
 
 // RemoveBlockAt removes a data block at a given timestamp
-func (sr *shardResult) RemoveBlockAt(id ident.ID, t time.Time) {
+func (sr *shardResult) RemoveBlockAt(id ident.ID, t xtime.UnixNano) {
 	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
 		return
@@ -147,7 +146,7 @@ func (sr *shardResult) NumSeries() int64 {
 	return int64(sr.blocks.Len())
 }
 
-func (sr *shardResult) BlockAt(id ident.ID, t time.Time) (block.DatabaseBlock, bool) {
+func (sr *shardResult) BlockAt(id ident.ID, t xtime.UnixNano) (block.DatabaseBlock, bool) {
 	series, exists := sr.blocks.Get(id)
 	if !exists {
 		return nil, false

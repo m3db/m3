@@ -268,9 +268,9 @@ type CompleteTagsQuery struct {
 	// TagMatchers is the search criteria for the query.
 	TagMatchers models.Matchers
 	// Start is the inclusive start for the query.
-	Start time.Time
+	Start xtime.UnixNano
 	// End is the exclusive end for the query.
-	End time.Time
+	End xtime.UnixNano
 }
 
 // SeriesMatchQuery represents a query that returns a set of series

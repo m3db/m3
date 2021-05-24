@@ -44,13 +44,13 @@ var (
 	// BlockSize is the expected block size for the generated series
 	BlockSize time.Duration
 	// Start is the expected start time for the first block in the generated series
-	Start time.Time
+	Start xtime.UnixNano
 	// SeriesStart is the expected start time for the generated series
-	SeriesStart time.Time
+	SeriesStart xtime.UnixNano
 	// Middle is the expected end for the first block, and start of the second block
-	Middle time.Time
+	Middle xtime.UnixNano
 	// End is the expected end time for the generated series
-	End time.Time
+	End xtime.UnixNano
 
 	testIterAlloc func(r xio.Reader64, d namespace.SchemaDescr) encoding.ReaderIterator
 )
@@ -62,7 +62,7 @@ func init() {
 
 	BlockSize = time.Hour / 2
 
-	Start = time.Now().Truncate(time.Hour)
+	Start = xtime.ToUnixNano(time.Now()).Truncate(time.Hour)
 	SeriesStart = Start.Add(2 * time.Minute)
 	Middle = Start.Add(BlockSize)
 	End = Middle.Add(BlockSize)
@@ -80,7 +80,7 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 	i := 0
 	for at := time.Duration(0); at < BlockSize; at += time.Minute {
 		i++
-		datapoint := ts.Datapoint{Timestamp: Start.Add(at), Value: float64(i)}
+		datapoint := ts.Datapoint{TimestampNanos: Start.Add(at), Value: float64(i)}
 		err := encoder.Encode(datapoint, xtime.Second, nil)
 		if err != nil {
 			return nil, err
@@ -101,7 +101,7 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 
 	for at := time.Duration(0); at < BlockSize; at += time.Minute {
 		i++
-		datapoint := ts.Datapoint{Timestamp: Middle.Add(at), Value: float64(i)}
+		datapoint := ts.Datapoint{TimestampNanos: Middle.Add(at), Value: float64(i)}
 		var err error
 		if useFirstEncoder {
 			err = encoder.Encode(datapoint, xtime.Second, nil)
@@ -181,8 +181,8 @@ func BuildTestSeriesIterator(id string) (encoding.SeriesIterator, error) {
 			ID:             ident.StringID(id),
 			Namespace:      ident.StringID(SeriesNamespace),
 			Tags:           ident.NewTagsIterator(tags),
-			StartInclusive: xtime.ToUnixNano(SeriesStart),
-			EndExclusive:   xtime.ToUnixNano(End),
+			StartInclusive: SeriesStart,
+			EndExclusive:   End,
 			Replicas: []encoding.MultiReaderIterator{
 				replicaOne,
 				replicaTwo,
@@ -201,7 +201,7 @@ func BuildCustomIterator(
 	dps [][]Datapoint,
 	testTags map[string]string,
 	seriesID, seriesNamespace string,
-	start time.Time,
+	start xtime.UnixNano,
 	blockSize, stepSize time.Duration,
 ) (encoding.SeriesIterator, models.Bounds, error) {
 	// Build a merged BlockReader
@@ -224,8 +224,8 @@ func BuildCustomIterator(
 				}
 
 				tsDp := ts.Datapoint{
-					Value:     dp.Value,
-					Timestamp: currentStart.Add(offset),
+					Value:          dp.Value,
+					TimestampNanos: currentStart.Add(offset),
 				}
 
 				err := encoder.Encode(tsDp, xtime.Second, nil)
@@ -259,8 +259,8 @@ func BuildCustomIterator(
 				ID:             ident.StringID(seriesID),
 				Namespace:      ident.StringID(seriesNamespace),
 				Tags:           ident.NewTagsIterator(tags),
-				StartInclusive: xtime.ToUnixNano(start),
-				EndExclusive:   xtime.ToUnixNano(currentStart.Add(blockSize)),
+				StartInclusive: start,
+				EndExclusive:   currentStart.Add(blockSize),
 				Replicas: []encoding.MultiReaderIterator{
 					multiReader,
 				},

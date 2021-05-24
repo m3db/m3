@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -34,6 +33,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type fetchStateType byte
@@ -108,8 +108,8 @@ func (f *fetchState) close() {
 }
 
 func (f *fetchState) ResetFetchTagged(
-	startTime time.Time,
-	endTime time.Time,
+	startTime xtime.UnixNano,
+	endTime xtime.UnixNano,
 	op *fetchTaggedOp, topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,
@@ -121,8 +121,8 @@ func (f *fetchState) ResetFetchTagged(
 }
 
 func (f *fetchState) ResetAggregate(
-	startTime time.Time,
-	endTime time.Time,
+	startTime xtime.UnixNano,
+	endTime xtime.UnixNano,
 	op *aggregateOp, topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,

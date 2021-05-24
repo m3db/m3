@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -70,7 +71,7 @@ type Values interface {
 
 // A Datapoint is a single data value reported at a given time.
 type Datapoint struct {
-	Timestamp time.Time
+	Timestamp xtime.UnixNano
 	Value     float64
 }
 
@@ -206,17 +207,17 @@ type MutableValues interface {
 type FixedResolutionMutableValues interface {
 	MutableValues
 	Resolution() time.Duration
-	StepAtTime(t time.Time) int
-	StartTimeForStep(n int) time.Time
+	StepAtTime(t xtime.UnixNano) int
+	StartTimeForStep(n int) xtime.UnixNano
 	// Time when the series starts
-	StartTime() time.Time
+	StartTime() xtime.UnixNano
 }
 
 type fixedResolutionValues struct {
 	resolution time.Duration
 	numSteps   int
 	values     []float64
-	startTime  time.Time
+	startTime  xtime.UnixNano
 }
 
 func (b *fixedResolutionValues) Len() int                  { return b.numSteps }
@@ -262,7 +263,7 @@ func (b *fixedResolutionValues) AlignToBoundsNoWriteForward(
 }
 
 // StartTime returns the time the values start
-func (b *fixedResolutionValues) StartTime() time.Time {
+func (b *fixedResolutionValues) StartTime() xtime.UnixNano {
 	return b.startTime
 }
 
@@ -272,12 +273,12 @@ func (b *fixedResolutionValues) Resolution() time.Duration {
 }
 
 // StepAtTime returns the step within the block containing the given time
-func (b *fixedResolutionValues) StepAtTime(t time.Time) int {
+func (b *fixedResolutionValues) StepAtTime(t xtime.UnixNano) int {
 	return int(t.Sub(b.StartTime()) / b.Resolution())
 }
 
 // StartTimeForStep returns the time at which the given step starts
-func (b *fixedResolutionValues) StartTimeForStep(n int) time.Time {
+func (b *fixedResolutionValues) StartTimeForStep(n int) xtime.UnixNano {
 	return b.startTime.Add(time.Duration(n) * b.Resolution())
 }
 
@@ -292,7 +293,7 @@ func NewFixedStepValues(
 	resolution time.Duration,
 	numSteps int,
 	initialValue float64,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) FixedResolutionMutableValues {
 	return newFixedStepValues(resolution, numSteps, initialValue, startTime)
 }
@@ -301,7 +302,7 @@ func newFixedStepValues(
 	resolution time.Duration,
 	numSteps int,
 	initialValue float64,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	util.Memset(values, initialValue)

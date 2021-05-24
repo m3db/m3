@@ -103,7 +103,7 @@ func (client *TestTChannelClient) TChannelClientWriteBatch(
 			elem := &rpc.WriteBatchRawRequestElement{
 				ID: series.ID.Bytes(),
 				Datapoint: &rpc.Datapoint{
-					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
+					Timestamp:         dp.TimestampNanos.ToNormalizedTime(time.Second),
 					Value:             dp.Value,
 					Annotation:        dp.Annotation,
 					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
@@ -189,7 +189,8 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 				defer wg.Done()
 
 				if err := session.Write(
-					namespace, id, d.Timestamp, d.Value, xtime.Second, d.Annotation); err != nil {
+					namespace, id, d.TimestampNanos, d.Value, xtime.Second, d.Annotation,
+				); err != nil {
 					select {
 					case errCh <- err:
 					default:
@@ -212,12 +213,15 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.Te
 		return nil, err
 	}
 
+	start := xtime.UnixNano(req.RangeStart)
+	end := xtime.UnixNano(req.RangeEnd)
 	iter, err := session.Fetch(
 		ident.StringID(req.NameSpace),
 		ident.StringID(req.ID),
-		xtime.FromNormalizedTime(req.RangeStart, time.Second),
-		xtime.FromNormalizedTime(req.RangeEnd, time.Second),
+		xtime.UnixNano(start.ToNormalizedTime(time.Second)),
+		xtime.UnixNano(end.ToNormalizedTime(time.Second)),
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +257,7 @@ func m3dbClientFetchBlocksMetadata(
 	c client.AdminClient,
 	namespace ident.ID,
 	shards []uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	consistencyLevel topology.ReadConsistencyLevel,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()
@@ -286,10 +290,10 @@ func m3dbClientFetchBlocksMetadata(
 				seenBlocks = make(map[xtime.UnixNano]struct{})
 				seen[idString] = seenBlocks
 			}
-			if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
+			if _, ok := seenBlocks[blockMetadata.Start]; ok {
 				continue // Already seen
 			}
-			seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
+			seenBlocks[blockMetadata.Start] = struct{}{}
 			metadatas = append(metadatas, block.ReplicaMetadata{
 				Metadata: blockMetadata,
 				Host:     host,

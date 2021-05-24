@@ -21,6 +21,8 @@
 package scalar
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -96,7 +98,7 @@ func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 			return err
 		}
 
-		timeVal := float64(t.Unix())
+		timeVal := float64(t.ToNormalizedTime(time.Second))
 		if err := builder.AppendValue(i, timeVal); err != nil {
 			return err
 		}

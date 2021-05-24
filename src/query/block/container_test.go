@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +66,7 @@ var (
 	opts            = models.NewTagOptions()
 	step            = time.Second
 	numSteps        = 10
-	now             = time.Now()
+	now             = xtime.ToUnixNano(time.Now())
 	containerBounds = models.Bounds{
 		Start:    now,
 		StepSize: step,
