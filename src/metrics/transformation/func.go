@@ -54,20 +54,24 @@ func (fn UnaryTransformFn) Evaluate(dp Datapoint) Datapoint {
 	return fn(dp)
 }
 
+type TransformationFeatureFlags struct {
+	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
+}
+
 // BinaryTransform is a binary transformation that takes the
 // previous and the current datapoint as input and produces
 // a single datapoint as the transformation result.
 // It can keep state if it requires.
 type BinaryTransform interface {
-	Evaluate(prev, curr Datapoint) Datapoint
+	Evaluate(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint
 }
 
 // BinaryTransformFn implements BinaryTransform as a function.
-type BinaryTransformFn func(prev, curr Datapoint) Datapoint
+type BinaryTransformFn func(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint
 
 // Evaluate implements BinaryTransform as a function.
-func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint) Datapoint {
-	return fn(prev, curr)
+func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint {
+	return fn(prev, curr, flags)
 }
 
 // UnaryMultiOutputTransform is like UnaryTransform, but can output an additional datapoint.

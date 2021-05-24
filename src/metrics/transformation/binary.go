@@ -46,7 +46,7 @@ func transformPerSecond() BinaryTransform {
 // * It skips NaN values.
 // * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
 //   If either of the two conditions is not met, an empty datapoint is returned.
-func perSecond(prev, curr Datapoint) Datapoint {
+func perSecond(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint {
 	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
 		return emptyDatapoint
 	}
@@ -60,10 +60,6 @@ func perSecond(prev, curr Datapoint) Datapoint {
 
 func transformIncrease() BinaryTransform {
 	return transformIncreaseFn
-}
-
-type TransformationFeatureFlags struct {
-	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
 }
 
 // increase computes the difference between consecutive datapoints, unlike

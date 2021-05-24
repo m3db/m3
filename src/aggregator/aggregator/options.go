@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -334,6 +335,9 @@ type Options interface {
 
 	// SetTimedMetricsFlushOffsetEnabled controls using of FlushOffset for timed metrics.
 	SetTimedMetricsFlushOffsetEnabled(bool) Options
+
+	FeatureFlags() FeatureFlagConfiguration
+	SetFeatureFlags(FeatureFlagConfiguration) Options
 }
 
 type options struct {
@@ -377,6 +381,7 @@ type options struct {
 	verboseErrors                    bool
 	addToReset                       bool
 	timedMetricsFlushOffsetEnabled   bool
+	featureFlags                     FeatureFlagConfiguration
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -846,12 +851,44 @@ func (o *options) initPools() {
 
 func (o *options) computeAllDerived() {
 	o.computeFullPrefixes()
+	o.computeFilterByteSequences()
 }
 
 func (o *options) computeFullPrefixes() {
 	o.computeFullCounterPrefix()
 	o.computeFullTimerPrefix()
 	o.computeFullGaugePrefix()
+}
+
+func (o *options) computeFilterByteSequences() {
+	/*
+		text ID:
+			{service="my_service",__name__="my_metric",foo="bar",baz="qux"}
+			binary ID (what is in e.id):
+			[uint16-numTags][uint16-tagNameLength][[]byte-tagName]....
+	*/
+
+	for _, flag := range o.featureFlags {
+		buff := make([]byte, 2)
+		var tagFilterBytes []byte
+		var ByteOrder binary.ByteOrder = binary.LittleEndian
+
+		// TODO(sidneyw): make sure there is only one filter. Tag ordering will
+		// throw off the simple bytes.Contains matching.
+		for key, value := range flag.Filter {
+			// Add key bytes.
+			ByteOrder.PutUint16(buff[:2], uint16(len(key)))
+			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
+			tagFilterBytes = append(tagFilterBytes, []byte(key)...)
+
+			// Add value bytes.
+			ByteOrder.PutUint16(buff[:2], uint16(len(value)))
+			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
+			tagFilterBytes = append(tagFilterBytes, []byte(value)...)
+		}
+
+		flag.filterBytes = tagFilterBytes
+	}
 }
 
 func (o *options) computeFullCounterPrefix() {
@@ -893,6 +930,19 @@ func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
 	opts := *o
 	opts.timedMetricsFlushOffsetEnabled = value
 	return &opts
+}
+
+func (o *options) SetFeatureFlags(value FeatureFlagConfiguration) Options {
+	opts := *o
+	opts.featureFlags = value
+
+	return &opts
+}
+
+func (o *options) FeatureFlags() FeatureFlagConfiguration {
+	flags := make(FeatureFlagConfiguration, len(o.featureFlags))
+	copy(flags, o.featureFlags)
+	return flags
 }
 
 func defaultMaxAllowedForwardingDelayFn(

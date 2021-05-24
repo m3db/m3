@@ -25,6 +25,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -408,41 +409,6 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	return left, false
 }
 
-var serviceNameMatcherBytes []byte
-var ByteOrder binary.ByteOrder = binary.LittleEndian
-
-func init() {
-	buff := make([]byte, 2)
-
-	n := ByteOrder.PutUint16(buff[:2], uint16(len("service")))
-	serviceNameMatcherBytes = append(serviceNameMatcherBytes, buff[:2]...)
-	serviceNameMatcherBytes = append(serviceNameMatcherBytes, []byte("service")...)
-
-	n = ByteOrder.PutUint16(buff[:2], uint16(len("my_service")))
-	serviceNameMatcherBytes = append(serviceNameMatcherBytes, buff[:2]...)
-	serviceNameMatcherBytes = append(serviceNameMatcherBytes, []byte("my_service")...)
-}
-
-/*
-type FeatureFlagConfiguration struct {
-	Bundles []FeatureFlagBundleConfiguration
-}
-type FeatureFlagBundleConfiguration struct {
-	Filter map[string]string `yaml:"filter"`
-	Flags FeatureFlagBundleFlagsConfiguration `yaml:"flags"`
-}
-type FeatureFlagBundleFlagsConfiguration struct {
-	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
-}
-*/
-
-/*
-text ID:
-{service="my_service",__name__="my_metric",foo="bar",baz="qux"}
-binary ID (what is in e.id):
-[uint16-numTags][uint16-tagNameLength][[]byte-tagName]....
-*/
-
 func (e *CounterElem) processValueWithAggregationLock(
 	timeNanos int64,
 	lockedAgg *lockedCounterAggregation,
@@ -485,10 +451,19 @@ func (e *CounterElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 
-				serviceUsesIncreaseWithPrevNaNTranslatesToCurrValueIncrease :=
-					bytes.Contains([]byte(e.id), serviceNameMatcherBytes)
+				var useIncreaseWithPrevNaN bool
+
+				for _, flagConf := range e.opts.FeatureFlags() {
+					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease {
+						useIncreaseWithPrevNaN = bytes.Contains(
+							[]byte(e.id),
+							flagConf.FilterBytes(),
+						)
+					}
+				}
+
 				res := binaryOp.Evaluate(prev, curr, transformation.TransformationFeatureFlags{
-					IncreaseWithPrevNaNTranslatesToCurrValueIncrease: isserviceName,
+					IncreaseWithPrevNaNTranslatesToCurrValueIncrease: useIncreaseWithPrevNaN,
 				})
 
 				// NB: we only need to record the value needed for derivative transformations.

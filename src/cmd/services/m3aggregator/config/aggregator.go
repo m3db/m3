@@ -177,6 +177,8 @@ type AggregatorConfiguration struct {
 
 	// TimedMetricsFlushOffsetEnabled enables using FlushOffset for timed metrics.
 	TimedMetricsFlushOffsetEnabled bool `yaml:"timedMetricsFlushOffsetEnabled"`
+
+	FeatureFlags aggregator.FeatureFlagConfiguration `yaml:"featureFlags"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -269,6 +271,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if rwOpts == nil {
 		rwOpts = xio.NewOptions()
 	}
+
+	// Set feature flags if they exist
+	if c.FeatureFlags != nil {
+		opts = opts.SetFeatureFlags(c.FeatureFlags)
+	}
+
 	// Set the aggregation types options.
 	aggTypesOpts, err := c.AggregationTypes.NewOptions(instrumentOpts)
 	if err != nil {
@@ -482,6 +490,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool.Init(func() *aggregator.Entry {
 		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
 	})
+
 	return opts, nil
 }
 
