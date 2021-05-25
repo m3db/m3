@@ -25,6 +25,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sync"
@@ -449,7 +450,20 @@ func (e *GaugeElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 
-				res := binaryOp.Evaluate(prev, curr, transformation.TransformationFeatureFlags{})
+				var useIncreaseWithPrevNaN bool
+
+				for _, flagConf := range e.opts.FeatureFlags() {
+					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease {
+						useIncreaseWithPrevNaN = bytes.Contains(
+							[]byte(e.id),
+							flagConf.FilterBytes(),
+						)
+					}
+				}
+
+				res := binaryOp.Evaluate(prev, curr, transformation.TransformationFeatureFlags{
+					IncreaseWithPrevNaNTranslatesToCurrValueIncrease: useIncreaseWithPrevNaN,
+				})
 
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only

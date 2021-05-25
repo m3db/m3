@@ -29,7 +29,7 @@ type FlagConfiguration struct {
 }
 
 type FlagBundle struct {
-	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
+	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool `yaml:"increase_with_prev_nan_translates_to_curr_value_increase"`
 }
 
 func (f *FlagConfiguration) SetFilterBytes(value []byte) {
