@@ -513,11 +513,10 @@ func (e *GenericElem) processValueWithAggregationLock(
 				var useIncreaseWithPrevNaN bool
 
 				for _, flagConf := range e.opts.FeatureFlags() {
-					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease {
-						useIncreaseWithPrevNaN = bytes.Contains(
-							[]byte(e.id),
-							flagConf.FilterBytes(),
-						)
+					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease &&
+						bytes.Contains([]byte(e.id), flagConf.FilterBytes()) {
+						useIncreaseWithPrevNaN = true
+						break
 					}
 				}
 
