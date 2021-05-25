@@ -134,6 +134,20 @@ func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (
 	return defaultLimit, nil
 }
 
+// ParseInstanceMultiple parses request instance multiple from header.
+func ParseInstanceMultiple(req *http.Request, defaultValue float32) (float32, error) {
+	if str := req.Header.Get(headers.LimitInstanceMultipleHeader); str != "" {
+		v, err := strconv.ParseFloat(str, 32)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse instance multiple: input=%s, err=%w", str, err)
+			return 0, err
+		}
+		return float32(v), nil
+	}
+	return defaultValue, nil
+}
+
 // ParseRequireExhaustive parses request limit require exhaustive from header or
 // query string.
 func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) {
@@ -214,9 +228,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	if err != nil {
 		return nil, nil, err
 	}
-
 	fetchOpts.SeriesLimit = seriesLimit
-	fetchOpts.InstanceMultiple = b.opts.Limits.InstanceMultiple
+
+	instanceMultiple, err := ParseInstanceMultiple(req, b.opts.Limits.InstanceMultiple)
+	if err != nil {
+		return nil, nil, err
+	}
+	fetchOpts.InstanceMultiple = instanceMultiple
 
 	docsLimit, err := ParseLimit(req, headers.LimitMaxDocsHeader,
 		"docsLimit", b.opts.Limits.DocsLimit)
