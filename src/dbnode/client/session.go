@@ -1547,6 +1547,14 @@ func (s *session) fetchTaggedAttempt(
 	// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
 	// of the Clone()'d value to the `fetchState`.
 	const fetchData = true
+	if opts.InstanceMultiple > 0 {
+		topo := s.state.topoMap
+		iPerReplica := len(topo.Hosts()) / topo.Replicas()
+		iSeriesLimit := int(float32(opts.SeriesLimit)*opts.InstanceMultiple) / iPerReplica
+		if iSeriesLimit < opts.SeriesLimit {
+			opts.SeriesLimit = iSeriesLimit
+		}
+	}
 	req, err := convert.ToRPCFetchTaggedRequest(nsClone, q, opts, fetchData)
 	if err != nil {
 		s.state.RUnlock()
