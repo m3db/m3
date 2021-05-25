@@ -488,7 +488,7 @@ func TestInstanceMultiple(t *testing.T) {
 	require.Equal(t, float32(3.0), m)
 
 	req.Header.Set(headers.LimitInstanceMultipleHeader, "blah")
-	m, err = ParseInstanceMultiple(req, 2.0)
+	_, err = ParseInstanceMultiple(req, 2.0)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "could not parse instance multiple")
 }

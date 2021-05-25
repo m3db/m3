@@ -140,7 +140,7 @@ func ParseInstanceMultiple(req *http.Request, defaultValue float32) (float32, er
 		v, err := strconv.ParseFloat(str, 32)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse instance multiple: input=%s, err=%v", str, err)
+				"could not parse instance multiple: input=%s, err=%w", str, err)
 			return 0, err
 		}
 		return float32(v), nil
