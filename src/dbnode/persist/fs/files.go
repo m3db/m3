@@ -478,7 +478,7 @@ func intComponentAtIndex(
 	baseFilename string,
 	componentPos int,
 	delimPos [maxDelimNum]int,
-) (xtime.UnixNano, error) {
+) (int64, error) {
 	start := 0
 	if componentPos > 0 {
 		start = delimPos[componentPos-1] + 1
@@ -492,7 +492,7 @@ func intComponentAtIndex(
 	if err != nil {
 		return 0, fmt.Errorf(errUnexpectedFilenamePattern, baseFilename)
 	}
-	return xtime.UnixNano(num), nil
+	return num, nil
 }
 
 // TimeFromFileName extracts the block start time from file name.
@@ -511,7 +511,7 @@ func TimeFromFileName(fname string) (xtime.UnixNano, error) {
 		return 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return nanos, nil
+	return xtime.UnixNano(nanos), nil
 }
 
 // TimeAndIndexFromCommitlogFilename extracts the block start and index from
@@ -539,7 +539,7 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (xtime.UnixNano, in
 
 	// Legacy filename with no volume index.
 	if delimsFound == 3 {
-		return nanos, unindexedFilesetIndex, nil
+		return xtime.UnixNano(nanos), unindexedFilesetIndex, nil
 	}
 
 	volume, err := intComponentAtIndex(base, dataFileSetComponentPosition, delims)
@@ -547,7 +547,7 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (xtime.UnixNano, in
 		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return nanos, int(volume), nil
+	return xtime.UnixNano(nanos), int(volume), nil
 }
 
 // TimeAndVolumeIndexFromFileSetFilename extracts the block start and
@@ -574,7 +574,7 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (xtime.UnixNa
 		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return nanos, int(index), nil
+	return xtime.UnixNano(nanos), int(index), nil
 }
 
 // SnapshotTimeAndID returns the metadata for the snapshot.
@@ -1301,7 +1301,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 		latestFileSetFile FileSetFile
 		filesetFiles      = []FileSetFile{}
 	)
-	for _, file := range byTimeAsc {
+	for idx, file := range byTimeAsc {
 		var (
 			currentFileBlockStart xtime.UnixNano
 			volumeIndex           int
@@ -1326,7 +1326,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 			return nil, err
 		}
 
-		if latestBlockStart.IsZero() {
+		if idx == 0 {
 			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
 				Namespace:   args.namespace,
 				BlockStart:  currentFileBlockStart,
@@ -1347,8 +1347,8 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 
 		latestFileSetFile.AbsoluteFilePaths = append(latestFileSetFile.AbsoluteFilePaths, file)
 	}
-	filesetFiles = append(filesetFiles, latestFileSetFile)
 
+	filesetFiles = append(filesetFiles, latestFileSetFile)
 	return filesetFiles, nil
 }
 

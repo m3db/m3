@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	m3test "github.com/m3db/m3/src/x/test"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +55,7 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 
 	var (
 		shard              = uint32(0)
-		blockStart         = time.Unix(1000, 0)
+		blockStart         = xtime.ToUnixNano(time.Unix(1000, 0))
 		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
 		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
 		checkpointFileBuf  = make([]byte, CheckpointFileSizeBytes)
@@ -87,7 +88,7 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 
 	var (
 		shard      = uint32(0)
-		blockStart = time.Unix(1000, 0)
+		blockStart = xtime.ToUnixNano(time.Unix(1000, 0))
 	)
 
 	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
@@ -138,7 +139,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 
 	ns1Md := testNs1Metadata(t)
 	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 	expectedErr := errors.New("foo")
 
 	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
@@ -177,7 +178,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -238,7 +239,7 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -320,7 +321,7 @@ func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
 	pm, writer, segWriter, _ := testIndexPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 	indexDir := createIndexDataDir(t, pm.filePathPrefix, testNs1ID)
 	checkpointFilePath := filesetPathFromTimeAndIndex(indexDir, blockStart, 0, checkpointFileSuffix)
 
@@ -374,7 +375,7 @@ func TestPersistenceManagerPrepareIndexOpenError(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	ns1Md := testNs1Metadata(t)
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 	expectedErr := errors.New("foo")
 
 	writerOpts := xtest.CmpMatcher(IndexWriterOpenOptions{
@@ -422,7 +423,7 @@ func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
 
 	// We support preparing multiple index block writers for an index persist.
 	numBlocks := 10
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 	for i := 1; i < numBlocks; i++ {
 		blockStart = blockStart.Add(time.Duration(i) * testBlockSize)
 		writerOpts := IndexWriterOpenOptions{
@@ -486,7 +487,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -555,7 +556,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 
 	var (
 		now      time.Time
@@ -657,7 +658,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
+	blockStart := xtime.ToUnixNano(time.Unix(1000, 0))
 
 	flush, err := pm.StartFlushPersist()
 	require.NoError(t, err)
