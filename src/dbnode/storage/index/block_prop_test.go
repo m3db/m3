@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -79,7 +80,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	uncachedBlock, err := newPropTestBlock(
@@ -178,7 +179,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	}
 }
 
-func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metadata, opts Options) (Block, error) {
+func newPropTestBlock(t *testing.T, blockStart xtime.UnixNano,
+	nsMeta namespace.Metadata, opts Options) (Block, error) {
 	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{},
 		namespace.NewRuntimeOptionsManager(nsMeta.ID().String()), opts)
 	require.NoError(t, err)
@@ -349,7 +351,7 @@ func TestAggregateDocLimits(t *testing.T) {
 			testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
 			testMD := newTestNSMetadata(t)
-			start := time.Now().Truncate(time.Hour)
+			start := xtime.Now().Truncate(time.Hour)
 			blk, err := NewBlock(start, testMD, BlockOptions{},
 				namespace.NewRuntimeOptionsManager("foo"), testOpts)
 			if err != nil {
