@@ -56,25 +56,32 @@ func generateSeriesIterators(
 	ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
 	iter := encoding.NewMockSeriesIterator(ctrl)
 	iter.EXPECT().ID().Return(ident.StringID(common)).MinTimes(1)
-	iter.EXPECT().Namespace().Return(ident.StringID(ns)).MaxTimes(1)
+	iter.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
 	iter.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().ID().Return(ident.StringID(ns)).MinTimes(1)
-	unique.EXPECT().Namespace().Return(ident.StringID(ns)).MaxTimes(1)
+	unique.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
 	unique.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 
 	iters := encoding.NewMockSeriesIterators(ctrl)
 	iters.EXPECT().Close().Return().Times(1)
 	iters.EXPECT().Len().Return(1).AnyTimes()
-	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique})
+	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique}).AnyTimes()
 
 	return iters
 }
 
-func generateUnreadSeriesIterators(ctrl *gomock.Controller) encoding.SeriesIterators {
+func generateUnreadSeriesIterators(ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
+	iter := encoding.NewMockSeriesIterator(ctrl)
+	iter.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
+
+	unique := encoding.NewMockSeriesIterator(ctrl)
+	unique.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
+
 	iters := encoding.NewMockSeriesIterators(ctrl)
 	iters.EXPECT().Len().Return(1).AnyTimes()
+	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique}).AnyTimes()
 	return iters
 }
 
@@ -185,7 +192,7 @@ func TestLimit(t *testing.T) {
 		r.Add(iters, meta, ns.attrs, nil)
 	}
 	longNs := namespaces[2]
-	r.Add(generateUnreadSeriesIterators(ctrl), meta, longNs.attrs, nil)
+	r.Add(generateUnreadSeriesIterators(ctrl, longNs.ns), meta, longNs.attrs, nil)
 
 	result, err := r.FinalResult()
 	assert.NoError(t, err)
@@ -224,7 +231,7 @@ func TestLimitRequireExhaustive(t *testing.T) {
 		r.Add(iters, meta, ns.attrs, nil)
 	}
 	longNs := namespaces[2]
-	r.Add(generateUnreadSeriesIterators(ctrl), meta, longNs.attrs, nil)
+	r.Add(generateUnreadSeriesIterators(ctrl, longNs.ns), meta, longNs.attrs, nil)
 
 	_, err := r.FinalResult()
 	require.Error(t, err)
@@ -257,6 +264,7 @@ func TestExhaustiveMerge(t *testing.T) {
 				iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
 					encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 						ID: ident.StringID(fmt.Sprint(i)),
+						Namespace: ident.StringID("ns"),
 					}, nil),
 				}, nil)
 
