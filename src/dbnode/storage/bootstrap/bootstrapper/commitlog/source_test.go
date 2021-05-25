@@ -49,7 +49,7 @@ func TestAvailableData(t *testing.T) {
 		nsMetadata                 = testNsMetadata(t)
 		blockSize                  = 2 * time.Hour
 		numShards                  = uint32(4)
-		blockStart                 = time.Now().Truncate(blockSize)
+		blockStart                 = xtime.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
