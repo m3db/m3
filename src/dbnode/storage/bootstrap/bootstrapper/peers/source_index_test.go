@@ -98,7 +98,7 @@ func (s testSeriesMetadata) Tags() ident.Tags {
 
 type testOptions struct {
 	name                string
-	indexBlockStart     time.Time
+	indexBlockStart     xtime.UnixNano
 	expectedIndexBlocks int
 	retentionPeriod     time.Duration
 }
@@ -107,13 +107,13 @@ func TestBootstrapIndex(t *testing.T) {
 	tests := []testOptions{
 		{
 			name:                "now",
-			indexBlockStart:     time.Now(),
+			indexBlockStart:     xtime.Now(),
 			expectedIndexBlocks: 12,
 			retentionPeriod:     48 * time.Hour,
 		},
 		{
 			name:                "now - 8h (out of retention)",
-			indexBlockStart:     time.Now().Add(-8 * time.Hour),
+			indexBlockStart:     xtime.Now().Add(-8 * time.Hour),
 			expectedIndexBlocks: 0,
 			retentionPeriod:     4 * time.Hour,
 		},
@@ -170,7 +170,7 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 		map[string]string{"aaa": "bbb", "ccc": "ddd"},
 	}
 	dataBlocks := []struct {
-		blockStart time.Time
+		blockStart xtime.UnixNano
 		series     []testSeriesMetadata
 	}{
 		{
@@ -222,8 +222,8 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 		func(
 			_ namespace.Metadata,
 			_ uint32,
-			blockStart time.Time,
-			blockEnd time.Time,
+			blockStart xtime.UnixNano,
+			blockEnd xtime.UnixNano,
 			_ result.Options,
 		) (result.ShardResult, error) {
 			goodID := ident.StringID("foo")
@@ -280,7 +280,7 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 
 	if numIndexBlocks > 0 {
 		for _, expected := range []*struct {
-			indexBlockStart time.Time
+			indexBlockStart xtime.UnixNano
 			series          map[string]testSeriesMetadata
 		}{
 			{
@@ -302,7 +302,7 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 				},
 			},
 		} {
-			expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
+			expectedAt := expected.indexBlockStart
 			indexBlockByVolumeType, ok := indexResults[expectedAt]
 			require.True(t, ok)
 			indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
@@ -349,13 +349,13 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 		t2 := indexStart.Add(indexBlockSize)
 		t3 := t2.Add(indexBlockSize)
 
-		indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(t1)]
+		indexBlockByVolumeType, ok := indexResults[t1]
 		require.True(t, ok)
 		blk1, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t1, t2, 0), blk1.Fulfilled())
 
-		indexBlockByVolumeType, ok = indexResults[xtime.ToUnixNano(t2)]
+		indexBlockByVolumeType, ok = indexResults[t2]
 		require.True(t, ok)
 		blk2, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
