@@ -73,9 +73,9 @@ func TestPerSecond(t *testing.T) {
 
 	for _, input := range inputs {
 		if input.expectedNaN {
-			require.True(t, perSecond(input.prev, input.curr).IsEmpty())
+			require.True(t, perSecond(input.prev, input.curr, TransformationFeatureFlags{}).IsEmpty())
 		} else {
-			require.Equal(t, input.expected, perSecond(input.prev, input.curr))
+			require.Equal(t, input.expected, perSecond(input.prev, input.curr, TransformationFeatureFlags{}))
 		}
 	}
 }
