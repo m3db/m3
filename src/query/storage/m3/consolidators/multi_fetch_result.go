@@ -254,7 +254,7 @@ func (r *multiResult) Add(
 	}
 
 	// the series limit was reached by adding the results of this namespace to the existing results.
-	if !added {
+	if !added && r.err.Empty() {
 		r.metadata.Exhaustive = false
 		if r.limitOpts.RequireExhaustive {
 			r.err = r.err.Add(errors.ErrSeriesLimit)

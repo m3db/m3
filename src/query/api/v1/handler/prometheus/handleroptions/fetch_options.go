@@ -77,6 +77,9 @@ type FetchOptionsBuilderOptions struct {
 
 // Validate validates the fetch options builder options.
 func (o FetchOptionsBuilderOptions) Validate() error {
+	if o.Limits.InstanceMultiple < 0 || (o.Limits.InstanceMultiple > 0 && o.Limits.InstanceMultiple < 1) {
+		return fmt.Errorf("InstanceMultiple must be 0 or >= 1: %v", o.Limits.InstanceMultiple)
+	}
 	return validateTimeout(o.Timeout)
 }
 
