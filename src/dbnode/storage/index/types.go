@@ -84,6 +84,8 @@ type QueryOptions struct {
 	EndExclusive time.Time
 	// SeriesLimit is an optional limit for number of series matched.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is an optional limit for number of documents matched.
 	DocsLimit int
 	// RequireExhaustive requires queries to be under given limit sizes.

@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
@@ -70,6 +72,12 @@ func generateSeriesIterators(
 	return iters
 }
 
+func generateUnreadSeriesIterators(ctrl *gomock.Controller) encoding.SeriesIterators {
+	iters := encoding.NewMockSeriesIterators(ctrl)
+	iters.EXPECT().Len().Return(1).AnyTimes()
+	return iters
+}
+
 func generateIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
 	pools := encoding.NewMockIteratorPools(ctrl)
 
@@ -87,6 +95,36 @@ func generateIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
 	return pools
 }
 
+var namespaces = []struct {
+	attrs storagemetadata.Attributes
+	ns    string
+}{
+	{
+		attrs: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+			Retention:   24 * time.Hour,
+			Resolution:  0 * time.Minute,
+		},
+		ns: unaggregated,
+	},
+	{
+		attrs: storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Retention:   360 * time.Hour,
+			Resolution:  2 * time.Minute,
+		},
+		ns: short,
+	},
+	{
+		attrs: storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Retention:   17520 * time.Hour,
+			Resolution:  10 * time.Minute,
+		},
+		ns: long,
+	},
+}
+
 func TestMultiResult(t *testing.T) {
 	testMultiResult(t, NamespaceCoversPartialQueryRange, long)
 	testMultiResult(t, NamespaceCoversAllQueryRange, unaggregated)
@@ -94,41 +132,10 @@ func TestMultiResult(t *testing.T) {
 
 func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) {
 	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	namespaces := []struct {
-		attrs storagemetadata.Attributes
-		ns    string
-	}{
-		{
-			attrs: storagemetadata.Attributes{
-				MetricsType: storagemetadata.UnaggregatedMetricsType,
-				Retention:   24 * time.Hour,
-				Resolution:  0 * time.Minute,
-			},
-			ns: unaggregated,
-		},
-		{
-			attrs: storagemetadata.Attributes{
-				MetricsType: storagemetadata.AggregatedMetricsType,
-				Retention:   360 * time.Hour,
-				Resolution:  2 * time.Minute,
-			},
-			ns: short,
-		},
-		{
-			attrs: storagemetadata.Attributes{
-				MetricsType: storagemetadata.AggregatedMetricsType,
-				Retention:   17520 * time.Hour,
-				Resolution:  10 * time.Minute,
-			},
-			ns: long,
-		},
-	}
 
 	pools := generateIteratorPools(ctrl)
 	r := NewMultiFetchResult(fanoutType, pools,
-		defaultTestOpts, models.NewTagOptions())
+		defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 
 	meta := block.NewResultMetadata()
 	meta.FetchedSeriesCount = 4
@@ -161,6 +168,69 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	assert.NoError(t, r.Close())
 }
 
+func TestLimit(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	pools := generateIteratorPools(ctrl)
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+		defaultTestOpts, models.NewTagOptions(), LimitOptions{
+			Limit:             2,
+			RequireExhaustive: false,
+		})
+
+	meta := block.NewResultMetadata()
+	for _, ns := range namespaces[0:2] {
+		iters := generateSeriesIterators(ctrl, ns.ns)
+		r.Add(iters, meta, ns.attrs, nil)
+	}
+	longNs := namespaces[2]
+	r.Add(generateUnreadSeriesIterators(ctrl), meta, longNs.attrs, nil)
+
+	result, err := r.FinalResult()
+	assert.NoError(t, err)
+	assert.False(t, result.Metadata.Exhaustive)
+	assert.True(t, result.Metadata.LocalOnly)
+	assert.Equal(t, 2, result.Metadata.FetchedSeriesCount)
+	assert.Equal(t, 0, len(result.Metadata.Warnings))
+
+	iters := result.seriesData.seriesIterators
+	assert.Equal(t, 2, iters.Len())
+	assert.Equal(t, 2, len(iters.Iters()))
+
+	for _, iter := range iters.Iters() {
+		ns := iter.Namespace().String()
+		if ns != short {
+			assert.Equal(t, iter.ID().String(), ns)
+		}
+	}
+	assert.NoError(t, r.Close())
+}
+
+func TestLimitRequireExhaustive(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	pools := generateIteratorPools(ctrl)
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+		defaultTestOpts, models.NewTagOptions(), LimitOptions{
+			Limit:             2,
+			RequireExhaustive: true,
+		})
+
+	meta := block.NewResultMetadata()
+	for _, ns := range namespaces[0:2] {
+		iters := generateSeriesIterators(ctrl, ns.ns)
+		r.Add(iters, meta, ns.attrs, nil)
+	}
+	longNs := namespaces[2]
+	r.Add(generateUnreadSeriesIterators(ctrl), meta, longNs.attrs, nil)
+
+	_, err := r.FinalResult()
+	require.Error(t, err)
+	assert.NoError(t, r.Close())
+}
+
 var exhaustTests = []struct {
 	name        string
 	exhaustives []bool
@@ -180,7 +250,7 @@ func TestExhaustiveMerge(t *testing.T) {
 
 	pools := generateIteratorPools(ctrl)
 	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
-		defaultTestOpts, models.NewTagOptions())
+		defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for i, ex := range tt.exhaustives {
