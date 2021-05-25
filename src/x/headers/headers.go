@@ -84,6 +84,9 @@ const (
 	// the number of time series returned by each storage node.
 	LimitMaxSeriesHeader = M3HeaderPrefix + "Limit-Max-Series"
 
+	// LimitInstanceMultipleHeader overrides the PerQueryLimitsConfiguration.InstanceMultiple for the request.
+	LimitInstanceMultipleHeader = M3HeaderPrefix + "Limit-Instance-Multiple"
+
 	// LimitMaxDocsHeader is the M3 limit docs header that limits
 	// the number of docs returned by each storage node.
 	LimitMaxDocsHeader = M3HeaderPrefix + "Limit-Max-Docs"
