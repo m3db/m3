@@ -2052,41 +2052,41 @@ func TestRemoveEmptySeries(t *testing.T) {
 	}{
 		{
 			[]common.TestSeries{
-				{"foo", []float64{500, 600, 700}},
-				{"bar", []float64{500, 600, nan}},
-				{"baz", []float64{500, nan, nan}},
-				{"qux", []float64{nan, nan, nan}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
 			},
 			0,
 			[]common.TestSeries{
-				{"foo", []float64{500, 600, 700}},
-				{"bar", []float64{500, 600, nan}},
-				{"baz", []float64{500, nan, nan}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
 			},
 		},
 		{
 			[]common.TestSeries{
-				{"foo", []float64{500, 600, 700}},
-				{"bar", []float64{500, 600, nan}},
-				{"baz", []float64{500, nan, nan}},
-				{"qux", []float64{nan, nan, nan}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
 			},
 			0.5,
 			[]common.TestSeries{
-				{"foo", []float64{500, 600, 700}},
-				{"bar", []float64{500, 600, nan}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
 			},
 		},
 		{
 			[]common.TestSeries{
-				{"foo", []float64{500, 600, 700}},
-				{"bar", []float64{500, 600, nan}},
-				{"baz", []float64{500, nan, nan}},
-				{"qux", []float64{nan, nan, nan}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
 			},
 			1,
 			[]common.TestSeries{
-				{"foo", []float64{500, 600, 700}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
 			},
 		},
 	}
