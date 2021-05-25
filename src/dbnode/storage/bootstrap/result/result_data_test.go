@@ -43,7 +43,7 @@ func testResultOptions() Options {
 }
 
 func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 	rangeOne := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
@@ -99,7 +99,7 @@ func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
 }
 
 func TestDataResultSetUnfulfilledOverwitesUnfulfilled(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 	r := NewDataBootstrapResult()
 	r.SetUnfulfilled(shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
@@ -130,7 +130,7 @@ func TestDataResultSetUnfulfilledOverwitesUnfulfilled(t *testing.T) {
 }
 
 func TestResultSetUnfulfilled(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	r := NewDataBootstrapResult()
 	r.SetUnfulfilled(shardTimeRanges{
@@ -163,7 +163,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	sr := NewShardResult(opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(time.Now(), time.Hour, ts.Segment{}, namespace.Context{})
+	block.Reset(xtime.Now(), time.Hour, ts.Segment{}, namespace.Context{})
 	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
 	sr.AddBlock(ident.StringID("foo"), fooTags, block)
 	require.False(t, sr.IsEmpty())
@@ -172,11 +172,11 @@ func TestShardResultIsEmpty(t *testing.T) {
 func TestShardResultAddBlock(t *testing.T) {
 	opts := testResultOptions()
 	sr := NewShardResult(opts)
-	start := time.Now()
+	start := xtime.Now()
 	inputs := []struct {
 		id        string
 		tags      ident.Tags
-		timestamp time.Time
+		timestamp xtime.UnixNano
 	}{
 		{"foo", ident.NewTags(ident.StringTag("foo", "foe")), start},
 		{"foo", ident.NewTags(ident.StringTag("foo", "foe")), start.Add(2 * time.Hour)},
@@ -200,7 +200,7 @@ func TestShardResultAddBlock(t *testing.T) {
 func TestShardResultAddSeries(t *testing.T) {
 	opts := testResultOptions()
 	sr := NewShardResult(opts)
-	start := time.Now()
+	start := xtime.Now()
 	inputs := []struct {
 		id     string
 		tags   ident.Tags
@@ -276,16 +276,18 @@ func TestShardTimeRangesIsEmpty(t *testing.T) {
 	assert.True(t, shardTimeRanges{}.IsEmpty())
 	assert.True(t, shardTimeRanges{0: xtime.NewRanges(), 1: xtime.NewRanges()}.IsEmpty())
 	assert.True(t, shardTimeRanges{0: xtime.NewRanges(xtime.Range{})}.IsEmpty())
+	now := xtime.Now()
 	assert.False(t, shardTimeRanges{0: xtime.NewRanges(xtime.Range{
-		Start: time.Now(),
-		End:   time.Now().Add(time.Second),
+		Start: now,
+		End:   now.Add(time.Second),
 	})}.IsEmpty())
 }
 
 func TestShardTimeRangesCopy(t *testing.T) {
+	now := xtime.Now()
 	str := shardTimeRanges{0: xtime.NewRanges(xtime.Range{
-		Start: time.Now(),
-		End:   time.Now().Add(time.Second),
+		Start: now,
+		End:   now.Add(time.Second),
 	})}
 	copied := str.Copy()
 	// Ensure is a copy not same instance
@@ -294,14 +296,15 @@ func TestShardTimeRangesCopy(t *testing.T) {
 }
 
 func TestShardTimeRangesToUnfulfilledDataResult(t *testing.T) {
+	now := xtime.Now()
 	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
-			Start: time.Now(),
-			End:   time.Now().Add(time.Minute),
+			Start: now,
+			End:   now.Add(time.Minute),
 		}),
 		1: xtime.NewRanges(xtime.Range{
-			Start: time.Now().Add(3 * time.Minute),
-			End:   time.Now().Add(4 * time.Minute),
+			Start: now.Add(3 * time.Minute),
+			End:   now.Add(4 * time.Minute),
 		}),
 	}
 	r := str.ToUnfulfilledDataResult()
@@ -309,8 +312,7 @@ func TestShardTimeRangesToUnfulfilledDataResult(t *testing.T) {
 }
 
 func TestShardTimeRangesSubtract(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
-
+	start := xtime.Now().Truncate(testBlockSize)
 	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
@@ -345,9 +347,7 @@ func TestShardTimeRangesSubtract(t *testing.T) {
 }
 
 func TestShardTimeRangesMinMax(t *testing.T) {
-
-	start := time.Now().Truncate(testBlockSize)
-
+	start := xtime.Now().Truncate(testBlockSize)
 	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
@@ -366,12 +366,11 @@ func TestShardTimeRangesMinMax(t *testing.T) {
 }
 
 func TestShardTimeRangesString(t *testing.T) {
-	start := time.Unix(1472824800, 0)
-
-	ts := [][]time.Time{
-		[]time.Time{start, start.Add(testBlockSize)},
-		[]time.Time{start.Add(2 * testBlockSize), start.Add(4 * testBlockSize)},
-		[]time.Time{start, start.Add(2 * testBlockSize)},
+	start := xtime.ToUnixNano(time.Unix(1472824800, 0))
+	ts := [][]xtime.UnixNano{
+		[]xtime.UnixNano{start, start.Add(testBlockSize)},
+		[]xtime.UnixNano{start.Add(2 * testBlockSize), start.Add(4 * testBlockSize)},
+		[]xtime.UnixNano{start, start.Add(2 * testBlockSize)},
 	}
 
 	str := shardTimeRanges{
@@ -393,8 +392,7 @@ func TestShardTimeRangesString(t *testing.T) {
 }
 
 func TestShardTimeRangesSummaryString(t *testing.T) {
-	start := time.Unix(1472824800, 0)
-
+	start := xtime.ToUnixNano(time.Unix(1472824800, 0))
 	str := shardTimeRanges{
 		0: xtime.NewRanges(
 			xtime.Range{Start: start, End: start.Add(testBlockSize)},
@@ -414,7 +412,7 @@ func TestEstimateMapBytesSize(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
 
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	threeBytes := checked.NewBytes([]byte("123"), nil)
 	threeBytes.IncRef()
