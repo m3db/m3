@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -87,7 +88,7 @@ func TestOpenLease(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -110,7 +111,7 @@ func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -137,7 +138,7 @@ func TestOpenLatestLease(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -162,7 +163,7 @@ func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -191,7 +192,7 @@ func TestUpdateOpenLeases(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -258,7 +259,7 @@ func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -341,7 +342,7 @@ func TestUpdateOpenLeasesDifferentDescriptorsConcurrent(t *testing.T) {
 		leaseMgr = NewLeaseManager(verifier)
 		wg       sync.WaitGroup
 
-		blockStart  = time.Now().Truncate(time.Hour)
+		blockStart  = xtime.Now().Truncate(time.Hour)
 		descriptor1 = LeaseDescriptor{Namespace: ident.StringID("ns"), BlockStart: blockStart, Shard: 1}
 		descriptor2 = LeaseDescriptor{Namespace: ident.StringID("ns"), BlockStart: blockStart, Shard: 2}
 	)

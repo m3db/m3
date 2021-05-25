@@ -251,7 +251,7 @@ type OnReadBlock interface {
 type OnRetrieveBlockFn func(
 	id ident.ID,
 	tags ident.TagIterator,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	segment ts.Segment,
 	nsCtx namespace.Context,
 )
@@ -260,7 +260,7 @@ type OnRetrieveBlockFn func(
 func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 	id ident.ID,
 	tags ident.TagIterator,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	segment ts.Segment,
 	nsCtx namespace.Context,
 ) {
