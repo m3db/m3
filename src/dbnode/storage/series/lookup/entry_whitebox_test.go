@@ -90,7 +90,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	mockIndexWriter.EXPECT().WritePending([]writes.PendingIndexInsert{
 		{
 			Entry: index.WriteBatchEntry{
-				Timestamp:     blockStart.ToTime(),
+				Timestamp:     blockStart,
 				OnIndexSeries: e,
 				EnqueuedAt:    now,
 			},
@@ -100,7 +100,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 
 	ok, _, err := e.Write(
 		context.NewBackground(),
-		blockStart.ToTime(),
+		blockStart,
 		1.0,
 		xtime.Second,
 		nil,

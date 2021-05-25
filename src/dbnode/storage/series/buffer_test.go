@@ -57,7 +57,7 @@ func newBufferTestOptions() Options {
 	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
@@ -118,9 +118,9 @@ func verifyWriteToBuffer(
 func TestBufferWriteTooFuture(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -143,9 +143,9 @@ func TestBufferWriteTooFuture(t *testing.T) {
 func TestBufferWriteTooPast(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -177,9 +177,9 @@ func maxDuration(a, b time.Duration) time.Duration {
 func TestBufferWriteColdTooFutureRetention(t *testing.T) {
 	opts := newBufferTestOptions().SetColdWritesEnabled(true)
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -204,9 +204,9 @@ func TestBufferWriteColdTooFutureRetention(t *testing.T) {
 func TestBufferWriteColdTooPastRetention(t *testing.T) {
 	opts := newBufferTestOptions().SetColdWritesEnabled(true)
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -233,12 +233,12 @@ func TestBufferWriteError(t *testing.T) {
 	var (
 		opts   = newBufferTestOptions()
 		rops   = opts.RetentionOptions()
-		curr   = time.Now().Truncate(rops.BlockSize())
+		curr   = xtime.Now().Truncate(rops.BlockSize())
 		ctx    = context.NewBackground()
 		buffer = newDatabaseBuffer().(*dbBuffer)
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
@@ -259,9 +259,9 @@ func TestBufferWriteRead(t *testing.T) {
 
 func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -286,7 +286,7 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	results, err := buffer.ReadEncoded(ctx, 0, timeDistantFuture, nsCtx)
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
@@ -296,10 +296,10 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	start := curr
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -338,10 +338,10 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 func TestBufferWriteOutOfOrder(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	start := time.Now().Truncate(rops.BlockSize())
+	start := xtime.Now().Truncate(rops.BlockSize())
 	curr := start
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -366,8 +366,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	bucket, ok := buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
 	assert.Equal(t, 2, len(bucket.encoders))
-	assert.Equal(t, data[1].Timestamp, mustGetLastEncoded(t, bucket.encoders[0]).Timestamp)
-	assert.Equal(t, data[2].Timestamp, mustGetLastEncoded(t, bucket.encoders[1]).Timestamp)
+	assert.Equal(t, data[1].Timestamp, mustGetLastEncoded(t, bucket.encoders[0]).TimestampNanos)
+	assert.Equal(t, data[2].Timestamp, mustGetLastEncoded(t, bucket.encoders[1]).TimestampNanos)
 
 	// Restore data to in order for comparison.
 	sort.Sort(ValuesByTime(data))
@@ -375,7 +375,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, namespace.Context{})
+	results, err := buffer.ReadEncoded(ctx, 9, timeDistantFuture, namespace.Context{})
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
@@ -385,7 +385,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 func newTestBufferBucketWithData(t *testing.T,
 	opts Options, setAnn setAnnotation) (*BufferBucket, []DecodedTestValue) {
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 
 	bd := blockData{
 		start:     curr,
@@ -422,7 +422,7 @@ func newTestBufferBucketWithCustomData(
 ) (*BufferBucket, []DecodedTestValue) {
 	b := &BufferBucket{opts: opts}
 	b.resetTo(bd.start, bd.writeType, opts)
-	b.firstWrite = opts.ClockOptions().NowFn()()
+	b.firstWrite = xtime.ToUnixNano(opts.ClockOptions().NowFn()())
 	data := bd.data
 
 	// Empty all existing encoders.
@@ -443,8 +443,8 @@ func newTestBufferBucketWithCustomData(
 		encoder.Reset(bd.start, 0, nsCtx.Schema)
 		for _, v := range data[i] {
 			dp := ts.Datapoint{
-				Timestamp: v.Timestamp,
-				Value:     v.Value,
+				TimestampNanos: v.Timestamp,
+				Value:          v.Value,
 			}
 			err := encoder.Encode(dp, v.Unit, v.Annotation)
 			require.NoError(t, err)
@@ -496,8 +496,8 @@ func newTestBufferWithCustomData(
 
 	for _, bd := range blockDatas {
 		bucketVersions, expected := newTestBufferBucketVersionsWithCustomData(t, bd, opts, setAnn)
-		buffer.bucketsMap[xtime.ToUnixNano(bd.start)] = bucketVersions
-		expectedMap[xtime.ToUnixNano(bd.start)] = expected
+		buffer.bucketsMap[bd.start] = bucketVersions
+		expectedMap[bd.start] = expected
 	}
 
 	return buffer, expectedMap
@@ -534,7 +534,7 @@ func testBufferBucketMerge(t *testing.T, opts Options, setAnn setAnnotation) {
 func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	opts := newBufferTestOptions()
 	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
+	curr := xtime.Now().Truncate(ropts.BlockSize())
 
 	b := &BufferBucket{}
 	b.resetTo(curr, WarmWrite, opts)
@@ -551,7 +551,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	encoder := opts.EncoderPool().Get()
 	encoder.Reset(curr, 0, nil)
 
-	value := ts.Datapoint{Timestamp: curr, Value: 1.0}
+	value := ts.Datapoint{TimestampNanos: curr, Value: 1.0}
 	err := encoder.Encode(value, xtime.Second, nil)
 	require.NoError(t, err)
 
@@ -573,7 +573,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 
 	b := &BufferBucket{}
 	b.resetTo(curr, WarmWrite, opts)
@@ -639,7 +639,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 
 	b := &BufferBucket{opts: opts}
 	b.resetTo(curr, WarmWrite, opts)
@@ -709,9 +709,9 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -746,7 +746,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, namespace.Context{})
+	results, err := buffer.ReadEncoded(ctx, 0, timeDistantFuture, namespace.Context{})
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
@@ -771,13 +771,13 @@ func testBufferFetchBlocks(t *testing.T, opts Options, setAnn setAnnotation) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
+	buffer.bucketsMap[b.start] = b
 
 	nsCtx := namespace.Context{}
 	if setAnn != nil {
 		nsCtx.Schema = testSchemaDesc
 	}
-	res := buffer.FetchBlocks(ctx, []time.Time{b.start}, nsCtx)
+	res := buffer.FetchBlocks(ctx, []xtime.UnixNano{b.start}, nsCtx)
 	require.Equal(t, 1, len(res))
 	require.Equal(t, b.start, res[0].Start)
 	requireReaderValuesEqual(t, expected, [][]xio.BlockReader{res[0].Blocks}, opts, nsCtx)
@@ -787,7 +787,7 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 	opts := newBufferTestOptions()
 	opts.SetColdWritesEnabled(true)
 	rOpts := opts.RetentionOptions()
-	curr := time.Now().Truncate(rOpts.BlockSize())
+	curr := xtime.Now().Truncate(rOpts.BlockSize())
 
 	// Set up buffer such that there is a warm and cold bucket for the same
 	// block. After we run FetchBlocks, we should see one result per block,
@@ -834,8 +834,8 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 			encoder.Reset(curr, 0, nil)
 			for _, v := range d {
 				dp := ts.Datapoint{
-					Timestamp: v.Timestamp,
-					Value:     v.Value,
+					TimestampNanos: v.Timestamp,
+					Value:          v.Value,
 				}
 				err := encoder.Encode(dp, v.Unit, v.Annotation)
 				require.NoError(t, err)
@@ -855,9 +855,10 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
+	buffer.bucketsMap[b.start] = b
 
-	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)}, namespace.Context{})
+	res := buffer.FetchBlocks(ctx, []xtime.UnixNano{
+		b.start, b.start.Add(time.Second)}, namespace.Context{})
 	require.Equal(t, 1, len(res))
 	require.Equal(t, b.start, res[0].Start)
 	require.Equal(t, 5, len(res[0].Blocks))
@@ -868,9 +869,8 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 
 	b, _ := newTestBufferBucketsWithData(t, opts, nil)
 
-	expectedLastRead := time.Now()
-	b.lastReadUnixNanos = expectedLastRead.UnixNano()
-
+	expectedLastRead := xtime.Now()
+	b.lastReadUnixNanos = int64(expectedLastRead)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -881,7 +881,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
-	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
+	buffer.bucketsMap[b.start] = b
 	buffer.inOrderBlockStarts = append(buffer.inOrderBlockStarts, b.start)
 
 	expectedSize := int64(b.streamsLen())
@@ -922,10 +922,10 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	start := curr
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -967,7 +967,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(start): BlockState{
+			start: BlockState{
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -1012,10 +1012,10 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	start := curr
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
@@ -1046,7 +1046,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	// get removed from the bucket.
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(start): BlockState{
+			start: BlockState{
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -1108,12 +1108,12 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 		opts      = newBufferTestOptions()
 		rops      = opts.RetentionOptions()
 		blockSize = rops.BlockSize()
-		curr      = time.Now().Truncate(blockSize)
+		curr      = xtime.Now().Truncate(blockSize)
 		start     = curr
 		buffer    = newDatabaseBuffer().(*dbBuffer)
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
@@ -1182,13 +1182,13 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	var (
 		rops      = opts.RetentionOptions()
 		blockSize = rops.BlockSize()
-		curr      = time.Now().Truncate(blockSize)
+		curr      = xtime.Now().Truncate(blockSize)
 		start     = curr
 		buffer    = newDatabaseBuffer().(*dbBuffer)
 		nsCtx     namespace.Context
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	ctx := context.NewBackground()
@@ -1292,13 +1292,13 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	var (
 		rops      = opts.RetentionOptions()
 		blockSize = rops.BlockSize()
-		curr      = time.Now().Truncate(blockSize)
+		curr      = xtime.Now().Truncate(blockSize)
 		start     = curr
 		buffer    = newDatabaseBuffer().(*dbBuffer)
 		nsCtx     namespace.Context
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
@@ -1460,39 +1460,39 @@ func mustGetLastEncoded(t *testing.T, entry inOrderEncoder) ts.Datapoint {
 
 func TestInOrderUnixNanosAddRemove(t *testing.T) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	assertTimeSlicesEqual(t, []time.Time{}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{}, buffer.inOrderBlockStarts)
 
-	t3 := time.Unix(3, 0)
-	t5 := time.Unix(5, 0)
-	t7 := time.Unix(7, 0)
-	t8 := time.Unix(8, 0)
+	t3 := xtime.ToUnixNano(time.Unix(3, 0))
+	t5 := xtime.ToUnixNano(time.Unix(5, 0))
+	t7 := xtime.ToUnixNano(time.Unix(7, 0))
+	t8 := xtime.ToUnixNano(time.Unix(8, 0))
 
 	buffer.inOrderBlockStartsAdd(t5)
-	assertTimeSlicesEqual(t, []time.Time{t5}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{t5}, buffer.inOrderBlockStarts)
 
 	buffer.inOrderBlockStartsAdd(t3)
-	assertTimeSlicesEqual(t, []time.Time{t3, t5}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{t3, t5}, buffer.inOrderBlockStarts)
 
 	buffer.inOrderBlockStartsAdd(t8)
-	assertTimeSlicesEqual(t, []time.Time{t3, t5, t8}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{t3, t5, t8}, buffer.inOrderBlockStarts)
 
 	buffer.inOrderBlockStartsAdd(t7)
-	assertTimeSlicesEqual(t, []time.Time{t3, t5, t7, t8}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{t3, t5, t7, t8}, buffer.inOrderBlockStarts)
 
 	buffer.inOrderBlockStartsRemove(t5)
-	assertTimeSlicesEqual(t, []time.Time{t3, t7, t8}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{t3, t7, t8}, buffer.inOrderBlockStarts)
 
 	buffer.inOrderBlockStartsRemove(t3)
-	assertTimeSlicesEqual(t, []time.Time{t7, t8}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{t7, t8}, buffer.inOrderBlockStarts)
 
 	buffer.inOrderBlockStartsRemove(t8)
-	assertTimeSlicesEqual(t, []time.Time{t7}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{t7}, buffer.inOrderBlockStarts)
 
 	buffer.inOrderBlockStartsRemove(t7)
-	assertTimeSlicesEqual(t, []time.Time{}, buffer.inOrderBlockStarts)
+	assertTimeSlicesEqual(t, []xtime.UnixNano{}, buffer.inOrderBlockStarts)
 }
 
-func assertTimeSlicesEqual(t *testing.T, t1, t2 []time.Time) {
+func assertTimeSlicesEqual(t *testing.T, t1, t2 []xtime.UnixNano) {
 	require.Equal(t, len(t1), len(t2))
 	for i := range t1 {
 		assert.Equal(t, t1[i], t2[i])
@@ -1561,13 +1561,13 @@ func TestColdFlushBlockStarts(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
 	blockSize := rops.BlockSize()
-	blockStart4 := time.Now().Truncate(blockSize)
+	blockStart4 := xtime.Now().Truncate(blockSize)
 	blockStart3 := blockStart4.Add(-2 * blockSize)
 	blockStart2 := blockStart4.Add(-3 * blockSize)
 	blockStart1 := blockStart4.Add(-4 * blockSize)
 
 	bds := []blockData{
-		blockData{
+		{
 			start:     blockStart1,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1578,7 +1578,7 @@ func TestColdFlushBlockStarts(t *testing.T) {
 				},
 			},
 		},
-		blockData{
+		{
 			start:     blockStart2,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1591,7 +1591,7 @@ func TestColdFlushBlockStarts(t *testing.T) {
 				},
 			},
 		},
-		blockData{
+		{
 			start:     blockStart3,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1600,7 +1600,7 @@ func TestColdFlushBlockStarts(t *testing.T) {
 				},
 			},
 		},
-		blockData{
+		{
 			start:     blockStart4,
 			writeType: WarmWrite,
 			data: [][]DecodedTestValue{
@@ -1616,21 +1616,17 @@ func TestColdFlushBlockStarts(t *testing.T) {
 		},
 	}
 
-	blockStartNano1 := xtime.ToUnixNano(blockStart1)
-	blockStartNano2 := xtime.ToUnixNano(blockStart2)
-	blockStartNano3 := xtime.ToUnixNano(blockStart3)
-
 	buffer, _ := newTestBufferWithCustomData(t, bds, opts, nil)
 	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[blockStartNano1] = BlockState{
+	blockStates[blockStart1] = BlockState{
 		WarmRetrievable: true,
 		ColdVersion:     0,
 	}
-	blockStates[blockStartNano2] = BlockState{
+	blockStates[blockStart2] = BlockState{
 		WarmRetrievable: true,
 		ColdVersion:     0,
 	}
-	blockStates[blockStartNano3] = BlockState{
+	blockStates[blockStart3] = BlockState{
 		WarmRetrievable: true,
 		ColdVersion:     0,
 	}
@@ -1638,58 +1634,56 @@ func TestColdFlushBlockStarts(t *testing.T) {
 
 	// All three cold blocks should report that they are dirty.
 	assert.Equal(t, 3, flushStarts.Len())
-	assert.True(t, flushStarts.Contains(blockStartNano1))
-	assert.True(t, flushStarts.Contains(blockStartNano2))
-	assert.True(t, flushStarts.Contains(blockStartNano3))
+	assert.True(t, flushStarts.Contains(blockStart1))
+	assert.True(t, flushStarts.Contains(blockStart2))
+	assert.True(t, flushStarts.Contains(blockStart3))
 
 	// Simulate that block2 and block3 are flushed (but not yet evicted from
 	// memory), so only block1 should report as dirty.
-	buffer.bucketsMap[blockStartNano2].buckets[0].version = 1
-	buffer.bucketsMap[blockStartNano3].buckets[0].version = 1
-	blockStates[blockStartNano2] = BlockState{
+	buffer.bucketsMap[blockStart2].buckets[0].version = 1
+	buffer.bucketsMap[blockStart3].buckets[0].version = 1
+	blockStates[blockStart2] = BlockState{
 		WarmRetrievable: true,
 		ColdVersion:     1,
 	}
-	blockStates[blockStartNano3] = BlockState{
+	blockStates[blockStart3] = BlockState{
 		WarmRetrievable: true,
 		ColdVersion:     1,
 	}
 
 	flushStarts = buffer.ColdFlushBlockStarts(blockStates)
 	assert.Equal(t, 1, flushStarts.Len())
-	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart1)))
+	assert.True(t, flushStarts.Contains(blockStart1))
 
 	// Simulate blockStart3 didn't get fully flushed, so it should be flushed
 	// again.
-	blockStates[blockStartNano3] = BlockState{
+	blockStates[blockStart3] = BlockState{
 		WarmRetrievable: true,
 		ColdVersion:     0,
 	}
 	flushStarts = buffer.ColdFlushBlockStarts(blockStates)
 	assert.Equal(t, 2, flushStarts.Len())
-	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart1)))
-	assert.True(t, flushStarts.Contains(xtime.ToUnixNano(blockStart3)))
+	assert.True(t, flushStarts.Contains(blockStart1))
+	assert.True(t, flushStarts.Contains(blockStart3))
 }
 
 func TestFetchBlocksForColdFlush(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	opts := newBufferTestOptions().SetColdWritesEnabled(true)
 	opts = opts.SetClockOptions(
 		opts.ClockOptions().SetNowFn(func() time.Time {
-			return now
+			return now.ToTime()
 		}),
 	)
 	rops := opts.RetentionOptions()
 	blockSize := rops.BlockSize()
-	blockStart4 := time.Now().Truncate(blockSize)
+	blockStart4 := xtime.Now().Truncate(blockSize)
 	blockStart3 := blockStart4.Add(-2 * blockSize)
-	blockStartNano3 := xtime.ToUnixNano(blockStart3)
 	blockStart2 := blockStart4.Add(-3 * blockSize)
 	blockStart1 := blockStart4.Add(-4 * blockSize)
-	blockStartNano1 := xtime.ToUnixNano(blockStart1)
 
 	bds := []blockData{
-		blockData{
+		{
 			start:     blockStart1,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1700,7 +1694,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 				},
 			},
 		},
-		blockData{
+		{
 			start:     blockStart3,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1709,7 +1703,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 				},
 			},
 		},
-		blockData{
+		{
 			start:     blockStart4,
 			writeType: WarmWrite,
 			data: [][]DecodedTestValue{
@@ -1732,8 +1726,8 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	result, err := buffer.FetchBlocksForColdFlush(ctx, blockStart1, 4, nsCtx)
 	assert.NoError(t, err)
 	// Verify that we got the correct data and that version is correct set.
-	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
-	assert.Equal(t, 4, buffer.bucketsMap[blockStartNano1].buckets[0].version)
+	requireReaderValuesEqual(t, expected[blockStart1], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
+	assert.Equal(t, 4, buffer.bucketsMap[blockStart1].buckets[0].version)
 	assert.Equal(t, now, result.FirstWrite)
 
 	// Try to fetch from block1 again, this should not be an error because we
@@ -1747,7 +1741,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
 	assert.NoError(t, err)
 	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
-	assert.Equal(t, time.Time{}, result.FirstWrite)
+	assert.Equal(t, 0, int(result.FirstWrite))
 	wasWritten, _, err := buffer.Write(ctx, testID, blockStart2, 1,
 		xtime.Second, nil, WriteOptions{})
 	assert.True(t, wasWritten)
@@ -1757,8 +1751,8 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 
 	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
-	assert.Equal(t, 1, buffer.bucketsMap[blockStartNano3].buckets[0].version)
+	requireReaderValuesEqual(t, expected[blockStart3], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
+	assert.Equal(t, 1, buffer.bucketsMap[blockStart3].buckets[0].version)
 	assert.Equal(t, now, result.FirstWrite)
 
 	// Try to fetch from a block that only has warm buckets. It has no data
@@ -1766,7 +1760,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
 	assert.NoError(t, err)
 	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
-	assert.Equal(t, time.Time{}, result.FirstWrite)
+	assert.Equal(t, 0, int(result.FirstWrite))
 }
 
 // TestBufferLoadWarmWrite tests the Load method, ensuring that blocks are successfully loaded into
@@ -1776,7 +1770,7 @@ func TestBufferLoadWarmWrite(t *testing.T) {
 		opts      = newBufferTestOptions()
 		buffer    = newDatabaseBuffer()
 		blockSize = opts.RetentionOptions().BlockSize()
-		curr      = time.Now().Truncate(blockSize)
+		curr      = xtime.Now().Truncate(blockSize)
 		nsCtx     = namespace.Context{}
 	)
 	buffer.Reset(databaseBufferResetOptions{
@@ -1809,7 +1803,7 @@ func TestBufferLoadColdWrite(t *testing.T) {
 		opts      = newBufferTestOptions()
 		buffer    = newDatabaseBuffer()
 		blockSize = opts.RetentionOptions().BlockSize()
-		curr      = time.Now().Truncate(blockSize)
+		curr      = xtime.Now().Truncate(blockSize)
 		nsCtx     = namespace.Context{}
 	)
 	buffer.Reset(databaseBufferResetOptions{
@@ -1838,9 +1832,9 @@ func TestBufferLoadColdWrite(t *testing.T) {
 func TestUpsertProto(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 	var nsCtx namespace.Context
 
@@ -1946,7 +1940,7 @@ func TestUpsertProto(t *testing.T) {
 			ctx := context.NewBackground()
 			defer ctx.Close()
 
-			results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+			results, err := buffer.ReadEncoded(ctx, 0, timeDistantFuture, nsCtx)
 			assert.NoError(t, err)
 			assert.NotNil(t, results)
 
@@ -2165,9 +2159,9 @@ func TestEncoderLimit(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			opts := newBufferTestOptions()
 			rops := opts.RetentionOptions()
-			curr := time.Now().Truncate(rops.BlockSize())
+			curr := xtime.Now().Truncate(rops.BlockSize())
 			opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-				return curr
+				return curr.ToTime()
 			}))
 			runtimeOptsMgr := opts.RuntimeOptionsManager()
 			newRuntimeOpts := runtimeOptsMgr.Get().
