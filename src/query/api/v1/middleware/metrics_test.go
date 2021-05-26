@@ -83,6 +83,52 @@ func TestResponseMetrics(t *testing.T) {
 	}
 }
 
+func TestResponseMetricsCustomScopes(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	r := mux.NewRouter()
+	route := r.NewRoute()
+	opts := options.MiddlewareOptions{
+		InstrumentOpts: iOpts,
+		Route:          route,
+	}
+
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set(headers.CustomResponseMetricsScope, "foo")
+		w.WriteHeader(200)
+	}))
+	route.Path("/test").Handler(h)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/test?foo=bar") //nolint: noctx
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	snapshot := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 1, snapshot, "foo.request", map[string]string{
+		"path":            "/test",
+		"status":          "200",
+		"size":            "small",
+		"count_threshold": "0",
+		"range_threshold": "0",
+	})
+
+	hist := snapshot.Histograms()
+	require.True(t, len(hist) == 1)
+	for _, h := range hist {
+		require.Equal(t, "foo.latency", h.Name())
+		require.Equal(t, map[string]string{
+			"path":            "/test",
+			"size":            "small",
+			"count_threshold": "0",
+			"range_threshold": "0",
+		}, h.Tags())
+	}
+}
+
 func TestLargeResponseMetrics(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	iOpts := instrument.NewOptions().SetMetricsScope(scope)
@@ -140,6 +186,20 @@ func TestMultipleLargeResponseMetricsWithLatencyStatus(t *testing.T) {
 
 func TestMultipleLargeResponseMetricsWithoutLatencyStatus(t *testing.T) {
 	testMultipleLargeResponseMetrics(t, false)
+}
+
+func TestCustomMetricsRepeatedGets(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	cm := newCustomMetrics(iOpts)
+
+	_ = cm.getOrCreate("foo")
+	_ = cm.getOrCreate("foo")
+	require.Equal(t, len(cm.metrics), 1)
+
+	_ = cm.getOrCreate("foo2")
+	require.Equal(t, len(cm.metrics), 2)
 }
 
 func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {

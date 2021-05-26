@@ -56,12 +56,12 @@ type queryInspectionMetrics struct {
 	largeQuery          tally.Counter
 }
 
-func newQueryInspectionMetrics(scope tally.Scope) queryInspectionMetrics {
+func newQueryInspectionMetrics(scope tally.Scope) *queryInspectionMetrics {
 	buildCounter := func(status string) tally.Counter {
 		return scope.Tagged(map[string]string{"status": status}).Counter("count")
 	}
 
-	return queryInspectionMetrics{
+	return &queryInspectionMetrics{
 		notQuery:            buildCounter("not_query"),
 		notInspected:        buildCounter("not_inspected"),
 		belowCountThreshold: buildCounter("below_count_threshold"),
@@ -147,7 +147,7 @@ func inspectQuerySize(
 	w http.ResponseWriter,
 	r *http.Request,
 	path string,
-	metrics queryInspectionMetrics,
+	metrics *queryInspectionMetrics,
 	cfg *config.MiddlewareConfiguration,
 ) querySize {
 	size := querySize{
