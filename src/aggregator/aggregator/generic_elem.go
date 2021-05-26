@@ -516,6 +516,7 @@ func (e *GenericElem) processValueWithAggregationLock(
 					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease &&
 						bytes.Contains([]byte(e.id), flagConf.FilterBytes()) {
 						useIncreaseWithPrevNaN = true
+						fmt.Printf("metric matches feature flag: e.id = %s\n", e.id)
 						break
 					}
 				}

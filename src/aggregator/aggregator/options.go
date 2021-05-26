@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"encoding/binary"
+	"fmt"
 	"sync"
 	"time"
 
@@ -876,6 +877,7 @@ func (o *options) computeFilterByteSequences() {
 		// TODO(sidneyw): make sure there is only one filter. Tag ordering will
 		// throw off the simple bytes.Contains matching.
 		for key, value := range flag.Filter {
+			fmt.Printf("Encoding feature flag matcher %s:%s\n", key, value)
 			// Add key bytes.
 			ByteOrder.PutUint16(buff[:2], uint16(len(key)))
 			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
@@ -888,6 +890,7 @@ func (o *options) computeFilterByteSequences() {
 		}
 
 		flag.filterBytes = tagFilterBytes
+		fmt.Printf("flag.filterBytes = %+x\n", flag.filterBytes)
 	}
 }
 
