@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -256,7 +257,7 @@ var orTests = []struct {
 }
 
 func TestOrs(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	for _, tt := range orTests {
 		t.Run(tt.name, func(t *testing.T) {
 			op, err := NewOp(
@@ -304,7 +305,7 @@ func TestOrs(t *testing.T) {
 func TestOrsBoundsError(t *testing.T) {
 	tt := orTests[0]
 	bounds := models.Bounds{
-		Start:    time.Now(),
+		Start:    xtime.Now(),
 		Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 		StepSize: time.Minute,
 	}
@@ -363,7 +364,7 @@ func TestOrCombinedMetadata(t *testing.T) {
 	node := op.(baseOp).Node(c, transform.Options{})
 
 	bounds := models.Bounds{
-		Start:    time.Now(),
+		Start:    xtime.Now(),
 		Duration: time.Minute * 2,
 		StepSize: time.Minute,
 	}

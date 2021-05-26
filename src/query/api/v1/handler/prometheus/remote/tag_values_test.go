@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -48,7 +49,7 @@ import (
 )
 
 type tagValuesMatcher struct {
-	start, end time.Time
+	start, end xtime.UnixNano
 	filterTag  string
 }
 
@@ -102,9 +103,9 @@ func TestTagValues(t *testing.T) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	now := time.Now()
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 
 	fb, err := handleroptions.NewFetchOptionsBuilder(
@@ -134,7 +135,7 @@ func TestTagValues(t *testing.T) {
 
 func testTagValuesWithMatch(
 	t *testing.T,
-	now time.Time,
+	now xtime.UnixNano,
 	store *storage.MockStorage,
 	name string,
 	valueHandler http.Handler,
@@ -159,7 +160,7 @@ func testTagValuesWithMatch(
 	}
 
 	matcher := &storage.CompleteTagsQuery{
-		Start:            time.Unix(100, 0),
+		Start:            xtime.ToUnixNano(time.Unix(100, 0)),
 		End:              now,
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{[]byte(name)},

@@ -25,12 +25,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func generateDatapoints(t time.Time, times []int) Datapoints {
+func generateDatapoints(t xtime.UnixNano, times []int) Datapoints {
 	num := len(times)
 	dps := make(Datapoints, len(times))
 	for i := 0; i < num; i++ {
@@ -42,7 +43,7 @@ func generateDatapoints(t time.Time, times []int) Datapoints {
 	return dps
 }
 
-var now = time.Now()
+var now = xtime.Now()
 var samples = []struct {
 	input                  Datapoints
 	expected               [][]float64

@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -144,7 +145,7 @@ func buildResult(
 		resos = append(resos, resolution)
 		meta := block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))}
 		metas = append(metas, meta)
-		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
+		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), xtime.ToUnixNano(start))
 		series := block.NewUnconsolidatedSeries(vals.Datapoints(),
 			meta, block.UnconsolidatedSeriesStats{})
 		unconsolidatedSeries = append(unconsolidatedSeries, series)

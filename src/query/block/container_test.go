@@ -37,7 +37,7 @@ import (
 
 func TestInvalidContainerBlock(t *testing.T) {
 	ctrl := xtest.NewController(t)
-	now := time.Now()
+	now := xtime.Now()
 	defer ctrl.Finish()
 
 	_, err := NewContainerBlock()
