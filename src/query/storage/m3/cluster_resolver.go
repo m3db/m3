@@ -75,6 +75,7 @@ func resolveUnaggregatedNamespaceForQuery(
 
 // resolveClusterNamespacesForQuery returns the namespaces that need to be
 // fanned out to depending on the query time and the namespaces configured.
+// nolint: unparam
 func resolveClusterNamespacesForQuery(
 	now, start, end time.Time,
 	clusters Clusters,
@@ -91,7 +92,7 @@ func resolveClusterNamespacesForQuery(
 	// 2. Create physical plan.
 	// Now de-duplicate any namespaces that might be fetched twice due to
 	// the fact some of the same namespaces are reused once for unaggregated
-	// and another for aggregated rollups (which don't collid with timeseries).
+	// and another for aggregated rollups (which don't collide with timeseries).
 	filtered := namespaces[:0]
 	for _, ns := range namespaces {
 		keep := true

@@ -414,11 +414,9 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 			}
 
 			// NB: order does not matter.
-			sort.Sort(sort.StringSlice(actualNames))
-			sort.Sort(sort.StringSlice(tt.expectedClusterNames))
-
+			sort.Strings(actualNames)
+			sort.Strings(tt.expectedClusterNames)
 			assert.Equal(t, tt.expectedClusterNames, actualNames)
-
 			assert.Equal(t, tt.expectedType, fanoutType)
 		})
 	}
@@ -482,8 +480,8 @@ func TestLongUnaggregatedRetention(t *testing.T) {
 
 	expected := []string{"UNAGG", "AGG_NO_FILTER"}
 	// NB: order does not matter.
-	sort.Sort(sort.StringSlice(actualNames))
-	sort.Sort(sort.StringSlice(expected))
+	sort.Strings(actualNames)
+	sort.Strings(expected)
 	assert.Equal(t, expected, actualNames)
 	assert.Equal(t, consolidators.NamespaceCoversPartialQueryRange, fanoutType)
 }
@@ -529,7 +527,7 @@ func TestExampleCase(t *testing.T) {
 		}
 
 		// NB: order does not matter.
-		sort.Sort(sort.StringSlice(actualNames))
+		sort.Strings(actualNames)
 		assert.Equal(t, []string{"metrics_10s_24h",
 			"metrics_180s_360h", "metrics_600s_17520h"}, actualNames)
 		assert.Equal(t, consolidators.NamespaceCoversPartialQueryRange, fanoutType)
@@ -574,7 +572,7 @@ func TestDeduplicatePartialAggregateNamespaces(t *testing.T) {
 	}
 
 	// NB: order does not matter.
-	sort.Sort(sort.StringSlice(actualNames))
+	sort.Strings(actualNames)
 	assert.Equal(t, []string{"aggregated_block_6h"}, actualNames)
 	assert.Equal(t, consolidators.NamespaceCoversAllQueryRange, fanoutType)
 }
