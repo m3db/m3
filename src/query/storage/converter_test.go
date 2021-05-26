@@ -184,7 +184,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := TimeToPromTimestamp(now)
 
 	vals := ts.NewMockValues(ctrl)
@@ -196,7 +196,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 
 	valsNonEmpty := ts.NewMockValues(ctrl)
 	valsNonEmpty.EXPECT().Len().Return(1).Times(3)
-	dp := ts.Datapoints{{Timestamp: xtime.ToUnixNano(now), Value: 1}}
+	dp := ts.Datapoints{{Timestamp: now, Value: 1}}
 	valsNonEmpty.EXPECT().Datapoints().Return(dp).Times(2)
 	tagsNonEmpty := models.NewTags(1, models.NewTagOptions()).
 		AddTag(models.Tag{Name: []byte("c"), Value: []byte("d")})
