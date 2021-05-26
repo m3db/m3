@@ -216,15 +216,15 @@ func TestUpdateTimeBySteps(t *testing.T) {
 
 func TestPadSeriesBlocks(t *testing.T) {
 	blockSize := time.Hour
-	start := time.Now().Truncate(blockSize)
+	start := xtime.Now().Truncate(blockSize)
 	readOffset := time.Minute
 	itStart := start.Add(readOffset)
 
 	var tests = []struct {
-		blockStart       time.Time
+		blockStart       xtime.UnixNano
 		stepSize         time.Duration
-		expectedStart    time.Time
-		expectedStartTwo time.Time
+		expectedStart    xtime.UnixNano
+		expectedStartTwo xtime.UnixNano
 	}{
 		{start, time.Minute * 30, itStart, start.Add(61 * time.Minute)},
 		{
@@ -270,18 +270,18 @@ func TestPadSeriesBlocks(t *testing.T) {
 	for _, tt := range tests {
 		blocks := seriesBlocks{
 			{
-				blockStart: xtime.ToUnixNano(tt.blockStart),
+				blockStart: tt.blockStart,
 				blockSize:  blockSize,
 				replicas:   []encoding.MultiReaderIterator{},
 			},
 			{
-				blockStart: xtime.ToUnixNano(tt.blockStart.Add(blockSize)),
+				blockStart: tt.blockStart.Add(blockSize),
 				blockSize:  blockSize,
 				replicas:   []encoding.MultiReaderIterator{},
 			},
 		}
 
-		updated := updateSeriesBlockStarts(blocks, tt.stepSize, xtime.ToUnixNano(itStart))
+		updated := updateSeriesBlockStarts(blocks, tt.stepSize, itStart)
 		require.Equal(t, 2, len(updated))
 		assert.Equal(t, tt.blockStart, updated[0].blockStart)
 		assert.Equal(t, tt.expectedStart, updated[0].readStart)

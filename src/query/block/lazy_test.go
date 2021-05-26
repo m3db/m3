@@ -254,7 +254,7 @@ func TestStepIterWithNegativeValueOffset(t *testing.T) {
 	off := NewLazyBlock(b, testLazyOpts(offset, -1.0))
 	msg := "err"
 	e := errors.New(msg)
-	now := time.Now()
+	now := xtime.Now()
 
 	iter := NewMockStepIter(ctrl)
 	b.EXPECT().StepIter().Return(iter, nil)
