@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,7 @@ func TestFanoutUnaggregatedDisableReturnsAggregatedNamespaces(t *testing.T) {
 		FanoutUnaggregated: storage.FanoutForceDisable,
 	}
 
-	start := time.Now()
+	start := xtime.Now()
 	end := start.Add(time.Hour * 24 * -90)
 	_, clusters, err := resolveClusterNamespacesForQuery(start,
 		start, end, store.clusters, opts, nil)
@@ -85,7 +86,7 @@ func TestFanoutUnaggregatedEnabledReturnsUnaggregatedNamespaces(t *testing.T) {
 		FanoutUnaggregated: storage.FanoutForceEnable,
 	}
 
-	start := time.Now()
+	start := xtime.Now()
 	end := start.Add(time.Hour * 24 * -90)
 	_, clusters, err := resolveClusterNamespacesForQuery(start,
 		start, end, store.clusters, opts, nil)
@@ -106,7 +107,7 @@ func TestGraphitePath(t *testing.T) {
 		FanoutAggregatedOptimized: storage.FanoutForceDisable,
 	}
 
-	start := time.Now()
+	start := xtime.Now()
 	end := start.Add(time.Second * -30)
 	_, clusters, err := resolveClusterNamespacesForQuery(start,
 		start, end, store.clusters, opts, nil)
@@ -379,7 +380,7 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 	defer ctrl.Finish()
 	clusters := generateClusters(t, ctrl)
 
-	now := time.Now()
+	now := xtime.Now()
 	end := now
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -462,7 +463,7 @@ func TestLongUnaggregatedRetention(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	now := time.Now()
+	now := xtime.Now()
 	end := now
 	start := now.Add(time.Hour * -100)
 	opts := &storage.FanoutOptions{
@@ -514,7 +515,7 @@ func TestExampleCase(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	now := time.Now()
+	now := xtime.Now()
 	end := now
 
 	for i := 27; i < 17520; i++ {
