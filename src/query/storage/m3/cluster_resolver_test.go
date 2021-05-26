@@ -535,3 +535,46 @@ func TestExampleCase(t *testing.T) {
 		assert.Equal(t, consolidators.NamespaceCoversPartialQueryRange, fanoutType)
 	}
 }
+
+func TestDeduplicatePartialAggregateNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	session := client.NewMockSession(ctrl)
+	ns, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("default"),
+		Retention:   24 * time.Hour,
+		Session:     session,
+	}, AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("aggregated_block_6h"),
+		Retention:   360 * time.Hour,
+		Resolution:  10 * time.Minute,
+		Downsample:  &ClusterNamespaceDownsampleOptions{All: false},
+		Session:     session,
+	}, AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("aggregated_block_6h"),
+		Retention:   360 * time.Hour,
+		Resolution:  1 * time.Hour,
+		Downsample:  &ClusterNamespaceDownsampleOptions{All: true},
+		Session:     session,
+	})
+	require.NoError(t, err)
+
+	now := time.Now()
+	end := now
+
+	start := now.Add(-48 * time.Hour)
+	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
+		start, end, ns, &storage.FanoutOptions{}, nil)
+	require.NoError(t, err)
+
+	actualNames := make([]string, len(clusters))
+	for i, c := range clusters {
+		actualNames[i] = c.NamespaceID().String()
+	}
+
+	// NB: order does not matter.
+	sort.Sort(sort.StringSlice(actualNames))
+	assert.Equal(t, []string{"aggregated_block_6h"}, actualNames)
+	assert.Equal(t, consolidators.NamespaceCoversAllQueryRange, fanoutType)
+}

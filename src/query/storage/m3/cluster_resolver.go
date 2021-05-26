@@ -81,6 +81,45 @@ func resolveClusterNamespacesForQuery(
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
+	// 1. First resolve the logical plan.
+	fanout, namespaces, err := resolveClusterNamespacesForQueryLogicalPlan(now,
+		start, end, clusters, opts, restrict)
+	if err != nil {
+		return fanout, namespaces, err
+	}
+
+	// 2. Create physical plan.
+	// Now de-duplicate any namespaces that might be fetched twice due to
+	// the fact some of the same namespaces are reused once for unaggregated
+	// and another for aggregated rollups (which don't collid with timeseries).
+	filtered := namespaces[:0]
+	for _, ns := range namespaces {
+		keep := true
+		// Small enough that we can do n^2 here instead of creating a map,
+		// usually less than 4 namespaces resolved.
+		for _, existing := range filtered {
+			if ns.NamespaceID().Equal(existing.NamespaceID()) {
+				keep = false
+				break
+			}
+		}
+		if !keep {
+			continue
+		}
+		filtered = append(filtered, ns)
+	}
+
+	return fanout, filtered, nil
+}
+
+// resolveClusterNamespacesForQueryLogicalPlan resolves the logical plan
+// for namespaces to query.
+func resolveClusterNamespacesForQueryLogicalPlan(
+	now, start, end time.Time,
+	clusters Clusters,
+	opts *storage.FanoutOptions,
+	restrict *storage.RestrictQueryOptions,
+) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
 	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
 		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
