@@ -123,15 +123,15 @@ func (c *customMetrics) getOrCreate(name string) *responseMetrics {
 
 	if m, ok := c.metrics[name]; ok {
 		return &m
-	} else {
-		subscope := c.instrumentOpts.MetricsScope().SubScope(name)
-		m = responseMetrics{
-			route: newRouteMetrics(subscope),
-			query: newQueryInspectionMetrics(subscope),
-		}
-		c.metrics[name] = m
-		return &m
 	}
+
+	subscope := c.instrumentOpts.MetricsScope().SubScope(name)
+	m := responseMetrics{
+		route: newRouteMetrics(subscope),
+		query: newQueryInspectionMetrics(subscope),
+	}
+	c.metrics[name] = m
+	return &m
 }
 
 type routeMetrics struct {
