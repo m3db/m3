@@ -439,7 +439,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 	var (
 		seriesCount   = 1000
 		replicasCount = 3
-		start         = time.Now()
+		start         = xtime.Now()
 		stepSize      = time.Second * 10
 		window        = stepSize * time.Duration(iterations)
 		end           = start.Add(window)
@@ -457,7 +457,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 		timestamp := start
 		for j := 0; j < iterations; j++ {
 			timestamp = timestamp.Add(time.Duration(j) * stepSize)
-			dp := ts.Datapoint{Timestamp: timestamp, Value: float64(j)}
+			dp := ts.Datapoint{TimestampNanos: timestamp, Value: float64(j)}
 			err := encoder.Encode(dp, xtime.Second, nil)
 			require.NoError(b, err)
 		}
@@ -513,8 +513,8 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 				Namespace:      namespaceID,
 				Tags:           tags,
 				Replicas:       replicasIters,
-				StartInclusive: xtime.ToUnixNano(start),
-				EndExclusive:   xtime.ToUnixNano(end),
+				StartInclusive: start,
+				EndExclusive:   end,
 			})
 		}
 	}

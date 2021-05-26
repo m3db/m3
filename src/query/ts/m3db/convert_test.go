@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,7 +130,7 @@ func buildCustomIterator(
 		dps,
 		map[string]string{"a": "b", "c": fmt.Sprint(i)},
 		fmt.Sprintf("abc%d", i), "namespace",
-		start,
+		xtime.ToUnixNano(start),
 		blockSize, stepSize,
 	)
 	require.NoError(t, err)
@@ -269,18 +270,18 @@ func TestPadSeriesBlocks(t *testing.T) {
 	for _, tt := range tests {
 		blocks := seriesBlocks{
 			{
-				blockStart: tt.blockStart,
+				blockStart: xtime.ToUnixNano(tt.blockStart),
 				blockSize:  blockSize,
 				replicas:   []encoding.MultiReaderIterator{},
 			},
 			{
-				blockStart: tt.blockStart.Add(blockSize),
+				blockStart: xtime.ToUnixNano(tt.blockStart.Add(blockSize)),
 				blockSize:  blockSize,
 				replicas:   []encoding.MultiReaderIterator{},
 			},
 		}
 
-		updated := updateSeriesBlockStarts(blocks, tt.stepSize, itStart)
+		updated := updateSeriesBlockStarts(blocks, tt.stepSize, xtime.ToUnixNano(itStart))
 		require.Equal(t, 2, len(updated))
 		assert.Equal(t, tt.blockStart, updated[0].blockStart)
 		assert.Equal(t, tt.expectedStart, updated[0].readStart)

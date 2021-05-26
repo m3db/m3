@@ -129,7 +129,7 @@ func TestParseQueryNoResults(t *testing.T) {
 
 func TestParseQueryResults(t *testing.T) {
 	resolution := 10 * time.Second
-	truncateStart := time.Now().Add(-30 * time.Minute).Truncate(resolution)
+	truncateStart := xtime.Now().Add(-30 * time.Minute).Truncate(resolution)
 	start := truncateStart.Add(time.Second)
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	tags := models.NewTags(0, nil)

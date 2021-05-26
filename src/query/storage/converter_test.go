@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -195,7 +196,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 
 	valsNonEmpty := ts.NewMockValues(ctrl)
 	valsNonEmpty.EXPECT().Len().Return(1).Times(3)
-	dp := ts.Datapoints{{Timestamp: now, Value: 1}}
+	dp := ts.Datapoints{{Timestamp: xtime.ToUnixNano(now), Value: 1}}
 	valsNonEmpty.EXPECT().Datapoints().Return(dp).Times(2)
 	tagsNonEmpty := models.NewTags(1, models.NewTagOptions()).
 		AddTag(models.Tag{Name: []byte("c"), Value: []byte("d")})
@@ -253,7 +254,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		values := make(ts.Datapoints, 0, numDatapointsPerSeries)
 		for i := 0; i < numDatapointsPerSeries; i++ {
 			values = append(values, ts.Datapoint{
-				Timestamp: time.Time{},
+				Timestamp: 0,
 				Value:     float64(i),
 			})
 		}

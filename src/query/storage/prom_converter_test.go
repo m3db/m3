@@ -168,7 +168,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 
 	valsNonEmpty := ts.NewMockValues(ctrl)
 	valsNonEmpty.EXPECT().Len().Return(1).Times(3)
-	dp := ts.Datapoints{{Timestamp: now, Value: 1}}
+	dp := ts.Datapoints{{Timestamp: xtime.ToUnixNano(now), Value: 1}}
 	valsNonEmpty.EXPECT().Datapoints().Return(dp).Times(2)
 	tagsNonEmpty := models.NewTags(1, models.NewTagOptions()).
 		AddTag(models.Tag{Name: []byte("c"), Value: []byte("d")})
@@ -256,7 +256,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 
 		if hasVal {
 			iter.EXPECT().Next().Return(true)
-			dp := dts.Datapoint{Timestamp: now, Value: 1}
+			dp := dts.Datapoint{TimestampNanos: xtime.ToUnixNano(now), Value: 1}
 			iter.EXPECT().Current().Return(dp, xtime.Second, nil)
 		}
 
