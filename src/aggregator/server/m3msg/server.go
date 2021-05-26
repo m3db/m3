@@ -23,6 +23,7 @@ package m3msg
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/encoding"
@@ -32,11 +33,12 @@ import (
 	xserver "github.com/m3db/m3/src/x/server"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type server struct {
-	aggregator aggregator.Aggregator
-	logger     *zap.Logger
+	aggregator    aggregator.Aggregator
+	sampledLogger *zap.Logger
 }
 
 // NewServer creates a new M3Msg server.
@@ -49,9 +51,13 @@ func NewServer(
 		return nil, err
 	}
 
+	logSampler := zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewSamplerWithOptions(core, time.Second, 3, 2)
+	})
+
 	s := &server{
-		aggregator: aggregator,
-		logger:     opts.InstrumentOptions().Logger(),
+		aggregator:    aggregator,
+		sampledLogger: opts.InstrumentOptions().Logger().WithOptions(logSampler),
 	}
 
 	handler := consumer.NewConsumerHandler(s.Consume, opts.ConsumerOptions())
@@ -62,24 +68,21 @@ func (s *server) Consume(c consumer.Consumer) {
 	var (
 		pb     = &metricpb.MetricWithMetadatas{}
 		union  = &encoding.UnaggregatedMessageUnion{}
-		msgErr error
-		msg    consumer.Message
 	)
 	for {
-		msg, msgErr = c.Message()
-		if msgErr != nil {
+		msg, err := c.Message()
+		if err != nil {
+			if err != io.EOF {
+				s.sampledLogger.Error("could not read message", zap.Error(err))
+			}
 			break
 		}
 
 		// Reset and reuse the protobuf message for unpacking.
 		protobuf.ReuseMetricWithMetadatasProto(pb)
-		err := s.handleMessage(pb, union, msg)
-		if err != nil {
-			s.logger.Error("could not process message", zap.Error(err), zap.String("proto", pb.String()))
+		if err = s.handleMessage(pb, union, msg); err != nil {
+			s.sampledLogger.Error("could not process message", zap.Error(err), zap.String("proto", pb.String()))
 		}
-	}
-	if msgErr != nil && msgErr != io.EOF {
-		s.logger.Error("could not read message", zap.Error(msgErr))
 	}
 	c.Close()
 }
