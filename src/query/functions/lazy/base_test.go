@@ -83,7 +83,7 @@ func TestOffsetOp(t *testing.T) {
 	require.NoError(t, err)
 
 	vals := []float64{1, 2, 3, 4}
-	now := time.Now()
+	now := xtime.Now()
 
 	step := block.NewMockStep(ctrl)
 	step.EXPECT().Time().Return(now)
@@ -122,7 +122,7 @@ func TestUnaryOp(t *testing.T) {
 	require.NoError(t, err)
 
 	vals := []float64{1, 2, 3, 4}
-	now := time.Now()
+	now := xtime.Now()
 
 	step := block.NewMockStep(ctrl)
 	step.EXPECT().Time().Return(now)

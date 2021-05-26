@@ -146,8 +146,8 @@ func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
 	series := s.GetCompressed()
 	require.NotNil(t, series)
 	assert.Equal(t, []byte(seriesID), meta.GetId())
-	assert.Equal(t, seriesStart, meta.GetStartTime())
-	assert.Equal(t, end, meta.GetEndTime())
+	assert.Equal(t, int64(seriesStart), meta.GetStartTime())
+	assert.Equal(t, int64(end), meta.GetEndTime())
 
 	replicas := series.GetReplicas()
 	require.Len(t, replicas, 2)
@@ -162,7 +162,7 @@ func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
 		assert.NotNil(t, merged)
 		assert.NotEmpty(t, merged.GetHead())
 		assert.NotEmpty(t, merged.GetTail())
-		assert.Equal(t, start, merged.GetStartTime())
+		assert.Equal(t, int64(start), merged.GetStartTime())
 		assert.Equal(t, int64(blockSize), merged.GetBlockSize())
 
 		seg = segments[1]
@@ -172,7 +172,7 @@ func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
 		for _, unmerged := range unmergedSegments {
 			assert.NotEmpty(t, unmerged.GetHead())
 			assert.NotEmpty(t, unmerged.GetTail())
-			assert.Equal(t, middle.Truncate(blockSize), unmerged.GetStartTime())
+			assert.Equal(t, int64(middle.Truncate(blockSize)), unmerged.GetStartTime())
 			assert.Equal(t, int64(blockSize), unmerged.GetBlockSize())
 		}
 	}
@@ -324,8 +324,8 @@ func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	mockIter := encoding.NewMockSeriesIterator(ctrl)
 	mockIter.EXPECT().Close().Times(0)
 	mockIter.EXPECT().Replicas().Return([]encoding.MultiReaderIterator{}, nil).Times(1)
-	mockIter.EXPECT().Start().Return(time.Now()).Times(1)
-	mockIter.EXPECT().End().Return(time.Now()).Times(1)
+	mockIter.EXPECT().Start().Return(xtime.Now()).Times(1)
+	mockIter.EXPECT().End().Return(xtime.Now()).Times(1)
 	mockIter.EXPECT().Tags().Return(ident.NewTagsIterator(ident.NewTags())).Times(1)
 	mockIter.EXPECT().Namespace().Return(ident.StringID("")).Times(1)
 	mockIter.EXPECT().ID().Return(ident.StringID("")).Times(1)
