@@ -187,6 +187,7 @@ func (f *fetchState) markDoneWithLock(err error) {
 
 func (f *fetchState) asTaggedIDsIterator(
 	pools fetchTaggedPools,
+	limit int,
 ) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
@@ -205,7 +206,9 @@ func (f *fetchState) asTaggedIDsIterator(
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.fetchTaggedOp.requestSeriesLimit(maxInt)
+	if limit == 0 {
+		limit = maxInt
+	}
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
@@ -213,6 +216,7 @@ func (f *fetchState) asEncodingSeriesIterators(
 	pools fetchTaggedPools,
 	descr namespace.SchemaDescr,
 	opts index.IterationOptions,
+	limit int,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
@@ -231,7 +235,9 @@ func (f *fetchState) asEncodingSeriesIterators(
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.fetchTaggedOp.requestSeriesLimit(maxInt)
+	if limit == 0 {
+		limit = maxInt
+	}
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools, descr, opts)
 }
 
