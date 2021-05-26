@@ -22,8 +22,6 @@ package errors
 
 import (
 	"errors"
-
-	terrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 )
 
 var (
@@ -90,8 +88,4 @@ var (
 	// request returns an inconsistenent type.
 	ErrInconsistentCompleteTagsType = errors.New("inconsistent complete tags" +
 		" response type")
-
-	// ErrSeriesLimit is an error returned when the series limit is exceeded and the caller required exhaustive results.
-	// This is wrapped in a ResourceExhaustedError so it behaves the same as an error returned from the db.
-	ErrSeriesLimit = terrors.NewResourceExhaustedError(errors.New("series limit exceeded"))
 )

@@ -21,11 +21,13 @@
 package consolidators
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	terrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -202,9 +204,11 @@ func (r *multiResult) Add(
 		return
 	}
 
+	nsID := newIterators.Iters()[0].Namespace().String()
+
 	// the series limit was reached within this namespace.
 	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
-		r.err = r.err.Add(errors.ErrSeriesLimit)
+		r.err = r.err.Add(newSeriesLimitErr(fmt.Sprintf("series limit exceeded for namespace %s", nsID)))
 		return
 	}
 
@@ -257,9 +261,16 @@ func (r *multiResult) Add(
 	if !added && r.err.Empty() {
 		r.metadata.Exhaustive = false
 		if r.limitOpts.RequireExhaustive {
-			r.err = r.err.Add(errors.ErrSeriesLimit)
+			r.err = r.err.Add(
+				newSeriesLimitErr(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
 		}
 	}
+}
+
+func newSeriesLimitErr(msg string) error {
+	// wrap in a ResourceExhaustedError so it's the same type as the query limit error returned from a single database
+	// instance.
+	return terrors.NewResourceExhaustedError(errors.New(msg))
 }
 
 func (r *multiResult) addOrUpdateDedupeMap(
