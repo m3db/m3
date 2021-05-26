@@ -3078,8 +3078,14 @@ func TestLimitSortStable(t *testing.T) {
 }
 
 func TestHitCount(t *testing.T) {
-	ctx := common.NewTestContext()
-	defer func() { _ = ctx.Close() }()
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	engine := NewEngine(store, CompileOptions{})
+
+	//ctx := common.NewTestContext()
+	//defer func() { _ = ctx.Close() }()
 
 	now := time.Now()
 	tests := []struct {
@@ -3115,22 +3121,37 @@ func TestHitCount(t *testing.T) {
 	}
 
 	for _, input := range tests {
+		ctx := common.NewContext(common.ContextOptions{
+			Start: input.startTime,
+			End: input.startTime.Add(time.Second * 10),
+			Engine: engine})
+		defer func() { _ = ctx.Close() }()
+
 		series := ts.NewSeries(
 			ctx,
 			input.name,
 			input.startTime,
 			common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
 		)
-		results, err := hitcount(ctx, singlePathSpec{
-			Values: []*ts.Series{series},
-		}, input.intervalString)
+		//results, err := hitcount(ctx, singlePathSpec{
+		//	Values: []*ts.Series{series},
+		//}, input.intervalString, false)
+		target := fmt.Sprintf("hitcount(%v, %v,false)", input.name, input.intervalString)
+		testSeriesFn := func(context.Context, string, storage.FetchOptions) (*storage.FetchResult, error) {
+			return &storage.FetchResult{SeriesList: []*ts.Series{series}}, nil
+		}
+		store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(testSeriesFn).AnyTimes()
+		expr, err := engine.Compile(target)
+		require.NoError(t, err)
+		res, err := expr.Execute(ctx)
+		require.NoError(t, err)
 		expected := common.TestSeries{
 			Name: fmt.Sprintf(`hitcount(%s, %q)`, input.name, input.intervalString),
 			Data: input.output,
 		}
 		require.Nil(t, err)
 		common.CompareOutputsAndExpected(t, input.newStep, input.newStartTime,
-			[]common.TestSeries{expected}, results.Values)
+			[]common.TestSeries{expected}, res.Values)
 	}
 }
 

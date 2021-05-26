@@ -1531,17 +1531,69 @@ func durationToSeconds(d time.Duration) int {
 
 // hitcount estimates hit counts from a list of time series. This function assumes the values in each time
 // series represent hits per second. It calculates hits per some larger interval such as per day or per hour.
-// NB(xichen): it doesn't support the alignToInterval parameter because no one seems to be using that.
-func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString string) (ts.SeriesList, error) {
+func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString string, alignToInterval bool) (*unaryContextShifter, error) {
 	interval, err := common.ParseInterval(intervalString)
 	if err != nil {
-		return ts.NewSeriesList(), err
+		return nil, err
 	}
-
 	intervalInSeconds := durationToSeconds(interval)
 	if intervalInSeconds <= 0 {
-		return ts.NewSeriesList(), common.ErrInvalidIntervalFormat
+		return nil, common.ErrInvalidIntervalFormat
 	}
+
+	var shiftDuration = time.Second * 0 // default to no shift.
+	if alignToInterval {
+		// follow graphite implementation: only handle minutes, hours and days.
+		origStartTime := ctx.StartTime
+		if interval.Hours() >= 24 { // interval is in days
+			// truncate to days.
+			newStartTime := time.Date(
+				origStartTime.Year(),
+				origStartTime.Month(),
+				origStartTime.Day(), 0, 0, 0, 0, origStartTime.Location())
+			shiftDuration = newStartTime.Sub(origStartTime)
+		} else if interval.Hours() >=1 { // interval is in hrs
+			newStartTime := time.Date(
+				origStartTime.Year(),
+				origStartTime.Month(),
+				origStartTime.Day(),
+				origStartTime.Hour(), 0, 0, 0, origStartTime.Location())
+			shiftDuration = newStartTime.Sub(origStartTime)
+		} else if interval.Minutes() >=1 { // interval is in minutes.
+			newStartTime := time.Date(
+				origStartTime.Year(),
+				origStartTime.Month(),
+				origStartTime.Day(),
+				origStartTime.Hour(),
+				origStartTime.Minute(), 0, 0, origStartTime.Location())
+			shiftDuration = newStartTime.Sub(origStartTime)
+		}
+	}
+	contextShiftingFn := func(c *common.Context) *common.Context {
+		opts := common.NewChildContextOptions()
+		opts.AdjustTimeRange(shiftDuration, 0, 0, 0)
+		childCtx := c.NewChildContext(opts)
+		return childCtx
+	}
+
+	transformerFn := func(input ts.SeriesList) (ts.SeriesList, error) {
+		r := hitCountImpl(ctx, seriesList, intervalString, interval, intervalInSeconds)
+		return r, nil
+	}
+
+
+	return &unaryContextShifter{
+		ContextShiftFunc: contextShiftingFn,
+		UnaryTransformer: transformerFn,
+	}, nil
+}
+
+func hitCountImpl(
+	ctx *common.Context,
+	seriesList singlePathSpec,
+	intervalString string,
+	interval time.Duration,
+	intervalInSeconds int) ts.SeriesList {
 
 	resultSeries := make([]*ts.Series, len(seriesList.Values))
 	for index, series := range seriesList.Values {
@@ -1585,7 +1637,7 @@ func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString str
 
 	r := ts.SeriesList(seriesList)
 	r.Values = resultSeries
-	return r, nil
+	return r
 }
 
 func safeIndex(len, index int) int {
