@@ -60,3 +60,13 @@ func TestUnixNanoEqual(t *testing.T) {
 	require.Equal(t, false, t1.Equal(t0))
 	require.Equal(t, true, t0.Equal(t0))
 }
+
+func TestCompareTimes(t *testing.T) {
+	require.True(t, UnixNano(0).Before(UnixNano(1)))
+	require.True(t, UnixNano(1).After(UnixNano(0)))
+	require.False(t, UnixNano(1).Before(UnixNano(0)))
+	require.False(t, UnixNano(0).After(UnixNano(1)))
+
+	require.True(t, !UnixNano(0).Before(UnixNano(0)))
+	require.True(t, !UnixNano(0).After(UnixNano(0)))
+}
