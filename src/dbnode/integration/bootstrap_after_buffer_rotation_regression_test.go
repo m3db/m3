@@ -93,7 +93,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		Value:          1,
 	}
 	seriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		startTime: generate.SeriesBlock{
+		startTime: {
 			generate.Series{
 				ID:   testID,
 				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
@@ -190,7 +190,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	// Verify in-memory data match what we expect - both commitlog and memory write
 	// should be present.
 	expectedSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		commitlogWrite.TimestampNanos.Truncate(blockSize): generate.SeriesBlock{
+		commitlogWrite.TimestampNanos.Truncate(blockSize): {
 			generate.Series{
 				ID:   testID,
 				Data: []generate.TestValue{{Datapoint: commitlogWrite}, {Datapoint: memoryWrite}},

@@ -339,13 +339,13 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	// represents other nodes in different clusters.
 	origin := topology.NewHost("0", "addr0")
 	mocks := []multiSessionTestMock{
-		multiSessionTestMock{
+		{
 			host:    topology.NewHost("1", "addr1"),
 			client:  client.NewMockAdminClient(ctrl),
 			session: client.NewMockAdminSession(ctrl),
 			topoMap: topology.NewMockMap(ctrl),
 		},
-		multiSessionTestMock{
+		{
 			host:    topology.NewHost("2", "addr2"),
 			client:  client.NewMockAdminClient(ctrl),
 			session: client.NewMockAdminSession(ctrl),

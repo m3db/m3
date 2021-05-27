@@ -97,37 +97,37 @@ func TestWriteReadTimezone(t *testing.T) {
 	namespace := opts.Namespaces()[0].ID().String()
 	startNy := xtime.ToUnixNano(start.In(nyLocation))
 	writeSeries := []readWriteTZCase{
-		readWriteTZCase{
+		{
 			namespace: namespace,
 			id:        "some-id-1",
 			datapoints: []readWriteTZDP{
-				readWriteTZDP{
+				{
 					value:     20.0,
 					timestamp: startNy,
 				},
-				readWriteTZDP{
+				{
 					value:     20.0,
 					timestamp: startNy.Add(1 * time.Second),
 				},
-				readWriteTZDP{
+				{
 					value:     20.0,
 					timestamp: startNy.Add(2 * time.Second),
 				},
 			},
 		},
-		readWriteTZCase{
+		{
 			namespace: namespace,
 			id:        "some-id-2",
 			datapoints: []readWriteTZDP{
-				readWriteTZDP{
+				{
 					value:     30.0,
 					timestamp: startNy,
 				},
-				readWriteTZDP{
+				{
 					value:     30.0,
 					timestamp: startNy.Add(1 * time.Second),
 				},
-				readWriteTZDP{
+				{
 					value:     30.0,
 					timestamp: startNy.Add(2 * time.Second),
 				},

@@ -300,6 +300,6 @@ func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
 // ContextWithDefaultTimeout returns a context with a default timeout
 // set of one minute.
 func ContextWithDefaultTimeout() context.Context {
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute) //nolint
 	return ctx
 }

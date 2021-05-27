@@ -89,35 +89,35 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	}
 
 	expectedDataFiles := []fs.FileSetFileIdentifier{
-		fs.FileSetFileIdentifier{
+		{
 			// warm1, start
 			Namespace:   nsID,
 			Shard:       6,
 			BlockStart:  start,
 			VolumeIndex: 0,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// warm1, start + 1
 			Namespace:   nsID,
 			Shard:       6,
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 0,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// warm2, start
 			Namespace:   nsID,
 			Shard:       11,
 			BlockStart:  start,
 			VolumeIndex: 0,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// warm3, start + 1
 			Namespace:   nsID,
 			Shard:       2,
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 0,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// coldWrite, start + 1
 			Namespace:   nsID,
 			Shard:       8,
@@ -162,14 +162,14 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	log.Debug("cold data is now written")
 
 	expectedDataFiles = []fs.FileSetFileIdentifier{
-		fs.FileSetFileIdentifier{
+		{
 			// warm1, start
 			Namespace:   nsID,
 			Shard:       6,
 			BlockStart:  start,
 			VolumeIndex: 0,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// warm2, start (creating volume 0)
 			// cold3, start (creating volume 1)
 			Namespace:   nsID,
@@ -177,56 +177,56 @@ func TestDiskColdFlushSimple(t *testing.T) {
 			BlockStart:  start,
 			VolumeIndex: 1,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// warm1, start + 1
 			Namespace:   nsID,
 			Shard:       6,
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 0,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// warm3, start + 1
 			Namespace:   nsID,
 			Shard:       2,
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 0,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// cold0, start - 1
 			Namespace:   nsID,
 			Shard:       2,
 			BlockStart:  start.Add(-blockSize),
 			VolumeIndex: 1,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// cold1, start
 			Namespace:   nsID,
 			Shard:       4,
 			BlockStart:  start,
 			VolumeIndex: 1,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// cold2, start
 			Namespace:   nsID,
 			Shard:       7,
 			BlockStart:  start,
 			VolumeIndex: 1,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// cold1, start + 1
 			Namespace:   nsID,
 			Shard:       4,
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 1,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// cold3, start + 1
 			Namespace:   nsID,
 			Shard:       11,
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 1,
 		},
-		fs.FileSetFileIdentifier{
+		{
 			// coldWrite, start + 1
 			Namespace:   nsID,
 			Shard:       8,

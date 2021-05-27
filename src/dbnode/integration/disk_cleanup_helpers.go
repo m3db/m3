@@ -222,7 +222,7 @@ func waitUntilDataCleanedUp(
 	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 	return waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileSet{
-			cleanupTimesFileSet{
+			{
 				filePathPrefix: filePathPrefix,
 				namespace:      namespace,
 				shard:          shard,

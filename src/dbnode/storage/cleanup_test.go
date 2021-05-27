@@ -511,15 +511,15 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	require.NoError(t, cleanup(mgr, ts))
 
 	expectedCalls := []deleteInactiveDirectoriesCall{
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "data/nsID",
 			activeDirNames: []string{"0"},
 		},
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "snapshots/nsID",
 			activeDirNames: []string{"0"},
 		},
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "data",
 			activeDirNames: []string{"nsID"},
 		},
