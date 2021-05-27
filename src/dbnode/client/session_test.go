@@ -280,6 +280,7 @@ func TestIteratorPools(t *testing.T) {
 	assert.Equal(t, idPool, itPool.ID())
 }
 
+//nolint:dupl
 func TestSeriesLimit_FetchTagged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -318,6 +319,7 @@ func TestSeriesLimit_FetchTagged(t *testing.T) {
 	require.NoError(t, sess.Close())
 }
 
+//nolint:dupl
 func TestSeriesLimit_FetchTaggedIDs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -356,6 +358,7 @@ func TestSeriesLimit_FetchTaggedIDs(t *testing.T) {
 	require.NoError(t, sess.Close())
 }
 
+//nolint:dupl
 func TestSeriesLimit_Aggregate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
