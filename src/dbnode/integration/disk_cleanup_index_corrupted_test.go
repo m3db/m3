@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xclock "github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestDiskCleanupIndexCorrupted(t *testing.T) {
@@ -74,7 +75,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		numVolumes          = 4
 
 		now         = setup.NowFn()().Truncate(idxBlockSize)
-		blockStarts = []time.Time{
+		blockStarts = []xtime.UnixNano{
 			now.Add(-3 * idxBlockSize),
 			now.Add(-2 * idxBlockSize),
 			now.Add(-1 * idxBlockSize),
@@ -153,7 +154,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 }
 
 func forBlockStart(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	filesets []fs.ReadIndexInfoFileResult,
 	fn func([]fs.ReadIndexInfoFileResult),
 ) {

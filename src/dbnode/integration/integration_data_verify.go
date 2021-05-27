@@ -91,8 +91,8 @@ func verifySeriesMapForRange(
 		idString := input[i].ID.String()
 		req.NameSpace = namespace.String()
 		req.ID = idString
-		req.RangeStart = int64(start.ToNormalizedTime(time.Second))
-		req.RangeEnd = int64(end.ToNormalizedTime(time.Second))
+		req.RangeStart = start.Seconds()
+		req.RangeEnd = end.Seconds()
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.Fetch(req)
 
@@ -216,12 +216,12 @@ func verifySeriesMapForRange(
 	return true
 }
 
-func containsSeries(ts TestSetup, namespace, seriesID ident.ID, start, end time.Time) (bool, error) {
+func containsSeries(ts TestSetup, namespace, seriesID ident.ID, start, end xtime.UnixNano) (bool, error) {
 	req := rpc.NewFetchRequest()
 	req.NameSpace = namespace.String()
 	req.ID = seriesID.String()
-	req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
-	req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
+	req.RangeStart = start.ToNormalizedTime(time.Second)
+	req.RangeEnd = end.ToNormalizedTime(time.Second)
 	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 	fetched, err := ts.Fetch(req)
 	return len(fetched) != 0, err

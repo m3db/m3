@@ -60,6 +60,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -87,7 +88,7 @@ var (
 )
 
 // nowSetterFn is the function that sets the current time
-type nowSetterFn func(t time.Time)
+type nowSetterFn func(t xtime.UnixNano)
 
 type assertTestDataEqual func(t *testing.T, expected, actual []generate.TestValue) bool
 
@@ -110,7 +111,8 @@ type testSetup struct {
 	origin            topology.Host
 	topoInit          topology.Initializer
 	shardSet          sharding.ShardSet
-	getNowFn          clock.NowFn
+	getNowFn          xNowFn
+	clockNowFn        clock.NowFn
 	setNowFn          nowSetterFn
 	tchannelClient    *TestTChannelClient
 	m3dbClient        client.Client
@@ -135,6 +137,8 @@ type testSetup struct {
 	doneCh   chan struct{}
 	closedCh chan struct{}
 }
+
+type xNowFn func() xtime.UnixNano
 
 // TestSetup is a test setup.
 type TestSetup interface {
@@ -162,8 +166,8 @@ type TestSetup interface {
 	StopServer() error
 	StartServer() error
 	StartServerDontWaitBootstrap() error
-	NowFn() clock.NowFn
-	SetNowFn(time.Time)
+	NowFn() xNowFn
+	SetNowFn(xtime.UnixNano)
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
@@ -350,14 +354,17 @@ func NewTestSetup(
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(truncateSize)
-	getNowFn := func() time.Time {
+	now := xtime.Now().Truncate(truncateSize)
+	getNowFn := func() xtime.UnixNano {
 		lock.RLock()
 		t := now
 		lock.RUnlock()
 		return t
 	}
-	setNowFn := func(t time.Time) {
+	clockNowFn := func() time.Time {
+		return getNowFn().ToTime()
+	}
+	setNowFn := func(t xtime.UnixNano) {
 		lock.Lock()
 		now = t
 		lock.Unlock()
@@ -368,7 +375,7 @@ func NewTestSetup(
 			storageOpts.ClockOptions().SetNowFn(overrideTimeNow))
 	} else {
 		storageOpts = storageOpts.SetClockOptions(
-			storageOpts.ClockOptions().SetNowFn(getNowFn))
+			storageOpts.ClockOptions().SetNowFn(clockNowFn))
 	}
 
 	// Set up file path prefix
@@ -488,6 +495,7 @@ func NewTestSetup(
 		topoInit:                    topoInit,
 		shardSet:                    shardSet,
 		getNowFn:                    getNowFn,
+		clockNowFn:                  clockNowFn,
 		setNowFn:                    setNowFn,
 		tchannelClient:              tchanClient,
 		m3dbClient:                  adminClient.(client.Client),
@@ -576,11 +584,11 @@ func (ts *testSetup) Namespaces() []namespace.Metadata {
 	return ts.namespaces
 }
 
-func (ts *testSetup) NowFn() clock.NowFn {
+func (ts *testSetup) NowFn() xNowFn {
 	return ts.getNowFn
 }
 
-func (ts *testSetup) SetNowFn(t time.Time) {
+func (ts *testSetup) SetNowFn(t xtime.UnixNano) {
 	ts.setNowFn(t)
 }
 
@@ -651,7 +659,7 @@ func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options 
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
 		opts        = generate.NewOptions()
-		co          = opts.ClockOptions().SetNowFn(ts.getNowFn)
+		co          = opts.ClockOptions().SetNowFn(ts.clockNowFn)
 	)
 
 	return opts.

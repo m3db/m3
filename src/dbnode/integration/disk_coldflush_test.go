@@ -128,10 +128,10 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	for _, input := range warmData {
 		testSetup.SetNowFn(input.Start)
 		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
+		seriesMaps[input.Start] = testData
 		require.NoError(t, testSetup.WriteBatch(nsID, testData))
 	}
-	startPlusOneBlockNano := xtime.ToUnixNano(start.Add(blockSize))
+	startPlusOneBlockNano := start.Add(blockSize)
 	// Remove warm data for `coldOverwrite`. See earlier comment for context.
 	seriesMaps[startPlusOneBlockNano] =
 		seriesMaps[startPlusOneBlockNano][:len(seriesMaps[startPlusOneBlockNano])-1]
@@ -156,7 +156,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	testSetup.SetNowFn(start.Add(blockSize * 3))
 	for _, input := range coldData {
 		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start)] = append(seriesMaps[xtime.ToUnixNano(input.Start)], testData...)
+		seriesMaps[input.Start] = append(seriesMaps[input.Start], testData...)
 		require.NoError(t, testSetup.WriteBatch(nsID, testData))
 	}
 	log.Debug("cold data is now written")

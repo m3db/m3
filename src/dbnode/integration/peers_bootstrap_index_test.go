@@ -200,7 +200,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		setups[1].FilesystemOpts(),
 	)
 	require.NoError(t, err)
-	numDocs, ok := numDocsPerBlockStart[xtime.ToUnixNano(now.Add(-2*blockSize).Truncate(blockSize))]
+	numDocs, ok := numDocsPerBlockStart[now.Add(-2*blockSize).Truncate(blockSize)]
 	require.True(t, ok)
 	require.Equal(t, numDocs, 1)
 }

@@ -41,7 +41,7 @@ type readWriteTZCase struct {
 
 type readWriteTZDP struct {
 	value     float64
-	timestamp time.Time
+	timestamp xtime.UnixNano
 }
 
 // Make sure that everything works properly end-to-end even if the client issues
@@ -84,8 +84,8 @@ func TestWriteReadTimezone(t *testing.T) {
 	require.NoError(t, setup.WaitUntilServerIsBootstrapped())
 
 	// Make sure that the server's internal clock function returns pacific timezone
-	start := setup.NowFn()()
-	setup.SetNowFn(start.In(pacificLocation))
+	start := setup.NowFn()().ToTime()
+	setup.SetNowFn(xtime.ToUnixNano(start.In(pacificLocation)))
 
 	// Instantiate a client
 	client := setup.M3DBClient()
@@ -95,7 +95,7 @@ func TestWriteReadTimezone(t *testing.T) {
 
 	// Generate test datapoints (all with NY timezone)
 	namespace := opts.Namespaces()[0].ID().String()
-	startNy := start.In(nyLocation)
+	startNy := xtime.ToUnixNano(start.In(nyLocation))
 	writeSeries := []readWriteTZCase{
 		readWriteTZCase{
 			namespace: namespace,
@@ -157,7 +157,7 @@ func TestWriteReadTimezone(t *testing.T) {
 			// Datapoints will comeback with the timezone set to the local timezone
 			// of the machine that the client is running on. The Equal() method ensures
 			// that the two time.Time struct's refer to the same instant in time
-			require.True(t, expectedDatapoint.timestamp.Equal(dp.Timestamp))
+			require.True(t, expectedDatapoint.timestamp.Equal(dp.TimestampNanos))
 			require.Equal(t, expectedDatapoint.value, dp.Value)
 		}
 	}

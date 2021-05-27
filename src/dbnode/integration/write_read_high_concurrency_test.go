@@ -78,7 +78,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 	defer session.Close()
 
 	var insertWg sync.WaitGroup
-	now := nodes[0].DB().Options().ClockOptions().NowFn()()
+	now := xtime.ToUnixNano(nodes[0].DB().Options().ClockOptions().NowFn()())
 	start := time.Now()
 	log.Info("starting data write")
 

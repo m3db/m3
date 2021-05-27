@@ -103,7 +103,7 @@ func (client *TestTChannelClient) TChannelClientWriteBatch(
 			elem := &rpc.WriteBatchRawRequestElement{
 				ID: series.ID.Bytes(),
 				Datapoint: &rpc.Datapoint{
-					Timestamp:         dp.TimestampNanos.ToNormalizedTime(time.Second),
+					Timestamp:         dp.TimestampNanos.Seconds(),
 					Value:             dp.Value,
 					Annotation:        dp.Annotation,
 					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
@@ -218,8 +218,8 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.Te
 	iter, err := session.Fetch(
 		ident.StringID(req.NameSpace),
 		ident.StringID(req.ID),
-		xtime.UnixNano(start.ToNormalizedTime(time.Second)),
-		xtime.UnixNano(end.ToNormalizedTime(time.Second)),
+		xtime.UnixNano(start.FromNormalizedTime(time.Second)),
+		xtime.UnixNano(end.FromNormalizedTime(time.Second)),
 	)
 
 	if err != nil {
