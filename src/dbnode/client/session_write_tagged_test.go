@@ -126,7 +126,7 @@ func TestSessionWriteTagged(t *testing.T) {
 		assert.Equal(t, w.id.String(), string(write.request.ID))
 		assert.Equal(t, testEncodeTags(w.tags).Bytes(), write.request.EncodedTags)
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
-		assert.Equal(t, w.t.ToNormalizedTime(time.Second), write.request.Datapoint.Timestamp)
+		assert.Equal(t, w.t.Seconds(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 		assert.NotNil(t, write.completionFn)
 	}})
@@ -388,7 +388,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 			assert.Equal(t, w.id.String(), string(write.request.ID))
 			assert.Equal(t, string(testEncodeTags(w.tags).Bytes()), string(write.request.EncodedTags))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)
-			assert.Equal(t, w.t.ToNormalizedTime(time.Second), write.request.Datapoint.Timestamp)
+			assert.Equal(t, w.t.Seconds(), write.request.Datapoint.Timestamp)
 			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 			assert.NotNil(t, write.completionFn)
 			completionFn = write.completionFn

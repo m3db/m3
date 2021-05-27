@@ -80,7 +80,7 @@ func testSessionWrite(t *testing.T, testOpts testOptions) {
 		assert.True(t, ok)
 		assert.Equal(t, w.id.String(), string(write.request.ID))
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
-		assert.Equal(t, w.t.ToNormalizedTime(time.Second), write.request.Datapoint.Timestamp)
+		assert.Equal(t, w.t.Seconds(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 		assert.NotNil(t, write.completionFn)
 		if testOpts.annEqual != nil {
@@ -289,7 +289,7 @@ func TestSessionWriteRetry(t *testing.T) {
 			assert.True(t, ok)
 			assert.Equal(t, w.id.String(), string(write.request.ID))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)
-			assert.Equal(t, w.t.ToNormalizedTime(time.Second), write.request.Datapoint.Timestamp)
+			assert.Equal(t, w.t.Seconds(), write.request.Datapoint.Timestamp)
 			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 			assert.NotNil(t, write.completionFn)
 			completionFn = write.completionFn

@@ -80,7 +80,7 @@ func newOpenWriter(t *testing.T) testWriter {
 	require.NoError(t, err)
 
 	blockSize := 2 * time.Hour
-	start := xtime.ToUnixNanos(time.Now()).Truncate(blockSize).Add(-2 * blockSize)
+	start := xtime.Now().Truncate(blockSize).Add(-2 * blockSize)
 	fileSetID := fs.FileSetFileIdentifier{
 		FileSetContentType: persist.FileSetDataContentType,
 		Namespace:          ident.StringID("foo"),
