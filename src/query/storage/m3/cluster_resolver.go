@@ -75,7 +75,6 @@ func resolveUnaggregatedNamespaceForQuery(
 
 // resolveClusterNamespacesForQuery returns the namespaces that need to be
 // fanned out to depending on the query time and the namespaces configured.
-// nolint: unparam
 func resolveClusterNamespacesForQuery(
 	now, start, end time.Time,
 	clusters Clusters,
@@ -115,6 +114,7 @@ func resolveClusterNamespacesForQuery(
 
 // resolveClusterNamespacesForQueryLogicalPlan resolves the logical plan
 // for namespaces to query.
+// nolint: unparam
 func resolveClusterNamespacesForQueryLogicalPlan(
 	now, start, end time.Time,
 	clusters Clusters,
