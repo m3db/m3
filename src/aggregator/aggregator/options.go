@@ -869,14 +869,14 @@ func (o *options) computeFilterByteSequences() {
 			[uint16-numTags][uint16-tagNameLength][[]byte-tagName]....
 	*/
 
-	for _, flag := range o.featureFlags {
+	for i := range o.featureFlags {
 		buff := make([]byte, 2)
 		var tagFilterBytes []byte
 		var ByteOrder binary.ByteOrder = binary.LittleEndian
 
 		// TODO(sidneyw): make sure there is only one filter. Tag ordering will
 		// throw off the simple bytes.Contains matching.
-		for key, value := range flag.Filter {
+		for key, value := range o.featureFlags[i].Filter {
 			fmt.Printf("Encoding feature flag matcher %s:%s\n", key, value)
 			// Add key bytes.
 			ByteOrder.PutUint16(buff[:2], uint16(len(key)))
@@ -889,8 +889,8 @@ func (o *options) computeFilterByteSequences() {
 			tagFilterBytes = append(tagFilterBytes, []byte(value)...)
 		}
 
-		flag.filterBytes = tagFilterBytes
-		fmt.Printf("flag.filterBytes = %+x\n", flag.filterBytes)
+		o.featureFlags[i].filterBytes = tagFilterBytes
+		fmt.Printf("o.featureFlags[i] = %+v\n", o.featureFlags[i])
 	}
 }
 
@@ -938,6 +938,8 @@ func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
 func (o *options) SetFeatureFlags(value FeatureFlagConfiguration) Options {
 	opts := *o
 	opts.featureFlags = value
+
+	opts.computeFilterByteSequences()
 
 	return &opts
 }
