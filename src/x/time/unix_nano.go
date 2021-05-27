@@ -20,22 +20,27 @@
 
 package time
 
-import "time"
+import (
+	"fmt"
+	"runtime/debug"
+	"time"
+)
 
 // UnixNano is used to indicate that an int64 stores a unix timestamp at
-// nanosecond resolution
+// nanosecond resolution.
 type UnixNano int64
 
-// ToTime returns a time.ToTime from a UnixNano
+// ToTime returns a time.ToTime from a UnixNano.
 func (u UnixNano) ToTime() time.Time {
 	return time.Unix(0, int64(u))
 }
 
-// ToUnixNano returns a UnixNano from a time.Time
+// ToUnixNano returns a UnixNano from a time.Time.
 func ToUnixNano(t time.Time) UnixNano {
 	return UnixNano(t.UnixNano())
 }
 
+// Truncate returns the result of rounding u down to a multiple of d.
 func (u UnixNano) Truncate(d time.Duration) UnixNano {
 	return (u / UnixNano(d)) * UnixNano(d)
 }
@@ -54,7 +59,11 @@ func (u UnixNano) Add(d time.Duration) UnixNano {
 
 // ToNormalizedTime returns the normalized units of time given a time unit.
 func (u UnixNano) ToNormalizedTime(d time.Duration) int64 {
-	return int64(u) / int64(d.Nanoseconds())
+	if u < 16221403330 {
+		fmt.Println("NORMALIZING", u, "BY", d.Nanoseconds(), "RES:", int64(u)/d.Nanoseconds())
+		debug.PrintStack()
+	}
+	return int64(u) / d.Nanoseconds()
 }
 
 // FromNormalizedTime returns the time given the normalized time units and the time unit.
@@ -82,12 +91,18 @@ func (u UnixNano) IsZero() bool {
 	return u == 0
 }
 
-// Equal reports whether the time instant u is equal to t.
+// String returns the time formatted using the format string
+//	"2006-01-02 15:04:05.999999999 -0700 MST"
 func (u UnixNano) String() string {
-	return u.ToTime().String()
+	return fmt.Sprint(int64(u)) //.String()
 }
 
-// Equal reports whether the time instant u is equal to t.
+// Format returns the string representation for the time with the given format.
 func (u UnixNano) Format(blockTimeFormat string) string {
 	return u.ToTime().Format(blockTimeFormat)
+}
+
+// Seconds returns the seconds for time u, as an int64.
+func (u UnixNano) Seconds() int64 {
+	return u.ToNormalizedTime(time.Second)
 }
