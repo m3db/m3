@@ -1459,6 +1459,14 @@ func (s *session) aggregateAttempt(
 		nsClone.Finalize()
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
+	if req.SeriesLimit != nil && opts.InstanceMultiple > 0 {
+		topo := s.state.topoMap
+		iPerReplica := int64(len(topo.Hosts()) / topo.Replicas())
+		iSeriesLimit := int64(float32(opts.SeriesLimit)*opts.InstanceMultiple) / iPerReplica
+		if iSeriesLimit < *req.SeriesLimit {
+			req.SeriesLimit = &iSeriesLimit
+		}
+	}
 
 	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:        aggregateFetchState,
@@ -1479,7 +1487,7 @@ func (s *session) aggregateAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, meta, err := fetchState.asAggregatedTagsIterator(s.pools)
+	iters, meta, err := fetchState.asAggregatedTagsIterator(s.pools, opts.SeriesLimit)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1553,11 +1561,11 @@ func (s *session) fetchTaggedAttempt(
 		nsClone.Finalize()
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
-	if opts.InstanceMultiple > 0 {
+	if req.SeriesLimit != nil && opts.InstanceMultiple > 0 {
 		topo := s.state.topoMap
 		iPerReplica := int64(len(topo.Hosts()) / topo.Replicas())
 		iSeriesLimit := int64(float32(opts.SeriesLimit)*opts.InstanceMultiple) / iPerReplica
-		if req.SeriesLimit != nil && iSeriesLimit < *req.SeriesLimit {
+		if iSeriesLimit < *req.SeriesLimit {
 			req.SeriesLimit = &iSeriesLimit
 		}
 	}
@@ -1617,6 +1625,14 @@ func (s *session) fetchTaggedIDsAttempt(
 		s.state.RUnlock()
 		nsClone.Finalize()
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
+	}
+	if req.SeriesLimit != nil && opts.InstanceMultiple > 0 {
+		topo := s.state.topoMap
+		iPerReplica := int64(len(topo.Hosts()) / topo.Replicas())
+		iSeriesLimit := int64(float32(opts.SeriesLimit)*opts.InstanceMultiple) / iPerReplica
+		if iSeriesLimit < *req.SeriesLimit {
+			req.SeriesLimit = &iSeriesLimit
+		}
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
