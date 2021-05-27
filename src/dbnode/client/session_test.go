@@ -280,34 +280,12 @@ func TestIteratorPools(t *testing.T) {
 	assert.Equal(t, idPool, itPool.ID())
 }
 
-func TestSeriesLimit(t *testing.T) {
+func TestSeriesLimit_FetchTagged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	shardSet := sessionTestShardSet()
-	var hostShardSets []topology.HostShardSet
-	// setup 9 hosts so there are 3 instances per replica. Each instance has a single shard.
-	for i := 0; i < sessionTestReplicas; i++ {
-		for j := 0; j < sessionTestShards; j++ {
-			id := fmt.Sprintf("testhost-%d-%d", i, j)
-			host := topology.NewHost(id, fmt.Sprintf("%s:9000", id))
-			hostShard, _ := sharding.NewShardSet([]shard.Shard{shardSet.All()[j]}, shardSet.HashFn())
-			hostShardSet := topology.NewHostShardSet(host, hostShard)
-			hostShardSets = append(hostShardSets, hostShardSet)
-		}
-	}
-
-	opts = opts.SetTopologyInitializer(topology.NewStaticInitializer(
-		topology.NewStaticOptions().
-			SetReplicas(sessionTestReplicas).
-			SetShardSet(shardSet).
-			SetHostShardSets(hostShardSets)))
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	sess := s.(*session)
 	// mock the host queue to return a result with a single series, this results in 3 series total, one per shard.
-	sess.newHostQueueFn = mockHostQueuesWithFn(ctrl, func(op op, host topology.Host) {
+	sess := setupMultipleInstanceCluster(t, ctrl, func(op op, host topology.Host) {
 		fOp := op.(*fetchTaggedOp)
 		assert.Equal(t, int64(2), *fOp.request.SeriesLimit)
 		shardID := strings.Split(host.ID(), "-")[2]
@@ -325,7 +303,6 @@ func TestSeriesLimit(t *testing.T) {
 		}, nil)
 	})
 
-	require.NoError(t, sess.Open())
 	iters, meta, err := sess.fetchTaggedAttempt(context.TODO(), ident.StringID("ns"),
 		index.Query{Query: idx.NewAllQuery()},
 		index.QueryOptions{
@@ -337,6 +314,87 @@ func TestSeriesLimit(t *testing.T) {
 	require.NotNil(t, iters)
 	// expect a series per shard.
 	require.Equal(t, 3, iters.Len())
+	require.True(t, meta.Exhaustive)
+	require.NoError(t, sess.Close())
+}
+
+func TestSeriesLimit_FetchTaggedIDs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// mock the host queue to return a result with a single series, this results in 3 series total, one per shard.
+	sess := setupMultipleInstanceCluster(t, ctrl, func(op op, host topology.Host) {
+		fOp := op.(*fetchTaggedOp)
+		assert.Equal(t, int64(2), *fOp.request.SeriesLimit)
+		shardID := strings.Split(host.ID(), "-")[2]
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+			host: host,
+			response: &rpc.FetchTaggedResult_{
+				Exhaustive: true,
+				Elements: []*rpc.FetchTaggedIDResult_{
+					{
+						// use shard id for the metric id so it's stable across replicas.
+						ID: []byte(shardID),
+					},
+				},
+			},
+		}, nil)
+	})
+
+	iter, meta, err := sess.fetchTaggedIDsAttempt(context.TODO(), ident.StringID("ns"),
+		index.Query{Query: idx.NewAllQuery()},
+		index.QueryOptions{
+			// set to 6 so we can test the instance series limit is 2 (6 /3 instances per replica * InstanceMultiple)
+			SeriesLimit:      6,
+			InstanceMultiple: 1,
+		})
+	require.NoError(t, err)
+	require.NotNil(t, iter)
+	// expect a series per shard.
+	require.Equal(t, 3, iter.Remaining())
+	require.True(t, meta.Exhaustive)
+	require.NoError(t, sess.Close())
+}
+
+func TestSeriesLimit_Aggregate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// mock the host queue to return a result with a single series, this results in 3 series total, one per shard.
+	sess := setupMultipleInstanceCluster(t, ctrl, func(op op, host topology.Host) {
+		aOp := op.(*aggregateOp)
+		assert.Equal(t, int64(2), *aOp.request.SeriesLimit)
+		shardID := strings.Split(host.ID(), "-")[2]
+		op.CompletionFn()(aggregateResultAccumulatorOpts{
+			host: host,
+			response: &rpc.AggregateQueryRawResult_{
+				Exhaustive: true,
+				Results: []*rpc.AggregateQueryRawResultTagNameElement{
+					{
+						// use shard id for the tag value so it's stable across replicas.
+						TagName: []byte(shardID),
+						TagValues: []*rpc.AggregateQueryRawResultTagValueElement{
+							{
+								TagValue: []byte("value"),
+							},
+						},
+					},
+				},
+			},
+		}, nil)
+	})
+	iter, meta, err := sess.aggregateAttempt(context.TODO(), ident.StringID("ns"),
+		index.Query{Query: idx.NewAllQuery()},
+		index.AggregationOptions{
+			QueryOptions: index.QueryOptions{
+				// set to 6 so we can test the instance series limit is 2 (6 /3 instances per replica * InstanceMultiple)
+				SeriesLimit:      6,
+				InstanceMultiple: 1,
+			},
+		})
+	require.NoError(t, err)
+	require.NotNil(t, iter)
+	require.Equal(t, 3, iter.Remaining())
 	require.True(t, meta.Exhaustive)
 	require.NoError(t, sess.Close())
 }
@@ -442,11 +500,35 @@ func testSessionClusterConnectConsistencyLevel(
 	}
 }
 
-// mockHostQueuesWithFn mocks every host queue and calls the provided fn when an operation is enqueued. the provided
-// fn is dispatched in a separate goroutine to simulate the queue processing. this also allows the function to access
-// the state locks.
-func mockHostQueuesWithFn(ctrl *gomock.Controller, fn func(op op, host topology.Host)) newHostQueueFn {
-	return func(host topology.Host, hostQueueOpts hostQueueOpts) (hostQueue, error) {
+// setupMultipleInstanceCluster sets up a db cluster with 3 shards and 3 replicas. The 3 shards are distributed across
+// 9 hosts, so each host has 1 replica of 1 shard.
+// the function passed is executed when an operation is enqueued. the provided fn is dispatched in a separate goroutine
+// to simulate the queue processing. this also allows the function to access the state locks.
+func setupMultipleInstanceCluster(t *testing.T, ctrl *gomock.Controller, fn func(op op, host topology.Host)) *session {
+	opts := newSessionTestOptions()
+	shardSet := sessionTestShardSet()
+	var hostShardSets []topology.HostShardSet
+	// setup 9 hosts so there are 3 instances per replica. Each instance has a single shard.
+	for i := 0; i < sessionTestReplicas; i++ {
+		for j := 0; j < sessionTestShards; j++ {
+			id := fmt.Sprintf("testhost-%d-%d", i, j)
+			host := topology.NewHost(id, fmt.Sprintf("%s:9000", id))
+			hostShard, _ := sharding.NewShardSet([]shard.Shard{shardSet.All()[j]}, shardSet.HashFn())
+			hostShardSet := topology.NewHostShardSet(host, hostShard)
+			hostShardSets = append(hostShardSets, hostShardSet)
+		}
+	}
+
+	opts = opts.SetTopologyInitializer(topology.NewStaticInitializer(
+		topology.NewStaticOptions().
+			SetReplicas(sessionTestReplicas).
+			SetShardSet(shardSet).
+			SetHostShardSets(hostShardSets)))
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	sess := s.(*session)
+
+	sess.newHostQueueFn = func(host topology.Host, hostQueueOpts hostQueueOpts) (hostQueue, error) {
 		q := NewMockhostQueue(ctrl)
 		q.EXPECT().Open()
 		q.EXPECT().ConnectionCount().Return(hostQueueOpts.opts.MinConnectionCount()).AnyTimes()
@@ -460,6 +542,9 @@ func mockHostQueuesWithFn(ctrl *gomock.Controller, fn func(op op, host topology.
 		q.EXPECT().Close()
 		return q, nil
 	}
+
+	require.NoError(t, sess.Open())
+	return sess
 }
 
 func mockHostQueues(
