@@ -559,7 +559,7 @@ func TestDeduplicatePartialAggregateNamespaces(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	now := time.Now()
+	now := xtime.Now()
 	end := now
 
 	start := now.Add(-48 * time.Hour)

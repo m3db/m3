@@ -92,7 +92,7 @@ func (enc *TimestampEncoder) WriteFirstTime(
 ) error {
 	// NB(xichen): Always write the first time in nanoseconds because we don't know
 	// if the start time is going to be a multiple of the time unit provided.
-	nt := enc.PrevTime.ToNormalizedTime(time.Nanosecond)
+	nt := enc.PrevTime
 	stream.WriteBits(uint64(nt), 64)
 	return enc.WriteNextTime(stream, currTime, ant, timeUnit)
 }

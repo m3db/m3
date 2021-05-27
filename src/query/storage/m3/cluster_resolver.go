@@ -117,7 +117,7 @@ func resolveClusterNamespacesForQuery(
 // for namespaces to query.
 // nolint: unparam
 func resolveClusterNamespacesForQueryLogicalPlan(
-	now, start, end time.Time,
+	now, start, end xtime.UnixNano,
 	clusters Clusters,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
