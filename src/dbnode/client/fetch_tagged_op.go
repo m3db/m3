@@ -53,13 +53,6 @@ func (f *fetchTaggedOp) update(
 	f.completionFn = fn
 }
 
-func (f *fetchTaggedOp) requestSeriesLimit(defaultValue int) int {
-	if f.request.SeriesLimit == nil {
-		return defaultValue
-	}
-	return int(*f.request.SeriesLimit)
-}
-
 func (f *fetchTaggedOp) close() {
 	f.completionFn = nil
 	f.request = fetchTaggedOpRequestZeroed

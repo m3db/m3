@@ -21,6 +21,7 @@
 package m3msg
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -60,26 +61,26 @@ func NewServer(
 
 func (s *server) Consume(c consumer.Consumer) {
 	var (
-		pb     = &metricpb.MetricWithMetadatas{}
-		union  = &encoding.UnaggregatedMessageUnion{}
-		msgErr error
-		msg    consumer.Message
+		pb    = &metricpb.MetricWithMetadatas{}
+		union = &encoding.UnaggregatedMessageUnion{}
 	)
 	for {
-		msg, msgErr = c.Message()
-		if msgErr != nil {
+		msg, err := c.Message()
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				s.logger.Error("could not read message", zap.Error(err))
+			}
 			break
 		}
 
 		// Reset and reuse the protobuf message for unpacking.
 		protobuf.ReuseMetricWithMetadatasProto(pb)
-		err := s.handleMessage(pb, union, msg)
-		if err != nil {
-			s.logger.Error("could not process message", zap.Error(err), zap.String("proto", pb.String()))
+		if err = s.handleMessage(pb, union, msg); err != nil {
+			s.logger.Error("could not process message",
+				zap.Error(err),
+				zap.Uint64("shard", msg.ShardID()),
+				zap.String("proto", pb.String()))
 		}
-	}
-	if msgErr != nil && msgErr != io.EOF {
-		s.logger.Error("could not read message", zap.Error(msgErr))
 	}
 	c.Close()
 }
