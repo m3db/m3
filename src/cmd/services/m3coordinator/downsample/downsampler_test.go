@@ -58,6 +58,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -2812,7 +2813,7 @@ type testCounterMetric struct {
 }
 
 type testCounterMetricTimedSample struct {
-	time   time.Time
+	time   xtime.UnixNano
 	offset time.Duration
 	value  int64
 }
@@ -2826,7 +2827,7 @@ type testGaugeMetric struct {
 }
 
 type testGaugeMetricTimedSample struct {
-	time   time.Time
+	time   xtime.UnixNano
 	offset time.Duration
 	value  float64
 }
@@ -2840,7 +2841,7 @@ type testTimerMetric struct {
 }
 
 type testTimerMetricTimedSample struct {
-	time   time.Time
+	time   xtime.UnixNano
 	offset time.Duration
 	value  float64
 }
@@ -3179,6 +3180,7 @@ func testDownsamplerAggregationIngest(
 	}
 	// make the current timestamp predictable:
 	now := time.Now().Truncate(time.Microsecond)
+	xNow := xtime.ToUnixNano(now)
 	for _, metric := range testCounterMetrics {
 		appender.NextMetric()
 
@@ -3200,7 +3202,7 @@ func testDownsamplerAggregationIngest(
 		}
 		for _, sample := range metric.timedSamples {
 			if sample.time.IsZero() {
-				sample.time = now // Allow empty time to mean "now"
+				sample.time = xNow // Allow empty time to mean "now"
 			}
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
@@ -3211,7 +3213,7 @@ func testDownsamplerAggregationIngest(
 			if samplesAppenderResult.ShouldDropTimestamp {
 				err = samplesAppender.AppendUntimedCounterSample(sample.value, nil)
 			} else {
-				err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
+				err = samplesAppender.AppendCounterSample(int64(sample.time), sample.value, nil)
 			}
 			require.NoError(t, err)
 		}
@@ -3237,7 +3239,7 @@ func testDownsamplerAggregationIngest(
 		}
 		for _, sample := range metric.timedSamples {
 			if sample.time.IsZero() {
-				sample.time = now // Allow empty time to mean "now"
+				sample.time = xNow // Allow empty time to mean "now"
 			}
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
@@ -3248,7 +3250,7 @@ func testDownsamplerAggregationIngest(
 			if samplesAppenderResult.ShouldDropTimestamp {
 				err = samplesAppender.AppendUntimedGaugeSample(sample.value, nil)
 			} else {
-				err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
+				err = samplesAppender.AppendGaugeSample(int64(sample.time), sample.value, nil)
 			}
 			require.NoError(t, err)
 		}
@@ -3276,7 +3278,7 @@ func testDownsamplerAggregationIngest(
 		}
 		for _, sample := range metric.timedSamples {
 			if sample.time.IsZero() {
-				sample.time = now // Allow empty time to mean "now"
+				sample.time = xtime.ToUnixNano(now) // Allow empty time to mean "now"
 			}
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
@@ -3287,7 +3289,7 @@ func testDownsamplerAggregationIngest(
 			if samplesAppenderResult.ShouldDropTimestamp {
 				err = samplesAppender.AppendUntimedTimerSample(sample.value, nil)
 			} else {
-				err = samplesAppender.AppendTimerSample(sample.time, sample.value, nil)
+				err = samplesAppender.AppendTimerSample(int64(sample.time), sample.value, nil)
 			}
 			require.NoError(t, err)
 		}
