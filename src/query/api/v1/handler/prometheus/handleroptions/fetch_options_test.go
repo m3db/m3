@@ -475,3 +475,20 @@ func TestTimeoutParseWithGetRequestParam(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, time.Millisecond)
 }
+
+func TestInstanceMultiple(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	m, err := ParseInstanceMultiple(req, 2.0)
+	require.NoError(t, err)
+	require.Equal(t, float32(2.0), m)
+
+	req.Header.Set(headers.LimitInstanceMultipleHeader, "3.0")
+	m, err = ParseInstanceMultiple(req, 2.0)
+	require.NoError(t, err)
+	require.Equal(t, float32(3.0), m)
+
+	req.Header.Set(headers.LimitInstanceMultipleHeader, "blah")
+	_, err = ParseInstanceMultiple(req, 2.0)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "could not parse instance multiple")
+}

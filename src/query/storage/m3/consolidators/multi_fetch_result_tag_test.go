@@ -49,6 +49,7 @@ type dedupeTest struct {
 	expected []expectedSeries
 	exMeta   block.ResultMetadata
 	exErr    error
+	limit    int
 	exAttrs  []storagemetadata.Attributes
 }
 
@@ -77,6 +78,9 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 
 	combinedMeta := warn1Meta.CombineMetadata(warn2Meta)
 
+	nonExhaustiveMeta := block.NewResultMetadata()
+	nonExhaustiveMeta.Exhaustive = false
+
 	tests := []dedupeTest{
 		{
 			name: "same tags, same ids",
@@ -101,7 +105,6 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exErr:   nil,
 			exAttrs: []storagemetadata.Attributes{unaggHr},
 		},
-
 		{
 			name: "same tags, different ids",
 			entries: []insertEntry{
@@ -152,6 +155,57 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exMeta:  warn1Meta,
 			exErr:   nil,
 			exAttrs: []storagemetadata.Attributes{unaggHr, unaggHr},
+		},
+
+		{
+			name: "limit",
+			entries: []insertEntry{
+				{
+					attr: unaggHr,
+					meta: block.NewResultMetadata(),
+					err:  nil,
+					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
+						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
+						notReadIt(ctrl, dp{t: step(2), val: 2}, "id1", "foo", "baz"),
+					}, nil),
+				},
+			},
+			limit: 1,
+			expected: []expectedSeries{
+				{
+					tags: []string{"foo", "bar"},
+					dps:  []dp{{t: step(1), val: 1}},
+				},
+			},
+			exMeta:  nonExhaustiveMeta,
+			exErr:   nil,
+			exAttrs: []storagemetadata.Attributes{unaggHr},
+		},
+
+		{
+			name: "limit can still update",
+			entries: []insertEntry{
+				{
+					attr: unaggHr,
+					meta: block.NewResultMetadata(),
+					err:  nil,
+					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
+						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
+						it(ctrl, dp{t: step(1), val: 2}, "id1", "foo", "bar"),
+						notReadIt(ctrl, dp{t: step(2), val: 2}, "id1", "foo", "baz"),
+					}, nil),
+				},
+			},
+			limit: 1,
+			expected: []expectedSeries{
+				{
+					tags: []string{"foo", "bar"},
+					dps:  []dp{{t: step(1), val: 2}},
+				},
+			},
+			exMeta:  nonExhaustiveMeta,
+			exErr:   nil,
+			exAttrs: []storagemetadata.Attributes{unaggHr},
 		},
 
 		{
@@ -273,8 +327,11 @@ func testMultiFetchResultTagDedupeMap(
 		MatchType: MatchTags,
 	}
 
-	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
-		opts, tagOptions)
+	limitOpts := LimitOptions{Limit: 1000}
+	if test.limit > 0 {
+		limitOpts.Limit = test.limit
+	}
+	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools, opts, tagOptions, limitOpts)
 
 	for _, entry := range test.entries {
 		r.Add(entry.iter, entry.meta, entry.attr, entry.err)
