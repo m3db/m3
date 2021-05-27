@@ -21,6 +21,7 @@
 package m3msg
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -66,7 +67,7 @@ func (s *server) Consume(c consumer.Consumer) {
 	for {
 		msg, err := c.Message()
 		if err != nil {
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				s.logger.Error("could not read message", zap.Error(err))
 			}
 			break
