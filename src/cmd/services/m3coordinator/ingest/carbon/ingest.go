@@ -295,7 +295,6 @@ func (i *ingester) Handle(conn net.Conn) {
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
-			// TODO: convert timestamp.
 			ok := i.write(ctx, resources, xtime.ToUnixNano(timestamp), value)
 			if ok {
 				i.metrics.success.Inc(1)

@@ -94,7 +94,7 @@ func (u UnixNano) IsZero() bool {
 // String returns the time formatted using the format string
 //	"2006-01-02 15:04:05.999999999 -0700 MST"
 func (u UnixNano) String() string {
-	return fmt.Sprint(int64(u)) //.String()
+	return u.ToTime().String()
 }
 
 // Format returns the string representation for the time with the given format.
