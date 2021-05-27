@@ -869,6 +869,7 @@ func (o *options) computeFilterByteSequences() {
 			[uint16-numTags][uint16-tagNameLength][[]byte-tagName]....
 	*/
 
+	fmt.Println("computeFilterByteSequences", o.featureFlags)
 	for i := range o.featureFlags {
 		buff := make([]byte, 2)
 		var tagFilterBytes []byte
