@@ -114,6 +114,8 @@ type FetchOptions struct {
 	Remote bool
 	// SeriesLimit is the maximum number of series to return.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is the maximum number of docs to return.
 	DocsLimit int
 	// ReturnedSeriesLimit is the maximum number of series to return.

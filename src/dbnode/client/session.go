@@ -1554,6 +1554,14 @@ func (s *session) fetchTaggedAttempt(
 		nsClone.Finalize()
 		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
+	if opts.InstanceMultiple > 0 {
+		topo := s.state.topoMap
+		iPerReplica := int64(len(topo.Hosts()) / topo.Replicas())
+		iSeriesLimit := int64(float32(opts.SeriesLimit)*opts.InstanceMultiple) / iPerReplica
+		if req.SeriesLimit != nil && iSeriesLimit < *req.SeriesLimit {
+			req.SeriesLimit = &iSeriesLimit
+		}
+	}
 
 	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
 		stateType:          fetchTaggedFetchState,
@@ -1575,7 +1583,7 @@ func (s *session) fetchTaggedAttempt(
 	// the fetchState Lock
 	fetchState.Unlock()
 	iters, metadata, err := fetchState.asEncodingSeriesIterators(
-		s.pools, nsCtx.Schema, s.opts.IterationOptions())
+		s.pools, nsCtx.Schema, s.opts.IterationOptions(), opts.SeriesLimit)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1631,7 +1639,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	// must Unlock before calling `asTaggedIDsIterator` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iter, metadata, err := fetchState.asTaggedIDsIterator(s.pools)
+	iter, metadata, err := fetchState.asTaggedIDsIterator(s.pools, opts.SeriesLimit)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.

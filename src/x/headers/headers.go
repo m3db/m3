@@ -84,6 +84,9 @@ const (
 	// the number of time series returned by each storage node.
 	LimitMaxSeriesHeader = M3HeaderPrefix + "Limit-Max-Series"
 
+	// LimitInstanceMultipleHeader overrides the PerQueryLimitsConfiguration.InstanceMultiple for the request.
+	LimitInstanceMultipleHeader = M3HeaderPrefix + "Limit-Instance-Multiple"
+
 	// LimitMaxDocsHeader is the M3 limit docs header that limits
 	// the number of docs returned by each storage node.
 	LimitMaxDocsHeader = M3HeaderPrefix + "Limit-Max-Docs"
@@ -162,4 +165,8 @@ const (
 	// schema to an older instance and still have it respond successfully
 	// using the fields it knows about.
 	JSONDisableDisallowUnknownFields = M3HeaderPrefix + "JSON-Disable-Disallow-Unknown-Fields"
+
+	// CustomResponseMetricsScope is a header that, if set, will add the name specified by the header
+	// as a custom subscope on the request's response metrics.
+	CustomResponseMetricsScope = M3HeaderPrefix + "Custom-Response-Metrics-Scope"
 )

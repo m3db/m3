@@ -101,6 +101,10 @@ func (m *message) Ack() {
 	m.RefCountedMessage.DecRef()
 }
 
+func (m *message) ShardID() uint64 {
+	return m.meta.shard
+}
+
 // Metadata returns the metadata.
 func (m *message) Metadata() metadata {
 	return m.meta
