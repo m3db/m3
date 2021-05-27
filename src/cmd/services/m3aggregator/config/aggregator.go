@@ -260,9 +260,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
+	fmt.Println("NewAggregatorOptions", c.FeatureFlags)
 	opts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuntimeOptionsManager(runtimeOptsManager).
+		SetFeatureFlags(c.FeatureFlags).
 		SetVerboseErrors(c.VerboseErrors).
 		SetAddToReset(c.AddToReset).
 		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled)
@@ -270,11 +272,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {
 		rwOpts = xio.NewOptions()
-	}
-
-	// Set feature flags if they exist
-	if c.FeatureFlags != nil {
-		opts = opts.SetFeatureFlags(c.FeatureFlags)
 	}
 
 	// Set the aggregation types options.
