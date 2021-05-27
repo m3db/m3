@@ -73,7 +73,7 @@ func ToValue(t xtime.UnixNano, timeType rpc.TimeType) (int64, error) {
 		return 0, err
 	}
 
-	return t.ToNormalizedTime(unit), nil
+	return xtime.ToNormalizedTimeU(t, unit), nil
 }
 
 // ToDuration converts a time type to a duration.
@@ -146,7 +146,7 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 		if seg.Len() == 0 {
 			return ToSegmentsResult{}, nil
 		}
-		startTime := blocks[0].Start.ToNormalizedTime(time.Nanosecond)
+		startTime := int64(blocks[0].Start)
 		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
 		checksum := int64(seg.CalculateChecksum())
 		s.Merged = &rpc.Segment{
@@ -175,7 +175,7 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 		if seg.Len() == 0 {
 			continue
 		}
-		startTime := block.Start.ToNormalizedTime(time.Nanosecond)
+		startTime := int64(block.Start)
 		blockSize := xtime.ToNormalizedDuration(block.BlockSize, time.Nanosecond)
 		checksum := int64(seg.CalculateChecksum())
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
