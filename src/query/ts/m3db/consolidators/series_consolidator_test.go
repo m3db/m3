@@ -26,13 +26,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSingleConsolidator(t *testing.T) {
 	lookback := time.Minute
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	fn := TakeLast
 
 	consolidator := NewSeriesLookbackConsolidator(
@@ -46,7 +47,7 @@ func TestSingleConsolidator(t *testing.T) {
 	actual := consolidator.ConsolidateAndMoveToNext()
 	assert.True(t, math.IsNaN(actual))
 
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start, Value: 1})
+	consolidator.AddPoint(ts.Datapoint{TimestampNanos: start, Value: 1})
 	// NB: lookback limit: start
 	actual = consolidator.ConsolidateAndMoveToNext()
 	assert.Equal(t, float64(1), actual)
@@ -59,8 +60,8 @@ func TestSingleConsolidator(t *testing.T) {
 	actual = consolidator.ConsolidateAndMoveToNext()
 	assert.True(t, math.IsNaN(actual))
 
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2})
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3})
+	consolidator.AddPoint(ts.Datapoint{TimestampNanos: start.Add(2*time.Minute + time.Second*30), Value: 2})
+	consolidator.AddPoint(ts.Datapoint{TimestampNanos: start.Add(3*time.Minute + time.Second), Value: 3})
 
 	// NB: lookback limit: start+3
 	actual = consolidator.ConsolidateAndMoveToNext()

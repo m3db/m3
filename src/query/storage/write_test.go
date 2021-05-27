@@ -22,7 +22,6 @@ package storage
 
 import (
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
@@ -45,7 +44,7 @@ func TestNewWriteQueryValidateTags(t *testing.T) {
 		Tags: tags,
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: time.Now(),
+				Timestamp: xtime.Now(),
 				Value:     42,
 			},
 		},
@@ -78,7 +77,7 @@ func TestNewWriteQueryValidateUnit(t *testing.T) {
 		Tags: models.MustMakeTags("foo", "bar"),
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: time.Now(),
+				Timestamp: xtime.Now(),
 				Value:     42,
 			},
 		},

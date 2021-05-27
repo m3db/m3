@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"google.golang.org/grpc/metadata"
 )
@@ -44,7 +45,7 @@ import (
 const reqIDKey = "reqid"
 
 func fromTime(t time.Time) int64 {
-	return storage.TimeToPromTimestamp(t)
+	return storage.TimeToPromTimestamp(xtime.ToUnixNano(t))
 }
 
 func toTime(t int64) time.Time {

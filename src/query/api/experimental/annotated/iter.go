@@ -44,7 +44,7 @@ type datapoint struct {
 func sampleToDatapoint(s prompb.AnnotatedSample) datapoint {
 	return datapoint{
 		Datapoint: ts.Datapoint{
-			Timestamp: xtime.UnixNano(s.Timestamp),
+			Timestamp: xtime.ToUnixNano(storage.PromTimestampToTime(s.Timestamp)),
 			Value:     s.Value,
 		},
 		annotation: s.Annotation,

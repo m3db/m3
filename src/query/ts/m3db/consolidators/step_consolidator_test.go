@@ -28,13 +28,14 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConsolidator(t *testing.T) {
 	lookback := time.Minute
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	fn := TakeLast
 	consolidator := NewStepLookbackConsolidator(
 		lookback,
@@ -46,21 +47,21 @@ func TestConsolidator(t *testing.T) {
 	// NB: lookback limit: start-1
 	consolidator.BufferStep()
 
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start, Value: 1})
+	consolidator.AddPoint(ts.Datapoint{TimestampNanos: start, Value: 1})
 	consolidator.AddPoint(ts.Datapoint{
-		Timestamp: start.Add(time.Minute),
-		Value:     10,
+		TimestampNanos: start.Add(time.Minute),
+		Value:          10,
 	})
 	consolidator.BufferStep()
 	consolidator.BufferStep()
 	consolidator.BufferStep()
 	consolidator.AddPoint(ts.Datapoint{
-		Timestamp: start.Add(2*time.Minute + time.Second*30),
-		Value:     2},
+		TimestampNanos: start.Add(2*time.Minute + time.Second*30),
+		Value:          2},
 	)
 	consolidator.AddPoint(ts.Datapoint{
-		Timestamp: start.Add(3*time.Minute + time.Second),
-		Value:     3},
+		TimestampNanos: start.Add(3*time.Minute + time.Second),
+		Value:          3},
 	)
 	consolidator.BufferStep()
 

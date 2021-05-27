@@ -89,7 +89,7 @@ func TestIter(t *testing.T) {
 					},
 					datapoints: ts.Datapoints{
 						ts.Datapoint{
-							Timestamp: storage.PromTimestampToTime(testTimestampMillis),
+							Timestamp: xtime.ToUnixNano(storage.PromTimestampToTime(testTimestampMillis)),
 							Value:     4.2,
 						},
 					},
@@ -106,7 +106,7 @@ func TestIter(t *testing.T) {
 					},
 					datapoints: ts.Datapoints{
 						ts.Datapoint{
-							Timestamp: storage.PromTimestampToTime(testTimestampMillis + 10000),
+							Timestamp: xtime.ToUnixNano(storage.PromTimestampToTime(testTimestampMillis + 10000)),
 							Value:     3.14,
 						},
 					},
@@ -123,7 +123,7 @@ func TestIter(t *testing.T) {
 					},
 					datapoints: ts.Datapoints{
 						ts.Datapoint{
-							Timestamp: storage.PromTimestampToTime(testTimestampMillis),
+							Timestamp: xtime.ToUnixNano(storage.PromTimestampToTime(testTimestampMillis)),
 							Value:     6.28,
 						},
 					},

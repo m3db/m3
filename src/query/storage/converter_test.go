@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -183,7 +184,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := TimeToPromTimestamp(now)
 
 	vals := ts.NewMockValues(ctrl)
@@ -253,7 +254,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		values := make(ts.Datapoints, 0, numDatapointsPerSeries)
 		for i := 0; i < numDatapointsPerSeries; i++ {
 			values = append(values, ts.Datapoint{
-				Timestamp: time.Time{},
+				Timestamp: 0,
 				Value:     float64(i),
 			})
 		}

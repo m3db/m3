@@ -267,10 +267,10 @@ func PromTimestampToTime(timestampMS int64) time.Time {
 	return time.Unix(0, timestampMS*int64(time.Millisecond))
 }
 
-// TimeToPromTimestamp converts a time.Time to prometheus timestamp.
-func TimeToPromTimestamp(timestamp time.Time) int64 {
+// TimeToPromTimestamp converts a xtime.UnixNano to prometheus timestamp.
+func TimeToPromTimestamp(timestamp xtime.UnixNano) int64 {
 	// Significantly faster than time.Truncate()
-	return timestamp.UnixNano() / int64(time.Millisecond)
+	return int64(timestamp) / int64(time.Millisecond)
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result.
@@ -352,7 +352,7 @@ func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	)
 	for _, dp := range datapoints {
 		samples = append(samples, prompb.Sample{
-			Timestamp: int64(dp.Timestamp),
+			Timestamp: TimeToPromTimestamp(dp.Timestamp),
 			Value:     dp.Value,
 		})
 	}

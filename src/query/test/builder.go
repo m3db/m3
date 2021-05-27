@@ -198,7 +198,7 @@ func GenerateValuesAndBounds(
 
 	var bounds models.Bounds
 	if b == nil {
-		now := xtime.ToUnixNano(time.Now())
+		now := xtime.Now()
 		bounds = models.Bounds{
 			Start:    now,
 			Duration: time.Minute * 5,

@@ -156,7 +156,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := TimeToPromTimestamp(now)
 
 	vals := ts.NewMockValues(ctrl)
@@ -250,13 +250,13 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	defer ctrl.Finish()
 
 	name := "name"
-	now := time.Now()
+	now := xtime.Now()
 	buildIter := func(val string, hasVal bool) *encoding.MockSeriesIterator {
 		iter := encoding.NewMockSeriesIterator(ctrl)
 
 		if hasVal {
 			iter.EXPECT().Next().Return(true)
-			dp := dts.Datapoint{Timestamp: now, Value: 1}
+			dp := dts.Datapoint{TimestampNanos: now, Value: 1}
 			iter.EXPECT().Current().Return(dp, xtime.Second, nil)
 		}
 
@@ -301,7 +301,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 			require.Equal(t, 1, len(samples))
 			s := samples[0]
 			assert.Equal(t, float64(1), s.GetValue())
-			assert.Equal(t, now.UnixNano()/int64(time.Millisecond), s.GetTimestamp())
+			assert.Equal(t, int64(now)/int64(time.Millisecond), s.GetTimestamp())
 		}
 	}
 
