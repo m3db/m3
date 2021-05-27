@@ -35,6 +35,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
@@ -48,10 +49,10 @@ var (
 )
 
 func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	testBlockStart := time.Now().Truncate(2 * time.Hour)
+	testBlockStart := xtime.Now().Truncate(2 * time.Hour)
 	testSnapshotUUID0 := uuid.Parse("a6367b49-9c83-4706-bd5c-400a4a9ec77c")
 	require.NotNil(t, testSnapshotUUID0)
 
@@ -197,7 +198,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 						AbsoluteFilePaths: []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
 						// Zero these out so it will try to look them up and return an error, indicating the files
 						// are corrupt.
-						CachedSnapshotTime: time.Time{},
+						CachedSnapshotTime: 0,
 						CachedSnapshotID:   nil,
 					},
 				}, nil
@@ -332,7 +333,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 }
 
 func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
@@ -373,7 +374,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 }
 
 func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
@@ -409,7 +410,7 @@ func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
 
 // Test NS doesn't cleanup when flag is present
 func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 	rOpts := retentionOptions.
@@ -441,7 +442,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 }
 
 func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 
@@ -476,7 +477,7 @@ type deleteInactiveDirectoriesCall struct {
 }
 
 func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 
@@ -537,7 +538,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 }
 
 func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
@@ -555,8 +556,8 @@ func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
 	require.Error(t, cleanup(mgr, ts))
 }
 
-func timeFor(s int64) time.Time {
-	return time.Unix(s, 0)
+func timeFor(s int64) xtime.UnixNano {
+	return xtime.ToUnixNano(time.Unix(s, 0))
 }
 
 type fakeActiveLogs struct {
@@ -579,7 +580,7 @@ func newFakeActiveLogs(activeLogs persist.CommitLogFiles) fakeActiveLogs {
 
 func cleanup(
 	mgr databaseCleanupManager,
-	t time.Time,
+	t xtime.UnixNano,
 ) error {
 	multiErr := xerrors.NewMultiError()
 	multiErr = multiErr.Add(mgr.WarmFlushCleanup(t))

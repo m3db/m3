@@ -33,12 +33,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/require"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShardConcurrentForEaches(t *testing.T) {
@@ -126,7 +127,7 @@ func testShardConcurrentForEachTick(
 
 	go func() {
 		<-barrier
-		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		wg.Done()
 	}()
 

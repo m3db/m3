@@ -73,7 +73,7 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 }
 
 func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -119,7 +119,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
+	now := xtime.UnixNano(0)
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -157,7 +157,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 // TestFlushManagerFlushDoneFlushError makes sure that flush errors do not
 // impact snapshotting or index operations.
 func TestFlushManagerFlushDoneFlushError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -188,14 +188,14 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
+	now := xtime.UnixNano(0)
 	require.EqualError(t, fakeErr, fm.Flush(now).Error())
 }
 
 // TestFlushManagerNamespaceFlushTimesErr makes sure that namespaceFlushTimes errors do
 // not leave the persist manager in an invalid state.
 func TestFlushManagerNamespaceFlushTimesErr(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -234,14 +234,14 @@ func TestFlushManagerNamespaceFlushTimesErr(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
+	now := xtime.UnixNano(0)
 	require.True(t, strings.Contains(fm.Flush(now).Error(), fakeErr.Error()))
 }
 
 // TestFlushManagerFlushDoneSnapshotError makes sure that snapshot errors do not
 // impact flushing or index operations.
 func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -272,12 +272,12 @@ func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
+	now := xtime.UnixNano(0)
 	require.EqualError(t, fakeErr, fm.Flush(now).Error())
 }
 
 func TestFlushManagerFlushDoneIndexError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -308,12 +308,12 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
+	now := xtime.UnixNano(0)
 	require.EqualError(t, fakeErr, fm.Flush(now).Error())
 }
 
 func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(false))
@@ -351,12 +351,12 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
+	now := xtime.UnixNano(0)
 	require.NoError(t, fm.Flush(now))
 }
 
 func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
@@ -395,21 +395,30 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
+	now := xtime.UnixNano(0)
 	require.NoError(t, fm.Flush(now))
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	inputs := []struct {
-		ts       time.Time
-		expected time.Time
+		ts       xtime.UnixNano
+		expected xtime.UnixNano
 	}{
-		{time.Unix(86400*2, 0), time.Unix(0, 0)},
-		{time.Unix(86400*2+7200, 0), time.Unix(7200, 0)},
-		{time.Unix(86400*2+10800, 0), time.Unix(7200, 0)},
+		{
+			ts:       xtime.ToUnixNano(time.Unix(86400*2, 0)),
+			expected: xtime.UnixNano(0),
+		},
+		{
+			ts:       xtime.ToUnixNano(time.Unix(86400*2+7200, 0)),
+			expected: xtime.ToUnixNano(time.Unix(7200, 0)),
+		},
+		{
+			ts:       xtime.ToUnixNano(time.Unix(86400*2+10800, 0)),
+			expected: xtime.ToUnixNano(time.Unix(7200, 0)),
+		},
 	}
 
 	fm, _, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
@@ -420,16 +429,25 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 }
 
 func TestFlushManagerFlushTimeEnd(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	inputs := []struct {
-		ts       time.Time
-		expected time.Time
+		ts       xtime.UnixNano
+		expected xtime.UnixNano
 	}{
-		{time.Unix(7800, 0), time.Unix(0, 0)},
-		{time.Unix(8000, 0), time.Unix(0, 0)},
-		{time.Unix(15200, 0), time.Unix(7200, 0)},
+		{
+			ts:       xtime.ToUnixNano(time.Unix(7800, 0)),
+			expected: xtime.UnixNano(0),
+		},
+		{
+			ts:       xtime.ToUnixNano(time.Unix(8000, 0)),
+			expected: xtime.UnixNano(0),
+		},
+		{
+			ts:       xtime.ToUnixNano(time.Unix(15200, 0)),
+			expected: xtime.ToUnixNano(time.Unix(7200, 0)),
+		},
 	}
 
 	fm, _, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
@@ -440,11 +458,11 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
+	now := xtime.Now()
 
 	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	flushTimes, err := fm.namespaceFlushTimes(ns1, now)
@@ -453,11 +471,11 @@ func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceFlushTimesError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
+	now := xtime.Now()
 
 	ns1.EXPECT().
 		NeedsFlush(gomock.Any(), gomock.Any()).
@@ -468,11 +486,11 @@ func TestFlushManagerNamespaceFlushTimesError(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
+	now := xtime.Now()
 
 	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 	times, err := fm.namespaceFlushTimes(ns1, now)
@@ -490,18 +508,18 @@ func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
+	now := xtime.Now()
 
 	blockSize := ns1.Options().RetentionOptions().BlockSize()
 	start := retention.FlushTimeStart(ns1.Options().RetentionOptions(), now)
 	end := retention.FlushTimeEnd(ns1.Options().RetentionOptions(), now)
 	num := numIntervals(start, end, blockSize)
 
-	var expectedTimes []time.Time
+	var expectedTimes []xtime.UnixNano
 	for i := 0; i < num; i++ {
 		st := start.Add(time.Duration(i) * blockSize)
 
@@ -523,11 +541,11 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 }
 
 func TestFlushManagerFlushSnapshot(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fm, ns1, ns2, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
+	now := xtime.Now()
 
 	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
 		rOpts := ns.Options().RetentionOptions()
@@ -555,10 +573,10 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 
 	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
 	require.True(t, ok)
-	require.Equal(t, xtime.ToUnixNano(now), lastSuccessfulSnapshot)
+	require.Equal(t, now, lastSuccessfulSnapshot)
 }
 
-type timesInOrder []time.Time
+type timesInOrder []xtime.UnixNano
 
 func (a timesInOrder) Len() int           { return len(a) }
 func (a timesInOrder) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

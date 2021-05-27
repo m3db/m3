@@ -81,7 +81,7 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
@@ -97,8 +97,8 @@ type testShardReadFn func(shard *dbShard)
 
 var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 	ctx := context.NewBackground()
-	start := time.Time{}
-	end := time.Now()
+	start := xtime.UnixNano(0)
+	end := xtime.Now()
 	shard.FetchBlocksMetadataV2(ctx, start, end, 100, nil, block.FetchBlocksMetadataOptions{
 		IncludeChecksums: true,
 		IncludeLastRead:  true,
@@ -186,7 +186,7 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 			defer doneFn()
 			<-barrier
 			ctx := context.NewBackground()
-			now := time.Now()
+			now := xtime.Now()
 			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
 			assert.True(t, seriesWrite.WasWritten)
@@ -203,7 +203,7 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		assert.NoError(t, err)
 	}()
 
@@ -283,7 +283,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 			defer doneFn()
 			<-barrier
 			ctx := context.NewBackground()
-			now := time.Now()
+			now := xtime.Now()
 			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
 			assert.True(t, seriesWrite.WasWritten)
@@ -301,7 +301,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		assert.NoError(t, err)
 	}()
 

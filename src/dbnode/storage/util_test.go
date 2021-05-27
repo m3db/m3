@@ -24,14 +24,15 @@ import (
 	"testing"
 	"time"
 
+	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNumIntervals(t *testing.T) {
 	var (
 		bs      = 10
-		timeFor = func(i int) time.Time {
-			return time.Unix(int64(bs*i), 0)
+		timeFor = func(i int) xtime.UnixNano {
+			return xtime.ToUnixNano(time.Unix(int64(bs*i), 0))
 		}
 	)
 
@@ -45,38 +46,38 @@ func TestNumIntervals(t *testing.T) {
 }
 
 func TestNumIntervalsStartEqualsEnd(t *testing.T) {
-	s := time.Now()
+	s := xtime.Now()
 	w := time.Minute
 	require.Equal(t, 1, numIntervals(s, s, w))
 }
 
 func TestNumIntervalsStartAfterEnd(t *testing.T) {
 	w := time.Minute
-	end := time.Now()
+	end := xtime.Now()
 	start := end.Add(w)
 	require.Equal(t, 0, numIntervals(start, end, w))
 }
 
 func TestNumIntervalsZeroWindow(t *testing.T) {
 	w := time.Duration(0)
-	s := time.Now()
+	s := xtime.Now()
 	require.Equal(t, 0, numIntervals(s, s, w))
 }
 
 func TestNumIntervalsNegativeWindow(t *testing.T) {
 	w := -time.Minute
-	s := time.Now()
+	s := xtime.Now()
 	require.Equal(t, 0, numIntervals(s, s, w))
 }
 
 func TestTimesInRange(t *testing.T) {
 	var (
 		w       = 10 * time.Second
-		timeFor = func(i int64) time.Time {
-			return time.Unix(0, int64(w)*i)
+		timeFor = func(i int64) xtime.UnixNano {
+			return xtime.UnixNano(int64(w) * i)
 		}
-		timesForN = func(i, j int64) []time.Time {
-			times := make([]time.Time, 0, j-i+1)
+		timesForN = func(i, j int64) []xtime.UnixNano {
+			times := make([]xtime.UnixNano, 0, j-i+1)
 			for k := j; k >= i; k-- {
 				times = append(times, timeFor(k))
 			}
@@ -84,22 +85,22 @@ func TestTimesInRange(t *testing.T) {
 		}
 	)
 	// [0, 2] with a gap of 1 ==> [0, 1, 2]
-	require.Equal(t, []time.Time{timeFor(2), timeFor(1), timeFor(0)},
+	require.Equal(t, []xtime.UnixNano{timeFor(2), timeFor(1), timeFor(0)},
 		timesInRange(timeFor(0), timeFor(2), w))
 
 	// [2, 1] with a gap of 1 ==> empty result
 	require.Empty(t, timesInRange(timeFor(2), timeFor(1), w))
 
 	// [2, 2] with a gap of 1 ==> [2]
-	require.Equal(t, []time.Time{timeFor(2)},
+	require.Equal(t, []xtime.UnixNano{timeFor(2)},
 		timesInRange(timeFor(2), timeFor(2), w))
 
 	// [0, 9] with a gap of 3 ==> [9, 6, 3, 0]
-	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3), timeFor(0)},
+	require.Equal(t, []xtime.UnixNano{timeFor(9), timeFor(6), timeFor(3), timeFor(0)},
 		timesInRange(timeFor(0), timeFor(9), 3*w))
 
 	// [1, 9] with a gap of 3 ==> [9, 6, 3]
-	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3)},
+	require.Equal(t, []xtime.UnixNano{timeFor(9), timeFor(6), timeFor(3)},
 		timesInRange(timeFor(1), timeFor(9), 3*w))
 
 	// [1, 100] with a gap of 1 ==> [100, 99, ..., 1]

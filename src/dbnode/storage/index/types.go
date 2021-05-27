@@ -701,6 +701,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 
 		blockStart := allEntries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
+			prevLastBlockStart := lastBlockStart
 			lastBlockStart = blockStart
 			// We only want to call the the ForEachUnmarkedBatchByBlockStart once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given blockStart, but the first element
@@ -710,7 +711,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			}
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
-			fn(lastBlockStart, b)
+			fn(prevLastBlockStart, b)
 			startIdx = i
 		}
 	}
