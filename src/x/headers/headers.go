@@ -166,7 +166,7 @@ const (
 	// using the fields it knows about.
 	JSONDisableDisallowUnknownFields = M3HeaderPrefix + "JSON-Disable-Disallow-Unknown-Fields"
 
-	// CustomResponseMetricsScope is a header that, if set, will add the name specified by the header
-	// as a custom subscope on the request's response metrics.
-	CustomResponseMetricsScope = M3HeaderPrefix + "Custom-Response-Metrics-Scope"
+	// CustomResponseMetricsType is a header that, if set, will override the `type` tag
+	// on the request's response metrics.
+	CustomResponseMetricsType = M3HeaderPrefix + "Custom-Response-Metrics-Type"
 )

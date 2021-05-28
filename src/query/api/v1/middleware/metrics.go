@@ -35,6 +35,11 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
+const (
+	metricsTypeTagName         = "type"
+	metricsTypeTagDefaultValue = "coordinator"
+)
+
 var histogramTimerOptions = instrument.NewHistogramTimerOptions(
 	instrument.HistogramTimerOptions{
 		// Use sparse histogram timer buckets to not overload with latency metrics.
@@ -49,16 +54,7 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 		cfg   = opts.Config
 	)
 
-	scope := tally.NoopScope
-	if iOpts != nil {
-		scope = iOpts.MetricsScope()
-	}
-
-	queryMetrics := newQueryInspectionMetrics(scope)
-	metrics := newRouteMetrics(scope)
-
 	custom := newCustomMetrics(iOpts)
-
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
@@ -77,13 +73,14 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 				path = "unknown"
 			}
 
-			customScopeName := r.Header.Get(headers.CustomResponseMetricsScope)
-			if customScopeName != "" {
-				m := custom.getOrCreate(customScopeName)
-				queryMetrics = m.query
-				metrics = m.route
+			metricsType := r.Header.Get(headers.CustomResponseMetricsType)
+			if len(metricsType) == 0 {
+				metricsType = metricsTypeTagDefaultValue
 			}
 
+			m := custom.getOrCreate(metricsType)
+			queryMetrics := m.query
+			metrics := m.route
 			querySize := inspectQuerySize(w, r, path, queryMetrics, cfg)
 
 			addLatencyStatus := false
@@ -117,20 +114,23 @@ func newCustomMetrics(instrumentOpts instrument.Options) *customMetrics {
 	}
 }
 
-func (c *customMetrics) getOrCreate(name string) *responseMetrics {
+func (c *customMetrics) getOrCreate(value string) *responseMetrics {
 	c.Lock()
 	defer c.Unlock()
 
-	if m, ok := c.metrics[name]; ok {
+	if m, ok := c.metrics[value]; ok {
 		return &m
 	}
 
-	subscope := c.instrumentOpts.MetricsScope().SubScope(name)
+	subscope := c.instrumentOpts.MetricsScope().Tagged(map[string]string{
+		metricsTypeTagName: value,
+	})
 	m := responseMetrics{
 		route: newRouteMetrics(subscope),
 		query: newQueryInspectionMetrics(subscope),
 	}
-	c.metrics[name] = m
+
+	c.metrics[value] = m
 	return &m
 }
 
