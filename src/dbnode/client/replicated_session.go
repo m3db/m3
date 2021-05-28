@@ -84,7 +84,9 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 	}
 }
 
-func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicatedSessionOption) (clientSession, error) {
+func newReplicatedSession(
+	opts Options, asyncOpts []Options, options ...replicatedSessionOption,
+) (clientSession, error) {
 	workerPool := opts.AsyncWriteWorkerPool()
 
 	scope := opts.InstrumentOptions().MetricsScope()
@@ -164,9 +166,15 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 			s.workerPool.Go(func() {
 				var err error
 				if params.useTags {
-					err = asyncSession.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
+					err = asyncSession.WriteTagged(
+						params.namespace, params.id, params.tags, params.t,
+						params.value, params.unit, params.annotation,
+					)
 				} else {
-					err = asyncSession.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
+					err = asyncSession.Write(
+						params.namespace, params.id, params.t,
+						params.value, params.unit, params.annotation,
+					)
 				}
 				if err != nil {
 					s.metrics.replicateError.Inc(1)
@@ -186,9 +194,16 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 	}
 
 	if params.useTags {
-		return s.session.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
+		return s.session.WriteTagged(
+			params.namespace, params.id, params.tags, params.t,
+			params.value, params.unit, params.annotation,
+		)
 	}
-	return s.session.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
+
+	return s.session.Write(
+		params.namespace, params.id, params.t,
+		params.value, params.unit, params.annotation,
+	)
 }
 
 func (s *replicatedSession) ReadClusterAvailability() (bool, error) {
@@ -200,7 +215,10 @@ func (s *replicatedSession) WriteClusterAvailability() (bool, error) {
 }
 
 // Write value to the database for an ID.
-func (s replicatedSession) Write(namespace, id ident.ID, t xtime.UnixNano, value float64, unit xtime.Unit, annotation []byte) error {
+func (s replicatedSession) Write(
+	namespace, id ident.ID, t xtime.UnixNano, value float64,
+	unit xtime.Unit, annotation []byte,
+) error {
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
@@ -212,7 +230,10 @@ func (s replicatedSession) Write(namespace, id ident.ID, t xtime.UnixNano, value
 }
 
 // WriteTagged value to the database for an ID and given tags.
-func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t xtime.UnixNano, value float64, unit xtime.Unit, annotation []byte) error {
+func (s replicatedSession) WriteTagged(
+	namespace, id ident.ID, tags ident.TagIterator, t xtime.UnixNano,
+	value float64, unit xtime.Unit, annotation []byte,
+) error {
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
@@ -226,12 +247,16 @@ func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIte
 }
 
 // Fetch values from the database for an ID.
-func (s replicatedSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive xtime.UnixNano) (encoding.SeriesIterator, error) {
+func (s replicatedSession) Fetch(
+	namespace, id ident.ID, startInclusive, endExclusive xtime.UnixNano,
+) (encoding.SeriesIterator, error) {
 	return s.session.Fetch(namespace, id, startInclusive, endExclusive)
 }
 
 // FetchIDs values from the database for a set of IDs.
-func (s replicatedSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive xtime.UnixNano) (encoding.SeriesIterators, error) {
+func (s replicatedSession) FetchIDs(
+	namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive xtime.UnixNano,
+) (encoding.SeriesIterators, error) {
 	return s.session.FetchIDs(namespace, ids, startInclusive, endExclusive)
 }
 

@@ -220,7 +220,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	}()
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-		indexFilepath: mmap.FileDesc{
+		indexFilepath: {
 			File:       &r.indexFd,
 			Descriptor: &r.indexMmap,
 			Options: mmap.Options{
@@ -234,7 +234,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 				},
 			},
 		},
-		dataFilepath: mmap.FileDesc{
+		dataFilepath: {
 			File:       &r.dataFd,
 			Descriptor: &r.dataMmap,
 			Options: mmap.Options{

@@ -554,7 +554,7 @@ func fulfillFetchBatchOps(
 					encoder.Encode(dp, value.unit, value.annotation)
 				}
 				seg := encoder.Discard()
-				op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
+				op.completionFns[i]([]*rpc.Segments{{
 					Merged: &rpc.Segment{Head: bytesIfNotNil(seg.Head), Tail: bytesIfNotNil(seg.Tail)},
 				}}, nil)
 				calledCompletionFn = true

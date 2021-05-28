@@ -1752,7 +1752,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
 		idxconvert.NewTagsIterMetadataResolver(iter),
-		xtime.UnixNano(xtime.UnixNano(dp.Timestamp).FromNormalizedTime(d)),
+		xtime.UnixNano(dp.Timestamp).FromNormalizedTime(d),
 		dp.Value, unit, dp.Annotation); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)

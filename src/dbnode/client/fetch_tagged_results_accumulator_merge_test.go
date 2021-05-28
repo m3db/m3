@@ -374,6 +374,7 @@ func (ts testSerieses) nsplit(n int) []testSerieses {
 	return groups
 }
 
+//nolint: unparam
 func (ts testSerieses) addDatapoints(numPerSeries int, start, end xtime.UnixNano) {
 	dps := newTestDatapoints(numPerSeries, start, end)
 	for i := range ts {
@@ -469,11 +470,7 @@ func (ts testSerieses) toRPCAggResultMap() map[string]map[string]struct{} {
 	return aggedMap
 }
 
-func (ts testSerieses) toRPCAggResult(
-	th testFetchTaggedHelper,
-	start xtime.UnixNano,
-	exhaustive bool,
-) *rpc.AggregateQueryRawResult_ {
+func (ts testSerieses) toRPCAggResult(exhaustive bool) *rpc.AggregateQueryRawResult_ {
 	aggedMap := ts.toRPCAggResultMap()
 	res := &rpc.AggregateQueryRawResult_{
 		Exhaustive: exhaustive,

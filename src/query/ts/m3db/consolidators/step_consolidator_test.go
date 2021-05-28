@@ -57,12 +57,12 @@ func TestConsolidator(t *testing.T) {
 	consolidator.BufferStep()
 	consolidator.AddPoint(ts.Datapoint{
 		TimestampNanos: start.Add(2*time.Minute + time.Second*30),
-		Value:          2},
-	)
+		Value:          2,
+	})
 	consolidator.AddPoint(ts.Datapoint{
 		TimestampNanos: start.Add(3*time.Minute + time.Second),
-		Value:          3},
-	)
+		Value:          3,
+	})
 	consolidator.BufferStep()
 
 	actual := consolidator.ConsolidateAndMoveToNext()

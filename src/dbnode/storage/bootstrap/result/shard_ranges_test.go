@@ -32,8 +32,10 @@ import (
 
 func TestShardTimeRangesAdd(t *testing.T) {
 	start := xtime.Now().Truncate(testBlockSize)
-	times := []xtime.UnixNano{start, start.Add(testBlockSize),
-		start.Add(2 * testBlockSize), start.Add(3 * testBlockSize)}
+	times := []xtime.UnixNano{
+		start, start.Add(testBlockSize),
+		start.Add(2 * testBlockSize), start.Add(3 * testBlockSize),
+	}
 
 	sr := []ShardTimeRanges{
 		NewShardTimeRangesFromRange(times[0], times[1], 1, 2, 3),

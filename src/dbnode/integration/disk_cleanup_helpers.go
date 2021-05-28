@@ -45,7 +45,10 @@ func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, er
 	return fs.NewWriter(fsOpts)
 }
 
-func writeDataFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []xtime.UnixNano) {
+func writeDataFileSetFiles(
+	t *testing.T, storageOpts storage.Options, md namespace.Metadata,
+	shard uint32, fileTimes []xtime.UnixNano,
+) {
 	rOpts := md.Options().RetentionOptions()
 	writer, err := newDataFileSetWriter(storageOpts)
 	require.NoError(t, err)

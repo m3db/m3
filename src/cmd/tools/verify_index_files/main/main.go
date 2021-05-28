@@ -65,10 +65,26 @@ type series struct {
 }
 
 var (
-	pathPrefixArg       = flagParser.String("path-prefix", "/var/lib/m3db", "Path prefix - must contain a folder called 'commitlogs'")
-	namespaceArg        = flagParser.String("namespace", "metrics", "Namespace")
-	shardsArg           = flagParser.String("shards", "", "Shards - set comma separated list of shards")
-	blocksArgs          = flagParser.String("blocks", "", "Start unix timestamp (Seconds) - set comma separated list of unix timestamps")
+	pathPrefixArg = flagParser.String(
+		"path-prefix",
+		"/var/lib/m3db",
+		"Path prefix - must contain a folder called 'commitlogs'",
+	)
+	namespaceArg = flagParser.String(
+		"namespace",
+		"metrics",
+		"Namespace",
+	)
+	shardsArg = flagParser.String(
+		"shards",
+		"",
+		"Shards - set comma separated list of shards",
+	)
+	blocksArgs = flagParser.String(
+		"blocks",
+		"",
+		"Start unix timestamp (Seconds) - set comma separated list of unix timestamps",
+	)
 	compareChecksumsArg = flagParser.Bool("compare-checksums", true, "Compare checksums")
 )
 
@@ -127,7 +143,9 @@ func main() {
 	}
 }
 
-func seriesChecksumsFromReader(reader fs.DataFileSetReader, host string, shard uint32, block int64) seriesChecksums {
+func seriesChecksumsFromReader(
+	reader fs.DataFileSetReader, host string, shard uint32, block int64,
+) seriesChecksums {
 	seriesMap := seriesMap{}
 	seriesChecksums := seriesChecksums{
 		host:   host,
@@ -201,7 +219,9 @@ func mergeMaps(seriesMaps ...seriesMap) seriesMap {
 	return merged
 }
 
-func newReader(namespace, pathPrefix, hostName string, shard uint32, start xtime.UnixNano) (fs.DataFileSetReader, error) {
+func newReader(
+	namespace, pathPrefix, hostName string, shard uint32, start xtime.UnixNano,
+) (fs.DataFileSetReader, error) {
 	fsOpts := fs.NewOptions().SetFilePathPrefix(path.Join(pathPrefix, hostName))
 	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {

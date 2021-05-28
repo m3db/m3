@@ -40,11 +40,17 @@ import (
 )
 
 type (
-	commitLogFilesFn        func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error)
-	snapshotMetadataFilesFn func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error)
+	commitLogFilesFn func(commitlog.Options) (
+		persist.CommitLogFiles, []commitlog.ErrorWithPath, error,
+	)
+	snapshotMetadataFilesFn func(fs.Options) (
+		[]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error,
+	)
 )
 
-type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
+type snapshotFilesFn func(
+	filePathPrefix string, namespace ident.ID, shard uint32,
+) (fs.FileSetFilesSlice, error)
 
 type deleteFilesFn func(files []string) error
 
@@ -252,13 +258,16 @@ func (m *cleanupManager) deleteInactiveDataSnapshotFiles(namespaces []databaseNa
 	return m.deleteInactiveDataFileSetFiles(fs.NamespaceSnapshotsDirPath, namespaces)
 }
 
-func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn func(string, ident.ID) string, namespaces []databaseNamespace) error {
+func (m *cleanupManager) deleteInactiveDataFileSetFiles(
+	filesetFilesDirPathFn func(string, ident.ID) string, namespaces []databaseNamespace,
+) error {
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	for _, n := range namespaces {
 		var activeShards []string
 		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
-		// NB(linasn) This should list ALL shards because it will delete dirs for the shards NOT LISTED below.
+		// NB(linasn) This should list ALL shards because it will delete
+		// dirs for the shards NOT LISTED below.
 		for _, s := range n.OwnedShards() {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
@@ -283,7 +292,9 @@ func (m *cleanupManager) cleanupDataFiles(t xtime.UnixNano, namespaces []databas
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupExpiredIndexFiles(t xtime.UnixNano, namespaces []databaseNamespace) error {
+func (m *cleanupManager) cleanupExpiredIndexFiles(
+	t xtime.UnixNano, namespaces []databaseNamespace,
+) error {
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
@@ -335,7 +346,9 @@ func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespa
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain xtime.UnixNano, shards []databaseShard) error {
+func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(
+	earliestToRetain xtime.UnixNano, shards []databaseShard,
+) error {
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
 		if !shard.IsBootstrapped() {
@@ -380,7 +393,8 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 //
 //     1. List all the snapshot metadata files on disk.
 //     2. Identify the most recent one (highest index).
-//     3. For every namespace/shard/block combination, delete all snapshot files that match one of the following criteria:
+//     3. For every namespace/shard/block combination, delete all snapshot
+//        files that match one of the following criteria:
 //         1. Snapshot files whose associated snapshot ID does not match the snapshot ID of the most recent
 //            snapshot metadata file.
 //         2. Snapshot files that are corrupt.
@@ -453,7 +467,10 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 			}
 			shardSnapshots, err := m.snapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID(), s.ID())
 			if err != nil {
-				multiErr = multiErr.Add(fmt.Errorf("err reading snapshot files for ns: %s and shard: %d, err: %v", ns.ID(), s.ID(), err))
+				multiErr = multiErr.Add(fmt.Errorf(
+					"err reading snapshot files for ns: %s and shard: %d, err: %v",
+					ns.ID(), s.ID(), err,
+				))
 				continue
 			}
 

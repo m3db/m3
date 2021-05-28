@@ -161,6 +161,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			for _, writesForSeries := range orderedWritesBySeries {
+				writesForSeries := writesForSeries
 				sort.Slice(writesForSeries, func(i, j int) bool {
 					return writesForSeries[i].datapoint.TimestampNanos.
 						Before(writesForSeries[j].datapoint.TimestampNanos)

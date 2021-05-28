@@ -317,25 +317,13 @@ func (m *mediator) ongoingTick() {
 
 func (m *mediator) runFileSystemProcesses() {
 	// See comment over mediatorTimeBarrier for an explanation of this logic.
-	log := m.opts.InstrumentOptions().Logger()
-	mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
-	if err != nil {
-		log.Error("error within ongoingFileSystemProcesses waiting for next mediatorTime", zap.Error(err))
-		return
-	}
-
+	mediatorTime := m.mediatorTimeBarrier.fsProcessesWait()
 	m.databaseFileSystemManager.Run(mediatorTime)
 }
 
 func (m *mediator) runColdFlushProcesses() {
 	// See comment over mediatorTimeBarrier for an explanation of this logic.
-	log := m.opts.InstrumentOptions().Logger()
-	mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
-	if err != nil {
-		log.Error("error within ongoingColdFlushProcesses waiting for next mediatorTime", zap.Error(err))
-		return
-	}
-
+	mediatorTime := m.mediatorTimeBarrier.fsProcessesWait()
 	m.databaseColdFlushManager.Run(mediatorTime)
 }
 
@@ -449,7 +437,7 @@ func (b *mediatorTimeBarrier) initialMediatorTime() xtime.UnixNano {
 	return b.mediatorTime
 }
 
-func (b *mediatorTimeBarrier) fsProcessesWait() (xtime.UnixNano, error) {
+func (b *mediatorTimeBarrier) fsProcessesWait() xtime.UnixNano {
 	b.Lock()
 	b.numFsProcessesWaiting++
 	b.Unlock()
@@ -459,7 +447,7 @@ func (b *mediatorTimeBarrier) fsProcessesWait() (xtime.UnixNano, error) {
 	b.Lock()
 	b.numFsProcessesWaiting--
 	b.Unlock()
-	return t, nil
+	return t
 }
 
 func (b *mediatorTimeBarrier) maybeRelease() (xtime.UnixNano, error) {

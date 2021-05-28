@@ -87,9 +87,9 @@ func TestFilterTagIterator(t *testing.T) {
 
 func TestFilterTags(t *testing.T) {
 	tags := []CompletedTag{
-		CompletedTag{Name: b("foo"), Values: [][]byte{b("bar"), b("baz")}},
-		CompletedTag{Name: b("qux"), Values: [][]byte{b("quart"), b("quince")}},
-		CompletedTag{Name: b("abc"), Values: [][]byte{b("def")}},
+		{Name: b("foo"), Values: [][]byte{b("bar"), b("baz")}},
+		{Name: b("qux"), Values: [][]byte{b("quart"), b("quince")}},
+		{Name: b("abc"), Values: [][]byte{b("def")}},
 	}
 
 	filtered := filterTags(tags, models.Filters{
@@ -106,9 +106,9 @@ func TestFilterTags(t *testing.T) {
 
 func TestFilterTagNames(t *testing.T) {
 	tags := []CompletedTag{
-		CompletedTag{Name: b("foo")},
-		CompletedTag{Name: b("qux")},
-		CompletedTag{Name: b("quail")},
+		{Name: b("foo")},
+		{Name: b("qux")},
+		{Name: b("quail")},
 	}
 
 	filtered := filterNames(tags, models.Filters{

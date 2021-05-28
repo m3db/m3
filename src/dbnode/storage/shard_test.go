@@ -79,7 +79,10 @@ func testDatabaseShardWithIndexFn(
 	idx NamespaceIndex,
 	coldWritesEnabled bool,
 ) *dbShard {
-	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled))
+	metadata, err := namespace.NewMetadata(
+		defaultTestNs1ID,
+		defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled),
+	)
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
 
@@ -381,8 +384,14 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 	defer s.Close()
 	threeBytes.IncRef()
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{Head: threeBytes}, blOpts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes}, blOpts, namespace.Context{}),
+		block.NewDatabaseBlock(
+			start, testBlockSize, ts.Segment{Head: threeBytes},
+			blOpts, namespace.Context{},
+		),
+		block.NewDatabaseBlock(
+			start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes},
+			blOpts, namespace.Context{},
+		),
 	}
 
 	sr.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
@@ -1197,18 +1206,21 @@ func TestShardTickRace(t *testing.T) {
 	shard.Bootstrap(ctx, nsCtx)
 
 	addTestSeries(shard, ident.StringID("foo"))
-	var wg sync.WaitGroup
+
+	var (
+		wg            sync.WaitGroup
+		firstTickErr  error
+		secondTickErr error
+	)
 
 	wg.Add(2)
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
-		require.NoError(t, err)
+		_, firstTickErr = shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
-		require.NoError(t, err)
+		_, secondTickErr = shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
@@ -1217,6 +1229,11 @@ func TestShardTickRace(t *testing.T) {
 	shard.RLock()
 	shardlen := shard.lookup.Len()
 	shard.RUnlock()
+
+	// second tick should fail because first is already ticking
+	require.NoError(t, firstTickErr)
+	require.Error(t, secondTickErr)
+
 	require.Equal(t, 0, shardlen)
 }
 
@@ -1425,7 +1442,10 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
-		_, err := shard.Write(ctx, id, xtime.ToUnixNano(nowFn()), 1.0, xtime.Second, nil, series.WriteOptions{})
+		_, err := shard.Write(
+			ctx, id, xtime.ToUnixNano(nowFn()), 1.0, xtime.Second,
+			nil, series.WriteOptions{},
+		)
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
@@ -1539,7 +1559,10 @@ func TestShardCleanupExpiredFileSets(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	shard.filesetPathsBeforeFn = func(_ string, namespace ident.ID, shardID uint32, _ xtime.UnixNano) ([]string, error) {
+	shard.filesetPathsBeforeFn = func(
+		_ string, namespace ident.ID,
+		shardID uint32, _ xtime.UnixNano,
+	) ([]string, error) {
 		return []string{namespace.String(), strconv.Itoa(int(shardID))}, nil
 	}
 	var deletedFiles []string
@@ -1724,14 +1747,19 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			start, shard.seriesOnRetrieveBlock, gomock.Any()).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at xtime.UnixNano, onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context) {
+		Do(func(
+			ctx context.Context, shard uint32, id ident.ID, at xtime.UnixNano,
+			onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context,
+		) {
 			go onRetrieve.OnRetrieveBlock(id, ident.EmptyTagIterator, at, segments[0], nsCtx)
 		}).
 		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			mid, shard.seriesOnRetrieveBlock, gomock.Any()).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at xtime.UnixNano, onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context) {
+		Do(func(ctx context.Context, shard uint32, id ident.ID, at xtime.UnixNano,
+			onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context,
+		) {
 			go onRetrieve.OnRetrieveBlock(id, ident.EmptyTagIterator, at, segments[1], nsCtx)
 		}).
 		Return(blockReaders[1], nil)
@@ -1802,7 +1830,10 @@ func TestShardNewValidShardEntry(t *testing.T) {
 	shard := testDatabaseShard(t, DefaultTestOptions())
 	defer shard.Close()
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), convert.NewTagsIterMetadataResolver(ident.EmptyTagIterator))
+	_, err := shard.newShardEntry(
+		ident.StringID("abc"),
+		convert.NewTagsIterMetadataResolver(ident.EmptyTagIterator),
+	)
 	require.NoError(t, err)
 }
 

@@ -386,58 +386,80 @@ func TestCommitLogWrite(t *testing.T) {
 		{
 			"Attempt to perform 2 write log writes in parallel to a commit log",
 			[]testWrite{
-				{testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
-				{testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
-					xtime.Now(), 456.789, xtime.Second, nil, nil},
+				{
+					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
+					xtime.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil,
+				},
+				{
+					testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
+					xtime.Now(), 456.789, xtime.Second, nil, nil,
+				},
 			},
 		},
 		{
 			"Buffer almost full after first write. Second write almost fills the buffer",
 			[]testWrite{
-				{testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil},
-				{testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
-					xtime.Now(), 456.789, xtime.Second, randomByteSlice(40), nil},
+				{
+					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
+					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil,
+				},
+				{
+					testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
+					xtime.Now(), 456.789, xtime.Second, randomByteSlice(40), nil,
+				},
 			},
 		},
 		{
 			"Buffer almost full after first write. Second write almost fills 2*buffer total",
 			[]testWrite{
-				{testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil},
-				{testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
-					xtime.Now(), 456.789, xtime.Second, randomByteSlice(40 + opts.FlushSize()), nil},
+				{
+					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
+					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil,
+				},
+				{
+					testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
+					xtime.Now(), 456.789, xtime.Second, randomByteSlice(40 + opts.FlushSize()), nil,
+				},
 			},
 		},
 		{
 			"Buffer almost full after first write. Second write almost fills 3*buffer total",
 			[]testWrite{
-				{testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil},
-				{testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
-					xtime.Now(), 456.789, xtime.Second, randomByteSlice(40 + 2*opts.FlushSize()), nil},
+				{
+					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
+					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil,
+				},
+				{
+					testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
+					xtime.Now(), 456.789, xtime.Second, randomByteSlice(40 + 2*opts.FlushSize()), nil,
+				},
 			},
 		},
 		{
 			"Attempts to perform a write equal to the flush size",
 			[]testWrite{
-				{testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize()), nil},
+				{
+					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
+					xtime.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize()), nil,
+				},
 			},
 		},
 		{
 			"Attempts to perform a write double the flush size",
 			[]testWrite{
-				{testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, randomByteSlice(2 * opts.FlushSize()), nil},
+				{
+					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
+					xtime.Now(), 123.456, xtime.Second, randomByteSlice(2 * opts.FlushSize()), nil,
+				},
 			},
 		},
 		{
 			"Attempts to perform a write three times the flush size",
 			[]testWrite{
-				{testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, randomByteSlice(3 * opts.FlushSize()), nil},
+				{
+					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
+					xtime.Now(), 123.456, xtime.Second, randomByteSlice(3 * opts.FlushSize()), nil,
+				},
 			},
 		},
 	}
@@ -545,10 +567,14 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 
 	writes := []testWrite{
-		{testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(), 123.456,
-			xtime.Second, []byte{1, 2, 3}, nil},
-		{testSeries(t, opts, 1, "foo.baz", testTags2, 150), xtime.Now(), 456.789,
-			xtime.Second, nil, nil},
+		{
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(), 123.456,
+			xtime.Second, []byte{1, 2, 3}, nil,
+		},
+		{
+			testSeries(t, opts, 1, "foo.baz", testTags2, 150), xtime.Now(), 456.789,
+			xtime.Second, nil, nil,
+		},
 	}
 
 	// Call write sync
@@ -585,12 +611,18 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 
 	// Writes spaced apart by block size.
 	writes := []testWrite{
-		{testSeries(t, opts, 0, "foo.bar", testTags1, 127), start, 123.456,
-			xtime.Millisecond, nil, nil},
-		{testSeries(t, opts, 1, "foo.baz", testTags2, 150), start.Add(1 * time.Second),
-			456.789, xtime.Millisecond, nil, nil},
-		{testSeries(t, opts, 2, "foo.qux", testTags3, 291), start.Add(2 * time.Second),
-			789.123, xtime.Millisecond, nil, nil},
+		{
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127), start, 123.456,
+			xtime.Millisecond, nil, nil,
+		},
+		{
+			testSeries(t, opts, 1, "foo.baz", testTags2, 150), start.Add(1 * time.Second),
+			456.789, xtime.Millisecond, nil, nil,
+		},
+		{
+			testSeries(t, opts, 2, "foo.qux", testTags3, 291), start.Add(2 * time.Second),
+			789.123, xtime.Millisecond, nil, nil,
+		},
 	}
 	defer cleanup(t, opts)
 
@@ -706,12 +738,18 @@ func TestCommitLogWriteBehind(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 
 	writes := []testWrite{
-		{testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
-			123.456, xtime.Millisecond, nil, nil},
-		{testSeries(t, opts, 1, "foo.baz", testTags2, 150), xtime.Now(),
-			456.789, xtime.Millisecond, nil, nil},
-		{testSeries(t, opts, 2, "foo.qux", testTags3, 291), xtime.Now(),
-			789.123, xtime.Millisecond, nil, nil},
+		{
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
+			123.456, xtime.Millisecond, nil, nil,
+		},
+		{
+			testSeries(t, opts, 1, "foo.baz", testTags2, 150), xtime.Now(),
+			456.789, xtime.Millisecond, nil, nil,
+		},
+		{
+			testSeries(t, opts, 2, "foo.qux", testTags3, 291), xtime.Now(),
+			789.123, xtime.Millisecond, nil, nil,
+		},
 	}
 
 	// Call write behind
@@ -857,8 +895,10 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	wg := setupCloseOnFail(t, commitLog)
 
 	writes := []testWrite{
-		{testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
-			123.456, xtime.Millisecond, nil, nil},
+		{
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
+			123.456, xtime.Millisecond, nil, nil,
+		},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
@@ -907,8 +947,10 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	wg := setupCloseOnFail(t, commitLog)
 
 	writes := []testWrite{
-		{testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
-			123.456, xtime.Millisecond, nil, nil},
+		{
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
+			123.456, xtime.Millisecond, nil, nil,
+		},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
@@ -964,8 +1006,10 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	wg := setupCloseOnFail(t, commitLog)
 
 	writes := []testWrite{
-		{testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
-			123.456, xtime.Millisecond, nil, nil},
+		{
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(),
+			123.456, xtime.Millisecond, nil, nil,
+		},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
@@ -1028,12 +1072,21 @@ func TestCommitLogRotateLogs(t *testing.T) {
 
 	// Writes spaced such that they should appear within the same commitlog block.
 	writes := []testWrite{
-		{testSeries(t, opts, 0, "foo.bar", testTags1, 127), start,
-			123.456, xtime.Millisecond, nil, nil},
-		{testSeries(t, opts, 1, "foo.baz", testTags2, 150), start.Add(1 * time.Second),
-			456.789, xtime.Millisecond, nil, nil},
-		{testSeries(t, opts, 2, "foo.qux", testTags3, 291), start.Add(2 * time.Second),
-			789.123, xtime.Millisecond, nil, nil},
+		{
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127),
+			start,
+			123.456, xtime.Millisecond, nil, nil,
+		},
+		{
+			testSeries(t, opts, 1, "foo.baz", testTags2, 150),
+			start.Add(1 * time.Second),
+			456.789, xtime.Millisecond, nil, nil,
+		},
+		{
+			testSeries(t, opts, 2, "foo.qux", testTags3, 291),
+			start.Add(2 * time.Second),
+			789.123, xtime.Millisecond, nil, nil,
+		},
 	}
 
 	for i, write := range writes {
@@ -1151,8 +1204,14 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 
 	// Assert writes occurred by reading the commit log
 	expected := []testWrite{
-		{testSeries(t, opts, 1, "foo.baz", testTags1, 127), alignedStart.Add(time.Minute), 10.5, xtime.Second, nil, nil},
-		{testSeries(t, opts, 3, "biz.qux", testTags3, 511), alignedStart.Add(time.Minute * 3), 31.5, xtime.Second, nil, nil},
+		{
+			testSeries(t, opts, 1, "foo.baz", testTags1, 127),
+			alignedStart.Add(time.Minute), 10.5, xtime.Second, nil, nil,
+		},
+		{
+			testSeries(t, opts, 3, "biz.qux", testTags3, 511),
+			alignedStart.Add(time.Minute * 3), 31.5, xtime.Second, nil, nil,
+		},
 	}
 
 	assertCommitLogWritesByIterating(t, commitLog, expected)

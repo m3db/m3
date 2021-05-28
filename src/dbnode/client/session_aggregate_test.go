@@ -309,7 +309,6 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 		sg0       = newTestSerieses(1, 10)
 		sg1       = newTestSerieses(6, 15)
 		sg2       = newTestSerieses(11, 15)
-		th        = newTestFetchTaggedHelper(t)
 	)
 	sg0.addDatapoints(numPoints, start, end)
 	sg1.addDatapoints(numPoints, start, end)
@@ -330,7 +329,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg0.toRPCAggResult(th, start, true),
+									response: sg0.toRPCAggResult(true),
 								}, nil)
 							}()
 						},
@@ -344,7 +343,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg1.toRPCAggResult(th, start, false),
+									response: sg1.toRPCAggResult(false),
 								}, nil)
 							}()
 						},
@@ -358,7 +357,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg2.toRPCAggResult(th, start, true),
+									response: sg2.toRPCAggResult(true),
 								}, nil)
 							}()
 						},
@@ -418,7 +417,6 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 		sg0       = newTestSerieses(1, 5)
 		sg1       = newTestSerieses(6, 10)
 		sg2       = newTestSerieses(11, 15)
-		th        = newTestFetchTaggedHelper(t)
 	)
 	sg0.addDatapoints(numPoints, start, end)
 	sg1.addDatapoints(numPoints, start, end)
@@ -448,7 +446,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg0.toRPCAggResult(th, start, true),
+									response: sg0.toRPCAggResult(true),
 								}, nil)
 							}()
 						},
@@ -471,7 +469,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg1.toRPCAggResult(th, start, false),
+									response: sg1.toRPCAggResult(false),
 								}, nil)
 							}()
 						},
@@ -494,7 +492,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg2.toRPCAggResult(th, start, true),
+									response: sg2.toRPCAggResult(true),
 								}, nil)
 							}()
 						},

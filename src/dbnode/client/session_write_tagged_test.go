@@ -60,7 +60,7 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 }
 
 func TestSessionWriteTaggedEmptyTagName(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	s := newDefaultTestSession(t).(*session)
@@ -76,7 +76,7 @@ func TestSessionWriteTaggedEmptyTagName(t *testing.T) {
 }
 
 func TestSessionWriteTaggedEmptyTagValue(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	s := newDefaultTestSession(t).(*session)
@@ -101,7 +101,7 @@ func TestSessionWriteTaggedEmptyTagValue(t *testing.T) {
 }
 
 func TestSessionWriteTagged(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	w := newWriteTaggedStub()
@@ -162,7 +162,7 @@ func TestSessionWriteTagged(t *testing.T) {
 }
 
 func TestSessionWriteTaggedDoesNotCloneNoFinalize(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	w := newWriteTaggedStub()
@@ -347,7 +347,7 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 }
 
 func TestSessionWriteTaggedRetry(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	scope := tally.NewTestScope("", nil)

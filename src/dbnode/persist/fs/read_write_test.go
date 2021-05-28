@@ -173,6 +173,7 @@ var readTestTypes = []readTestType{
 	readTestTypeMetadata,
 }
 
+//nolint: unparam
 func readTestData(t *testing.T, r DataFileSetReader, shard uint32,
 	timestamp xtime.UnixNano, entries []testEntry) {
 	readTestDataWithStreamingOpt(t, r, shard, timestamp, entries, false)

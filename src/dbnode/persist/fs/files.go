@@ -591,19 +591,19 @@ func snapshotTimeAndID(
 ) (xtime.UnixNano, uuid.UUID, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
-		return 0, nil, fmt.Errorf("error reading snapshot info file: %v", err)
+		return 0, nil, fmt.Errorf("error reading snapshot info file: %w", err)
 	}
 
 	decoder.Reset(msgpack.NewByteDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
 	if err != nil {
-		return 0, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
+		return 0, nil, fmt.Errorf("error decoding snapshot info file: %w", err)
 	}
 
 	var parsedSnapshotID uuid.UUID
 	err = parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
 	if err != nil {
-		return 0, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %v", err)
+		return 0, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %w", err)
 	}
 
 	return xtime.UnixNano(info.SnapshotTime), parsedSnapshotID, nil
@@ -1526,7 +1526,8 @@ func DataFileSetExists(
 	return CompleteCheckpointFileExists(checkpointPath)
 }
 
-// SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
+// SnapshotFileSetExistsAt determines whether snapshot fileset files exist for
+// the given namespace, shard, and block start time.
 func SnapshotFileSetExistsAt(
 	prefix string,
 	namespace ident.ID,
@@ -1579,7 +1580,9 @@ func NextSnapshotMetadataFileIndex(opts Options) (int64, error) {
 
 // NextSnapshotFileSetVolumeIndex returns the next snapshot file set index for a given
 // namespace/shard/blockStart combination.
-func NextSnapshotFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, shard uint32, blockStart xtime.UnixNano) (int, error) {
+func NextSnapshotFileSetVolumeIndex(
+	filePathPrefix string, namespace ident.ID, shard uint32, blockStart xtime.UnixNano,
+) (int, error) {
 	snapshotFiles, err := SnapshotFiles(filePathPrefix, namespace, shard)
 	if err != nil {
 		return -1, err
@@ -1595,7 +1598,9 @@ func NextSnapshotFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, s
 
 // NextIndexFileSetVolumeIndex returns the next index file set index for a given
 // namespace/blockStart combination.
-func NextIndexFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano) (int, error) {
+func NextIndexFileSetVolumeIndex(
+	filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano,
+) (int, error) {
 	files, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetIndexContentType,
@@ -1617,7 +1622,9 @@ func NextIndexFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, bloc
 
 // NextIndexSnapshotFileIndex returns the next snapshot file index for a given
 // namespace/shard/blockStart combination.
-func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano) (int, error) {
+func NextIndexSnapshotFileIndex(
+	filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano,
+) (int, error) {
 	snapshotFiles, err := IndexSnapshotFiles(filePathPrefix, namespace)
 	if err != nil {
 		return -1, err
@@ -1718,6 +1725,7 @@ func filesetPathFromTimeAndIndex(prefix string, t xtime.UnixNano, index int, suf
 // function, the caller expects there to be a legacy or non-legacy file, and
 // thus returns an error if neither exist. Note that this function does not
 // check for the volume's complete checkpoint file.
+//nolint: unparam
 func isFirstVolumeLegacy(prefix string, t xtime.UnixNano, suffix string) (bool, error) {
 	// Check non-legacy path first to optimize for newer files.
 	path := filesetPathFromTimeAndIndex(prefix, t, 0, suffix)
@@ -1754,7 +1762,6 @@ func dataFilesetPathFromTimeAndIndex(
 }
 
 func filesetIndexSegmentFileSuffixFromTime(
-	t xtime.UnixNano,
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
@@ -1768,7 +1775,7 @@ func filesetIndexSegmentFilePathFromTime(
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
-	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
+	suffix := filesetIndexSegmentFileSuffixFromTime(segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, volumeIndex, suffix)
 }
 
@@ -1779,7 +1786,7 @@ func snapshotIndexSegmentFilePathFromTimeAndIndex(
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
-	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
+	suffix := filesetIndexSegmentFileSuffixFromTime(segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, snapshotIndex, suffix)
 }
 

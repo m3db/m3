@@ -569,10 +569,14 @@ func TestDatabaseBlockCloseIfFromDisk(t *testing.T) {
 
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
 	now := xtime.Now()
-	blockTimes := []xtime.UnixNano{now, now.Add(time.Second),
-		now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}
-	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second,
-		time.Microsecond, time.Millisecond}
+	blockTimes := []xtime.UnixNano{
+		now, now.Add(time.Second),
+		now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour),
+	}
+	blockSizes := []time.Duration{
+		time.Minute, time.Hour, time.Second,
+		time.Microsecond, time.Millisecond,
+	}
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes, blockSizes)
 }

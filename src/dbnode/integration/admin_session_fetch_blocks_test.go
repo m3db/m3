@@ -238,13 +238,13 @@ func testSetupToSeriesMaps(
 			readerIter.Close()
 			ctx.Close()
 
-			firstTs := datapoints[0].TimestampNanos
-			seriesMapList := seriesMap[firstTs.Truncate(blockSize)]
+			firstTS := datapoints[0].TimestampNanos
+			seriesMapList := seriesMap[firstTS.Truncate(blockSize)]
 			seriesMapList = append(seriesMapList, generate.Series{
 				ID:   id,
 				Data: datapoints,
 			})
-			seriesMap[firstTs.Truncate(blockSize)] = seriesMapList
+			seriesMap[firstTS.Truncate(blockSize)] = seriesMapList
 		}
 		require.NoError(t, blocksIter.Err())
 	}

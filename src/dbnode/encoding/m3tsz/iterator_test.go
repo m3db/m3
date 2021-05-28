@@ -326,13 +326,41 @@ func TestReaderIteratorNextWithAnnotationAndTimeUnit(t *testing.T) {
 		ant ts.Annotation
 		tu  xtime.Unit
 	}{
-		{ts.Datapoint{TimestampNanos: startTime, Value: 12}, []byte{0xa}, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 60), Value: 12}, nil, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 120), Value: 24}, nil, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 76), Value: 24}, []byte{0x1, 0x2}, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 16), Value: 24}, nil, xtime.Millisecond},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 15500), Value: 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 14000), Value: 12}, nil, xtime.Second},
+		{
+			ts.Datapoint{TimestampNanos: startTime, Value: 12},
+			[]byte{0xa},
+			xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 60), Value: 12},
+			ant: nil,
+			tu:  xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 120), Value: 24},
+			ant: nil,
+			tu:  xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 76), Value: 24},
+			ant: []byte{0x1, 0x2},
+			tu:  xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 16), Value: 24},
+			ant: nil,
+			tu:  xtime.Millisecond,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 15500), Value: 15},
+			ant: []byte{0x3, 0x4, 0x5},
+			tu:  xtime.Millisecond,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 14000), Value: 12},
+			ant: nil,
+			tu:  xtime.Second,
+		},
 	}
 	it := getTestReaderIterator(rawBytes)
 	for i := 0; i < len(inputs); i++ {

@@ -79,12 +79,12 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	for at := start; at.Before(end); at = at.Add(30 * time.Second) {
 		dp := ts.Datapoint{
 			TimestampNanos: at,
-			Value:          rand.Float64() * math.MaxFloat64,
+			Value:          rand.Float64() * math.MaxFloat64, //nolint: gosec
 		}
 		encoder.Encode(dp, xtime.Second, nil)
 	}
 	seg := encoder.Discard()
-	respSegments := []*rpc.Segments{&rpc.Segments{
+	respSegments := []*rpc.Segments{{
 		Merged: &rpc.Segment{Head: seg.Head.Bytes(), Tail: seg.Tail.Bytes()},
 	}}
 	respElements := make([]*rpc.FetchRawResult_, maxIDs)

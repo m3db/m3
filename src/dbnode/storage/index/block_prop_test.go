@@ -83,9 +83,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
-	uncachedBlock, err := newPropTestBlock(
+	uncachedBlock := newPropTestBlock(
 		t, blockStart, testMD, testOpts.SetPostingsListCache(nil))
-	require.NoError(t, err)
 
 	plCache, err := NewPostingsListCache(1000, PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
@@ -180,7 +179,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 }
 
 func newPropTestBlock(t *testing.T, blockStart xtime.UnixNano,
-	nsMeta namespace.Metadata, opts Options) (Block, error) {
+	nsMeta namespace.Metadata, opts Options) Block {
 	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{},
 		namespace.NewRuntimeOptionsManager(nsMeta.ID().String()), opts)
 	require.NoError(t, err)
@@ -198,7 +197,7 @@ func newPropTestBlock(t *testing.T, blockStart xtime.UnixNano,
 	// in a ReadThroughSegment to use the postings list cache.
 	err = blk.AddResults(indexBlockByVolumeType)
 	require.NoError(t, err)
-	return blk, nil
+	return blk
 }
 
 type testFields struct {

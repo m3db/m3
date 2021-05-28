@@ -137,5 +137,16 @@ func TestIndexBlockRotation(t *testing.T) {
 	period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
+
+	if period0Results.Len() != 0 {
+		// sometimes eviction lags behind; give tick some extra time if eviction
+		// hasn't completed yet.
+		testSetup.SleepFor10xTickMinimumInterval()
+
+		period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
+			md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
+		require.NoError(t, err)
+	}
+
 	require.Equal(t, 0, period0Results.Len())
 }

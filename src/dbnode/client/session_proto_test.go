@@ -116,7 +116,7 @@ func TestProtoSeriesIteratorRoundtrip(t *testing.T) {
 		encoder.Encode(dp, value.unit, value.annotation)
 	}
 	seg := encoder.Discard()
-	result := []*rpc.Segments{&rpc.Segments{
+	result := []*rpc.Segments{{
 		Merged: &rpc.Segment{Head: bytesIfNotNil(seg.Head), Tail: bytesIfNotNil(seg.Tail)},
 	}}
 

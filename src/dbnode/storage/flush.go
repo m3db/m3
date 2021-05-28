@@ -221,15 +221,7 @@ func (m *flushManager) dataSnapshot(
 		multiErr                        = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
-		snapshotBlockStarts, err := m.namespaceSnapshotTimes(ns, startTime)
-		if err != nil {
-			detailedErr := fmt.Errorf(
-				"namespace %s failed to determine snapshot times: %v",
-				ns.ID().String(), err)
-			multiErr = multiErr.Add(detailedErr)
-			continue
-		}
-
+		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, startTime)
 		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
 			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
 		}
@@ -341,7 +333,7 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr xtime.Unix
 	}), loopErr
 }
 
-func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr xtime.UnixNano) ([]xtime.UnixNano, error) {
+func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr xtime.UnixNano) []xtime.UnixNano {
 	var (
 		rOpts     = ns.Options().RetentionOptions()
 		blockSize = rOpts.BlockSize()
@@ -357,11 +349,10 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr xtime.U
 	)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
-	var loopErr error
 	return filterTimes(candidateTimes, func(xtime.UnixNano) bool {
 		// NB(bodu): Snapshot everything since to account for cold writes/blocks.
 		return true
-	}), loopErr
+	})
 }
 
 // flushWithTime flushes in-memory data for a given namespace, at a given

@@ -276,7 +276,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ts := timeFor(36000)
+			ts := timeFor()
 			rOpts := retention.NewOptions().
 				SetRetentionPeriod(21600 * time.Second).
 				SetBlockSize(7200 * time.Second)
@@ -336,7 +336,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ts := timeFor(36000)
+	ts := timeFor()
 	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(3600 * time.Second)
@@ -377,7 +377,7 @@ func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ts := timeFor(36000)
+	ts := timeFor()
 	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(3600 * time.Second)
@@ -412,7 +412,7 @@ func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
 func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	ts := timeFor(36000)
+	ts := timeFor()
 	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(7200 * time.Second)
@@ -444,7 +444,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	ts := timeFor(36000)
+	ts := timeFor()
 
 	nsOpts := namespaceOptions
 	ns := NewMockdatabaseNamespace(ctrl)
@@ -479,7 +479,7 @@ type deleteInactiveDirectoriesCall struct {
 func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	ts := timeFor(36000)
+	ts := timeFor()
 
 	nsOpts := namespaceOptions.
 		SetCleanupEnabled(false)
@@ -541,7 +541,7 @@ func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ts := timeFor(36000)
+	ts := timeFor()
 
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
@@ -556,8 +556,8 @@ func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
 	require.Error(t, cleanup(mgr, ts))
 }
 
-func timeFor(s int64) xtime.UnixNano {
-	return xtime.ToUnixNano(time.Unix(s, 0))
+func timeFor() xtime.UnixNano {
+	return xtime.ToUnixNano(time.Unix(36000, 0))
 }
 
 type fakeActiveLogs struct {

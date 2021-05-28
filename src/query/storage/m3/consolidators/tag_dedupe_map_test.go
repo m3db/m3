@@ -56,7 +56,6 @@ func verifyDedupeMap(
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		ex := expected[i]
-		ex.TimestampNanos = ex.TimestampNanos
 		assert.Equal(t, ex, dp)
 		i++
 	}

@@ -2514,14 +2514,6 @@ func (s *dbShard) markWarmFlushStateFail(blockStart xtime.UnixNano) {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) incrementFlushStateFailures(blockStart xtime.UnixNano) {
-	s.flushState.Lock()
-	state := s.flushState.statesByTime[blockStart]
-	state.NumFailures++
-	s.flushState.statesByTime[blockStart] = state
-	s.flushState.Unlock()
-}
-
 func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart xtime.UnixNano, version int) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[blockStart]

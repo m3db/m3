@@ -104,7 +104,9 @@ var (
 	errSessionBadBlockResultFromPeer = errors.New("session fetched bad block result from peer")
 	// errSessionInvalidConnectClusterConnectConsistencyLevel is raised when
 	// the connect consistency level specified is not recognized
-	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
+	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New(
+		"session has invalid connect consistency level specified",
+	)
 	// errSessionHasNoHostQueueForHost is raised when host queue requested for a missing host
 	errSessionHasNoHostQueueForHost = newHostNotAvailableError(errors.New("session has no host queue for host"))
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
@@ -1153,7 +1155,9 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-batch-request-array-pool"),
 		))
-	fetchBatchRawV2RequestElementArrayPool := newFetchBatchRawV2RequestElementArrayPool(fetchBatchRawV2RequestElementArrayPoolOpts, s.opts.FetchBatchSize())
+	fetchBatchRawV2RequestElementArrayPool := newFetchBatchRawV2RequestElementArrayPool(
+		fetchBatchRawV2RequestElementArrayPoolOpts, s.opts.FetchBatchSize(),
+	)
 	fetchBatchRawV2RequestElementArrayPool.Init()
 
 	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
@@ -1936,7 +1940,9 @@ func (s *session) fetchIDsAttempt(
 			// to iter.Reset down below before setting the iterator in the results array,
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
-			shouldTerminate := topology.ReadConsistencyTermination(s.state.readLevel, majority, remaining, snapshotSuccess)
+			shouldTerminate := topology.ReadConsistencyTermination(
+				s.state.readLevel, majority, remaining, snapshotSuccess,
+			)
 			if shouldTerminate && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 				allCompletionFn()
 			}
@@ -3583,7 +3589,9 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
 }
 
-func (b *baseBlocksResult) mergeReaders(start xtime.UnixNano, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
+func (b *baseBlocksResult) mergeReaders(
+	start xtime.UnixNano, blockSize time.Duration, readers []xio.SegmentReader,
+) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
 	iter.Reset(readers, start, blockSize, b.nsCtx.Schema)
 	defer iter.Close()

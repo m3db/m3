@@ -235,7 +235,7 @@ func (r *indexReader) ReadSegmentFileSet() (
 			desc mmap.Descriptor
 		)
 		mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-			filePath: mmap.FileDesc{
+			filePath: {
 				File:       &fd,
 				Descriptor: &desc,
 				Options: mmap.Options{

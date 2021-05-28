@@ -78,7 +78,7 @@ var (
 
 func testContext() context.Context {
 	// nolint: govet
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute) //nolint
 	return ctx
 }
 

@@ -1327,6 +1327,7 @@ func createCommitLogFiles(t *testing.T, iter int) string {
 	return dir
 }
 
+//nolint: unparam
 func writeOutTestSnapshot(
 	t *testing.T, filePathPrefix string,
 	shard uint32, blockStart xtime.UnixNano, volume int) {

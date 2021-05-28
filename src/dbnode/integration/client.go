@@ -218,8 +218,8 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.Te
 	iter, err := session.Fetch(
 		ident.StringID(req.NameSpace),
 		ident.StringID(req.ID),
-		xtime.UnixNano(start.FromNormalizedTime(time.Second)),
-		xtime.UnixNano(end.FromNormalizedTime(time.Second)),
+		start.FromNormalizedTime(time.Second),
+		end.FromNormalizedTime(time.Second),
 	)
 
 	if err != nil {

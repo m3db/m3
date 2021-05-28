@@ -190,7 +190,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 			}
 			dp := ts.Datapoint{
 				TimestampNanos: blockStart.Add(time.Duration(i) * step),
-				Value:          rand.Float64(),
+				Value:          rand.Float64(), //nolint: gosec
 			}
 			require.NoError(t, commitLog.Write(ctx, series, dp, xtime.Second, nil))
 		}

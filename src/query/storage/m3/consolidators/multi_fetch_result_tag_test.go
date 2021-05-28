@@ -64,7 +64,10 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 	defer ctrl.Finish()
 
 	start := xtime.Now().Truncate(time.Hour)
-	step := func(i time.Duration) xtime.UnixNano { return start.Add(time.Minute * i) }
+	step := func(i int) xtime.UnixNano {
+		return start.Add(time.Minute * time.Duration(i))
+	}
+
 	unaggHr := storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
 		Resolution:  time.Hour,
@@ -374,7 +377,10 @@ func TestFilteredInsert(t *testing.T) {
 	defer ctrl.Finish()
 
 	start := xtime.Now().Truncate(time.Hour)
-	step := func(i time.Duration) xtime.UnixNano { return start.Add(time.Minute * i) }
+	step := func(i int) xtime.UnixNano {
+		return start.Add(time.Minute * time.Duration(i))
+	}
+
 	unaggHr := storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
 		Resolution:  time.Hour,

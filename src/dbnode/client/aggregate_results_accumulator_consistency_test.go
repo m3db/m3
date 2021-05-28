@@ -52,7 +52,7 @@ func TestAggregateResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOn
 			topoMap: topoMap,
 			level:   topology.ReadConsistencyLevelOne,
 			steps: []testFetchStateWorklowStep{
-				testFetchStateWorklowStep{
+				{
 					hostname:        fmt.Sprintf("testhost%d", i),
 					aggregateResult: &testAggregateSuccessResponse,
 					expectedDone:    true,
@@ -67,15 +67,15 @@ func TestAggregateResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOn
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelOne,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -100,7 +100,7 @@ func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelOne,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 				expectedDone:    false,
@@ -114,15 +114,15 @@ func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost2",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -137,15 +137,15 @@ func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -160,15 +160,15 @@ func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictAll,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -181,15 +181,15 @@ func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictAll,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -202,15 +202,15 @@ func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictAll,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost2",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -225,15 +225,15 @@ func TestAggregateResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelAll,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
 				aggregateResult: &testAggregateSuccessResponse,
 				expectedDone:    true,
@@ -257,7 +257,7 @@ func TestAggregateResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOn
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelOne,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: &testAggregateSuccessResponse,
 				expectedDone:    false,
@@ -280,12 +280,12 @@ func TestAggregateResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
 				aggregateResult: &testAggregateSuccessResponse,
 				expectedDone:    false,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 				expectedDone:    true,
@@ -299,15 +299,15 @@ func TestAggregateResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 				expectedDone:    true,
@@ -321,15 +321,15 @@ func TestAggregateResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 				expectedErr:  true,
@@ -354,19 +354,19 @@ func TestAggregateResultsAccumulatorConsistencyUnstrictMajorityComplexTopo(t *te
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost2",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost3",
 				aggregateResult: &testAggregateSuccessResponse,
 				expectedDone:    true,
@@ -390,19 +390,19 @@ func TestAggregateResultsAccumulatorComplextTopoUnstrictMajorityPartialResponses
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost3",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -426,19 +426,19 @@ func TestAggregateResultsAccumulatorComplexIncompleteTopoUnstrictMajorityPartial
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelUnstrictMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost3",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -463,7 +463,7 @@ func TestAggregateResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) {
 			topoMap: topoMap,
 			level:   topology.ReadConsistencyLevelMajority,
 			steps: []testFetchStateWorklowStep{
-				testFetchStateWorklowStep{
+				{
 					hostname:        fmt.Sprintf("testhost%d", i),
 					aggregateResult: &testAggregateSuccessResponse,
 					expectedDone:    false,
@@ -478,15 +478,15 @@ func TestAggregateResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost1",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost2",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,
@@ -501,15 +501,15 @@ func TestAggregateResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) {
 		topoMap: topoMap,
 		level:   topology.ReadConsistencyLevelMajority,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost0",
 				aggregateErr: errTestAggregate,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
 				aggregateResult: &testAggregateSuccessResponse,
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:     "testhost2",
 				aggregateErr: errTestAggregate,
 				expectedDone: true,

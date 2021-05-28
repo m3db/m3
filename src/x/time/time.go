@@ -35,11 +35,6 @@ func Now() UnixNano {
 }
 
 // ToNormalizedTime returns the normalized units of time given a time unit.
-func ToNormalizedTimeU(t UnixNano, u time.Duration) int64 {
-	return int64(t) / u.Nanoseconds()
-}
-
-// ToNormalizedTime returns the normalized units of time given a time unit.
 func ToNormalizedTime(t time.Time, u time.Duration) int64 {
 	return t.UnixNano() / u.Nanoseconds()
 }

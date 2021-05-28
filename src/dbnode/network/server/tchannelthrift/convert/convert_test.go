@@ -44,7 +44,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func mustToRpcTime(t *testing.T, ts xtime.UnixNano) int64 {
+func mustToRPCTime(t *testing.T, ts xtime.UnixNano) int64 {
 	r, err := convert.ToValue(ts, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	return r
@@ -123,8 +123,8 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 	fetchData := true
 	requestSkeleton := &rpc.FetchTaggedRequest{
 		NameSpace:         ns.Bytes(),
-		RangeStart:        mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:          mustToRpcTime(t, opts.EndExclusive),
+		RangeStart:        mustToRPCTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRPCTime(t, opts.EndExclusive),
 		FetchData:         fetchData,
 		SeriesLimit:       &seriesLimit,
 		DocsLimit:         &docsLimit,
@@ -205,8 +205,8 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 	}
 	requestSkeleton := &rpc.AggregateQueryRawRequest{
 		NameSpace:         ns.Bytes(),
-		RangeStart:        mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:          mustToRpcTime(t, opts.EndExclusive),
+		RangeStart:        mustToRPCTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRPCTime(t, opts.EndExclusive),
 		SeriesLimit:       &seriesLimit,
 		DocsLimit:         &docsLimit,
 		RequireExhaustive: &requireExhaustive,
