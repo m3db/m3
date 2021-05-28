@@ -98,9 +98,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 			CacheRegexp: true,
 			CacheTerms:  true,
 		})
-	cachedBlock, err := newPropTestBlock(t, blockStart, testMD, cachedOptions)
-	require.NoError(t, err)
-
+	cachedBlock := newPropTestBlock(t, blockStart, testMD, cachedOptions)
 	properties.Property("Index block with and without postings list cache always return the same results", prop.ForAll(
 		func(q search.Query, identicalTermAndRegexp []search.Query) (bool, error) {
 			queries := []search.Query{

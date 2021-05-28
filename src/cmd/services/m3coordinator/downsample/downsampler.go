@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -83,9 +84,9 @@ type SamplesAppender interface {
 	AppendUntimedCounterSample(value int64, annotation []byte) error
 	AppendUntimedGaugeSample(value float64, annotation []byte) error
 	AppendUntimedTimerSample(value float64, annotation []byte) error
-	AppendCounterSample(t int64, value int64, annotation []byte) error
-	AppendGaugeSample(t int64, value float64, annotation []byte) error
-	AppendTimerSample(t int64, value float64, annotation []byte) error
+	AppendCounterSample(t xtime.UnixNano, value int64, annotation []byte) error
+	AppendGaugeSample(t xtime.UnixNano, value float64, annotation []byte) error
+	AppendTimerSample(t xtime.UnixNano, value float64, annotation []byte) error
 }
 
 type downsampler struct {

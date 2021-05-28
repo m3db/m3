@@ -3213,7 +3213,7 @@ func testDownsamplerAggregationIngest(
 			if samplesAppenderResult.ShouldDropTimestamp {
 				err = samplesAppender.AppendUntimedCounterSample(sample.value, nil)
 			} else {
-				err = samplesAppender.AppendCounterSample(int64(sample.time), sample.value, nil)
+				err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
 			}
 			require.NoError(t, err)
 		}
@@ -3250,7 +3250,7 @@ func testDownsamplerAggregationIngest(
 			if samplesAppenderResult.ShouldDropTimestamp {
 				err = samplesAppender.AppendUntimedGaugeSample(sample.value, nil)
 			} else {
-				err = samplesAppender.AppendGaugeSample(int64(sample.time), sample.value, nil)
+				err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
 			}
 			require.NoError(t, err)
 		}
@@ -3289,7 +3289,7 @@ func testDownsamplerAggregationIngest(
 			if samplesAppenderResult.ShouldDropTimestamp {
 				err = samplesAppender.AppendUntimedTimerSample(sample.value, nil)
 			} else {
-				err = samplesAppender.AppendTimerSample(int64(sample.time), sample.value, nil)
+				err = samplesAppender.AppendTimerSample(sample.time, sample.value, nil)
 			}
 			require.NoError(t, err)
 		}
