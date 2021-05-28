@@ -392,7 +392,8 @@ func TestEncoderResets(t *testing.T) {
 	_, ok := enc.Stream(ctx)
 	require.False(t, ok)
 
-	enc.Encode(ts.Datapoint{TimestampNanos: testStartTime, Value: 12}, xtime.Second, nil)
+	err := enc.Encode(ts.Datapoint{TimestampNanos: testStartTime, Value: 12}, xtime.Second, nil)
+	require.NoError(t, err)
 	require.True(t, enc.os.Len() > 0)
 
 	now := xtime.Now()
@@ -403,7 +404,8 @@ func TestEncoderResets(t *testing.T) {
 	b, _ := enc.os.RawBytes()
 	require.Equal(t, []byte{}, b)
 
-	enc.Encode(ts.Datapoint{TimestampNanos: now, Value: 13}, xtime.Second, nil)
+	err = enc.Encode(ts.Datapoint{TimestampNanos: now, Value: 13}, xtime.Second, nil)
+	require.NoError(t, err)
 	require.True(t, enc.os.Len() > 0)
 
 	enc.DiscardReset(now, 0, nil)

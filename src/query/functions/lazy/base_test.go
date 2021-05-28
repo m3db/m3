@@ -26,24 +26,12 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/models"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func buildMeta(start xtime.UnixNano) block.Metadata {
-	return block.Metadata{
-		Bounds: models.Bounds{
-			Start:    start,
-			Duration: time.Minute,
-			StepSize: time.Hour,
-		},
-		Tags: models.NewTags(0, models.NewTagOptions()),
-	}
-}
 
 func testLazyOpts(timeOffset time.Duration, valOffset float64) block.LazyOptions {
 	tt := func(t xtime.UnixNano) xtime.UnixNano { return t.Add(timeOffset) }

@@ -1147,8 +1147,9 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	}
 
 	for _, write := range writes {
-		shard.Write(ctx, ident.StringID(write.id), xtime.ToUnixNano(nowFn()),
+		_, err := shard.Write(ctx, ident.StringID(write.id), xtime.ToUnixNano(nowFn()),
 			write.value, write.unit, write.annotation, series.WriteOptions{})
+		require.NoError(t, err)
 	}
 
 	for {
@@ -1200,12 +1201,14 @@ func TestShardTickRace(t *testing.T) {
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		require.NoError(t, err)
 		wg.Done()
 	}()
 
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		require.NoError(t, err)
 		wg.Done()
 	}()
 
@@ -1230,7 +1233,8 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	shard.Bootstrap(ctx, nsCtx)
 
 	addTestSeries(shard, ident.StringID("foo"))
-	shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	require.NoError(t, err)
 	require.Equal(t, 0, shard.lookup.Len())
 }
 
@@ -1350,7 +1354,7 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 
 	closeWg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) //nolint
 		closeWg.Done()
 	}()
 
@@ -1371,7 +1375,8 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 	addTestSeries(shard, ident.StringID("foo"))
 
-	shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	require.NoError(t, err)
 
 	shard.RLock()
 	require.Equal(t, 0, shard.lookup.Len())
@@ -1391,7 +1396,10 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
-	shard.Write(ctx, ident.StringID("foo"), xtime.ToUnixNano(nowFn()), 1.0, xtime.Second, nil, series.WriteOptions{})
+	_, err := shard.Write(ctx, ident.StringID("foo"), xtime.ToUnixNano(nowFn()),
+		1.0, xtime.Second, nil, series.WriteOptions{})
+	require.NoError(t, err)
+
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
@@ -1417,7 +1425,8 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
-		shard.Write(ctx, id, xtime.ToUnixNano(nowFn()), 1.0, xtime.Second, nil, series.WriteOptions{})
+		_, err := shard.Write(ctx, id, xtime.ToUnixNano(nowFn()), 1.0, xtime.Second, nil, series.WriteOptions{})
+		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{})

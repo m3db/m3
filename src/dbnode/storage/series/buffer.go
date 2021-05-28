@@ -986,7 +986,7 @@ func (b *dbBuffer) inOrderBlockStartsAdd(newTime xtime.UnixNano) {
 		}
 	}
 	// Insert new time without allocating new slice.
-	b.inOrderBlockStarts = append(starts, 0)
+	b.inOrderBlockStarts = append(starts, 0) //nolint
 	// Update to new slice
 	starts = b.inOrderBlockStarts
 	copy(starts[idx+1:], starts[idx:])

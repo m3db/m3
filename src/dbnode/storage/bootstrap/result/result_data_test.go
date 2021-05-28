@@ -368,9 +368,9 @@ func TestShardTimeRangesMinMax(t *testing.T) {
 func TestShardTimeRangesString(t *testing.T) {
 	start := xtime.ToUnixNano(time.Unix(1472824800, 0))
 	ts := [][]xtime.UnixNano{
-		[]xtime.UnixNano{start, start.Add(testBlockSize)},
-		[]xtime.UnixNano{start.Add(2 * testBlockSize), start.Add(4 * testBlockSize)},
-		[]xtime.UnixNano{start, start.Add(2 * testBlockSize)},
+		{start, start.Add(testBlockSize)},
+		{start.Add(2 * testBlockSize), start.Add(4 * testBlockSize)},
+		{start, start.Add(2 * testBlockSize)},
 	}
 
 	str := shardTimeRanges{

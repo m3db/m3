@@ -201,7 +201,7 @@ var robustReaderTestCases = []readTestCase{
 		title: "Handles disk read errors",
 		times: []xtime.UnixNano{start},
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				err: errors.New("some-error"),
 			},
 		},
@@ -217,7 +217,7 @@ var robustReaderTestCases = []readTestCase{
 		title: "Handles disk cache read errors",
 		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				err: errors.New("some-error"),
 			},
 		},
@@ -250,7 +250,7 @@ var robustReaderTestCases = []readTestCase{
 		title: "Handles disk cache reads (should not query disk)",
 		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -261,7 +261,7 @@ var robustReaderTestCases = []readTestCase{
 		expectedResults: []block.FetchBlockResult{
 			{
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 	},
@@ -270,14 +270,14 @@ var robustReaderTestCases = []readTestCase{
 		title: "Handles multiple disk reads",
 		times: []xtime.UnixNano{start, start.Add(blockSize)},
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
 					BlockSize:     blockSize,
 				},
 			},
-			start.Add(blockSize): streamResponse{
+			start.Add(blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(blockSize),
@@ -288,11 +288,11 @@ var robustReaderTestCases = []readTestCase{
 		expectedResults: []block.FetchBlockResult{
 			{
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 			{
 				Start:  start.Add(blockSize),
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start.Add(blockSize), BlockSize: blockSize}},
 			},
 		},
 	},
@@ -303,13 +303,13 @@ var robustReaderTestCases = []readTestCase{
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
 			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
 			{
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 	},
@@ -317,7 +317,7 @@ var robustReaderTestCases = []readTestCase{
 		title: "Combines data from disk cache and buffer for same blockstart",
 		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -328,7 +328,7 @@ var robustReaderTestCases = []readTestCase{
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
 			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
@@ -336,9 +336,9 @@ var robustReaderTestCases = []readTestCase{
 				Start: start,
 				Blocks: []xio.BlockReader{
 					// One from disk cache.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 				},
 			},
 		},
@@ -347,7 +347,7 @@ var robustReaderTestCases = []readTestCase{
 		title: "Combines data from disk and buffer for same blockstart",
 		times: []xtime.UnixNano{start},
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -358,7 +358,7 @@ var robustReaderTestCases = []readTestCase{
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
 			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
@@ -366,9 +366,9 @@ var robustReaderTestCases = []readTestCase{
 				Start: start,
 				Blocks: []xio.BlockReader{
 					// One from disk.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 				},
 			},
 		},
@@ -380,7 +380,7 @@ var robustReaderTestCases = []readTestCase{
 		title: "Handles buffer and disk cache merge with buffer error for same blockstart",
 		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -408,7 +408,7 @@ var robustReaderTestCases = []readTestCase{
 		title: "Handles buffer and disk merge with buffer error for same blockstart",
 		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -434,14 +434,14 @@ var robustReaderTestCases = []readTestCase{
 		times: []xtime.UnixNano{start, start.Add(blockSize), start.Add(2 * blockSize), start.Add(3 * blockSize)},
 		// Block 1 and 3 from disk cache.
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			start: streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
 					BlockSize:     blockSize,
 				},
 			},
-			start.Add(2 * blockSize): streamResponse{
+			start.Add(2 * blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(2 * blockSize),
@@ -451,14 +451,14 @@ var robustReaderTestCases = []readTestCase{
 		},
 		// blocks 2 and 4 from disk.
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			start.Add(blockSize): streamResponse{
+			start.Add(blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(blockSize),
 					BlockSize:     blockSize,
 				},
 			},
-			start.Add(3 * blockSize): streamResponse{
+			start.Add(3 * blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(3 * blockSize),
@@ -470,15 +470,15 @@ var robustReaderTestCases = []readTestCase{
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
 			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 			start.Add(blockSize): {
 				Start:  start.Add(blockSize),
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start.Add(blockSize), BlockSize: blockSize}},
 			},
 			start.Add(2 * blockSize): {
 				Start:  start.Add(2 * blockSize),
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
@@ -486,34 +486,34 @@ var robustReaderTestCases = []readTestCase{
 				Start: start,
 				Blocks: []xio.BlockReader{
 					// One from disk cache.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 				},
 			},
 			{
 				Start: start.Add(blockSize),
 				Blocks: []xio.BlockReader{
 					// One from disk.
-					xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+					{Start: start.Add(blockSize), BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+					{Start: start.Add(blockSize), BlockSize: blockSize},
 				},
 			},
 			{
 				Start: start.Add(2 * blockSize),
 				Blocks: []xio.BlockReader{
 					// One from disk cache.
-					xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+					{Start: start.Add(2 * blockSize), BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+					{Start: start.Add(2 * blockSize), BlockSize: blockSize},
 				},
 			},
 			{
 				Start: start.Add(3 * blockSize),
 				Blocks: []xio.BlockReader{
 					// One from disk.
-					xio.BlockReader{Start: start.Add(3 * blockSize), BlockSize: blockSize},
+					{Start: start.Add(3 * blockSize), BlockSize: blockSize},
 				},
 			},
 		},

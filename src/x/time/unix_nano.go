@@ -21,8 +21,6 @@
 package time
 
 import (
-	"fmt"
-	"runtime/debug"
 	"time"
 )
 
@@ -59,10 +57,6 @@ func (u UnixNano) Add(d time.Duration) UnixNano {
 
 // ToNormalizedTime returns the normalized units of time given a time unit.
 func (u UnixNano) ToNormalizedTime(d time.Duration) int64 {
-	if u < 16221403330 {
-		fmt.Println("NORMALIZING", u, "BY", d.Nanoseconds(), "RES:", int64(u)/d.Nanoseconds())
-		debug.PrintStack()
-	}
 	return int64(u) / d.Nanoseconds()
 }
 

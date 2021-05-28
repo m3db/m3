@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/x/pool"
-
 	xtime "github.com/m3db/m3/src/x/time"
 )
 

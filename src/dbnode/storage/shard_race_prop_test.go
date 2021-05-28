@@ -41,6 +41,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShardTickReadFnRace(t *testing.T) {
@@ -81,7 +82,8 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		require.NoError(t, err)
 		wg.Done()
 	}()
 

@@ -524,8 +524,8 @@ func testBufferBucketMerge(t *testing.T, opts Options, setAnn setAnnotation) {
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	requireReaderValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{
-		xio.BlockReader{
+	requireReaderValuesEqual(t, expected, [][]xio.BlockReader{{
+		{
 			SegmentReader: sr,
 		},
 	}}, opts, nsCtx)
@@ -858,7 +858,9 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 	buffer.bucketsMap[b.start] = b
 
 	res := buffer.FetchBlocks(ctx, []xtime.UnixNano{
-		b.start, b.start.Add(time.Second)}, namespace.Context{})
+		b.start,
+		b.start.Add(time.Second),
+	}, namespace.Context{})
 	require.Equal(t, 1, len(res))
 	require.Equal(t, b.start, res[0].Start)
 	require.Equal(t, 5, len(res[0].Blocks))
@@ -967,7 +969,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			start: BlockState{
+			start: {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -1046,7 +1048,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	// get removed from the bucket.
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			start: BlockState{
+			start: {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},

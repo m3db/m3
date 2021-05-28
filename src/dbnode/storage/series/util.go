@@ -82,8 +82,7 @@ func DecodeSegmentValues(
 		dp, unit, annotation := iter.Current()
 		// Iterator reuse annotation byte slices, so make a copy.
 		annotationCopy := append([]byte(nil), annotation...)
-		all = append(all, DecodedTestValue{
-			dp.TimestampNanos, dp.Value, unit, annotationCopy})
+		all = append(all, DecodedTestValue{dp.TimestampNanos, dp.Value, unit, annotationCopy})
 	}
 
 	if err := iter.Err(); err != nil {
