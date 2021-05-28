@@ -340,13 +340,41 @@ func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
 		ant ts.Annotation
 		tu  xtime.Unit
 	}{
-		{ts.Datapoint{TimestampNanos: startTime, Value: 12}, []byte{0xa}, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 60), Value: 12}, nil, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 120), Value: 24}, nil, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 76), Value: 24}, []byte{0x1, 0x2}, xtime.Second},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 16), Value: 24}, nil, xtime.Millisecond},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 15500), Value: 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
-		{ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 14000), Value: 12}, nil, xtime.Second},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime, Value: 12},
+			ant: []byte{0xa},
+			tu:  xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 60), Value: 12},
+			ant: nil,
+			tu:  xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 120), Value: 24},
+			ant: nil,
+			tu:  xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 76), Value: 24},
+			ant: []byte{0x1, 0x2},
+			tu:  xtime.Second,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Second * 16), Value: 24},
+			ant: nil,
+			tu:  xtime.Millisecond,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 15500), Value: 15},
+			ant: []byte{0x3, 0x4, 0x5},
+			tu:  xtime.Millisecond,
+		},
+		{
+			dp:  ts.Datapoint{TimestampNanos: startTime.Add(-time.Millisecond * 14000), Value: 12},
+			ant: nil,
+			tu:  xtime.Second,
+		},
 	}
 
 	for _, input := range inputs {
@@ -461,7 +489,8 @@ type testFinalizer struct {
 }
 
 func (f *testFinalizer) FinalizeBytes(bytes checked.Bytes) {
-	require.Equal(f.t, int32(0), f.numActiveStreams.Load(), "expect 0 active streams when finalizing the byte slice")
+	require.Equal(f.t, int32(0), f.numActiveStreams.Load(),
+		"expect 0 active streams when finalizing the byte slice")
 }
 
 func TestEncoderCloseWaitForStream(t *testing.T) {
@@ -648,7 +677,9 @@ func testPositiveDeltaOfDelta(t *testing.T, delta time.Duration, units xtime.Uni
 	require.NoError(t, it.Err())
 }
 
-func testNegativeDeltaOfDelta(t *testing.T, delta time.Duration, units xtime.Unit, expectedErrMsg string) {
+func testNegativeDeltaOfDelta(
+	t *testing.T, delta time.Duration, units xtime.Unit, expectedErrMsg string,
+) {
 	t.Helper()
 
 	ctx := context.NewBackground()
@@ -697,7 +728,9 @@ func dp(timestamp xtime.UnixNano, value float64) ts.Datapoint {
 	}
 }
 
-func decodeAndCheck(t *testing.T, it encoding.ReaderIterator, dp ts.Datapoint, units xtime.Unit) {
+func decodeAndCheck(
+	t *testing.T, it encoding.ReaderIterator, dp ts.Datapoint, units xtime.Unit,
+) {
 	t.Helper()
 
 	require.True(t, it.Next())

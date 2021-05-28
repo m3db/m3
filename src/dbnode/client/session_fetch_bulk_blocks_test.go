@@ -219,9 +219,11 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	var (
-		batchSize = opts.FetchSeriesBlocksBatchSize()
-		start     = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-		blocks    = newTestBlocks(start)
+		batchSize = opts.FetchSeriesBlocksBatchSize(
+		//nolint: durationcheck
+		)
+		start  = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks = newTestBlocks(start)
 	)
 
 	// Expect the fetch metadata calls
@@ -382,9 +384,11 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	var (
-		batchSize = opts.FetchSeriesBlocksBatchSize()
-		start     = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-		blocks    = newTestBlocks(start)
+		batchSize = opts.FetchSeriesBlocksBatchSize(
+		//nolint: durationcheck
+		)
+		start  = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks = newTestBlocks(start)
 
 		// Expect the fetch metadata calls.
 		metadataResult = resultMetadataFromBlocks(blocks)
@@ -493,7 +497,8 @@ func fetchBlocksFromPeersTestsHelper(
 
 	require.NoError(t, session.Open())
 
-	batchSize := opts.FetchSeriesBlocksBatchSize()
+	batchSize := opts.FetchSeriesBlocksBatchS
+	//nolint: durationcheckize()
 	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	allBlocks := make([][]testBlocks, 0, len(mockHostQueues))
@@ -1381,6 +1386,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	var (
+		//nolint: durationcheck
 		start   = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 		retrier = xretry.NewRetrier(xretry.NewOptions().
 			SetMaxRetries(1).
@@ -1452,6 +1458,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
 	require.NoError(t, session.Open())
 
+	//nolint: durationcheck
 	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
 	require.NoError(t, enc.Encode(ts.Datapoint{
@@ -1601,6 +1608,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	require.NoError(t, session.Open())
 
+	//nolint: durationcheck
 	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())

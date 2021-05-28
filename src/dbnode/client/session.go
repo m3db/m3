@@ -1155,10 +1155,10 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-batch-request-array-pool"),
 		))
-	fetchBatchRawV2RequestElementArrayPool := newFetchBatchRawV2RequestElementArrayPool(
+	fetchBatchRawV2RequestElementArrPool := newFetchBatchRawV2RequestElementArrayPool(
 		fetchBatchRawV2RequestElementArrayPoolOpts, s.opts.FetchBatchSize(),
 	)
-	fetchBatchRawV2RequestElementArrayPool.Init()
+	fetchBatchRawV2RequestElementArrPool.Init()
 
 	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
 		writeBatchRawRequestPool:                     writeBatchRequestPool,
@@ -1170,7 +1170,7 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		writeTaggedBatchRawRequestElementArrayPool:   writeTaggedBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawV2RequestElementArrayPool: writeTaggedBatchRawV2RequestElementArrayPool,
 		fetchBatchRawV2RequestPool:                   fetchBatchRawV2RequestPool,
-		fetchBatchRawV2RequestElementArrayPool:       fetchBatchRawV2RequestElementArrayPool,
+		fetchBatchRawV2RequestElementArrayPool:       fetchBatchRawV2RequestElementArrPool,
 		opts:                                         s.opts,
 	})
 	if err != nil {

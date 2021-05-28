@@ -225,6 +225,7 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.Te
 	if err != nil {
 		return nil, err
 	}
+
 	defer iter.Close()
 
 	var datapoints []generate.TestValue

@@ -468,7 +468,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 			shardSnapshots, err := m.snapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID(), s.ID())
 			if err != nil {
 				multiErr = multiErr.Add(fmt.Errorf(
-					"err reading snapshot files for ns: %s and shard: %d, err: %v",
+					"err reading snapshot files for ns: %s and shard: %d, err: %w",
 					ns.ID(), s.ID(), err,
 				))
 				continue

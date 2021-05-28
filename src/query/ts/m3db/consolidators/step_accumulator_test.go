@@ -55,8 +55,8 @@ func TestAccumulator(t *testing.T) {
 	})
 	acc.AddPoint(ts.Datapoint{
 		TimestampNanos: start.Add(3*time.Minute + time.Second),
-		Value:          3},
-	)
+		Value:          3,
+	})
 	acc.BufferStep()
 
 	// NB: lookback limit: start

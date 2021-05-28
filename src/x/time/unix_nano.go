@@ -40,7 +40,8 @@ func ToUnixNano(t time.Time) UnixNano {
 
 // Truncate returns the result of rounding u down to a multiple of d.
 func (u UnixNano) Truncate(d time.Duration) UnixNano {
-	return (u / UnixNano(d)) * UnixNano(d)
+	duration := UnixNano(d)
+	return (u / duration) * duration
 }
 
 // Sub returns the duration u-o. If the result exceeds the maximum (or minimum)

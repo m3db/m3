@@ -609,13 +609,20 @@ func snapshotTimeAndID(
 	return xtime.UnixNano(info.SnapshotTime), parsedSnapshotID, nil
 }
 
-func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
+func readSnapshotInfoFile(
+	filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int,
+) ([]byte, error) {
 	var (
 		shardDir           = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
-		checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
-
-		digestFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
-		infoFilePath   = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
+		checkpointFilePath = filesetPathFromTimeAndIndex(
+			shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix,
+		)
+		digestFilePath = filesetPathFromTimeAndIndex(
+			shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix,
+		)
+		infoFilePath = filesetPathFromTimeAndIndex(
+			shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix,
+		)
 	)
 
 	checkpointFd, err := os.Open(checkpointFilePath)
@@ -1047,7 +1054,13 @@ func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (FileSetFiles
 }
 
 // FileSetAt returns a FileSetFile for the given namespace/shard/blockStart/volume combination if it exists.
-func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart xtime.UnixNano, volume int) (FileSetFile, bool, error) {
+func FileSetAt(
+	filePathPrefix string,
+	namespace ident.ID,
+	shard uint32,
+	blockStart xtime.UnixNano,
+	volume int,
+) (FileSetFile, bool, error) {
 	var pattern string
 	// If this is the initial volume, then we need to check if files were written with the legacy file naming (i.e.
 	// without the volume index) so that we can properly locate the fileset.
@@ -1105,9 +1118,12 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 	return FileSetFile{}, false, nil
 }
 
-// IndexFileSetsAt returns all FileSetFile(s) for the given namespace/blockStart combination.
+// IndexFileSetsAt returns all FileSetFile(s) for the given
+// namespace/blockStart combination.
 // NB: It returns all complete Volumes found on disk.
-func IndexFileSetsAt(filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano) (FileSetFilesSlice, error) {
+func IndexFileSetsAt(
+	filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano,
+) (FileSetFilesSlice, error) {
 	matches, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetIndexContentType,
@@ -1133,8 +1149,15 @@ func IndexFileSetsAt(filePathPrefix string, namespace ident.ID, blockStart xtime
 	return filesets, nil
 }
 
-// DeleteFileSetAt deletes a FileSetFile for a given namespace/shard/blockStart/volume combination if it exists.
-func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart xtime.UnixNano, volume int) error {
+// DeleteFileSetAt deletes a FileSetFile for a given
+// namespace/shard/blockStart/volume combination if it exists.
+func DeleteFileSetAt(
+	filePathPrefix string,
+	namespace ident.ID,
+	shard uint32,
+	blockStart xtime.UnixNano,
+	volume int,
+) error {
 	fileset, ok, err := FileSetAt(filePathPrefix, namespace, shard, blockStart, volume)
 	if err != nil {
 		return err
@@ -1146,8 +1169,11 @@ func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, bl
 	return DeleteFiles(fileset.AbsoluteFilePaths)
 }
 
-// DataFileSetsBefore returns all the flush data fileset paths whose timestamps are earlier than a given time.
-func DataFileSetsBefore(filePathPrefix string, namespace ident.ID, shard uint32, t xtime.UnixNano) ([]string, error) {
+// DataFileSetsBefore returns all the flush data fileset paths whose
+// timestamps are earlier than a given time.
+func DataFileSetsBefore(
+	filePathPrefix string, namespace ident.ID, shard uint32, t xtime.UnixNano,
+) ([]string, error) {
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetDataContentType,

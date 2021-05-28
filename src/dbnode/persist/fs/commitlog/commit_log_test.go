@@ -525,8 +525,10 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	writes := []testWrite{}
 	for _, series := range allSeries {
 		for i := 0; i < 10; i++ {
-			writes = append(writes, testWrite{series, xtime.Now(),
-				rand.Float64(), xtime.Second, []byte{1, 2, 3}, nil})
+			val := rand.Float64() //nolint: gosec
+			writes = append(writes, testWrite{
+				series, xtime.Now(), val,
+				xtime.Second, []byte{1, 2, 3}, nil})
 		}
 	}
 

@@ -95,7 +95,8 @@ func NewMockSeriesIteratorFromBase(
 		mockIter.EXPECT().Current().Return(
 			m3ts.Datapoint{
 				TimestampNanos: now.Add(time.Duration(i*10) * time.Second),
-				Value:          float64(i)}, xtime.Millisecond, nil,
+				Value:          float64(i),
+			}, xtime.Millisecond, nil,
 		).MaxTimes(1)
 	}
 

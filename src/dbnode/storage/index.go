@@ -1061,8 +1061,7 @@ func (i *nsIndex) flushableBlocks(
 			return nil, err
 		}
 
-		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, blockStart,
-			block, shards, flushType)
+		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, block, shards, flushType)
 		if err != nil {
 			return nil, err
 		}
@@ -1077,7 +1076,6 @@ func (i *nsIndex) flushableBlocks(
 
 func (i *nsIndex) canFlushBlockWithRLock(
 	infoFiles []fs.ReadIndexInfoFileResult,
-	startTime xtime.UnixNano,
 	blockStart xtime.UnixNano,
 	block index.Block,
 	shards []databaseShard,
