@@ -46,7 +46,7 @@ func NewEndpointRegistry(
 		router:           router,
 		instrumentOpts:   instrumentOpts,
 		middlewareConfig: middlewareConfig,
-		registered:       make(map[routeKey]*mux.Route),
+		registered:       make(map[routeKey]RegistryEntry),
 	}
 }
 
@@ -56,7 +56,15 @@ type EndpointRegistry struct {
 	router           *mux.Router
 	instrumentOpts   instrument.Options
 	middlewareConfig *config.MiddlewareConfiguration
-	registered       map[routeKey]*mux.Route
+	registered       map[routeKey]RegistryEntry
+}
+
+// RegistryEntry is an entry in the Registry.
+type RegistryEntry struct {
+	// Route is the registered Handler.
+	Route *mux.Route
+	// Middleware is the set of middleware functions to run before the registered Handler.
+	Middleware []mux.MiddlewareFunc
 }
 
 type routeKey struct {
@@ -77,6 +85,7 @@ type RegisterOptions struct {
 // Register registers an endpoint.
 func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 	route := r.router.NewRoute()
+	handler := opts.Handler
 	if opts.Middleware == nil {
 		opts.Middleware = middleware.Default
 	}
@@ -85,13 +94,8 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 		Route:          route,
 		Config:         r.middlewareConfig,
 	})
-	handler := opts.Handler
-	// iterate through in reverse order so each middleware fn gets the proper next handler to dispatch. this ensures the
-	// middleware is dispatched in the expected order (first -> last).
-
-	for i := len(middle) - 1; i >= 0; i-- {
-		handler = middle[i].Middleware(handler)
-	}
+	// Note: middleware is not applied to the handler until after the custom handlers are resolved. this ensures the
+	// middleware is runs before the custom handler.
 
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
 		route.Path(p).Handler(handler).Methods(opts.Methods...)
@@ -101,10 +105,12 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 				method: method,
 			}
 			if _, ok := r.registered[key]; ok {
-				return fmt.Errorf("route already exists: path=%s, method=%s",
-					p, method)
+				return fmt.Errorf("route already exists: path=%s, method=%s", p, method)
 			}
-			r.registered[key] = route
+			r.registered[key] = RegistryEntry{
+				Route:      route,
+				Middleware: middle,
+			}
 		}
 	} else if p := opts.PathPrefix; p != "" {
 		key := routeKey{
@@ -114,7 +120,10 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 			return fmt.Errorf("route already exists: pathPrefix=%s", p)
 		}
 
-		r.registered[key] = route.PathPrefix(p).Handler(handler)
+		r.registered[key] = RegistryEntry{
+			Route:      route.PathPrefix(p).Handler(handler),
+			Middleware: middle,
+		}
 	} else {
 		return fmt.Errorf("no path and methods or path prefix set: +%v", opts)
 	}
@@ -145,25 +154,34 @@ func (r *EndpointRegistry) RegisterPaths(
 	return nil
 }
 
-// PathRoute resolves a registered route that was registered by path and method,
+// Entries returns all registered entries.
+func (r *EndpointRegistry) Entries() []RegistryEntry {
+	entries := make([]RegistryEntry, 0)
+	for _, v := range r.registered {
+		entries = append(entries, v)
+	}
+	return entries
+}
+
+// PathEntry resolves a registered route that was registered by path and method,
 // not by path prefix.
-func (r *EndpointRegistry) PathRoute(path, method string) (*mux.Route, bool) {
+func (r *EndpointRegistry) PathEntry(path, method string) (RegistryEntry, bool) {
 	key := routeKey{
 		path:   path,
 		method: method,
 	}
-	h, ok := r.registered[key]
-	return h, ok
+	e, ok := r.registered[key]
+	return e, ok
 }
 
-// PathPrefixRoute resolves a registered route that was registered by path
+// PathPrefixEntry resolves a registered route that was registered by path
 // prefix, not by path and method.
-func (r *EndpointRegistry) PathPrefixRoute(pathPrefix string) (*mux.Route, bool) {
+func (r *EndpointRegistry) PathPrefixEntry(pathPrefix string) (RegistryEntry, bool) {
 	key := routeKey{
 		pathPrefix: pathPrefix,
 	}
-	h, ok := r.registered[key]
-	return h, ok
+	e, ok := r.registered[key]
+	return e, ok
 }
 
 // Walk walks the router and all its sub-routers, calling walkFn for each route

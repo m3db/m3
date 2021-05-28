@@ -453,9 +453,9 @@ func (h *Handler) RegisterRoutes() error {
 	for _, custom := range h.customHandlers {
 		for _, method := range custom.Methods() {
 			var prevHandler http.Handler
-			route, prevRoute := h.registry.PathRoute(custom.Route(), method)
+			entry, prevRoute := h.registry.PathEntry(custom.Route(), method)
 			if prevRoute {
-				prevHandler = route.GetHandler()
+				prevHandler = entry.Route.GetHandler()
 			}
 
 			handler, err := custom.Handler(nativeSourceOpts, prevHandler)
@@ -473,11 +473,29 @@ func (h *Handler) RegisterRoutes() error {
 					return err
 				}
 			} else {
-				// Do not re-instrument this route since the prev handler
-				// is already instrumented.
-				route.Handler(handler)
+				// TODO(rhall): we should figure out a way to allow merging middleware between the previous and custom
+				// handlers.
+				if custom.Middleware() != nil {
+					return fmt.Errorf("cannot apply middleware to an existing route: %s", custom.Route())
+				}
+				entry.Route.Handler(handler)
 			}
 		}
+	}
+
+	// Apply middleware after the custom handlers have overridden the previous handlers so the middleware functions
+	// are dispatched before the custom handler.
+	// req -> middleware fns -> custom handler -> previous handler.
+	for _, e := range h.registry.Entries() {
+		h := e.Route.GetHandler()
+
+		// iterate through in reverse order so each Middleware fn gets the proper next handler to dispatch. this ensures the
+		// Middleware is dispatched in the expected order (first -> last).
+		for i := len(e.Middleware) - 1; i >= 0; i-- {
+			h = e.Middleware[i].Middleware(h)
+		}
+
+		e.Route.Handler(h)
 	}
 
 	return nil
