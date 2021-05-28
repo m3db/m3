@@ -73,7 +73,7 @@ func ToValue(t xtime.UnixNano, timeType rpc.TimeType) (int64, error) {
 		return 0, err
 	}
 
-	return xtime.ToNormalizedTimeU(t, unit), nil
+	return t.ToNormalizedTime(unit), nil
 }
 
 // ToDuration converts a time type to a duration.
