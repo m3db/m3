@@ -193,7 +193,7 @@ func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (
 func PromSamplesToM3Datapoints(samples []prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
-		timestamp := xtime.UnixNano(sample.Timestamp)
+		timestamp := promTimestampToUnixNanos(sample.Timestamp)
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
 	}
 
@@ -264,7 +264,12 @@ func PromTypeToM3(labelType prompb.LabelMatcher_Type) (models.MatchType, error) 
 
 // PromTimestampToTime converts a prometheus timestamp to time.Time.
 func PromTimestampToTime(timestampMS int64) time.Time {
-	return time.Unix(0, timestampMS*int64(time.Millisecond))
+	return promTimestampToUnixNanos(timestampMS).ToTime()
+}
+
+func promTimestampToUnixNanos(timestampMS int64) xtime.UnixNano {
+	// NB: prometheus format is in milliseconds; convert to unix nanos.
+	return xtime.UnixNano(timestampMS * int64(time.Millisecond))
 }
 
 // TimeToPromTimestamp converts a xtime.UnixNano to prometheus timestamp.
