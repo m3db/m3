@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"bytes"
+	"fmt"
 )
 
 type FeatureFlagConfiguration []FlagConfiguration
@@ -43,6 +44,8 @@ func (f *FlagConfiguration) FilterMultiBytes() [][]byte {
 
 func (f *FlagConfiguration) IsMatch(metricID []byte) bool {
 	for _, val := range f.filterMultiBytes {
+		fmt.Printf("metricID = %s\n", metricID)
+		fmt.Printf("val = %s\n", val)
 		if !bytes.Contains(metricID, val) {
 			return false
 		}
