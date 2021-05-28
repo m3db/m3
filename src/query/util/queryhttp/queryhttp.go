@@ -43,20 +43,22 @@ func NewEndpointRegistry(
 		// stuck with it for backwards compatibility.
 		instrumentOpts.MetricsScope().SubScope("http_handler_http_handler"))
 	return &EndpointRegistry{
-		router:           router,
-		instrumentOpts:   instrumentOpts,
-		middlewareConfig: middlewareConfig,
-		registered:       make(map[routeKey]RegistryEntry),
+		router:             router,
+		instrumentOpts:     instrumentOpts,
+		middlewareConfig:   middlewareConfig,
+		registeredByRoute:  make(map[routeKey]*mux.Route),
+		registeredHandlers: make([]RegistryEntry, 0),
 	}
 }
 
 // EndpointRegistry is an endpoint registry that can register routes
 // and instrument them.
 type EndpointRegistry struct {
-	router           *mux.Router
-	instrumentOpts   instrument.Options
-	middlewareConfig *config.MiddlewareConfiguration
-	registered       map[routeKey]RegistryEntry
+	router             *mux.Router
+	instrumentOpts     instrument.Options
+	middlewareConfig   *config.MiddlewareConfiguration
+	registeredByRoute  map[routeKey]*mux.Route
+	registeredHandlers []RegistryEntry
 }
 
 // RegistryEntry is an entry in the Registry.
@@ -97,6 +99,11 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 	// Note: middleware is not applied to the handler until after the custom handlers are resolved. this ensures the
 	// middleware is runs before the custom handler.
 
+	r.registeredHandlers = append(r.registeredHandlers, RegistryEntry{
+		Route:      route,
+		Middleware: middle,
+	})
+
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
 		route.Path(p).Handler(handler).Methods(opts.Methods...)
 		for _, method := range opts.Methods {
@@ -104,26 +111,19 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 				path:   p,
 				method: method,
 			}
-			if _, ok := r.registered[key]; ok {
+			if _, ok := r.registeredByRoute[key]; ok {
 				return fmt.Errorf("route already exists: path=%s, method=%s", p, method)
 			}
-			r.registered[key] = RegistryEntry{
-				Route:      route,
-				Middleware: middle,
-			}
+			r.registeredByRoute[key] = route
 		}
 	} else if p := opts.PathPrefix; p != "" {
 		key := routeKey{
 			pathPrefix: p,
 		}
-		if _, ok := r.registered[key]; ok {
+		if _, ok := r.registeredByRoute[key]; ok {
 			return fmt.Errorf("route already exists: pathPrefix=%s", p)
 		}
-
-		r.registered[key] = RegistryEntry{
-			Route:      route.PathPrefix(p).Handler(handler),
-			Middleware: middle,
-		}
+		r.registeredByRoute[key] = route.PathPrefix(p).Handler(handler)
 	} else {
 		return fmt.Errorf("no path and methods or path prefix set: +%v", opts)
 	}
@@ -156,31 +156,17 @@ func (r *EndpointRegistry) RegisterPaths(
 
 // Entries returns all registered entries.
 func (r *EndpointRegistry) Entries() []RegistryEntry {
-	entries := make([]RegistryEntry, 0)
-	for _, v := range r.registered {
-		entries = append(entries, v)
-	}
-	return entries
+	return r.registeredHandlers
 }
 
 // PathEntry resolves a registered route that was registered by path and method,
 // not by path prefix.
-func (r *EndpointRegistry) PathEntry(path, method string) (RegistryEntry, bool) {
+func (r *EndpointRegistry) PathEntry(path, method string) (*mux.Route, bool) {
 	key := routeKey{
 		path:   path,
 		method: method,
 	}
-	e, ok := r.registered[key]
-	return e, ok
-}
-
-// PathPrefixEntry resolves a registered route that was registered by path
-// prefix, not by path and method.
-func (r *EndpointRegistry) PathPrefixEntry(pathPrefix string) (RegistryEntry, bool) {
-	key := routeKey{
-		pathPrefix: pathPrefix,
-	}
-	e, ok := r.registered[key]
+	e, ok := r.registeredByRoute[key]
 	return e, ok
 }
 

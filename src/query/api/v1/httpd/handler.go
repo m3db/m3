@@ -455,7 +455,7 @@ func (h *Handler) RegisterRoutes() error {
 			var prevHandler http.Handler
 			entry, prevRoute := h.registry.PathEntry(custom.Route(), method)
 			if prevRoute {
-				prevHandler = entry.Route.GetHandler()
+				prevHandler = entry.GetHandler()
 			}
 
 			handler, err := custom.Handler(nativeSourceOpts, prevHandler)
@@ -478,7 +478,7 @@ func (h *Handler) RegisterRoutes() error {
 				if custom.Middleware() != nil {
 					return fmt.Errorf("cannot apply middleware to an existing route: %s", custom.Route())
 				}
-				entry.Route.Handler(handler)
+				entry.Handler(handler)
 			}
 		}
 	}
