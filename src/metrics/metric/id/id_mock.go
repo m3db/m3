@@ -30,30 +30,30 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockID is a mock of ID interface
+// MockID is a mock of ID interface.
 type MockID struct {
 	ctrl     *gomock.Controller
 	recorder *MockIDMockRecorder
 }
 
-// MockIDMockRecorder is the mock recorder for MockID
+// MockIDMockRecorder is the mock recorder for MockID.
 type MockIDMockRecorder struct {
 	mock *MockID
 }
 
-// NewMockID creates a new mock instance
+// NewMockID creates a new mock instance.
 func NewMockID(ctrl *gomock.Controller) *MockID {
 	mock := &MockID{ctrl: ctrl}
 	mock.recorder = &MockIDMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockID) EXPECT() *MockIDMockRecorder {
 	return m.recorder
 }
 
-// Bytes mocks base method
+// Bytes mocks base method.
 func (m *MockID) Bytes() []byte {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bytes")
@@ -61,13 +61,13 @@ func (m *MockID) Bytes() []byte {
 	return ret0
 }
 
-// Bytes indicates an expected call of Bytes
+// Bytes indicates an expected call of Bytes.
 func (mr *MockIDMockRecorder) Bytes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockID)(nil).Bytes))
 }
 
-// TagValue mocks base method
+// TagValue mocks base method.
 func (m *MockID) TagValue(arg0 []byte) ([]byte, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagValue", arg0)
@@ -76,48 +76,48 @@ func (m *MockID) TagValue(arg0 []byte) ([]byte, bool) {
 	return ret0, ret1
 }
 
-// TagValue indicates an expected call of TagValue
+// TagValue indicates an expected call of TagValue.
 func (mr *MockIDMockRecorder) TagValue(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagValue", reflect.TypeOf((*MockID)(nil).TagValue), arg0)
 }
 
-// MockSortedTagIterator is a mock of SortedTagIterator interface
+// MockSortedTagIterator is a mock of SortedTagIterator interface.
 type MockSortedTagIterator struct {
 	ctrl     *gomock.Controller
 	recorder *MockSortedTagIteratorMockRecorder
 }
 
-// MockSortedTagIteratorMockRecorder is the mock recorder for MockSortedTagIterator
+// MockSortedTagIteratorMockRecorder is the mock recorder for MockSortedTagIterator.
 type MockSortedTagIteratorMockRecorder struct {
 	mock *MockSortedTagIterator
 }
 
-// NewMockSortedTagIterator creates a new mock instance
+// NewMockSortedTagIterator creates a new mock instance.
 func NewMockSortedTagIterator(ctrl *gomock.Controller) *MockSortedTagIterator {
 	mock := &MockSortedTagIterator{ctrl: ctrl}
 	mock.recorder = &MockSortedTagIteratorMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockSortedTagIterator) EXPECT() *MockSortedTagIteratorMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockSortedTagIterator) Close() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockSortedTagIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSortedTagIterator)(nil).Close))
 }
 
-// Current mocks base method
+// Current mocks base method.
 func (m *MockSortedTagIterator) Current() ([]byte, []byte) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
@@ -126,13 +126,13 @@ func (m *MockSortedTagIterator) Current() ([]byte, []byte) {
 	return ret0, ret1
 }
 
-// Current indicates an expected call of Current
+// Current indicates an expected call of Current.
 func (mr *MockSortedTagIteratorMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockSortedTagIterator)(nil).Current))
 }
 
-// Err mocks base method
+// Err mocks base method.
 func (m *MockSortedTagIterator) Err() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
@@ -140,13 +140,13 @@ func (m *MockSortedTagIterator) Err() error {
 	return ret0
 }
 
-// Err indicates an expected call of Err
+// Err indicates an expected call of Err.
 func (mr *MockSortedTagIteratorMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSortedTagIterator)(nil).Err))
 }
 
-// Next mocks base method
+// Next mocks base method.
 func (m *MockSortedTagIterator) Next() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
@@ -154,19 +154,19 @@ func (m *MockSortedTagIterator) Next() bool {
 	return ret0
 }
 
-// Next indicates an expected call of Next
+// Next indicates an expected call of Next.
 func (mr *MockSortedTagIteratorMockRecorder) Next() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockSortedTagIterator)(nil).Next))
 }
 
-// Reset mocks base method
+// Reset mocks base method.
 func (m *MockSortedTagIterator) Reset(arg0 []byte) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", arg0)
 }
 
-// Reset indicates an expected call of Reset
+// Reset indicates an expected call of Reset.
 func (mr *MockSortedTagIteratorMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSortedTagIterator)(nil).Reset), arg0)

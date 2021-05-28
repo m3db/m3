@@ -21,9 +21,12 @@
 package consolidators
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	terrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
@@ -32,7 +35,9 @@ import (
 
 type fetchDedupeMap interface {
 	add(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) error
+	update(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) (bool, error)
 	list() []multiResultSeries
+	len() int
 	close()
 }
 
@@ -48,10 +53,17 @@ type multiResult struct {
 	err             xerrors.MultiError
 	matchOpts       MatchOptions
 	tagOpts         models.TagOptions
+	limitOpts       LimitOptions
 
 	all []MultiFetchResults
 
 	pools encoding.IteratorPools
+}
+
+// LimitOptions specifies the limits when accumulating results in consolidators.
+type LimitOptions struct {
+	Limit             int
+	RequireExhaustive bool
 }
 
 // NewMultiFetchResult builds a new multi fetch result.
@@ -60,6 +72,7 @@ func NewMultiFetchResult(
 	pools encoding.IteratorPools,
 	opts MatchOptions,
 	tagOpts models.TagOptions,
+	limitOpts LimitOptions,
 ) MultiFetchResult {
 	return &multiResult{
 		metadata:  block.NewResultMetadata(),
@@ -67,6 +80,7 @@ func NewMultiFetchResult(
 		pools:     pools,
 		matchOpts: opts,
 		tagOpts:   tagOpts,
+		limitOpts: limitOpts,
 	}
 }
 
@@ -200,11 +214,24 @@ func (r *multiResult) Add(add MultiFetchResults) {
 		return
 	}
 
+	nsID := newIterators.Iters()[0].Namespace().String()
+
+	// the series limit was reached within this namespace.
+	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
+		r.err = r.err.Add(newSeriesLimitErr(fmt.Sprintf("series limit exceeded for namespace %s", nsID)))
+		return
+	}
+
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
 		r.metadata = metadata
 	} else {
+		// a previous namespace result already hit the limit, so bail. this handles the case of RequireExhaustive=false
+		// and there is no error to short circuit.
+		if !r.metadata.Exhaustive {
+			return
+		}
 		// NB: any non-exhaustive result set added makes the entire
 		// result non-exhaustive
 		r.metadata = r.metadata.CombineMetadata(metadata)
@@ -218,6 +245,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 		return
 	}
 
+	var added bool
 	if len(r.seenIters) == 1 {
 		// need to backfill the dedupe map from the first result first
 		first := r.seenIters[0]
@@ -233,24 +261,38 @@ func (r *multiResult) Add(add MultiFetchResults) {
 			r.dedupeMap = newTagDedupeMap(opts)
 		}
 
-		r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
-		return
+		added = r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
+	} else {
+		// Now de-duplicate
+		added = r.addOrUpdateDedupeMap(attrs, newIterators)
 	}
 
-	// Now de-duplicate
-	r.addOrUpdateDedupeMap(attrs, newIterators)
+	// the series limit was reached by adding the results of this namespace to the existing results.
+	if !added && r.err.Empty() {
+		r.metadata.Exhaustive = false
+		if r.limitOpts.RequireExhaustive {
+			r.err = r.err.Add(
+				newSeriesLimitErr(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
+		}
+	}
+}
+
+func newSeriesLimitErr(msg string) error {
+	// wrap in a ResourceExhaustedError so it's the same type as the query limit error returned from a single database
+	// instance.
+	return terrors.NewResourceExhaustedError(errors.New(msg))
 }
 
 func (r *multiResult) addOrUpdateDedupeMap(
 	attrs storagemetadata.Attributes,
 	newIterators encoding.SeriesIterators,
-) {
+) bool {
 	for _, iter := range newIterators.Iters() {
 		tagIter := iter.Tags()
 		shouldFilter, err := filterTagIterator(tagIter, r.tagOpts.Filters())
 		if err != nil {
 			r.err = r.err.Add(err)
-			return
+			return false
 		}
 
 		if shouldFilter {
@@ -258,8 +300,19 @@ func (r *multiResult) addOrUpdateDedupeMap(
 			continue
 		}
 
-		if err := r.dedupeMap.add(iter, attrs); err != nil {
+		if r.dedupeMap.len() == r.limitOpts.Limit {
+			updated, err := r.dedupeMap.update(iter, attrs)
+			if err != nil {
+				r.err = r.err.Add(err)
+				return false
+			}
+			if !updated {
+				return false
+			}
+		} else if err := r.dedupeMap.add(iter, attrs); err != nil {
 			r.err = r.err.Add(err)
+			return false
 		}
 	}
+	return true
 }

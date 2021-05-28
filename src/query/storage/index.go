@@ -71,8 +71,10 @@ func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
 	return index.QueryOptions{
 		SeriesLimit:       fetchOptions.SeriesLimit,
+		InstanceMultiple:  fetchOptions.InstanceMultiple,
 		DocsLimit:         fetchOptions.DocsLimit,
 		RequireExhaustive: fetchOptions.RequireExhaustive,
+		RequireNoWait:     fetchOptions.RequireNoWait,
 		Source:            fetchOptions.Source,
 		StartInclusive:    fetchQuery.Start,
 		EndExclusive:      fetchQuery.End,
@@ -99,6 +101,7 @@ func FetchOptionsToAggregateOptions(
 			DocsLimit:         fetchOptions.DocsLimit,
 			Source:            fetchOptions.Source,
 			RequireExhaustive: fetchOptions.RequireExhaustive,
+			RequireNoWait:     fetchOptions.RequireNoWait,
 			StartInclusive:    tagQuery.Start,
 			EndExclusive:      tagQuery.End,
 		},

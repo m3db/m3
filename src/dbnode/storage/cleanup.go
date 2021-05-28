@@ -39,8 +39,10 @@ import (
 	"go.uber.org/zap"
 )
 
-type commitLogFilesFn func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error)
-type snapshotMetadataFilesFn func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error)
+type (
+	commitLogFilesFn        func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error)
+	snapshotMetadataFilesFn func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error)
+)
 
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
 
@@ -146,27 +148,32 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	if err := m.cleanupExpiredIndexFiles(t, namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up index files for %v: %v", t, err))
+			"encountered errors when cleaning up index files for %v: %w", t, err))
+	}
+
+	if err := m.cleanupCorruptedIndexFiles(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up corrupted files for %v: %w", t, err))
 	}
 
 	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up index files for %v: %v", t, err))
+			"encountered errors when cleaning up index files for %v: %w", t, err))
 	}
 
 	if err := m.deleteInactiveDataSnapshotFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
+			"encountered errors when deleting inactive snapshot files for %v: %w", t, err))
 	}
 
 	if err := m.deleteInactiveNamespaceFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
+			"encountered errors when deleting inactive namespace files for %v: %w", t, err))
 	}
 
 	if err := m.cleanupSnapshotsAndCommitlogs(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up snapshot and commitlog files: %v", err))
+			"encountered errors when cleaning up snapshot and commitlog files: %w", err))
 	}
 
 	return multiErr.FinalError()
@@ -201,6 +208,7 @@ func (m *cleanupManager) ColdFlushCleanup(t time.Time) error {
 
 	return multiErr.FinalError()
 }
+
 func (m *cleanupManager) Report() {
 	m.RLock()
 	coldFlushCleanupInProgress := m.coldFlushCleanupInProgress
@@ -287,6 +295,22 @@ func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []data
 			continue
 		}
 		multiErr = multiErr.Add(idx.CleanupExpiredFileSets(t))
+	}
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupCorruptedIndexFiles(namespaces []databaseNamespace) error {
+	multiErr := xerrors.NewMultiError()
+	for _, n := range namespaces {
+		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
+			continue
+		}
+		idx, err := n.Index()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		multiErr = multiErr.Add(idx.CleanupCorruptedFileSets())
 	}
 	return multiErr.FinalError()
 }

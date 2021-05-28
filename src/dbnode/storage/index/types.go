@@ -84,10 +84,14 @@ type QueryOptions struct {
 	EndExclusive time.Time
 	// SeriesLimit is an optional limit for number of series matched.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is an optional limit for number of documents matched.
 	DocsLimit int
 	// RequireExhaustive requires queries to be under given limit sizes.
 	RequireExhaustive bool
+	// RequireNoWait requires queries to abort if execution must wait for permits.
+	RequireNoWait bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
 	// Source is an optional query source.
@@ -131,6 +135,8 @@ type QueryResult struct {
 	Results QueryResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // AggregateQueryResult is the collection of results for an aggregate query.
@@ -139,6 +145,8 @@ type AggregateQueryResult struct {
 	Results AggregateResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // BaseResults is a collection of basic results for a generic query, it is

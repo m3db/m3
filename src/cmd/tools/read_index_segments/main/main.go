@@ -80,7 +80,6 @@ func main() {
 		validateConcurrency: *optValidateConcurrency,
 		log:                 log,
 	})
-
 }
 
 type runOptions struct {
@@ -157,8 +156,11 @@ func readNamespaceSegments(
 	log *zap.Logger,
 ) {
 	var (
-		infoFiles = fs.ReadIndexInfoFiles(fsOpts.FilePathPrefix(), nsID,
-			fsOpts.InfoReaderBufferSize())
+		infoFiles = fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+			FilePathPrefix:   fsOpts.FilePathPrefix(),
+			Namespace:        nsID,
+			ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+		})
 		wg sync.WaitGroup
 	)
 

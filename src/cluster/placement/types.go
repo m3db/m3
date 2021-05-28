@@ -148,13 +148,13 @@ type Placement interface {
 	// SetShards sets the unique shard ids for a replica
 	SetShards(s []uint32) Placement
 
-	// ShardsLen returns the number of shards in a replica
+	// NumShards returns the number of shards in a replica
 	NumShards() int
 
-	// IsSharded() returns whether this placement is sharded
+	// IsSharded returns whether this placement is sharded
 	IsSharded() bool
 
-	// SetIsSharded() sets IsSharded
+	// SetIsSharded sets IsSharded
 	SetIsSharded(v bool) Placement
 
 	// CutoverNanos returns the cutover time in nanoseconds.
@@ -163,10 +163,10 @@ type Placement interface {
 	// SetCutoverNanos sets the cutover time in nanoseconds.
 	SetCutoverNanos(cutoverNanos int64) Placement
 
-	// IsMirrored() returns whether the placement is mirrored.
+	// IsMirrored returns whether the placement is mirrored.
 	IsMirrored() bool
 
-	// SetIsMirrored() sets IsMirrored.
+	// SetIsMirrored sets IsMirrored.
 	SetIsMirrored(v bool) Placement
 
 	// MaxShardSetID returns the maximum shard set id used before to guarantee unique
@@ -180,11 +180,10 @@ type Placement interface {
 	// String returns a description of the placement
 	String() string
 
-	// Version() returns the version of the placement retreived from the
-	// backing MVCC store.
+	// Version returns the version of the placement retrieved from the backing MVCC store.
 	Version() int
 
-	// SetVersion() sets the version of the placement object. Since version
+	// SetVersion sets the version of the placement object. Since version
 	// is determined by the backing MVCC store, calling this method has no
 	// effect in terms of the updated ServicePlacement that is written back
 	// to the MVCC store.
@@ -509,7 +508,7 @@ type operations interface {
 
 // Algorithm places shards on instances.
 type Algorithm interface {
-	// InitPlacement initialize a sharding placement with given replica factor.
+	// InitialPlacement initialize a sharding placement with given replica factor.
 	InitialPlacement(instances []Instance, shards []uint32, rf int) (Placement, error)
 
 	// AddReplica up the replica factor by 1 in the placement.
@@ -521,7 +520,7 @@ type Algorithm interface {
 	// RemoveInstances removes a list of instances from the placement.
 	RemoveInstances(p Placement, leavingInstanceIDs []string) (Placement, error)
 
-	// ReplaceInstance replace a list of instances with new instances.
+	// ReplaceInstances replace a list of instances with new instances.
 	ReplaceInstances(
 		p Placement,
 		leavingInstanecIDs []string,

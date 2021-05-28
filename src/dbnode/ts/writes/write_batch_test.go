@@ -141,7 +141,6 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 		writeBatch.AddTagged(
 			i,
 			write.id,
-			write.tagIter,
 			write.encodedTags(t).Bytes(),
 			write.timestamp,
 			write.value,
@@ -160,7 +159,6 @@ func TestBatchWriterSetSeries(t *testing.T) {
 		writeBatch.AddTagged(
 			i,
 			write.id,
-			write.tagIter,
 			write.encodedTags(t).Bytes(),
 			write.timestamp,
 			write.value,
@@ -294,7 +292,6 @@ func TestBatchWriterFinalizer(t *testing.T) {
 		writeBatch.AddTagged(
 			i,
 			write.id,
-			write.tagIter,
 			write.encodedTags(t).Bytes(),
 			write.timestamp,
 			write.value,

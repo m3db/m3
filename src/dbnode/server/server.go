@@ -742,7 +742,6 @@ func Run(runOpts RunOptions) {
 		SetTopologyInitializer(syncCfg.TopologyInitializer).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
-		SetTagDecoderPool(tagDecoderPool).
 		SetCheckedBytesWrapperPool(opts.CheckedBytesWrapperPool()).
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
@@ -1324,6 +1323,7 @@ func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimit
 		Limit:         dynamicLimit.Limit,
 		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
 		ForceExceeded: dynamicLimit.ForceExceeded,
+		ForceWaited:   dynamicLimit.ForceWaited,
 	}
 }
 

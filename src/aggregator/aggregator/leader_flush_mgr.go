@@ -25,6 +25,7 @@ import (
 	"time"
 
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/clock"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -136,6 +137,14 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 		shouldFlush = false
 		waitFor     = mgr.checkEvery
 	)
+
+	shards, err := mgr.placementManager.Shards()
+	if err != nil {
+		mgr.logger.Error("unable to determine shards owned by this instance", zap.Error(err))
+		return nil, waitFor
+	}
+	allShards := shards.All()
+
 	mgr.Lock()
 	defer mgr.Unlock()
 
@@ -174,7 +183,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	if mgr.flushedSincePersist && durationSinceLastPersist >= mgr.flushTimesPersistEvery {
 		mgr.lastPersistAtNanos = nowNanos
 		mgr.flushedSincePersist = false
-		flushTimes := mgr.prepareFlushTimesWithLock(buckets)
+		flushTimes := mgr.prepareFlushTimesWithLock(buckets, allShards)
 		mgr.flushTimesManager.StoreAsync(flushTimes)
 	}
 
@@ -249,9 +258,10 @@ func (mgr *leaderFlushManager) computeNextFlushNanos(
 
 func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
 	buckets []*flushBucket,
+	shards []shard.Shard,
 ) *schema.ShardSetFlushTimes {
 	// Update internal flush times to the latest flush times of all the flushers in the buckets.
-	mgr.updateFlushTimesWithLock(buckets)
+	mgr.updateFlushTimesWithLock(buckets, shards)
 
 	// Make a copy of the updated flush times for asynchronous persistence.
 	cloned := cloneFlushTimesByShard(mgr.flushedByShard)
@@ -261,6 +271,7 @@ func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
 
 func (mgr *leaderFlushManager) updateFlushTimesWithLock(
 	buckets []*flushBucket,
+	shards []shard.Shard,
 ) {
 	for _, shardFlushTimes := range mgr.flushedByShard {
 		shardFlushTimes.Tombstoned = true
@@ -274,15 +285,17 @@ func (mgr *leaderFlushManager) updateFlushTimesWithLock(
 				bucket.flushers,
 				getStandardFlushTimesByResolutionFn,
 				mgr.metrics.standard,
+				shards,
 			)
 		case forwardedMetricListType:
-			mgr.updateForwardedFlushTimesWithLock(bucketID.forwarded, bucket.flushers)
+			mgr.updateForwardedFlushTimesWithLock(bucketID.forwarded, bucket.flushers, shards)
 		case timedMetricListType:
 			mgr.updateStandardFlushTimesWithLock(
 				bucketID.timed.resolution,
 				bucket.flushers,
 				getTimedFlushTimesByResolutionFn,
 				mgr.metrics.timed,
+				shards,
 			)
 		default:
 			panic("should never get here")
@@ -295,45 +308,104 @@ func (mgr *leaderFlushManager) updateStandardFlushTimesWithLock(
 	flushers []flushingMetricList,
 	getFlushTimesByResolutionFn getFlushTimesByResolutionFn,
 	metrics leaderFlusherMetrics,
+	shards []shard.Shard,
 ) {
 	for _, flusher := range flushers {
-		shard := flusher.Shard()
-		flushTimes, exists := mgr.flushedByShard[shard]
-		if !exists {
-			flushTimes = newShardFlushTimes()
-			mgr.flushedByShard[shard] = flushTimes
-		}
+		flushTimes := mgr.getOrCreateFlushTimesWithLock(flusher.Shard())
 		flushTimesByResolution := getFlushTimesByResolutionFn(flushTimes)
 		flushTimesByResolution[int64(resolution)] = flusher.LastFlushedNanos()
 		flushTimes.Tombstoned = false
 	}
+
+	// Assign flush times to redirected shards.
+	// NB: we only support a single layer of shard redirection.
+	for _, shard := range shards {
+		redirectToShardID := shard.RedirectToShardID()
+		if redirectToShardID == nil {
+			continue
+		}
+
+		redirectToFlushTimes, exists := mgr.flushedByShard[*redirectToShardID]
+		if !exists {
+			continue
+		}
+
+		redirectToFlushTimesByResolution := getFlushTimesByResolutionFn(redirectToFlushTimes)
+
+		if redirectToFlushTime, ok := redirectToFlushTimesByResolution[int64(resolution)]; ok {
+			flushTimes := mgr.getOrCreateFlushTimesWithLock(shard.ID())
+			flushTimesByResolution := getFlushTimesByResolutionFn(flushTimes)
+			flushTimesByResolution[int64(resolution)] = redirectToFlushTime
+			flushTimes.Tombstoned = flushTimes.Tombstoned && redirectToFlushTimes.Tombstoned
+		}
+	}
+
 	metrics.updateFlushTimes.Inc(int64(len(flushers)))
 }
 
 func (mgr *leaderFlushManager) updateForwardedFlushTimesWithLock(
 	listID forwardedMetricListID,
 	flushers []flushingMetricList,
+	shards []shard.Shard,
 ) {
 	var (
-		resolution        = listID.resolution
-		numForwardedTimes = listID.numForwardedTimes
+		resolution        = int64(listID.resolution)
+		numForwardedTimes = int32(listID.numForwardedTimes)
 	)
 	for _, flusher := range flushers {
-		shard := flusher.Shard()
-		flushTimes, exists := mgr.flushedByShard[shard]
-		if !exists {
-			flushTimes = newShardFlushTimes()
-			mgr.flushedByShard[shard] = flushTimes
-		}
-		forwardedFlushTimes, exists := flushTimes.ForwardedByResolution[int64(resolution)]
-		if !exists {
-			forwardedFlushTimes = newForwardedFlushTimesForResolution()
-			flushTimes.ForwardedByResolution[int64(resolution)] = forwardedFlushTimes
-		}
-		forwardedFlushTimes.ByNumForwardedTimes[int32(numForwardedTimes)] = flusher.LastFlushedNanos()
+		flushTimes := mgr.getOrCreateFlushTimesWithLock(flusher.Shard())
+		forwardedFlushTimes := mgr.getOrCreateForwarderFlushTimesForResolutionWithLock(flushTimes, resolution)
+		forwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes] = flusher.LastFlushedNanos()
 		flushTimes.Tombstoned = false
 	}
+
+	// Assign flush times to redirected shards.
+	// NB: we only support a single layer of shard redirection.
+	for _, shard := range shards {
+		redirectToShardID := shard.RedirectToShardID()
+		if redirectToShardID == nil {
+			continue
+		}
+
+		redirectToFlushTimes, exists := mgr.flushedByShard[*redirectToShardID]
+		if !exists {
+			continue
+		}
+		redirectToForwardedFlushTimes, exists := redirectToFlushTimes.ForwardedByResolution[resolution]
+		if !exists {
+			continue
+		}
+
+		if redirectToFlushTime, ok := redirectToForwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes]; ok {
+			flushTimes := mgr.getOrCreateFlushTimesWithLock(shard.ID())
+			forwardedFlushTimes := mgr.getOrCreateForwarderFlushTimesForResolutionWithLock(flushTimes, resolution)
+			forwardedFlushTimes.ByNumForwardedTimes[numForwardedTimes] = redirectToFlushTime
+			flushTimes.Tombstoned = flushTimes.Tombstoned && redirectToFlushTimes.Tombstoned
+		}
+	}
+
 	mgr.metrics.forwarded.updateFlushTimes.Inc(int64(len(flushers)))
+}
+
+func (mgr *leaderFlushManager) getOrCreateFlushTimesWithLock(shardID uint32) *schema.ShardFlushTimes {
+	flushTimes, exists := mgr.flushedByShard[shardID]
+	if !exists {
+		flushTimes = newShardFlushTimes()
+		mgr.flushedByShard[shardID] = flushTimes
+	}
+	return flushTimes
+}
+
+func (mgr *leaderFlushManager) getOrCreateForwarderFlushTimesForResolutionWithLock(
+	flushTimes *schema.ShardFlushTimes,
+	resolution int64,
+) *schema.ForwardedFlushTimesForResolution {
+	forwardedFlushTimes, exists := flushTimes.ForwardedByResolution[resolution]
+	if !exists {
+		forwardedFlushTimes = newForwardedFlushTimesForResolution()
+		flushTimes.ForwardedByResolution[resolution] = forwardedFlushTimes
+	}
+	return forwardedFlushTimes
 }
 
 func (mgr *leaderFlushManager) nowNanos() int64 { return mgr.nowFn().UnixNano() }

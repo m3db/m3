@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -138,13 +139,10 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(
-		filePathPrefix string,
-		namespace ident.ID,
-		readerBufferSize int,
-	) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
+
 	idx.deleteFilesFn = func(s []string) error {
 		require.Equal(t, []string{fset1.Name(), fset2.Name()}, s)
 		multiErr := xerrors.NewMultiError()
@@ -221,7 +219,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolumeType
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -286,7 +284,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_ChangingShardList(t *testing.T) 
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -337,7 +335,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_IgnoreNonActiveShards(t *testing
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -388,7 +386,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_NoActiveShards(t *testing.T) {
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 	idx := nsIdx.(*nsIndex)
-	idx.readIndexInfoFilesFn = func(_ string, _ ident.ID, _ int) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
 	idx.deleteFilesFn = func(s []string) error {
@@ -450,13 +448,10 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 		},
 	}
 
-	idx.readIndexInfoFilesFn = func(
-		filePathPrefix string,
-		namespace ident.ID,
-		readerBufferSize int,
-	) []fs.ReadIndexInfoFileResult {
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
+
 	idx.deleteFilesFn = func(s []string) error {
 		require.Equal(t, []string{}, s)
 		return nil
@@ -492,6 +487,89 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 		return nil, nil
 	}
 	require.NoError(t, idx.CleanupExpiredFileSets(now))
+}
+
+func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
+	md := testNamespaceMetadata(time.Hour, time.Hour*24)
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+
+	idx := nsIdx.(*nsIndex)
+	now := time.Now().Truncate(time.Hour)
+	indexBlockSize := 2 * time.Hour
+	var (
+		blockStarts = []time.Time{
+			now.Add(-6 * indexBlockSize),
+			now.Add(-5 * indexBlockSize),
+			now.Add(-4 * indexBlockSize),
+			now.Add(-3 * indexBlockSize),
+			now.Add(-2 * indexBlockSize),
+			now.Add(-1 * indexBlockSize),
+		}
+		shards = []uint32{0, 1, 2} // has no effect on this test
+
+		volumeTypeDefault = "default"
+		volumeTypeExtra   = "extra"
+	)
+
+	filesetsForTest := []struct {
+		infoFile     fs.ReadIndexInfoFileResult
+		shouldRemove bool
+	}{
+		{newReadIndexInfoFileResult(blockStarts[0], volumeTypeDefault, 0, shards), false},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeDefault, 1), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeDefault, 2), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeExtra, 5), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeExtra, 6), false},
+		{newReadIndexInfoFileResult(blockStarts[0], volumeTypeDefault, 11, shards), false},
+
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[1], volumeTypeDefault, 1), false},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 3), true},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 4), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[1], volumeTypeExtra, 5), false},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 6), true},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 7), false},
+
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[2], 0), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[2], volumeTypeDefault, 1), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[2], volumeTypeExtra, 2), true},
+		{newReadIndexInfoFileResult(blockStarts[2], volumeTypeDefault, 3, shards), false},
+		{newReadIndexInfoFileResult(blockStarts[2], volumeTypeExtra, 4, shards), false},
+
+		{newReadIndexInfoFileResult(blockStarts[3], volumeTypeDefault, 0, shards), false},
+
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[4], volumeTypeDefault, 0), false},
+
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[5], 0), false},
+	}
+
+	var (
+		infoFiles         = make([]fs.ReadIndexInfoFileResult, 0)
+		expectedFilenames = make([]string, 0)
+	)
+	for _, f := range filesetsForTest {
+		infoFiles = append(infoFiles, f.infoFile)
+		if f.shouldRemove {
+			expectedFilenames = append(expectedFilenames, f.infoFile.AbsoluteFilePaths...)
+		}
+	}
+
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+
+	deleteFilesFnInvoked := false
+	idx.deleteFilesFn = func(s []string) error {
+		sort.Strings(s)
+		sort.Strings(expectedFilenames)
+		require.Equal(t, expectedFilenames, s)
+		deleteFilesFnInvoked = true
+		return nil
+	}
+	require.NoError(t, idx.CleanupCorruptedFileSets())
+	require.True(t, deleteFilesFnInvoked)
 }
 
 func TestNamespaceIndexFlushSuccess(t *testing.T) {
@@ -869,6 +947,7 @@ func newReadIndexInfoFileResult(
 	}
 	return fs.ReadIndexInfoFileResult{
 		ID: fs.FileSetFileIdentifier{
+			BlockStart:  blockStart,
 			VolumeIndex: volumeIndex,
 		},
 		Info: indexpb.IndexVolumeInfo{
@@ -880,7 +959,27 @@ func newReadIndexInfoFileResult(
 			},
 		},
 		AbsoluteFilePaths: filenames,
+		Corrupted:         false,
 	}
+}
+
+func newReadIndexInfoFileResultForCorruptedFileset(
+	blockStart time.Time,
+	volumeType string,
+	volumeIndex int,
+) fs.ReadIndexInfoFileResult {
+	res := newReadIndexInfoFileResult(blockStart, volumeType, volumeIndex, []uint32{})
+	res.Corrupted = true
+	return res
+}
+
+func newReadIndexInfoFileResultForCorruptedInfoFile(
+	blockStart time.Time,
+	volumeIndex int,
+) fs.ReadIndexInfoFileResult {
+	res := newReadIndexInfoFileResultForCorruptedFileset(blockStart, "", volumeIndex)
+	res.Info = indexpb.IndexVolumeInfo{}
+	return res
 }
 
 type testIndex struct {

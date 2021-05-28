@@ -155,7 +155,7 @@ func parseRootNode(
 	engine executor.Engine,
 	logger *zap.Logger,
 ) (FunctionNode, error) {
-	query, err := parseQuery(r)
+	query, err := ParseQuery(r)
 	if err != nil {
 		logger.Error("cannot parse query string", zap.Error(err))
 		return FunctionNode{}, err

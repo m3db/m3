@@ -64,10 +64,6 @@ type BatchWrite struct {
 	// object first, cannot use the Series provided by the caller as it
 	// is missing important fields like Tags.)
 	Write Write
-	// Not used by the commitlog, provided by the caller (since the request
-	// is usually coming from over the wire) and is superseded by the Tags
-	// in Write.Series which will get set by the Shard object.
-	TagIter ident.TagIterator
 	// EncodedTags is used by the commit log, but also held onto as a reference
 	// here so that it can be returned to the pool after the write to commit log
 	// completes (since the Write.Series gets overwritten in SetOutcome so can't
@@ -115,7 +111,6 @@ type BatchWriter interface {
 	AddTagged(
 		originalIndex int,
 		id ident.ID,
-		tags ident.TagIterator,
 		encodedTags ts.EncodedTags,
 		timestamp time.Time,
 		value float64,

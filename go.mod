@@ -26,21 +26,21 @@ require (
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
-	github.com/gogo/protobuf v1.3.1
-	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.4.2
-	github.com/golang/snappy v0.0.1
+	github.com/gogo/protobuf v1.3.2
+	github.com/golang/mock v1.5.0
+	github.com/golang/protobuf v1.4.3
+	github.com/golang/snappy v0.0.3
 	github.com/golangci/golangci-lint v1.37.0
-	github.com/google/go-cmp v0.5.4
+	github.com/google/go-cmp v0.5.5
 	github.com/google/go-jsonnet v0.16.0
-	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
-	github.com/influxdata/influxdb v1.7.7
+	github.com/influxdata/influxdb v1.8.4
 	github.com/jhump/protoreflect v1.6.1
-	github.com/json-iterator/go v1.1.9
+	github.com/jonboulle/clockwork v0.1.0
+	github.com/json-iterator/go v1.1.10
 	github.com/klauspost/compress v1.11.8
 	github.com/leanovate/gopter v0.2.8
 	github.com/lightstep/lightstep-tracer-go v0.18.1
@@ -59,21 +59,20 @@ require (
 	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
-	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
+	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest/v3 v3.6.3
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
-	github.com/pelletier/go-toml v1.5.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.2.1
 	github.com/pointlander/compress v1.1.0 // indirect
 	github.com/pointlander/jetset v1.0.0 // indirect
 	github.com/pointlander/peg v1.0.0
 	github.com/prashantv/protectmem v0.0.0-20171002184600-e20412882b3a // indirect
-	github.com/prometheus/client_golang v1.5.1
-	github.com/prometheus/common v0.9.1
-	github.com/prometheus/prometheus v1.8.2-0.20200420081721-18254838fbe2
+	github.com/prometheus/client_golang v1.10.0
+	github.com/prometheus/common v0.20.0
+	github.com/prometheus/prometheus v1.8.2-0.20210331101223-3cafc58827d1
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
@@ -89,7 +88,7 @@ require (
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/tally v3.3.17+incompatible
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
-	github.com/uber/jaeger-lib v2.2.0+incompatible
+	github.com/uber/jaeger-lib v2.4.0+incompatible
 	github.com/uber/tchannel-go v1.20.1
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
@@ -101,16 +100,16 @@ require (
 	// Version string was obtained by the method described in
 	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
-	go.uber.org/atomic v1.6.0
+	go.uber.org/atomic v1.7.0
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
-	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
-	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
+	golang.org/x/net v0.0.0-20210324051636-2c4c8ecb7826
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.0.0-20210324051608-47abb6519492
 	golang.org/x/tools v0.1.0
-	google.golang.org/grpc v1.29.1
-	google.golang.org/protobuf v1.23.0
+	google.golang.org/grpc v1.36.0
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
@@ -119,7 +118,6 @@ require (
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.4.0
-	gotest.tools v2.2.0+incompatible
 )
 
 // branch 0.9.3-patch
@@ -138,6 +136,8 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
+
+replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0

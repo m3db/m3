@@ -21,17 +21,12 @@
 package instrument
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
-
-type key int
-
-var loggerKey key
 
 // NewTestDebugLogger returns a new debug logger for tests.
 func NewTestDebugLogger(t *testing.T) *zap.Logger {
@@ -48,23 +43,4 @@ func NewTestDebugLogger(t *testing.T) *zap.Logger {
 func NewTestOptions(t *testing.T) Options {
 	logger := NewTestDebugLogger(t)
 	return NewOptions().SetLogger(logger)
-}
-
-// NewContextFromLogger returns a new context with the logger added as a value.
-// This allows adding request scoped fields to a logger so application code can use the request scoped logger with
-// LoggerFromContext.
-func NewContextFromLogger(ctx context.Context, l *zap.Logger) context.Context {
-	if l == nil {
-		return ctx
-	}
-	return context.WithValue(ctx, loggerKey, l)
-}
-
-// LoggerFromContext returns the request scoped logger from the context, or nil if not found.
-func LoggerFromContext(ctx context.Context) *zap.Logger {
-	l, ok := ctx.Value(loggerKey).(*zap.Logger)
-	if !ok {
-		return nil
-	}
-	return l
 }

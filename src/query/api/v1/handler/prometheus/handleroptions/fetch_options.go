@@ -49,10 +49,12 @@ const (
 	// LookbackParam is the lookback parameter.
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
-	TimeoutParam = "timeout"
-	maxInt64     = float64(math.MaxInt64)
-	minInt64     = float64(math.MinInt64)
-	maxTimeout   = 10 * time.Minute
+	TimeoutParam           = "timeout"
+	requireExhaustiveParam = "requireExhaustive"
+	requireNoWaitParam     = "requireNoWait"
+	maxInt64               = float64(math.MaxInt64)
+	minInt64               = float64(math.MinInt64)
+	maxTimeout             = 10 * time.Minute
 )
 
 // FetchOptionsBuilder builds fetch options based on a request and default
@@ -75,6 +77,9 @@ type FetchOptionsBuilderOptions struct {
 
 // Validate validates the fetch options builder options.
 func (o FetchOptionsBuilderOptions) Validate() error {
+	if o.Limits.InstanceMultiple < 0 || (o.Limits.InstanceMultiple > 0 && o.Limits.InstanceMultiple < 1) {
+		return fmt.Errorf("InstanceMultiple must be 0 or >= 1: %v", o.Limits.InstanceMultiple)
+	}
 	return validateTimeout(o.Timeout)
 }
 
@@ -82,6 +87,7 @@ func (o FetchOptionsBuilderOptions) Validate() error {
 // creating a fetch options builder.
 type FetchOptionsBuilderLimitsOptions struct {
 	SeriesLimit                 int
+	InstanceMultiple            float32
 	DocsLimit                   int
 	ReturnedSeriesLimit         int
 	ReturnedDatapointsLimit     int
@@ -128,6 +134,20 @@ func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (
 	return defaultLimit, nil
 }
 
+// ParseInstanceMultiple parses request instance multiple from header.
+func ParseInstanceMultiple(req *http.Request, defaultValue float32) (float32, error) {
+	if str := req.Header.Get(headers.LimitInstanceMultipleHeader); str != "" {
+		v, err := strconv.ParseFloat(str, 32)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse instance multiple: input=%s, err=%w", str, err)
+			return 0, err
+		}
+		return float32(v), nil
+	}
+	return defaultValue, nil
+}
+
 // ParseRequireExhaustive parses request limit require exhaustive from header or
 // query string.
 func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) {
@@ -141,7 +161,7 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 		return v, nil
 	}
 
-	if str := req.FormValue("requireExhaustive"); str != "" {
+	if str := req.FormValue(requireExhaustiveParam); str != "" {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -152,6 +172,32 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 	}
 
 	return defaultValue, nil
+}
+
+// ParseRequireNoWait parses the no-wait behavior from header or
+// query string.
+func ParseRequireNoWait(req *http.Request) (bool, error) {
+	if str := req.Header.Get(headers.LimitRequireNoWaitHeader); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%w", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	if str := req.FormValue(requireNoWaitParam); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%w", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	return false, nil
 }
 
 // NewFetchOptions parses an http request into fetch options.
@@ -182,8 +228,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	if err != nil {
 		return nil, nil, err
 	}
-
 	fetchOpts.SeriesLimit = seriesLimit
+
+	instanceMultiple, err := ParseInstanceMultiple(req, b.opts.Limits.InstanceMultiple)
+	if err != nil {
+		return nil, nil, err
+	}
+	fetchOpts.InstanceMultiple = instanceMultiple
 
 	docsLimit, err := ParseLimit(req, headers.LimitMaxDocsHeader,
 		"docsLimit", b.opts.Limits.DocsLimit)
@@ -223,6 +274,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.RequireExhaustive = requireExhaustive
+
+	requireNoWait, err := ParseRequireNoWait(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.RequireNoWait = requireNoWait
 
 	if str := req.Header.Get(headers.MetricsTypeHeader); str != "" {
 		mt, err := storagemetadata.ParseMetricsType(str)
@@ -425,6 +483,11 @@ func ParseRequestTimeout(
 	}
 	// Note: Header should take precedence.
 	if v := r.Header.Get(TimeoutParam); v != "" {
+		timeout = v
+	}
+	// Prefer the M3-Timeout header to the incorrect header using the param name. The param name should have never been
+	// allowed as a header, but we continue to support it for backwards compatibility.
+	if v := r.Header.Get(headers.TimeoutHeader); v != "" {
 		timeout = v
 	}
 

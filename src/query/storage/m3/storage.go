@@ -320,7 +320,14 @@ func (s *m3storage) fetchCompressed(
 
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
 	tagOpts := s.opts.TagOptions()
-	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
+	limitOpts := consolidators.LimitOptions{
+		Limit: options.SeriesLimit,
+		// Piggy back on the new InstanceMultiple option to enable checking require exhaustive. This preserves the
+		// existing buggy behavior of the coordinators not requiring exhaustive. Once InstanceMultiple is enabled by
+		// default, this can be removed.
+		RequireExhaustive: queryOptions.InstanceMultiple > 0 && options.RequireExhaustive,
+	}
+	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		wg.Add(1)
@@ -345,6 +352,8 @@ func (s *m3storage) fetchCompressed(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
+			blockMeta.WaitedIndex = metadata.WaitedIndex
+			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
 			result.Add(consolidators.MultiFetchResults{
@@ -539,6 +548,8 @@ func (s *m3storage) CompleteTags(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
+			blockMeta.WaitedIndex = metadata.WaitedIndex
+			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
 			result := &consolidators.CompleteTagsResult{
 				CompleteNameOnly: query.CompleteNameOnly,
 				CompletedTags:    completedTags,
@@ -637,6 +648,8 @@ func (s *m3storage) SearchCompressed(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
+			blockMeta.WaitedIndex = metadata.WaitedIndex
+			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
 			result.Add(iter, blockMeta, err)
 			wg.Done()
 		}()

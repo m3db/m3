@@ -72,7 +72,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 				}
 				// nodes = m3db nodes
-				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, instances)
+				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, instances) //nolint:govet
 				clientopts = clientopts.SetReadConsistencyLevel(lvl)
 
 				defer closeFn()

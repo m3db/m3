@@ -68,6 +68,16 @@ type CustomHandlerOptions struct {
 	OptionTransformFn OptionTransformFn
 }
 
+// RegisterMiddleware is a func to build the set of middleware functions.
+type RegisterMiddleware func(opts MiddlewareOptions) []mux.MiddlewareFunc
+
+// MiddlewareOptions is the set of parameters passed to the RegisterMiddleware function.
+type MiddlewareOptions struct {
+	InstrumentOpts instrument.Options
+	Config         *config.MiddlewareConfiguration
+	Route          *mux.Route
+}
+
 // CustomHandler allows for custom third party http handlers.
 type CustomHandler interface {
 	// Route is the custom handler route.
@@ -78,6 +88,9 @@ type CustomHandler interface {
 	// prev is optional argument for getting already registered handler for the same route.
 	// If there is nothing to override, prev will be nil.
 	Handler(handlerOptions HandlerOptions, prev http.Handler) (http.Handler, error)
+	// Middleware is the middleware to run before the custom handler.
+	// If not set, the default set of middleware is installed.
+	Middleware() RegisterMiddleware
 }
 
 // QueryRouter is responsible for routing queries between promql and m3query.
@@ -233,12 +246,6 @@ type HandlerOptions interface {
 	SetKVStoreProtoParser(KVStoreProtoParser) HandlerOptions
 	// KVStoreProtoHandler returns the KVStoreProtoParser.
 	KVStoreProtoParser() KVStoreProtoParser
-
-	// Middleware is the list of Middleware functions to run before dispatching to the query handler.
-	Middleware() []mux.MiddlewareFunc
-
-	// SetMiddleware sets the list of Middleware functions.
-	SetMiddleware(value []mux.MiddlewareFunc) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -270,7 +277,6 @@ type handlerOptions struct {
 	namespaceValidator                NamespaceValidator
 	storeMetricsType                  bool
 	kvStoreProtoParser                KVStoreProtoParser
-	middleware                        []mux.MiddlewareFunc
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -279,7 +285,6 @@ func EmptyHandlerOptions() HandlerOptions {
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
 		m3dbOpts:       m3db.NewOptions(),
-		middleware:     DefaultMiddleware(),
 	}
 }
 
@@ -337,7 +342,6 @@ func NewHandlerOptions(
 		m3dbOpts:                          m3dbOpts,
 		storeMetricsType:                  storeMetricsType,
 		namespaceValidator:                validators.NamespaceValidator,
-		middleware:                        DefaultMiddleware(),
 	}, nil
 }
 
@@ -634,16 +638,6 @@ func (o *handlerOptions) SetKVStoreProtoParser(value KVStoreProtoParser) Handler
 
 func (o *handlerOptions) KVStoreProtoParser() KVStoreProtoParser {
 	return o.kvStoreProtoParser
-}
-
-func (o *handlerOptions) Middleware() []mux.MiddlewareFunc {
-	return o.middleware
-}
-
-func (o *handlerOptions) SetMiddleware(value []mux.MiddlewareFunc) HandlerOptions {
-	opts := *o
-	opts.middleware = value
-	return &opts
 }
 
 // KVStoreProtoParser parses protobuf messages based off specific keys.

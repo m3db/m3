@@ -135,8 +135,11 @@ func run(opts runOptions) {
 
 	var (
 		nsID      = ident.StringID(opts.namespace)
-		infoFiles = fs.ReadIndexInfoFiles(fsOpts.FilePathPrefix(), nsID,
-			fsOpts.InfoReaderBufferSize())
+		infoFiles = fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+			FilePathPrefix:   fsOpts.FilePathPrefix(),
+			Namespace:        nsID,
+			ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+		})
 		results     = make(map[string]struct{})
 		resultsLock sync.Mutex
 		wg          sync.WaitGroup

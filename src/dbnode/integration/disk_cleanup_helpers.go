@@ -62,19 +62,17 @@ func writeDataFileSetFiles(t *testing.T, storageOpts storage.Options, md namespa
 	}
 }
 
-func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, fileTimes []time.Time) {
+func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata,
+	filesets []fs.FileSetFileIdentifier) {
 	blockSize := md.Options().IndexOptions().BlockSize()
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	writer, err := fs.NewIndexWriter(fsOpts)
 	require.NoError(t, err)
-	for _, start := range fileTimes {
+	for _, fileset := range filesets {
 		writerOpts := fs.IndexWriterOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  md.ID(),
-				BlockStart: start,
-			},
-			BlockSize: blockSize,
-			Shards:    map[uint32]struct{}{0: struct{}{}},
+			Identifier: fileset,
+			BlockSize:  blockSize,
+			Shards:     map[uint32]struct{}{0: {}},
 		}
 		require.NoError(t, writer.Open(writerOpts))
 		require.NoError(t, writer.Close())

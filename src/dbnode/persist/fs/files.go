@@ -82,9 +82,7 @@ const (
 	errUnexpectedFilenamePattern = "unexpected filename: %s"
 )
 
-var (
-	defaultBufioReaderSize = bufio.NewReader(nil).Size()
-)
+var defaultBufioReaderSize = bufio.NewReader(nil).Size()
 
 type fileOpener func(filePath string) (*os.File, error)
 
@@ -672,14 +670,15 @@ func readCheckpointFile(filePath string, digestBuf digest.Buffer) (uint32, error
 }
 
 type forEachInfoFileSelector struct {
-	fileSetType    persist.FileSetType
-	contentType    persist.FileSetContentType
-	filePathPrefix string
-	namespace      ident.ID
-	shard          uint32 // shard only applicable for data content type
+	fileSetType      persist.FileSetType
+	contentType      persist.FileSetContentType
+	filePathPrefix   string
+	namespace        ident.ID
+	shard            uint32 // shard only applicable for data content type
+	includeCorrupted bool   // include corrupted filesets (fail validation)
 }
 
-type infoFileFn func(file FileSetFile, infoData []byte)
+type infoFileFn func(file FileSetFile, infoData []byte, corrupted bool)
 
 func forEachInfoFile(
 	args forEachInfoFileSelector,
@@ -722,6 +721,30 @@ func forEachInfoFile(
 		return
 	}
 
+	maybeIncludeCorrupted := func(corrupted FileSetFile) {
+		if !args.includeCorrupted {
+			return
+		}
+		// NB: We do not want to give up here on error or else we may not clean up
+		// corrupt index filesets.
+		infoFilePath, ok := corrupted.InfoFilePath()
+		if !ok {
+			fn(corrupted, nil, true)
+			return
+		}
+		infoData, err := read(infoFilePath)
+		if err != nil {
+			// NB: If no info data is supplied, we assume that the
+			// info file itself is corrupted. Since this is the
+			// first file written to disk, this should be safe to remove.
+			fn(corrupted, nil, true)
+			return
+		}
+		// NB: We always write an index info file when we begin writing to an index volume
+		// so we are always guaranteed that there's AT LEAST the info file on disk w/ incomplete info.
+		fn(corrupted, infoData, true)
+	}
+
 	var indexDigests index.IndexDigests
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
@@ -760,12 +783,14 @@ func forEachInfoFile(
 		// Read digest of digests from the checkpoint file
 		expectedDigestOfDigest, err := readCheckpointFile(checkpointFilePath, digestBuf)
 		if err != nil {
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 		// Read and validate the digest file
 		digestData, err := readAndValidate(digestsFilePath, readerBufferSize,
 			expectedDigestOfDigest)
 		if err != nil {
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 
@@ -776,6 +801,7 @@ func forEachInfoFile(
 			expectedInfoDigest = digest.ToBuffer(digestData).ReadDigest()
 		case persist.FileSetIndexContentType:
 			if err := indexDigests.Unmarshal(digestData); err != nil {
+				maybeIncludeCorrupted(matched[i])
 				continue
 			}
 			expectedInfoDigest = indexDigests.GetInfoDigest()
@@ -784,14 +810,16 @@ func forEachInfoFile(
 		infoData, err := readAndValidate(infoFilePath, readerBufferSize,
 			expectedInfoDigest)
 		if err != nil {
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 		// Guarantee that every matched fileset has an info file.
 		if _, ok := matched[i].InfoFilePath(); !ok {
+			maybeIncludeCorrupted(matched[i])
 			continue
 		}
 
-		fn(matched[i], infoData)
+		fn(matched[i], infoData, false)
 	}
 }
 
@@ -844,7 +872,7 @@ func ReadInfoFiles(
 			shard:          shard,
 		},
 		readerBufferSize,
-		func(file FileSetFile, data []byte) {
+		func(file FileSetFile, data []byte, _ bool) {
 			filePath, _ := file.InfoFilePath()
 			decoder.Reset(msgpack.NewByteDecoderStream(data))
 			info, err := decoder.DecodeIndexInfo()
@@ -859,31 +887,37 @@ func ReadInfoFiles(
 	return infoFileResults
 }
 
+// ReadIndexInfoFilesOptions specifies options for reading index info files.
+type ReadIndexInfoFilesOptions struct {
+	FilePathPrefix   string
+	Namespace        ident.ID
+	ReaderBufferSize int
+	IncludeCorrupted bool
+}
+
 // ReadIndexInfoFileResult is the result of reading an info file
 type ReadIndexInfoFileResult struct {
 	ID                FileSetFileIdentifier
 	Info              index.IndexVolumeInfo
 	AbsoluteFilePaths []string
 	Err               ReadInfoFileResultError
+	Corrupted         bool
 }
 
 // ReadIndexInfoFiles reads all the valid index info entries. Even if ReadIndexInfoFiles returns an error,
 // there may be some valid entries in the returned slice.
-func ReadIndexInfoFiles(
-	filePathPrefix string,
-	namespace ident.ID,
-	readerBufferSize int,
-) []ReadIndexInfoFileResult {
+func ReadIndexInfoFiles(opts ReadIndexInfoFilesOptions) []ReadIndexInfoFileResult {
 	var infoFileResults []ReadIndexInfoFileResult
 	forEachInfoFile(
 		forEachInfoFileSelector{
-			fileSetType:    persist.FileSetFlushType,
-			contentType:    persist.FileSetIndexContentType,
-			filePathPrefix: filePathPrefix,
-			namespace:      namespace,
+			fileSetType:      persist.FileSetFlushType,
+			contentType:      persist.FileSetIndexContentType,
+			filePathPrefix:   opts.FilePathPrefix,
+			namespace:        opts.Namespace,
+			includeCorrupted: opts.IncludeCorrupted,
 		},
-		readerBufferSize,
-		func(file FileSetFile, data []byte) {
+		opts.ReaderBufferSize,
+		func(file FileSetFile, data []byte, corrupted bool) {
 			filepath, _ := file.InfoFilePath()
 			id := file.ID
 			var info index.IndexVolumeInfo
@@ -896,6 +930,7 @@ func ReadIndexInfoFiles(
 					err:      err,
 					filepath: filepath,
 				},
+				Corrupted: corrupted,
 			})
 		})
 	return infoFileResults
@@ -923,7 +958,6 @@ func SortedSnapshotMetadataFiles(opts Options) (
 		path.Join(
 			snapshotsDirPath,
 			fmt.Sprintf("*%s%s%s", separator, metadataFileSuffix, fileSuffix)))
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1360,13 +1394,10 @@ func readAndValidate(
 	}
 	defer fd.Close()
 
-	stat, err := os.Stat(filePath)
+	buf, err := bufferForEntireFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-
-	size := int(stat.Size())
-	buf := make([]byte, size)
 
 	fwd := digest.NewFdWithDigestReader(readerBufferSize)
 	fwd.Reset(fd)
@@ -1375,6 +1406,36 @@ func readAndValidate(
 		return nil, err
 	}
 	return buf[:n], nil
+}
+
+func read(filePath string) ([]byte, error) {
+	fd, err := os.Open(filePath) //nolint:gosec
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close() //nolint:errcheck,gosec
+
+	buf, err := bufferForEntireFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	n, err := fd.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func bufferForEntireFile(filePath string) ([]byte, error) {
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	size := int(stat.Size())
+	buf := make([]byte, size)
+	return buf, nil
 }
 
 // DataDirPath returns the path to the data directory belonging to a db
@@ -1564,7 +1625,7 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 		return -1, err
 	}
 
-	var currentSnapshotIndex = -1
+	currentSnapshotIndex := -1
 	for _, snapshot := range snapshotFiles {
 		if snapshot.ID.BlockStart.Equal(blockStart) {
 			currentSnapshotIndex = snapshot.ID.VolumeIndex

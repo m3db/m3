@@ -60,7 +60,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 			node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		}
 	)
-	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, instances)
+	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, instances) //nolint:govet
 	clientopts = clientopts.
 		SetWriteConsistencyLevel(topology.ConsistencyLevelAll).
 		SetReadConsistencyLevel(topology.ReadConsistencyLevelAll)

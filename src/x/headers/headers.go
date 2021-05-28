@@ -84,6 +84,9 @@ const (
 	// the number of time series returned by each storage node.
 	LimitMaxSeriesHeader = M3HeaderPrefix + "Limit-Max-Series"
 
+	// LimitInstanceMultipleHeader overrides the PerQueryLimitsConfiguration.InstanceMultiple for the request.
+	LimitInstanceMultipleHeader = M3HeaderPrefix + "Limit-Instance-Multiple"
+
 	// LimitMaxDocsHeader is the M3 limit docs header that limits
 	// the number of docs returned by each storage node.
 	LimitMaxDocsHeader = M3HeaderPrefix + "Limit-Max-Docs"
@@ -103,6 +106,10 @@ const (
 	// LimitRequireExhaustiveHeader is the M3 limit exhaustive header that will
 	// ensure M3 returns an error if the results set is not exhaustive.
 	LimitRequireExhaustiveHeader = M3HeaderPrefix + "Limit-Require-Exhaustive"
+
+	// LimitRequireNoWaitHeader is the M3 header that ensures
+	// M3 returns an error if query execution must wait for permits.
+	LimitRequireNoWaitHeader = M3HeaderPrefix + "Limit-Require-No-Wait"
 
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
@@ -142,6 +149,13 @@ const (
 	// are maxed.
 	LimitHeaderSeriesLimitApplied = "max_fetch_series_limit_applied"
 
+	// WaitedHeader is the header added when permits had to be waited for.
+	WaitedHeader = M3HeaderPrefix + "Waited"
+
+	// FetchedSeriesCount is the header added that tracks the total number of
+	// series that were fetched by the query, before computation.
+	FetchedSeriesCount = M3HeaderPrefix + "Series-Count"
+
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"
 
@@ -151,4 +165,8 @@ const (
 	// schema to an older instance and still have it respond successfully
 	// using the fields it knows about.
 	JSONDisableDisallowUnknownFields = M3HeaderPrefix + "JSON-Disable-Disallow-Unknown-Fields"
+
+	// CustomResponseMetricsScope is a header that, if set, will add the name specified by the header
+	// as a custom subscope on the request's response metrics.
+	CustomResponseMetricsScope = M3HeaderPrefix + "Custom-Response-Metrics-Scope"
 )

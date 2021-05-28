@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
@@ -115,7 +116,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		tags ident.TagIterator,
+		tagResolver convert.TagMetadataResolver,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -368,7 +369,7 @@ type databaseNamespace interface {
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
-		tags ident.TagIterator,
+		tagResolver convert.TagMetadataResolver,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -527,7 +528,7 @@ type databaseShard interface {
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
-		tags ident.TagIterator,
+		tagResolver convert.TagMetadataResolver,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -736,6 +737,9 @@ type NamespaceIndex interface {
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated
 	// using the provided `t` as the frame of reference.
 	CleanupExpiredFileSets(t time.Time) error
+
+	// CleanupCorruptedFileSets removes corrupted fileset files.
+	CleanupCorruptedFileSets() error
 
 	// CleanupDuplicateFileSets removes duplicate fileset files.
 	CleanupDuplicateFileSets(activeShards []uint32) error

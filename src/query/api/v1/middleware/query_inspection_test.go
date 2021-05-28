@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package instrument
+package middleware
 
 import (
-	"context"
 	"testing"
+	"time"
 
+	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func TestLoggerContext(t *testing.T) {
-	l := zap.NewNop()
-	ctx := NewContextFromLogger(context.Background(), l)
-	ctxL := LoggerFromContext(ctx)
-	require.Equal(t, l, ctxL)
-	require.Equal(t, l, NewOptions().LoggerFromContext(ctx))
-}
+func TestRetrieveQueryRange(t *testing.T) {
+	tests := []struct {
+		query string
+		ex    time.Duration
+	}{
+		{
+			query: "up",
+			ex:    time.Minute * 5,
+		},
+		{
+			query: "up offset 3m",
+			ex:    time.Minute * 8,
+		},
+		{
+			query: "rate(up[3m])",
+			ex:    time.Minute * 3,
+		},
+		{
+			query: "rate(up[10m])",
+			ex:    time.Minute * 10,
+		},
+		{
+			query: "rate(up[1m]) + rate(down[9m])",
+			ex:    time.Minute * 9,
+		},
+		{
+			query: "min_over_time(rate(up[1m] offset 1m)[11m:9m])",
+			ex:    time.Minute * 13, // 11m subquery range + 1m offset + 1m rate range
+		},
+	}
 
-func TestNilLoggerContext(t *testing.T) {
-	ctx := NewContextFromLogger(context.Background(), nil)
-	require.Nil(t, LoggerFromContext(ctx))
-	require.NotNil(t, NewOptions().LoggerFromContext(ctx))
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			expr, err := parser.ParseExpr(tt.query)
+			require.NoError(t, err)
+			require.Equal(t, tt.ex, retrieveQueryRange(expr, 0))
+		})
+	}
 }

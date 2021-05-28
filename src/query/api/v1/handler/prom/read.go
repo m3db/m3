@@ -38,6 +38,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
+	errs "github.com/pkg/errors"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -143,7 +144,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				xhttp.WriteError(w, err)
 			}
 		} else {
-			promErr := res.Err
+			promErr := errs.Cause(res.Err)
 			switch promErr.(type) { //nolint:errorlint
 			case promql.ErrQueryTimeout:
 				promErr = queryerrors.NewErrQueryTimeout(promErr)
@@ -278,6 +279,7 @@ func (h *readHandler) limitReturnedData(query string,
 		if series < seriesTotal {
 			res.Value = m[:series]
 		}
+	default:
 	}
 
 	return native.ReturnedDataLimited{
