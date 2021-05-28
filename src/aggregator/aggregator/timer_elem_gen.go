@@ -25,7 +25,6 @@
 package aggregator
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"sync"
@@ -454,9 +453,9 @@ func (e *TimerElem) processValueWithAggregationLock(
 
 				for _, flagConf := range e.opts.FeatureFlags() {
 					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease &&
-						bytes.Contains([]byte(e.id), flagConf.FilterBytes()) {
+						flagConf.IsMatch([]byte(e.id)) {
 						useIncreaseWithPrevNaN = true
-						fmt.Printf("metric matches feature flag: e.id = %s\n", e.id)
+						fmt.Printf("match: e.id = %s\n", e.id)
 						break
 					}
 				}
