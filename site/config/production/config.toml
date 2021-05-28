@@ -131,7 +131,7 @@ offlineSearch = false
     url = "/docs"
   [[params.versions]]
     version = "1.1"
-    url = "/1.1/docs"
+    url = "/v1.1/docs"
   [[params.versions]]
     version = "1.0"
     url = "/v1.0/docs"
