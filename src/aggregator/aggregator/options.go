@@ -867,6 +867,7 @@ func (o *options) computeFilterByteSequences() {
 		// throw off the simple bytes.Contains matching.
 		o.featureFlags[i].filterMultiBytes = make([][]byte, len(o.featureFlags[i].Filter))
 
+		var j int
 		for key, value := range o.featureFlags[i].Filter {
 			buff := make([]byte, 2)
 			var tagFilterBytes []byte
@@ -882,7 +883,8 @@ func (o *options) computeFilterByteSequences() {
 			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
 			tagFilterBytes = append(tagFilterBytes, []byte(value)...)
 
-			o.featureFlags[i].filterMultiBytes = append(o.featureFlags[i].filterMultiBytes, tagFilterBytes)
+			o.featureFlags[i].filterMultiBytes[j] = tagFilterBytes
+			j++
 		}
 	}
 
