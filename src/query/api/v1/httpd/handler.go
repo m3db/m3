@@ -452,18 +452,13 @@ func (h *Handler) RegisterRoutes() error {
 	// any existing routes.
 	for _, custom := range h.customHandlers {
 		for _, method := range custom.Methods() {
-			var prevHandler http.Handler
-			route, prevRoute := h.registry.PathRoute(custom.Route(), method)
-			if prevRoute {
-				prevHandler = route.GetHandler()
-			}
-
-			handler, err := custom.Handler(nativeSourceOpts, prevHandler)
-			if err != nil {
-				return err
-			}
+			registeredRoute, prevRoute := h.registry.PathRoute(custom.Route(), method)
 
 			if !prevRoute {
+				handler, err := custom.Handler(nativeSourceOpts, nil)
+				if err != nil {
+					return err
+				}
 				if err := h.registry.Register(queryhttp.RegisterOptions{
 					Path:       custom.Route(),
 					Handler:    handler,
@@ -473,9 +468,18 @@ func (h *Handler) RegisterRoutes() error {
 					return err
 				}
 			} else {
-				// Do not re-instrument this route since the prev handler
-				// is already instrumented.
-				route.Handler(handler)
+				// We provide the raw prevHandler so no middleware is included.
+				handler, err := custom.Handler(nativeSourceOpts, registeredRoute.RawHandler)
+				if err != nil {
+					return err
+				}
+
+				// Next, we apply middleware, merging in any custom middleware if any exists.
+				middle := h.registry.MergeCustomMiddleware(custom.Middleware(), registeredRoute)
+				for i := len(middle) - 1; i >= 0; i-- {
+					handler = middle[i].Middleware(handler)
+				}
+				registeredRoute.Route.Handler(handler)
 			}
 		}
 	}

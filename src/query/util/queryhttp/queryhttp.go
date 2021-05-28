@@ -46,7 +46,7 @@ func NewEndpointRegistry(
 		router:           router,
 		instrumentOpts:   instrumentOpts,
 		middlewareConfig: middlewareConfig,
-		registered:       make(map[routeKey]*mux.Route),
+		registered:       make(map[routeKey]RegisteredRoute),
 	}
 }
 
@@ -56,7 +56,14 @@ type EndpointRegistry struct {
 	router           *mux.Router
 	instrumentOpts   instrument.Options
 	middlewareConfig *config.MiddlewareConfiguration
-	registered       map[routeKey]*mux.Route
+	registered       map[routeKey]RegisteredRoute
+}
+
+// RegisteredRoute contains details around what's installed for a given route.
+type RegisteredRoute struct {
+	Route      *mux.Route
+	RawHandler http.Handler
+	Middleware []mux.MiddlewareFunc
 }
 
 type routeKey struct {
@@ -104,7 +111,11 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 				return fmt.Errorf("route already exists: path=%s, method=%s",
 					p, method)
 			}
-			r.registered[key] = route
+			r.registered[key] = RegisteredRoute{
+				Route:      route,
+				RawHandler: opts.Handler,
+				Middleware: middle,
+			}
 		}
 	} else if p := opts.PathPrefix; p != "" {
 		key := routeKey{
@@ -114,7 +125,11 @@ func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 			return fmt.Errorf("route already exists: pathPrefix=%s", p)
 		}
 
-		r.registered[key] = route.PathPrefix(p).Handler(handler)
+		r.registered[key] = RegisteredRoute{
+			Route:      route.PathPrefix(p).Handler(handler),
+			RawHandler: opts.Handler,
+			Middleware: middle,
+		}
 	} else {
 		return fmt.Errorf("no path and methods or path prefix set: +%v", opts)
 	}
@@ -147,7 +162,7 @@ func (r *EndpointRegistry) RegisterPaths(
 
 // PathRoute resolves a registered route that was registered by path and method,
 // not by path prefix.
-func (r *EndpointRegistry) PathRoute(path, method string) (*mux.Route, bool) {
+func (r *EndpointRegistry) PathRoute(path, method string) (RegisteredRoute, bool) {
 	key := routeKey{
 		path:   path,
 		method: method,
@@ -158,7 +173,7 @@ func (r *EndpointRegistry) PathRoute(path, method string) (*mux.Route, bool) {
 
 // PathPrefixRoute resolves a registered route that was registered by path
 // prefix, not by path and method.
-func (r *EndpointRegistry) PathPrefixRoute(pathPrefix string) (*mux.Route, bool) {
+func (r *EndpointRegistry) PathPrefixRoute(pathPrefix string) (RegisteredRoute, bool) {
 	key := routeKey{
 		pathPrefix: pathPrefix,
 	}
@@ -171,4 +186,25 @@ func (r *EndpointRegistry) PathPrefixRoute(pathPrefix string) (*mux.Route, bool)
 // are explored depth-first.
 func (r *EndpointRegistry) Walk(walkFn mux.WalkFunc) error {
 	return r.router.Walk(walkFn)
+}
+
+// MergeCustomMiddleware combines custom provided middleware with an existing
+// set of middleware.
+func (r *EndpointRegistry) MergeCustomMiddleware(
+	custom options.RegisterMiddleware,
+	originalRoute RegisteredRoute,
+) []mux.MiddlewareFunc {
+	if custom == nil {
+		return originalRoute.Middleware
+	}
+
+	customMiddleware := custom(options.MiddlewareOptions{
+		InstrumentOpts: r.instrumentOpts,
+		Route:          originalRoute.Route,
+		Config:         r.middlewareConfig,
+	})
+
+	// Explicitly ordering such that custom middleware is applied
+	// after the already installed middleware.
+	return append(originalRoute.Middleware, customMiddleware...)
 }
