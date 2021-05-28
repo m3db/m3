@@ -22,8 +22,11 @@
 package http
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
+
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // StatusCodeTracker tracks the status code written to a http.ResponseWriter.
@@ -31,6 +34,8 @@ type StatusCodeTracker struct {
 	http.ResponseWriter
 	Status      int
 	WroteHeader bool
+	TrackError  bool
+	ErrMsg      string
 }
 
 // WriteHeader saves the status .
@@ -45,6 +50,12 @@ func (w *StatusCodeTracker) Write(b []byte) (int, error) {
 	if !w.WroteHeader {
 		w.WroteHeader = true
 		w.Status = 200
+	}
+	if w.TrackError && w.Status >= 400 {
+		var errResp xhttp.ErrorResponse
+		if err := json.Unmarshal(b, &errResp); err == nil {
+			w.ErrMsg = errResp.Error
+		}
 	}
 	return w.ResponseWriter.Write(b)
 }

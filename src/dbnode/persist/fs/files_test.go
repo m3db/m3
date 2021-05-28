@@ -206,7 +206,7 @@ func TestForEachInfoFile(t *testing.T) {
 			shard:          shard,
 		},
 		testReaderBufferSize,
-		func(file FileSetFile, data []byte) {
+		func(file FileSetFile, data []byte, _ bool) {
 			fname, ok := file.InfoFilePath()
 			require.True(t, ok)
 			fnames = append(fnames, fname)
