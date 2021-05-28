@@ -497,7 +497,7 @@ func fetchBlocksFromPeersTestsHelper(
 
 	require.NoError(t, session.Open())
 
-	batchSize := opts.FetchSeriesBlocksBatchS
+	batchSize := opts.FetchSeriesBlocksBatchSize()
 	//nolint: durationcheckize()
 	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
