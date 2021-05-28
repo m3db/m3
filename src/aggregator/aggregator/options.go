@@ -862,23 +862,16 @@ func (o *options) computeFullPrefixes() {
 }
 
 func (o *options) computeFilterByteSequences() {
-	/*
-		text ID:
-			{service="my_service",__name__="my_metric",foo="bar",baz="qux"}
-			binary ID (what is in e.id):
-			[uint16-numTags][uint16-tagNameLength][[]byte-tagName]....
-	*/
-
-	fmt.Println("computeFilterByteSequences", o.featureFlags)
 	for i := range o.featureFlags {
-		buff := make([]byte, 2)
-		var tagFilterBytes []byte
-		var ByteOrder binary.ByteOrder = binary.LittleEndian
-
 		// TODO(sidneyw): make sure there is only one filter. Tag ordering will
 		// throw off the simple bytes.Contains matching.
+		o.featureFlags[i].filterMultiBytes = make([][]byte, len(o.featureFlags[i].Filter))
+
 		for key, value := range o.featureFlags[i].Filter {
-			fmt.Printf("Encoding feature flag matcher %s:%s\n", key, value)
+			buff := make([]byte, 2)
+			var tagFilterBytes []byte
+			var ByteOrder binary.ByteOrder = binary.LittleEndian
+
 			// Add key bytes.
 			ByteOrder.PutUint16(buff[:2], uint16(len(key)))
 			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
@@ -888,11 +881,12 @@ func (o *options) computeFilterByteSequences() {
 			ByteOrder.PutUint16(buff[:2], uint16(len(value)))
 			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
 			tagFilterBytes = append(tagFilterBytes, []byte(value)...)
-		}
 
-		o.featureFlags[i].filterBytes = tagFilterBytes
-		fmt.Printf("o.featureFlags[i] = %+v\n", o.featureFlags[i])
+			o.featureFlags[i].filterMultiBytes = append(o.featureFlags[i].filterMultiBytes, tagFilterBytes)
+		}
 	}
+
+	fmt.Printf("o.featureFlags = %+v\n", o.featureFlags)
 }
 
 func (o *options) computeFullCounterPrefix() {

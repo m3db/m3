@@ -20,22 +20,33 @@
 
 package aggregator
 
+import (
+	"bytes"
+)
+
 type FeatureFlagConfiguration []FlagConfiguration
 
 type FlagConfiguration struct {
-	Filter      map[string]string `yaml:"filter"`
-	filterBytes []byte
-	Flags       FlagBundle `yaml:"flags"`
+	Filter map[string]string `yaml:"filter"`
+	Flags  FlagBundle        `yaml:"flags"`
+
+	filterMultiBytes [][]byte
 }
 
 type FlagBundle struct {
 	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool `yaml:"increase_with_prev_nan_translates_to_curr_value_increase"`
 }
 
-func (f *FlagConfiguration) SetFilterBytes(value []byte) {
-	f.filterBytes = value
+func (f *FlagConfiguration) FilterMultiBytes() [][]byte {
+	return f.filterMultiBytes
 }
 
-func (f *FlagConfiguration) FilterBytes() []byte {
-	return f.filterBytes
+func (f *FlagConfiguration) IsMatch(metricID []byte) bool {
+	for _, val := range f.filterMultiBytes {
+		if !bytes.Contains(metricID, val) {
+			return false
+		}
+	}
+
+	return true
 }
