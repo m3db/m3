@@ -125,14 +125,13 @@ offlineSearch = false
   twitter = "m3db_io"
   disableHomeIcon = true
 
-  [params.api]
-    localCordinator = "http://localhost:7201/"
-    apiEndpoint = "api/v1/"
-
 # TODO: Can all the below be consolidated?
   [[params.versions]]
-    version = "1.1"
+    version = "1.2"
     url = "/docs"
+  [[params.versions]]
+    version = "1.1"
+    url = "/1.1/docs"
   [[params.versions]]
     version = "1.0"
     url = "/v1.0/docs"
@@ -141,8 +140,6 @@ offlineSearch = false
     url = "/v0.15.17/docs"    
   [params.releases]
     docker = "v1.0.0"
-
-# version_menu = "Versions"
 
 # TODO: Do not like doing this really
 [markup]
