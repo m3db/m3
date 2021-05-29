@@ -22,30 +22,38 @@ package aggregator
 
 import (
 	"bytes"
-	"fmt"
 )
 
+// FeatureFlagConfiguration is a list of aggregator feature flags.
 type FeatureFlagConfiguration []FlagConfiguration
 
 type FlagConfiguration struct {
+	// Filter is a map of tag keys and values that much match for the flags to
+	// be applied.
 	Filter map[string]string `yaml:"filter"`
-	Flags  FlagBundle        `yaml:"flags"`
+	// Flags are the flags enabled once the filters are matched.
+	Flags FlagBundle `yaml:"flags"`
 
+	// filterMultiBytes contains the encoded filter tag keys and values.
 	filterMultiBytes [][]byte
 }
 
+// FlagBundle contains all aggregator feature flags.
 type FlagBundle struct {
+	// IncreaseWithPrevNaNTranslatesToCurrValueIncrease configures the binary
+	// increase operation to fill in prev NaN values with 0.
 	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool `yaml:"increase_with_prev_nan_translates_to_curr_value_increase"`
 }
 
+// FilterMultiBytes returns the private filterMultiBytes field.
 func (f *FlagConfiguration) FilterMultiBytes() [][]byte {
 	return f.filterMultiBytes
 }
 
+// IsMatch matches the given byte string with all filters for the
+// FlagConfiguration.
 func (f *FlagConfiguration) IsMatch(metricID []byte) bool {
 	for _, val := range f.filterMultiBytes {
-		fmt.Printf("metricID = %s\n", metricID)
-		fmt.Printf("val = %s\n", val)
 		if !bytes.Contains(metricID, val) {
 			return false
 		}
