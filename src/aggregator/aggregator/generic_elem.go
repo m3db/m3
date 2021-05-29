@@ -515,7 +515,6 @@ func (e *GenericElem) processValueWithAggregationLock(
 					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease &&
 						flagConf.IsMatch([]byte(e.id)) {
 						useIncreaseWithPrevNaN = true
-						fmt.Printf("match: e.id = %s\n", e.id)
 						break
 					}
 				}
