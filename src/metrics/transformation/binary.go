@@ -89,8 +89,3 @@ func increase(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint 
 	}
 	return Datapoint{TimeNanos: curr.TimeNanos, Value: diff}
 }
-
-// [nan,1,nan,nan,nan,5,nan,nan,nan,nan,7]
-// call increase(...) only when something changes and only passed the changed values in
-// ideally:
-// [(nan,1),(1,5),(5,7)]
