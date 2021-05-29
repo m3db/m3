@@ -27,6 +27,8 @@ import (
 // FeatureFlagConfiguration is a list of aggregator feature flags.
 type FeatureFlagConfiguration []FlagConfiguration
 
+// FlagConfiguration holds filter and flag combinations. The flags are scoped
+// to metrics with tags that match the filter.
 type FlagConfiguration struct {
 	// Filter is a map of tag keys and values that much match for the flags to
 	// be applied.

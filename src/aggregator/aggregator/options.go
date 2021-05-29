@@ -22,7 +22,6 @@ package aggregator
 
 import (
 	"encoding/binary"
-	"fmt"
 	"sync"
 	"time"
 
@@ -887,8 +886,6 @@ func (o *options) computeFilterByteSequences() {
 			j++
 		}
 	}
-
-	fmt.Printf("o.featureFlags = %+v\n", o.featureFlags)
 }
 
 func (o *options) computeFullCounterPrefix() {

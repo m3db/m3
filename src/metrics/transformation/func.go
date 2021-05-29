@@ -54,6 +54,8 @@ func (fn UnaryTransformFn) Evaluate(dp Datapoint) Datapoint {
 	return fn(dp)
 }
 
+// TransformationFeatureFlags holds options passed into transformations from
+// the aggregator configuration file.
 type TransformationFeatureFlags struct {
 	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
 }

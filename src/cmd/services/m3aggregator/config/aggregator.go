@@ -260,7 +260,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
-	fmt.Println("NewAggregatorOptions", c.FeatureFlags)
 	opts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuntimeOptionsManager(runtimeOptsManager).
