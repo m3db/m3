@@ -455,12 +455,11 @@ func (e *CounterElem) processValueWithAggregationLock(
 					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease &&
 						flagConf.IsMatch([]byte(e.id)) {
 						useIncreaseWithPrevNaN = true
-						fmt.Printf("match: e.id = %s\n", e.id)
 						break
 					}
 				}
 
-				res := binaryOp.Evaluate(prev, curr, transformation.TransformationFeatureFlags{
+				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{
 					IncreaseWithPrevNaNTranslatesToCurrValueIncrease: useIncreaseWithPrevNaN,
 				})
 

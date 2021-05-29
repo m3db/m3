@@ -519,7 +519,7 @@ func (e *GenericElem) processValueWithAggregationLock(
 					}
 				}
 
-				res := binaryOp.Evaluate(prev, curr, transformation.TransformationFeatureFlags{
+				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{
 					IncreaseWithPrevNaNTranslatesToCurrValueIncrease: useIncreaseWithPrevNaN,
 				})
 

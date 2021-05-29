@@ -54,9 +54,9 @@ func (fn UnaryTransformFn) Evaluate(dp Datapoint) Datapoint {
 	return fn(dp)
 }
 
-// TransformationFeatureFlags holds options passed into transformations from
+// FeatureFlags holds options passed into transformations from
 // the aggregator configuration file.
-type TransformationFeatureFlags struct {
+type FeatureFlags struct {
 	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
 }
 
@@ -65,14 +65,14 @@ type TransformationFeatureFlags struct {
 // a single datapoint as the transformation result.
 // It can keep state if it requires.
 type BinaryTransform interface {
-	Evaluate(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint
+	Evaluate(prev, curr Datapoint, flags FeatureFlags) Datapoint
 }
 
 // BinaryTransformFn implements BinaryTransform as a function.
-type BinaryTransformFn func(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint
+type BinaryTransformFn func(prev, curr Datapoint, flags FeatureFlags) Datapoint
 
 // Evaluate implements BinaryTransform as a function.
-func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint, flags TransformationFeatureFlags) Datapoint {
+func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint, flags FeatureFlags) Datapoint {
 	return fn(prev, curr, flags)
 }
 
