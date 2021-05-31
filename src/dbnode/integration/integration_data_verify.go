@@ -220,8 +220,8 @@ func containsSeries(ts TestSetup, namespace, seriesID ident.ID, start, end xtime
 	req := rpc.NewFetchRequest()
 	req.NameSpace = namespace.String()
 	req.ID = seriesID.String()
-	req.RangeStart = start.ToNormalizedTime(time.Second)
-	req.RangeEnd = end.ToNormalizedTime(time.Second)
+	req.RangeStart = start.Seconds()
+	req.RangeEnd = end.Seconds()
 	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 	fetched, err := ts.Fetch(req)
 	return len(fetched) != 0, err

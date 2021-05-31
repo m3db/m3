@@ -200,8 +200,8 @@ func read(
 
 	req := rpc.NewFetchRequest()
 	req.NameSpace = nsID.String()
-	req.RangeStart = now.Add(-4 * blockSize).ToNormalizedTime(time.Second)
-	req.RangeEnd = now.ToNormalizedTime(time.Second)
+	req.RangeStart = now.Add(-4 * blockSize).Seconds()
+	req.RangeEnd = now.Seconds()
 	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 
 	// Fetching the series sequentially ensures that the wired list will have
