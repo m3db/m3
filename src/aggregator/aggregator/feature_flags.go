@@ -22,44 +22,84 @@ package aggregator
 
 import (
 	"bytes"
+	"encoding/binary"
 )
 
-// FeatureFlagConfiguration is a list of aggregator feature flags.
-type FeatureFlagConfiguration []FlagConfiguration
+// FeatureFlagConfigurations is a list of aggregator feature flags.
+type FeatureFlagConfigurations []FeatureFlagConfiguration
 
-// FlagConfiguration holds filter and flag combinations. The flags are scoped
-// to metrics with tags that match the filter.
-type FlagConfiguration struct {
+// Parse converts FeatureFlagConfigurations into a list of
+// FeatureFlagBundleParsed. The difference being, tag (key, value) pairs are
+// represented as []byte in the FeatureFlagBundleParsed. The bytes are used to
+// match against metric ids for applying feature flags.
+func (f FeatureFlagConfigurations) Parse() []FeatureFlagBundleParsed {
+	result := make([]FeatureFlagBundleParsed, 0, len(f))
+	for _, elem := range f {
+		parsed := elem.parse()
+		result = append(result, parsed)
+	}
+	return result
+}
+
+// FeatureFlagConfiguration holds filter and flag combinations. The flags are
+// scoped to metrics with tags that match the filter.
+type FeatureFlagConfiguration struct {
 	// Filter is a map of tag keys and values that much match for the flags to
 	// be applied.
 	Filter map[string]string `yaml:"filter"`
 	// Flags are the flags enabled once the filters are matched.
 	Flags FlagBundle `yaml:"flags"`
-
-	// filterMultiBytes contains the encoded filter tag keys and values.
-	filterMultiBytes [][]byte
 }
 
 // FlagBundle contains all aggregator feature flags.
 type FlagBundle struct {
 	// IncreaseWithPrevNaNTranslatesToCurrValueIncrease configures the binary
 	// increase operation to fill in prev NaN values with 0.
-	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool `yaml:"increase_with_prev_nan_translates_to_curr_value_increase"`
+	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool `yaml:"increaseWithPrevNaNTranslatesToCurrValueIncrease"`
 }
 
-// FilterMultiBytes returns the private filterMultiBytes field.
-func (f *FlagConfiguration) FilterMultiBytes() [][]byte {
-	return f.filterMultiBytes
-}
-
-// IsMatch matches the given byte string with all filters for the
-// FlagConfiguration.
-func (f *FlagConfiguration) IsMatch(metricID []byte) bool {
-	for _, val := range f.filterMultiBytes {
-		if !bytes.Contains(metricID, val) {
-			return false
-		}
+func (f FeatureFlagConfiguration) parse() FeatureFlagBundleParsed {
+	parsed := FeatureFlagBundleParsed{
+		flags:                 f.Flags,
+		serializedTagMatchers: make([][]byte, 0, len(f.Filter)),
 	}
 
-	return true
+	for key, value := range f.Filter {
+		var (
+			byteOrder      = binary.LittleEndian
+			buff           = make([]byte, 2)
+			tagFilterBytes []byte
+		)
+
+		// Add key bytes.
+		byteOrder.PutUint16(buff[:2], uint16(len(key)))
+		tagFilterBytes = append(tagFilterBytes, buff[:2]...)
+		tagFilterBytes = append(tagFilterBytes, []byte(key)...)
+
+		// Add value bytes.
+		byteOrder.PutUint16(buff[:2], uint16(len(value)))
+		tagFilterBytes = append(tagFilterBytes, buff[:2]...)
+		tagFilterBytes = append(tagFilterBytes, []byte(value)...)
+
+		parsed.serializedTagMatchers = append(parsed.serializedTagMatchers, tagFilterBytes)
+	}
+
+	return parsed
+}
+
+// FeatureFlagBundleParsed is a parsed feature flag bundle.
+type FeatureFlagBundleParsed struct {
+	flags                 FlagBundle
+	serializedTagMatchers [][]byte
+}
+
+// Match matches the given byte string with all filters for the
+// parsed feature flag bundle.
+func (f FeatureFlagBundleParsed) Match(metricID []byte) (FlagBundle, bool) {
+	for _, val := range f.serializedTagMatchers {
+		if !bytes.Contains(metricID, val) {
+			return FlagBundle{}, false
+		}
+	}
+	return f.flags, true
 }

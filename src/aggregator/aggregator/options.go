@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"encoding/binary"
 	"sync"
 	"time"
 
@@ -336,8 +335,11 @@ type Options interface {
 	// SetTimedMetricsFlushOffsetEnabled controls using of FlushOffset for timed metrics.
 	SetTimedMetricsFlushOffsetEnabled(bool) Options
 
-	FeatureFlags() FeatureFlagConfiguration
-	SetFeatureFlags(FeatureFlagConfiguration) Options
+	// FeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	FeatureFlagBundlesParsed() []FeatureFlagBundleParsed
+
+	// SetFeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	SetFeatureFlagBundlesParsed([]FeatureFlagBundleParsed) Options
 }
 
 type options struct {
@@ -381,7 +383,7 @@ type options struct {
 	verboseErrors                    bool
 	addToReset                       bool
 	timedMetricsFlushOffsetEnabled   bool
-	featureFlags                     FeatureFlagConfiguration
+	featureFlagBundlesParsed         []FeatureFlagBundleParsed
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -851,41 +853,12 @@ func (o *options) initPools() {
 
 func (o *options) computeAllDerived() {
 	o.computeFullPrefixes()
-	o.computeFilterByteSequences()
 }
 
 func (o *options) computeFullPrefixes() {
 	o.computeFullCounterPrefix()
 	o.computeFullTimerPrefix()
 	o.computeFullGaugePrefix()
-}
-
-func (o *options) computeFilterByteSequences() {
-	for i := range o.featureFlags {
-		// TODO(sidneyw): make sure there is only one filter. Tag ordering will
-		// throw off the simple bytes.Contains matching.
-		o.featureFlags[i].filterMultiBytes = make([][]byte, len(o.featureFlags[i].Filter))
-
-		var j int
-		for key, value := range o.featureFlags[i].Filter {
-			buff := make([]byte, 2)
-			var tagFilterBytes []byte
-			var ByteOrder binary.ByteOrder = binary.LittleEndian
-
-			// Add key bytes.
-			ByteOrder.PutUint16(buff[:2], uint16(len(key)))
-			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
-			tagFilterBytes = append(tagFilterBytes, []byte(key)...)
-
-			// Add value bytes.
-			ByteOrder.PutUint16(buff[:2], uint16(len(value)))
-			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
-			tagFilterBytes = append(tagFilterBytes, []byte(value)...)
-
-			o.featureFlags[i].filterMultiBytes[j] = tagFilterBytes
-			j++
-		}
-	}
 }
 
 func (o *options) computeFullCounterPrefix() {
@@ -929,19 +902,14 @@ func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
 	return &opts
 }
 
-func (o *options) SetFeatureFlags(value FeatureFlagConfiguration) Options {
+func (o *options) SetFeatureFlagBundlesParsed(value []FeatureFlagBundleParsed) Options {
 	opts := *o
-	opts.featureFlags = value
-
-	opts.computeFilterByteSequences()
-
+	opts.featureFlagBundlesParsed = value
 	return &opts
 }
 
-func (o *options) FeatureFlags() FeatureFlagConfiguration {
-	flags := make(FeatureFlagConfiguration, len(o.featureFlags))
-	copy(flags, o.featureFlags)
-	return flags
+func (o *options) FeatureFlagBundlesParsed() []FeatureFlagBundleParsed {
+	return o.featureFlagBundlesParsed
 }
 
 func defaultMaxAllowedForwardingDelayFn(
