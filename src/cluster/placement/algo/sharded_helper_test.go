@@ -649,6 +649,7 @@ func TestMarkAllAsAvailable(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not exist in placement")
 }
 
+// nolint: dupl
 func TestOptimize(t *testing.T) {
 	rf := 1
 	tests := []struct {
