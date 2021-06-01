@@ -682,8 +682,8 @@ func (s *peersSource) flush(
 			iOpts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
 				l.With(
-					zap.Int64("start", tr.Start.ToNormalizedTime(time.Second)),
-					zap.Int64("end", tr.End.ToNormalizedTime(time.Second)),
+					zap.Int64("start", tr.Start.Seconds()),
+					zap.Int64("end", tr.End.Seconds()),
 					zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
 				).Error("error tried to remove series that still has blocks")
 			})

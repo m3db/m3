@@ -415,7 +415,7 @@ func (r *blockRetriever) fetchBatch(
 		if err != nil {
 			r.logger.Error("err returning seeker for shard",
 				zap.Uint32("shard", shard),
-				zap.Int64("blockStart", int64(blockStart)),
+				zap.Int64("blockStart", blockStart.Seconds()),
 				zap.Error(err),
 			)
 		}

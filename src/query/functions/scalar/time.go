@@ -21,8 +21,6 @@
 package scalar
 
 import (
-	"time"
-
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/query/block"
@@ -98,7 +96,7 @@ func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 			return err
 		}
 
-		timeVal := float64(t.ToNormalizedTime(time.Second))
+		timeVal := float64(t.Seconds())
 		if err := builder.AppendValue(i, timeVal); err != nil {
 			return err
 		}

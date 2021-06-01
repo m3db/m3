@@ -1103,7 +1103,7 @@ func FileSetAt(
 			if nextIdx < len(matched) && matched[nextIdx].ID.BlockStart.Equal(blockStart) {
 				// Should never happen.
 				return FileSetFile{}, false, fmt.Errorf(
-					"found multiple fileset files for blockStart: %d", blockStart,
+					"found multiple fileset files for blockStart: %d", blockStart.Seconds(),
 				)
 			}
 
@@ -1163,7 +1163,7 @@ func DeleteFileSetAt(
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("fileset for blockStart: %d does not exist", blockStart)
+		return fmt.Errorf("fileset for blockStart: %d does not exist", blockStart.Seconds())
 	}
 
 	return DeleteFiles(fileset.AbsoluteFilePaths)

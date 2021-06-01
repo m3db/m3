@@ -213,13 +213,11 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.Te
 		return nil, err
 	}
 
-	start := xtime.UnixNano(req.RangeStart)
-	end := xtime.UnixNano(req.RangeEnd)
 	iter, err := session.Fetch(
 		ident.StringID(req.NameSpace),
 		ident.StringID(req.ID),
-		xtime.UnixNano(start.Seconds()),
-		xtime.UnixNano(end.Seconds()),
+		xtime.FromNormalizedTime(req.RangeStart, time.Second),
+		xtime.FromNormalizedTime(req.RangeEnd, time.Second),
 	)
 
 	if err != nil {

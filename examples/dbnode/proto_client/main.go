@@ -125,7 +125,7 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 		if err := m.Unmarshal(marshaledProto); err != nil {
 			log.Fatalf("error unmarshaling protobuf message: %v", err)
 		}
-		log.Printf("%s: %s", dp.TimestampNanos.ToTime().String(), m.String())
+		log.Printf("%s: %s", dp.TimestampNanos.String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)
@@ -169,7 +169,7 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 		if err := m.Unmarshal(marshaledProto); err != nil {
 			log.Fatalf("error unamrshaling protobuf message: %v", err)
 		}
-		log.Printf("%s: %s", dp.TimestampNanos.ToTime().String(), m.String())
+		log.Printf("%s: %s", dp.TimestampNanos.String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)

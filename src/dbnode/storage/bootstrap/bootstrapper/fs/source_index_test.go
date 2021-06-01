@@ -662,12 +662,12 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 			expectedStart := times.end.Add(-2 * testIndexBlockSize)
 			require.Equal(t, int64(expectedStart), infoFile.Info.BlockStart,
 				fmt.Sprintf("expected=%s, actual=%v",
-					expectedStart, time.Unix(0, infoFile.Info.BlockStart)))
+					expectedStart, xtime.UnixNano(infoFile.Info.BlockStart)))
 		} else {
 			expectedStart := times.end.Add(-1 * testIndexBlockSize)
 			require.Equal(t, int64(expectedStart), infoFile.Info.BlockStart,
 				fmt.Sprintf("expected=%s, actual=%v",
-					expectedStart, time.Unix(0, infoFile.Info.BlockStart)))
+					expectedStart, xtime.UnixNano(infoFile.Info.BlockStart)))
 		}
 
 		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))

@@ -337,7 +337,7 @@ func RenderResultsJSON(
 			datapointsRendered++
 
 			jw.BeginArray()
-			jw.WriteInt(int(dp.Timestamp.ToNormalizedTime(time.Second)))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
 		}
@@ -426,7 +426,7 @@ func renderResultsInstantaneousJSON(
 		}
 
 		if isScalar {
-			jw.WriteInt(int(dp.Timestamp.ToNormalizedTime(time.Second)))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			returnedCount++
 			continue
@@ -450,7 +450,7 @@ func renderResultsInstantaneousJSON(
 
 		jw.BeginObjectField("value")
 		jw.BeginArray()
-		jw.WriteInt(int(dp.Timestamp.ToNormalizedTime(time.Second)))
+		jw.WriteInt(int(dp.Timestamp.Seconds()))
 		jw.WriteString(utils.FormatFloat(dp.Value))
 		jw.EndArray()
 		jw.EndObject()

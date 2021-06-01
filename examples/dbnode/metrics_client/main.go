@@ -134,7 +134,7 @@ func runTaggedExample(session client.Session) {
 		}
 		for seriesIter.Next() {
 			dp, _, _ := seriesIter.Current()
-			log.Printf("%s: %v", dp.TimestampNanos.ToTime().String(), dp.Value)
+			log.Printf("%s: %v", dp.TimestampNanos.String(), dp.Value)
 		}
 		if err := seriesIter.Err(); err != nil {
 			log.Fatalf("error in series iterator: %v", err)
@@ -148,7 +148,7 @@ func runTaggedExample(session client.Session) {
 	}
 	for seriesIter.Next() {
 		dp, _, _ := seriesIter.Current()
-		log.Printf("%s: %v", dp.TimestampNanos.ToTime().String(), dp.Value)
+		log.Printf("%s: %v", dp.TimestampNanos.String(), dp.Value)
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)

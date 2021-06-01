@@ -219,9 +219,8 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	var (
-		batchSize = opts.FetchSeriesBlocksBatchSize(
+		batchSize = opts.FetchSeriesBlocksBatchSize()
 		//nolint: durationcheck
-		)
 		start  = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 		blocks = newTestBlocks(start)
 	)
@@ -384,9 +383,8 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	var (
-		batchSize = opts.FetchSeriesBlocksBatchSize(
+		batchSize = opts.FetchSeriesBlocksBatchSize()
 		//nolint: durationcheck
-		)
 		start  = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 		blocks = newTestBlocks(start)
 

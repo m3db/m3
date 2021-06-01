@@ -160,7 +160,7 @@ func TestParseQueryResults(t *testing.T) {
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
-		start.ToTime().Unix(), start.ToTime().Unix()+30)
+		start.Seconds(), start.Seconds()+30)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
@@ -169,7 +169,7 @@ func TestParseQueryResults(t *testing.T) {
 
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
-	exTimestamp := truncateStart.ToTime().Unix() + 10
+	exTimestamp := truncateStart.Seconds() + 10
 	expected := fmt.Sprintf(
 		`[{"target":"series_name","datapoints":[[3.000000,%d],`+
 			`[3.000000,%d],[null,%d]],"step_size_ms":%d}]`,
