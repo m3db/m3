@@ -511,12 +511,14 @@ func (e *GenericElem) processValueWithAggregationLock(
 
 				var useIncreaseWithPrevNaN bool
 
-				for _, flagConf := range e.opts.FeatureFlags() {
-					if flagConf.Flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease &&
-						flagConf.IsMatch([]byte(e.id)) {
-						useIncreaseWithPrevNaN = true
-						break
+				for _, flags := range e.opts.FeatureFlagBundlesParsed() {
+					flagsBundle, ok := flags.Match(e.id)
+					if !ok {
+						continue
 					}
+					// Always let the config override on first match.
+					useIncreaseWithPrevNaN = flagsBundle.IncreaseWithPrevNaNTranslatesToCurrValueIncrease
+					break
 				}
 
 				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{

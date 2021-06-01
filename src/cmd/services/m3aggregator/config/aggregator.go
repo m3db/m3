@@ -178,7 +178,8 @@ type AggregatorConfiguration struct {
 	// TimedMetricsFlushOffsetEnabled enables using FlushOffset for timed metrics.
 	TimedMetricsFlushOffsetEnabled bool `yaml:"timedMetricsFlushOffsetEnabled"`
 
-	FeatureFlags aggregator.FeatureFlagConfiguration `yaml:"featureFlags"`
+	// FeatureFlags are feature flags to apply.
+	FeatureFlags aggregator.FeatureFlagConfigurations `yaml:"featureFlags"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -263,10 +264,16 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuntimeOptionsManager(runtimeOptsManager).
-		SetFeatureFlags(c.FeatureFlags).
 		SetVerboseErrors(c.VerboseErrors).
 		SetAddToReset(c.AddToReset).
 		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled)
+
+	parsedFeatureFlagBundles, err := c.FeatureFlags.Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	opts = opts.SetFeatureFlagBundlesParsed(parsedFeatureFlagBundles)
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {
