@@ -131,7 +131,7 @@ func (l SeriesDataPointsByTime) Len() int      { return len(l) }
 func (l SeriesDataPointsByTime) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l SeriesDataPointsByTime) Less(i, j int) bool {
 	if l[i].Value.TimestampNanos != l[j].Value.TimestampNanos {
-		return l[i].Value.TimestampNanos < l[j].Value.TimestampNanos
+		return l[i].Value.TimestampNanos.Before(l[j].Value.TimestampNanos)
 	}
 	return bytes.Compare(l[i].ID.Bytes(), l[j].ID.Bytes()) < 0
 }

@@ -1327,7 +1327,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 		latestFileSetFile FileSetFile
 		filesetFiles      = []FileSetFile{}
 	)
-	for idx, file := range byTimeAsc {
+	for _, file := range byTimeAsc {
 		var (
 			currentFileBlockStart xtime.UnixNano
 			volumeIndex           int
@@ -1352,7 +1352,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 			return nil, err
 		}
 
-		if idx == 0 {
+		if latestBlockStart == 0 {
 			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
 				Namespace:   args.namespace,
 				BlockStart:  currentFileBlockStart,

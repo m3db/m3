@@ -131,7 +131,7 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 			if !ident.NewTagIterMatcher(wi.Tags.Duplicate()).Matches(iter.Tags().Duplicate()) {
 				require.FailNow(t, "tags don't match provided id", iter.ID().String())
 			}
-			if dp.TimestampNanos == wi.Timestamp && dp.Value == wi.Value {
+			if dp.TimestampNanos.Equal(wi.Timestamp) && dp.Value == wi.Value {
 				found[i] = true
 				break
 			}
@@ -250,12 +250,11 @@ func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags id
 
 func isIndexedChecked(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) (bool, error) {
 	q := newQuery(t, tags)
-	tt := xtime.Now()
 	iter, _, err := s.FetchTaggedIDs(ContextWithDefaultTimeout(), ns,
 		index.Query{Query: q},
 		index.QueryOptions{
-			StartInclusive: tt,
-			EndExclusive:   tt,
+			StartInclusive: xtime.Now(),
+			EndExclusive:   xtime.Now(),
 			SeriesLimit:    10,
 		})
 	if err != nil {
