@@ -330,11 +330,11 @@ func TestUnconsolidatedContainerMultiSeriesIter(t *testing.T) {
 	require.Equal(t, concurrency, len(batch))
 
 	expected := [][]ts.Datapoints{
-		[]{buildExpected(2), buildExpected(3), buildExpected(4)},
-		[]{buildExpected(2), buildExpected(3)},
-		[]{buildExpected(2), buildExpected(3)},
-		[]{buildExpected(2), buildExpected(3)},
-		[]{buildExpected(3)},
+		{buildExpected(2), buildExpected(3), buildExpected(4)},
+		{buildExpected(2), buildExpected(3)},
+		{buildExpected(2), buildExpected(3)},
+		{buildExpected(2), buildExpected(3)},
+		{buildExpected(3)},
 	}
 
 	expectedNames := []string{

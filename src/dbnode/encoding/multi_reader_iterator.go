@@ -222,8 +222,6 @@ func (it *singleSlicesOfSlicesIterator) Next() bool {
 }
 
 func (it *singleSlicesOfSlicesIterator) CurrentReaders() (int, xtime.UnixNano, time.Duration) {
-	// FIXME: TIMECONVERT; determine if this is called often enough that we want to
-	// avoid the ToTime call here.
 	return len(it.readers), it.start, it.blockSize
 }
 
