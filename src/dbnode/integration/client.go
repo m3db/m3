@@ -219,7 +219,6 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.Te
 		xtime.FromNormalizedTime(req.RangeStart, time.Second),
 		xtime.FromNormalizedTime(req.RangeEnd, time.Second),
 	)
-
 	if err != nil {
 		return nil, err
 	}

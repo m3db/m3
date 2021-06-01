@@ -496,7 +496,7 @@ func fetchBlocksFromPeersTestsHelper(
 	require.NoError(t, session.Open())
 
 	batchSize := opts.FetchSeriesBlocksBatchSize()
-	//nolint: durationcheckize()
+	//nolint: durationcheck
 	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	allBlocks := make([][]testBlocks, 0, len(mockHostQueues))

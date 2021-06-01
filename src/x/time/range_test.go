@@ -380,9 +380,9 @@ func TestRangeIterateForward(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%s", tc.r.String()), func(t *testing.T) {
 			var actual []UnixNano
-			tc := tc
 			tc.r.IterateForward(tc.stepSize, func(currStep UnixNano) bool {
 				actual = append(actual, currStep)
 				return true

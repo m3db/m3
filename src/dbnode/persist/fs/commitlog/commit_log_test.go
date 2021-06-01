@@ -388,7 +388,9 @@ func TestCommitLogWrite(t *testing.T) {
 			[]testWrite{
 				{
 					testSeries(t, opts, 0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127),
-					xtime.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil,
+					xtime.Now(), 123.456, xtime.Second,
+					[]byte{1, 2, 3},
+					nil,
 				},
 				{
 					testSeries(t, opts, 1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150),
@@ -528,7 +530,10 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 			val := rand.Float64() //nolint: gosec
 			writes = append(writes, testWrite{
 				series, xtime.Now(), val,
-				xtime.Second, []byte{1, 2, 3}, nil})
+				xtime.Second,
+				[]byte{1, 2, 3},
+				nil,
+			})
 		}
 	}
 
@@ -570,12 +575,14 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 
 	writes := []testWrite{
 		{
-			testSeries(t, opts, 0, "foo.bar", testTags1, 127), xtime.Now(), 123.456,
-			xtime.Second, []byte{1, 2, 3}, nil,
+			testSeries(t, opts, 0, "foo.bar", testTags1, 127),
+			xtime.Now(), 123.456, xtime.Second,
+			[]byte{1, 2, 3},
+			nil,
 		},
 		{
-			testSeries(t, opts, 1, "foo.baz", testTags2, 150), xtime.Now(), 456.789,
-			xtime.Second, nil, nil,
+			testSeries(t, opts, 1, "foo.baz", testTags2, 150),
+			xtime.Now(), 456.789, xtime.Second, nil, nil,
 		},
 	}
 
@@ -1068,9 +1075,7 @@ func TestCommitLogRotateLogs(t *testing.T) {
 	)
 	defer cleanup(t, opts)
 
-	var (
-		commitLog = newTestCommitLog(t, opts)
-	)
+	commitLog := newTestCommitLog(t, opts)
 
 	// Writes spaced such that they should appear within the same commitlog block.
 	writes := []testWrite{

@@ -55,9 +55,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	testBlockSize = time.Hour
-)
+var testBlockSize = time.Hour
 
 // TestPostingsListCacheDoesNotAffectBlockQueryResults verifies that the postings list
 // cache does not affect the results of querying a block by creating two blocks, one with
@@ -227,8 +225,10 @@ type propTestSegment struct {
 	segmentMap segmentMap
 }
 
-type testValuesSet map[string]struct{}   //nolint:gofumpt
-type segmentMap map[string]testValuesSet //nolint:gofumpt
+type (
+	testValuesSet map[string]struct{}      //nolint:gofumpt
+	segmentMap    map[string]testValuesSet //nolint:gofumpt
+)
 
 func genTestSegment() gopter.Gen {
 	return gen.SliceOf(genField()).Map(func(input []testFields) propTestSegment {
