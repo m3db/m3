@@ -165,4 +165,8 @@ const (
 	// schema to an older instance and still have it respond successfully
 	// using the fields it knows about.
 	JSONDisableDisallowUnknownFields = M3HeaderPrefix + "JSON-Disable-Disallow-Unknown-Fields"
+
+	// CustomResponseMetricsType is a header that, if set, will override the `type` tag
+	// on the request's response metrics.
+	CustomResponseMetricsType = M3HeaderPrefix + "Custom-Response-Metrics-Type"
 )

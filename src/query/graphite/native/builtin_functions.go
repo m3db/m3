@@ -688,8 +688,8 @@ func removeAboveValue(ctx *common.Context, input singlePathSpec, n float64) (ts.
 }
 
 // removeEmptySeries returns only the time-series with non-empty data
-func removeEmptySeries(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
-	return common.RemoveEmpty(ctx, ts.SeriesList(input))
+func removeEmptySeries(ctx *common.Context, input singlePathSpec, xFilesFactor float64) (ts.SeriesList, error) {
+	return common.RemoveEmpty(ctx, ts.SeriesList(input), xFilesFactor)
 }
 
 func takeByFunction(input singlePathSpec, n int, sr ts.SeriesReducer, sort ts.Direction) (ts.SeriesList, error) {
@@ -2707,7 +2707,9 @@ func init() {
 	MustRegisterFunction(removeAboveValue)
 	MustRegisterFunction(removeBelowPercentile)
 	MustRegisterFunction(removeBelowValue)
-	MustRegisterFunction(removeEmptySeries)
+	MustRegisterFunction(removeEmptySeries).WithDefaultParams(map[uint8]interface{}{
+		2: 0, // xFilesFactor
+	})
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
 	MustRegisterFunction(sortBy).WithDefaultParams(map[uint8]interface{}{

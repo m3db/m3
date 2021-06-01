@@ -30,8 +30,14 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
+)
+
+const (
+	metricsTypeTagName         = "type"
+	metricsTypeTagDefaultValue = "coordinator"
 )
 
 var histogramTimerOptions = instrument.NewHistogramTimerOptions(
@@ -48,13 +54,7 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 		cfg   = opts.Config
 	)
 
-	scope := tally.NoopScope
-	if iOpts != nil {
-		scope = iOpts.MetricsScope()
-	}
-
-	queryMetrics := newQueryInspectionMetrics(scope)
-	metrics := newRouteMetrics(iOpts)
+	custom := newCustomMetrics(iOpts)
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w}
@@ -73,6 +73,14 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 				path = "unknown"
 			}
 
+			metricsType := r.Header.Get(headers.CustomResponseMetricsType)
+			if len(metricsType) == 0 {
+				metricsType = metricsTypeTagDefaultValue
+			}
+
+			m := custom.getOrCreate(metricsType)
+			queryMetrics := m.query
+			metrics := m.route
 			querySize := inspectQuerySize(w, r, path, queryMetrics, cfg)
 
 			addLatencyStatus := false
@@ -88,11 +96,49 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 	}
 }
 
+type responseMetrics struct {
+	route *routeMetrics
+	query *queryInspectionMetrics
+}
+
+type customMetrics struct {
+	sync.Mutex
+	metrics        map[string]responseMetrics
+	instrumentOpts instrument.Options
+}
+
+func newCustomMetrics(instrumentOpts instrument.Options) *customMetrics {
+	return &customMetrics{
+		metrics:        make(map[string]responseMetrics),
+		instrumentOpts: instrumentOpts,
+	}
+}
+
+func (c *customMetrics) getOrCreate(value string) *responseMetrics {
+	c.Lock()
+	defer c.Unlock()
+
+	if m, ok := c.metrics[value]; ok {
+		return &m
+	}
+
+	subscope := c.instrumentOpts.MetricsScope().Tagged(map[string]string{
+		metricsTypeTagName: value,
+	})
+	m := responseMetrics{
+		route: newRouteMetrics(subscope),
+		query: newQueryInspectionMetrics(subscope),
+	}
+
+	c.metrics[value] = m
+	return &m
+}
+
 type routeMetrics struct {
 	sync.RWMutex
-	instrumentOpts instrument.Options
-	metrics        map[routeMetricKey]routeMetric
-	timers         map[routeMetricKey]tally.Timer
+	scope   tally.Scope
+	metrics map[routeMetricKey]routeMetric
+	timers  map[routeMetricKey]tally.Timer
 }
 
 type routeMetricKey struct {
@@ -105,11 +151,11 @@ type routeMetric struct {
 	status tally.Counter
 }
 
-func newRouteMetrics(instrumentOpts instrument.Options) *routeMetrics {
+func newRouteMetrics(scope tally.Scope) *routeMetrics {
 	return &routeMetrics{
-		instrumentOpts: instrumentOpts,
-		metrics:        make(map[routeMetricKey]routeMetric),
-		timers:         make(map[routeMetricKey]tally.Timer),
+		scope:   scope,
+		metrics: make(map[routeMetricKey]routeMetric),
+		timers:  make(map[routeMetricKey]tally.Timer),
 	}
 }
 
@@ -148,7 +194,7 @@ func (m *routeMetrics) metric(
 
 	tags := querySize.toTags()
 	tags["path"] = path
-	scopePath := m.instrumentOpts.MetricsScope().Tagged(tags)
+	scopePath := m.scope.Tagged(tags)
 	scopePathAndStatus := scopePath.Tagged(map[string]string{
 		"status": strconv.Itoa(status),
 	})

@@ -66,6 +66,7 @@ func TestResponseMetrics(t *testing.T) {
 		"path":            "/test",
 		"status":          "200",
 		"size":            "small",
+		"type":            "coordinator",
 		"count_threshold": "0",
 		"range_threshold": "0",
 	})
@@ -77,6 +78,55 @@ func TestResponseMetrics(t *testing.T) {
 		require.Equal(t, map[string]string{
 			"path":            "/test",
 			"size":            "small",
+			"type":            "coordinator",
+			"count_threshold": "0",
+			"range_threshold": "0",
+		}, h.Tags())
+	}
+}
+
+func TestResponseMetricsCustomMetricType(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	r := mux.NewRouter()
+	route := r.NewRoute()
+	opts := options.MiddlewareOptions{
+		InstrumentOpts: iOpts,
+		Route:          route,
+	}
+
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set(headers.CustomResponseMetricsType, "foo")
+		w.WriteHeader(200)
+	}))
+	route.Path("/test").Handler(h)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/test?foo=bar") //nolint: noctx
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	snapshot := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":            "/test",
+		"status":          "200",
+		"size":            "small",
+		"type":            "foo",
+		"count_threshold": "0",
+		"range_threshold": "0",
+	})
+
+	hist := snapshot.Histograms()
+	require.True(t, len(hist) == 1)
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+		require.Equal(t, map[string]string{
+			"path":            "/test",
+			"size":            "small",
+			"type":            "foo",
 			"count_threshold": "0",
 			"range_threshold": "0",
 		}, h.Tags())
@@ -117,6 +167,7 @@ func TestLargeResponseMetrics(t *testing.T) {
 		"path":            "/api/v1/query",
 		"status":          "200",
 		"size":            "large",
+		"type":            "coordinator",
 		"count_threshold": "10",
 		"range_threshold": "15m0s",
 	})
@@ -128,6 +179,7 @@ func TestLargeResponseMetrics(t *testing.T) {
 		require.Equal(t, map[string]string{
 			"path":            "/api/v1/query",
 			"size":            "large",
+			"type":            "coordinator",
 			"count_threshold": "10",
 			"range_threshold": "15m0s",
 		}, h.Tags())
@@ -140,6 +192,20 @@ func TestMultipleLargeResponseMetricsWithLatencyStatus(t *testing.T) {
 
 func TestMultipleLargeResponseMetricsWithoutLatencyStatus(t *testing.T) {
 	testMultipleLargeResponseMetrics(t, false)
+}
+
+func TestCustomMetricsRepeatedGets(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	cm := newCustomMetrics(iOpts)
+
+	_ = cm.getOrCreate("foo")
+	_ = cm.getOrCreate("foo")
+	require.Equal(t, len(cm.metrics), 1)
+
+	_ = cm.getOrCreate("foo2")
+	require.Equal(t, len(cm.metrics), 2)
 }
 
 func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
@@ -195,6 +261,7 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		"path":            "/api/v1/query_range",
 		"status":          "200",
 		"size":            "large",
+		"type":            "coordinator",
 		"count_threshold": "10",
 		"range_threshold": "15m0s",
 	})
@@ -203,6 +270,7 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		"path":            "/api/v1/query_range",
 		"status":          "300",
 		"size":            "large",
+		"type":            "coordinator",
 		"count_threshold": "10",
 		"range_threshold": "15m0s",
 	})
@@ -211,17 +279,21 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		"path":            "/api/v1/query_range",
 		"status":          "200",
 		"size":            "small",
+		"type":            "coordinator",
 		"count_threshold": "10",
 		"range_threshold": "15m0s",
 	})
 
 	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+		"type":   "coordinator",
 		"status": "below_range_threshold",
 	})
 	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+		"type":   "coordinator",
 		"status": "below_count_threshold",
 	})
 	tallytest.AssertCounterValue(t, 3, snapshot, "count", map[string]string{
+		"type":   "coordinator",
 		"status": "large_query",
 	})
 
@@ -229,7 +301,7 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		hist       = snapshot.Histograms()
 		exHistLen  = 2
 		exLarge    = 1
-		exTagCount = 4
+		exTagCount = 5
 	)
 
 	if addStatus {
@@ -253,6 +325,7 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		require.Equal(t, "/api/v1/query_range", tags["path"])
 		require.Equal(t, "10", tags["count_threshold"])
 		require.Equal(t, "15m0s", tags["range_threshold"])
+		require.Equal(t, metricsTypeTagDefaultValue, tags[metricsTypeTagName])
 
 		sizes[tags["size"]]++
 		if addStatus {
