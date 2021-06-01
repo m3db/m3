@@ -32,7 +32,7 @@ import (
 
 var (
 	emptyArgs = []interface{}{}
-	start     = xtime.ToUnixNano(time.Now())
+	start     = xtime.Now()
 	steps     = 15
 	testBound = models.Bounds{
 		Start:    start,

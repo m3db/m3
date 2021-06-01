@@ -90,7 +90,7 @@ func NewMockSeriesIteratorFromBase(
 ) *encoding.MockSeriesIterator {
 	mockIter.EXPECT().Next().Return(true).MaxTimes(numValues)
 	mockIter.EXPECT().Next().Return(false).MaxTimes(1)
-	now := xtime.ToUnixNano(time.Now())
+	now := xtime.Now()
 	for i := 0; i < numValues; i++ {
 		mockIter.EXPECT().Current().Return(
 			m3ts.Datapoint{

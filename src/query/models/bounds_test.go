@@ -24,13 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBounds(t *testing.T) {
-	now := xtime.ToUnixNano(time.Now())
+	now := xtime.Now()
 	bounds := Bounds{
 		Start:    now,
 		Duration: 0,

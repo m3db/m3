@@ -35,9 +35,9 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 
 	var (
 		validIsBootstrapped                  = true
-		validShardSetAssignedAt              = xtime.ToUnixNano(time.Now())
-		validLastBootstrapCompletionTime     = xtime.ToUnixNano(validShardSetAssignedAt.ToTime().Add(time.Second))
-		validLastSuccessfulSnapshotStartTime = xtime.ToUnixNano(validLastBootstrapCompletionTime.ToTime().Add(time.Second))
+		validShardSetAssignedAt              = xtime.Now()
+		validLastBootstrapCompletionTime     = validShardSetAssignedAt.Add(time.Second)
+		validLastSuccessfulSnapshotStartTime = validLastBootstrapCompletionTime.Add(time.Second)
 		zeroTime                             xtime.UnixNano
 	)
 	testCases := []struct {

@@ -66,7 +66,7 @@ var (
 	opts            = models.NewTagOptions()
 	step            = time.Second
 	numSteps        = 10
-	now             = xtime.ToUnixNano(time.Now())
+	now             = xtime.Now()
 	containerBounds = models.Bounds{
 		Start:    now,
 		StepSize: step,
@@ -97,7 +97,7 @@ func TestContainerBlockMergesResultMeta(t *testing.T) {
 		ResultMetadata: ResultMetadata{
 			Exhaustive: true,
 			LocalOnly:  true,
-			Warnings:   []Warning{Warning{"foo", "bar"}},
+			Warnings:   []Warning{{"foo", "bar"}},
 		},
 	}
 
@@ -330,11 +330,11 @@ func TestUnconsolidatedContainerMultiSeriesIter(t *testing.T) {
 	require.Equal(t, concurrency, len(batch))
 
 	expected := [][]ts.Datapoints{
-		[]ts.Datapoints{buildExpected(2), buildExpected(3), buildExpected(4)},
-		[]ts.Datapoints{buildExpected(2), buildExpected(3)},
-		[]ts.Datapoints{buildExpected(2), buildExpected(3)},
-		[]ts.Datapoints{buildExpected(2), buildExpected(3)},
-		[]ts.Datapoints{buildExpected(3)},
+		[]{buildExpected(2), buildExpected(3), buildExpected(4)},
+		[]{buildExpected(2), buildExpected(3)},
+		[]{buildExpected(2), buildExpected(3)},
+		[]{buildExpected(2), buildExpected(3)},
+		[]{buildExpected(3)},
 	}
 
 	expectedNames := []string{

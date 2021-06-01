@@ -29,6 +29,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -38,10 +42,6 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type listTagsMatcher struct {
@@ -108,7 +108,7 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 		Metadata: meta,
 	}
 
-	now := xtime.ToUnixNano(time.Now())
+	now := xtime.Now()
 	nowFn := func() time.Time {
 		return now.ToTime()
 	}

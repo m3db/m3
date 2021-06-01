@@ -50,7 +50,7 @@ func buildBlockReader(
 	opts Options,
 ) ([]xio.BlockReader, error) {
 	encoder := opts.EncoderPool.Get()
-	encoder.Reset(xtime.ToUnixNano(time.Now()), len(block), nil)
+	encoder.Reset(xtime.Now(), len(block), nil)
 	for _, dp := range block {
 		err := encoder.Encode(dp, xtime.Second, nil)
 		if err != nil {

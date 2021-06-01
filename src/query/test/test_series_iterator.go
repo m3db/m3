@@ -62,7 +62,7 @@ func init() {
 
 	BlockSize = time.Hour / 2
 
-	Start = xtime.ToUnixNano(time.Now()).Truncate(time.Hour)
+	Start = xtime.Now().Truncate(time.Hour)
 	SeriesStart = Start.Add(2 * time.Minute)
 	Middle = Start.Add(BlockSize)
 	End = Middle.Add(BlockSize)
