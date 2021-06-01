@@ -653,19 +653,19 @@ func TestMarkAllAsAvailable(t *testing.T) {
 func TestOptimize(t *testing.T) {
 	rf := 1
 	tests := []struct {
-		name string
-		shards []uint32
+		name            string
+		shards          []uint32
 		instancesBefore []placement.Instance
-		instancesAfter []placement.Instance
+		instancesAfter  []placement.Instance
 	}{
 		{
-			name: "empty",
+			name:            "empty",
 			instancesBefore: []placement.Instance{},
-			instancesAfter: []placement.Instance{},
+			instancesAfter:  []placement.Instance{},
 		},
 		{
-			name: "no optimization when instance is off by one",
-			shards:[]uint32{1, 2, 3, 4, 5},
+			name:   "no optimization when instance is off by one",
+			shards: []uint32{1, 2, 3, 4, 5},
 			instancesBefore: []placement.Instance{
 				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
 					shard.NewShards([]shard.Shard{
@@ -700,8 +700,8 @@ func TestOptimize(t *testing.T) {
 			},
 		},
 		{
-			name: "optimizing one imbalanced instance",
-			shards:[]uint32{1, 2, 3, 4, 5, 6},
+			name:   "optimizing one imbalanced instance",
+			shards: []uint32{1, 2, 3, 4, 5, 6},
 			instancesBefore: []placement.Instance{
 				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
 					shard.NewShards([]shard.Shard{
@@ -739,8 +739,8 @@ func TestOptimize(t *testing.T) {
 			},
 		},
 		{
-			name: "optimizing multiple imbalanced instances",
-			shards:[]uint32{1, 2, 3, 4, 5, 6, 7, 8},
+			name:   "optimizing multiple imbalanced instances",
+			shards: []uint32{1, 2, 3, 4, 5, 6, 7, 8},
 			instancesBefore: []placement.Instance{
 				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
 					shard.NewShards([]shard.Shard{
@@ -782,8 +782,8 @@ func TestOptimize(t *testing.T) {
 			},
 		},
 		{
-			name: "no optimization for balanced instances with different weights",
-			shards:[]uint32{1, 2, 3, 4, 5, 6, 7, 8},
+			name:   "no optimization for balanced instances with different weights",
+			shards: []uint32{1, 2, 3, 4, 5, 6, 7, 8},
 			instancesBefore: []placement.Instance{
 				placement.NewInstance().SetID("i1").SetWeight(2).SetShards(
 					shard.NewShards([]shard.Shard{
@@ -824,8 +824,8 @@ func TestOptimize(t *testing.T) {
 			},
 		},
 		{
-			name: "optimization for imbalanced instances with different weights",
-			shards:[]uint32{1, 2, 3, 4, 5, 6, 7, 8},
+			name:   "optimization for imbalanced instances with different weights",
+			shards: []uint32{1, 2, 3, 4, 5, 6, 7, 8},
 			instancesBefore: []placement.Instance{
 				placement.NewInstance().SetID("i1").SetWeight(2).SetShards(
 					shard.NewShards([]shard.Shard{
