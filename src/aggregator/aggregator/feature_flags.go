@@ -34,8 +34,9 @@ type FeatureFlagConfigurations []FeatureFlagConfiguration
 // match against metric ids for applying feature flags.
 func (f FeatureFlagConfigurations) Parse() []FeatureFlagBundleParsed {
 	result := make([]FeatureFlagBundleParsed, 0, len(f))
-	for i, elem := range f {
-		result[i] = elem.parse()
+	for _, elem := range f {
+		parsed := elem.parse()
+		result = append(result, parsed)
 	}
 	return result
 }
@@ -63,7 +64,6 @@ func (f FeatureFlagConfiguration) parse() FeatureFlagBundleParsed {
 		serializedTagMatchers: make([][]byte, 0, len(f.Filter)),
 	}
 
-	i := 0
 	for key, value := range f.Filter {
 		var (
 			byteOrder      = binary.LittleEndian
@@ -81,8 +81,7 @@ func (f FeatureFlagConfiguration) parse() FeatureFlagBundleParsed {
 		tagFilterBytes = append(tagFilterBytes, buff[:2]...)
 		tagFilterBytes = append(tagFilterBytes, []byte(value)...)
 
-		parsed.serializedTagMatchers[i] = tagFilterBytes
-		i++
+		parsed.serializedTagMatchers = append(parsed.serializedTagMatchers, tagFilterBytes)
 	}
 
 	return parsed
