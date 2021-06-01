@@ -266,14 +266,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		SetRuntimeOptionsManager(runtimeOptsManager).
 		SetVerboseErrors(c.VerboseErrors).
 		SetAddToReset(c.AddToReset).
-		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled)
-
-	parsedFeatureFlagBundles, err := c.FeatureFlags.Parse()
-	if err != nil {
-		return nil, err
-	}
-
-	opts = opts.SetFeatureFlagBundlesParsed(parsedFeatureFlagBundles)
+		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled).
+		SetFeatureFlagBundlesParsed(c.FeatureFlags.Parse())
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {

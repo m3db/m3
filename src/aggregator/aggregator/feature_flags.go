@@ -28,16 +28,16 @@ import (
 // FeatureFlagConfigurations is a list of aggregator feature flags.
 type FeatureFlagConfigurations []FeatureFlagConfiguration
 
-func (f FeatureFlagConfigurations) Parse() ([]FeatureFlagBundleParsed, error) {
+// Parse converts FeatureFlagConfigurations into a list of
+// FeatureFlagBundleParsed. The difference being, tag (key, value) pairs are
+// represented as []byte in the FeatureFlagBundleParsed. The bytes are used to
+// match against metric ids for applying feature flags.
+func (f FeatureFlagConfigurations) Parse() []FeatureFlagBundleParsed {
 	result := make([]FeatureFlagBundleParsed, 0, len(f))
-	for _, elem := range f {
-		parsed, err := elem.Parse()
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, parsed)
+	for i, elem := range f {
+		result[i] = elem.parse()
 	}
-	return result, nil
+	return result
 }
 
 // FeatureFlagConfiguration holds filter and flag combinations. The flags are
@@ -57,12 +57,13 @@ type FlagBundle struct {
 	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool `yaml:"increaseWithPrevNaNTranslatesToCurrValueIncrease"`
 }
 
-func (f FeatureFlagConfiguration) Parse() (FeatureFlagBundleParsed, error) {
+func (f FeatureFlagConfiguration) parse() FeatureFlagBundleParsed {
 	parsed := FeatureFlagBundleParsed{
 		flags:                 f.Flags,
 		serializedTagMatchers: make([][]byte, 0, len(f.Filter)),
 	}
 
+	i := 0
 	for key, value := range f.Filter {
 		var (
 			byteOrder      = binary.LittleEndian
@@ -80,10 +81,11 @@ func (f FeatureFlagConfiguration) Parse() (FeatureFlagBundleParsed, error) {
 		tagFilterBytes = append(tagFilterBytes, buff[:2]...)
 		tagFilterBytes = append(tagFilterBytes, []byte(value)...)
 
-		parsed.serializedTagMatchers = append(parsed.serializedTagMatchers, tagFilterBytes)
+		parsed.serializedTagMatchers[i] = tagFilterBytes
+		i++
 	}
 
-	return parsed, nil
+	return parsed
 }
 
 // FeatureFlagBundleParsed is a parsed feature flag bundle.
