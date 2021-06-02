@@ -2640,7 +2640,7 @@ func init() {
 	MustRegisterFunction(legendValue)
 	MustRegisterFunction(limit)
 	MustRegisterFunction(logarithm).WithDefaultParams(map[uint8]interface{}{
-		2: 10, // base
+		2: 10.0, // base
 	})
 	MustRegisterFunction(lowest).WithDefaultParams(map[uint8]interface{}{
 		2: 1,         // n,
@@ -2708,7 +2708,7 @@ func init() {
 	MustRegisterFunction(removeBelowPercentile)
 	MustRegisterFunction(removeBelowValue)
 	MustRegisterFunction(removeEmptySeries).WithDefaultParams(map[uint8]interface{}{
-		2: 0, // xFilesFactor
+		2: 0.0, // xFilesFactor
 	})
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
