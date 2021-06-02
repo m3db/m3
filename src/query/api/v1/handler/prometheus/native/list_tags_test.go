@@ -193,8 +193,8 @@ func TestListErrorTags(t *testing.T) {
 	handler := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
 		matcher := &listTagsMatcher{
-			start: xtime.ToUnixNano(time.Unix(100, 0)),
-			end:   xtime.ToUnixNano(time.Unix(1000, 0)),
+			start: xtime.FromSeconds(100),
+			end:   xtime.FromSeconds(1000),
 		}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(nil, errors.New("err"))

@@ -33,7 +33,7 @@ func TestNumIntervals(t *testing.T) {
 	var (
 		bs      = 10
 		timeFor = func(i int) xtime.UnixNano {
-			return xtime.ToUnixNano(time.Unix(int64(bs*i), 0))
+			return xtime.FromSeconds(int64(bs * i))
 		}
 	)
 

@@ -101,3 +101,15 @@ func (u UnixNano) Format(blockTimeFormat string) string {
 func (u UnixNano) Seconds() int64 {
 	return u.ToNormalizedTime(time.Second)
 }
+
+// FromSeconds returns the UnixNano representation of the local Time
+// corresponding to the seconds since January 1, 1970 UTC.
+func FromSeconds(seconds int64) UnixNano {
+	return FromSecondsAndNanos(seconds, 0)
+}
+
+// FromSecondsAndNanos returns the UnixNano representation of the local Time
+// corresponding to the seconds and nanoseconds since January 1, 1970 UTC.
+func FromSecondsAndNanos(seconds int64, nanos int64) UnixNano {
+	return ToUnixNano(time.Unix(seconds, nanos))
+}

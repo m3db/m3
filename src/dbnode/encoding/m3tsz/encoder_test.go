@@ -39,7 +39,7 @@ import (
 )
 
 var (
-	testStartTime         = xtime.ToUnixNano(time.Unix(1427162400, 0))
+	testStartTime         = xtime.FromSeconds(1427162400)
 	testDeterministicSeed = int64(testStartTime)
 )
 
@@ -212,7 +212,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
-	startTime := xtime.ToUnixNano(time.Unix(1427162462, 0))
+	startTime := xtime.FromSeconds(1427162462)
 	inputs := []ts.Datapoint{
 		{TimestampNanos: startTime, Value: 12},
 		{TimestampNanos: startTime.Add(time.Second * 60), Value: 12},
@@ -252,7 +252,7 @@ func TestEncodeWithAnnotation(t *testing.T) {
 	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
-	startTime := xtime.ToUnixNano(time.Unix(1427162462, 0))
+	startTime := xtime.FromSeconds(1427162462)
 	inputs := []struct {
 		dp  ts.Datapoint
 		ant ts.Annotation
@@ -296,7 +296,7 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
-	startTime := xtime.ToUnixNano(time.Unix(1427162462, 0))
+	startTime := xtime.FromSeconds(1427162462)
 	inputs := []struct {
 		dp ts.Datapoint
 		tu xtime.Unit
@@ -334,7 +334,7 @@ func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
 	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
-	startTime := xtime.ToUnixNano(time.Unix(1427162462, 0))
+	startTime := xtime.FromSeconds(1427162462)
 	inputs := []struct {
 		dp  ts.Datapoint
 		ant ts.Annotation

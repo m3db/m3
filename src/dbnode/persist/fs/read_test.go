@@ -304,7 +304,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	defer os.RemoveAll(filePathPrefix)
 
 	shard := uint32(0)
-	start := xtime.ToUnixNano(time.Unix(1000, 0))
+	start := xtime.FromSeconds(1000)
 	shardDir := ShardDataDirPath(filePathPrefix, testNs1ID, shard)
 
 	w := newTestWriter(t, filePathPrefix)
@@ -341,7 +341,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
-			BlockStart: xtime.ToUnixNano(time.Unix(1000, 0)),
+			BlockStart: xtime.FromSeconds(1000,
 		},
 	}
 	require.Error(t, r.Open(rOpenOpts))
@@ -402,7 +402,7 @@ func TestReadValidate(t *testing.T) {
 	defer os.RemoveAll(filePathPrefix)
 
 	shard := uint32(0)
-	start := xtime.ToUnixNano(time.Unix(1000, 0))
+	start := xtime.FromSeconds(1000)
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,

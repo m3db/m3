@@ -41,12 +41,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	testCommitlogFile = persist.CommitLogFile{
-		FilePath: "/var/lib/m3db/commitlogs/commitlog-0-0.db",
-		Index:    0,
-	}
-)
+var testCommitlogFile = persist.CommitLogFile{
+	FilePath: "/var/lib/m3db/commitlogs/commitlog-0-0.db",
+	Index:    0,
+}
 
 func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 	*flushManager,
@@ -408,16 +406,16 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 		expected xtime.UnixNano
 	}{
 		{
-			ts:       xtime.ToUnixNano(time.Unix(86400*2, 0)),
+			ts:       xtime.FromSeconds(86400 * 2),
 			expected: xtime.UnixNano(0),
 		},
 		{
-			ts:       xtime.ToUnixNano(time.Unix(86400*2+7200, 0)),
-			expected: xtime.ToUnixNano(time.Unix(7200, 0)),
+			ts:       xtime.FromSeconds(86400*2 + 7200),
+			expected: xtime.FromSeconds(7200),
 		},
 		{
-			ts:       xtime.ToUnixNano(time.Unix(86400*2+10800, 0)),
-			expected: xtime.ToUnixNano(time.Unix(7200, 0)),
+			ts:       xtime.FromSeconds(86400*2 + 10800),
+			expected: xtime.FromSeconds(7200),
 		},
 	}
 
@@ -437,16 +435,16 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 		expected xtime.UnixNano
 	}{
 		{
-			ts:       xtime.ToUnixNano(time.Unix(7800, 0)),
+			ts:       xtime.FromSeconds(7800),
 			expected: xtime.UnixNano(0),
 		},
 		{
-			ts:       xtime.ToUnixNano(time.Unix(8000, 0)),
+			ts:       xtime.FromSeconds(8000),
 			expected: xtime.UnixNano(0),
 		},
 		{
-			ts:       xtime.ToUnixNano(time.Unix(15200, 0)),
-			expected: xtime.ToUnixNano(time.Unix(7200, 0)),
+			ts:       xtime.FromSeconds(15200),
+			expected: xtime.FromSeconds(7200),
 		},
 	}
 

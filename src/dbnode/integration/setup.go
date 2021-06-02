@@ -167,6 +167,7 @@ type TestSetup interface {
 	StartServer() error
 	StartServerDontWaitBootstrap() error
 	NowFn() xNowFn
+	ClockNowFn() clock.NowFn
 	SetNowFn(xtime.UnixNano)
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
@@ -586,6 +587,10 @@ func (ts *testSetup) Namespaces() []namespace.Metadata {
 
 func (ts *testSetup) NowFn() xNowFn {
 	return ts.getNowFn
+}
+
+func (ts *testSetup) ClockNowFn() clock.NowFn {
+	return ts.clockNowFn
 }
 
 func (ts *testSetup) SetNowFn(t xtime.UnixNano) {

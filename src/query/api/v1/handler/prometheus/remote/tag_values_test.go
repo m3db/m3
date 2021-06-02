@@ -160,7 +160,7 @@ func testTagValuesWithMatch(
 	}
 
 	matcher := &storage.CompleteTagsQuery{
-		Start:            xtime.ToUnixNano(time.Unix(100, 0)),
+		Start:            xtime.FromSeconds(100),
 		End:              now,
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{[]byte(name)},

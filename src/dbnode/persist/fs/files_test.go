@@ -460,7 +460,7 @@ func TestShardDirPath(t *testing.T) {
 }
 
 func TestFilePathFromTime(t *testing.T) {
-	start := xtime.ToUnixNano(time.Unix(1465501321, 123456789))
+	start := xtime.FromSecondsAndNanos(1465501321, 123456789)
 	inputs := []struct {
 		prefix   string
 		suffix   string

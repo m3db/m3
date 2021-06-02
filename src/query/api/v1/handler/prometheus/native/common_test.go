@@ -283,7 +283,7 @@ func TestRenderResultsJSON(t *testing.T) {
 
 func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	var (
-		start       = xtime.ToUnixNano(time.Unix(1535948880, 0))
+		start       = xtime.FromSeconds(1535948880)
 		buffer      = bytes.NewBuffer(nil)
 		step        = 10 * time.Second
 		valsWithNaN = ts.NewFixedStepValues(step, 2, 1, start)
@@ -394,7 +394,7 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 }
 
 func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
-	start := xtime.ToUnixNano(time.Unix(1535948880, 0))
+	start := xtime.FromSeconds(1535948880)
 
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
@@ -509,7 +509,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 }
 
 func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
-	start := xtime.ToUnixNano(time.Unix(1535948880, 0))
+	start := xtime.FromSeconds(1535948880)
 
 	series := []*ts.Series{
 		ts.NewSeries([]byte("nan"),
@@ -602,7 +602,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 }
 
 func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
-	start := xtime.ToUnixNano(time.Unix(1535948880, 0))
+	start := xtime.FromSeconds(1535948880)
 
 	series := []*ts.Series{
 		ts.NewSeries(
@@ -671,7 +671,7 @@ func TestSanitizeSeries(t *testing.T) {
 	var (
 		series = make([]*ts.Series, 0, len(testData))
 		tags   = models.NewTags(0, models.NewTagOptions())
-		now    = xtime.ToUnixNano(time.Unix(1535948880, 0))
+		now    = xtime.FromSeconds(1535948880)
 		step   = time.Minute
 		start  = now.Add(step)
 		end    = now.Add(step * 3)
@@ -860,7 +860,7 @@ func TestRenderResultsJSONWithLimits(t *testing.T) {
 }
 
 func testSeries(datapointsPerSeries int) []*ts.Series {
-	start := xtime.ToUnixNano(time.Unix(1535948880, 0))
+	start := xtime.FromSeconds(1535948880)
 	valsWithNaN := ts.NewFixedStepValues(10*time.Second, datapointsPerSeries, 1, start)
 	valsWithNaN.SetValueAt(1, math.NaN())
 	return []*ts.Series{

@@ -46,9 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	testID = ident.StringID("foo")
-)
+var testID = ident.StringID("foo")
 
 func newBufferTestOptions() Options {
 	encoderPool := encoding.NewEncoderPool(nil)
@@ -1464,10 +1462,10 @@ func TestInOrderUnixNanosAddRemove(t *testing.T) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	assertTimeSlicesEqual(t, []xtime.UnixNano{}, buffer.inOrderBlockStarts)
 
-	t3 := xtime.ToUnixNano(time.Unix(3, 0))
-	t5 := xtime.ToUnixNano(time.Unix(5, 0))
-	t7 := xtime.ToUnixNano(time.Unix(7, 0))
-	t8 := xtime.ToUnixNano(time.Unix(8, 0))
+	t3 := xtime.FromSeconds(3)
+	t5 := xtime.FromSeconds(5)
+	t7 := xtime.FromSeconds(7)
+	t8 := xtime.FromSeconds(8)
 
 	buffer.inOrderBlockStartsAdd(t5)
 	assertTimeSlicesEqual(t, []xtime.UnixNano{t5}, buffer.inOrderBlockStarts)

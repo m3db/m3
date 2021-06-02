@@ -93,7 +93,8 @@ func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
 		2: xtime.NewRanges(xtime.Range{
 			Start: start.Add(testBlockSize),
 			End:   start.Add(testBlockSize * 2),
-		})}
+		}),
+	}
 
 	assert.True(t, rMerged.Unfulfilled().Equal(expected))
 }
@@ -366,7 +367,7 @@ func TestShardTimeRangesMinMax(t *testing.T) {
 }
 
 func TestShardTimeRangesString(t *testing.T) {
-	start := xtime.ToUnixNano(time.Unix(1472824800, 0))
+	start := xtime.FromSeconds(1472824800)
 	ts := [][]xtime.UnixNano{
 		{start, start.Add(testBlockSize)},
 		{start.Add(2 * testBlockSize), start.Add(4 * testBlockSize)},
@@ -392,7 +393,7 @@ func TestShardTimeRangesString(t *testing.T) {
 }
 
 func TestShardTimeRangesSummaryString(t *testing.T) {
-	start := xtime.ToUnixNano(time.Unix(1472824800, 0))
+	start := xtime.FromSeconds(1472824800)
 	str := shardTimeRanges{
 		0: xtime.NewRanges(
 			xtime.Range{Start: start, End: start.Add(testBlockSize)},

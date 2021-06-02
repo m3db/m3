@@ -557,7 +557,7 @@ func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
 }
 
 func timeFor() xtime.UnixNano {
-	return xtime.ToUnixNano(time.Unix(36000, 0))
+	return xtime.FromSeconds(36000)
 }
 
 type fakeActiveLogs struct {

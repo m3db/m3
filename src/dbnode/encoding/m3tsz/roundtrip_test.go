@@ -213,7 +213,7 @@ func generateMixSignIntDatapoints(numPoints int) []ts.Datapoint {
 func generateDataPoints(numPoints int, numDig, numDec int) []ts.Datapoint {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var startTime int64 = 1427162462
-	currentTime := xtime.ToUnixNano(time.Unix(startTime, 0))
+	currentTime := xtime.FromSeconds(startTime)
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := 1.0
 	res := []ts.Datapoint{{TimestampNanos: currentTime, Value: currentValue}}
@@ -231,7 +231,7 @@ func generateDataPoints(numPoints int, numDig, numDec int) []ts.Datapoint {
 func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var startTime int64 = 1427162462
-	currentTime := xtime.ToUnixNano(time.Unix(startTime, 0))
+	currentTime := xtime.FromSeconds(startTime)
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := testgen.GenerateFloatVal(r, 3, 16)
 	res := []ts.Datapoint{{TimestampNanos: currentTime, Value: currentValue}}
@@ -254,7 +254,7 @@ func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 
 func generateOverflowDatapoints() []ts.Datapoint {
 	var startTime int64 = 1427162462
-	currentTime := xtime.ToUnixNano(time.Unix(startTime, 0))
+	currentTime := xtime.FromSeconds(startTime)
 	largeInt := float64(math.MaxInt64 - 1)
 	largeNegInt := float64(math.MinInt64 + 1)
 

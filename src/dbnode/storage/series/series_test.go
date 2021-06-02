@@ -496,7 +496,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	require.NoError(t, err)
 
-	flushTime := xtime.ToUnixNano(time.Unix(7200, 0))
+	flushTime := xtime.FromSeconds(7200)
 	outcome, err := series.WarmFlush(nil, flushTime, nil, namespace.Context{})
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
@@ -509,7 +509,7 @@ func TestSeriesFlush(t *testing.T) {
 	bl := block.NewMockDatabaseBlock(ctrl)
 	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
-	curr := xtime.ToUnixNano(time.Unix(7200, 0))
+	curr := xtime.FromSeconds(7200)
 	opts := newSeriesTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
@@ -1133,7 +1133,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 }
 
 func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
-	now := xtime.ToUnixNano(time.Unix(1477929600, 0))
+	now := xtime.FromSeconds(1477929600)
 	nowFn := func() time.Time { return now.ToTime() }
 	clockOpts := clock.NewOptions().SetNowFn(nowFn)
 	retentionOpts := retention.NewOptions()

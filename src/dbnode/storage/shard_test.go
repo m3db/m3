@@ -419,7 +419,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := xtime.ToUnixNano(time.Unix(21600, 0))
+	blockStart := xtime.FromSeconds(21600)
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
@@ -493,7 +493,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := xtime.ToUnixNano(time.Unix(21600, 0))
+	blockStart := xtime.FromSeconds(21600)
 	now := xtime.Now()
 	nowFn := func() time.Time {
 		return now.ToTime()
@@ -793,7 +793,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := xtime.ToUnixNano(time.Unix(21600, 0))
+	blockStart := xtime.FromSeconds(21600)
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
@@ -808,7 +808,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := xtime.ToUnixNano(time.Unix(21600, 0))
+	blockStart := xtime.FromSeconds(21600)
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
