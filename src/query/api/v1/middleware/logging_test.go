@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -242,7 +243,13 @@ func TestWithResponseTimeLogging(t *testing.T) {
 	stdout, stderr, req, instrumentOpts, cleanup := setup(t, false)
 	defer cleanup()
 
-	m := ResponseLogging(time.Second, instrumentOpts)
+	m := ResponseLogging(Options{
+		Clock:          clockwork.NewRealClock(),
+		InstrumentOpts: instrumentOpts,
+		Logging: LoggingOptions{
+			Threshold: time.Second,
+		},
+	})
 	slowHandler := m.Middleware(&delayHandler{delay: time.Second})
 	fastHandler := m.Middleware(&delayHandler{delay: time.Duration(0)})
 
@@ -272,7 +279,13 @@ func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
 	defer cleanup()
 
 	writer := &httpWriter{written: make([]string, 0, 10)}
-	slowPanic := ResponseLogging(time.Second, instrumentOpts).Middleware(
+	slowPanic := ResponseLogging(Options{
+		Clock:          clockwork.NewRealClock(),
+		InstrumentOpts: instrumentOpts,
+		Logging: LoggingOptions{
+			Threshold: time.Second,
+		},
+	}).Middleware(
 		Panic(instrumentOpts).Middleware(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				time.Sleep(time.Second)
