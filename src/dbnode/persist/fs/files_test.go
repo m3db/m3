@@ -483,14 +483,14 @@ func TestFileSetFilesBefore(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
-	cutoff := xtime.UnixNano(int64(cutoffIter))
+	cutoff := xtime.UnixNano(1 + cutoffIter)
 	res, err := DataFileSetsBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
 	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
-	for i := 1; i < len(res)+1; i++ {
-		ts := xtime.UnixNano(int64(i))
+	for i := 0; i < len(res); i++ {
+		ts := xtime.UnixNano(int64(i + 1))
 		require.Equal(t, filesetPathFromTimeLegacy(shardDir, ts, infoFileSuffix), res[i])
 	}
 }
@@ -838,11 +838,11 @@ func TestMultipleForBlockStart(t *testing.T) {
 
 	// Write out many files with the same blockStart, but different indices
 	ts := xtime.UnixNano(1)
-	for i := 1; i < numSnapshots+1; i++ {
+	for i := 0; i < numSnapshots; i++ {
 		volume := i % numSnapshotsPerBlock
 		// Periodically update the blockStart
 		if volume == 0 {
-			ts = xtime.UnixNano(int64(i))
+			ts = xtime.UnixNano(int64(i + 1))
 		}
 
 		writeOutTestSnapshot(t, dir, shard, ts, volume)
