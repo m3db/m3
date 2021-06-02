@@ -489,7 +489,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 	require.Equal(t, cutoffIter, len(res))
 
 	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
-	for i := 0; i < len(res); i++ {
+	for i := 1; i < len(res)+1; i++ {
 		ts := xtime.UnixNano(int64(i))
 		require.Equal(t, filesetPathFromTimeLegacy(shardDir, ts, infoFileSuffix), res[i])
 	}
@@ -837,8 +837,8 @@ func TestMultipleForBlockStart(t *testing.T) {
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 
 	// Write out many files with the same blockStart, but different indices
-	ts := xtime.UnixNano(0)
-	for i := 0; i < numSnapshots; i++ {
+	ts := xtime.UnixNano(1)
+	for i := 1; i < numSnapshots+1; i++ {
 		volume := i % numSnapshotsPerBlock
 		// Periodically update the blockStart
 		if volume == 0 {
@@ -918,7 +918,7 @@ func TestShardSnapshotsDirPath(t *testing.T) {
 func TestSnapshotFileSetExistsAt(t *testing.T) {
 	var (
 		shard     = uint32(0)
-		ts        = xtime.UnixNano(0)
+		ts        = xtime.UnixNano(1)
 		dir       = createTempDir(t)
 		shardPath = ShardSnapshotsDirPath(dir, testNs1ID, 0)
 	)
