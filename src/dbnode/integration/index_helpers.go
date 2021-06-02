@@ -250,11 +250,12 @@ func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags id
 
 func isIndexedChecked(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) (bool, error) {
 	q := newQuery(t, tags)
+	now := xtime.Now()
 	iter, _, err := s.FetchTaggedIDs(ContextWithDefaultTimeout(), ns,
 		index.Query{Query: q},
 		index.QueryOptions{
-			StartInclusive: xtime.Now(),
-			EndExclusive:   xtime.Now(),
+			StartInclusive: now,
+			EndExclusive:   now,
 			SeriesLimit:    10,
 		})
 	if err != nil {

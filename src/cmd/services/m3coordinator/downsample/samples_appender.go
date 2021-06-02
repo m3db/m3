@@ -134,7 +134,6 @@ func (a *samplesAppender) AppendGaugeSample(t xtime.UnixNano, value float64, ann
 func (a *samplesAppender) AppendTimerSample(
 	t xtime.UnixNano, value float64, annotation []byte,
 ) error {
-	// FIXME: if unixnano good here we're good
 	return a.appendTimedSample(aggregated.Metric{
 		Type:       metric.TimerType,
 		ID:         a.unownedID,

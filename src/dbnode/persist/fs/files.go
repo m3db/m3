@@ -478,7 +478,7 @@ func intComponentAtIndex(
 	baseFilename string,
 	componentPos int,
 	delimPos [maxDelimNum]int,
-) (int64, error) {
+) (xtime.UnixNano, error) {
 	start := 0
 	if componentPos > 0 {
 		start = delimPos[componentPos-1] + 1
@@ -492,7 +492,7 @@ func intComponentAtIndex(
 	if err != nil {
 		return 0, fmt.Errorf(errUnexpectedFilenamePattern, baseFilename)
 	}
-	return num, nil
+	return xtime.UnixNano(num), nil
 }
 
 // TimeFromFileName extracts the block start time from file name.
@@ -511,7 +511,7 @@ func TimeFromFileName(fname string) (xtime.UnixNano, error) {
 		return 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return xtime.UnixNano(nanos), nil
+	return nanos, nil
 }
 
 // TimeAndIndexFromCommitlogFilename extracts the block start and index from
@@ -539,7 +539,7 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (xtime.UnixNano, in
 
 	// Legacy filename with no volume index.
 	if delimsFound == 3 {
-		return xtime.UnixNano(nanos), unindexedFilesetIndex, nil
+		return nanos, unindexedFilesetIndex, nil
 	}
 
 	volume, err := intComponentAtIndex(base, dataFileSetComponentPosition, delims)
@@ -547,7 +547,7 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (xtime.UnixNano, in
 		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return xtime.UnixNano(nanos), int(volume), nil
+	return nanos, int(volume), nil
 }
 
 // TimeAndVolumeIndexFromFileSetFilename extracts the block start and
@@ -574,7 +574,7 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (xtime.UnixNa
 		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return xtime.UnixNano(nanos), int(index), nil
+	return nanos, int(index), nil
 }
 
 // SnapshotTimeAndID returns the metadata for the snapshot.
@@ -1368,6 +1368,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				VolumeIndex: volumeIndex,
 			}, args.filePathPrefix)
 		}
+
 		latestBlockStart = currentFileBlockStart
 		latestVolumeIndex = volumeIndex
 
@@ -1730,7 +1731,7 @@ func CommitLogFilePath(prefix string, index int) string {
 }
 
 func filesetFileForTime(t xtime.UnixNano, suffix string) string {
-	return fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t, separator, suffix, fileSuffix)
+	return fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, int64(t), separator, suffix, fileSuffix)
 }
 
 func filesetFileForTimeAndVolumeIndex(t xtime.UnixNano, index int, suffix string) string {

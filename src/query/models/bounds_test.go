@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/stretchr/testify/assert"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestBounds(t *testing.T) {
