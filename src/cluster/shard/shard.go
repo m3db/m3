@@ -404,8 +404,9 @@ func (ss *shards) Clone() Shards {
 	shardMap := make(map[uint32]Shard, len(ss.shards))
 
 	for _, shrd := range ss.shards {
-		shrds = append(shrds, shrd.Clone())
-		shardMap[shrd.ID()] = shrd
+		cloned := shrd.Clone()
+		shrds = append(shrds, cloned)
+		shardMap[shrd.ID()] = cloned
 	}
 
 	return &shards{

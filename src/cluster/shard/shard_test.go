@@ -233,6 +233,20 @@ func TestClone(t *testing.T) {
 	require.False(t, ss1.Equals(ss2))
 }
 
+func TestCloneCopiesToShardMap(t *testing.T) {
+	s := NewShard(1).SetState(Available)
+
+	ss := NewShards([]Shard{s})
+	clonedSS := ss.Clone()
+	require.True(t, ss.Equals(clonedSS))
+
+	s.SetState(Leaving)
+
+	clonedS, ok := clonedSS.Shard(1)
+	require.True(t, ok)
+	assert.Equal(t, Available, clonedS.State())
+}
+
 func TestShardAdd(t *testing.T) {
 	for i := 1; i < 500; i++ {
 		rndShards := makeTestShards(i)
