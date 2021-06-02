@@ -341,7 +341,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
-			BlockStart: xtime.FromSeconds(1000,
+			BlockStart: xtime.FromSeconds(1000),
 		},
 	}
 	require.Error(t, r.Open(rOpenOpts))
