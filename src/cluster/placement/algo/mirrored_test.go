@@ -1513,6 +1513,11 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
+
+	p, err = a.BalanceShards(p)
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
 }
 
 func TestMarkInstanceAndItsPeersAvailable(t *testing.T) {
@@ -1617,6 +1622,121 @@ func TestMarkInstanceAndItsPeersAvailable(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, globalChecker.allAvailable(p2, []string{"i1", "i2", "i3", "i4", "i5", "i6"}, nowNanos))
 	})
+}
+
+func TestBalanceShardsForMirroredWhenBalanced(t *testing.T) {
+	i1 := newTestInstance("i1").
+	SetShardSetID(1).
+	SetWeight(1).
+	SetShards(shard.NewShards([]shard.Shard{
+		shard.NewShard(0).SetState(shard.Available),
+	}))
+	i2 := newTestInstance("i2").
+		SetShardSetID(1).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+		}))
+	i3 := newTestInstance("i3").
+		SetShardSetID(2).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	i4 := newTestInstance("i4").
+		SetShardSetID(2).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+		initialPlacement := placement.NewPlacement().
+		SetReplicaFactor(2).
+		SetShards([]uint32{0, 1}).
+		SetInstances([]placement.Instance{i1, i2, i3, i4}).
+		SetIsMirrored(true).
+		SetIsSharded(true).
+		SetMaxShardSetID(2)
+
+	expectedPlacement := initialPlacement.Clone()
+
+	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
+
+	balancedPlacement, err := a.BalanceShards(initialPlacement)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedPlacement, balancedPlacement)
+}
+
+func TestBalanceShardsForMirroredWhenImbalanced(t *testing.T) {
+	i1 := newTestInstance("i1").
+	SetShardSetID(1).
+	SetWeight(1).
+	SetShards(shard.NewShards([]shard.Shard{
+		shard.NewShard(0).SetState(shard.Available),
+		shard.NewShard(1).SetState(shard.Available),
+	}))
+	i2 := newTestInstance("i2").
+		SetShardSetID(1).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	i3 := newTestInstance("i3").
+		SetShardSetID(2).
+		SetWeight(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(2).SetState(shard.Available),
+		}))
+	i4 := newTestInstance("i4").
+		SetShardSetID(2).
+		SetWeight(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(2).SetState(shard.Available),
+	}))
+	p := placement.NewPlacement().
+		SetReplicaFactor(2).
+		SetShards([]uint32{0, 1, 2, 3}).
+		SetInstances([]placement.Instance{i1, i2, i3, i4}).
+		SetIsMirrored(true).
+		SetIsSharded(true).
+		SetMaxShardSetID(2)
+
+	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
+
+	balancedPlacement, err := a.BalanceShards(p)
+	assert.NoError(t, err)
+
+	bi1 := newTestInstance("i1").
+	SetShardSetID(1).
+	SetWeight(1).
+	SetShards(shard.NewShards([]shard.Shard{
+		shard.NewShard(0).SetState(shard.Leaving),
+		shard.NewShard(1).SetState(shard.Available),
+	}))
+	bi2 := newTestInstance("i2").
+	SetShardSetID(1).
+	SetWeight(1).
+	SetShards(shard.NewShards([]shard.Shard{
+		shard.NewShard(0).SetState(shard.Leaving),
+		shard.NewShard(1).SetState(shard.Available),
+	}))
+	bi3 := newTestInstance("i3").
+	SetShardSetID(2).
+	SetWeight(2).
+	SetShards(shard.NewShards([]shard.Shard{
+		shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i1"),
+		shard.NewShard(2).SetState(shard.Available),
+	}))
+	bi4 := newTestInstance("i4").
+	SetShardSetID(2).
+	SetWeight(2).
+	SetShards(shard.NewShards([]shard.Shard{
+		shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2"),
+		shard.NewShard(2).SetState(shard.Available),
+	}))
+	expectedInstances := []placement.Instance{bi1, bi2, bi3, bi4}
+
+	assert.Equal(t, expectedInstances, balancedPlacement.Instances())
 }
 
 func newTestInstance(id string) placement.Instance {
