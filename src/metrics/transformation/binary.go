@@ -46,7 +46,7 @@ func transformPerSecond() BinaryTransform {
 // * It skips NaN values.
 // * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
 //   If either of the two conditions is not met, an empty datapoint is returned.
-func perSecond(prev, curr Datapoint) Datapoint {
+func perSecond(prev, curr Datapoint, flags FeatureFlags) Datapoint {
 	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
 		return emptyDatapoint
 	}
@@ -68,10 +68,21 @@ func transformIncrease() BinaryTransform {
 // * It skips NaN values.
 // * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
 //   If either of the two conditions is not met, an empty datapoint is returned.
-func increase(prev, curr Datapoint) Datapoint {
-	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
+func increase(prev, curr Datapoint, flags FeatureFlags) Datapoint {
+	if prev.TimeNanos >= curr.TimeNanos {
 		return emptyDatapoint
 	}
+	if math.IsNaN(curr.Value) {
+		return emptyDatapoint
+	}
+
+	if math.IsNaN(prev.Value) {
+		if !flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease {
+			return emptyDatapoint
+		}
+		prev.Value = 0
+	}
+
 	diff := curr.Value - prev.Value
 	if diff < 0 {
 		return emptyDatapoint

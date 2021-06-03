@@ -334,6 +334,12 @@ type Options interface {
 
 	// SetTimedMetricsFlushOffsetEnabled controls using of FlushOffset for timed metrics.
 	SetTimedMetricsFlushOffsetEnabled(bool) Options
+
+	// FeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	FeatureFlagBundlesParsed() []FeatureFlagBundleParsed
+
+	// SetFeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	SetFeatureFlagBundlesParsed([]FeatureFlagBundleParsed) Options
 }
 
 type options struct {
@@ -377,6 +383,7 @@ type options struct {
 	verboseErrors                    bool
 	addToReset                       bool
 	timedMetricsFlushOffsetEnabled   bool
+	featureFlagBundlesParsed         []FeatureFlagBundleParsed
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -893,6 +900,16 @@ func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
 	opts := *o
 	opts.timedMetricsFlushOffsetEnabled = value
 	return &opts
+}
+
+func (o *options) SetFeatureFlagBundlesParsed(value []FeatureFlagBundleParsed) Options {
+	opts := *o
+	opts.featureFlagBundlesParsed = value
+	return &opts
+}
+
+func (o *options) FeatureFlagBundlesParsed() []FeatureFlagBundleParsed {
+	return o.featureFlagBundlesParsed
 }
 
 func defaultMaxAllowedForwardingDelayFn(
