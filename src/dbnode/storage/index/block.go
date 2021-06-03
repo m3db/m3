@@ -805,6 +805,13 @@ func (b *block) aggregateNoLock(
 		return false, err
 	}
 
+	iterCloser := safeCloser{closable: iter}
+
+	defer func() {
+		// Always attempt a close.
+		_ = iterCloser.Close()
+	}()
+
 	for _, reader := range readers {
 		if err := iter.Reset(reader, iterateOpts); err != nil {
 			return false, err
@@ -871,6 +878,11 @@ func (b *block) aggregateNoLock(
 		if err != nil {
 			return false, err
 		}
+	}
+
+	// Close the iterator.
+	if err := iterCloser.Close(); err != nil {
+		return false, err
 	}
 
 	return opts.exhaustive(size, docsCount), nil
