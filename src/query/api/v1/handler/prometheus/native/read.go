@@ -153,6 +153,13 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
+	err = handleroptions.AddDBResultResponseHeaders(w, result.Meta, parsedOptions.FetchOpts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
 	if !keepNaNs {
 		keepNaNs = result.Meta.KeepNaNs
@@ -182,14 +189,13 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
 	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
 
-	meta := result.Meta
 	limited := &handleroptions.ReturnedDataLimited{
 		Limited:     renderResult.LimitedMaxReturnedData,
 		Series:      renderResult.Series,
 		TotalSeries: renderResult.TotalSeries,
 		Datapoints:  renderResult.Datapoints,
 	}
-	err = handleroptions.AddResponseHeaders(w, meta, parsedOptions.FetchOpts, limited, nil)
+	err = handleroptions.AddReturnedLimitResponseHeaders(w, limited, nil)
 	if err != nil {
 		logger.Error("error writing returned data limited header", zap.Error(err))
 		xhttp.WriteError(w, err)
