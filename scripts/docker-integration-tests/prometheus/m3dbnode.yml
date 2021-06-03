@@ -1,0 +1,3 @@
+db:
+  # Required for seeding test data for some limit tests.
+  forceColdWritesEnabled: true

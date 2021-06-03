@@ -314,30 +314,38 @@ function test_query_limits_applied {
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 2" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data | length") -eq 2 ]]'
 
-  # Test time range limits
+  # Test time range limits.
   now=$(date +"%s")
-  prometheus_remote_write \
+  TAG_NAME_0="timerange_test_label" TAG_VALUE_0="series_label_0" \
+    prometheus_remote_write \
     timerange_test_series $now 42.42 \
     true "Expected request to succeed" \
-    200 "Expected request to return status code 200"
+    200 "Expected request to return status code 200" \
+    unaggregated
 
   two_hours_ago=$(expr $(date +"%s") - 7200)
-  prometheus_remote_write \
+  TAG_NAME_0="timerange_test_label" TAG_VALUE_0="series_label_1" \
+    prometheus_remote_write \
     timerange_test_series $two_hours_ago 42.42 \
     true "Expected request to succeed" \
-    200 "Expected request to return status code 200"
+    200 "Expected request to return status code 200" \
+    unaggregated
 
   four_hours_ago=$(expr $(date +"%s") - 14400)
-  prometheus_remote_write \
+  TAG_NAME_0="timerange_test_label" TAG_VALUE_0="series_label_2" \
+    prometheus_remote_write \
     timerange_test_series $four_hours_ago 42.42 \
     true "Expected request to succeed" \
-    200 "Expected request to return status code 200"
+    200 "Expected request to return status code 200" \
+    unaggregated
 
   six_hours_ago=$(expr $(date +"%s") - 21600)
-  prometheus_remote_write \
+  TAG_NAME_0="timerange_test_label" TAG_VALUE_0="series_label_3" \
+    prometheus_remote_write \
     timerange_test_series $six_hours_ago 42.42 \
     true "Expected request to succeed" \
-    200 "Expected request to return status code 200"
+    200 "Expected request to return status code 200" \
+    unaggregated
 
   # Make sure query ranges are inclusive of the datapoints we just wrote.
   query_start=$(expr $six_hours_ago - 1)
