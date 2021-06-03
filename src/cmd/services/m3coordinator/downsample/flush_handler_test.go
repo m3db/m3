@@ -64,6 +64,7 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 		expectedID = []byte("foo")
 		tagName    = []byte("name")
 		tagValue   = []byte("value")
+		annotation = []byte("annotation")
 	)
 	iter := serialize.NewMockMetricTagsIterator(ctrl)
 	gomock.InOrder(
@@ -81,9 +82,10 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	// Write metric
 	err = writer.Write(aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
-			ChunkedID: id.ChunkedID{Data: expectedID},
-			TimeNanos: 123,
-			Value:     42.42,
+			ChunkedID:  id.ChunkedID{Data: expectedID},
+			TimeNanos:  123,
+			Value:      42.42,
+			Annotation: annotation,
 		},
 		StoragePolicy: policy.MustParseStoragePolicy("1s:1d"),
 	})
@@ -106,6 +108,8 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	assert.True(t, bytes.Equal(tagValue, tag.Value))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tagName, tag.Name))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tagValue, tag.Value))
+
+	assert.True(t, bytes.Equal(annotation, writes[0].Annotation()))
 }
 
 func graphiteTags(
