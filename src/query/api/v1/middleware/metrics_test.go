@@ -32,7 +32,6 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
@@ -44,7 +43,7 @@ func TestResponseMetrics(t *testing.T) {
 
 	r := mux.NewRouter()
 	route := r.NewRoute()
-	opts := options.MiddlewareOptions{
+	opts := Options{
 		InstrumentOpts: iOpts,
 		Route:          route,
 	}
@@ -91,7 +90,7 @@ func TestResponseMetricsCustomMetricType(t *testing.T) {
 
 	r := mux.NewRouter()
 	route := r.NewRoute()
-	opts := options.MiddlewareOptions{
+	opts := Options{
 		InstrumentOpts: iOpts,
 		Route:          route,
 	}
@@ -133,19 +132,47 @@ func TestResponseMetricsCustomMetricType(t *testing.T) {
 	}
 }
 
+var parseQueryParams ParseQueryParams = func(r *http.Request, _ time.Time) (QueryParams, error) {
+	if err := r.ParseForm(); err != nil {
+		return QueryParams{}, err
+	}
+	params := QueryParams{
+		Query: r.FormValue("query"),
+	}
+	if s := r.FormValue("start"); s != "" {
+		start, err := strconv.Atoi(r.FormValue("start"))
+		if err != nil {
+			return QueryParams{}, err
+		}
+		params.Start = time.Unix(int64(start), 0)
+	}
+
+	if s := r.FormValue("end"); s != "" {
+		end, err := strconv.Atoi(r.FormValue("end"))
+		if err != nil {
+			return QueryParams{}, err
+		}
+		params.End = time.Unix(int64(end), 0)
+	}
+	return params, nil
+}
+
 func TestLargeResponseMetrics(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	iOpts := instrument.NewOptions().SetMetricsScope(scope)
 
 	r := mux.NewRouter()
 	route := r.NewRoute()
-	opts := options.MiddlewareOptions{
+	opts := Options{
 		InstrumentOpts: iOpts,
 		Route:          route,
-		Config: &config.MiddlewareConfiguration{
-			InspectQuerySize:          true,
-			LargeSeriesCountThreshold: 10,
-			LargeSeriesRangeThreshold: time.Minute * 15,
+		Metrics: MetricsOptions{
+			Config: config.MetricsMiddlewareConfiguration{
+				InspectQuerySize:          true,
+				LargeSeriesCountThreshold: 10,
+				LargeSeriesRangeThreshold: time.Minute * 15,
+			},
+			ParseQueryParams: parseQueryParams,
 		},
 	}
 
@@ -214,14 +241,17 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 
 	r := mux.NewRouter()
 	route := r.NewRoute()
-	opts := options.MiddlewareOptions{
+	opts := Options{
 		InstrumentOpts: iOpts,
 		Route:          route,
-		Config: &config.MiddlewareConfiguration{
-			InspectQuerySize:          true,
-			LargeSeriesCountThreshold: 10,
-			LargeSeriesRangeThreshold: time.Minute * 15,
-			AddStatusToLatencies:      addStatus,
+		Metrics: MetricsOptions{
+			Config: config.MetricsMiddlewareConfiguration{
+				InspectQuerySize:          true,
+				LargeSeriesCountThreshold: 10,
+				LargeSeriesRangeThreshold: time.Minute * 15,
+				AddStatusToLatencies:      addStatus,
+			},
+			ParseQueryParams: parseQueryParams,
 		},
 	}
 
