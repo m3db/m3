@@ -791,6 +791,15 @@ func (b *block) aggregateNoLock(
 		return false, err
 	}
 
+	// Register the executor to close when context closes
+	// so can avoid copying the results into the map and just take
+	// references to it.
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
+		for _, reader := range readers {
+			b.closeAsyncNoLock(reader)
+		}
+	}))
+
 	iter, err := b.newFieldsAndTermsIteratorFn(nil, iterateOpts)
 	if err != nil {
 		return false, err
