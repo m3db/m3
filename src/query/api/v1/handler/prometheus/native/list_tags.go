@@ -46,10 +46,8 @@ const (
 	ListTagsURL = handler.RoutePrefixV1 + "/labels"
 )
 
-var (
-	// ListTagsHTTPMethods are the HTTP methods for this handler.
-	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// ListTagsHTTPMethods are the HTTP methods for this handler.
+var ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 // ListTagsHandler represents a handler for list tags endpoint.
 type ListTagsHandler struct {
@@ -124,6 +122,13 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = handleroptions.AddDBResultResponseHeaders(w, result.Metadata, opts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	// First write out results to zero output to check if will limit
 	// results and if so then write the header about truncation if occurred.
 	var (
@@ -139,14 +144,13 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta := result.Metadata
 	limited := &handleroptions.ReturnedMetadataLimited{
 		Results:      renderResult.Results,
 		TotalResults: renderResult.TotalResults,
 		Limited:      renderResult.LimitedMaxReturnedData,
 	}
-	if err := handleroptions.AddResponseHeaders(w, meta, opts, nil, limited); err != nil {
-		logger.Error("unable to render list tags headers", zap.Error(err))
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to write returned limit response headers", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
