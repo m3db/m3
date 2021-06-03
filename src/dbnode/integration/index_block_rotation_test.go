@@ -133,7 +133,7 @@ func TestIndexBlockRotation(t *testing.T) {
 
 	// await for results to be empty.
 	startCheck := time.Now()
-	for time.Since(startCheck) < time.Second * 5 && period0Results.Len() > 0 {
+	for time.Since(startCheck) < time.Second*5 && period0Results.Len() > 0 {
 		period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
 			md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 		require.NoError(t, err)
