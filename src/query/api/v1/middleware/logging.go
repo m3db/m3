@@ -59,6 +59,20 @@ type LoggingOptions struct {
 	Fields    Fields
 }
 
+// Append the provided Fields to these Fields.
+func (f Fields) Append(other Fields) Fields {
+	return func(r *http.Request, start time.Time) []zap.Field {
+		var fields []zap.Field
+		if f != nil {
+			fields = f(r, start)
+		}
+		if other != nil {
+			fields = append(fields, other(r, start)...)
+		}
+		return fields
+	}
+}
+
 // WithNoResponseLogging disables response logging for a route.
 var WithNoResponseLogging = func(opts Options) Options {
 	opts.Logging.Threshold = 0

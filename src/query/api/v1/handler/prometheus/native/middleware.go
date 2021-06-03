@@ -32,7 +32,7 @@ import (
 
 // WithQueryParams adds the query request parameters to the middleware options.
 var WithQueryParams middleware.OverrideOptions = func(opts middleware.Options) middleware.Options {
-	opts.Logging.Fields = func(r *http.Request, start time.Time) []zap.Field {
+	opts.Logging.Fields = opts.Logging.Fields.Append(func(r *http.Request, start time.Time) []zap.Field {
 		params, err := middlewareParseParams(r, start)
 		if err != nil {
 			opts.InstrumentOpts.Logger().Warn("failed to parse query params for response logging", zap.Error(err))
@@ -44,7 +44,7 @@ var WithQueryParams middleware.OverrideOptions = func(opts middleware.Options) m
 			zap.Time("end", params.End),
 			zap.Duration("queryRange", params.Range()),
 		}
-	}
+	})
 	opts.Metrics.ParseQueryParams = middlewareParseParams
 	return opts
 }
