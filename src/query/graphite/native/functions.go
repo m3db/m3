@@ -199,25 +199,23 @@ var (
 	genericInterfaceType       = reflect.TypeOf((*genericInterface)(nil)).Elem()
 )
 
-var (
-	allowableTypes = reflectTypeSet{
-		// these are for return types
-		timeSeriesListType,
-		unaryContextShifterPtrType,
-		seriesListType,
-		singlePathSpecType,
-		multiplePathSpecsType,
-		interfaceType, // only for function parameters
-		float64Type,
-		float64SliceType,
-		intType,
-		intSliceType,
-		stringType,
-		stringSliceType,
-		boolType,
-		boolSliceType,
-	}
-)
+var allowableTypes = reflectTypeSet{
+	// these are for return types
+	timeSeriesListType,
+	unaryContextShifterPtrType,
+	seriesListType,
+	singlePathSpecType,
+	multiplePathSpecsType,
+	interfaceType, // only for function parameters
+	float64Type,
+	float64SliceType,
+	intType,
+	intSliceType,
+	stringType,
+	stringSliceType,
+	boolType,
+	boolSliceType,
+}
 
 var (
 	errNonFunction   = xerrors.NewInvalidParamsError(errors.New("not a function"))
