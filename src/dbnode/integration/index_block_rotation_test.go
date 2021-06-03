@@ -128,13 +128,15 @@ func TestIndexBlockRotation(t *testing.T) {
 	// move time to 4p
 	testSetup.SetNowFn(t2)
 
-	// give tick some time to evict the block
-	testSetup.SleepFor10xTickMinimumInterval()
-
 	// ensure all data is absent
 	log.Info("querying period0 results after expiry")
-	period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
-		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
-	require.NoError(t, err)
+
+	// await for results to be empty.
+	startCheck := time.Now()
+	for time.Since(startCheck) < time.Second * 5 && period0Results.Len() > 0 {
+		period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
+			md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
+		require.NoError(t, err)
+	}
 	require.Equal(t, 0, period0Results.Len())
 }
