@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -44,6 +45,7 @@ type wideResults struct {
 	sync.RWMutex
 	size           int
 	totalDocsCount int
+	timeRange      time.Duration
 
 	nsID   ident.ID
 	idPool ident.Pool
@@ -218,6 +220,19 @@ func (r *wideResults) TotalDocsCount() int {
 	v := r.totalDocsCount
 	r.RUnlock()
 	return v
+}
+
+func (r *wideResults) CompletedRange(timeRange time.Duration) {
+	r.Lock()
+	r.timeRange += timeRange
+	r.Unlock()
+}
+
+func (r *wideResults) Range() time.Duration {
+	r.RLock()
+	timeRange := r.timeRange
+	r.RUnlock()
+	return timeRange
 }
 
 // NB: Finalize should be called after all documents have been consumed.

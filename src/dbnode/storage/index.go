@@ -1632,7 +1632,9 @@ func (i *nsIndex) queryWithSpan(
 
 	// queryCanceled returns true if the query has been canceled and the current iteration should terminate.
 	queryCanceled := func() bool {
-		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
+		size, docs := results.Size(), results.TotalDocsCount()
+		timeRange := results.Range()
+		return opts.LimitsExceeded(size, docs, timeRange) || state.hasErr()
 	}
 	// waitForPermit waits for a permit. returns non-nil if the permit was acquired and the wait time.
 	waitForPermit := func() (permits.Permit, time.Duration) {
@@ -1732,7 +1734,9 @@ func (i *nsIndex) queryWithSpan(
 
 	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.TotalDocsCount()))
 
-	exhaustive := opts.Exhaustive(results.Size(), results.TotalDocsCount())
+	size, docs := results.Size(), results.TotalDocsCount()
+	timeRange := results.Range()
+	exhaustive := opts.Exhaustive(size, docs, timeRange)
 	// ok to read state without lock since all parallel queries are done.
 	multiErr := state.multiErr
 	err = multiErr.FinalError()

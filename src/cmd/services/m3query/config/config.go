@@ -382,6 +382,11 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
+	// MaxFetchedRange limits the time range of index documents matched for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedRange time.Duration `yaml:"maxFetchedRange"`
+
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
 }
@@ -408,6 +413,7 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		SeriesLimit:       int(seriesLimit),
 		InstanceMultiple:  l.InstanceMultiple,
 		DocsLimit:         int(docsLimit),
+		RangeLimit:        l.MaxFetchedRange,
 		RequireExhaustive: requireExhaustive,
 	}
 }

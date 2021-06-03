@@ -89,6 +89,7 @@ type FetchOptionsBuilderLimitsOptions struct {
 	SeriesLimit                 int
 	InstanceMultiple            float32
 	DocsLimit                   int
+	RangeLimit                  time.Duration
 	ReturnedSeriesLimit         int
 	ReturnedDatapointsLimit     int
 	ReturnedSeriesMetadataLimit int
@@ -126,6 +127,36 @@ func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse limit: input=%s, err=%v", str, err)
+			return 0, err
+		}
+		return n, nil
+	}
+
+	return defaultLimit, nil
+}
+
+// ParseDurationLimit parses request limit from either header or query string.
+func ParseDurationLimit(
+	req *http.Request,
+	header,
+	formValue string,
+	defaultLimit time.Duration,
+) (time.Duration, error) {
+	if str := req.Header.Get(header); str != "" {
+		n, err := time.ParseDuration(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse duration limit: input=%s, err=%v", str, err)
+			return 0, err
+		}
+		return n, nil
+	}
+
+	if str := req.FormValue(formValue); str != "" {
+		n, err := time.ParseDuration(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse duration limit: input=%s, err=%v", str, err)
 			return 0, err
 		}
 		return n, nil
@@ -243,6 +274,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.DocsLimit = docsLimit
+
+	rangeLimit, err := ParseDurationLimit(req, headers.LimitMaxRangeHeader,
+		"rangeLimit", b.opts.Limits.RangeLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.RangeLimit = rangeLimit
 
 	returnedSeriesLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesHeader,
 		"returnedSeriesLimit", b.opts.Limits.ReturnedSeriesLimit)

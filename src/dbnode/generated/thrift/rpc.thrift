@@ -185,6 +185,7 @@ struct FetchTaggedRequest {
 	9: optional i64 docsLimit
 	10: optional binary source
 	11: optional bool requireNoWait = false
+	12: optional i64 rangeLimitNanos
 }
 
 struct FetchTaggedResult {
@@ -410,6 +411,7 @@ struct AggregateQueryRawRequest {
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
 	12: optional bool requireNoWait
+	13: optional i64 rangeLimitNanos
 }
 
 struct AggregateQueryRawResult {
@@ -441,6 +443,7 @@ struct AggregateQueryRequest {
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
 	12: optional bool requireNoWait
+	13: optional i64 rangeLimitNanos
 }
 
 struct AggregateQueryResult {

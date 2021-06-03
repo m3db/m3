@@ -88,6 +88,8 @@ type QueryOptions struct {
 	InstanceMultiple float32
 	// DocsLimit is an optional limit for number of documents matched.
 	DocsLimit int
+	// RangeLimit is an optional limit for the time range.
+	RangeLimit time.Duration
 	// RequireExhaustive requires queries to be under given limit sizes.
 	RequireExhaustive bool
 	// RequireNoWait requires queries to abort if execution must wait for permits.
@@ -161,6 +163,12 @@ type BaseResults interface {
 
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
+
+	// CompletedRange is called when a new time range is completed.
+	CompletedRange(timeRange time.Duration)
+
+	// Range returns the time range of the results.
+	Range() time.Duration
 
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool

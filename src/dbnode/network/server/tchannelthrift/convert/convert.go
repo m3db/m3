@@ -259,6 +259,9 @@ func FromRPCFetchTaggedRequest(
 	if l := req.DocsLimit; l != nil {
 		opts.DocsLimit = int(*l)
 	}
+	if l := req.RangeLimitNanos; l != nil {
+		opts.RangeLimit = time.Duration(*l)
+	}
 	if len(req.Source) > 0 {
 		opts.Source = req.Source
 	}
@@ -320,6 +323,11 @@ func ToRPCFetchTaggedRequest(
 		request.DocsLimit = &l
 	}
 
+	if opts.RangeLimit > 0 {
+		l := int64(opts.RangeLimit)
+		request.RangeLimitNanos = &l
+	}
+
 	if len(opts.Source) > 0 {
 		request.Source = opts.Source
 	}
@@ -352,6 +360,9 @@ func FromRPCAggregateQueryRequest(
 	}
 	if l := req.DocsLimit; l != nil {
 		opts.DocsLimit = int(*l)
+	}
+	if l := req.RangeLimitNanos; l != nil {
+		opts.RangeLimit = time.Duration(*l)
 	}
 	if r := req.RequireExhaustive; r != nil {
 		opts.RequireExhaustive = *r
@@ -410,6 +421,9 @@ func FromRPCAggregateQueryRawRequest(
 	}
 	if l := req.DocsLimit; l != nil {
 		opts.DocsLimit = int(*l)
+	}
+	if l := req.RangeLimitNanos; l != nil {
+		opts.RangeLimit = time.Duration(*l)
 	}
 	if r := req.RequireExhaustive; r != nil {
 		opts.RequireExhaustive = *r
@@ -473,6 +487,10 @@ func ToRPCAggregateQueryRawRequest(
 	if opts.DocsLimit > 0 {
 		l := int64(opts.DocsLimit)
 		request.DocsLimit = &l
+	}
+	if opts.RangeLimit > 0 {
+		l := int64(opts.RangeLimit)
+		request.RangeLimitNanos = &l
 	}
 	if opts.RequireExhaustive {
 		r := opts.RequireExhaustive
