@@ -100,8 +100,10 @@ func TestInterceptors(t *testing.T) {
 		"grpc_client_msg_recv_handling_seconds+grpc_method=PingList,grpc_service=m3.test.TestService,grpc_type=server_stream": recv + 1,
 		"grpc_client_msg_send_handling_seconds+grpc_method=PingList,grpc_service=m3.test.TestService,grpc_type=server_stream": 1,
 	}
+
+	histos := snapshot.Histograms()
 	for k, v := range expectedHistogramsTotalBucketCounts {
-		histogram, ok := snapshot.Histograms()[k]
+		histogram, ok := histos[k]
 		require.True(t, ok, fmt.Sprintf("metric missing: %s", k))
 
 		var actualBucketCount int64
