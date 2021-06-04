@@ -21,6 +21,8 @@
 package common
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -48,4 +50,128 @@ func TestRangeOfSeries(t *testing.T) {
 	}
 
 	CompareOutputsAndExpected(t, expectedStep, expectedStart, []TestSeries{expected}, []*ts.Series{rangeSeries})
+}
+
+func TestAggregationFuncs(t *testing.T) {
+	type input struct {
+		functionName string
+		values       []float64
+	}
+
+	type output struct {
+		aggregatedValue float64
+		nans            int
+	}
+
+	tests := []struct {
+		input  input
+		output output
+	}{
+		{
+			input: input{
+				"sum",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				6,
+				1,
+			},
+		},
+		{
+			input: input{
+				"avg",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				2,
+				1,
+			},
+		},
+		{
+			input: input{
+				"max",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				3,
+				1,
+			},
+		},
+		{
+			input: input{
+				"min",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				1,
+				1,
+			},
+		},
+		{
+			input: input{
+				"median",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				2,
+				1,
+			},
+		},
+		{
+			input: input{
+				"diff",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				-4,
+				1,
+			},
+		},
+		{
+			input: input{
+				"stddev",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				math.Sqrt(float64(2) / float64(3)),
+				1,
+			},
+		},
+		{
+			input: input{
+				"range",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				2,
+				1,
+			},
+		},
+		{
+			input: input{
+				"multiply",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				1 * 2 * 3,
+				1,
+			},
+		},
+		{
+			input: input{
+				"last",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				3,
+				1,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		aggregatedValue, nans := SafeAggregationFuncs[test.input.functionName](test.input.values)
+		require.Equal(t, test.output.aggregatedValue, aggregatedValue, fmt.Sprintf("aggregation result for %v should be equal", test.input.functionName))
+		require.Equal(t, test.output.nans, nans)
+	}
 }

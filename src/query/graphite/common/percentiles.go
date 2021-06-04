@@ -22,11 +22,9 @@ package common
 
 import (
 	"fmt"
-	"math"
-	"sort"
-
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/x/errors"
+	"math"
 )
 
 const (
@@ -56,71 +54,6 @@ func GreaterThan(v, threshold float64) bool {
 // a value is less than a threshold
 func LessThan(v, threshold float64) bool {
 	return v < threshold
-}
-
-// SafeSort sorts the input slice and returns the number of NaNs in the input.
-func SafeSort(input []float64) int {
-	nans := 0
-	for i := 0; i < len(input); i++ {
-		if math.IsNaN(input[i]) {
-			nans++
-		}
-	}
-	sort.Float64s(input)
-	return nans
-}
-
-// SafeSum returns the sum of the input slice the number of NaNs in the input.
-func SafeSum(input []float64) (float64, int) {
-	nans := 0
-	sum := 0.0
-	for _, v := range input {
-		if !math.IsNaN(v) {
-			sum += v
-		} else {
-			nans++
-		}
-	}
-	return sum, nans
-}
-
-// SafeAverage returns the average of the input slice the number of NaNs in the input.
-func SafeAverage(input []float64) (float64, int) {
-	sum, nans := SafeSum(input)
-	count := len(input) - nans
-	return sum / float64(count), nans
-}
-
-// SafeMax returns the maximum value of the input slice the number of NaNs in the input.
-func SafeMax(input []float64) (float64, int) {
-	nans := 0
-	max := -math.MaxFloat64
-	for _, v := range input {
-		if math.IsNaN(v) {
-			nans++
-			continue
-		}
-		if v > max {
-			max = v
-		}
-	}
-	return max, nans
-}
-
-// SafeMin returns the minimum value of the input slice the number of NaNs in the input.
-func SafeMin(input []float64) (float64, int) {
-	nans := 0
-	min := math.MaxFloat64
-	for _, v := range input {
-		if math.IsNaN(v) {
-			nans++
-			continue
-		}
-		if v < min {
-			min = v
-		}
-	}
-	return min, nans
 }
 
 // GetPercentile computes the percentile cut off for an array of floats

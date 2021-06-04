@@ -22,6 +22,7 @@ package common
 
 import (
 	"math"
+	"sort"
 
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
@@ -60,4 +61,164 @@ func Range(ctx *Context, series ts.SeriesList, renamer SeriesListRenamer) (*ts.S
 	}
 	name := renamer(normalized)
 	return ts.NewSeries(ctx, name, start, vals), nil
+}
+
+type SafeAggregationFn func(input []float64) (float64, int)
+
+// SafeSort sorts the input slice and returns the number of NaNs in the input.
+func SafeSort(input []float64) int {
+	nans := 0
+	for i := 0; i < len(input); i++ {
+		if math.IsNaN(input[i]) {
+			nans++
+		}
+	}
+	sort.Float64s(input)
+	return nans
+}
+
+// SafeSum returns the sum of the input slice and  the number of NaNs in the input.
+func SafeSum(input []float64) (float64, int) {
+	nans := 0
+	sum := 0.0
+	for _, v := range input {
+		if !math.IsNaN(v) {
+			sum += v
+		} else {
+			nans++
+		}
+	}
+	return sum, nans
+}
+
+// SafeAverage returns the average of the input slice and the number of NaNs in the input.
+func SafeAverage(input []float64) (float64, int) {
+	sum, nans := SafeSum(input)
+	count := len(input) - nans
+	return sum / float64(count), nans
+}
+
+// SafeMax returns the maximum value of the input slice and the number of NaNs in the input.
+func SafeMax(input []float64) (float64, int) {
+	nans := 0
+	max := -math.MaxFloat64
+	for _, v := range input {
+		if math.IsNaN(v) {
+			nans++
+			continue
+		}
+		if v > max {
+			max = v
+		}
+	}
+	return max, nans
+}
+
+// SafeMin returns the minimum value of the input slice and the number of NaNs in the input.
+func SafeMin(input []float64) (float64, int) {
+	nans := 0
+	min := math.MaxFloat64
+	for _, v := range input {
+		if math.IsNaN(v) {
+			nans++
+			continue
+		}
+		if v < min {
+			min = v
+		}
+	}
+	return min, nans
+}
+
+// SafeMedian returns the median value of the input slice and the number of NaNs in the input.
+func SafeMedian(input []float64) (float64, int) {
+	safeValues, nans := safeValuesFn(input)
+
+	return ts.Median(safeValues, len(safeValues)), nans
+}
+
+// SafeDiff returns the subtracted value of all the subsequent numbers from the 1st one and the number of NaNs in the input.
+func SafeDiff(input []float64) (float64, int) {
+	safeValues, nans := safeValuesFn(input)
+
+	diff := safeValues[0]
+	for i := 1; i < len(safeValues); i++ {
+		diff = diff - safeValues[i]
+	}
+
+	return diff, nans
+}
+
+// SafeStddev returns the standard deviation value of the input slice and the number of NaNs in the input.
+func SafeStddev(input []float64) (float64, int) {
+	safeAvg, nans := SafeAverage(input)
+
+	sum := 0.0
+	safeValues, _ := safeValuesFn(input)
+	for _, v := range safeValues {
+		sum = sum + (v-safeAvg)*(v-safeAvg)
+	}
+
+	return math.Sqrt(sum / float64(len(safeValues))), nans
+}
+
+// SafeRange returns the range value of the input slice and the number of NaNs in the input.
+func SafeRange(input []float64) (float64, int) {
+	safeMax, nans := SafeMax(input)
+	safeMin, _ := SafeMin(input)
+
+	return safeMax - safeMin, nans
+}
+
+// SafeMul returns the product value of the input slice and the number of NaNs in the input
+func SafeMul(input []float64) (float64, int) {
+	safeValues, nans := safeValuesFn(input)
+
+	product := 1.0
+	for _, v := range safeValues {
+		product = product * v
+	}
+
+	return product, nans
+}
+
+// SafeLast returns the last value of the input slice and the number of NaNs in the input
+func SafeLast(input []float64) (float64, int) {
+	safeValues, nans := safeValuesFn(input)
+	if len(safeValues) >= 1 {
+		return safeValues[len(safeValues)-1], nans
+	} else {
+		return math.NaN(), nans
+	}
+}
+
+func safeValuesFn(input []float64) ([]float64, int) {
+	if len(input) == 0 {
+		return []float64{math.NaN()}, 0
+	}
+
+	nans := 0
+	var safeValues []float64
+	for _, v := range input {
+		if !math.IsNaN(v) {
+			safeValues = append(safeValues, v)
+		} else {
+			nans++
+		}
+	}
+	return safeValues, nans
+}
+
+var SafeAggregationFuncs = map[string]SafeAggregationFn{
+	"sum":      SafeSum,
+	"avg":      SafeAverage,
+	"average":  SafeAverage,
+	"max":      SafeMax,
+	"min":      SafeMin,
+	"median":   SafeMedian,
+	"diff":     SafeDiff,
+	"stddev":   SafeStddev,
+	"range":    SafeRange,
+	"multiply": SafeMul,
+	"last":     SafeLast,
 }

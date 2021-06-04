@@ -608,14 +608,72 @@ func keepLastValue(ctx *common.Context, input singlePathSpec, limit int) (ts.Ser
 
 type comparator func(float64, float64) bool
 
-// lessOrEqualFunc checks whether x is less than or equal to y
-func lessOrEqualFunc(x float64, y float64) bool {
-	return x <= y
+// equalFunc checks whether x is equal to y
+func equalFunc(x float64, y float64) bool {
+	return x == y
+}
+
+// notEqualFunc checks whether x is not equal to y
+func notEqualFunc(x float64, y float64) bool {
+	return x != y
+}
+
+// greaterFunc checks whether x is greater than y
+func greaterFunc(x float64, y float64) bool {
+	return x > y
 }
 
 // greaterOrEqualFunc checks whether x is greater or equal to y
 func greaterOrEqualFunc(x float64, y float64) bool {
 	return x >= y
+}
+
+// lessFunc checks whether x is less than y
+func lessFunc(x float64, y float64) bool {
+	return x < y
+}
+
+// lessOrEqualFunc checks whether x is less than or equal to y
+func lessOrEqualFunc(x float64, y float64) bool {
+	return x <= y
+}
+
+var comparatorFuncs = map[string]comparator{
+	"=":  equalFunc,
+	"!=": notEqualFunc,
+	">":  greaterFunc,
+	">=": greaterOrEqualFunc,
+	"<":  lessFunc,
+	"<=": lessOrEqualFunc,
+}
+
+func filterSeries(
+	_ *common.Context,
+	input singlePathSpec,
+	aggregationFn string,
+	comparator string,
+	threshold float64) (ts.SeriesList, error) {
+	comparatorFunc, ok := comparatorFuncs[comparator]
+	if !ok {
+		return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid compartor %s", comparator))
+	}
+
+	var filteredSeries []*ts.Series
+	for _, series := range input.Values {
+		safeAggFn, ok := common.SafeAggregationFuncs[aggregationFn]
+		if !ok {
+			return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("Invalid function %s ", aggregationFn))
+		}
+
+		aggregatedValue, _ := safeAggFn(series.SafeValues())
+		if comparatorFunc(aggregatedValue, threshold) {
+			filteredSeries = append(filteredSeries, series)
+		}
+	}
+	r := ts.SeriesList(input)
+	r.Values = filteredSeries
+
+	return r, nil
 }
 
 func sustainedCompare(ctx *common.Context, input singlePathSpec, threshold float64, intervalString string,

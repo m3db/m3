@@ -2102,6 +2102,60 @@ func TestRemoveEmptySeries(t *testing.T) {
 	}
 }
 
+func TestFilterSeries(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	nan := math.NaN()
+	tests := []struct {
+		inputs        []common.TestSeries
+		aggregationFn string
+		comparator    string
+		threashold    float64
+		outputs       []common.TestSeries
+	}{
+		{
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
+			},
+			"max",
+			">",
+			600,
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+			},
+		},
+		{
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
+			},
+			"max",
+			">=",
+			600,
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+			},
+		},
+	}
+	start := time.Now()
+	step := 100
+	for _, test := range tests {
+		outputs, err := filterSeries(ctx,
+			singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step)},
+			test.aggregationFn, test.comparator, test.threashold)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, step, start,
+			test.outputs, outputs.Values)
+	}
+}
+
 func generateSeriesList(ctx *common.Context, start time.Time, inputs []common.TestSeries, step int) []*ts.Series {
 	tSeriesList := make([]*ts.Series, 0, len(inputs))
 	for _, in := range inputs {
