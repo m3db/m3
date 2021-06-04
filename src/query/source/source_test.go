@@ -23,19 +23,9 @@ package source
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/headers"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 type testSource struct {
@@ -84,13 +74,12 @@ func TestNoSource(t *testing.T) {
 
 func TestNilSource(t *testing.T) {
 	ctx, err := NewContext(context.Background(), nil, func(bytes []byte) (interface{}, error) {
-		return testSource{"nil"}, nil
+		return nil, errors.New("should never happen")
 	})
 	require.NoError(t, err)
 
-	typed, ok := FromContext(ctx)
-	require.True(t, ok)
-	require.Equal(t, testSource{"nil"}, typed.(testSource))
+	_, ok := FromContext(ctx)
+	require.False(t, ok)
 
 	raw, ok := RawFromContext(ctx)
 	require.False(t, ok)
@@ -104,95 +93,4 @@ func TestFromContextErr(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "boom")
 	require.Nil(t, ctx)
-}
-
-func TestMiddleware(t *testing.T) {
-	cases := []struct {
-		name          string
-		sourceHeaders []string
-		expected      testSource
-		expectedLog   string
-		deserializer  Deserializer
-		invalidErr    bool
-	}{
-		{
-			name:          "happy path",
-			sourceHeaders: []string{"foobar"},
-			expected:      testSource{"foobar"},
-			expectedLog:   "foobar",
-		},
-		{
-			name:          "no source header",
-			sourceHeaders: []string{},
-			expected:      testSource{"nil"},
-			deserializer: func(bytes []byte) (interface{}, error) {
-				require.Nil(t, bytes)
-				return testSource{name: "nil"}, nil
-			},
-		},
-		{
-			name:          "multiple source headers",
-			sourceHeaders: []string{"foo", "bar"},
-			invalidErr:    true,
-		},
-		{
-			name:          "deserialize error",
-			sourceHeaders: []string{"foobar"},
-			invalidErr:    true,
-			deserializer: func(bytes []byte) (interface{}, error) {
-				return nil, errors.New("boom")
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		tc := tc
-		core, recorded := observer.New(zapcore.InfoLevel)
-		l := zap.New(core)
-		iOpts := instrument.NewOptions().SetLogger(l)
-		t.Run(tc.name, func(t *testing.T) {
-			r := mux.NewRouter()
-			r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-				l = logging.WithContext(r.Context(), iOpts)
-				l.Info("test")
-				typed, ok := FromContext(r.Context())
-				if tc.expected.name == "" {
-					require.False(t, ok)
-					require.Nil(t, typed)
-				} else {
-					require.True(t, ok)
-					require.Equal(t, tc.expected, typed.(testSource))
-				}
-			})
-			if tc.deserializer == nil {
-				tc.deserializer = testDeserialize
-			}
-			r.Use(Middleware(tc.deserializer, iOpts))
-			s := httptest.NewServer(r)
-			defer s.Close()
-
-			req, err := http.NewRequestWithContext(context.Background(), "GET", s.URL, nil)
-			require.NoError(t, err)
-			for _, h := range tc.sourceHeaders {
-				req.Header.Add(headers.SourceHeader, h)
-			}
-			resp, err := s.Client().Do(req)
-			require.NoError(t, err)
-			require.NoError(t, resp.Body.Close())
-			if tc.invalidErr {
-				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-			} else {
-				require.Equal(t, http.StatusOK, resp.StatusCode)
-				testMsgs := recorded.FilterMessage("test").All()
-				require.Len(t, testMsgs, 1)
-				entry := testMsgs[0]
-				require.Equal(t, "test", entry.Message)
-				fields := entry.ContextMap()
-				if tc.expectedLog != "" {
-					require.Len(t, fields, 1)
-					require.Equal(t, tc.expectedLog, fields["source"])
-				}
-			}
-		})
-	}
 }

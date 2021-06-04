@@ -93,7 +93,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	// Stop the server
 	defer func() {
 		require.NoError(t, testSetup.StopServer())
-		log.Debug("server is now down")
+		log.Info("server is now down")
 	}()
 
 	client := testSetup.M3DBClient()
@@ -111,7 +111,7 @@ func TestIndexBlockRotation(t *testing.T) {
 		return indexPeriod0 == len(writesPeriod0)
 	}, 5*time.Second)
 	require.True(t, indexed)
-	log.Info("verifiied data is indexed", zap.Duration("took", time.Since(start)))
+	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
@@ -128,13 +128,17 @@ func TestIndexBlockRotation(t *testing.T) {
 	// move time to 4p
 	testSetup.SetNowFn(t2)
 
-	// give tick some time to evict the block
-	testSetup.SleepFor10xTickMinimumInterval()
-
 	// ensure all data is absent
 	log.Info("querying period0 results after expiry")
-	period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
-		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
-	require.NoError(t, err)
-	require.Equal(t, 0, period0Results.Len())
+
+	// await for results to be empty.
+	// in practice we've seen it take 11s, so make it 30s to be safe.
+	timeout := time.Second * 30
+	empty := xclock.WaitUntil(func() bool {
+		period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
+			md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
+		require.NoError(t, err)
+		return period0Results.Len() == 0
+	}, timeout)
+	require.True(t, empty, "results not empty after %s", timeout)
 }

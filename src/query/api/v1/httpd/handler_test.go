@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
@@ -121,7 +122,7 @@ func setupHandler(
 		return nil, err
 	}
 
-	return NewHandler(opts, nil, customHandlers...), nil
+	return NewHandler(opts, config.MiddlewareConfiguration{}, customHandlers...), nil
 }
 
 func newPromEngine() *promql.Engine {
@@ -310,7 +311,7 @@ type customHandler struct {
 	routeName  string
 	methods    []string
 	assertFn   assertFn
-	middleware options.RegisterMiddleware
+	middleware middleware.OverrideOptions
 }
 
 func (h *customHandler) Route() string     { return h.routeName }
@@ -328,7 +329,7 @@ func (h *customHandler) Handler(
 
 	return http.HandlerFunc(fn), nil
 }
-func (h *customHandler) Middleware() options.RegisterMiddleware {
+func (h *customHandler) MiddlewareOverride() middleware.OverrideOptions {
 	return h.middleware
 }
 
@@ -384,7 +385,8 @@ func TestCustomRoutes(t *testing.T) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
-	handler := NewHandler(opts, nil, custom, customShadowGet, customShadowHead, customNew)
+	handler := NewHandler(opts, config.MiddlewareConfiguration{},
+		custom, customShadowGet, customShadowHead, customNew)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
