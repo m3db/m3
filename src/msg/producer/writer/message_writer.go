@@ -286,14 +286,34 @@ func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 }
 
 func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
-	if w.cutOffNanos > 0 && nowNanos >= w.cutOffNanos {
-		w.m.writeAfterCutoff.Inc(1)
-		return false
+	if w.cutOffNanos > 0 {
+		var (
+			latestNanos       = int64(math.MaxInt64)
+			cutoffLingerNanos = w.opts.ClientOptions().ShardCutoffLingerDuration().Nanoseconds()
+		)
+		if w.cutOffNanos <= math.MaxInt64-cutoffLingerNanos {
+			latestNanos = w.cutOffNanos + cutoffLingerNanos
+		}
+		if nowNanos >= latestNanos {
+			w.m.writeAfterCutoff.Inc(1)
+			return false
+		}
 	}
-	if w.cutOverNanos > 0 && nowNanos < w.cutOverNanos {
-		w.m.writeBeforeCutover.Inc(1)
-		return false
+
+	if w.cutOverNanos > 0 {
+		var (
+			earliestNanos      = int64(0)
+			cutoverWarmupNanos = w.opts.ClientOptions().ShardCutoverWarmupDuration().Nanoseconds()
+		)
+		if w.cutOverNanos >= cutoverWarmupNanos {
+			earliestNanos = w.cutOverNanos - cutoverWarmupNanos
+		}
+		if nowNanos < earliestNanos {
+			w.m.writeBeforeCutover.Inc(1)
+			return false
+		}
 	}
+
 	return true
 }
 

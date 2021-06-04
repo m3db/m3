@@ -327,13 +327,14 @@ func (c *TCPClient) writeTimeRangeFor(shard shard.Shard) (int64, int64) {
 		latestNanos   = int64(math.MaxInt64)
 	)
 
-	if cutoverNanos >= int64(c.shardCutoverWarmupDuration) {
-		earliestNanos = cutoverNanos - int64(c.shardCutoverWarmupDuration)
+	if cutoverNanos >= c.shardCutoverWarmupDuration.Nanoseconds() {
+		earliestNanos = cutoverNanos - c.shardCutoverWarmupDuration.Nanoseconds()
 	}
 
-	if cutoffNanos <= math.MaxInt64-int64(c.shardCutoffLingerDuration) {
-		latestNanos = cutoffNanos + int64(c.shardCutoffLingerDuration)
+	if cutoffNanos <= math.MaxInt64-c.shardCutoffLingerDuration.Nanoseconds() {
+		latestNanos = cutoffNanos + c.shardCutoffLingerDuration.Nanoseconds()
 	}
+
 	return earliestNanos, latestNanos
 }
 

@@ -23,6 +23,7 @@ package writer
 import (
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -291,7 +292,7 @@ type Options interface {
 	// MessageRetryOptions returns the retry options for message retry.
 	MessageRetryOptions() retry.Options
 
-	// MessageRetryOptions returns the retry options for message retry.
+	// SetMessageRetryOptions sets the retry options for message retry.
 	SetMessageRetryOptions(value retry.Options) Options
 
 	// MessageQueueNewWritesScanInterval returns the interval between scanning
@@ -340,10 +341,10 @@ type Options interface {
 	// SetEncoderOptions sets the encoder's options.
 	SetEncoderOptions(value proto.Options) Options
 
-	// EncoderOptions returns the decoder's options.
+	// DecoderOptions returns the decoder's options.
 	DecoderOptions() proto.Options
 
-	// SetEncoderOptions sets the decoder's options.
+	// SetDecoderOptions sets the decoder's options.
 	SetDecoderOptions(value proto.Options) Options
 
 	// ConnectionOptions returns the options for connections.
@@ -357,6 +358,12 @@ type Options interface {
 
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
+
+	// ClientOptions returns the client options.
+	ClientOptions() client.Options
+
+	// SetClientOptions sets the client options.
+	SetClientOptions(value client.Options) Options
 }
 
 type writerOptions struct {
@@ -378,6 +385,7 @@ type writerOptions struct {
 	decOpts                           proto.Options
 	cOpts                             ConnectionOptions
 	iOpts                             instrument.Options
+	clientOpts                        client.Options
 }
 
 // NewOptions creates Options.
@@ -397,6 +405,7 @@ func NewOptions() Options {
 		decOpts:                           proto.NewOptions(),
 		cOpts:                             NewConnectionOptions(),
 		iOpts:                             instrument.NewOptions(),
+		clientOpts:                        client.NewOptions(),
 	}
 }
 
@@ -577,5 +586,15 @@ func (opts *writerOptions) InstrumentOptions() instrument.Options {
 func (opts *writerOptions) SetInstrumentOptions(value instrument.Options) Options {
 	o := *opts
 	o.iOpts = value
+	return &o
+}
+
+func (opts *writerOptions) ClientOptions() client.Options {
+	return opts.clientOpts
+}
+
+func (opts *writerOptions) SetClientOptions(value client.Options) Options {
+	o := *opts
+	o.clientOpts = value
 	return &o
 }
