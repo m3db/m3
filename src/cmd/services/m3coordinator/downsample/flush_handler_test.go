@@ -109,7 +109,7 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tagName, tag.Name))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tagValue, tag.Value))
 
-	assert.True(t, bytes.Equal(annotation, writes[0].Annotation()))
+	assert.Equal(t, annotation, writes[0].Annotation())
 }
 
 func graphiteTags(
