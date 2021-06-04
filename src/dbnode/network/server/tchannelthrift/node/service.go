@@ -2855,7 +2855,6 @@ func (p *writeBatchPooledReqPool) Get(size int) *writeBatchPooledReq {
 
 	pooledReq := p.pool.Get().(*writeBatchPooledReq)
 	if cappedSize > len(pooledReq.pooledIDs) {
-
 		newPooledIDs := make([]writeBatchPooledReqID, cappedSize)
 		for i, pooledID := range pooledReq.pooledIDs {
 			newPooledIDs[i] = pooledID
