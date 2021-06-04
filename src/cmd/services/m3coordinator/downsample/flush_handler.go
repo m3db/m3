@@ -178,7 +178,8 @@ func (w *downsamplerFlushHandlerWriter) Write(
 				Timestamp: time.Unix(0, mp.TimeNanos),
 				Value:     mp.Value,
 			}},
-			Unit: convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
+			Unit:       convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
+			Annotation: mp.Annotation,
 			Attributes: storagemetadata.Attributes{
 				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),
