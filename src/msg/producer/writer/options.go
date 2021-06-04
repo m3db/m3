@@ -23,7 +23,6 @@ package writer
 import (
 	"time"
 
-	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -51,6 +50,15 @@ const (
 	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 2 << 15 // ~65kb
+
+	// By default traffic is cut over to shards 10 minutes before the designated
+	// cutover time in case there are issues with the instances owning the shards.
+	defaultCutoverWarmupDuration = 10 * time.Minute
+
+	// By default traffic doesn't stop until one hour after the designated cutoff
+	// time in case there are issues with the instances taking over the shards
+	// and as such we need to switch the traffic back to the previous owner of the shards.
+	defaultCutoffLingerDuration = time.Hour
 )
 
 // ConnectionOptions configs the connections.
@@ -359,11 +367,17 @@ type Options interface {
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// ClientOptions returns the client options.
-	ClientOptions() client.Options
+	// SetCutoverWarmupDuration sets the warm up duration for traffic cut over to a shard.
+	SetCutoverWarmupDuration(value time.Duration) Options
 
-	// SetClientOptions sets the client options.
-	SetClientOptions(value client.Options) Options
+	// CutoverWarmupDuration returns the warm up duration for traffic cut over to a shard.
+	CutoverWarmupDuration() time.Duration
+
+	// SetCutoffLingerDuration sets the linger duration for traffic cut off from a shard.
+	SetCutoffLingerDuration(value time.Duration) Options
+
+	// CutoffLingerDuration returns the linger duration for traffic cut off from a shard.
+	CutoffLingerDuration() time.Duration
 }
 
 type writerOptions struct {
@@ -385,7 +399,8 @@ type writerOptions struct {
 	decOpts                           proto.Options
 	cOpts                             ConnectionOptions
 	iOpts                             instrument.Options
-	clientOpts                        client.Options
+	cutoverWarmupDuration             time.Duration
+	cutoffLingerDuration              time.Duration
 }
 
 // NewOptions creates Options.
@@ -405,7 +420,8 @@ func NewOptions() Options {
 		decOpts:                           proto.NewOptions(),
 		cOpts:                             NewConnectionOptions(),
 		iOpts:                             instrument.NewOptions(),
-		clientOpts:                        client.NewOptions(),
+		cutoverWarmupDuration:             defaultCutoverWarmupDuration,
+		cutoffLingerDuration:              defaultCutoffLingerDuration,
 	}
 }
 
@@ -589,12 +605,22 @@ func (opts *writerOptions) SetInstrumentOptions(value instrument.Options) Option
 	return &o
 }
 
-func (opts *writerOptions) ClientOptions() client.Options {
-	return opts.clientOpts
+func (opts *writerOptions) SetCutoverWarmupDuration(value time.Duration) Options {
+	o := *opts
+	o.cutoverWarmupDuration = value
+	return &o
 }
 
-func (opts *writerOptions) SetClientOptions(value client.Options) Options {
+func (opts *writerOptions) CutoverWarmupDuration() time.Duration {
+	return opts.cutoverWarmupDuration
+}
+
+func (opts *writerOptions) SetCutoffLingerDuration(value time.Duration) Options {
 	o := *opts
-	o.clientOpts = value
+	o.cutoffLingerDuration = value
 	return &o
+}
+
+func (opts *writerOptions) CutoffLingerDuration() time.Duration {
+	return opts.cutoffLingerDuration
 }

@@ -78,7 +78,7 @@ func (w *sharedShardWriter) Write(rm *producer.RefCountedMessage) {
 	w.mw.Write(rm)
 }
 
-// This is not thread safe, must be called in one thread.
+// UpdateInstances is not thread safe, must be called in one thread.
 func (w *sharedShardWriter) UpdateInstances(
 	instances []placement.Instance,
 	cws map[string]consumerWriter,
@@ -166,7 +166,7 @@ func (w *replicatedShardWriter) Write(rm *producer.RefCountedMessage) {
 	w.RUnlock()
 }
 
-// This is not thread safe, must be called in one thread.
+// UpdateInstances is not thread safe, must be called in one thread.
 func (w *replicatedShardWriter) UpdateInstances(
 	instances []placement.Instance,
 	cws map[string]consumerWriter,

@@ -289,7 +289,7 @@ func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
 	if w.cutOffNanos > 0 {
 		var (
 			latestNanos       = int64(math.MaxInt64)
-			cutoffLingerNanos = w.opts.ClientOptions().ShardCutoffLingerDuration().Nanoseconds()
+			cutoffLingerNanos = w.opts.CutoffLingerDuration().Nanoseconds()
 		)
 		if w.cutOffNanos <= math.MaxInt64-cutoffLingerNanos {
 			latestNanos = w.cutOffNanos + cutoffLingerNanos
@@ -303,7 +303,7 @@ func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
 	if w.cutOverNanos > 0 {
 		var (
 			earliestNanos      = int64(0)
-			cutoverWarmupNanos = w.opts.ClientOptions().ShardCutoverWarmupDuration().Nanoseconds()
+			cutoverWarmupNanos = w.opts.CutoverWarmupDuration().Nanoseconds()
 		)
 		if w.cutOverNanos >= cutoverWarmupNanos {
 			earliestNanos = w.cutOverNanos - cutoverWarmupNanos
