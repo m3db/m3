@@ -305,7 +305,7 @@ func (a mirroredAlgorithm) MarkAllShardsAvailable(
 
 func (a mirroredAlgorithm) BalanceShards(
 	p placement.Placement,
-) (placement.Placement, error){
+) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}

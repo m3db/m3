@@ -1626,11 +1626,11 @@ func TestMarkInstanceAndItsPeersAvailable(t *testing.T) {
 
 func TestBalanceShardsForMirroredWhenBalanced(t *testing.T) {
 	i1 := newTestInstance("i1").
-	SetShardSetID(1).
-	SetWeight(1).
-	SetShards(shard.NewShards([]shard.Shard{
-		shard.NewShard(0).SetState(shard.Available),
-	}))
+		SetShardSetID(1).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+		}))
 	i2 := newTestInstance("i2").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1649,7 +1649,7 @@ func TestBalanceShardsForMirroredWhenBalanced(t *testing.T) {
 		SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(1).SetState(shard.Available),
 		}))
-		initialPlacement := placement.NewPlacement().
+	initialPlacement := placement.NewPlacement().
 		SetReplicaFactor(2).
 		SetShards([]uint32{0, 1}).
 		SetInstances([]placement.Instance{i1, i2, i3, i4}).
@@ -1668,12 +1668,12 @@ func TestBalanceShardsForMirroredWhenBalanced(t *testing.T) {
 
 func TestBalanceShardsForMirroredWhenImbalanced(t *testing.T) {
 	i1 := newTestInstance("i1").
-	SetShardSetID(1).
-	SetWeight(1).
-	SetShards(shard.NewShards([]shard.Shard{
-		shard.NewShard(0).SetState(shard.Available),
-		shard.NewShard(1).SetState(shard.Available),
-	}))
+		SetShardSetID(1).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+			shard.NewShard(1).SetState(shard.Available),
+		}))
 	i2 := newTestInstance("i2").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1692,7 +1692,7 @@ func TestBalanceShardsForMirroredWhenImbalanced(t *testing.T) {
 		SetWeight(2).
 		SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(2).SetState(shard.Available),
-	}))
+		}))
 	p := placement.NewPlacement().
 		SetReplicaFactor(2).
 		SetShards([]uint32{0, 1, 2, 3}).
@@ -1707,33 +1707,33 @@ func TestBalanceShardsForMirroredWhenImbalanced(t *testing.T) {
 	assert.NoError(t, err)
 
 	bi1 := newTestInstance("i1").
-	SetShardSetID(1).
-	SetWeight(1).
-	SetShards(shard.NewShards([]shard.Shard{
-		shard.NewShard(0).SetState(shard.Leaving),
-		shard.NewShard(1).SetState(shard.Available),
-	}))
+		SetShardSetID(1).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Leaving),
+			shard.NewShard(1).SetState(shard.Available),
+		}))
 	bi2 := newTestInstance("i2").
-	SetShardSetID(1).
-	SetWeight(1).
-	SetShards(shard.NewShards([]shard.Shard{
-		shard.NewShard(0).SetState(shard.Leaving),
-		shard.NewShard(1).SetState(shard.Available),
-	}))
+		SetShardSetID(1).
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Leaving),
+			shard.NewShard(1).SetState(shard.Available),
+		}))
 	bi3 := newTestInstance("i3").
-	SetShardSetID(2).
-	SetWeight(2).
-	SetShards(shard.NewShards([]shard.Shard{
-		shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i1"),
-		shard.NewShard(2).SetState(shard.Available),
-	}))
+		SetShardSetID(2).
+		SetWeight(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i1"),
+			shard.NewShard(2).SetState(shard.Available),
+		}))
 	bi4 := newTestInstance("i4").
-	SetShardSetID(2).
-	SetWeight(2).
-	SetShards(shard.NewShards([]shard.Shard{
-		shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2"),
-		shard.NewShard(2).SetState(shard.Available),
-	}))
+		SetShardSetID(2).
+		SetWeight(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2"),
+			shard.NewShard(2).SetState(shard.Available),
+		}))
 	expectedInstances := []placement.Instance{bi1, bi2, bi3, bi4}
 
 	assert.Equal(t, expectedInstances, balancedPlacement.Instances())
