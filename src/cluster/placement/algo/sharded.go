@@ -222,7 +222,6 @@ func (a shardedPlacementAlgorithm) MarkAllShardsAvailable(
 func (a shardedPlacementAlgorithm) BalanceShards(
 	p placement.Placement,
 ) (placement.Placement, error) {
-
 	ph := newHelper(p, p.ReplicaFactor(), a.opts)
 	if err := ph.optimize(unsafe); err != nil {
 		return nil, fmt.Errorf("shard balance optimization failed: %w", err)
