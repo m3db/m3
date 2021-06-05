@@ -737,8 +737,8 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 		flushTimeStart = retention.FlushTimeStart(rOpts, now)
 		flushTimeEnd   = retention.FlushTimeEnd(rOpts, now)
 
-		//flushTimeStartNano = xtime.ToUnixNano(flushTimeStart)
-		flushTimeEndNano = xtime.ToUnixNano(flushTimeEnd)
+		flushTimeStartNano = xtime.ToUnixNano(flushTimeStart)
+		flushTimeEndNano   = xtime.ToUnixNano(flushTimeEnd)
 	)
 	require.NoError(t, nsOpts.Validate())
 	// Ensure only two flushable blocks in retention to make test logic simpler.
@@ -759,8 +759,14 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			repairState: repairStatesByNs{
 				"ns2": namespaceRepairStateByTime{
 					flushTimeEndNano: repairState{
-						Status:      repairSuccess,
-						LastAttempt: time.Time{},
+						Status:                 repairSuccess,
+						LastAttempt:            time.Unix(1557745001, 0),
+						LastSuccessfullAttempt: time.Unix(1557745001, 0),
+					},
+					flushTimeStartNano: repairState{
+						Status:                 repairFailed,
+						LastAttempt:            time.Unix(1557745002, 0),
+						LastSuccessfullAttempt: time.Unix(1557745000, 0),
 					},
 				},
 			},
@@ -790,6 +796,9 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
 			opts := DefaultTestOptions().SetRepairOptions(testRepairOptions(ctrl))
+			iopts := opts.InstrumentOptions()
+			scope := tally.NewTestScope("", nil)
+			opts = opts.SetInstrumentOptions(iopts.SetMetricsScope(scope))
 			mockDatabase := NewMockdatabase(ctrl)
 
 			databaseRepairer, err := newDatabaseRepairer(mockDatabase, opts)
@@ -837,6 +846,12 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			mockDatabase.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 
 			require.NotNil(t, repairer.Repair())
+
+			gaugesSnapshot := scope.Snapshot().Gauges()
+			require.Equal(t, now.Sub(time.Time{}).Seconds(),
+				gaugesSnapshot[tally.KeyForPrefixedStringMap("repair.max-seconds-since-oldest-successful-block-repair", map[string]string{"namespace": "ns1"})].Value())
+			require.Equal(t, now.Sub(time.Unix(1557745000, 0)).Seconds(),
+				gaugesSnapshot[tally.KeyForPrefixedStringMap("repair.max-seconds-since-oldest-successful-block-repair", map[string]string{"namespace": "ns2"})].Value())
 		})
 	}
 }

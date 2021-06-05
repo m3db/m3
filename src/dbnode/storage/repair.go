@@ -459,8 +459,9 @@ const (
 )
 
 type repairState struct {
-	LastAttempt time.Time
-	Status      repairStatus
+	LastSuccessfulAttempt time.Time
+	LastAttempt           time.Time
+	Status                repairStatus
 }
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
@@ -641,18 +642,32 @@ func (r *dbRepairer) Repair() error {
 		repairRange.Start = repairRange.Start.Add(-blockSize)
 
 		var (
-			numUnrepairedBlocks                           = 0
-			hasRepairedABlockStart                        = false
-			leastRecentlyRepairedBlockStart               time.Time
-			leastRecentlyRepairedBlockStartLastRepairTime time.Time
+			numUnrepairedBlocks                                       = 0
+			hasRepairedABlockStart                                    = false
+			leastRecentlyRepairedBlockStart                           time.Time
+			leastRecentlyRepairedBlockStartLastRepairTime             time.Time
+			leastRecentlySuccessfullyRepairedBlockStartLastRepairTime = r.nowFn()
 		)
+
+		// Record the earliest repaired time range and the earliet successfully repaired time range across all the
+		// time ranges for a namespace.
 		repairRange.IterateBackward(blockSize, func(blockStart time.Time) bool {
 			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
+
 			if ok && (leastRecentlyRepairedBlockStart.IsZero() ||
 				repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime)) {
 				leastRecentlyRepairedBlockStart = blockStart
 				leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
 			}
+
+			if repairState.LastSuccessfulAttempt.Before(leastRecentlySuccessfullyRepairedBlockStartLastRepairTime) {
+				leastRecentlySuccessfullyRepairedBlockStartLastRepairTime = repairState.LastSuccessfulAttempt
+			}
+			return true
+		})
+
+		repairRange.IterateBackward(blockSize, func(blockStart time.Time) bool {
+			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
 
 			if ok && repairState.Status == repairSuccess {
 				return true
@@ -686,6 +701,12 @@ func (r *dbRepairer) Repair() error {
 		r.scope.Tagged(map[string]string{
 			"namespace": n.ID().String(),
 		}).Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
+
+		secondsSinceLastSuccessfullRepair :=
+			r.nowFn().Sub(leastRecentlySuccessfullyRepairedBlockStartLastRepairTime).Seconds()
+		r.scope.Tagged(map[string]string{
+			"namespace": n.ID().String(),
+		}).Gauge("max-seconds-since-oldest-successful-block-repair").Update(secondsSinceLastSuccessfullRepair)
 
 		if hasRepairedABlockStart {
 			// Previous loop performed a repair which means we've hit our limit of repairing
@@ -745,6 +766,9 @@ func (r *dbRepairer) markRepairAttempt(
 	repairState, _ := r.repairStatesByNs.repairStates(namespace, blockStart)
 	repairState.Status = repairStatus
 	repairState.LastAttempt = repairTime
+	if repairStatus == repairSuccess {
+		repairState.LastSuccessfulAttempt = repairTime
+	}
 	r.repairStatesByNs.setRepairState(namespace, blockStart, repairState)
 }
 
