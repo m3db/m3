@@ -608,14 +608,81 @@ func keepLastValue(ctx *common.Context, input singlePathSpec, limit int) (ts.Ser
 
 type comparator func(float64, float64) bool
 
-// lessOrEqualFunc checks whether x is less than or equal to y
-func lessOrEqualFunc(x float64, y float64) bool {
-	return x <= y
+// equalFunc checks whether x is equal to y
+func equalFunc(x float64, y float64) bool {
+	return x == y
+}
+
+// notEqualFunc checks whether x is not equal to y
+func notEqualFunc(x float64, y float64) bool {
+	return x != y
+}
+
+// greaterFunc checks whether x is greater than y
+func greaterFunc(x float64, y float64) bool {
+	return x > y
 }
 
 // greaterOrEqualFunc checks whether x is greater or equal to y
 func greaterOrEqualFunc(x float64, y float64) bool {
 	return x >= y
+}
+
+// lessFunc checks whether x is less than y
+func lessFunc(x float64, y float64) bool {
+	return x < y
+}
+
+// lessOrEqualFunc checks whether x is less than or equal to y
+func lessOrEqualFunc(x float64, y float64) bool {
+	return x <= y
+}
+
+var comparatorFns = map[string]comparator{
+	"=":  equalFunc,
+	"!=": notEqualFunc,
+	">":  greaterFunc,
+	">=": greaterOrEqualFunc,
+	"<":  lessFunc,
+	"<=": lessOrEqualFunc,
+}
+
+func filterSeries(
+	_ *common.Context,
+	input singlePathSpec,
+	aggregationFn string,
+	comparator string,
+	threshold float64) (ts.SeriesList, error) {
+	comparatorFn, ok := comparatorFns[comparator]
+	if !ok {
+		return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid comparator: %s", comparator))
+	}
+
+	filteredSeries := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		safeAggFn, ok := common.SafeAggregationFns[aggregationFn]
+		if !ok {
+			return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid function: %s", aggregationFn))
+		}
+
+		aggregatedValue, _, ok := safeAggFn(series.SafeValues())
+		if !ok {
+			// No elements or all nans, similar skipping behavior to filterSeries
+			// for graphite web where comparator only ran against series when the value
+			// is not python None type which is returned when safe... function
+			// cannot be applied to the set of values due to no safe values being
+			// present due to empty series or all nans.
+			continue
+		}
+
+		if comparatorFn(aggregatedValue, threshold) {
+			filteredSeries = append(filteredSeries, series)
+		}
+	}
+
+	r := ts.SeriesList(input)
+	r.Values = filteredSeries
+	return r, nil
 }
 
 func sustainedCompare(ctx *common.Context, input singlePathSpec, threshold float64, intervalString string,
@@ -2159,7 +2226,10 @@ func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints in
 
 // movingSumHelper given a slice of floats, calculates the sum and assigns it into vals as index i
 func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	sum, nans := common.SafeSum(window)
+	sum, nans, ok := common.SafeSum(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, sum)
@@ -2168,7 +2238,10 @@ func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 
 // movingAverageHelper given a slice of floats, calculates the average and assigns it into vals as index i
 func movingAverageHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	avg, nans := common.SafeAverage(window)
+	avg, nans, ok := common.SafeAverage(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, avg)
@@ -2177,7 +2250,10 @@ func movingAverageHelper(window []float64, vals ts.MutableValues, windowPoints i
 
 // movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
 func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	max, nans := common.SafeMax(window)
+	max, nans, ok := common.SafeMax(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, max)
@@ -2186,7 +2262,10 @@ func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 
 // movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
 func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	min, nans := common.SafeMin(window)
+	min, nans, ok := common.SafeMin(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, min)
