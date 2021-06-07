@@ -1058,7 +1058,7 @@ func (b *BufferBucketVersions) firstWrite(opts streamsOptions) xtime.UnixNano {
 		}
 		// Get the earliest valid first write time.
 		if res == 0 ||
-			(bucket.firstWrite < res && bucket.firstWrite != 0) {
+			(bucket.firstWrite.Before(res) && bucket.firstWrite != 0) {
 			res = bucket.firstWrite
 		}
 	}

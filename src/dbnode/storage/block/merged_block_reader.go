@@ -170,10 +170,6 @@ func (r *dbMergedBlockReader) Clone(
 	), nil
 }
 
-func (r *dbMergedBlockReader) Start() time.Time {
-	return r.blockStart.ToTime()
-}
-
 func (r *dbMergedBlockReader) BlockSize() time.Duration {
 	return r.blockSize
 }

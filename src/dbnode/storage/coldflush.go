@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type coldFlushManager struct {
@@ -107,7 +108,10 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 		m.Unlock()
 	}()
 
-	m.log.Debug("starting cold flush", zap.Time("time", t.ToTime()))
+	debugLog := m.log.Check(zapcore.DebugLevel, "cold flush run")
+	if debugLog != nil {
+		debugLog.Write(zap.String("status", "starting cold flush"), zap.Time("time", t.ToTime()))
+	}
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	// NB(r): Use invariant here since flush errors were introduced
@@ -128,7 +132,11 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 					zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
-	m.log.Debug("completed cold flush", zap.Time("time", t.ToTime()))
+
+	if debugLog != nil {
+		debugLog.Write(zap.String("status", "completed cold flush"), zap.Time("time", t.ToTime()))
+	}
+
 	return true
 }
 

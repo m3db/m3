@@ -966,10 +966,6 @@ func (req *retrieveRequest) Clone(
 	return req.reader.Clone(pool)
 }
 
-func (req *retrieveRequest) Start() time.Time {
-	return req.start.ToTime()
-}
-
 func (req *retrieveRequest) BlockSize() time.Duration {
 	return req.blockSize
 }

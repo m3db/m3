@@ -486,10 +486,10 @@ func (dbb *databaseSeriesBlocks) Len() int {
 
 func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	start := block.StartTime()
-	if dbb.min == timeZero || start < dbb.min {
+	if dbb.min.Equal(timeZero) || start.Before(dbb.min) {
 		dbb.min = start
 	}
-	if dbb.max == timeZero || start > dbb.max {
+	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
 		dbb.max = start
 	}
 	dbb.elems[start] = block
