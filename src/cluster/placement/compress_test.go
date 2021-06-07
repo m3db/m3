@@ -57,6 +57,7 @@ func TestCompressAndDecompressPlacementProto(t *testing.T) {
 
 		for i := 10; i < 100; i++ {
 			wg.Add(1)
+			i := i
 			go func() {
 				defer wg.Done()
 				pl, err := testRandPlacement(50, i).Proto()
