@@ -165,7 +165,7 @@ type Configuration struct {
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Middleware is middleware-specific configuration.
-	Middleware *MiddlewareConfiguration `yaml:"middleware"`
+	Middleware MiddlewareConfiguration `yaml:"middleware"`
 
 	// Query is the query configuration.
 	Query QueryConfiguration `yaml:"query"`
@@ -478,6 +478,20 @@ type CarbonConfiguration struct {
 
 // MiddlewareConfiguration is middleware-specific configuration.
 type MiddlewareConfiguration struct {
+	// Logging configures the logging middleware.
+	Logging LoggingMiddlewareConfiguration `yaml:"logging"`
+	// Metrics configures the metrics middleware.
+	Metrics MetricsMiddlewareConfiguration `yaml:"metrics"`
+}
+
+// LoggingMiddlewareConfiguration configures the logging middleware.
+type LoggingMiddlewareConfiguration struct {
+	// Threshold defines the latency threshold for logging the response.
+	Threshold time.Duration
+}
+
+// MetricsMiddlewareConfiguration configures the metrics middleware.
+type MetricsMiddlewareConfiguration struct {
 	// LargeSeriesCountThreshold is the minimum number of series fetched by
 	// a query necessary to classify it as large.
 	LargeSeriesCountThreshold int `yaml:"largeSeriesCountThreshold"`

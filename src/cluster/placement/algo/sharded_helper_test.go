@@ -22,6 +22,7 @@ package algo
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -646,6 +647,242 @@ func TestMarkAllAsAvailable(t *testing.T) {
 		SetReplicaFactor(2)
 	_, _, err = markAllShardsAvailable(p, opts)
 	assert.Contains(t, err.Error(), "does not exist in placement")
+}
+
+// nolint: dupl
+func TestOptimize(t *testing.T) {
+	rf := 1
+	tests := []struct {
+		name            string
+		shards          []uint32
+		instancesBefore []placement.Instance
+		instancesAfter  []placement.Instance
+	}{
+		{
+			name:            "empty",
+			instancesBefore: []placement.Instance{},
+			instancesAfter:  []placement.Instance{},
+		},
+		{
+			name:   "no optimization when instance is off by one",
+			shards: []uint32{1, 2, 3, 4, 5},
+			instancesBefore: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(3).SetState(shard.Available),
+						shard.NewShard(4).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(5).SetState(shard.Available),
+					})),
+			},
+			instancesAfter: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(3).SetState(shard.Available),
+						shard.NewShard(4).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(5).SetState(shard.Available),
+					})),
+			},
+		},
+		{
+			name:   "optimizing one imbalanced instance",
+			shards: []uint32{1, 2, 3, 4, 5, 6},
+			instancesBefore: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(4).SetState(shard.Available),
+						shard.NewShard(5).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+			},
+			instancesAfter: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Leaving),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(4).SetState(shard.Available),
+						shard.NewShard(5).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Unknown).SetSourceID("i1"),
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+			},
+		},
+		{
+			name:   "optimizing multiple imbalanced instances",
+			shards: []uint32{1, 2, 3, 4, 5, 6, 7, 8},
+			instancesBefore: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+						shard.NewShard(4).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(5).SetState(shard.Available),
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(7).SetState(shard.Available),
+						shard.NewShard(8).SetState(shard.Available),
+					})),
+			},
+			instancesAfter: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Leaving),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+						shard.NewShard(4).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Unknown).SetSourceID("i1"),
+						shard.NewShard(5).SetState(shard.Available),
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(7).SetState(shard.Available),
+						shard.NewShard(8).SetState(shard.Available),
+					})),
+			},
+		},
+		{
+			name:   "no optimization for balanced instances with different weights",
+			shards: []uint32{1, 2, 3, 4, 5, 6, 7, 8},
+			instancesBefore: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(2).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+						shard.NewShard(4).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(5).SetState(shard.Available),
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(7).SetState(shard.Available),
+						shard.NewShard(8).SetState(shard.Available),
+					})),
+			},
+			instancesAfter: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(2).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+						shard.NewShard(4).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(5).SetState(shard.Available),
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(7).SetState(shard.Available),
+						shard.NewShard(8).SetState(shard.Available),
+					})),
+			},
+		},
+		{
+			name:   "optimization for imbalanced instances with different weights",
+			shards: []uint32{1, 2, 3, 4, 5, 6, 7, 8},
+			instancesBefore: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(2).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(4).SetState(shard.Available),
+						shard.NewShard(5).SetState(shard.Available),
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(7).SetState(shard.Available),
+						shard.NewShard(8).SetState(shard.Available),
+					})),
+			},
+			instancesAfter: []placement.Instance{
+				placement.NewInstance().SetID("i1").SetWeight(2).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(1).SetState(shard.Available),
+						shard.NewShard(2).SetState(shard.Available),
+						shard.NewShard(3).SetState(shard.Available),
+						shard.NewShard(4).SetState(shard.Unknown).SetSourceID("i2"),
+					})),
+				placement.NewInstance().SetID("i2").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(4).SetState(shard.Leaving),
+						shard.NewShard(5).SetState(shard.Available),
+						shard.NewShard(6).SetState(shard.Available),
+					})),
+				placement.NewInstance().SetID("i3").SetWeight(1).SetShards(
+					shard.NewShards([]shard.Shard{
+						shard.NewShard(7).SetState(shard.Available),
+						shard.NewShard(8).SetState(shard.Available),
+					})),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := placement.NewPlacement().SetShards(tt.shards).SetReplicaFactor(rf).SetInstances(tt.instancesBefore)
+			ph := newHelper(p, rf, placement.NewOptions())
+
+			err := ph.optimize(unsafe)
+			assert.NoError(t, err)
+
+			instancesAfter := ph.Instances()
+			sort.Slice(instancesAfter, func(i, j int) bool {
+				return instancesAfter[i].ID() < instancesAfter[j].ID()
+			})
+			assert.Equal(t, tt.instancesAfter, instancesAfter)
+		})
+	}
 }
 
 func genShardCutoverFn(now time.Time) placement.ShardValidateFn {

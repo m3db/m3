@@ -20,6 +20,8 @@
 
 package cm
 
+const _maxSamplesToReuse = 2048
+
 var (
 	emptySampleList sampleList
 )
@@ -49,8 +51,13 @@ func (l *sampleList) Reset() {
 	for i := range l.samples {
 		l.samples[i].next, l.samples[i].prev = nil, nil
 	}
+
 	l.samples = l.samples[:0]
 	l.free = l.free[:0]
+	if cap(l.samples) > _maxSamplesToReuse || cap(l.free) > _maxSamplesToReuse {
+		l.samples = nil
+		l.free = nil
+	}
 	l.head, l.tail = nil, nil
 }
 

@@ -24,14 +24,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/uber-go/tally"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/x/headers"
 )
 
@@ -109,15 +106,6 @@ func retrieveQueryRange(expr parser.Node, rangeSoFar time.Duration) time.Duratio
 	return queryRange
 }
 
-func lastPathSegment(path string) string {
-	idx := strings.LastIndex(path, "/")
-	if idx < 0 {
-		return ""
-	}
-
-	return path[idx+1:]
-}
-
 type querySize struct {
 	size           string
 	countThreshold string
@@ -146,51 +134,29 @@ func (s querySize) toTags() map[string]string {
 func inspectQuerySize(
 	w http.ResponseWriter,
 	r *http.Request,
-	path string,
 	metrics *queryInspectionMetrics,
-	cfg *config.MiddlewareConfiguration,
+	opts Options,
+	requestStart time.Time,
 ) querySize {
+	cfg := opts.Metrics.Config
 	size := querySize{
 		size:           querySizeSmall,
 		countThreshold: "0",
 		rangeThreshold: "0",
 	}
-
-	duration := time.Duration(0)
-	// NB: query categorization is only relevant for query and query_range endpoints.
-	lastPath := lastPathSegment(path)
-	if lastPath == "query_range" {
-		// NB: for a query range, add the length of the range to the query duration
-		// to get the full time range.
-		if err := r.ParseForm(); err != nil {
-			// NB: invalid query.
-			metrics.badQuery.Inc(1)
-			return size
-		}
-
-		now := time.Now()
-		start, err := native.ParseTime(r, "start", now)
-		if err != nil {
-			// NB: invalid query.
-			metrics.badQuery.Inc(1)
-			return size
-		}
-
-		end, err := native.ParseTime(r, "end", now)
-		if err != nil {
-			// NB: invalid query.
-			metrics.badQuery.Inc(1)
-			return size
-		}
-
-		duration = end.Sub(start)
-	} else if lastPath != "query" {
+	if opts.Metrics.ParseQueryParams == nil {
 		metrics.notQuery.Inc(1)
 		return size
 	}
+	params, err := opts.Metrics.ParseQueryParams(r, requestStart)
+	if err != nil {
+		metrics.badQuery.Inc(1)
+		return size
+	}
+	duration := params.Range()
 
 	// NB: query inspection is disabled
-	if cfg == nil || !cfg.InspectQuerySize {
+	if !cfg.InspectQuerySize {
 		metrics.notInspected.Inc(1)
 		return size
 	}
@@ -206,13 +172,7 @@ func inspectQuerySize(
 		return size
 	}
 
-	query, err := native.ParseQuery(r)
-	if err != nil {
-		metrics.badQuery.Inc(1)
-		return size
-	}
-
-	expr, err := parser.ParseExpr(query)
+	expr, err := parser.ParseExpr(params.Query)
 	if err != nil {
 		metrics.badQuery.Inc(1)
 		return size
