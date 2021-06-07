@@ -653,16 +653,16 @@ func filterSeries(
 	aggregationFn string,
 	comparator string,
 	threshold float64) (ts.SeriesList, error) {
-	comparatorFunc, ok := comparatorFns[comparator]
+	comparatorFn, ok := comparatorFns[comparator]
 	if !ok {
-		return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid compartor %s", comparator))
+		return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid comparator: %s", comparator))
 	}
 
 	filteredSeries := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
 		safeAggFn, ok := common.SafeAggregationFns[aggregationFn]
 		if !ok {
-			return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("Invalid function %s ", aggregationFn))
+			return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid function: %s", aggregationFn))
 		}
 
 		aggregatedValue, _, ok := safeAggFn(series.SafeValues())
@@ -675,7 +675,7 @@ func filterSeries(
 			continue
 		}
 
-		if comparatorFunc(aggregatedValue, threshold) {
+		if comparatorFn(aggregatedValue, threshold) {
 			filteredSeries = append(filteredSeries, series)
 		}
 	}

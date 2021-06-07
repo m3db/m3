@@ -170,7 +170,8 @@ func SafeMedian(input []float64) (float64, int, bool) {
 	return ts.Median(safeValues, len(safeValues)), nans, true
 }
 
-// SafeDiff returns the subtracted value of all the subsequent numbers from the 1st one and the number of NaNs in the input.
+// SafeDiff returns the subtracted value of all the subsequent numbers from the 1st one and
+// the number of NaNs in the input.
 func SafeDiff(input []float64) (float64, int, bool) {
 	safeValues, nans, ok := safeValues(input)
 	if !ok {
@@ -179,7 +180,7 @@ func SafeDiff(input []float64) (float64, int, bool) {
 
 	diff := safeValues[0]
 	for i := 1; i < len(safeValues); i++ {
-		diff = diff - safeValues[i]
+		diff -= safeValues[i]
 	}
 
 	return diff, nans, true
@@ -199,7 +200,7 @@ func SafeStddev(input []float64) (float64, int, bool) {
 
 	sum := 0.0
 	for _, v := range safeValues {
-		sum = sum + (v-safeAvg)*(v-safeAvg)
+		sum += (v - safeAvg) * (v - safeAvg)
 	}
 
 	return math.Sqrt(sum / float64(len(safeValues))), nans, true
@@ -229,7 +230,7 @@ func SafeMul(input []float64) (float64, int, bool) {
 
 	product := 1.0
 	for _, v := range safeValues {
-		product = product * v
+		product *= v
 	}
 
 	return product, nans, true

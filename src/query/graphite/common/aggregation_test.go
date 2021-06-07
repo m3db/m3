@@ -174,7 +174,8 @@ func TestAggregationFunctions(t *testing.T) {
 		require.True(t, ok)
 		aggregatedValue, nans, ok := safeAggFn(test.input.values)
 		require.True(t, ok)
-		require.Equal(t, test.output.aggregatedValue, aggregatedValue, fmt.Sprintf("aggregation result for %v should be equal", test.input.functionName))
+		require.Equal(t, test.output.aggregatedValue, aggregatedValue,
+			fmt.Sprintf("aggregation result for %v should be equal", test.input.functionName))
 		require.Equal(t, test.output.nans, nans)
 	}
 }
