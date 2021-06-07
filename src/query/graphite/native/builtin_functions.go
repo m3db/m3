@@ -638,7 +638,7 @@ func lessOrEqualFunc(x float64, y float64) bool {
 	return x <= y
 }
 
-var comparatorFuncs = map[string]comparator{
+var comparatorFns = map[string]comparator{
 	"=":  equalFunc,
 	"!=": notEqualFunc,
 	">":  greaterFunc,
@@ -653,26 +653,35 @@ func filterSeries(
 	aggregationFn string,
 	comparator string,
 	threshold float64) (ts.SeriesList, error) {
-	comparatorFunc, ok := comparatorFuncs[comparator]
+	comparatorFunc, ok := comparatorFns[comparator]
 	if !ok {
 		return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid compartor %s", comparator))
 	}
 
-	var filteredSeries []*ts.Series
+	filteredSeries := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
-		safeAggFn, ok := common.SafeAggregationFuncs[aggregationFn]
+		safeAggFn, ok := common.SafeAggregationFns[aggregationFn]
 		if !ok {
 			return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("Invalid function %s ", aggregationFn))
 		}
 
-		aggregatedValue, _ := safeAggFn(series.SafeValues())
+		aggregatedValue, _, ok := safeAggFn(series.SafeValues())
+		if !ok {
+			// No elements or all nans, similar skipping behavior to filterSeries
+			// for graphite web where comparator only ran against series when the value
+			// is not python None type which is returned when safe... function
+			// cannot be applied to the set of values due to no safe values being
+			// present due to empty series or all nans.
+			continue
+		}
+
 		if comparatorFunc(aggregatedValue, threshold) {
 			filteredSeries = append(filteredSeries, series)
 		}
 	}
+
 	r := ts.SeriesList(input)
 	r.Values = filteredSeries
-
 	return r, nil
 }
 
@@ -2217,7 +2226,10 @@ func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints in
 
 // movingSumHelper given a slice of floats, calculates the sum and assigns it into vals as index i
 func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	sum, nans := common.SafeSum(window)
+	sum, nans, ok := common.SafeSum(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, sum)
@@ -2226,7 +2238,10 @@ func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 
 // movingAverageHelper given a slice of floats, calculates the average and assigns it into vals as index i
 func movingAverageHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	avg, nans := common.SafeAverage(window)
+	avg, nans, ok := common.SafeAverage(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, avg)
@@ -2235,7 +2250,10 @@ func movingAverageHelper(window []float64, vals ts.MutableValues, windowPoints i
 
 // movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
 func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	max, nans := common.SafeMax(window)
+	max, nans, ok := common.SafeMax(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, max)
@@ -2244,7 +2262,10 @@ func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 
 // movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
 func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	min, nans := common.SafeMin(window)
+	min, nans, ok := common.SafeMin(window)
+	if !ok {
+		return
+	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, min)

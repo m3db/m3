@@ -22,9 +22,10 @@ package common
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/x/errors"
-	"math"
 )
 
 const (

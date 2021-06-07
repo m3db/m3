@@ -63,7 +63,23 @@ func Range(ctx *Context, series ts.SeriesList, renamer SeriesListRenamer) (*ts.S
 	return ts.NewSeries(ctx, name, start, vals), nil
 }
 
-type SafeAggregationFn func(input []float64) (float64, int)
+// SafeAggregationFn is a safe aggregation function.
+type SafeAggregationFn func(input []float64) (float64, int, bool)
+
+// SafeAggregationFns is the collection of safe aggregation functions.
+var SafeAggregationFns = map[string]SafeAggregationFn{
+	"sum":      SafeSum,
+	"avg":      SafeAverage,
+	"average":  SafeAverage,
+	"max":      SafeMax,
+	"min":      SafeMin,
+	"median":   SafeMedian,
+	"diff":     SafeDiff,
+	"stddev":   SafeStddev,
+	"range":    SafeRange,
+	"multiply": SafeMul,
+	"last":     SafeLast,
+}
 
 // SafeSort sorts the input slice and returns the number of NaNs in the input.
 func SafeSort(input []float64) int {
@@ -78,7 +94,7 @@ func SafeSort(input []float64) int {
 }
 
 // SafeSum returns the sum of the input slice and  the number of NaNs in the input.
-func SafeSum(input []float64) (float64, int) {
+func SafeSum(input []float64) (float64, int, bool) {
 	nans := 0
 	sum := 0.0
 	for _, v := range input {
@@ -88,18 +104,27 @@ func SafeSum(input []float64) (float64, int) {
 			nans++
 		}
 	}
-	return sum, nans
+	if len(input) == nans {
+		return 0, 0, false // Either no elements or all nans.
+	}
+	return sum, nans, true
 }
 
 // SafeAverage returns the average of the input slice and the number of NaNs in the input.
-func SafeAverage(input []float64) (float64, int) {
-	sum, nans := SafeSum(input)
+func SafeAverage(input []float64) (float64, int, bool) {
+	sum, nans, ok := SafeSum(input)
+	if !ok {
+		return 0, 0, false
+	}
+	if len(input) == nans {
+		return 0, 0, false // Either no elements or all nans.
+	}
 	count := len(input) - nans
-	return sum / float64(count), nans
+	return sum / float64(count), nans, true
 }
 
 // SafeMax returns the maximum value of the input slice and the number of NaNs in the input.
-func SafeMax(input []float64) (float64, int) {
+func SafeMax(input []float64) (float64, int, bool) {
 	nans := 0
 	max := -math.MaxFloat64
 	for _, v := range input {
@@ -111,11 +136,14 @@ func SafeMax(input []float64) (float64, int) {
 			max = v
 		}
 	}
-	return max, nans
+	if len(input) == nans {
+		return 0, 0, false // Either no elements or all nans.
+	}
+	return max, nans, true
 }
 
 // SafeMin returns the minimum value of the input slice and the number of NaNs in the input.
-func SafeMin(input []float64) (float64, int) {
+func SafeMin(input []float64) (float64, int, bool) {
 	nans := 0
 	min := math.MaxFloat64
 	for _, v := range input {
@@ -127,78 +155,99 @@ func SafeMin(input []float64) (float64, int) {
 			min = v
 		}
 	}
-	return min, nans
+	if len(input) == nans {
+		return 0, 0, false // Either no elements or all nans.
+	}
+	return min, nans, true
 }
 
 // SafeMedian returns the median value of the input slice and the number of NaNs in the input.
-func SafeMedian(input []float64) (float64, int) {
-	safeValues, nans := safeValuesFn(input)
-
-	return ts.Median(safeValues, len(safeValues)), nans
+func SafeMedian(input []float64) (float64, int, bool) {
+	safeValues, nans, ok := safeValues(input)
+	if !ok {
+		return 0, 0, false
+	}
+	return ts.Median(safeValues, len(safeValues)), nans, true
 }
 
 // SafeDiff returns the subtracted value of all the subsequent numbers from the 1st one and the number of NaNs in the input.
-func SafeDiff(input []float64) (float64, int) {
-	safeValues, nans := safeValuesFn(input)
+func SafeDiff(input []float64) (float64, int, bool) {
+	safeValues, nans, ok := safeValues(input)
+	if !ok {
+		return 0, 0, false
+	}
 
 	diff := safeValues[0]
 	for i := 1; i < len(safeValues); i++ {
 		diff = diff - safeValues[i]
 	}
 
-	return diff, nans
+	return diff, nans, true
 }
 
 // SafeStddev returns the standard deviation value of the input slice and the number of NaNs in the input.
-func SafeStddev(input []float64) (float64, int) {
-	safeAvg, nans := SafeAverage(input)
+func SafeStddev(input []float64) (float64, int, bool) {
+	safeAvg, nans, ok := SafeAverage(input)
+	if !ok {
+		return 0, 0, false
+	}
+
+	safeValues, _, ok := safeValues(input)
+	if !ok {
+		return 0, 0, false
+	}
 
 	sum := 0.0
-	safeValues, _ := safeValuesFn(input)
 	for _, v := range safeValues {
 		sum = sum + (v-safeAvg)*(v-safeAvg)
 	}
 
-	return math.Sqrt(sum / float64(len(safeValues))), nans
+	return math.Sqrt(sum / float64(len(safeValues))), nans, true
 }
 
 // SafeRange returns the range value of the input slice and the number of NaNs in the input.
-func SafeRange(input []float64) (float64, int) {
-	safeMax, nans := SafeMax(input)
-	safeMin, _ := SafeMin(input)
+func SafeRange(input []float64) (float64, int, bool) {
+	safeMax, nans, ok := SafeMax(input)
+	if !ok {
+		return 0, 0, false
+	}
 
-	return safeMax - safeMin, nans
+	safeMin, _, ok := SafeMin(input)
+	if !ok {
+		return 0, 0, false
+	}
+
+	return safeMax - safeMin, nans, true
 }
 
-// SafeMul returns the product value of the input slice and the number of NaNs in the input
-func SafeMul(input []float64) (float64, int) {
-	safeValues, nans := safeValuesFn(input)
+// SafeMul returns the product value of the input slice and the number of NaNs in the input.
+func SafeMul(input []float64) (float64, int, bool) {
+	safeValues, nans, ok := safeValues(input)
+	if !ok {
+		return 0, 0, false
+	}
 
 	product := 1.0
 	for _, v := range safeValues {
 		product = product * v
 	}
 
-	return product, nans
+	return product, nans, true
 }
 
-// SafeLast returns the last value of the input slice and the number of NaNs in the input
-func SafeLast(input []float64) (float64, int) {
-	safeValues, nans := safeValuesFn(input)
-	if len(safeValues) >= 1 {
-		return safeValues[len(safeValues)-1], nans
-	} else {
-		return math.NaN(), nans
+// SafeLast returns the last value of the input slice and the number of NaNs in the input.
+func SafeLast(input []float64) (float64, int, bool) {
+	safeValues, nans, ok := safeValues(input)
+	if !ok {
+		return 0, 0, false
 	}
+
+	return safeValues[len(safeValues)-1], nans, true
 }
 
-func safeValuesFn(input []float64) ([]float64, int) {
-	if len(input) == 0 {
-		return []float64{math.NaN()}, 0
-	}
-
+func safeValues(input []float64) ([]float64, int, bool) {
 	nans := 0
-	var safeValues []float64
+	safeValues := make([]float64, 0, len(input))
 	for _, v := range input {
 		if !math.IsNaN(v) {
 			safeValues = append(safeValues, v)
@@ -206,19 +255,8 @@ func safeValuesFn(input []float64) ([]float64, int) {
 			nans++
 		}
 	}
-	return safeValues, nans
-}
-
-var SafeAggregationFuncs = map[string]SafeAggregationFn{
-	"sum":      SafeSum,
-	"avg":      SafeAverage,
-	"average":  SafeAverage,
-	"max":      SafeMax,
-	"min":      SafeMin,
-	"median":   SafeMedian,
-	"diff":     SafeDiff,
-	"stddev":   SafeStddev,
-	"range":    SafeRange,
-	"multiply": SafeMul,
-	"last":     SafeLast,
+	if len(input) == nans {
+		return nil, 0, false // Either no elements or all nans.
+	}
+	return safeValues, nans, true
 }
