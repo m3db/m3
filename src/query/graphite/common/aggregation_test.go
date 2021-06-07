@@ -52,7 +52,7 @@ func TestRangeOfSeries(t *testing.T) {
 	CompareOutputsAndExpected(t, expectedStep, expectedStart, []TestSeries{expected}, []*ts.Series{rangeSeries})
 }
 
-func TestAggregationFuncs(t *testing.T) {
+func TestAggregationFunctions(t *testing.T) {
 	type input struct {
 		functionName string
 		values       []float64
@@ -170,7 +170,10 @@ func TestAggregationFuncs(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		aggregatedValue, nans := SafeAggregationFuncs[test.input.functionName](test.input.values)
+		safeAggFn, ok := SafeAggregationFns[test.input.functionName]
+		require.True(t, ok)
+		aggregatedValue, nans, ok := safeAggFn(test.input.values)
+		require.True(t, ok)
 		require.Equal(t, test.output.aggregatedValue, aggregatedValue, fmt.Sprintf("aggregation result for %v should be equal", test.input.functionName))
 		require.Equal(t, test.output.nans, nans)
 	}
