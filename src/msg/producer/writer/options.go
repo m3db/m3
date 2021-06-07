@@ -53,12 +53,12 @@ const (
 
 	// By default traffic is cut over to shards 10 minutes before the designated
 	// cutover time in case there are issues with the instances owning the shards.
-	defaultCutoverWarmupDuration = 10 * time.Minute
+	defaultCutoverWarmupDuration = 8 * time.Minute
 
 	// By default traffic doesn't stop until 10 minutes after the designated cutoff
 	// time in case there are issues with the instances taking over the shards
 	// and as such we need to switch the traffic back to the previous owner of the shards.
-	defaultCutoffLingerDuration = 10 * time.Minute
+	defaultCutoffLingerDuration = 8 * time.Minute
 )
 
 // ConnectionOptions configs the connections.
