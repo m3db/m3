@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // SeriesLimitExceeded returns whether a given size exceeds the
@@ -55,7 +57,7 @@ var (
 
 // NewWideQueryOptions creates a new wide query options, snapped to block start.
 func NewWideQueryOptions(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	batchSize int,
 	blockSize time.Duration,
 	shards []uint32,

@@ -92,7 +92,7 @@ func (mr *MockEncoderMockRecorder) Discard() *gomock.Call {
 }
 
 // DiscardReset mocks base method.
-func (m *MockEncoder) DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment {
+func (m *MockEncoder) DiscardReset(t time0.UnixNano, capacity int, schema namespace.SchemaDescr) ts.Segment {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DiscardReset", t, capacity, schema)
 	ret0, _ := ret[0].(ts.Segment)
@@ -178,7 +178,7 @@ func (mr *MockEncoderMockRecorder) NumEncoded() *gomock.Call {
 }
 
 // Reset mocks base method.
-func (m *MockEncoder) Reset(t time.Time, capacity int, schema namespace.SchemaDescr) {
+func (m *MockEncoder) Reset(t time0.UnixNano, capacity int, schema namespace.SchemaDescr) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", t, capacity, schema)
 }
@@ -811,7 +811,7 @@ func (mr *MockMultiReaderIteratorMockRecorder) Readers() *gomock.Call {
 }
 
 // Reset mocks base method.
-func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration, schema namespace.SchemaDescr) {
+func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time0.UnixNano, blockSize time.Duration, schema namespace.SchemaDescr) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", readers, start, blockSize, schema)
 }
@@ -914,10 +914,10 @@ func (mr *MockSeriesIteratorAccumulatorMockRecorder) Current() *gomock.Call {
 }
 
 // End mocks base method.
-func (m *MockSeriesIteratorAccumulator) End() time.Time {
+func (m *MockSeriesIteratorAccumulator) End() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "End")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -1023,10 +1023,10 @@ func (mr *MockSeriesIteratorAccumulatorMockRecorder) SetIterateEqualTimestampStr
 }
 
 // Start mocks base method.
-func (m *MockSeriesIteratorAccumulator) Start() time.Time {
+func (m *MockSeriesIteratorAccumulator) Start() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -1117,10 +1117,10 @@ func (mr *MockSeriesIteratorMockRecorder) Current() *gomock.Call {
 }
 
 // End mocks base method.
-func (m *MockSeriesIterator) End() time.Time {
+func (m *MockSeriesIterator) End() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "End")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -1226,10 +1226,10 @@ func (mr *MockSeriesIteratorMockRecorder) SetIterateEqualTimestampStrategy(strat
 }
 
 // Start mocks base method.
-func (m *MockSeriesIterator) Start() time.Time {
+func (m *MockSeriesIterator) Start() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 

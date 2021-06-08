@@ -35,6 +35,7 @@ import (
 	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
@@ -43,7 +44,7 @@ func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
 		ctx  = xcontext.NewBackground()
 
 		blockSize    = time.Hour
-		startTime    = time.Now().Truncate(blockSize)
+		startTime    = xtime.Now().Truncate(blockSize)
 		bufferPast   = 30 * time.Minute
 		bufferFuture = 30 * time.Minute
 		// shift 'now' just enough so that after adding 'bufferFuture' it would reach the next block
@@ -81,7 +82,7 @@ func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
 		processOpts:          NewProcessOptions(),
 		resultOpts:           result.NewOptions(),
 		fsOpts:               fs.NewOptions(),
-		nowFn:                func() time.Time { return now },
+		nowFn:                func() time.Time { return now.ToTime() },
 		log:                  instrument.NewOptions().Logger(),
 		bootstrapper:         bootstrapper,
 		initialTopologyState: &topology.StateSnapshot{},

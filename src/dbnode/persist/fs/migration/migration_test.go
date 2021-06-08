@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -160,7 +161,7 @@ func writeUnmigratedData(
 	w, err := fs.NewWriter(fsOpts)
 	require.NoError(t, err)
 
-	blockStart := time.Now().Truncate(time.Hour)
+	blockStart := xtime.Now().Truncate(time.Hour)
 	writerOpts := fs.DataWriterOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   nsID,

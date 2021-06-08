@@ -154,7 +154,7 @@ func write(
 	t *testing.T,
 	testSetup TestSetup,
 	blockSize time.Duration,
-	start time.Time,
+	start xtime.UnixNano,
 	filePathPrefix string,
 	i int,
 	seriesStrs []string,
@@ -200,8 +200,8 @@ func read(
 
 	req := rpc.NewFetchRequest()
 	req.NameSpace = nsID.String()
-	req.RangeStart = xtime.ToNormalizedTime(now.Add(-4*blockSize), time.Second)
-	req.RangeEnd = xtime.ToNormalizedTime(now, time.Second)
+	req.RangeStart = now.Add(-4 * blockSize).Seconds()
+	req.RangeEnd = now.Seconds()
 	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 
 	// Fetching the series sequentially ensures that the wired list will have

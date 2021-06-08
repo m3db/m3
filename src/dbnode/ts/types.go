@@ -21,8 +21,6 @@
 package ts
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -49,14 +47,13 @@ type Series struct {
 
 // A Datapoint is a single data value reported at a given time.
 type Datapoint struct {
-	Timestamp      time.Time
 	TimestampNanos xtime.UnixNano
 	Value          float64
 }
 
 // Equal returns whether one Datapoint is equal to another
 func (d Datapoint) Equal(x Datapoint) bool {
-	return d.Timestamp.Equal(x.Timestamp) && d.Value == x.Value
+	return d.TimestampNanos == x.TimestampNanos && d.Value == x.Value
 }
 
 // EncodedTags represents the encoded tags for the series.

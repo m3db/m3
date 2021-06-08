@@ -43,7 +43,7 @@ type BlockConfig struct {
 	IDs       []string
 	Tags      ident.Tags
 	NumPoints int
-	Start     time.Time
+	Start     xtime.UnixNano
 	AnnGen    AnnotationGenerator
 }
 

@@ -102,7 +102,7 @@ func writeTestData(
 	t *testing.T,
 	w DataFileSetWriter,
 	shard uint32,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	entries []testEntry,
 	fileSetType persist.FileSetType,
 ) {
@@ -114,7 +114,7 @@ func writeTestDataWithVolume(
 	t *testing.T,
 	w DataFileSetWriter,
 	shard uint32,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	volume int,
 	entries []testEntry,
 	fileSetType persist.FileSetType,
@@ -173,7 +173,9 @@ var readTestTypes = []readTestType{
 	readTestTypeMetadata,
 }
 
-func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+//nolint: unparam
+func readTestData(t *testing.T, r DataFileSetReader, shard uint32,
+	timestamp xtime.UnixNano, entries []testEntry) {
 	readTestDataWithStreamingOpt(t, r, shard, timestamp, entries, false)
 
 	sortedEntries := append(make(testEntries, 0, len(entries)), entries...)
@@ -192,7 +194,7 @@ func readTestDataWithStreamingOpt(
 	t *testing.T,
 	r DataFileSetReader,
 	shard uint32,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	entries []testEntry,
 	streamingEnabled bool,
 ) {
@@ -400,7 +402,7 @@ func TestInfoReadWrite(t *testing.T) {
 	}
 
 	infoFile := readInfoFileResults[0].Info
-	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
+	require.Equal(t, int64(testWriterStart), infoFile.BlockStart)
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
@@ -425,7 +427,7 @@ func TestInfoReadWriteVolumeIndex(t *testing.T) {
 	}
 
 	infoFile := readInfoFileResults[0].Info
-	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
+	require.Equal(t, testWriterStart, xtime.UnixNano(infoFile.BlockStart))
 	require.Equal(t, volume, infoFile.VolumeIndex)
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)

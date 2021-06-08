@@ -28,6 +28,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/golang/snappy"
+
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
@@ -37,8 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/golang/snappy"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -142,8 +143,8 @@ func ParseTagCompletionParamsToQueries(
 	tagQueries := make([]*storage.CompleteTagsQuery, 0, len(queries))
 	for _, query := range queries {
 		tagQuery := &storage.CompleteTagsQuery{
-			Start:            start,
-			End:              end,
+			Start:            xtime.ToUnixNano(start),
+			End:              xtime.ToUnixNano(end),
 			CompleteNameOnly: nameOnly,
 		}
 

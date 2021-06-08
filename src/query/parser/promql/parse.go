@@ -24,14 +24,15 @@ import (
 	"fmt"
 	"time"
 
+	pql "github.com/prometheus/prometheus/promql/parser"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-
-	pql "github.com/prometheus/prometheus/promql/parser"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type promParser struct {
@@ -134,7 +135,7 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	}
 
 	var (
-		tt = func(t time.Time) time.Time { return t.Add(offset) }
+		tt = func(t xtime.UnixNano) xtime.UnixNano { return t.Add(offset) }
 		mt = func(meta block.Metadata) block.Metadata {
 			meta.Bounds.Start = meta.Bounds.Start.Add(offset)
 			return meta

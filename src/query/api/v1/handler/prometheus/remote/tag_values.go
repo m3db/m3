@@ -39,6 +39,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -194,8 +195,8 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 	}
 
 	return &storage.CompleteTagsQuery{
-		Start:            start,
-		End:              end,
+		Start:            xtime.ToUnixNano(start),
+		End:              xtime.ToUnixNano(end),
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{nameBytes},
 		TagMatchers:      tagMatchers,

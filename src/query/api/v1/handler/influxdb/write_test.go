@@ -38,7 +38,7 @@ func (self *ingestIterator) pop(t *testing.T) string {
 		value := self.Current()
 		assert.Equal(t, 1, len(value.Datapoints))
 
-		return fmt.Sprintf("%s %v %s", value.Tags.String(), value.Datapoints[0].Value, value.Datapoints[0].Timestamp)
+		return fmt.Sprintf("%s %v %d", value.Tags.String(), value.Datapoints[0].Value, int64(value.Datapoints[0].Timestamp))
 	}
 	return ""
 }
@@ -54,9 +54,9 @@ func TestIngestIterator(t *testing.T) {
 	iter := &ingestIterator{points: points, promRewriter: newPromRewriter()}
 	require.NoError(t, iter.Error())
 	for _, line := range []string{
-		"__name__: _measure:___key1:_, _tag1__: tval1, _tag2__: tval2 3 2019-11-27 07:11:10.3864698 +0000 UTC",
-		"__name__: _measure:___key2:_, _tag1__: tval1, _tag2__: tval2 2 2019-11-27 07:11:10.3864698 +0000 UTC",
-		"__name__: _measure:___key4:_, _tag1__: tval1, _tag2__: tval2 1 2019-11-27 07:11:10.386469801 +0000 UTC",
+		"__name__: _measure:___key1:_, _tag1__: tval1, _tag2__: tval2 3 1574838670386469800",
+		"__name__: _measure:___key2:_, _tag1__: tval1, _tag2__: tval2 2 1574838670386469800",
+		"__name__: _measure:___key4:_, _tag1__: tval1, _tag2__: tval2 1 1574838670386469801",
 		"",
 		"",
 	} {

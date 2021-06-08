@@ -65,13 +65,13 @@ func main() {
 		PathPrefix: *optSrcPathPrefix,
 		Namespace:  *optSrcNamespace,
 		Shard:      uint32(*optSrcShard),
-		Blockstart: xtime.FromNanoseconds(*optSrcBlockstart),
+		Blockstart: xtime.UnixNano(*optSrcBlockstart),
 	}
 	dest := clone.FileSetID{
 		PathPrefix: *optDestPathPrefix,
 		Namespace:  *optDestNamespace,
 		Shard:      uint32(*optDestShard),
-		Blockstart: xtime.FromNanoseconds(*optDestBlockstart),
+		Blockstart: xtime.UnixNano(*optDestBlockstart),
 	}
 
 	logger.Infof("source: %+v", src)

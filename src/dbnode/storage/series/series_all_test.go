@@ -26,12 +26,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 )
 
-var timeDistantFuture = time.Now().Add(10 * 365 * 24 * time.Hour)
+var timeDistantFuture = xtime.Now().Add(10 * 365 * 24 * time.Hour)
 
 func secs(x float64) time.Duration {
 	return time.Duration(x * float64(time.Second))
@@ -42,7 +43,7 @@ func mins(x float64) time.Duration {
 }
 
 type blockData struct {
-	start     time.Time
+	start     xtime.UnixNano
 	writeType WriteType
 	data      [][]DecodedTestValue
 }
@@ -62,7 +63,7 @@ func decodedReaderValues(results [][]xio.BlockReader,
 		dp, unit, annotation := iter.Current()
 		// Iterator reuse annotation byte slices, so make a copy.
 		annotationCopy := append([]byte(nil), annotation...)
-		all = append(all, DecodedTestValue{dp.Timestamp, dp.Value, unit, annotationCopy})
+		all = append(all, DecodedTestValue{dp.TimestampNanos, dp.Value, unit, annotationCopy})
 	}
 	if err := iter.Err(); err != nil {
 		return nil, err

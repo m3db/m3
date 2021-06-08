@@ -683,7 +683,7 @@ func (s *service) readDatapoints(
 	ctx context.Context,
 	db storage.Database,
 	nsID, tsID ident.ID,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	timeType rpc.TimeType,
 ) ([]*rpc.Datapoint, error) {
 	iter, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
@@ -714,7 +714,7 @@ func (s *service) readDatapoints(
 	for multiIt.Next() {
 		dp, _, annotation := multiIt.Current()
 
-		timestamp, timestampErr := convert.ToValue(dp.Timestamp, timeType)
+		timestamp, timestampErr := convert.ToValue(dp.TimestampNanos, timeType)
 		if timestampErr != nil {
 			return nil, xerrors.NewInvalidParamsError(timestampErr)
 		}
@@ -1474,14 +1474,14 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	// Preallocate starts to maximum size since at least one element will likely
 	// be fetching most blocks for peer bootstrapping
 	ropts := nsMetadata.Options().RetentionOptions()
-	blockStarts := make([]time.Time, 0,
+	blockStarts := make([]xtime.UnixNano, 0,
 		(ropts.RetentionPeriod()+ropts.FutureRetentionPeriod())/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]
 
 		for _, start := range request.Starts {
-			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
+			blockStarts = append(blockStarts, xtime.UnixNano(start))
 		}
 
 		tsID := s.newID(ctx, request.ID)
@@ -1498,7 +1498,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
-			block.Start = fetchedBlock.Start.UnixNano()
+			block.Start = int64(fetchedBlock.Start)
 			if err := fetchedBlock.Err; err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
@@ -1557,8 +1557,8 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 
 	var (
 		nsID  = s.newID(ctx, req.NameSpace)
-		start = time.Unix(0, req.RangeStart)
-		end   = time.Unix(0, req.RangeEnd)
+		start = xtime.UnixNano(req.RangeStart)
+		end   = xtime.UnixNano(req.RangeEnd)
 	)
 	fetchedMetadata, nextPageToken, err := db.FetchBlocksMetadataV2(
 		ctx, nsID, uint32(req.Shard), start, end, req.Limit, req.PageToken, opts)
@@ -1622,7 +1622,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 			blockMetadata := s.pools.blockMetadataV2.Get()
 			blockMetadata.ID = id
 			blockMetadata.EncodedTags = encodedTags
-			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
+			blockMetadata.Start = int64(fetchedMetadataBlock.Start)
 
 			if opts.IncludeSizes {
 				size := fetchedMetadataBlock.Size
@@ -1640,7 +1640,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 			}
 
 			if opts.IncludeLastRead {
-				lastRead := fetchedMetadataBlock.LastRead.UnixNano()
+				lastRead := int64(fetchedMetadataBlock.LastRead)
 				blockMetadata.LastRead = &lastRead
 				blockMetadata.LastReadTimeType = rpc.TimeType_UNIX_NANOSECONDS
 			} else {
@@ -1751,7 +1751,8 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	if err = db.WriteTagged(ctx,
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
-		idxconvert.NewTagsIterMetadataResolver(iter), xtime.FromNormalizedTime(dp.Timestamp, d),
+		idxconvert.NewTagsIterMetadataResolver(iter),
+		xtime.UnixNano(dp.Timestamp).FromNormalizedTime(d),
 		dp.Value, unit, dp.Annotation); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)

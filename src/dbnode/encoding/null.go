@@ -22,7 +22,6 @@ package encoding
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -53,12 +52,12 @@ func (e *nullEncoder) LastEncoded() (ts.Datapoint, error) {
 func (e *nullEncoder) LastAnnotationChecksum() (uint64, error) {
 	return 0, fmt.Errorf("not implemented")
 }
-func (e *nullEncoder) Len() int                                    { return 0 }
-func (e *nullEncoder) Seal()                                       { e.sealed = true }
-func (e *nullEncoder) Reset(time.Time, int, namespace.SchemaDescr) {}
-func (e *nullEncoder) Close()                                      {}
-func (e *nullEncoder) Discard() ts.Segment                         { return ts.Segment{} }
-func (e *nullEncoder) DiscardReset(time.Time, int, namespace.SchemaDescr) ts.Segment {
+func (e *nullEncoder) Len() int                                         { return 0 }
+func (e *nullEncoder) Seal()                                            { e.sealed = true }
+func (e *nullEncoder) Reset(xtime.UnixNano, int, namespace.SchemaDescr) {}
+func (e *nullEncoder) Close()                                           {}
+func (e *nullEncoder) Discard() ts.Segment                              { return ts.Segment{} }
+func (e *nullEncoder) DiscardReset(xtime.UnixNano, int, namespace.SchemaDescr) ts.Segment {
 	return ts.Segment{}
 }
 func (e *nullEncoder) SetSchema(_ namespace.SchemaDescr) {}

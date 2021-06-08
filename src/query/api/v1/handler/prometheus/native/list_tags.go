@@ -37,6 +37,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
@@ -106,8 +107,8 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query := &storage.CompleteTagsQuery{
 		CompleteNameOnly: true,
 		TagMatchers:      tagMatchers,
-		Start:            start,
-		End:              end,
+		Start:            xtime.ToUnixNano(start),
+		End:              xtime.ToUnixNano(end),
 	}
 
 	logger := logging.WithContext(ctx, h.instrumentOpts)

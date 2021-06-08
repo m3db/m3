@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,9 +40,9 @@ import (
 func TestLabelConversion(t *testing.T) {
 	// NB: sorted order (__name__, foo, le)
 	labels := []prompb.Label{
-		prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
-		prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
-		prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
+		{Name: promDefaultName, Value: []byte("name-val")},
+		{Name: []byte("foo"), Value: []byte("bar")},
+		{Name: promDefaultBucketName, Value: []byte("bucket-val")},
 	}
 
 	opts := models.NewTagOptions().
@@ -95,54 +96,54 @@ func TestPromReadQueryToM3(t *testing.T) {
 		{
 			name: "single exact match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
+				{Type: models.MatchEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single exact match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NEQ, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_NEQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotEqual, Name: name, Value: value},
+				{Type: models.MatchNotEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_RE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchRegexp, Name: name, Value: value},
+				{Type: models.MatchRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NRE, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_NRE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotRegexp, Name: name, Value: value},
+				{Type: models.MatchNotRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "mixed exact match and regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: []byte("baz"), Value: []byte("qux")},
+				{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_RE, Name: []byte("baz"), Value: []byte("qux")},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
-				&models.Matcher{Type: models.MatchRegexp, Name: []byte("baz"), Value: []byte("qux")},
+				{Type: models.MatchEqual, Name: name, Value: value},
+				{Type: models.MatchRegexp, Name: []byte("baz"), Value: []byte("qux")},
 			},
 		},
 		{
 			name: "unrecognized matcher type",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: name, Value: value},
+				{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: name, Value: value},
 			},
 			expectError: true,
 		},
@@ -183,7 +184,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := TimeToPromTimestamp(now)
 
 	vals := ts.NewMockValues(ctrl)
@@ -211,7 +212,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 	result := FetchResultToPromResult(r, false)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -224,11 +225,11 @@ func TestFetchResultToPromResult(t *testing.T) {
 	result = FetchResultToPromResult(r, true)
 	expected = &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
 				Samples: []prompb.Sample{},
 			},
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -253,7 +254,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		values := make(ts.Datapoints, 0, numDatapointsPerSeries)
 		for i := 0; i < numDatapointsPerSeries; i++ {
 			values = append(values, ts.Datapoint{
-				Timestamp: time.Time{},
+				Timestamp: 0,
 				Value:     float64(i),
 			})
 		}
@@ -400,4 +401,19 @@ func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
 	payload, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: false})
 	require.NoError(t, err)
 	assert.False(t, payload.HandleValueResets)
+}
+
+func TestPromTimestampToTime(t *testing.T) {
+	var (
+		now  = time.Now()
+		xNow = xtime.ToUnixNano(now)
+
+		xNowMillis = xNow.Truncate(time.Millisecond)
+		nowMillis  = now.Truncate(time.Millisecond)
+
+		timestampMs = int64(xNow) / int64(time.Millisecond)
+	)
+
+	require.Equal(t, xNowMillis, promTimestampToUnixNanos(timestampMs))
+	require.Equal(t, nowMillis, PromTimestampToTime(timestampMs))
 }

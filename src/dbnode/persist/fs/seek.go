@@ -150,7 +150,7 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 func (s *seeker) Open(
 	namespace ident.ID,
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	volumeIndex int,
 	resources ReusableSeekerResources,
 ) error {
@@ -565,7 +565,7 @@ func (s *seeker) SeekWideEntry(
 }
 
 func (s *seeker) Range() xtime.Range {
-	return xtime.Range{Start: s.start.ToTime(), End: s.start.ToTime().Add(s.blockSize)}
+	return xtime.Range{Start: s.start, End: s.start.Add(s.blockSize)}
 }
 
 func (s *seeker) Close() error {

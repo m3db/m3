@@ -83,7 +83,7 @@ type databaseBuffer interface {
 	Write(
 		ctx context.Context,
 		id ident.ID,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -92,7 +92,7 @@ type databaseBuffer interface {
 
 	Snapshot(
 		ctx context.Context,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		metadata persist.Metadata,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
@@ -100,7 +100,7 @@ type databaseBuffer interface {
 
 	WarmFlush(
 		ctx context.Context,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		metadata persist.Metadata,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
@@ -108,32 +108,32 @@ type databaseBuffer interface {
 
 	ReadEncoded(
 		ctx context.Context,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
 	FetchBlocksForColdFlush(
 		ctx context.Context,
-		start time.Time,
+		start xtime.UnixNano,
 		version int,
 		nsCtx namespace.Context,
 	) (block.FetchBlockResult, error)
 
 	FetchBlocks(
 		ctx context.Context,
-		starts []time.Time,
+		starts []xtime.UnixNano,
 		nsCtx namespace.Context,
 	) []block.FetchBlockResult
 
 	FetchBlocksMetadata(
 		ctx context.Context,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		opts FetchBlocksMetadataOptions,
 	) (block.FetchBlockMetadataResults, error)
 
 	IsEmpty() bool
 
-	IsEmptyAtBlockStart(time.Time) bool
+	IsEmptyAtBlockStart(xtime.UnixNano) bool
 
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
@@ -230,7 +230,7 @@ type dbBuffer struct {
 	// This is an in order slice of the block starts in the bucketsMap.
 	// We maintain this to avoid sorting the map keys adhoc when we want to
 	// perform operations in chronological order.
-	inOrderBlockStarts []time.Time
+	inOrderBlockStarts []xtime.UnixNano
 	bucketVersionsPool *BufferBucketVersionsPool
 	bucketPool         *BufferBucketPool
 	blockRetriever     QueryableBlockRetriever
@@ -241,7 +241,7 @@ type dbBuffer struct {
 func newDatabaseBuffer() databaseBuffer {
 	b := &dbBuffer{
 		bucketsMap:         make(map[xtime.UnixNano]*BufferBucketVersions),
-		inOrderBlockStarts: make([]time.Time, 0, bucketsCacheSize),
+		inOrderBlockStarts: make([]xtime.UnixNano, 0, bucketsCacheSize),
 	}
 	return b
 }
@@ -290,7 +290,7 @@ func (b *dbBuffer) MoveTo(
 func (b *dbBuffer) Write(
 	ctx context.Context,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -300,7 +300,7 @@ func (b *dbBuffer) Write(
 		ropts        = b.opts.RetentionOptions()
 		bufferPast   = ropts.BufferPast()
 		bufferFuture = ropts.BufferFuture()
-		now          = b.nowFn()
+		now          = xtime.ToUnixNano(b.nowFn())
 		pastLimit    = now.Add(-1 * bufferPast).Truncate(time.Second)
 		futureLimit  = now.Add(bufferFuture).Truncate(time.Second)
 		blockSize    = ropts.BlockSize()
@@ -333,7 +333,7 @@ func (b *dbBuffer) Write(
 					id.Bytes(), pastLimit.Sub(timestamp).String(),
 					timestamp.Format(errTimestampFormat),
 					pastLimit.Format(errTimestampFormat),
-					timestamp.UnixNano(), pastLimit.UnixNano()))
+					timestamp, pastLimit))
 		}
 
 	case !futureLimit.After(timestamp):
@@ -346,7 +346,7 @@ func (b *dbBuffer) Write(
 					id.Bytes(), timestamp.Sub(futureLimit).String(),
 					timestamp.Format(errTimestampFormat),
 					futureLimit.Format(errTimestampFormat),
-					timestamp.UnixNano(), futureLimit.UnixNano()))
+					timestamp, futureLimit))
 		}
 
 	default:
@@ -374,7 +374,7 @@ func (b *dbBuffer) Write(
 					id.Bytes(), retentionLimit.Sub(timestamp).String(),
 					timestamp.Format(errTimestampFormat),
 					retentionLimit.Format(errTimestampFormat),
-					timestamp.UnixNano(), retentionLimit.UnixNano()))
+					timestamp, retentionLimit))
 		}
 
 		futureRetentionLimit := now.Add(ropts.FutureRetentionPeriod())
@@ -391,7 +391,7 @@ func (b *dbBuffer) Write(
 					id.Bytes(), timestamp.Sub(futureRetentionLimit).String(),
 					timestamp.Format(errTimestampFormat),
 					futureRetentionLimit.Format(errTimestampFormat),
-					timestamp.UnixNano(), futureRetentionLimit.UnixNano()))
+					timestamp, futureRetentionLimit))
 		}
 
 		b.opts.Stats().IncColdWrites()
@@ -419,7 +419,7 @@ func (b *dbBuffer) IsEmpty() bool {
 	return len(b.bucketsMap) == 0
 }
 
-func (b *dbBuffer) IsEmptyAtBlockStart(start time.Time) bool {
+func (b *dbBuffer) IsEmptyAtBlockStart(start xtime.UnixNano) bool {
 	bv, exists := b.bucketVersionsAt(start)
 	if !exists {
 		return true
@@ -442,7 +442,7 @@ func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockStat
 				//    signifies). In this case, we need to try to flush this
 				//    bucket again.
 				(bucket.version == writableBucketVersion ||
-					blockStates[xtime.ToUnixNano(bucket.start)].ColdVersion < bucket.version) {
+					blockStates[bucket.start].ColdVersion < bucket.version) {
 				times.Add(t)
 				break
 			}
@@ -486,10 +486,9 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 				}
 
 				if buckets.streamsLen() == 0 {
-					t := tNano.ToTime()
 					// All underlying buckets have been flushed successfully, so we can
 					// just remove the buckets from the bucketsMap.
-					b.removeBucketVersionsAt(t)
+					b.removeBucketVersionsAt(tNano)
 					// Pass which bucket got evicted from the buffer to the series.
 					// Data gets read in order of precedence: buffer -> cache -> disk.
 					// After a bucket gets removed from the buffer, data from the cache
@@ -537,7 +536,7 @@ func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
 
 func (b *dbBuffer) Snapshot(
 	ctx context.Context,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	metadata persist.Metadata,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
@@ -634,7 +633,7 @@ func (b *dbBuffer) Snapshot(
 
 func (b *dbBuffer) WarmFlush(
 	ctx context.Context,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	metadata persist.Metadata,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
@@ -705,8 +704,8 @@ func (b *dbBuffer) WarmFlush(
 
 func (b *dbBuffer) ReadEncoded(
 	ctx context.Context,
-	start time.Time,
-	end time.Time,
+	start xtime.UnixNano,
+	end xtime.UnixNano,
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	var (
@@ -716,6 +715,7 @@ func (b *dbBuffer) ReadEncoded(
 	)
 
 	for _, blockStart := range b.inOrderBlockStarts {
+		blockStart := blockStart
 		if !blockStart.Before(end) || !start.Before(blockStart.Add(blockSize)) {
 			continue
 		}
@@ -726,10 +726,10 @@ func (b *dbBuffer) ReadEncoded(
 			// not match the sorted keys cache, which should never happen.
 			instrument.EmitAndLogInvariantViolation(
 				b.opts.InstrumentOptions(), func(l *zap.Logger) {
-					l.Error(errBucketMapCacheNotInSync, zap.Int64("blockStart", blockStart.UnixNano()))
+					l.Error(errBucketMapCacheNotInSync, zap.Int64("blockStart", int64(blockStart)))
 				})
 			return nil, instrument.InvariantErrorf(
-				errBucketMapCacheNotInSyncFmt, blockStart.UnixNano())
+				errBucketMapCacheNotInSyncFmt, blockStart)
 		}
 
 		if streams := bv.streams(ctx, streamsOptions{filterWriteType: false}); len(streams) > 0 {
@@ -750,11 +750,11 @@ func (b *dbBuffer) ReadEncoded(
 
 func (b *dbBuffer) FetchBlocksForColdFlush(
 	ctx context.Context,
-	start time.Time,
+	start xtime.UnixNano,
 	version int,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
-	res := b.fetchBlocks(ctx, []time.Time{start},
+	res := b.fetchBlocks(ctx, []xtime.UnixNano{start},
 		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx})
 	if len(res) == 0 {
 		// The lifecycle of calling this function is preceded by first checking
@@ -793,13 +793,17 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	return result, nil
 }
 
-func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
+func (b *dbBuffer) FetchBlocks(
+	ctx context.Context,
+	starts []xtime.UnixNano,
+	nsCtx namespace.Context,
+) []block.FetchBlockResult {
 	return b.fetchBlocks(ctx, starts, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
 }
 
 func (b *dbBuffer) fetchBlocks(
 	ctx context.Context,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 	sOpts streamsOptions,
 ) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
@@ -830,13 +834,14 @@ func (b *dbBuffer) fetchBlocks(
 
 func (b *dbBuffer) FetchBlocksMetadata(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	opts FetchBlocksMetadataOptions,
 ) (block.FetchBlockMetadataResults, error) {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
 
 	for _, blockStart := range b.inOrderBlockStarts {
+		blockStart := blockStart
 		if !blockStart.Before(end) || !start.Before(blockStart.Add(blockSize)) {
 			continue
 		}
@@ -847,9 +852,9 @@ func (b *dbBuffer) FetchBlocksMetadata(
 			// not match the sorted keys cache, which should never happen.
 			instrument.EmitAndLogInvariantViolation(
 				b.opts.InstrumentOptions(), func(l *zap.Logger) {
-					l.Error(errBucketMapCacheNotInSync, zap.Int64("blockStart", blockStart.UnixNano()))
+					l.Error(errBucketMapCacheNotInSync, zap.Int64("blockStart", int64(blockStart)))
 				})
-			return nil, instrument.InvariantErrorf(errBucketMapCacheNotInSyncFmt, blockStart.UnixNano())
+			return nil, instrument.InvariantErrorf(errBucketMapCacheNotInSyncFmt, blockStart)
 		}
 
 		size := int64(bv.streamsLen())
@@ -861,7 +866,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if opts.IncludeSizes {
 			resultSize = size
 		}
-		var resultLastRead time.Time
+		var resultLastRead xtime.UnixNano
 		if opts.IncludeLastRead {
 			resultLastRead = bv.lastRead()
 		}
@@ -890,7 +895,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 }
 
 func (b *dbBuffer) bucketVersionsAt(
-	t time.Time,
+	t xtime.UnixNano,
 ) (*BufferBucketVersions, bool) {
 	// First check LRU cache.
 	for _, buckets := range b.bucketVersionsCache {
@@ -903,7 +908,7 @@ func (b *dbBuffer) bucketVersionsAt(
 	}
 
 	// Then check the map.
-	if buckets, exists := b.bucketsMap[xtime.ToUnixNano(t)]; exists {
+	if buckets, exists := b.bucketsMap[t]; exists {
 		return buckets, true
 	}
 
@@ -911,7 +916,7 @@ func (b *dbBuffer) bucketVersionsAt(
 }
 
 func (b *dbBuffer) bucketVersionsAtCreate(
-	t time.Time,
+	t xtime.UnixNano,
 ) *BufferBucketVersions {
 	if buckets, exists := b.bucketVersionsAt(t); exists {
 		return buckets
@@ -919,7 +924,7 @@ func (b *dbBuffer) bucketVersionsAtCreate(
 
 	buckets := b.bucketVersionsPool.Get()
 	buckets.resetTo(t, b.opts, b.bucketPool)
-	b.bucketsMap[xtime.ToUnixNano(t)] = buckets
+	b.bucketsMap[t] = buckets
 	b.inOrderBlockStartsAdd(t)
 
 	return buckets
@@ -959,20 +964,20 @@ func (b *dbBuffer) removeBucketVersionsInCache(oldBuckets *BufferBucketVersions)
 	b.bucketVersionsCache[bucketsCacheSize-1] = nil
 }
 
-func (b *dbBuffer) removeBucketVersionsAt(blockStart time.Time) {
+func (b *dbBuffer) removeBucketVersionsAt(blockStart xtime.UnixNano) {
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
 		return
 	}
-	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
+	delete(b.bucketsMap, blockStart)
 	b.removeBucketVersionsInCache(buckets)
 	b.inOrderBlockStartsRemove(blockStart)
 	// nil out pointers.
-	buckets.resetTo(timeZero, nil, nil)
+	buckets.resetTo(0, nil, nil)
 	b.bucketVersionsPool.Put(buckets)
 }
 
-func (b *dbBuffer) inOrderBlockStartsAdd(newTime time.Time) {
+func (b *dbBuffer) inOrderBlockStartsAdd(newTime xtime.UnixNano) {
 	starts := b.inOrderBlockStarts
 	idx := len(starts)
 	// There shouldn't be that many starts here, so just linear search through.
@@ -983,14 +988,14 @@ func (b *dbBuffer) inOrderBlockStartsAdd(newTime time.Time) {
 		}
 	}
 	// Insert new time without allocating new slice.
-	b.inOrderBlockStarts = append(starts, timeZero)
+	b.inOrderBlockStarts = append(starts, 0) //nolint
 	// Update to new slice
 	starts = b.inOrderBlockStarts
 	copy(starts[idx+1:], starts[idx:])
 	starts[idx] = newTime
 }
 
-func (b *dbBuffer) inOrderBlockStartsRemove(removeTime time.Time) {
+func (b *dbBuffer) inOrderBlockStartsRemove(removeTime xtime.UnixNano) {
 	starts := b.inOrderBlockStarts
 	// There shouldn't be that many starts here, so just linear search through.
 	for i, t := range starts {
@@ -1010,14 +1015,14 @@ func (b *dbBuffer) inOrderBlockStartsRemove(removeTime time.Time) {
 // (since the shard knows what has been fully persisted to disk).
 type BufferBucketVersions struct {
 	buckets           []*BufferBucket
-	start             time.Time
+	start             xtime.UnixNano
 	opts              Options
 	lastReadUnixNanos int64
 	bucketPool        *BufferBucketPool
 }
 
 func (b *BufferBucketVersions) resetTo(
-	start time.Time,
+	start xtime.UnixNano,
 	opts Options,
 	bucketPool *BufferBucketPool,
 ) {
@@ -1045,15 +1050,15 @@ func (b *BufferBucketVersions) streams(ctx context.Context, opts streamsOptions)
 	return res
 }
 
-func (b *BufferBucketVersions) firstWrite(opts streamsOptions) time.Time {
-	var res time.Time
+func (b *BufferBucketVersions) firstWrite(opts streamsOptions) xtime.UnixNano {
+	var res xtime.UnixNano
 	for _, bucket := range b.buckets {
 		if opts.filterWriteType && bucket.writeType != opts.writeType {
 			continue
 		}
 		// Get the earliest valid first write time.
-		if res.IsZero() ||
-			(bucket.firstWrite.Before(res) && !bucket.firstWrite.IsZero()) {
+		if res == 0 ||
+			(bucket.firstWrite.Before(res) && bucket.firstWrite != 0) {
 			res = bucket.firstWrite
 		}
 	}
@@ -1076,7 +1081,7 @@ func (b *BufferBucketVersions) checksumIfSingleStream(ctx context.Context) (*uin
 }
 
 func (b *BufferBucketVersions) write(
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -1131,8 +1136,8 @@ func (b *BufferBucketVersions) setLastRead(value time.Time) {
 	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
 }
 
-func (b *BufferBucketVersions) lastRead() time.Time {
-	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
+func (b *BufferBucketVersions) lastRead() xtime.UnixNano {
+	return xtime.UnixNano(atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
 func (b *BufferBucketVersions) writableBucket(writeType WriteType) (*BufferBucket, bool) {
@@ -1202,21 +1207,21 @@ type streamsOptions struct {
 // See comment for BufferBucketVersions for more detail on bucket versions.
 type BufferBucket struct {
 	opts         Options
-	start        time.Time
+	start        xtime.UnixNano
 	encoders     []inOrderEncoder
 	loadedBlocks []block.DatabaseBlock
 	version      int
 	writeType    WriteType
-	firstWrite   time.Time
+	firstWrite   xtime.UnixNano
 }
 
 type inOrderEncoder struct {
 	encoder     encoding.Encoder
-	lastWriteAt time.Time
+	lastWriteAt xtime.UnixNano
 }
 
 func (b *BufferBucket) resetTo(
-	start time.Time,
+	start xtime.UnixNano,
 	writeType WriteType,
 	opts Options,
 ) {
@@ -1234,7 +1239,7 @@ func (b *BufferBucket) resetTo(
 	// We would only ever create a bucket for it to be writable.
 	b.version = writableBucketVersion
 	b.writeType = writeType
-	b.firstWrite = time.Time{}
+	b.firstWrite = 0
 }
 
 func (b *BufferBucket) reset() {
@@ -1243,15 +1248,14 @@ func (b *BufferBucket) reset() {
 }
 
 func (b *BufferBucket) write(
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 	schema namespace.SchemaDescr,
 ) (bool, error) {
 	datapoint := ts.Datapoint{
-		Timestamp:      timestamp,
-		TimestampNanos: xtime.ToUnixNano(timestamp),
+		TimestampNanos: timestamp,
 		Value:          value,
 	}
 
@@ -1286,8 +1290,8 @@ func (b *BufferBucket) write(
 	var err error
 	defer func() {
 		nowFn := b.opts.ClockOptions().NowFn()
-		if err == nil && b.firstWrite.IsZero() {
-			b.firstWrite = nowFn()
+		if err == nil && b.firstWrite == 0 {
+			b.firstWrite = xtime.ToUnixNano(nowFn())
 		}
 	}()
 
@@ -1344,7 +1348,7 @@ func (b *BufferBucket) writeToEncoderIndex(
 		return err
 	}
 
-	b.encoders[idx].lastWriteAt = datapoint.Timestamp
+	b.encoders[idx].lastWriteAt = datapoint.TimestampNanos
 	return nil
 }
 
@@ -1512,30 +1516,30 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 // write time. It is the responsibility of the caller to close the returned
 // encoder when appropriate.
 func mergeStreamsToEncoder(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	streams []xio.SegmentReader,
 	opts Options,
 	nsCtx namespace.Context,
-) (encoding.Encoder, time.Time, error) {
+) (encoding.Encoder, xtime.UnixNano, error) {
 	bopts := opts.DatabaseBlockOptions()
 	encoder := opts.EncoderPool().Get()
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 	iter := opts.MultiReaderIteratorPool().Get()
 	defer iter.Close()
 
-	var lastWriteAt time.Time
+	var lastWriteAt xtime.UnixNano
 	iter.Reset(streams, blockStart, opts.RetentionOptions().BlockSize(), nsCtx.Schema)
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
 			encoder.Close()
-			return nil, timeZero, err
+			return nil, 0, err
 		}
-		lastWriteAt = dp.Timestamp
+		lastWriteAt = dp.TimestampNanos
 	}
 	if err := iter.Err(); err != nil {
 		encoder.Close()
-		return nil, timeZero, err
+		return nil, 0, err
 	}
 
 	return encoder, lastWriteAt, nil

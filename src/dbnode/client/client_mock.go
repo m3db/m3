@@ -187,7 +187,7 @@ func (mr *MockSessionMockRecorder) Close() *gomock.Call {
 }
 
 // Fetch mocks base method.
-func (m *MockSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+func (m *MockSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time0.UnixNano) (encoding.SeriesIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fetch", namespace, id, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterator)
@@ -202,7 +202,7 @@ func (mr *MockSessionMockRecorder) Fetch(namespace, id, startInclusive, endExclu
 }
 
 // FetchIDs mocks base method.
-func (m *MockSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+func (m *MockSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time0.UnixNano) (encoding.SeriesIterators, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchIDs", namespace, ids, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
@@ -294,7 +294,7 @@ func (mr *MockSessionMockRecorder) ShardID(id interface{}) *gomock.Call {
 }
 
 // Write mocks base method.
-func (m *MockSession) Write(namespace, id ident.ID, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockSession) Write(namespace, id ident.ID, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", namespace, id, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -323,7 +323,7 @@ func (mr *MockSessionMockRecorder) WriteClusterAvailability() *gomock.Call {
 }
 
 // WriteTagged mocks base method.
-func (m *MockSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -850,7 +850,7 @@ func (mr *MockAdminSessionMockRecorder) DedicatedConnection(shardID, opts interf
 }
 
 // Fetch mocks base method.
-func (m *MockAdminSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+func (m *MockAdminSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time0.UnixNano) (encoding.SeriesIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fetch", namespace, id, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterator)
@@ -880,7 +880,7 @@ func (mr *MockAdminSessionMockRecorder) FetchBlocksFromPeers(namespace, shard, c
 }
 
 // FetchBlocksMetadataFromPeers mocks base method.
-func (m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options) (PeerBlockMetadataIter, error) {
+func (m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time0.UnixNano, consistencyLevel topology.ReadConsistencyLevel, result result.Options) (PeerBlockMetadataIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result)
 	ret0, _ := ret[0].(PeerBlockMetadataIter)
@@ -895,7 +895,7 @@ func (mr *MockAdminSessionMockRecorder) FetchBlocksMetadataFromPeers(namespace, 
 }
 
 // FetchBootstrapBlocksFromPeers mocks base method.
-func (m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start, end time.Time, opts result.Options) (result.ShardResult, error) {
+func (m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start, end time0.UnixNano, opts result.Options) (result.ShardResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
 	ret0, _ := ret[0].(result.ShardResult)
@@ -910,7 +910,7 @@ func (mr *MockAdminSessionMockRecorder) FetchBootstrapBlocksFromPeers(namespace,
 }
 
 // FetchBootstrapBlocksMetadataFromPeers mocks base method.
-func (m *MockAdminSession) FetchBootstrapBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, result result.Options) (PeerBlockMetadataIter, error) {
+func (m *MockAdminSession) FetchBootstrapBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time0.UnixNano, result result.Options) (PeerBlockMetadataIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBootstrapBlocksMetadataFromPeers", namespace, shard, start, end, result)
 	ret0, _ := ret[0].(PeerBlockMetadataIter)
@@ -925,7 +925,7 @@ func (mr *MockAdminSessionMockRecorder) FetchBootstrapBlocksMetadataFromPeers(na
 }
 
 // FetchIDs mocks base method.
-func (m *MockAdminSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+func (m *MockAdminSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time0.UnixNano) (encoding.SeriesIterators, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchIDs", namespace, ids, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
@@ -1075,7 +1075,7 @@ func (mr *MockAdminSessionMockRecorder) Truncate(namespace interface{}) *gomock.
 }
 
 // Write mocks base method.
-func (m *MockAdminSession) Write(namespace, id ident.ID, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockAdminSession) Write(namespace, id ident.ID, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", namespace, id, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -1104,7 +1104,7 @@ func (mr *MockAdminSessionMockRecorder) WriteClusterAvailability() *gomock.Call 
 }
 
 // WriteTagged mocks base method.
-func (m *MockAdminSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockAdminSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -4720,7 +4720,7 @@ func (mr *MockclientSessionMockRecorder) DedicatedConnection(shardID, opts inter
 }
 
 // Fetch mocks base method.
-func (m *MockclientSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+func (m *MockclientSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time0.UnixNano) (encoding.SeriesIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fetch", namespace, id, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterator)
@@ -4750,7 +4750,7 @@ func (mr *MockclientSessionMockRecorder) FetchBlocksFromPeers(namespace, shard, 
 }
 
 // FetchBlocksMetadataFromPeers mocks base method.
-func (m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options) (PeerBlockMetadataIter, error) {
+func (m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time0.UnixNano, consistencyLevel topology.ReadConsistencyLevel, result result.Options) (PeerBlockMetadataIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result)
 	ret0, _ := ret[0].(PeerBlockMetadataIter)
@@ -4765,7 +4765,7 @@ func (mr *MockclientSessionMockRecorder) FetchBlocksMetadataFromPeers(namespace,
 }
 
 // FetchBootstrapBlocksFromPeers mocks base method.
-func (m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start, end time.Time, opts result.Options) (result.ShardResult, error) {
+func (m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start, end time0.UnixNano, opts result.Options) (result.ShardResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
 	ret0, _ := ret[0].(result.ShardResult)
@@ -4780,7 +4780,7 @@ func (mr *MockclientSessionMockRecorder) FetchBootstrapBlocksFromPeers(namespace
 }
 
 // FetchBootstrapBlocksMetadataFromPeers mocks base method.
-func (m *MockclientSession) FetchBootstrapBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, result result.Options) (PeerBlockMetadataIter, error) {
+func (m *MockclientSession) FetchBootstrapBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time0.UnixNano, result result.Options) (PeerBlockMetadataIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBootstrapBlocksMetadataFromPeers", namespace, shard, start, end, result)
 	ret0, _ := ret[0].(PeerBlockMetadataIter)
@@ -4795,7 +4795,7 @@ func (mr *MockclientSessionMockRecorder) FetchBootstrapBlocksMetadataFromPeers(n
 }
 
 // FetchIDs mocks base method.
-func (m *MockclientSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+func (m *MockclientSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time0.UnixNano) (encoding.SeriesIterators, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchIDs", namespace, ids, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
@@ -4959,7 +4959,7 @@ func (mr *MockclientSessionMockRecorder) Truncate(namespace interface{}) *gomock
 }
 
 // Write mocks base method.
-func (m *MockclientSession) Write(namespace, id ident.ID, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockclientSession) Write(namespace, id ident.ID, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", namespace, id, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -4988,7 +4988,7 @@ func (mr *MockclientSessionMockRecorder) WriteClusterAvailability() *gomock.Call
 }
 
 // WriteTagged mocks base method.
-func (m *MockclientSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockclientSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)

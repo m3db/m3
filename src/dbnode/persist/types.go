@@ -23,7 +23,6 @@ package persist
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 )
@@ -249,7 +249,7 @@ type IndexFlush interface {
 // nolint: maligned
 type DataPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
-	BlockStart        time.Time
+	BlockStart        xtime.UnixNano
 	Shard             uint32
 	// This volume index is only used when preparing for a flush fileset type.
 	// When opening a snapshot, the new volume index is determined by looking
@@ -265,7 +265,7 @@ type DataPrepareOptions struct {
 // nolint: maligned
 type IndexPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
-	BlockStart        time.Time
+	BlockStart        xtime.UnixNano
 	FileSetType       FileSetType
 	Shards            map[uint32]struct{}
 	IndexVolumeType   idxpersist.IndexVolumeType
@@ -275,7 +275,7 @@ type IndexPrepareOptions struct {
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains
 // information specific to read/writing snapshot files.
 type DataPrepareSnapshotOptions struct {
-	SnapshotTime time.Time
+	SnapshotTime xtime.UnixNano
 	SnapshotID   uuid.UUID
 }
 
@@ -360,8 +360,8 @@ type SeriesMetadata struct {
 // OnFlushNewSeriesEvent is the fields related to a flush of a new series.
 type OnFlushNewSeriesEvent struct {
 	Shard          uint32
-	BlockStart     time.Time
-	FirstWrite     time.Time
+	BlockStart     xtime.UnixNano
+	FirstWrite     xtime.UnixNano
 	SeriesMetadata SeriesMetadata
 }
 

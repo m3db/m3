@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -70,8 +69,8 @@ type fetchTaggedResultAccumulator struct {
 	waitedIndex      int
 	waitedSeriesRead int
 
-	startTime        time.Time
-	endTime          time.Time
+	startTime        xtime.UnixNano
+	endTime          xtime.UnixNano
 	majority         int
 	consistencyLevel topology.ReadConsistencyLevel
 	topoMap          topology.Map
@@ -254,7 +253,7 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 	accum.shardConsistencyResults = accum.shardConsistencyResults[:0]
 	accum.consistencyLevel = topology.ReadConsistencyLevelNone
 	accum.majority, accum.numHostsPending, accum.numShardsPending = 0, 0, 0
-	accum.startTime, accum.endTime = time.Time{}, time.Time{}
+	accum.startTime, accum.endTime = 0, 0
 	accum.topoMap = nil
 	accum.exhaustive = true
 	accum.waitedIndex = 0
@@ -263,8 +262,8 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 }
 
 func (accum *fetchTaggedResultAccumulator) Reset(
-	startTime time.Time,
-	endTime time.Time,
+	startTime xtime.UnixNano,
+	endTime xtime.UnixNano,
 	topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,
@@ -327,8 +326,8 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 		ID:                         pools.ID().BinaryID(tsID),
 		Namespace:                  pools.ID().BinaryID(nsID),
 		Tags:                       decoder,
-		StartInclusive:             xtime.ToUnixNano(accum.startTime),
-		EndExclusive:               xtime.ToUnixNano(accum.endTime),
+		StartInclusive:             accum.startTime,
+		EndExclusive:               accum.endTime,
 		Replicas:                   iters,
 		SeriesIteratorConsolidator: opts.SeriesIteratorConsolidator,
 	})

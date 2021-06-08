@@ -22,9 +22,9 @@ package block
 
 import (
 	"io"
-	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // BlockType describes a block type.
@@ -129,7 +129,7 @@ type StepIter interface {
 
 // Step is a single time step within a block.
 type Step interface {
-	Time() time.Time
+	Time() xtime.UnixNano
 	Values() []float64
 }
 
@@ -161,7 +161,7 @@ type Result struct {
 }
 
 // TimeTransform transforms a timestamp.
-type TimeTransform func(time.Time) time.Time
+type TimeTransform func(xtime.UnixNano) xtime.UnixNano
 
 // MetaTransform transforms meta data.
 type MetaTransform func(meta Metadata) Metadata

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
@@ -133,7 +134,7 @@ func main() {
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   ident.StringID(*optNamespace),
 			Shard:       *optShard,
-			BlockStart:  time.Unix(0, *optBlockstart),
+			BlockStart:  xtime.UnixNano(*optBlockstart),
 			VolumeIndex: int(*volume),
 		},
 		FileSetType:      fileSetType,

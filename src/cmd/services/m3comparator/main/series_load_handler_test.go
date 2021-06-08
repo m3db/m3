@@ -179,7 +179,7 @@ func TestIngestSeries(t *testing.T) {
 	j := 0
 	for it.Next() {
 		c, _, _ := it.Current()
-		ts := c.Timestamp.UTC()
+		ts := c.TimestampNanos.ToTime().UTC()
 		ex := expected.Datapoints[j]
 		assert.Equal(t, ex.Timestamp, ts)
 		assert.Equal(t, float64(ex.Value), c.Value)
