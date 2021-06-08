@@ -2689,6 +2689,7 @@ func init() {
 	MustRegisterFunction(exponentialMovingAverage).
 		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(fallbackSeries)
+	MustRegisterFunction(filterSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode).WithDefaultParams(map[uint8]interface{}{
