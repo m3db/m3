@@ -100,9 +100,6 @@ var (
 	// errDatabaseHasAlreadyBeenSet is raised when SetDatabase() is called more than one time.
 	errDatabaseHasAlreadyBeenSet = errors.New("database has already been set")
 
-	// errNotImplemented raised when attempting to execute an un-implemented method
-	errNotImplemented = errors.New("method is not implemented")
-
 	// errHealthNotSet is raised when server health data structure is not set.
 	errHealthNotSet = errors.New("server health not set")
 )
@@ -270,7 +267,7 @@ type Service interface {
 	// It is the responsibility of the caller to close the returned iterator.
 	FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest) (FetchTaggedResultsIter, error)
 
-	// Only safe to be called one time once the service has started.
+	// SetDatabase only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
 
 	// Database returns the current database.
@@ -1778,7 +1775,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -1877,7 +1874,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeV2Req = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -1979,7 +1976,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeTaggedReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -2080,7 +2077,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeTaggedV2Req = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -2845,26 +2842,39 @@ func newWriteBatchPooledReqPool(
 
 func (p *writeBatchPooledReqPool) Init() {
 	p.pool.Init(func() interface{} {
-		// NB(r): Make pooled IDs the default write batch size plus an extra one for the namespace
-		pooledIDs := make([]writeBatchPooledReqID, 1+client.DefaultWriteBatchSize)
-		for i := range pooledIDs {
-			pooledIDs[i].bytes = checked.NewBytes(nil, nil)
-			pooledIDs[i].id = ident.BinaryID(pooledIDs[i].bytes)
+		return &writeBatchPooledReq{pool: p}
+	})
+}
+
+func (p *writeBatchPooledReqPool) Get(size int) *writeBatchPooledReq {
+	cappedSize := size
+	if cappedSize > client.DefaultWriteBatchSize {
+		cappedSize = client.DefaultWriteBatchSize
+	}
+	// NB(r): Make pooled IDs plus an extra one for the namespace
+	cappedSize++
+
+	pooledReq := p.pool.Get().(*writeBatchPooledReq)
+	if cappedSize > len(pooledReq.pooledIDs) {
+		newPooledIDs := make([]writeBatchPooledReqID, cappedSize)
+		for i, pooledID := range pooledReq.pooledIDs {
+			newPooledIDs[i] = pooledID
+		}
+
+		for i := len(pooledReq.pooledIDs); i < len(newPooledIDs); i++ {
+			newPooledIDs[i].bytes = checked.NewBytes(nil, nil)
+			newPooledIDs[i].id = ident.BinaryID(newPooledIDs[i].bytes)
 			// BinaryID(..) incs the ref, we however don't want to pretend
 			// the bytes is owned at this point since its not being used, so we
 			// immediately dec a ref here to avoid calling get on this ID
 			// being a valid call
-			pooledIDs[i].bytes.DecRef()
+			newPooledIDs[i].bytes.DecRef()
 		}
-		return &writeBatchPooledReq{
-			pooledIDs: pooledIDs,
-			pool:      p,
-		}
-	})
-}
 
-func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
-	return p.pool.Get().(*writeBatchPooledReq)
+		pooledReq.pooledIDs = newPooledIDs
+	}
+
+	return pooledReq
 }
 
 func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
