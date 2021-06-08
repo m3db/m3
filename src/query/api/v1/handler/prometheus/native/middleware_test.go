@@ -52,6 +52,7 @@ func TestQueryResponse(t *testing.T) {
 		code            int
 		duration        time.Duration
 		threshold       time.Duration
+		disabled        bool
 		err             error
 		form            map[string]string
 		requestHeaders  map[string]string
@@ -153,6 +154,18 @@ func TestQueryResponse(t *testing.T) {
 			duration:  time.Millisecond,
 			threshold: time.Second,
 		},
+		{
+			name: "disabled",
+			form: map[string]string{
+				"query": "fooquery",
+				"start": "now",
+				"end":   "now",
+			},
+			code:      200,
+			disabled:  true,
+			duration:  time.Second,
+			threshold: time.Millisecond,
+		},
 	}
 
 	for _, tc := range cases {
@@ -167,6 +180,7 @@ func TestQueryResponse(t *testing.T) {
 				Metrics:        middleware.MetricsOptions{},
 				Logging: middleware.LoggingOptions{
 					Threshold: tc.threshold,
+					Disabled:  tc.disabled,
 				},
 			})
 			h := middleware.ResponseLogging(opts).Middleware(
