@@ -98,8 +98,8 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 		snapshotInterval            = 10 * time.Second
 		numDatapointsNotInSnapshots = 0
 		pred                        = func(dp generate.TestValue) bool {
-			blockStart := dp.Timestamp.Truncate(blockSize)
-			if dp.Timestamp.Before(blockStart.Add(snapshotInterval)) {
+			blockStart := dp.TimestampNanos.Truncate(blockSize)
+			if dp.TimestampNanos.Before(blockStart.Add(snapshotInterval)) {
 				return true
 			}
 
@@ -113,8 +113,9 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 
 	numDatapointsNotInCommitLogs := 0
 	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp generate.TestValue) bool {
-		blockStart := dp.Timestamp.Truncate(blockSize)
-		if dp.Timestamp.Equal(blockStart.Add(snapshotInterval)) || dp.Timestamp.After(blockStart.Add(snapshotInterval)) {
+		blockStart := dp.TimestampNanos.Truncate(blockSize)
+		if dp.TimestampNanos.Equal(blockStart.Add(snapshotInterval)) ||
+			dp.TimestampNanos.After(blockStart.Add(snapshotInterval)) {
 			return true
 		}
 

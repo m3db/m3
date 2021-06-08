@@ -26,7 +26,6 @@ package series
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -37,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	time0 "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -106,7 +105,7 @@ func (mr *MockDatabaseSeriesMockRecorder) ColdFlushBlockStarts(arg0 interface{})
 }
 
 // FetchBlocks mocks base method.
-func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.Time, arg2 namespace.Context) ([]block.FetchBlockResult, error) {
+func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.UnixNano, arg2 namespace.Context) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
@@ -121,7 +120,7 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1, arg2 interface
 }
 
 // FetchBlocksForColdFlush mocks base method.
-func (m *MockDatabaseSeries) FetchBlocksForColdFlush(arg0 context.Context, arg1 time.Time, arg2 int, arg3 namespace.Context) (block.FetchBlockResult, error) {
+func (m *MockDatabaseSeries) FetchBlocksForColdFlush(arg0 context.Context, arg1 time.UnixNano, arg2 int, arg3 namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(block.FetchBlockResult)
@@ -136,7 +135,7 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksForColdFlush(arg0, arg1, ar
 }
 
 // FetchBlocksMetadata mocks base method.
-func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg2 time.Time, arg3 FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResult, error) {
+func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg2 time.UnixNano, arg3 FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadata", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResult)
@@ -151,7 +150,7 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // FetchWideEntry mocks base method.
-func (m *MockDatabaseSeries) FetchWideEntry(arg0 context.Context, arg1 time.Time, arg2 schema.WideEntryFilter, arg3 namespace.Context) (block.StreamedWideEntry, error) {
+func (m *MockDatabaseSeries) FetchWideEntry(arg0 context.Context, arg1 time.UnixNano, arg2 schema.WideEntryFilter, arg3 namespace.Context) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchWideEntry", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
@@ -180,7 +179,7 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 }
 
 // IsBufferEmptyAtBlockStart mocks base method.
-func (m *MockDatabaseSeries) IsBufferEmptyAtBlockStart(arg0 time.Time) bool {
+func (m *MockDatabaseSeries) IsBufferEmptyAtBlockStart(arg0 time.UnixNano) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBufferEmptyAtBlockStart", arg0)
 	ret0, _ := ret[0].(bool)
@@ -250,7 +249,7 @@ func (mr *MockDatabaseSeriesMockRecorder) NumActiveBlocks() *gomock.Call {
 }
 
 // OnEvictedFromWiredList mocks base method.
-func (m *MockDatabaseSeries) OnEvictedFromWiredList(arg0 ident.ID, arg1 time.Time) {
+func (m *MockDatabaseSeries) OnEvictedFromWiredList(arg0 ident.ID, arg1 time.UnixNano) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnEvictedFromWiredList", arg0, arg1)
 }
@@ -262,7 +261,7 @@ func (mr *MockDatabaseSeriesMockRecorder) OnEvictedFromWiredList(arg0, arg1 inte
 }
 
 // OnRetrieveBlock mocks base method.
-func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.Time, arg3 ts.Segment, arg4 namespace.Context) {
+func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.UnixNano, arg3 ts.Segment, arg4 namespace.Context) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2, arg3, arg4)
 }
@@ -274,7 +273,7 @@ func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2, arg3
 }
 
 // ReadEncoded mocks base method.
-func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.Time, arg3 namespace.Context) (BlockReaderIter, error) {
+func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.UnixNano, arg3 namespace.Context) (BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(BlockReaderIter)
@@ -301,7 +300,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 }
 
 // Snapshot mocks base method.
-func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) (SnapshotResult, error) {
+func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.UnixNano, arg2 persist.DataFn, arg3 namespace.Context) (SnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(SnapshotResult)
@@ -345,7 +344,7 @@ func (mr *MockDatabaseSeriesMockRecorder) UniqueIndex() *gomock.Call {
 }
 
 // WarmFlush mocks base method.
-func (m *MockDatabaseSeries) WarmFlush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) (FlushOutcome, error) {
+func (m *MockDatabaseSeries) WarmFlush(arg0 context.Context, arg1 time.UnixNano, arg2 persist.DataFn, arg3 namespace.Context) (FlushOutcome, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(FlushOutcome)
@@ -360,7 +359,7 @@ func (mr *MockDatabaseSeriesMockRecorder) WarmFlush(arg0, arg1, arg2, arg3 inter
 }
 
 // Write mocks base method.
-func (m *MockDatabaseSeries) Write(arg0 context.Context, arg1 time.Time, arg2 float64, arg3 time0.Unit, arg4 []byte, arg5 WriteOptions) (bool, WriteType, error) {
+func (m *MockDatabaseSeries) Write(arg0 context.Context, arg1 time.UnixNano, arg2 float64, arg3 time.Unit, arg4 []byte, arg5 WriteOptions) (bool, WriteType, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(bool)
@@ -413,7 +412,7 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) BlockStatesSnapshot() *gomock
 }
 
 // IsBlockRetrievable mocks base method.
-func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.Time) (bool, error) {
+func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.UnixNano) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBlockRetrievable", arg0)
 	ret0, _ := ret[0].(bool)
@@ -428,7 +427,7 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 }
 
 // RetrievableBlockColdVersion mocks base method.
-func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) (int, error) {
+func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.UnixNano) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RetrievableBlockColdVersion", arg0)
 	ret0, _ := ret[0].(int)
@@ -443,7 +442,7 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) RetrievableBlockColdVersion(a
 }
 
 // Stream mocks base method.
-func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock, arg4 namespace.Context) (xio.BlockReader, error) {
+func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.UnixNano, arg3 block.OnRetrieveBlock, arg4 namespace.Context) (xio.BlockReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(xio.BlockReader)
@@ -458,7 +457,7 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3
 }
 
 // StreamWideEntry mocks base method.
-func (m *MockQueryableBlockRetriever) StreamWideEntry(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 schema.WideEntryFilter, arg4 namespace.Context) (block.StreamedWideEntry, error) {
+func (m *MockQueryableBlockRetriever) StreamWideEntry(arg0 context.Context, arg1 ident.ID, arg2 time.UnixNano, arg3 schema.WideEntryFilter, arg4 namespace.Context) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamWideEntry", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(block.StreamedWideEntry)

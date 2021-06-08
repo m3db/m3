@@ -30,9 +30,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -81,7 +82,7 @@ func TestIndexInsertQueueLifecycleLeaks(t *testing.T) {
 
 func TestIndexInsertQueueCallback(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -99,7 +100,7 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	assert.NoError(t, q.Start())
 	defer q.Stop()
 
-	now := time.Now()
+	now := xtime.Now()
 	batch := index.NewWriteBatch(index.WriteBatchOptions{})
 	batch.Append(testWriteBatchEntry(testID(1), testTags(1), now, callback))
 	wg, err := q.InsertBatch(batch)
@@ -111,11 +112,11 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	assert.Len(t, insertedBatches, 1)
 	assert.Equal(t, 1, insertedBatches[0].Len())
 	assert.Equal(t, testID(1).Bytes(), insertedBatches[0].PendingDocs()[0].ID)
-	assert.Equal(t, now.UnixNano(), int64(insertedBatches[0].PendingEntries()[0].Timestamp.UnixNano()))
+	assert.Equal(t, now, insertedBatches[0].PendingEntries()[0].Timestamp)
 }
 
 func TestIndexInsertQueueBatchBackoff(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	var (
 		inserts  []*index.WriteBatch
@@ -168,7 +169,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 
 	// first insert
 	_, err := q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(0),
-		testTags(0), time.Time{}, callback)))
+		testTags(0), 0, callback)))
 	require.NoError(t, err)
 
 	// wait for first insert batch to complete
@@ -176,10 +177,10 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 
 	// now next batch will need to wait as we haven't progressed time
 	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(1),
-		testTags(1), time.Time{}, callback)))
+		testTags(1), 0, callback)))
 	require.NoError(t, err)
 	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(2),
-		testTags(2), time.Time{}, callback)))
+		testTags(2), 0, callback)))
 	require.NoError(t, err)
 
 	// allow first insert to finish
@@ -193,7 +194,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 
 	// insert third batch, will also need to wait
 	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(3),
-		testTags(3), time.Time{}, callback)))
+		testTags(3), 0, callback)))
 	require.NoError(t, err)
 
 	// allow second batch to finish
@@ -234,7 +235,7 @@ func TestIndexInsertQueueFlushedOnClose(t *testing.T) {
 
 	for i := 0; i < numInsertExpected; i++ {
 		_, err := q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(1),
-			testTags(1), time.Time{}, nil)))
+			testTags(1), 0, nil)))
 		require.NoError(t, err)
 	}
 

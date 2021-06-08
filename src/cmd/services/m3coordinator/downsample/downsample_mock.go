@@ -26,7 +26,8 @@ package downsample
 
 import (
 	"reflect"
-	"time"
+
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -181,7 +182,7 @@ func (m *MockSamplesAppender) EXPECT() *MockSamplesAppenderMockRecorder {
 }
 
 // AppendCounterSample mocks base method.
-func (m *MockSamplesAppender) AppendCounterSample(arg0 time.Time, arg1 int64, arg2 []byte) error {
+func (m *MockSamplesAppender) AppendCounterSample(arg0 time.UnixNano, arg1 int64, arg2 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendCounterSample", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -195,7 +196,7 @@ func (mr *MockSamplesAppenderMockRecorder) AppendCounterSample(arg0, arg1, arg2 
 }
 
 // AppendGaugeSample mocks base method.
-func (m *MockSamplesAppender) AppendGaugeSample(arg0 time.Time, arg1 float64, arg2 []byte) error {
+func (m *MockSamplesAppender) AppendGaugeSample(arg0 time.UnixNano, arg1 float64, arg2 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendGaugeSample", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -209,7 +210,7 @@ func (mr *MockSamplesAppenderMockRecorder) AppendGaugeSample(arg0, arg1, arg2 in
 }
 
 // AppendTimerSample mocks base method.
-func (m *MockSamplesAppender) AppendTimerSample(arg0 time.Time, arg1 float64, arg2 []byte) error {
+func (m *MockSamplesAppender) AppendTimerSample(arg0 time.UnixNano, arg1 float64, arg2 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendTimerSample", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)

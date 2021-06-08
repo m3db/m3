@@ -21,13 +21,12 @@
 package client
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var fetchAttemptArgsZeroed fetchAttemptArgs
@@ -45,8 +44,8 @@ type fetchAttempt struct {
 type fetchAttemptArgs struct {
 	namespace ident.ID
 	ids       ident.Iterator
-	start     time.Time
-	end       time.Time
+	start     xtime.UnixNano
+	end       xtime.UnixNano
 }
 
 func (f *fetchAttempt) reset() {

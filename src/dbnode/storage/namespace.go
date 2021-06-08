@@ -592,7 +592,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
+func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) error {
 	// Allow the reader cache to tick.
 	n.namespaceReaderMgr.tick()
 
@@ -685,7 +685,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
 func (n *dbNamespace) Write(
 	ctx context.Context,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -714,7 +714,7 @@ func (n *dbNamespace) WriteTagged(
 	ctx context.Context,
 	id ident.ID,
 	tagResolver convert.TagMetadataResolver,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -779,8 +779,8 @@ func (n *dbNamespace) QueryIDs(
 			opentracinglog.String("namespace", n.ID().String()),
 			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 			opentracinglog.Int("docsLimit", opts.DocsLimit),
-			xopentracing.Time("start", opts.StartInclusive),
-			xopentracing.Time("end", opts.EndExclusive),
+			xopentracing.Time("start", opts.StartInclusive.ToTime()),
+			xopentracing.Time("end", opts.EndExclusive.ToTime()),
 		)
 	}
 	defer sp.Finish()
@@ -822,8 +822,8 @@ func (n *dbNamespace) WideQueryIDs(
 			opentracinglog.String("query", query.String()),
 			opentracinglog.String("namespace", n.ID().String()),
 			opentracinglog.Int("batchSize", opts.BatchSize),
-			xopentracing.Time("start", opts.StartInclusive),
-			xopentracing.Time("end", opts.EndExclusive),
+			xopentracing.Time("start", opts.StartInclusive.ToTime()),
+			xopentracing.Time("end", opts.EndExclusive.ToTime()),
 		)
 	}
 	defer sp.Finish()
@@ -916,7 +916,7 @@ func (n *dbNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, er
 func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 ) (series.BlockReaderIter, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
@@ -932,7 +932,7 @@ func (n *dbNamespace) ReadEncoded(
 func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	filter schema.WideEntryFilter,
 ) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
@@ -953,7 +953,7 @@ func (n *dbNamespace) FetchBlocks(
 	ctx context.Context,
 	shardID uint32,
 	id ident.ID,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.ReadableShardAt(shardID)
@@ -970,7 +970,7 @@ func (n *dbNamespace) FetchBlocks(
 func (n *dbNamespace) FetchBlocksMetadataV2(
 	ctx context.Context,
 	shardID uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	limit int64,
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
@@ -1144,7 +1144,7 @@ func (n *dbNamespace) Bootstrap(
 }
 
 func (n *dbNamespace) WarmFlush(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -1373,8 +1373,8 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 }
 
 func (n *dbNamespace) Snapshot(
-	blockStart,
-	snapshotTime time.Time,
+	blockStart xtime.UnixNano,
+	snapshotTime xtime.UnixNano,
 	snapshotPersist persist.SnapshotPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -1429,8 +1429,8 @@ func (n *dbNamespace) Snapshot(
 }
 
 func (n *dbNamespace) NeedsFlush(
-	alignedInclusiveStart time.Time,
-	alignedInclusiveEnd time.Time,
+	alignedInclusiveStart xtime.UnixNano,
+	alignedInclusiveEnd xtime.UnixNano,
 ) (bool, error) {
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then
@@ -1442,8 +1442,8 @@ func (n *dbNamespace) NeedsFlush(
 }
 
 func (n *dbNamespace) needsFlushWithLock(
-	alignedInclusiveStart time.Time,
-	alignedInclusiveEnd time.Time,
+	alignedInclusiveStart xtime.UnixNano,
+	alignedInclusiveEnd xtime.UnixNano,
 ) (bool, error) {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
@@ -1716,7 +1716,7 @@ func (n *dbNamespace) ShardBootstrapState() ShardBootstrapStates {
 	return shardStates
 }
 
-func (n *dbNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
+func (n *dbNamespace) FlushState(shardID uint32, blockStart xtime.UnixNano) (fileOpState, error) {
 	n.RLock()
 	defer n.RUnlock()
 	shard, _, err := n.shardAtWithRLock(shardID)
@@ -1818,8 +1818,8 @@ func (n *dbNamespace) aggregateTiles(
 
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
-		zap.Time("targetBlockStart", targetBlockStart),
-		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd),
+		zap.Time("targetBlockStart", targetBlockStart.ToTime()),
+		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd.ToTime()),
 		zap.Duration("step", opts.Step),
 		zap.Int64("processedTiles", processedTileCount),
 		zap.Duration("took", time.Now().Sub(startedAt)))

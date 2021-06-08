@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type unaggregatedNamespaceType uint8
@@ -48,7 +49,7 @@ type unaggregatedNamespaceDetails struct {
 // resolveUnaggregatedNamespaceForQuery determines if the unaggregated namespace
 // should be used, and if so, determines if it fully satisfies the query range.
 func resolveUnaggregatedNamespaceForQuery(
-	now, start time.Time,
+	now, start xtime.UnixNano,
 	unaggregated ClusterNamespace,
 	opts *storage.FanoutOptions,
 ) unaggregatedNamespaceDetails {
@@ -76,7 +77,7 @@ func resolveUnaggregatedNamespaceForQuery(
 // resolveClusterNamespacesForQuery returns the namespaces that need to be
 // fanned out to depending on the query time and the namespaces configured.
 func resolveClusterNamespacesForQuery(
-	now, start, end time.Time,
+	now, start, end xtime.UnixNano,
 	clusters Clusters,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
@@ -116,7 +117,7 @@ func resolveClusterNamespacesForQuery(
 // for namespaces to query.
 // nolint: unparam
 func resolveClusterNamespacesForQueryLogicalPlan(
-	now, start, end time.Time,
+	now, start, end xtime.UnixNano,
 	clusters Clusters,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
@@ -346,7 +347,7 @@ func aggregatedNamespaces(
 // namespace referred to by the restrict fetch options or an error if it
 // cannot be found.
 func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
-	now, start time.Time,
+	now, start xtime.UnixNano,
 	clusters Clusters,
 	restrict storage.RestrictByType,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
@@ -402,8 +403,8 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 }
 
 type coversRangeFilterOptions struct {
-	now        time.Time
-	queryStart time.Time
+	now        xtime.UnixNano
+	queryStart xtime.UnixNano
 }
 
 func newCoversRangeFilter(opts coversRangeFilterOptions) func(namespace ClusterNamespace) bool {

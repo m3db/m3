@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,7 +130,7 @@ func buildCustomIterator(
 		dps,
 		map[string]string{"a": "b", "c": fmt.Sprint(i)},
 		fmt.Sprintf("abc%d", i), "namespace",
-		start,
+		xtime.ToUnixNano(start),
 		blockSize, stepSize,
 	)
 	require.NoError(t, err)
@@ -215,15 +216,15 @@ func TestUpdateTimeBySteps(t *testing.T) {
 
 func TestPadSeriesBlocks(t *testing.T) {
 	blockSize := time.Hour
-	start := time.Now().Truncate(blockSize)
+	start := xtime.Now().Truncate(blockSize)
 	readOffset := time.Minute
 	itStart := start.Add(readOffset)
 
 	var tests = []struct {
-		blockStart       time.Time
+		blockStart       xtime.UnixNano
 		stepSize         time.Duration
-		expectedStart    time.Time
-		expectedStartTwo time.Time
+		expectedStart    xtime.UnixNano
+		expectedStartTwo xtime.UnixNano
 	}{
 		{start, time.Minute * 30, itStart, start.Add(61 * time.Minute)},
 		{

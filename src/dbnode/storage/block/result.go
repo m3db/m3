@@ -22,15 +22,15 @@ package block
 
 import (
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // NewFetchBlockResult creates a new fetch block result
 func NewFetchBlockResult(
-	start time.Time,
+	start xtime.UnixNano,
 	blocks []xio.BlockReader,
 	err error,
 ) FetchBlockResult {
@@ -54,10 +54,10 @@ func SortFetchBlockResultByTimeAscending(results []FetchBlockResult) {
 
 // NewFetchBlockMetadataResult creates a new fetch block metadata result.
 func NewFetchBlockMetadataResult(
-	start time.Time,
+	start xtime.UnixNano,
 	size int64,
 	checksum *uint32,
-	lastRead time.Time,
+	lastRead xtime.UnixNano,
 	err error,
 ) FetchBlockMetadataResult {
 	return FetchBlockMetadataResult{

@@ -38,7 +38,7 @@ import (
 
 var (
 	testNamespaceID    = ident.StringID("testNamespace")
-	testTargetStart    = time.Now()
+	testTargetStart    = xtime.Now()
 	testShard          = uint32(0)
 	testDefaultRunOpts = bootstrap.NewRunOptions().
 				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})

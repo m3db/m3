@@ -242,7 +242,7 @@ func initTestFetchTaggedHelper() *testFetchTaggedHelper {
 	encoderPool := encoding.NewEncoderPool(popts)
 	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	return &testFetchTaggedHelper{

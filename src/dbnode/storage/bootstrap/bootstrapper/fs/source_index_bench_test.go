@@ -106,12 +106,12 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 
 		// Clear the shard time ranges and add new ones.
 		times.shardTimeRanges = result.NewShardTimeRanges()
-		times.start = time.Unix(0, math.MaxInt64)
-		times.end = time.Unix(0, 0)
+		times.start = xtime.UnixNano(math.MaxInt64)
+		times.end = xtime.UnixNano(0)
 		for _, shard := range shards {
 			var (
-				min     = time.Unix(0, math.MaxInt64)
-				max     = time.Unix(0, 0)
+				min     = xtime.UnixNano(math.MaxInt64)
+				max     = xtime.UnixNano(0)
 				ranges  = xtime.NewRanges()
 				entries = fs.ReadInfoFiles(dir, testNamespace, shard,
 					0, msgpack.NewDecodingOptions(), persist.FileSetFlushType)
@@ -121,7 +121,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 					require.NoError(b, entry.Err.Error())
 				}
 
-				start := time.Unix(0, entry.Info.BlockStart)
+				start := xtime.UnixNano(entry.Info.BlockStart)
 				if start.Before(min) {
 					min = start
 				}

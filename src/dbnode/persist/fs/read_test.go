@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,7 @@ const (
 )
 
 var (
-	testWriterStart    = time.Now()
+	testWriterStart    = xtime.Now()
 	testBlockSize      = 2 * time.Hour
 	testDefaultOpts    = NewOptions() // To avoid allocing pools each test exec
 	testBytesPool      pool.CheckedBytesPool
@@ -83,7 +84,7 @@ type msgpackBufReader interface {
 }
 
 func init() {
-	testBytesPool = pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+	testBytesPool = pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: 1024,
 		Count:    10,
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {
@@ -303,7 +304,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	defer os.RemoveAll(filePathPrefix)
 
 	shard := uint32(0)
-	start := time.Unix(1000, 0)
+	start := xtime.FromSeconds(1000)
 	shardDir := ShardDataDirPath(filePathPrefix, testNs1ID, shard)
 
 	w := newTestWriter(t, filePathPrefix)
@@ -340,7 +341,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
-			BlockStart: time.Unix(1000, 0),
+			BlockStart: xtime.FromSeconds(1000),
 		},
 	}
 	require.Error(t, r.Open(rOpenOpts))
@@ -401,7 +402,7 @@ func TestReadValidate(t *testing.T) {
 	defer os.RemoveAll(filePathPrefix)
 
 	shard := uint32(0)
-	start := time.Unix(1000, 0)
+	start := xtime.FromSeconds(1000)
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,

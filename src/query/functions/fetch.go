@@ -116,8 +116,8 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 
 	offset := n.op.Offset
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
-		Start:       startTime.Add(-1 * offset),
-		End:         endTime.Add(-1 * offset),
+		Start:       startTime.Add(-1 * offset).ToTime(),
+		End:         endTime.Add(-1 * offset).ToTime(),
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
 	}, opts)

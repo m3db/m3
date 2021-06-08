@@ -23,11 +23,11 @@ package block
 import (
 	"errors"
 	"fmt"
-	"time"
-
-	"github.com/m3db/m3/src/query/models"
 
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type column struct {
@@ -96,7 +96,7 @@ func (c *columnBlock) Close() error {
 
 type colBlockIter struct {
 	idx         int
-	timeForStep time.Time
+	timeForStep xtime.UnixNano
 	err         error
 	meta        Metadata
 	seriesMeta  []SeriesMeta
@@ -146,12 +146,12 @@ func (c *colBlockIter) Close() { /*no-op*/ }
 
 // ColStep is a single column containing data from multiple series at a given time step
 type ColStep struct {
-	time   time.Time
+	time   xtime.UnixNano
 	values []float64
 }
 
 // Time for the step
-func (c ColStep) Time() time.Time {
+func (c ColStep) Time() xtime.UnixNano {
 	return c.time
 }
 
@@ -161,7 +161,7 @@ func (c ColStep) Values() []float64 {
 }
 
 // NewColStep creates a new column step
-func NewColStep(t time.Time, values []float64) Step {
+func NewColStep(t xtime.UnixNano, values []float64) Step {
 	return ColStep{time: t, values: values}
 }
 

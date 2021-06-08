@@ -21,8 +21,6 @@
 package downsample
 
 import (
-	"time"
-
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
@@ -32,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // samplesAppender must have one of agg or client set
@@ -112,31 +111,33 @@ func (a samplesAppender) AppendUntimedTimerSample(value float64, annotation []by
 	return a.agg.AddUntimed(sample, a.stagedMetadatas)
 }
 
-func (a *samplesAppender) AppendCounterSample(t time.Time, value int64, annotation []byte) error {
+func (a *samplesAppender) AppendCounterSample(t xtime.UnixNano, value int64, annotation []byte) error {
 	return a.appendTimedSample(aggregated.Metric{
 		Type:       metric.CounterType,
 		ID:         a.unownedID,
-		TimeNanos:  t.UnixNano(),
+		TimeNanos:  int64(t),
 		Value:      float64(value),
 		Annotation: annotation,
 	})
 }
 
-func (a *samplesAppender) AppendGaugeSample(t time.Time, value float64, annotation []byte) error {
+func (a *samplesAppender) AppendGaugeSample(t xtime.UnixNano, value float64, annotation []byte) error {
 	return a.appendTimedSample(aggregated.Metric{
 		Type:       metric.GaugeType,
 		ID:         a.unownedID,
-		TimeNanos:  t.UnixNano(),
+		TimeNanos:  int64(t),
 		Value:      value,
 		Annotation: annotation,
 	})
 }
 
-func (a *samplesAppender) AppendTimerSample(t time.Time, value float64, annotation []byte) error {
+func (a *samplesAppender) AppendTimerSample(
+	t xtime.UnixNano, value float64, annotation []byte,
+) error {
 	return a.appendTimedSample(aggregated.Metric{
 		Type:       metric.TimerType,
 		ID:         a.unownedID,
-		TimeNanos:  t.UnixNano(),
+		TimeNanos:  int64(t),
 		Value:      value,
 		Annotation: annotation,
 	})
@@ -224,7 +225,9 @@ func (a *multiSamplesAppender) AppendUntimedTimerSample(value float64, annotatio
 	return multiErr.LastError()
 }
 
-func (a *multiSamplesAppender) AppendCounterSample(t time.Time, value int64, annotation []byte) error {
+func (a *multiSamplesAppender) AppendCounterSample(
+	t xtime.UnixNano, value int64, annotation []byte,
+) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendCounterSample(t, value, annotation))
@@ -232,7 +235,9 @@ func (a *multiSamplesAppender) AppendCounterSample(t time.Time, value int64, ann
 	return multiErr.LastError()
 }
 
-func (a *multiSamplesAppender) AppendGaugeSample(t time.Time, value float64, annotation []byte) error {
+func (a *multiSamplesAppender) AppendGaugeSample(
+	t xtime.UnixNano, value float64, annotation []byte,
+) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeSample(t, value, annotation))
@@ -240,7 +245,9 @@ func (a *multiSamplesAppender) AppendGaugeSample(t time.Time, value float64, ann
 	return multiErr.LastError()
 }
 
-func (a *multiSamplesAppender) AppendTimerSample(t time.Time, value float64, annotation []byte) error {
+func (a *multiSamplesAppender) AppendTimerSample(
+	t xtime.UnixNano, value float64, annotation []byte,
+) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendTimerSample(t, value, annotation))

@@ -46,7 +46,7 @@ func BenchmarkEncoder(b *testing.B) {
 func benchmarkEncoder(b *testing.B, nonCustomFieldsEnabled bool) {
 	var (
 		_, messagesBytes = testMessages(100, nonCustomFieldsEnabled)
-		start            = time.Now()
+		start            = xtime.Now()
 		encoder          = NewEncoder(start, encoding.NewOptions())
 	)
 	encoder.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
@@ -54,7 +54,8 @@ func benchmarkEncoder(b *testing.B, nonCustomFieldsEnabled bool) {
 	for i := 0; i < b.N; i++ {
 		start = start.Add(time.Second)
 		for _, protoBytes := range messagesBytes {
-			if err := encoder.Encode(ts.Datapoint{Timestamp: start}, xtime.Second, protoBytes); err != nil {
+			if err := encoder.Encode(ts.Datapoint{TimestampNanos: start},
+				xtime.Second, protoBytes); err != nil {
 				panic(err)
 			}
 		}
@@ -76,7 +77,7 @@ func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
 
 	var (
 		_, messagesBytes = testMessages(100, nonCustomFieldsEnabled)
-		start            = time.Now()
+		start            = xtime.Now()
 		encodingOpts     = encoding.NewOptions()
 		encoder          = NewEncoder(start, encodingOpts)
 		schema           = namespace.GetTestSchemaDescr(testVLSchema)
@@ -85,7 +86,8 @@ func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
 
 	for _, protoBytes := range messagesBytes {
 		start = start.Add(time.Second)
-		if err := encoder.Encode(ts.Datapoint{Timestamp: start}, xtime.Second, protoBytes); err != nil {
+		if err := encoder.Encode(ts.Datapoint{TimestampNanos: start},
+			xtime.Second, protoBytes); err != nil {
 			panic(err)
 		}
 	}

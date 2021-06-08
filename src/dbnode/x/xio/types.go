@@ -26,13 +26,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // BlockReader represents a block reader backed by a
 // SegmentReader with start time and block size.
 type BlockReader struct {
 	SegmentReader
-	Start     time.Time
+	Start     xtime.UnixNano
 	BlockSize time.Duration
 }
 
@@ -74,7 +75,7 @@ type ReaderSliceOfSlicesIterator interface {
 	Next() bool
 
 	// CurrentReaders returns the current length, start time, and block size.
-	CurrentReaders() (length int, start time.Time, blockSize time.Duration)
+	CurrentReaders() (length int, start xtime.UnixNano, blockSize time.Duration)
 
 	// CurrentReaderAt returns the current reader in the slice
 	// of readers at an index.

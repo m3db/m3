@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // FileSetID is the collection of identifiers required to
@@ -34,7 +35,7 @@ type FileSetID struct {
 	PathPrefix string
 	Namespace  string
 	Shard      uint32
-	Blockstart time.Time
+	Blockstart xtime.UnixNano
 }
 
 // FileSetCloner clones a given fileset

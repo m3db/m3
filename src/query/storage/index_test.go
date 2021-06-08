@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,7 +262,7 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 		RequireExhaustive: true,
 	}
 
-	end := time.Now()
+	end := xtime.Now()
 	start := end.Add(-1 * time.Hour)
 	filter := [][]byte{[]byte("filter")}
 	matchers := models.Matchers{
