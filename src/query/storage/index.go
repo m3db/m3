@@ -73,6 +73,7 @@ func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery)
 		SeriesLimit:       fetchOptions.SeriesLimit,
 		InstanceMultiple:  fetchOptions.InstanceMultiple,
 		DocsLimit:         fetchOptions.DocsLimit,
+		RangeLimit:        fetchOptions.RangeLimit,
 		RequireExhaustive: fetchOptions.RequireExhaustive,
 		RequireNoWait:     fetchOptions.RequireNoWait,
 		Source:            fetchOptions.Source,
@@ -99,6 +100,7 @@ func FetchOptionsToAggregateOptions(
 		QueryOptions: index.QueryOptions{
 			SeriesLimit:       fetchOptions.SeriesLimit,
 			DocsLimit:         fetchOptions.DocsLimit,
+			RangeLimit:        fetchOptions.RangeLimit,
 			Source:            fetchOptions.Source,
 			RequireExhaustive: fetchOptions.RequireExhaustive,
 			RequireNoWait:     fetchOptions.RequireNoWait,
