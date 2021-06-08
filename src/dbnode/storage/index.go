@@ -1528,22 +1528,30 @@ func (i *nsIndex) query(
 	if opts.RequireExhaustive {
 		seriesCount := results.Size()
 		docsCount := results.TotalDocsCount()
+		timeRange := results.Range()
 		if opts.SeriesLimitExceeded(seriesCount) {
 			i.metrics.queryNonExhaustiveSeriesLimitError.Inc(1)
 		} else if opts.DocsLimitExceeded(docsCount) {
 			i.metrics.queryNonExhaustiveDocsLimitError.Inc(1)
+		} else if opts.RangeLimitExceeded(timeRange) {
+			i.metrics.queryNonExhaustiveRangeLimitError.Inc(1)
 		} else {
 			i.metrics.queryNonExhaustiveLimitError.Inc(1)
 		}
 
 		// NB(r): Make sure error is not retried and returns as bad request.
 		return queryRes, xerrors.NewInvalidParamsError(limits.NewQueryLimitExceededError(fmt.Sprintf(
-			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
+			"query exceeded limit: require_exhaustive=%v, "+
+				"series_limit=%d, series_matched=%d, "+
+				"docs_limit=%d, docs_matched=%d, "+
+				"range_limit=%s, range_matched=%s",
 			opts.RequireExhaustive,
 			opts.SeriesLimit,
 			seriesCount,
 			opts.DocsLimit,
 			docsCount,
+			opts.RangeLimit.String(),
+			timeRange.String(),
 		)))
 	}
 
@@ -2430,6 +2438,7 @@ type nsIndexMetrics struct {
 	queryNonExhaustiveLimitError       tally.Counter
 	queryNonExhaustiveSeriesLimitError tally.Counter
 	queryNonExhaustiveDocsLimitError   tally.Counter
+	queryNonExhaustiveRangeLimitError  tally.Counter
 }
 
 func newNamespaceIndexMetrics(
@@ -2519,11 +2528,15 @@ func newNamespaceIndexMetrics(
 		}).Counter("query"),
 		queryNonExhaustiveSeriesLimitError: scope.Tagged(map[string]string{
 			"exhaustive": "false",
-			"result":     "error_series_require_exhaustive",
+			"result":     "error_series_require_exhaustive_series_limit_reached",
 		}).Counter("query"),
 		queryNonExhaustiveDocsLimitError: scope.Tagged(map[string]string{
 			"exhaustive": "false",
-			"result":     "error_docs_require_exhaustive",
+			"result":     "error_docs_require_exhaustive_docs_limit_reached",
+		}).Counter("query"),
+		queryNonExhaustiveRangeLimitError: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "error_docs_require_exhaustive_range_limit_reached",
 		}).Counter("query"),
 	}
 
