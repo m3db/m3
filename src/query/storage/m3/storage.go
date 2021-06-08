@@ -97,7 +97,11 @@ func (s *m3storage) FetchProm(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
-	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	queryOptions, err := storage.FetchOptionsToM3Options(options, query)
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
 	accumulator, _, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return storage.PromResult{}, err
@@ -192,7 +196,13 @@ func (s *m3storage) FetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, Cleanup, error) {
-	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	queryOptions, err := storage.FetchOptionsToM3Options(options, query)
+	if err != nil {
+		return consolidators.SeriesFetchResult{
+			Metadata: block.NewResultMetadata(),
+		}, noop, err
+	}
+
 	accumulator, m3query, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return consolidators.SeriesFetchResult{
@@ -420,7 +430,11 @@ func (s *m3storage) CompleteTags(
 		return nil, err
 	}
 
-	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
+	aggOpts, err := storage.FetchOptionsToAggregateOptions(options, query)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		nameOnly        = query.CompleteNameOnly
 		tagOpts         = s.opts.TagOptions()
@@ -577,8 +591,12 @@ func (s *m3storage) SearchCompressed(
 		return tagResult, noop, err
 	}
 
+	m3opts, err := storage.FetchOptionsToM3Options(options, query)
+	if err != nil {
+		return tagResult, noop, err
+	}
+
 	var (
-		m3opts = storage.FetchOptionsToM3Options(options, query)
 		result = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
 		wg     sync.WaitGroup
 	)

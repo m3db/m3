@@ -3288,7 +3288,6 @@ func (p *Segment) String() string {
 //  - DocsLimit
 //  - Source
 //  - RequireNoWait
-//  - RangeLimitNanos
 type FetchTaggedRequest struct {
 	NameSpace         []byte   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Query             []byte   `thrift:"query,2,required" db:"query" json:"query"`
@@ -3301,7 +3300,6 @@ type FetchTaggedRequest struct {
 	DocsLimit         *int64   `thrift:"docsLimit,9" db:"docsLimit" json:"docsLimit,omitempty"`
 	Source            []byte   `thrift:"source,10" db:"source" json:"source,omitempty"`
 	RequireNoWait     bool     `thrift:"requireNoWait,11" db:"requireNoWait" json:"requireNoWait,omitempty"`
-	RangeLimitNanos   *int64   `thrift:"rangeLimitNanos,12" db:"rangeLimitNanos" json:"rangeLimitNanos,omitempty"`
 }
 
 func NewFetchTaggedRequest() *FetchTaggedRequest {
@@ -3373,15 +3371,6 @@ var FetchTaggedRequest_RequireNoWait_DEFAULT bool = false
 func (p *FetchTaggedRequest) GetRequireNoWait() bool {
 	return p.RequireNoWait
 }
-
-var FetchTaggedRequest_RangeLimitNanos_DEFAULT int64
-
-func (p *FetchTaggedRequest) GetRangeLimitNanos() int64 {
-	if !p.IsSetRangeLimitNanos() {
-		return FetchTaggedRequest_RangeLimitNanos_DEFAULT
-	}
-	return *p.RangeLimitNanos
-}
 func (p *FetchTaggedRequest) IsSetSeriesLimit() bool {
 	return p.SeriesLimit != nil
 }
@@ -3404,10 +3393,6 @@ func (p *FetchTaggedRequest) IsSetSource() bool {
 
 func (p *FetchTaggedRequest) IsSetRequireNoWait() bool {
 	return p.RequireNoWait != FetchTaggedRequest_RequireNoWait_DEFAULT
-}
-
-func (p *FetchTaggedRequest) IsSetRangeLimitNanos() bool {
-	return p.RangeLimitNanos != nil
 }
 
 func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
@@ -3477,10 +3462,6 @@ func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 11:
 			if err := p.ReadField11(iprot); err != nil {
-				return err
-			}
-		case 12:
-			if err := p.ReadField12(iprot); err != nil {
 				return err
 			}
 		default:
@@ -3613,15 +3594,6 @@ func (p *FetchTaggedRequest) ReadField11(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *FetchTaggedRequest) ReadField12(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
-		return thrift.PrependError("error reading field 12: ", err)
-	} else {
-		p.RangeLimitNanos = &v
-	}
-	return nil
-}
-
 func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchTaggedRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -3658,9 +3630,6 @@ func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField11(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField12(oprot); err != nil {
 			return err
 		}
 	}
@@ -3823,21 +3792,6 @@ func (p *FetchTaggedRequest) writeField11(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 11:requireNoWait: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *FetchTaggedRequest) writeField12(oprot thrift.TProtocol) (err error) {
-	if p.IsSetRangeLimitNanos() {
-		if err := oprot.WriteFieldBegin("rangeLimitNanos", thrift.I64, 12); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 12:rangeLimitNanos: ", p), err)
-		}
-		if err := oprot.WriteI64(int64(*p.RangeLimitNanos)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeLimitNanos (12) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:rangeLimitNanos: ", p), err)
 		}
 	}
 	return err
@@ -9804,7 +9758,6 @@ func (p *HealthResult_) String() string {
 //  - DocsLimit
 //  - RequireExhaustive
 //  - RequireNoWait
-//  - RangeLimitNanos
 type AggregateQueryRawRequest struct {
 	Query              []byte             `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -9818,7 +9771,6 @@ type AggregateQueryRawRequest struct {
 	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
 	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 	RequireNoWait      *bool              `thrift:"requireNoWait,12" db:"requireNoWait" json:"requireNoWait,omitempty"`
-	RangeLimitNanos    *int64             `thrift:"rangeLimitNanos,13" db:"rangeLimitNanos" json:"rangeLimitNanos,omitempty"`
 }
 
 func NewAggregateQueryRawRequest() *AggregateQueryRawRequest {
@@ -9904,15 +9856,6 @@ func (p *AggregateQueryRawRequest) GetRequireNoWait() bool {
 	}
 	return *p.RequireNoWait
 }
-
-var AggregateQueryRawRequest_RangeLimitNanos_DEFAULT int64
-
-func (p *AggregateQueryRawRequest) GetRangeLimitNanos() int64 {
-	if !p.IsSetRangeLimitNanos() {
-		return AggregateQueryRawRequest_RangeLimitNanos_DEFAULT
-	}
-	return *p.RangeLimitNanos
-}
 func (p *AggregateQueryRawRequest) IsSetSeriesLimit() bool {
 	return p.SeriesLimit != nil
 }
@@ -9943,10 +9886,6 @@ func (p *AggregateQueryRawRequest) IsSetRequireExhaustive() bool {
 
 func (p *AggregateQueryRawRequest) IsSetRequireNoWait() bool {
 	return p.RequireNoWait != nil
-}
-
-func (p *AggregateQueryRawRequest) IsSetRangeLimitNanos() bool {
-	return p.RangeLimitNanos != nil
 }
 
 func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
@@ -10018,10 +9957,6 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 12:
 			if err := p.ReadField12(iprot); err != nil {
-				return err
-			}
-		case 13:
-			if err := p.ReadField13(iprot); err != nil {
 				return err
 			}
 		default:
@@ -10174,15 +10109,6 @@ func (p *AggregateQueryRawRequest) ReadField12(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *AggregateQueryRawRequest) ReadField13(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
-		return thrift.PrependError("error reading field 13: ", err)
-	} else {
-		p.RangeLimitNanos = &v
-	}
-	return nil
-}
-
 func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRawRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -10222,9 +10148,6 @@ func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField12(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField13(oprot); err != nil {
 			return err
 		}
 	}
@@ -10412,21 +10335,6 @@ func (p *AggregateQueryRawRequest) writeField12(oprot thrift.TProtocol) (err err
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:requireNoWait: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *AggregateQueryRawRequest) writeField13(oprot thrift.TProtocol) (err error) {
-	if p.IsSetRangeLimitNanos() {
-		if err := oprot.WriteFieldBegin("rangeLimitNanos", thrift.I64, 13); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 13:rangeLimitNanos: ", p), err)
-		}
-		if err := oprot.WriteI64(int64(*p.RangeLimitNanos)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeLimitNanos (13) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 13:rangeLimitNanos: ", p), err)
 		}
 	}
 	return err
@@ -10916,7 +10824,6 @@ func (p *AggregateQueryRawResultTagValueElement) String() string {
 //  - DocsLimit
 //  - RequireExhaustive
 //  - RequireNoWait
-//  - RangeLimitNanos
 type AggregateQueryRequest struct {
 	Query              *Query             `thrift:"query,1" db:"query" json:"query,omitempty"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -10930,7 +10837,6 @@ type AggregateQueryRequest struct {
 	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
 	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 	RequireNoWait      *bool              `thrift:"requireNoWait,12" db:"requireNoWait" json:"requireNoWait,omitempty"`
-	RangeLimitNanos    *int64             `thrift:"rangeLimitNanos,13" db:"rangeLimitNanos" json:"rangeLimitNanos,omitempty"`
 }
 
 func NewAggregateQueryRequest() *AggregateQueryRequest {
@@ -11021,15 +10927,6 @@ func (p *AggregateQueryRequest) GetRequireNoWait() bool {
 	}
 	return *p.RequireNoWait
 }
-
-var AggregateQueryRequest_RangeLimitNanos_DEFAULT int64
-
-func (p *AggregateQueryRequest) GetRangeLimitNanos() int64 {
-	if !p.IsSetRangeLimitNanos() {
-		return AggregateQueryRequest_RangeLimitNanos_DEFAULT
-	}
-	return *p.RangeLimitNanos
-}
 func (p *AggregateQueryRequest) IsSetQuery() bool {
 	return p.Query != nil
 }
@@ -11064,10 +10961,6 @@ func (p *AggregateQueryRequest) IsSetRequireExhaustive() bool {
 
 func (p *AggregateQueryRequest) IsSetRequireNoWait() bool {
 	return p.RequireNoWait != nil
-}
-
-func (p *AggregateQueryRequest) IsSetRangeLimitNanos() bool {
-	return p.RangeLimitNanos != nil
 }
 
 func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
@@ -11137,10 +11030,6 @@ func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 12:
 			if err := p.ReadField12(iprot); err != nil {
-				return err
-			}
-		case 13:
-			if err := p.ReadField13(iprot); err != nil {
 				return err
 			}
 		default:
@@ -11289,15 +11178,6 @@ func (p *AggregateQueryRequest) ReadField12(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *AggregateQueryRequest) ReadField13(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
-		return thrift.PrependError("error reading field 13: ", err)
-	} else {
-		p.RangeLimitNanos = &v
-	}
-	return nil
-}
-
 func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -11337,9 +11217,6 @@ func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField12(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField13(oprot); err != nil {
 			return err
 		}
 	}
@@ -11529,21 +11406,6 @@ func (p *AggregateQueryRequest) writeField12(oprot thrift.TProtocol) (err error)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:requireNoWait: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *AggregateQueryRequest) writeField13(oprot thrift.TProtocol) (err error) {
-	if p.IsSetRangeLimitNanos() {
-		if err := oprot.WriteFieldBegin("rangeLimitNanos", thrift.I64, 13); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 13:rangeLimitNanos: ", p), err)
-		}
-		if err := oprot.WriteI64(int64(*p.RangeLimitNanos)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeLimitNanos (13) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 13:rangeLimitNanos: ", p), err)
 		}
 	}
 	return err

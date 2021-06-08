@@ -23,7 +23,6 @@ package index
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -48,7 +47,6 @@ type results struct {
 	reusableID     *ident.ReusableBytesID
 	resultsMap     *ResultsMap
 	totalDocsCount int
-	timeRange      time.Duration
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -91,7 +89,6 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	// Reset all keys in the map next, this will finalize the keys.
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
-	r.timeRange = 0
 
 	r.opts = opts
 
@@ -178,19 +175,6 @@ func (r *results) TotalDocsCount() int {
 	count := r.totalDocsCount
 	r.RUnlock()
 	return count
-}
-
-func (r *results) CompletedRange(timeRange time.Duration) {
-	r.Lock()
-	r.timeRange += timeRange
-	r.Unlock()
-}
-
-func (r *results) Range() time.Duration {
-	r.RLock()
-	timeRange := r.timeRange
-	r.RUnlock()
-	return timeRange
 }
 
 func (r *results) Finalize() {

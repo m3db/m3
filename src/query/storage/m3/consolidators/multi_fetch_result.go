@@ -208,7 +208,7 @@ func (r *multiResult) Add(
 
 	// the series limit was reached within this namespace.
 	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
-		r.err = r.err.Add(newSeriesLimitErr(fmt.Sprintf("series limit exceeded for namespace %s", nsID)))
+		r.err = r.err.Add(NewLimitError(fmt.Sprintf("series limit exceeded for namespace %s", nsID)))
 		return
 	}
 
@@ -262,14 +262,15 @@ func (r *multiResult) Add(
 		r.metadata.Exhaustive = false
 		if r.limitOpts.RequireExhaustive {
 			r.err = r.err.Add(
-				newSeriesLimitErr(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
+				NewLimitError(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
 		}
 	}
 }
 
-func newSeriesLimitErr(msg string) error {
-	// wrap in a ResourceExhaustedError so it's the same type as the query limit error returned from a single database
-	// instance.
+// NewLimitError returns a limit error so that it's the same type as the query
+// limit error returned from a single database instance to receive the same
+// error behavior as a database limit error.
+func NewLimitError(msg string) error {
 	return terrors.NewResourceExhaustedError(errors.New(msg))
 }
 

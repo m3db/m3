@@ -458,9 +458,6 @@ func (b *block) QueryWithIter(
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	if iter.Done() {
-		// Track range queried.
-		results.CompletedRange(b.blockSize)
-		// Record metrics.
 		docs, series := iter.Counts()
 		b.metrics.queryDocsMatched.RecordValue(float64(docs))
 		b.metrics.querySeriesMatched.RecordValue(float64(series))
@@ -480,7 +477,6 @@ func (b *block) queryWithSpan(
 		source    = opts.Source
 		size      = results.Size()
 		docsCount = results.TotalDocsCount()
-		timeRange = results.Range()
 		docsPool  = b.opts.DocumentArrayPool()
 		batch     = docsPool.Get()
 		batchSize = cap(batch)
@@ -493,7 +489,7 @@ func (b *block) queryWithSpan(
 	defer docsPool.Put(batch)
 
 	for time.Now().Before(deadline) && iter.Next(ctx) {
-		if opts.LimitsExceeded(size, docsCount, timeRange) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
@@ -656,9 +652,6 @@ func (b *block) AggregateWithIter(
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	if iter.Done() {
-		// Track range queried.
-		results.CompletedRange(b.blockSize)
-		// Record metrics.
 		docs, series := iter.Counts()
 		b.metrics.aggregateDocsMatched.RecordValue(float64(docs))
 		b.metrics.aggregateSeriesMatched.RecordValue(float64(series))
@@ -679,7 +672,6 @@ func (b *block) aggregateWithSpan(
 		source        = opts.Source
 		size          = results.Size()
 		docsCount     = results.TotalDocsCount()
-		timeRange     = results.Range()
 		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
 		maxBatch      = cap(batch)
 		fieldAppended bool
@@ -705,7 +697,7 @@ func (b *block) aggregateWithSpan(
 	}
 
 	for time.Now().Before(deadline) && iter.Next(ctx) {
-		if opts.LimitsExceeded(size, docsCount, timeRange) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 

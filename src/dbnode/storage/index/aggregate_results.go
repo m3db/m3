@@ -23,7 +23,6 @@ package index
 import (
 	"math"
 	"sync"
-	"time"
 
 	"github.com/uber-go/tally"
 
@@ -42,7 +41,6 @@ type aggregatedResults struct {
 	resultsMap     *AggregateResultsMap
 	size           int
 	totalDocsCount int
-	timeRange      time.Duration
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -178,7 +176,6 @@ func (r *aggregatedResults) Reset(
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
 	r.size = 0
-	r.timeRange = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -331,19 +328,6 @@ func (r *aggregatedResults) TotalDocsCount() int {
 	count := r.totalDocsCount
 	r.RUnlock()
 	return count
-}
-
-func (r *aggregatedResults) CompletedRange(timeRange time.Duration) {
-	r.Lock()
-	r.timeRange += timeRange
-	r.Unlock()
-}
-
-func (r *aggregatedResults) Range() time.Duration {
-	r.RLock()
-	timeRange := r.timeRange
-	r.RUnlock()
-	return timeRange
 }
 
 func (r *aggregatedResults) Finalize() {

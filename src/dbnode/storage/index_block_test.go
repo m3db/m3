@@ -819,8 +819,7 @@ func TestLimits(t *testing.T) {
 			docsLimit:         0,
 			requireExhaustive: true,
 			expectedErr: "query exceeded limit: require_exhaustive=true, " +
-				"series_limit=1, series_matched=1, docs_limit=0, docs_matched=2, " +
-				"range_limit=0s, range_matched=0s",
+				"series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
 			expectedQueryLimitExceededError: true,
 		},
 		{
@@ -829,8 +828,7 @@ func TestLimits(t *testing.T) {
 			docsLimit:         1,
 			requireExhaustive: true,
 			expectedErr: "query exceeded limit: require_exhaustive=true, " +
-				"series_limit=0, series_matched=1, docs_limit=1, docs_matched=2, " +
-				"range_limit=0s, range_matched=0s",
+				"series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
 			expectedQueryLimitExceededError: true,
 		},
 		{
@@ -839,8 +837,7 @@ func TestLimits(t *testing.T) {
 			docsLimit:         1,
 			requireExhaustive: true,
 			expectedErr: "query exceeded limit: require_exhaustive=true, " +
-				"series_limit=1, series_matched=1, docs_limit=1, docs_matched=2, " +
-				"range_limit=0s, range_matched=0s",
+				"series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
 			expectedQueryLimitExceededError: true,
 		},
 	} {

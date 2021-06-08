@@ -277,7 +277,8 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 		CompleteNameOnly: true,
 	}
 
-	aggOpts := FetchOptionsToAggregateOptions(fetchOptions, tagQuery)
+	aggOpts, err := FetchOptionsToAggregateOptions(fetchOptions, tagQuery)
+	require.NoError(t, err)
 	assert.Equal(t, end, aggOpts.EndExclusive)
 	assert.Equal(t, start, aggOpts.StartInclusive)
 	assert.Equal(t, index.AggregateTagNames, aggOpts.Type)
