@@ -359,7 +359,7 @@ type dbShardInsertAsyncOptions struct {
 }
 
 type dbShardPendingWrite struct {
-	timestamp  time.Time
+	timestamp  xtime.UnixNano
 	value      float64
 	unit       xtime.Unit
 	annotation checked.Bytes
@@ -367,14 +367,14 @@ type dbShardPendingWrite struct {
 }
 
 type dbShardPendingIndex struct {
-	timestamp  time.Time
+	timestamp  xtime.UnixNano
 	enqueuedAt time.Time
 }
 
 type dbShardPendingRetrievedBlock struct {
 	id      ident.ID
 	tags    ident.TagIterator
-	start   time.Time
+	start   xtime.UnixNano
 	segment ts.Segment
 	nsCtx   namespace.Context
 }

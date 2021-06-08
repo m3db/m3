@@ -22,9 +22,9 @@ package ts
 
 import (
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -34,7 +34,7 @@ func TestCreateNewSeries(t *testing.T) {
 		{Name: []byte("foo"), Value: []byte("bar")},
 		{Name: []byte("biz"), Value: []byte("baz")},
 	})
-	values := NewFixedStepValues(1000, 10000, 1, time.Now())
+	values := NewFixedStepValues(1000, 10000, 1, xtime.Now())
 	name := []byte("metrics")
 	series := NewSeries(name, values, tags)
 

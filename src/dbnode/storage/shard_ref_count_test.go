@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func TestShardWriteSyncRefCountVerifyNoCopyAnnotation(t *testing.T) {
 }
 
 func testShardWriteSyncRefCount(t *testing.T, opts Options) {
-	now := time.Now()
+	now := xtime.Now()
 
 	shard := testDatabaseShard(t, opts)
 	shard.SetRuntimeOptions(runtime.NewOptions().
@@ -66,19 +67,23 @@ func testShardWriteSyncRefCount(t *testing.T, opts Options) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	seriesWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0,
+		xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.Write(ctx, ident.StringID("foo"), now, 1.0,
+		xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.False(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0,
+		xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0,
+		xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
@@ -117,15 +122,15 @@ func testShardWriteSyncRefCount(t *testing.T, opts Options) {
 }
 
 func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := namespaceIndexOptions.BlockSize()
 
 	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
-		DoAndReturn(func(t time.Time) xtime.UnixNano {
-			return xtime.ToUnixNano(t.Truncate(blockSize))
+		DoAndReturn(func(t xtime.UnixNano) xtime.UnixNano {
+			return t.Truncate(blockSize)
 		}).
 		AnyTimes()
 	idx.EXPECT().WriteBatch(gomock.Any()).
@@ -137,7 +142,7 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 			}
 
 			entry := batch.PendingEntries()[0]
-			blockStart := xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize))
+			blockStart := entry.Timestamp.Truncate(blockSize)
 			onIdx := entry.OnIndexSeries
 			onIdx.OnIndexSuccess(blockStart)
 			onIdx.OnIndexFinalize(blockStart)
@@ -178,7 +183,7 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 
 func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 	var (
-		now   = time.Now()
+		now   = xtime.Now()
 		opts  = DefaultTestOptions()
 		shard = testDatabaseShardWithIndexFn(t, opts, idx, false)
 	)
@@ -249,7 +254,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	}, 100*time.Millisecond)
 	defer closer.Close()
 
-	now := time.Now()
+	now := xtime.Now()
 	opts := DefaultTestOptions()
 	opts = opts.SetInstrumentOptions(
 		opts.InstrumentOptions().
@@ -264,15 +269,18 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	seriesWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0,
+		xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0,
+		xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	seriesWrite, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil, series.WriteOptions{})
+	seriesWrite, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0,
+		xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
@@ -328,22 +336,22 @@ func newNowFnForWriteTaggedAsyncRefCount() func() time.Time {
 	}
 }
 func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := namespaceIndexOptions.BlockSize()
 
 	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
-		DoAndReturn(func(t time.Time) xtime.UnixNano {
-			return xtime.ToUnixNano(t.Truncate(blockSize))
+		DoAndReturn(func(t xtime.UnixNano) xtime.UnixNano {
+			return t.Truncate(blockSize)
 		}).
 		AnyTimes()
 	idx.EXPECT().WriteBatch(gomock.Any()).
 		Return(nil).
 		Do(func(batch *index.WriteBatch) {
 			for _, entry := range batch.PendingEntries() {
-				blockStart := xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize))
+				blockStart := entry.Timestamp.Truncate(blockSize)
 				onIdx := entry.OnIndexSeries
 				onIdx.OnIndexSuccess(blockStart)
 				onIdx.OnIndexFinalize(blockStart)
@@ -398,7 +406,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	defer closer.Close()
 
 	var (
-		start = nowFn()
+		start = xtime.ToUnixNano(nowFn())
 		now   = start
 		opts  = DefaultTestOptions()
 	)

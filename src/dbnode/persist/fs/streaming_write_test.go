@@ -50,7 +50,7 @@ func newTestStreamingWriter(
 	t *testing.T,
 	filePathPrefix string,
 	shard uint32,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	nextVersion int,
 	plannedEntries uint,
 ) StreamingWriter {
@@ -164,7 +164,7 @@ func TestInfoReadStreamingWrite(t *testing.T) {
 	require.NoError(t, readInfoFileResults[0].Err.Error())
 
 	infoFile := readInfoFileResults[0].Info
-	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
+	require.Equal(t, int64(testWriterStart), infoFile.BlockStart)
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
@@ -229,7 +229,7 @@ func TestStreamingWriterAbort(t *testing.T) {
 func streamingWriteTestData(
 	t *testing.T,
 	w StreamingWriter,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	entries []testStreamingEntry,
 ) error {
 	return streamingWriteWithVolume(t, w, blockStart, entries)
@@ -238,7 +238,7 @@ func streamingWriteTestData(
 func streamingWriteWithVolume(
 	t *testing.T,
 	w StreamingWriter,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	entries []testStreamingEntry,
 ) error {
 	ctx := context.NewBackground()
@@ -255,7 +255,7 @@ func streamingWriteWithVolume(
 
 	for i := range entries {
 		encoder.Reset(blockStart, 0, schema)
-		dp.Timestamp = blockStart
+		dp.TimestampNanos = blockStart
 
 		for _, v := range entries[i].values {
 			dp.Value = v
@@ -263,7 +263,7 @@ func streamingWriteWithVolume(
 				return err
 			}
 
-			dp.Timestamp = dp.Timestamp.Add(10 * time.Minute)
+			dp.TimestampNanos = dp.TimestampNanos.Add(10 * time.Minute)
 		}
 
 		stream, ok := encoder.Stream(ctx)

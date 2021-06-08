@@ -41,7 +41,7 @@ func TestBootstrapIndexSegmentOutOfRetention(t *testing.T) {
 	defer ctrl.Finish()
 	blockSize := 2 * time.Hour
 	retentionPeriod := 4 * time.Hour
-	now := time.Now().Add(-retentionPeriod)
+	now := xtime.Now().Add(-retentionPeriod)
 	start := now.Add(-retentionPeriod).Truncate(blockSize)
 	end := start.Add(retentionPeriod)
 	shardTimeRanges := result.NewShardTimeRanges().Set(
@@ -67,7 +67,7 @@ func TestBootstrapIndexSegmentOutOfRetention(t *testing.T) {
 
 	resultOptions := result.NewOptions()
 	resultOptions.ClockOptions().SetNowFn(func() time.Time {
-		return now
+		return now.ToTime()
 	})
 
 	blockStart := start

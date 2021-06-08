@@ -209,7 +209,7 @@ func TestFanoutWriteEmpty(t *testing.T) {
 func TestFanoutWriteError(t *testing.T) {
 	store := setupFanoutWrite(t, true, fmt.Errorf("write error"))
 	datapoints := make(ts.Datapoints, 1)
-	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
+	datapoints[0] = ts.Datapoint{Timestamp: xtime.Now(), Value: 1}
 
 	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
@@ -224,7 +224,7 @@ func TestFanoutWriteError(t *testing.T) {
 func TestFanoutWriteSuccess(t *testing.T) {
 	store := setupFanoutWrite(t, true, nil)
 	datapoints := make(ts.Datapoints, 1)
-	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
+	datapoints[0] = ts.Datapoint{Timestamp: xtime.Now(), Value: 1}
 
 	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
@@ -242,7 +242,7 @@ func TestFanoutWriteSuccess(t *testing.T) {
 func TestCompleteTagsError(t *testing.T) {
 	store := setupFanoutWrite(t, true, fmt.Errorf("err"))
 	datapoints := make(ts.Datapoints, 1)
-	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
+	datapoints[0] = ts.Datapoint{Timestamp: xtime.Now(), Value: 1}
 	_, err := store.CompleteTags(
 		context.TODO(),
 		&storage.CompleteTagsQuery{

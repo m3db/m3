@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -79,7 +80,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.Close()
 
-	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
+	t0 := xtime.ToUnixNano(time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC))
 	t1 := t0.Add(20 * time.Minute)
 	t2 := t1.Add(3 * time.Hour)
 	testSetup.SetNowFn(t0)
@@ -115,7 +116,8 @@ func TestIndexBlockRotation(t *testing.T) {
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
-		Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
+		Query: idx.NewTermQuery([]byte("shared"), []byte("shared")),
+	}
 
 	// ensure all data is present
 	log.Info("querying period0 results")
@@ -130,7 +132,6 @@ func TestIndexBlockRotation(t *testing.T) {
 
 	// ensure all data is absent
 	log.Info("querying period0 results after expiry")
-
 	// await for results to be empty.
 	// in practice we've seen it take 11s, so make it 30s to be safe.
 	timeout := time.Second * 30

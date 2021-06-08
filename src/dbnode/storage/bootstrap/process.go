@@ -160,7 +160,7 @@ type bootstrapProcess struct {
 
 func (b bootstrapProcess) Run(
 	ctx context.Context,
-	at time.Time,
+	at xtime.UnixNano,
 	namespaces []ProcessNamespace,
 ) (NamespaceResults, error) {
 	namespacesRunFirst := Namespaces{
@@ -242,7 +242,7 @@ func (b bootstrapProcess) Run(
 			if persistConf := ns.DataRunOptions.RunOptions.PersistConfig(); persistConf.Enabled &&
 				persistConf.FileSetType == persist.FileSetSnapshotType {
 				var (
-					now                = b.nowFn()
+					now                = xtime.ToUnixNano(b.nowFn())
 					nsOptions          = ns.Metadata.Options()
 					upToDateDataRanges = b.targetRangesForData(now, nsOptions.RetentionOptions())
 				)
@@ -339,14 +339,14 @@ func (b bootstrapProcess) logFields(
 		zap.String("bootstrapper", b.bootstrapper.String()),
 		zap.Stringer("namespace", namespace.ID()),
 		zap.Int("numShards", len(shards)),
-		zap.Time("dataFrom", dataTimeWindow.Start),
-		zap.Time("dataTo", dataTimeWindow.End),
+		zap.Time("dataFrom", dataTimeWindow.Start.ToTime()),
+		zap.Time("dataTo", dataTimeWindow.End.ToTime()),
 		zap.Duration("dataRange", dataTimeWindow.End.Sub(dataTimeWindow.Start)),
 	}
 	if namespace.Options().IndexOptions().Enabled() {
 		fields = append(fields,
-			zap.Time("indexFrom", indexTimeWindow.Start),
-			zap.Time("indexTo", indexTimeWindow.End),
+			zap.Time("indexFrom", indexTimeWindow.Start.ToTime()),
+			zap.Time("indexTo", indexTimeWindow.End.ToTime()),
 			zap.Duration("indexRange", indexTimeWindow.End.Sub(indexTimeWindow.Start)),
 		)
 	}
@@ -387,7 +387,7 @@ func (b bootstrapProcess) logBootstrapResult(
 }
 
 func (b bootstrapProcess) targetRangesForData(
-	at time.Time,
+	at xtime.UnixNano,
 	ropts retention.Options,
 ) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
@@ -400,7 +400,7 @@ func (b bootstrapProcess) targetRangesForData(
 }
 
 func (b bootstrapProcess) targetRangesForIndex(
-	at time.Time,
+	at xtime.UnixNano,
 	ropts retention.Options,
 	idxopts namespace.IndexOptions,
 ) targetRangesResult {
@@ -427,7 +427,7 @@ type targetRangesResult struct {
 }
 
 func (b bootstrapProcess) targetRanges(
-	at time.Time,
+	at xtime.UnixNano,
 	opts targetRangesOptions,
 ) targetRangesResult {
 	start := at.Add(-opts.retentionPeriod).

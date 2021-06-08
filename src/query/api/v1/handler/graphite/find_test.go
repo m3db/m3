@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -46,18 +47,18 @@ import (
 
 // dates is a tuple of a date with a valid string representation
 type date struct {
-	t time.Time
+	t xtime.UnixNano
 	s string
 }
 
 var (
 	from = date{
 		s: "14:38_20150618",
-		t: time.Date(2015, time.June, 18, 14, 38, 0, 0, time.UTC),
+		t: xtime.ToUnixNano(time.Date(2015, time.June, 18, 14, 38, 0, 0, time.UTC)),
 	}
 	until = date{
 		s: "1432581620",
-		t: time.Date(2015, time.May, 25, 19, 20, 20, 0, time.UTC),
+		t: xtime.ToUnixNano(time.Date(2015, time.May, 25, 19, 20, 20, 0, time.UTC)),
 	}
 )
 

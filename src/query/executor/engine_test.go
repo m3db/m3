@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -84,8 +85,8 @@ func TestExecuteExpr(t *testing.T) {
 		instrument.NewOptions())
 	_, err = engine.ExecuteExpr(context.TODO(), parser,
 		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
-			Start: time.Now().Add(-2 * time.Second),
-			End:   time.Now(),
+			Start: xtime.Now().Add(-2 * time.Second),
+			End:   xtime.Now(),
 			Step:  time.Second,
 		})
 

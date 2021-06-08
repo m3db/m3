@@ -25,17 +25,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/cespare/xxhash/v2"
 )
 
 // TimestampEncoder encapsulates the state required for a logical stream of
 // bits that represent a stream of timestamps compressed using delta-of-delta
 type TimestampEncoder struct {
-	PrevTime               time.Time
+	PrevTime               xtime.UnixNano
 	PrevTimeDelta          time.Duration
 	PrevAnnotationChecksum uint64
 
@@ -55,10 +55,10 @@ var emptyAnnotationChecksum = xxhash.Sum64(nil)
 
 // NewTimestampEncoder creates a new TimestampEncoder.
 func NewTimestampEncoder(
-	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
+	start xtime.UnixNano, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
 	return TimestampEncoder{
 		PrevTime:               start,
-		TimeUnit:               initialTimeUnit(xtime.ToUnixNano(start), timeUnit),
+		TimeUnit:               initialTimeUnit(start, timeUnit),
 		PrevAnnotationChecksum: emptyAnnotationChecksum,
 		markerEncodingScheme:   opts.MarkerEncodingScheme(),
 		timeEncodingSchemes:    opts.TimeEncodingSchemes(),
@@ -67,7 +67,11 @@ func NewTimestampEncoder(
 
 // WriteTime encode the timestamp using delta-of-delta compression.
 func (enc *TimestampEncoder) WriteTime(
-	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	stream encoding.OStream,
+	currTime xtime.UnixNano,
+	ant ts.Annotation,
+	timeUnit xtime.Unit,
+) error {
 	if !enc.hasWrittenFirst {
 		if err := enc.WriteFirstTime(stream, currTime, ant, timeUnit); err != nil {
 			return err
@@ -81,17 +85,25 @@ func (enc *TimestampEncoder) WriteTime(
 
 // WriteFirstTime encodes the first timestamp.
 func (enc *TimestampEncoder) WriteFirstTime(
-	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	stream encoding.OStream,
+	currTime xtime.UnixNano,
+	ant ts.Annotation,
+	timeUnit xtime.Unit,
+) error {
 	// NB(xichen): Always write the first time in nanoseconds because we don't know
 	// if the start time is going to be a multiple of the time unit provided.
-	nt := xtime.ToNormalizedTime(enc.PrevTime, time.Nanosecond)
+	nt := enc.PrevTime
 	stream.WriteBits(uint64(nt), 64)
 	return enc.WriteNextTime(stream, currTime, ant, timeUnit)
 }
 
 // WriteNextTime encodes the next (non-first) timestamp.
 func (enc *TimestampEncoder) WriteNextTime(
-	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	stream encoding.OStream,
+	currTime xtime.UnixNano,
+	ant ts.Annotation,
+	timeUnit xtime.Unit,
+) error {
 	enc.writeAnnotation(stream, ant)
 	tuChanged := enc.maybeWriteTimeUnitChange(stream, timeUnit)
 

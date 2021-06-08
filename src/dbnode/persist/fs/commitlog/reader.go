@@ -26,7 +26,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -44,8 +43,8 @@ var (
 	commitLogFileReadCounter = atomic.NewUint64(0)
 
 	// var instead of const so we can modify them in tests.
-	decoderInBufChanSize      = 1000
-	decoderOutBufChanSize     = 1000
+	decoderInBufChanSize  = 1000
+	decoderOutBufChanSize = 1000
 )
 
 var (
@@ -179,7 +178,6 @@ func (r *reader) Read() (LogEntry, error) {
 	result := LogEntry{
 		Series: metadata,
 		Datapoint: ts.Datapoint{
-			Timestamp:      time.Unix(0, entry.Timestamp),
 			TimestampNanos: xtime.UnixNano(entry.Timestamp),
 			Value:          entry.Value,
 		},

@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -300,7 +301,7 @@ func TestMultipleRead(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := storage.TimeToPromTimestamp(now)
 
 	r := storage.PromResult{
@@ -393,7 +394,7 @@ func TestReadWithOptions(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := storage.TimeToPromTimestamp(now)
 
 	r := storage.PromResult{

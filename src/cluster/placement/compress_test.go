@@ -23,6 +23,7 @@ package placement
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -43,20 +44,60 @@ func TestMarshalAndUnmarshalPlacementProto(t *testing.T) {
 }
 
 func TestCompressAndDecompressPlacementProto(t *testing.T) {
-	t.Run("nil_input", func(t *testing.T) {
+	t.Run("nil input", func(t *testing.T) {
 		_, err := compressPlacementProto(nil)
 		require.Equal(t, errNilPlacementSnapshotsProto, err)
 
 		_, err = decompressPlacementProto(nil)
 		require.Equal(t, errNilValue, err)
 	})
-	t.Run("compress_then_decompress", func(t *testing.T) {
-		compressed, err := compressPlacementProto(testLatestPlacementProto)
-		require.NoError(t, err)
 
-		actual, err := decompressPlacementProto(compressed)
-		require.NoError(t, err)
-		require.Equal(t, testLatestPlacementProto.String(), actual.String())
+	t.Run("compress roundtrip", func(t *testing.T) {
+		var wg sync.WaitGroup
+
+		for i := 10; i < 100; i++ {
+			wg.Add(1)
+			i := i
+			go func() {
+				defer wg.Done()
+				pl, err := testRandPlacement(50, i).Proto()
+				require.NoError(t, err)
+
+				compressed, err := compressPlacementProto(pl)
+				require.NoError(t, err)
+
+				actual, err := decompressPlacementProto(compressed)
+				require.NoError(t, err)
+				require.Equal(t, pl.String(), actual.String())
+			}()
+		}
+
+		wg.Wait()
+	})
+
+	t.Run("compress roundtrip, invalid", func(t *testing.T) {
+		var wg sync.WaitGroup
+
+		for i := 2; i < 50; i++ {
+			wg.Add(1)
+			i := i
+			go func() {
+				defer wg.Done()
+				pl, err := testRandPlacement(50+i, i).Proto()
+				require.NoError(t, err)
+
+				compressed, err := compressPlacementProto(pl)
+				require.NoError(t, err)
+
+				// corrupt placement by trimming the last few bytes
+				l := len(compressed) - (len(compressed) / i)
+				actual, err := decompressPlacementProto(compressed[:l])
+				require.Error(t, err)
+				require.NotEqual(t, pl.String(), actual.String())
+			}()
+		}
+
+		wg.Wait()
 	})
 }
 

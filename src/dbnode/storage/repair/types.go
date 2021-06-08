@@ -31,78 +31,79 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// ReplicaMetadataSlice captures a slice of block.ReplicaMetadata
+// ReplicaMetadataSlice captures a slice of block.ReplicaMetadata.
 type ReplicaMetadataSlice interface {
-	// Add adds the metadata to the slice
+	// Add adds the metadata to the slice.
 	Add(metadata block.ReplicaMetadata)
 
-	// Metadata returns the metadata slice
+	// Metadata returns the metadata slice.
 	Metadata() []block.ReplicaMetadata
 
-	// Reset resets the metadata slice
+	// Reset resets the metadata slice.
 	Reset()
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
-// ReplicaMetadataSlicePool provides a pool for block.ReplicaMetadata slices
+// ReplicaMetadataSlicePool provides a pool for block.ReplicaMetadata slices.
 type ReplicaMetadataSlicePool interface {
-	// Get returns a ReplicaMetadata slice
+	// Get returns a ReplicaMetadata slice.
 	Get() ReplicaMetadataSlice
 
-	// Put puts a ReplicaMetadata slice back to pool
+	// Put puts a ReplicaMetadata slice back to pool.
 	Put(m ReplicaMetadataSlice)
 }
 
-// ReplicaBlockMetadata captures the block metadata from hosts in a shard replica set
+// ReplicaBlockMetadata captures the block metadata from hosts in a shard replica set.
 type ReplicaBlockMetadata interface {
-	// Start is the start time of a block
-	Start() time.Time
+	// Start is the start time of a block.
+	Start() xtime.UnixNano
 
-	// Metadata returns the metadata from all hosts
+	// Metadata returns the metadata from all hosts.
 	Metadata() []block.ReplicaMetadata
 
-	// Add adds a metadata from a host
+	// Add adds a metadata from a host.
 	Add(metadata block.ReplicaMetadata)
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
-// ReplicaBlocksMetadata captures the blocks metadata from hosts in a shard replica set
+// ReplicaBlocksMetadata captures the blocks metadata from hosts in a shard replica set.
 type ReplicaBlocksMetadata interface {
-	// NumBlocks returns the total number of blocks
+	// NumBlocks returns the total number of blocks.
 	NumBlocks() int64
 
-	// Blocks returns the blocks metadata
+	// Blocks returns the blocks metadata.
 	Blocks() map[xtime.UnixNano]ReplicaBlockMetadata
 
-	// Add adds a block metadata
+	// Add adds a block metadata.
 	Add(block ReplicaBlockMetadata)
 
-	// GetOrAdd returns the blocks metadata for a start time, creating one if it doesn't exist
-	GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata
+	// GetOrAdd returns the blocks metadata for a start time, creating one if it doesn't exist.
+	GetOrAdd(start xtime.UnixNano, p ReplicaMetadataSlicePool) ReplicaBlockMetadata
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
-// ReplicaSeriesMetadata captures the metadata for a list of series from hosts in a shard replica set
+// ReplicaSeriesMetadata captures the metadata for a list of series from hosts
+// in a shard replica set.
 type ReplicaSeriesMetadata interface {
-	// NumSeries returns the total number of series
+	// NumSeries returns the total number of series.
 	NumSeries() int64
 
-	// NumBlocks returns the total number of blocks
+	// NumBlocks returns the total number of blocks.
 	NumBlocks() int64
 
-	// Series returns the series metadata
+	// Series returns the series metadata.
 	Series() *Map
 
-	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist
+	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist.
 	GetOrAdd(id ident.ID) ReplicaBlocksMetadata
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
@@ -112,37 +113,37 @@ type ReplicaSeriesBlocksMetadata struct {
 	Metadata ReplicaBlocksMetadata
 }
 
-// ReplicaMetadataComparer compares metadata from hosts in a replica set
+// ReplicaMetadataComparer compares metadata from hosts in a replica set.
 type ReplicaMetadataComparer interface {
-	// AddLocalMetadata adds metadata from local host
+	// AddLocalMetadata adds metadata from local host.
 	AddLocalMetadata(localIter block.FilteredBlocksMetadataIter) error
 
-	// AddPeerMetadata adds metadata from peers
+	// AddPeerMetadata adds metadata from peers.
 	AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error
 
-	// Compare returns the metadata differences between local host and peers
+	// Compare returns the metadata differences between local host and peers.
 	Compare() MetadataComparisonResult
 
-	// Finalize performs cleanup during close
+	// Finalize performs cleanup during close.
 	Finalize()
 }
 
-// MetadataComparisonResult captures metadata comparison results
+// MetadataComparisonResult captures metadata comparison results.
 type MetadataComparisonResult struct {
-	// NumSeries returns the total number of series
+	// NumSeries returns the total number of series.
 	NumSeries int64
 
-	// NumBlocks returns the total number of blocks
+	// NumBlocks returns the total number of blocks.
 	NumBlocks int64
 
-	// SizeResult returns the size differences
+	// SizeResult returns the size differences.
 	SizeDifferences ReplicaSeriesMetadata
 
-	// ChecksumDifferences returns the checksum differences
+	// ChecksumDifferences returns the checksum differences.
 	ChecksumDifferences ReplicaSeriesMetadata
 }
 
-// Options are the repair options
+// Options are the repair options.
 type Options interface {
 	// SetAdminClient sets the admin client.
 	SetAdminClients(value []client.AdminClient) Options

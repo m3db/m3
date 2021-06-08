@@ -65,7 +65,7 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 func (m ReaderOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"namespace: %s, shard: %d, blockstart: %d, volumeIndex: %d, filesetType: %s, streamingEnabled: %t", // nolint: lll
-		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Unix(), m.ID.VolumeIndex,
+		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Seconds(), m.ID.VolumeIndex,
 		m.FileSetType, m.StreamingEnabled,
 	)
 }

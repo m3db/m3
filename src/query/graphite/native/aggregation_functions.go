@@ -279,7 +279,7 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 
 // aggregate takes a list of series and returns a new series containing the
 // value aggregated across the series at each datapoint using the specified function.
-// This function can be used with aggregation functionsL average (or avg), avg_zero,
+// This function can be used with aggregation functions average (or avg), avg_zero,
 // median, sum (or total), min, max, diff, stddev, count,
 // range (or rangeOf), multiply & last (or current).
 func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.SeriesList, error) {

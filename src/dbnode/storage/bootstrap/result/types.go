@@ -70,7 +70,7 @@ type IndexBuilder struct {
 
 // IndexBlockByVolumeType contains the bootstrap data structures for an index block by volume type.
 type IndexBlockByVolumeType struct {
-	blockStart time.Time
+	blockStart xtime.UnixNano
 	data       map[persist.IndexVolumeType]IndexBlock
 }
 
@@ -115,7 +115,7 @@ type ShardResult interface {
 
 	// BlockAt returns the block at a given time for a given id,
 	// or nil if there is no such block.
-	BlockAt(id ident.ID, t time.Time) (block.DatabaseBlock, bool)
+	BlockAt(id ident.ID, t xtime.UnixNano) (block.DatabaseBlock, bool)
 
 	// AllSeries returns a map of all series with their associated blocks.
 	AllSeries() *Map
@@ -133,7 +133,7 @@ type ShardResult interface {
 	AddResult(other ShardResult)
 
 	// RemoveBlockAt removes a data block at a given timestamp
-	RemoveBlockAt(id ident.ID, t time.Time)
+	RemoveBlockAt(id ident.ID, t xtime.UnixNano)
 
 	// RemoveSeries removes a single series of blocks.
 	RemoveSeries(id ident.ID)
@@ -194,10 +194,10 @@ type ShardTimeRanges interface {
 
 	// MinMax will return the very minimum time as a start and the
 	// maximum time as an end in the ranges.
-	MinMax() (time.Time, time.Time)
+	MinMax() (xtime.UnixNano, xtime.UnixNano)
 
 	// MinMaxRange returns the min and max times, and the duration for this range.
-	MinMaxRange() (time.Time, time.Time, time.Duration)
+	MinMaxRange() (xtime.UnixNano, xtime.UnixNano, time.Duration)
 
 	// String returns a description of the time ranges
 	String() string

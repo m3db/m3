@@ -72,19 +72,19 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 
 	healthCheckResult := &rpc.NodeHealthResult_{Ok: true, Status: "ok", Bootstrapped: true}
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	encoder := m3tsz.NewEncoder(start, nil, true, nil)
 	for at := start; at.Before(end); at = at.Add(30 * time.Second) {
 		dp := ts.Datapoint{
-			Timestamp: at,
-			Value:     rand.Float64() * math.MaxFloat64,
+			TimestampNanos: at,
+			Value:          rand.Float64() * math.MaxFloat64, //nolint: gosec
 		}
 		encoder.Encode(dp, xtime.Second, nil)
 	}
 	seg := encoder.Discard()
-	respSegments := []*rpc.Segments{&rpc.Segments{
+	respSegments := []*rpc.Segments{{
 		Merged: &rpc.Segment{Head: seg.Head.Bytes(), Tail: seg.Tail.Bytes()},
 	}}
 	respElements := make([]*rpc.FetchRawResult_, maxIDs)

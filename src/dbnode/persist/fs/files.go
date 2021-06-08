@@ -41,6 +41,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 )
@@ -103,7 +104,7 @@ type FileSetFile struct {
 	ID                FileSetFileIdentifier
 	AbsoluteFilePaths []string
 
-	CachedSnapshotTime              time.Time
+	CachedSnapshotTime              xtime.UnixNano
 	CachedSnapshotID                uuid.UUID
 	CachedHasCompleteCheckpointFile LazyEvalBool
 	filePathPrefix                  string
@@ -111,12 +112,12 @@ type FileSetFile struct {
 
 // SnapshotTimeAndID returns the snapshot time and id for the given FileSetFile.
 // Value is meaningless if the the FileSetFile is a flush instead of a snapshot.
-func (f *FileSetFile) SnapshotTimeAndID() (time.Time, uuid.UUID, error) {
+func (f *FileSetFile) SnapshotTimeAndID() (xtime.UnixNano, uuid.UUID, error) {
 	if f.IsZero() {
-		return time.Time{}, nil, errSnapshotTimeAndIDZero
+		return 0, nil, errSnapshotTimeAndIDZero
 	}
 	if _, ok := f.SnapshotFilepath(); !ok {
-		return time.Time{}, nil, errNonSnapshotFileset
+		return 0, nil, errNonSnapshotFileset
 	}
 
 	if !f.CachedSnapshotTime.IsZero() || f.CachedSnapshotID != nil {
@@ -126,7 +127,7 @@ func (f *FileSetFile) SnapshotTimeAndID() (time.Time, uuid.UUID, error) {
 
 	snapshotTime, snapshotID, err := SnapshotTimeAndID(f.filePathPrefix, f.ID)
 	if err != nil {
-		return time.Time{}, nil, err
+		return 0, nil, err
 	}
 
 	// Cache for future use and return.
@@ -212,7 +213,7 @@ func (f FileSetFilesSlice) Filepaths() []string {
 
 // LatestVolumeForBlock returns the latest (highest index) FileSetFile in the
 // slice for a given block start that has a complete checkpoint file.
-func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFile, bool) {
+func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart xtime.UnixNano) (FileSetFile, bool) {
 	// Make sure we're already sorted.
 	f.sortByTimeAndVolumeIndexAscending()
 
@@ -246,7 +247,7 @@ func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFi
 
 // VolumeExistsForBlock returns whether there is a valid FileSetFile for the
 // given block start and volume index.
-func (f FileSetFilesSlice) VolumeExistsForBlock(blockStart time.Time, volume int) bool {
+func (f FileSetFilesSlice) VolumeExistsForBlock(blockStart xtime.UnixNano, volume int) bool {
 	for _, curr := range f {
 		if curr.ID.BlockStart.Equal(blockStart) && curr.ID.VolumeIndex == volume {
 			return curr.HasCompleteCheckpointFile()
@@ -310,7 +311,7 @@ type SnapshotMetadataIdentifier struct {
 // NewFileSetFileIdentifier creates a new FileSetFileIdentifier.
 func NewFileSetFileIdentifier(
 	namespace ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	shard uint32,
 	volumeIndex int,
 ) FileSetFileIdentifier {
@@ -477,7 +478,7 @@ func intComponentAtIndex(
 	baseFilename string,
 	componentPos int,
 	delimPos [maxDelimNum]int,
-) (int64, error) {
+) (xtime.UnixNano, error) {
 	start := 0
 	if componentPos > 0 {
 		start = delimPos[componentPos-1] + 1
@@ -491,11 +492,11 @@ func intComponentAtIndex(
 	if err != nil {
 		return 0, fmt.Errorf(errUnexpectedFilenamePattern, baseFilename)
 	}
-	return num, nil
+	return xtime.UnixNano(num), nil
 }
 
 // TimeFromFileName extracts the block start time from file name.
-func TimeFromFileName(fname string) (time.Time, error) {
+func TimeFromFileName(fname string) (xtime.UnixNano, error) {
 	base := filepath.Base(fname)
 
 	delims, delimsFound := delimiterPositions(base)
@@ -503,19 +504,19 @@ func TimeFromFileName(fname string) (time.Time, error) {
 	// component is in index 1. However, all DB files have a minimum of three
 	// delimeters, so check for that instead.
 	if delimsFound < 3 {
-		return timeZero, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 	nanos, err := intComponentAtIndex(base, timeComponentPosition, delims)
 	if err != nil {
-		return timeZero, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return time.Unix(0, nanos), nil
+	return nanos, nil
 }
 
 // TimeAndIndexFromCommitlogFilename extracts the block start and index from
 // file name for a commitlog.
-func TimeAndIndexFromCommitlogFilename(fname string) (time.Time, int, error) {
+func TimeAndIndexFromCommitlogFilename(fname string) (xtime.UnixNano, int, error) {
 	return timeAndIndexFromFileName(fname, commitLogComponentPosition)
 }
 
@@ -523,64 +524,62 @@ func TimeAndIndexFromCommitlogFilename(fname string) (time.Time, int, error) {
 // index from a data fileset file name that may or may not have an index. If the
 // file name does not include an index, unindexedFilesetIndex is returned as the
 // volume index.
-func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (time.Time, int, error) {
+func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (xtime.UnixNano, int, error) {
 	base := filepath.Base(fname)
 
 	delims, delimsFound := delimiterPositions(base)
 	if delimsFound < 3 {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
 	nanos, err := intComponentAtIndex(base, timeComponentPosition, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
-	unixNanos := time.Unix(0, nanos)
 
 	// Legacy filename with no volume index.
 	if delimsFound == 3 {
-		return unixNanos, unindexedFilesetIndex, nil
+		return nanos, unindexedFilesetIndex, nil
 	}
 
 	volume, err := intComponentAtIndex(base, dataFileSetComponentPosition, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return unixNanos, int(volume), nil
+	return nanos, int(volume), nil
 }
 
 // TimeAndVolumeIndexFromFileSetFilename extracts the block start and
 // volume index from an index file name.
-func TimeAndVolumeIndexFromFileSetFilename(fname string) (time.Time, int, error) {
+func TimeAndVolumeIndexFromFileSetFilename(fname string) (xtime.UnixNano, int, error) {
 	return timeAndIndexFromFileName(fname, indexFileSetComponentPosition)
 }
 
-func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, int, error) {
+func timeAndIndexFromFileName(fname string, componentPosition int) (xtime.UnixNano, int, error) {
 	base := filepath.Base(fname)
 
 	delims, delimsFound := delimiterPositions(base)
 	if componentPosition > delimsFound {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
 	nanos, err := intComponentAtIndex(base, 1, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
-	unixNanos := time.Unix(0, nanos)
 
 	index, err := intComponentAtIndex(base, componentPosition, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
+		return 0, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	return unixNanos, int(index), nil
+	return nanos, int(index), nil
 }
 
 // SnapshotTimeAndID returns the metadata for the snapshot.
 func SnapshotTimeAndID(
-	filePathPrefix string, id FileSetFileIdentifier) (time.Time, uuid.UUID, error) {
+	filePathPrefix string, id FileSetFileIdentifier) (xtime.UnixNano, uuid.UUID, error) {
 	decoder := msgpack.NewDecoder(nil)
 	return snapshotTimeAndID(filePathPrefix, id, decoder)
 }
@@ -589,34 +588,41 @@ func snapshotTimeAndID(
 	filePathPrefix string,
 	id FileSetFileIdentifier,
 	decoder *msgpack.Decoder,
-) (time.Time, uuid.UUID, error) {
+) (xtime.UnixNano, uuid.UUID, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
+		return 0, nil, fmt.Errorf("error reading snapshot info file: %w", err)
 	}
 
 	decoder.Reset(msgpack.NewByteDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
+		return 0, nil, fmt.Errorf("error decoding snapshot info file: %w", err)
 	}
 
 	var parsedSnapshotID uuid.UUID
 	err = parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %v", err)
+		return 0, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %w", err)
 	}
 
-	return time.Unix(0, info.SnapshotTime), parsedSnapshotID, nil
+	return xtime.UnixNano(info.SnapshotTime), parsedSnapshotID, nil
 }
 
-func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
+func readSnapshotInfoFile(
+	filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int,
+) ([]byte, error) {
 	var (
 		shardDir           = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
-		checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
-
-		digestFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
-		infoFilePath   = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
+		checkpointFilePath = filesetPathFromTimeAndIndex(
+			shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix,
+		)
+		digestFilePath = filesetPathFromTimeAndIndex(
+			shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix,
+		)
+		infoFilePath = filesetPathFromTimeAndIndex(
+			shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix,
+		)
 	)
 
 	checkpointFd, err := os.Open(checkpointFilePath)
@@ -1048,7 +1054,13 @@ func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (FileSetFiles
 }
 
 // FileSetAt returns a FileSetFile for the given namespace/shard/blockStart/volume combination if it exists.
-func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time, volume int) (FileSetFile, bool, error) {
+func FileSetAt(
+	filePathPrefix string,
+	namespace ident.ID,
+	shard uint32,
+	blockStart xtime.UnixNano,
+	volume int,
+) (FileSetFile, bool, error) {
 	var pattern string
 	// If this is the initial volume, then we need to check if files were written with the legacy file naming (i.e.
 	// without the volume index) so that we can properly locate the fileset.
@@ -1091,8 +1103,7 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 			if nextIdx < len(matched) && matched[nextIdx].ID.BlockStart.Equal(blockStart) {
 				// Should never happen.
 				return FileSetFile{}, false, fmt.Errorf(
-					"found multiple fileset files for blockStart: %d",
-					blockStart.Unix(),
+					"found multiple fileset files for blockStart: %d", blockStart.Seconds(),
 				)
 			}
 
@@ -1107,9 +1118,12 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 	return FileSetFile{}, false, nil
 }
 
-// IndexFileSetsAt returns all FileSetFile(s) for the given namespace/blockStart combination.
+// IndexFileSetsAt returns all FileSetFile(s) for the given
+// namespace/blockStart combination.
 // NB: It returns all complete Volumes found on disk.
-func IndexFileSetsAt(filePathPrefix string, namespace ident.ID, blockStart time.Time) (FileSetFilesSlice, error) {
+func IndexFileSetsAt(
+	filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano,
+) (FileSetFilesSlice, error) {
 	matches, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetIndexContentType,
@@ -1135,21 +1149,31 @@ func IndexFileSetsAt(filePathPrefix string, namespace ident.ID, blockStart time.
 	return filesets, nil
 }
 
-// DeleteFileSetAt deletes a FileSetFile for a given namespace/shard/blockStart/volume combination if it exists.
-func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time, volume int) error {
+// DeleteFileSetAt deletes a FileSetFile for a given
+// namespace/shard/blockStart/volume combination if it exists.
+func DeleteFileSetAt(
+	filePathPrefix string,
+	namespace ident.ID,
+	shard uint32,
+	blockStart xtime.UnixNano,
+	volume int,
+) error {
 	fileset, ok, err := FileSetAt(filePathPrefix, namespace, shard, blockStart, volume)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("fileset for blockStart: %d does not exist", blockStart.Unix())
+		return fmt.Errorf("fileset for blockStart: %d does not exist", blockStart.Seconds())
 	}
 
 	return DeleteFiles(fileset.AbsoluteFilePaths)
 }
 
-// DataFileSetsBefore returns all the flush data fileset paths whose timestamps are earlier than a given time.
-func DataFileSetsBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
+// DataFileSetsBefore returns all the flush data fileset paths whose
+// timestamps are earlier than a given time.
+func DataFileSetsBefore(
+	filePathPrefix string, namespace ident.ID, shard uint32, t xtime.UnixNano,
+) ([]string, error) {
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetDataContentType,
@@ -1165,7 +1189,7 @@ func DataFileSetsBefore(filePathPrefix string, namespace ident.ID, shard uint32,
 }
 
 // IndexFileSetsBefore returns all the flush index fileset paths whose timestamps are earlier than a given time.
-func IndexFileSetsBefore(filePathPrefix string, namespace ident.ID, t time.Time) ([]string, error) {
+func IndexFileSetsBefore(filePathPrefix string, namespace ident.ID, t xtime.UnixNano) ([]string, error) {
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetIndexContentType,
@@ -1298,14 +1322,14 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 	}
 
 	var (
-		latestBlockStart  time.Time
+		latestBlockStart  xtime.UnixNano
 		latestVolumeIndex int
 		latestFileSetFile FileSetFile
 		filesetFiles      = []FileSetFile{}
 	)
 	for _, file := range byTimeAsc {
 		var (
-			currentFileBlockStart time.Time
+			currentFileBlockStart xtime.UnixNano
 			volumeIndex           int
 			err                   error
 		)
@@ -1328,7 +1352,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 			return nil, err
 		}
 
-		if latestBlockStart.IsZero() {
+		if latestBlockStart == 0 {
 			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
 				Namespace:   args.namespace,
 				BlockStart:  currentFileBlockStart,
@@ -1344,13 +1368,14 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				VolumeIndex: volumeIndex,
 			}, args.filePathPrefix)
 		}
+
 		latestBlockStart = currentFileBlockStart
 		latestVolumeIndex = volumeIndex
 
 		latestFileSetFile.AbsoluteFilePaths = append(latestFileSetFile.AbsoluteFilePaths, file)
 	}
-	filesetFiles = append(filesetFiles, latestFileSetFile)
 
+	filesetFiles = append(filesetFiles, latestFileSetFile)
 	return filesetFiles, nil
 }
 
@@ -1362,7 +1387,7 @@ func sortedCommitLogFiles(commitLogsDir string, pattern string) ([]string, error
 
 // FilesBefore filters the list of files down to those whose name indicate they are
 // before a given time period. Mutates the provided slice.
-func FilesBefore(files []string, t time.Time) ([]string, error) {
+func FilesBefore(files []string, t xtime.UnixNano) ([]string, error) {
 	var (
 		j        int
 		multiErr xerrors.MultiError
@@ -1501,7 +1526,7 @@ func DataFileSetExists(
 	filePathPrefix string,
 	namespace ident.ID,
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	volume int,
 ) (bool, error) {
 	// This function can easily become a performance bottleneck if the
@@ -1528,13 +1553,14 @@ func DataFileSetExists(
 	return CompleteCheckpointFileExists(checkpointPath)
 }
 
-// SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
+// SnapshotFileSetExistsAt determines whether snapshot fileset files exist for
+// the given namespace, shard, and block start time.
 func SnapshotFileSetExistsAt(
 	prefix string,
 	namespace ident.ID,
 	snapshotID uuid.UUID,
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (bool, error) {
 	snapshotFiles, err := SnapshotFiles(prefix, namespace, shard)
 	if err != nil {
@@ -1581,7 +1607,9 @@ func NextSnapshotMetadataFileIndex(opts Options) (int64, error) {
 
 // NextSnapshotFileSetVolumeIndex returns the next snapshot file set index for a given
 // namespace/shard/blockStart combination.
-func NextSnapshotFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (int, error) {
+func NextSnapshotFileSetVolumeIndex(
+	filePathPrefix string, namespace ident.ID, shard uint32, blockStart xtime.UnixNano,
+) (int, error) {
 	snapshotFiles, err := SnapshotFiles(filePathPrefix, namespace, shard)
 	if err != nil {
 		return -1, err
@@ -1597,7 +1625,9 @@ func NextSnapshotFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, s
 
 // NextIndexFileSetVolumeIndex returns the next index file set index for a given
 // namespace/blockStart combination.
-func NextIndexFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, blockStart time.Time) (int, error) {
+func NextIndexFileSetVolumeIndex(
+	filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano,
+) (int, error) {
 	files, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetIndexContentType,
@@ -1619,7 +1649,9 @@ func NextIndexFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, bloc
 
 // NextIndexSnapshotFileIndex returns the next snapshot file index for a given
 // namespace/shard/blockStart combination.
-func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, blockStart time.Time) (int, error) {
+func NextIndexSnapshotFileIndex(
+	filePathPrefix string, namespace ident.ID, blockStart xtime.UnixNano,
+) (int, error) {
 	snapshotFiles, err := IndexSnapshotFiles(filePathPrefix, namespace)
 	if err != nil {
 		return -1, err
@@ -1698,20 +1730,20 @@ func CommitLogFilePath(prefix string, index int) string {
 	return filePath
 }
 
-func filesetFileForTime(t time.Time, suffix string) string {
-	return fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
+func filesetFileForTime(t xtime.UnixNano, suffix string) string {
+	return fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, int64(t), separator, suffix, fileSuffix)
 }
 
-func filesetFileForTimeAndVolumeIndex(t time.Time, index int, suffix string) string {
+func filesetFileForTimeAndVolumeIndex(t xtime.UnixNano, index int, suffix string) string {
 	newSuffix := fmt.Sprintf("%d%s%s", index, separator, suffix)
 	return filesetFileForTime(t, newSuffix)
 }
 
-func filesetPathFromTimeLegacy(prefix string, t time.Time, suffix string) string {
+func filesetPathFromTimeLegacy(prefix string, t xtime.UnixNano, suffix string) string {
 	return path.Join(prefix, filesetFileForTime(t, suffix))
 }
 
-func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix string) string {
+func filesetPathFromTimeAndIndex(prefix string, t xtime.UnixNano, index int, suffix string) string {
 	return path.Join(prefix, filesetFileForTimeAndVolumeIndex(t, index, suffix))
 }
 
@@ -1720,7 +1752,8 @@ func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix s
 // function, the caller expects there to be a legacy or non-legacy file, and
 // thus returns an error if neither exist. Note that this function does not
 // check for the volume's complete checkpoint file.
-func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error) {
+//nolint: unparam
+func isFirstVolumeLegacy(prefix string, t xtime.UnixNano, suffix string) (bool, error) {
 	// Check non-legacy path first to optimize for newer files.
 	path := filesetPathFromTimeAndIndex(prefix, t, 0, suffix)
 	_, err := os.Stat(path)
@@ -1743,7 +1776,7 @@ func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error
 // after that should be a comprehensive way to remove dead code.
 func dataFilesetPathFromTimeAndIndex(
 	prefix string,
-	t time.Time,
+	t xtime.UnixNano,
 	index int,
 	suffix string,
 	isLegacy bool,
@@ -1756,7 +1789,6 @@ func dataFilesetPathFromTimeAndIndex(
 }
 
 func filesetIndexSegmentFileSuffixFromTime(
-	t time.Time,
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
@@ -1765,23 +1797,23 @@ func filesetIndexSegmentFileSuffixFromTime(
 
 func filesetIndexSegmentFilePathFromTime(
 	prefix string,
-	t time.Time,
+	t xtime.UnixNano,
 	volumeIndex int,
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
-	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
+	suffix := filesetIndexSegmentFileSuffixFromTime(segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, volumeIndex, suffix)
 }
 
 func snapshotIndexSegmentFilePathFromTimeAndIndex(
 	prefix string,
-	t time.Time,
+	t xtime.UnixNano,
 	snapshotIndex int,
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
-	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
+	suffix := filesetIndexSegmentFileSuffixFromTime(segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, snapshotIndex, suffix)
 }
 

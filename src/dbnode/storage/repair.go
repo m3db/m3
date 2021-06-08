@@ -217,8 +217,7 @@ func (r shardRepairer) Repair(
 	originID := origin.ID()
 	for _, e := range seriesWithChecksumMismatches.Iter() {
 		for blockStart, replicaMetadataBlocks := range e.Value().Metadata.Blocks() {
-			blStartTime := blockStart.ToTime()
-			blStartRange := xtime.Range{Start: blStartTime, End: blStartTime}
+			blStartRange := xtime.Range{Start: blockStart, End: blockStart}
 			if !tr.Contains(blStartRange) {
 				instrument.EmitAndLogInvariantViolation(r.opts.InstrumentOptions(), func(l *zap.Logger) {
 					l.With(
@@ -263,7 +262,7 @@ func (r shardRepairer) Repair(
 					r.logger.Debug(
 						"could not identify which session mismatched metadata belong to",
 						zap.String("hostID", metadataHostID),
-						zap.Time("blockStart", blStartTime),
+						zap.Time("blockStart", blockStart.ToTime()),
 					)
 				}
 			}
@@ -459,7 +458,7 @@ const (
 )
 
 type repairState struct {
-	LastAttempt time.Time
+	LastAttempt xtime.UnixNano
 	Status      repairStatus
 }
 
@@ -478,7 +477,7 @@ func newRepairStates() repairStatesByNs {
 
 func (r repairStatesByNs) repairStates(
 	namespace ident.ID,
-	t time.Time,
+	t xtime.UnixNano,
 ) (repairState, bool) {
 	var rs repairState
 
@@ -487,13 +486,13 @@ func (r repairStatesByNs) repairStates(
 		return rs, false
 	}
 
-	rs, ok = nsRepairState[xtime.ToUnixNano(t)]
+	rs, ok = nsRepairState[t]
 	return rs, ok
 }
 
 func (r repairStatesByNs) setRepairState(
 	namespace ident.ID,
-	t time.Time,
+	t xtime.UnixNano,
 	state repairState,
 ) {
 	nsRepairState, ok := r[namespace.String()]
@@ -501,7 +500,7 @@ func (r repairStatesByNs) setRepairState(
 		nsRepairState = make(namespaceRepairStateByTime)
 		r[namespace.String()] = nsRepairState
 	}
-	nsRepairState[xtime.ToUnixNano(t)] = state
+	nsRepairState[t] = state
 }
 
 // NB(prateek): dbRepairer.Repair(...) guarantees atomicity of execution, so all other
@@ -581,7 +580,7 @@ func (r *dbRepairer) run() {
 
 func (r *dbRepairer) namespaceRepairTimeRange(ns databaseNamespace) xtime.Range {
 	var (
-		now    = r.nowFn()
+		now    = xtime.ToUnixNano(r.nowFn())
 		rtopts = ns.Options().RetentionOptions()
 	)
 	return xtime.Range{
@@ -643,10 +642,10 @@ func (r *dbRepairer) Repair() error {
 		var (
 			numUnrepairedBlocks                           = 0
 			hasRepairedABlockStart                        = false
-			leastRecentlyRepairedBlockStart               time.Time
-			leastRecentlyRepairedBlockStartLastRepairTime time.Time
+			leastRecentlyRepairedBlockStart               xtime.UnixNano
+			leastRecentlyRepairedBlockStartLastRepairTime xtime.UnixNano
 		)
-		repairRange.IterateBackward(blockSize, func(blockStart time.Time) bool {
+		repairRange.IterateBackward(blockSize, func(blockStart xtime.UnixNano) bool {
 			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
 			if ok && (leastRecentlyRepairedBlockStart.IsZero() ||
 				repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime)) {
@@ -682,7 +681,8 @@ func (r *dbRepairer) Repair() error {
 			"namespace": n.ID().String(),
 		}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
 
-		secondsSinceLastRepair := r.nowFn().Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
+		secondsSinceLastRepair := xtime.ToUnixNano(r.nowFn()).
+			Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
 		r.scope.Tagged(map[string]string{
 			"namespace": n.ID().String(),
 		}).Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
@@ -714,11 +714,11 @@ func (r *dbRepairer) Report() {
 	}
 }
 
-func (r *dbRepairer) repairNamespaceBlockstart(n databaseNamespace, blockStart time.Time) error {
+func (r *dbRepairer) repairNamespaceBlockstart(n databaseNamespace, blockStart xtime.UnixNano) error {
 	var (
 		blockSize   = n.Options().RetentionOptions().BlockSize()
 		repairRange = xtime.Range{Start: blockStart, End: blockStart.Add(blockSize)}
-		repairTime  = r.nowFn()
+		repairTime  = xtime.ToUnixNano(r.nowFn())
 	)
 	if err := r.repairNamespaceWithTimeRange(n, repairRange); err != nil {
 		r.markRepairAttempt(n.ID(), blockStart, repairTime, repairFailed)
@@ -739,8 +739,8 @@ func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.
 
 func (r *dbRepairer) markRepairAttempt(
 	namespace ident.ID,
-	blockStart time.Time,
-	repairTime time.Time,
+	blockStart xtime.UnixNano,
+	repairTime xtime.UnixNano,
 	repairStatus repairStatus) {
 	repairState, _ := r.repairStatesByNs.repairStates(namespace, blockStart)
 	repairState.Status = repairStatus
@@ -760,8 +760,8 @@ func (r repairerNoOp) Repair() error { return nil }
 func (r repairerNoOp) Report()       {}
 
 func (r shardRepairer) shadowCompare(
-	start time.Time,
-	end time.Time,
+	start xtime.UnixNano,
+	end xtime.UnixNano,
 	localMetadataBlocks block.FetchBlocksMetadataResults,
 	session client.AdminSession,
 	shard databaseShard,
@@ -817,8 +817,8 @@ func (r shardRepairer) shadowCompare(
 				r.logger.Error(
 					"series had next locally, but not from peers",
 					zap.String("namespace", nsCtx.ID.String()),
-					zap.Time("start", start),
-					zap.Time("end", end),
+					zap.Time("start", start.ToTime()),
+					zap.Time("end", end.ToTime()),
 					zap.String("series", seriesID.String()),
 					zap.Error(peerSeriesIter.Err()),
 				)
@@ -907,8 +907,8 @@ func (r shardRepairer) shadowCompare(
 			r.logger.Error(
 				"Local series iterator experienced an error",
 				zap.String("namespace", nsCtx.ID.String()),
-				zap.Time("start", start),
-				zap.Time("end", end),
+				zap.Time("start", start.ToTime()),
+				zap.Time("end", end.ToTime()),
 				zap.String("series", seriesID.String()),
 				zap.Int("numDPs", i),
 				zap.Error(localSeriesIter.Err()),
@@ -917,8 +917,8 @@ func (r shardRepairer) shadowCompare(
 			r.logger.Error(
 				"Found mismatch between series",
 				zap.String("namespace", nsCtx.ID.String()),
-				zap.Time("start", start),
-				zap.Time("end", end),
+				zap.Time("start", start.ToTime()),
+				zap.Time("end", end.ToTime()),
 				zap.String("series", seriesID.String()),
 				zap.Int("numDPs", i),
 			)
@@ -926,8 +926,8 @@ func (r shardRepairer) shadowCompare(
 			r.logger.Debug(
 				"All values for series match",
 				zap.String("namespace", nsCtx.ID.String()),
-				zap.Time("start", start),
-				zap.Time("end", end),
+				zap.Time("start", start.ToTime()),
+				zap.Time("end", end.ToTime()),
 				zap.String("series", seriesID.String()),
 				zap.Int("numDPs", i),
 			)

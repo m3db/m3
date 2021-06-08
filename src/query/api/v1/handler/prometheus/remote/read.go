@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
@@ -319,8 +320,8 @@ func parseExpr(
 	var vectorsInspected []*promql.VectorSelector
 	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
 		var (
-			start         = queryStart
-			end           = queryEnd
+			start         = xtime.ToUnixNano(queryStart)
+			end           = xtime.ToUnixNano(queryEnd)
 			offset        time.Duration
 			labelMatchers []*labels.Matcher
 		)
@@ -565,7 +566,7 @@ func datapointsConvert(dps ts.Datapoints) comparator.Datapoints {
 	for _, dp := range dps.Datapoints() {
 		val := comparator.Datapoint{
 			Value:     comparator.Value(dp.Value),
-			Timestamp: dp.Timestamp,
+			Timestamp: dp.Timestamp.ToTime(),
 		}
 		datapoints = append(datapoints, val)
 	}

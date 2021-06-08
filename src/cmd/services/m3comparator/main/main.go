@@ -65,7 +65,7 @@ func init() {
 	encodingOpts = encoding.NewOptions().SetEncoderPool(encoderPool).SetBytesPool(checkedBytesPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, true, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, true, encodingOpts)
 	})
 }
 

@@ -24,14 +24,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/models"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
 	emptyArgs = []interface{}{}
-	start     = time.Now()
+	start     = xtime.Now()
 	steps     = 15
 	testBound = models.Bounds{
 		Start:    start,

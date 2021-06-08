@@ -26,11 +26,10 @@ package writes
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
-	time0 "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -59,7 +58,7 @@ func (m *MockWriteBatch) EXPECT() *MockWriteBatchMockRecorder {
 }
 
 // Add mocks base method.
-func (m *MockWriteBatch) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockWriteBatch) Add(originalIndex int, id ident.ID, timestamp time.UnixNano, value float64, unit time.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -73,7 +72,7 @@ func (mr *MockWriteBatchMockRecorder) Add(originalIndex, id, timestamp, value, u
 }
 
 // AddTagged mocks base method.
-func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, encodedTags ts.EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, encodedTags ts.EncodedTags, timestamp time.UnixNano, value float64, unit time.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, encodedTags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -248,7 +247,7 @@ func (m *MockBatchWriter) EXPECT() *MockBatchWriterMockRecorder {
 }
 
 // Add mocks base method.
-func (m *MockBatchWriter) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockBatchWriter) Add(originalIndex int, id ident.ID, timestamp time.UnixNano, value float64, unit time.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -262,7 +261,7 @@ func (mr *MockBatchWriterMockRecorder) Add(originalIndex, id, timestamp, value, 
 }
 
 // AddTagged mocks base method.
-func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, encodedTags ts.EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, encodedTags ts.EncodedTags, timestamp time.UnixNano, value float64, unit time.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, encodedTags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)

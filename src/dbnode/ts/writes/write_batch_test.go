@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -51,7 +50,7 @@ var (
 					Name:  ident.StringID("name1"),
 					Value: ident.StringID("value1"),
 				})),
-			timestamp:  time.Now(),
+			timestamp:  xtime.Now(),
 			value:      0,
 			unit:       xtime.Nanosecond,
 			annotation: []byte("annotation1"),
@@ -63,7 +62,7 @@ var (
 					Name:  ident.StringID("name2"),
 					Value: ident.StringID("value2"),
 				})),
-			timestamp:  time.Now(),
+			timestamp:  xtime.Now(),
 			value:      1,
 			unit:       xtime.Nanosecond,
 			annotation: []byte("annotation2s"),
@@ -75,7 +74,7 @@ var (
 					Name:  ident.StringID("name3"),
 					Value: ident.StringID("value3"),
 				})),
-			timestamp:  time.Now(),
+			timestamp:  xtime.Now(),
 			value:      2,
 			unit:       xtime.Nanosecond,
 			annotation: []byte("annotation3s"),
@@ -103,7 +102,7 @@ func getTagEncoder() serialize.TagEncoder {
 type testWrite struct {
 	id         ident.ID
 	tagIter    ident.TagIterator
-	timestamp  time.Time
+	timestamp  xtime.UnixNano
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
@@ -254,7 +253,7 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 
 			if currSeries.ID.Equal(write.id) {
 				require.Equal(t, namespace, currWrite.Series.Namespace)
-				require.Equal(t, write.timestamp, currWrite.Datapoint.Timestamp)
+				require.Equal(t, write.timestamp, currWrite.Datapoint.TimestampNanos)
 				require.Equal(t, write.value, currWrite.Datapoint.Value)
 				require.Equal(t, write.unit, currWrite.Unit)
 				require.True(t, bytes.Equal(write.annotation, currWrite.Annotation))

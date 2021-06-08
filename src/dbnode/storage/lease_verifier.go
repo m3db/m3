@@ -22,14 +22,14 @@ package storage
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type flushStateRetriever interface {
-	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
+	FlushState(namespace ident.ID, shardID uint32, blockStart xtime.UnixNano) (fileOpState, error)
 }
 
 type leaseVerifier struct {

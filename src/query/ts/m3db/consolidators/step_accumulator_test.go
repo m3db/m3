@@ -26,13 +26,14 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	xts "github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAccumulator(t *testing.T) {
 	lookback := time.Minute
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	acc := NewStepLookbackAccumulator(
 		lookback,
 		lookback,
@@ -43,19 +44,19 @@ func TestAccumulator(t *testing.T) {
 	actual := acc.AccumulateAndMoveToNext()
 	assert.Nil(t, actual)
 
-	acc.AddPoint(ts.Datapoint{Timestamp: start, Value: 1})
-	acc.AddPoint(ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10})
+	acc.AddPoint(ts.Datapoint{TimestampNanos: start, Value: 1})
+	acc.AddPoint(ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10})
 	acc.BufferStep()
 	acc.BufferStep()
 	acc.BufferStep()
 	acc.AddPoint(ts.Datapoint{
-		Timestamp: start.Add(2*time.Minute + time.Second*30),
-		Value:     2,
+		TimestampNanos: start.Add(2*time.Minute + time.Second*30),
+		Value:          2,
 	})
 	acc.AddPoint(ts.Datapoint{
-		Timestamp: start.Add(3*time.Minute + time.Second),
-		Value:     3},
-	)
+		TimestampNanos: start.Add(3*time.Minute + time.Second),
+		Value:          3,
+	})
 	acc.BufferStep()
 
 	// NB: lookback limit: start
