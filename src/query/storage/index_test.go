@@ -278,8 +278,10 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
 				End:   xtime.ToUnixNano(now),
 				TagMatchers: models.Matchers{
-					models.Matcher{Type: models.MatchNotRegexp,
-						Name: []byte("foo"), Value: []byte("bar")},
+					models.Matcher{
+						Type: models.MatchNotRegexp,
+						Name: []byte("foo"), Value: []byte("bar"),
+					},
 				},
 				FilterNameTags:   [][]byte{[]byte("filter")},
 				CompleteNameOnly: true,
@@ -295,8 +297,10 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
 				End:   xtime.ToUnixNano(now),
 				TagMatchers: models.Matchers{
-					models.Matcher{Type: models.MatchNotRegexp,
-						Name: []byte("foo"), Value: []byte("bar")},
+					models.Matcher{
+						Type: models.MatchNotRegexp,
+						Name: []byte("foo"), Value: []byte("bar"),
+					},
 				},
 			},
 			expectedErr: true,
@@ -311,8 +315,10 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
 				End:   xtime.ToUnixNano(now),
 				TagMatchers: models.Matchers{
-					models.Matcher{Type: models.MatchNotRegexp,
-						Name: []byte("foo"), Value: []byte("bar")},
+					models.Matcher{
+						Type: models.MatchNotRegexp,
+						Name: []byte("foo"), Value: []byte("bar"),
+					},
 				},
 			},
 			expectedAdjustedStart: timePtr(now.Add(-30 * time.Minute)),

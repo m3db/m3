@@ -146,7 +146,7 @@ func ParseDurationLimit(
 		n, err := time.ParseDuration(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse duration limit: input=%s, err=%v", str, err)
+				"could not parse duration limit: input=%s, err=%w", str, err)
 			return 0, err
 		}
 		return n, nil
@@ -156,7 +156,7 @@ func ParseDurationLimit(
 		n, err := time.ParseDuration(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse duration limit: input=%s, err=%v", str, err)
+				"could not parse duration limit: input=%s, err=%w", str, err)
 			return 0, err
 		}
 		return n, nil
