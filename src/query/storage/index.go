@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -74,8 +75,8 @@ func FetchOptionsToM3Options(
 	fetchOptions *FetchOptions,
 	fetchQuery *FetchQuery,
 ) (index.QueryOptions, error) {
-	start, end, err := convertStartEndWithRangeLimit(fetchQuery.Start, fetchQuery.End,
-		fetchOptions)
+	start, end, err := convertStartEndWithRangeLimit(fetchQuery.Start,
+		fetchQuery.End, fetchOptions)
 	if err != nil {
 		return index.QueryOptions{}, err
 	}
@@ -87,8 +88,8 @@ func FetchOptionsToM3Options(
 		RequireExhaustive: fetchOptions.RequireExhaustive,
 		RequireNoWait:     fetchOptions.RequireNoWait,
 		Source:            fetchOptions.Source,
-		StartInclusive:    start,
-		EndExclusive:      end,
+		StartInclusive:    xtime.ToUnixNano(start),
+		EndExclusive:      xtime.ToUnixNano(end),
 	}, nil
 }
 
@@ -136,8 +137,8 @@ func FetchOptionsToAggregateOptions(
 	fetchOptions *FetchOptions,
 	tagQuery *CompleteTagsQuery,
 ) (index.AggregationOptions, error) {
-	start, end, err := convertStartEndWithRangeLimit(tagQuery.Start, tagQuery.End,
-		fetchOptions)
+	start, end, err := convertStartEndWithRangeLimit(tagQuery.Start.ToTime(),
+		tagQuery.End.ToTime(), fetchOptions)
 	if err != nil {
 		return index.AggregationOptions{}, err
 	}
@@ -149,8 +150,8 @@ func FetchOptionsToAggregateOptions(
 			Source:            fetchOptions.Source,
 			RequireExhaustive: fetchOptions.RequireExhaustive,
 			RequireNoWait:     fetchOptions.RequireNoWait,
-			StartInclusive:    start,
-			EndExclusive:      end,
+			StartInclusive:    xtime.ToUnixNano(start),
+			EndExclusive:      xtime.ToUnixNano(end),
 		},
 		FieldFilter: tagQuery.FilterNameTags,
 		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),

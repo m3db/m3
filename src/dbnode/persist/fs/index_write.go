@@ -34,6 +34,7 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xos "github.com/m3db/m3/src/x/os"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	protobuftypes "github.com/gogo/protobuf/types"
 )
@@ -63,9 +64,9 @@ type indexWriter struct {
 
 	err             error
 	blockSize       time.Duration
-	start           time.Time
+	start           xtime.UnixNano
 	fileSetType     persist.FileSetType
-	snapshotTime    time.Time
+	snapshotTime    xtime.UnixNano
 	volumeIndex     int
 	indexVolumeType idxpersist.IndexVolumeType
 	shards          map[uint32]struct{}
@@ -247,11 +248,11 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 	}
 	info := &index.IndexVolumeInfo{
 		MajorVersion: indexFileSetMajorVersion,
-		BlockStart:   w.start.UnixNano(),
+		BlockStart:   int64(w.start),
 		BlockSize:    int64(w.blockSize),
 		FileType:     int64(w.fileSetType),
 		Shards:       shards,
-		SnapshotTime: w.snapshotTime.UnixNano(),
+		SnapshotTime: int64(w.snapshotTime),
 		IndexVolumeType: &protobuftypes.StringValue{
 			Value: string(w.indexVolumeType),
 		},

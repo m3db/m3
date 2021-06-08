@@ -72,7 +72,7 @@ func NewShardTimeRangesTimeWindowGroups(
 	return grouped
 }
 
-func minTime(x, y time.Time) time.Time {
+func minTime(x, y xtime.UnixNano) xtime.UnixNano {
 	if x.Before(y) {
 		return x
 	}

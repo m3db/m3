@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -265,7 +266,7 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 		// Iterate through all in flight requests and send them to the seeker in
 		// batches of block time + shard.
 		currBatchShard := uint32(0)
-		currBatchStart := time.Time{}
+		currBatchStart := xtime.UnixNano(0)
 		currBatchReqs = currBatchReqs[:0]
 		for _, req := range inFlight {
 			if !req.start.Equal(currBatchStart) ||
@@ -371,7 +372,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 func (r *blockRetriever) fetchBatch(
 	seekerMgr DataFileSetSeekerManager,
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	allReqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 	retrieverResources *reusableRetrieverResources,
@@ -414,7 +415,7 @@ func (r *blockRetriever) fetchBatch(
 		if err != nil {
 			r.logger.Error("err returning seeker for shard",
 				zap.Uint32("shard", shard),
-				zap.Int64("blockStart", blockStart.Unix()),
+				zap.Int64("blockStart", blockStart.Seconds()),
 				zap.Error(err),
 			)
 		}
@@ -578,7 +579,7 @@ func (r *blockRetriever) fetchBatch(
 func (r *blockRetriever) seriesPresentInBloomFilter(
 	id ident.ID,
 	shard uint32,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) (bool, error) {
 	// Capture variable and RLock() because this slice can be modified in the
 	// Open() method
@@ -609,7 +610,7 @@ func (r *blockRetriever) streamRequest(
 	req *retrieveRequest,
 	shard uint32,
 	id ident.ID,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) error {
 	req.resultWg.Add(1)
 	req.shard = shard
@@ -658,7 +659,7 @@ func (r *blockRetriever) Stream(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
@@ -700,7 +701,7 @@ func (r *blockRetriever) StreamWideEntry(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
@@ -823,7 +824,7 @@ type retrieveRequest struct {
 
 	id         ident.ID
 	tags       ident.TagIterator
-	start      time.Time
+	start      xtime.UnixNano
 	blockSize  time.Duration
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
@@ -912,7 +913,11 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.reader.Reset(segment)
 }
 
-func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
+func (req *retrieveRequest) ResetWindowed(
+	segment ts.Segment,
+	start xtime.UnixNano,
+	blockSize time.Duration,
+) {
 	req.start = start
 	req.blockSize = blockSize
 	req.Reset(segment)
@@ -959,10 +964,6 @@ func (req *retrieveRequest) Clone(
 		return nil, req.err
 	}
 	return req.reader.Clone(pool)
-}
-
-func (req *retrieveRequest) Start() time.Time {
-	return req.start
 }
 
 func (req *retrieveRequest) BlockSize() time.Duration {
@@ -1013,7 +1014,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.shard = 0
 	req.id = nil
 	req.tags = ident.EmptyTagIterator
-	req.start = time.Time{}
+	req.start = 0
 	req.blockSize = 0
 	req.onRetrieve = nil
 	req.streamReqType = streamInvalidReq

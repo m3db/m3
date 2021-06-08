@@ -27,7 +27,6 @@ import (
 	"math"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -139,7 +138,7 @@ func (m DecodedBlockMap) VerifyEquals(other DecodedBlockMap) error {
 // their start times and tags.
 type ReaderAtTime struct {
 	// Start is the block start time.
-	Start time.Time
+	Start xtime.UnixNano
 	// Reader is the block segment reader.
 	Reader xio.SegmentReader
 	// Tags is the list of tags in a basic string map format.
@@ -265,7 +264,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 		DoAndReturn(
 			func(
 				_ context.Context,
-				ts time.Time,
+				ts xtime.UnixNano,
 				val float64,
 				unit xtime.Unit,
 				annotation []byte,

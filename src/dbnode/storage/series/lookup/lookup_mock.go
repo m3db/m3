@@ -26,10 +26,9 @@ package lookup
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts/writes"
-	time0 "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -58,10 +57,10 @@ func (m *MockIndexWriter) EXPECT() *MockIndexWriterMockRecorder {
 }
 
 // BlockStartForWriteTime mocks base method.
-func (m *MockIndexWriter) BlockStartForWriteTime(arg0 time.Time) time0.UnixNano {
+func (m *MockIndexWriter) BlockStartForWriteTime(arg0 time.UnixNano) time.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStartForWriteTime", arg0)
-	ret0, _ := ret[0].(time0.UnixNano)
+	ret0, _ := ret[0].(time.UnixNano)
 	return ret0
 }
 

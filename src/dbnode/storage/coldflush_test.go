@@ -24,16 +24,17 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/require"
 )
 
 func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -66,7 +67,7 @@ func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
 
 	var (
 		wg  sync.WaitGroup
-		now = time.Unix(0, 0)
+		now = xtime.UnixNano(0)
 	)
 	wg.Add(2)
 
@@ -95,7 +96,7 @@ func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
 }
 
 func TestColdFlushManagerFlushDoneFlushError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -119,18 +120,18 @@ func TestColdFlushManagerFlushDoneFlushError(t *testing.T) {
 }
 
 func TestColdFlushManagerSkipRun(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	database := newMockdatabase(ctrl)
 	cfm := newColdFlushManager(database, nil, DefaultTestOptions())
 
 	database.EXPECT().IsBootstrapped().Return(false)
-	require.False(t, cfm.Run(time.Now()))
+	require.False(t, cfm.Run(xtime.Now()))
 }
 
 func TestColdFlushManagerRunCleanupPanic(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	database.EXPECT().IsBootstrapped().Return(true)
@@ -140,7 +141,7 @@ func TestColdFlushManagerRunCleanupPanic(t *testing.T) {
 	mgr := cfm.(*coldFlushManager)
 	mgr.databaseCleanupManager = cm
 
-	ts := time.Now()
+	ts := xtime.Now()
 	gomock.InOrder(
 		cm.EXPECT().ColdFlushCleanup(ts).Return(errors.New("cleanup error")),
 	)
@@ -150,7 +151,7 @@ func TestColdFlushManagerRunCleanupPanic(t *testing.T) {
 }
 
 func TestColdFlushManagerRunFlushPanic(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	database.EXPECT().IsBootstrapped().Return(true)
@@ -161,7 +162,7 @@ func TestColdFlushManagerRunFlushPanic(t *testing.T) {
 	mgr := cfm.(*coldFlushManager)
 	mgr.databaseCleanupManager = cm
 
-	ts := time.Now()
+	ts := xtime.Now()
 	gomock.InOrder(
 		cm.EXPECT().ColdFlushCleanup(ts).Return(nil),
 	)

@@ -23,7 +23,6 @@ package m3db
 import (
 	"bytes"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -36,7 +35,7 @@ import (
 const initBlockLength = 10
 
 type blockAtTime struct {
-	time  time.Time
+	time  xtime.UnixNano
 	block encodedBlock
 }
 
@@ -185,8 +184,8 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 			iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 				ID:             ident.StringID(iterDetails.id.String()),
 				Namespace:      ident.StringID(iterDetails.ns.String()),
-				StartInclusive: xtime.ToUnixNano(iterDetails.start),
-				EndExclusive:   xtime.ToUnixNano(iterDetails.end),
+				StartInclusive: iterDetails.start,
+				EndExclusive:   iterDetails.end,
 			}, nil)
 
 			newBl := bl.block
@@ -204,7 +203,7 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 }
 
 type seriesIteratorDetails struct {
-	start, end time.Time
+	start, end xtime.UnixNano
 	id, ns     ident.ID
 	tags       models.Tags
 	// NB: the indices that this series iterator exists in already.

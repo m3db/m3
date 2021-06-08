@@ -51,7 +51,7 @@ func TestQueryLimitExceededError(t *testing.T) {
 
 	var (
 		nowFn     = testSetup.StorageOpts().ClockOptions().NowFn()
-		end       = nowFn().Truncate(time.Hour)
+		end       = xtime.ToUnixNano(nowFn().Truncate(time.Hour))
 		start     = end.Add(-time.Hour)
 		query     = index.Query{Query: idx.NewTermQuery([]byte("tag"), []byte("value"))}
 		queryOpts = index.QueryOptions{StartInclusive: start, EndExclusive: end}
@@ -65,7 +65,7 @@ func TestQueryLimitExceededError(t *testing.T) {
 		var (
 			metricName = fmt.Sprintf("metric_%v", i)
 			tags       = ident.StringTag("tag", "value")
-			timestamp  = nowFn().Add(-time.Minute * time.Duration(i+1))
+			timestamp  = xtime.ToUnixNano(nowFn()).Add(-time.Minute * time.Duration(i+1))
 		)
 		err := session.WriteTagged(ns.ID(), ident.StringID(metricName),
 			ident.NewTagsIterator(ident.NewTags(tags)), timestamp, 0.0, xtime.Second, nil)

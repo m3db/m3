@@ -23,7 +23,6 @@ package ingestm3msg
 import (
 	"bytes"
 	"context"
-	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
@@ -41,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -267,6 +267,6 @@ func (op *ingestOp) resetDataPoints() {
 	if len(op.datapoints) != 1 {
 		op.datapoints = make(ts.Datapoints, 1)
 	}
-	op.datapoints[0].Timestamp = time.Unix(0, op.metricNanos)
+	op.datapoints[0].Timestamp = xtime.UnixNano(op.metricNanos)
 	op.datapoints[0].Value = op.value
 }

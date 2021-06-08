@@ -38,7 +38,7 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	segments := []Segment{
 		NewSegment(segment.NewMockSegment(ctrl), false),
@@ -49,7 +49,7 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 		NewSegment(segment.NewMockSegment(ctrl), false),
 	}
 
-	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize)}
+	times := []xtime.UnixNano{start, start.Add(testBlockSize), start.Add(2 * testBlockSize)}
 	tr0 := NewShardTimeRangesFromRange(times[0], times[1], 1, 2, 3)
 	tr1 := NewShardTimeRangesFromRange(times[1], times[2], 1, 2, 3)
 
@@ -89,8 +89,8 @@ func TestIndexResultSetUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	t0 := time.Now().Truncate(time.Hour)
-	tn := func(i int) time.Time {
+	t0 := xtime.Now().Truncate(time.Hour)
+	tn := func(i int) xtime.UnixNano {
 		return t0.Add(time.Duration(i) * time.Hour)
 	}
 	results := NewIndexBootstrapResult()
@@ -103,25 +103,26 @@ func TestIndexResultAdd(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	t0 := time.Now().Truncate(time.Hour)
-	tn := func(i int) time.Time {
+	t0 := xtime.Now().Truncate(time.Hour)
+	tn := func(i int) xtime.UnixNano {
 		return t0.Add(time.Duration(i) * time.Hour)
 	}
 	results := NewIndexBootstrapResult()
 	testRanges := NewShardTimeRangesFromRange(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-	results.Add(NewIndexBlockByVolumeType(time.Time{}), testRanges)
+	results.Add(NewIndexBlockByVolumeType(0), testRanges)
 	require.Equal(t, testRanges, results.Unfulfilled())
 }
 
 func TestShardTimeRangesToUnfulfilledIndexResult(t *testing.T) {
+	now := xtime.Now()
 	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
-			Start: time.Now(),
-			End:   time.Now().Add(time.Minute),
+			Start: now,
+			End:   now.Add(time.Minute),
 		}),
 		1: xtime.NewRanges(xtime.Range{
-			Start: time.Now().Add(3 * time.Minute),
-			End:   time.Now().Add(4 * time.Minute),
+			Start: now.Add(3 * time.Minute),
+			End:   now.Add(4 * time.Minute),
 		}),
 	}
 	r := str.ToUnfulfilledIndexResult()
@@ -134,8 +135,8 @@ func TestIndexResultsMarkFulfilled(t *testing.T) {
 	defer ctrl.Finish()
 
 	iopts := namespace.NewIndexOptions().SetBlockSize(time.Hour * 2)
-	t0 := time.Now().Truncate(2 * time.Hour)
-	tn := func(i int) time.Time {
+	t0 := xtime.Now().Truncate(2 * time.Hour)
+	tn := func(i int) xtime.UnixNano {
 		return t0.Add(time.Duration(i) * time.Hour)
 	}
 	results := make(IndexResults)
@@ -150,7 +151,7 @@ func TestIndexResultsMarkFulfilled(t *testing.T) {
 	fulfilledRange := NewShardTimeRangesFromRange(tn(0), tn(1), 1)
 	require.NoError(t, results.MarkFulfilled(tn(0), fulfilledRange, idxpersist.DefaultIndexVolumeType, iopts))
 	require.Equal(t, 1, len(results))
-	blkByVolumeType, ok := results[xtime.ToUnixNano(tn(0))]
+	blkByVolumeType, ok := results[tn(0)]
 	require.True(t, ok)
 	require.True(t, tn(0).Equal(blkByVolumeType.blockStart))
 	blk, ok := blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
@@ -161,7 +162,7 @@ func TestIndexResultsMarkFulfilled(t *testing.T) {
 	nextFulfilledRange := NewShardTimeRangesFromRange(tn(1), tn(2), 2)
 	require.NoError(t, results.MarkFulfilled(tn(1), nextFulfilledRange, idxpersist.DefaultIndexVolumeType, iopts))
 	require.Equal(t, 1, len(results))
-	blkByVolumeType, ok = results[xtime.ToUnixNano(tn(0))]
+	blkByVolumeType, ok = results[tn(0)]
 	require.True(t, ok)
 	require.True(t, tn(0).Equal(blkByVolumeType.blockStart))
 	fulfilledRange.AddRanges(nextFulfilledRange)
@@ -173,7 +174,7 @@ func TestIndexResultsMarkFulfilled(t *testing.T) {
 	nextFulfilledRange = NewShardTimeRangesFromRange(tn(2), tn(4), 1, 2, 3)
 	require.NoError(t, results.MarkFulfilled(tn(2), nextFulfilledRange, idxpersist.DefaultIndexVolumeType, iopts))
 	require.Equal(t, 2, len(results))
-	blkByVolumeType, ok = results[xtime.ToUnixNano(tn(2))]
+	blkByVolumeType, ok = results[tn(2)]
 	require.True(t, ok)
 	require.True(t, tn(2).Equal(blkByVolumeType.blockStart))
 	blk, ok = blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)

@@ -50,6 +50,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
 )
 
@@ -74,11 +75,12 @@ var (
 
 // Handler represents the top-level HTTP handler.
 type Handler struct {
-	registry       *queryhttp.EndpointRegistry
-	handler        http.Handler
-	options        options.HandlerOptions
-	customHandlers []options.CustomHandler
-	logger         *zap.Logger
+	registry         *queryhttp.EndpointRegistry
+	handler          *mux.Router
+	options          options.HandlerOptions
+	customHandlers   []options.CustomHandler
+	logger           *zap.Logger
+	middlewareConfig config.MiddlewareConfiguration
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -89,25 +91,21 @@ func (h *Handler) Router() http.Handler {
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
 	handlerOptions options.HandlerOptions,
-	middlewareConfig *config.MiddlewareConfiguration,
+	middlewareConfig config.MiddlewareConfiguration,
 	customHandlers ...options.CustomHandler,
 ) *Handler {
 	var (
 		r        = mux.NewRouter()
 		logger   = handlerOptions.InstrumentOpts().Logger()
-		registry = queryhttp.NewEndpointRegistry(
-			r,
-			middlewareConfig,
-			handlerOptions.InstrumentOpts(),
-		)
+		registry = queryhttp.NewEndpointRegistry(r)
 	)
-
 	return &Handler{
-		registry:       registry,
-		handler:        r,
-		options:        handlerOptions,
-		customHandlers: customHandlers,
-		logger:         logger,
+		registry:         registry,
+		handler:          r,
+		options:          handlerOptions,
+		customHandlers:   customHandlers,
+		logger:           logger,
+		middlewareConfig: middlewareConfig,
 	}
 }
 
@@ -176,54 +174,54 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Query routable endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       native.PromReadURL,
-		Handler:    h.options.QueryRouter(),
-		Methods:    native.PromReadHTTPMethods,
-		Middleware: middleware.PromQuery,
+		Path:               native.PromReadURL,
+		Handler:            h.options.QueryRouter(),
+		Methods:            native.PromReadHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       native.PromReadInstantURL,
-		Handler:    h.options.InstantQueryRouter(),
-		Methods:    native.PromReadInstantHTTPMethods,
-		Middleware: middleware.PromQuery,
+		Path:               native.PromReadInstantURL,
+		Handler:            h.options.InstantQueryRouter(),
+		Methods:            native.PromReadInstantHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 
 	// Prometheus endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       "/prometheus" + native.PromReadURL,
-		Handler:    promqlQueryHandler,
-		Methods:    native.PromReadHTTPMethods,
-		Middleware: middleware.PromQuery,
+		Path:               "/prometheus" + native.PromReadURL,
+		Handler:            promqlQueryHandler,
+		Methods:            native.PromReadHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       "/prometheus" + native.PromReadInstantURL,
-		Handler:    promqlInstantQueryHandler,
-		Methods:    native.PromReadInstantHTTPMethods,
-		Middleware: middleware.PromQuery,
+		Path:               "/prometheus" + native.PromReadInstantURL,
+		Handler:            promqlInstantQueryHandler,
+		Methods:            native.PromReadInstantHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 
 	// M3Query endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       "/m3query" + native.PromReadURL,
-		Handler:    nativePromReadHandler,
-		Methods:    native.PromReadHTTPMethods,
-		Middleware: middleware.Query,
+		Path:               "/m3query" + native.PromReadURL,
+		Handler:            nativePromReadHandler,
+		Methods:            native.PromReadHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       "/m3query" + native.PromReadInstantURL,
-		Handler:    nativePromReadInstantHandler,
-		Methods:    native.PromReadInstantHTTPMethods,
-		Middleware: middleware.Query,
+		Path:               "/m3query" + native.PromReadInstantURL,
+		Handler:            nativePromReadInstantHandler,
+		Methods:            native.PromReadInstantHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
@@ -241,7 +239,7 @@ func (h *Handler) RegisterRoutes() error {
 		Handler: promRemoteWriteHandler,
 		Methods: methods(remote.PromWriteHTTPMethod),
 		// Register with no response logging for write calls since so frequent.
-		Middleware: middleware.NoResponseLogging,
+		MiddlewareOverride: middleware.WithNoResponseLogging,
 	}); err != nil {
 		return err
 	}
@@ -252,7 +250,7 @@ func (h *Handler) RegisterRoutes() error {
 		Handler: influxdb.NewInfluxWriterHandler(h.options),
 		Methods: methods(influxdb.InfluxWriteHTTPMethod),
 		// Register with no response logging for write calls since so frequent.
-		Middleware: middleware.NoResponseLogging,
+		MiddlewareOverride: middleware.WithNoResponseLogging,
 	}); err != nil {
 		return err
 	}
@@ -284,28 +282,28 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Tag completion endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       native.CompleteTagsURL,
-		Handler:    native.NewCompleteTagsHandler(h.options),
-		Methods:    methods(native.CompleteTagsHTTPMethod),
-		Middleware: middleware.PromQuery,
+		Path:               native.CompleteTagsURL,
+		Handler:            native.NewCompleteTagsHandler(h.options),
+		Methods:            methods(native.CompleteTagsHTTPMethod),
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       remote.TagValuesURL,
-		Handler:    remote.NewTagValuesHandler(h.options),
-		Methods:    methods(remote.TagValuesHTTPMethod),
-		Middleware: middleware.Query,
+		Path:               remote.TagValuesURL,
+		Handler:            remote.NewTagValuesHandler(h.options),
+		Methods:            methods(remote.TagValuesHTTPMethod),
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 
 	// List tag endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       native.ListTagsURL,
-		Handler:    native.NewListTagsHandler(h.options),
-		Methods:    native.ListTagsHTTPMethods,
-		Middleware: middleware.Query,
+		Path:               native.ListTagsURL,
+		Handler:            native.NewListTagsHandler(h.options),
+		Methods:            native.ListTagsHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
@@ -328,10 +326,10 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Series match endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:       remote.PromSeriesMatchURL,
-		Handler:    remote.NewPromSeriesMatchHandler(h.options),
-		Methods:    remote.PromSeriesMatchHTTPMethods,
-		Middleware: middleware.Query,
+		Path:               remote.PromSeriesMatchURL,
+		Handler:            remote.NewPromSeriesMatchHandler(h.options),
+		Methods:            remote.PromSeriesMatchHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
@@ -448,6 +446,7 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
+	customMiddle := make(map[*mux.Route]middleware.OverrideOptions)
 	// Register custom endpoints last to have these conflict with
 	// any existing routes.
 	for _, custom := range h.customHandlers {
@@ -465,37 +464,60 @@ func (h *Handler) RegisterRoutes() error {
 
 			if !prevRoute {
 				if err := h.registry.Register(queryhttp.RegisterOptions{
-					Path:       custom.Route(),
-					Handler:    handler,
-					Methods:    methods(method),
-					Middleware: custom.Middleware(),
+					Path:               custom.Route(),
+					Handler:            handler,
+					Methods:            methods(method),
+					MiddlewareOverride: custom.MiddlewareOverride(),
 				}); err != nil {
 					return err
 				}
 			} else {
-				// TODO(rhall): we should figure out a way to allow merging middleware between the previous and custom
-				// handlers.
-				if custom.Middleware() != nil {
-					return fmt.Errorf("cannot apply middleware to an existing route: %s", custom.Route())
-				}
+				customMiddle[entry] = custom.MiddlewareOverride()
 				entry.Handler(handler)
 			}
 		}
 	}
 
+	// NB: the double http_handler was accidentally introduced and now we are
+	// stuck with it for backwards compatibility.
+	middleIOpts := instrumentOpts.SetMetricsScope(
+		h.options.InstrumentOpts().MetricsScope().SubScope("http_handler_http_handler"))
+
 	// Apply middleware after the custom handlers have overridden the previous handlers so the middleware functions
 	// are dispatched before the custom handler.
 	// req -> middleware fns -> custom handler -> previous handler.
-	for _, e := range h.registry.Entries() {
-		h := e.Route.GetHandler()
+	err = h.registry.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		handler := route.GetHandler()
+		opts := middleware.Options{
+			InstrumentOpts: middleIOpts,
+			Route:          route,
+			Clock:          clockwork.NewRealClock(),
+			Logging:        middleware.NewLoggingOptions(h.middlewareConfig.Logging),
+			Metrics: middleware.MetricsOptions{
+				Config: h.middlewareConfig.Metrics,
+			},
+		}
+		override := h.registry.MiddlewareOpts(route)
+		if override != nil {
+			opts = override(opts)
+		}
+		if customMiddle[route] != nil {
+			opts = customMiddle[route](opts)
+		}
+		middle := h.options.RegisterMiddleware()(opts)
 
 		// iterate through in reverse order so each Middleware fn gets the proper next handler to dispatch. this ensures the
 		// Middleware is dispatched in the expected order (first -> last).
-		for i := len(e.Middleware) - 1; i >= 0; i-- {
-			h = e.Middleware[i].Middleware(h)
+		for i := len(middle) - 1; i >= 0; i-- {
+			handler = middle[i].Middleware(handler)
 		}
 
-		e.Route.Handler(h)
+		route.Handler(handler)
+		return nil
+	})
+
+	if err != nil {
+		return err
 	}
 
 	return nil

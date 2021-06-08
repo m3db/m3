@@ -58,8 +58,8 @@ var (
 			return engine.NewRangeQuery(
 				queryable,
 				params.Query,
-				params.Start,
-				params.End,
+				params.Start.ToTime(),
+				params.End.ToTime(),
 				params.Step)
 		}
 	}
@@ -170,6 +170,13 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Bool("instant", h.opts.instant))
 	}
 
+	err = handleroptions.AddDBResultResponseHeaders(w, resultMetadata, fetchOptions)
+	if err != nil {
+		h.logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	returnedDataLimited := h.limitReturnedData(query, res, fetchOptions)
 	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(returnedDataLimited.Datapoints))
 	h.returnedDataMetrics.FetchSeries.RecordValue(float64(returnedDataLimited.Series))
@@ -180,7 +187,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		TotalSeries: returnedDataLimited.TotalSeries,
 		Datapoints:  returnedDataLimited.Datapoints,
 	}
-	err = handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions, limited, nil)
+	err = handleroptions.AddReturnedLimitResponseHeaders(w, limited, nil)
 	if err != nil {
 		h.logger.Error("error writing response headers",
 			zap.Error(err), zap.String("query", query),

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // CloneBlock returns a clone of the block with the underlying data reset
@@ -42,7 +43,7 @@ func (b BlockReader) CloneBlock(pool pool.CheckedBytesPool) (BlockReader, error)
 
 // IsEmpty returns true for the empty block
 func (b BlockReader) IsEmpty() bool {
-	return b.SegmentReader == nil && b.Start.Equal(timeZero) && b.BlockSize == 0
+	return b.SegmentReader == nil && b.Start == timeZero && b.BlockSize == 0
 }
 
 // IsNotEmpty returns false for the empty block
@@ -50,8 +51,13 @@ func (b BlockReader) IsNotEmpty() bool {
 	return !b.IsEmpty()
 }
 
-// ResetWindowed resets the underlying reader window, as well as start time and blockSize for the block
-func (b *BlockReader) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
+// ResetWindowed resets the underlying reader window, as well as start time and
+// blockSize for the block
+func (b *BlockReader) ResetWindowed(
+	segment ts.Segment,
+	start xtime.UnixNano,
+	blockSize time.Duration,
+) {
 	b.Reset(segment)
 	b.Start = start
 	b.BlockSize = blockSize

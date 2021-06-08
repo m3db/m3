@@ -226,7 +226,7 @@ func TestIngesterHandleConn(t *testing.T) {
 		// Clone tags because they (and their underlying bytes) are pooled.
 		found = append(found, testMetric{
 			tags:      tags.Clone(),
-			timestamp: int(dp[0].Timestamp.Unix()),
+			timestamp: int(dp[0].Timestamp.Seconds()),
 			value:     dp[0].Value,
 		})
 
@@ -356,7 +356,7 @@ func TestIngesterHonorsMatchers(t *testing.T) {
 					// Clone tags because they (and their underlying bytes) are pooled.
 					found = append(found, testMetric{
 						tags:      tags.Clone(),
-						timestamp: int(dp[0].Timestamp.Unix()),
+						timestamp: int(dp[0].Timestamp.Seconds()),
 						value:     dp[0].Value,
 					})
 					lock.Unlock()
@@ -542,7 +542,7 @@ func newMockDownsamplerAndWriter(
 		// Clone tags because they (and their underlying bytes) are pooled.
 		*found = append(*found, testMetric{
 			tags:      tags.Clone(),
-			timestamp: int(dp[0].Timestamp.Unix()),
+			timestamp: int(dp[0].Timestamp.Seconds()),
 			value:     dp[0].Value,
 		})
 

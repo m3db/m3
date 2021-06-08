@@ -24,49 +24,26 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/middleware"
-	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/gorilla/mux"
+
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 )
 
 // NewEndpointRegistry returns a new endpoint registry.
-func NewEndpointRegistry(
-	router *mux.Router,
-	middlewareConfig *config.MiddlewareConfiguration,
-	instrumentOpts instrument.Options,
-) *EndpointRegistry {
-	instrumentOpts = instrumentOpts.SetMetricsScope(
-		// NB: the double http_handler was accidentally introduced and now we are
-		// stuck with it for backwards compatibility.
-		instrumentOpts.MetricsScope().SubScope("http_handler_http_handler"))
+func NewEndpointRegistry(router *mux.Router) *EndpointRegistry {
 	return &EndpointRegistry{
-		router:             router,
-		instrumentOpts:     instrumentOpts,
-		middlewareConfig:   middlewareConfig,
-		registeredByRoute:  make(map[routeKey]*mux.Route),
-		registeredHandlers: make([]RegistryEntry, 0),
+		router:            router,
+		registeredByRoute: make(map[routeKey]*mux.Route),
+		middlewareOpts:    make(map[*mux.Route]middleware.OverrideOptions),
 	}
 }
 
 // EndpointRegistry is an endpoint registry that can register routes
 // and instrument them.
 type EndpointRegistry struct {
-	router             *mux.Router
-	instrumentOpts     instrument.Options
-	middlewareConfig   *config.MiddlewareConfiguration
-	registeredByRoute  map[routeKey]*mux.Route
-	registeredHandlers []RegistryEntry
-}
-
-// RegistryEntry is an entry in the Registry.
-type RegistryEntry struct {
-	// Route is the registered Handler.
-	Route *mux.Route
-	// Middleware is the set of middleware functions to run before the registered Handler.
-	Middleware []mux.MiddlewareFunc
+	router            *mux.Router
+	registeredByRoute map[routeKey]*mux.Route
+	middlewareOpts    map[*mux.Route]middleware.OverrideOptions
 }
 
 type routeKey struct {
@@ -77,32 +54,18 @@ type routeKey struct {
 
 // RegisterOptions are options for registering a handler.
 type RegisterOptions struct {
-	Path       string
-	PathPrefix string
-	Handler    http.Handler
-	Methods    []string
-	Middleware options.RegisterMiddleware
+	Path               string
+	PathPrefix         string
+	Handler            http.Handler
+	Methods            []string
+	MiddlewareOverride middleware.OverrideOptions
 }
 
 // Register registers an endpoint.
 func (r *EndpointRegistry) Register(opts RegisterOptions) error {
 	route := r.router.NewRoute()
+	r.middlewareOpts[route] = opts.MiddlewareOverride
 	handler := opts.Handler
-	if opts.Middleware == nil {
-		opts.Middleware = middleware.Default
-	}
-	middle := opts.Middleware(options.MiddlewareOptions{
-		InstrumentOpts: r.instrumentOpts,
-		Route:          route,
-		Config:         r.middlewareConfig,
-	})
-	// Note: middleware is not applied to the handler until after the custom handlers are resolved. this ensures the
-	// middleware is runs before the custom handler.
-
-	r.registeredHandlers = append(r.registeredHandlers, RegistryEntry{
-		Route:      route,
-		Middleware: middle,
-	})
 
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
 		route.Path(p).Handler(handler).Methods(opts.Methods...)
@@ -154,9 +117,9 @@ func (r *EndpointRegistry) RegisterPaths(
 	return nil
 }
 
-// Entries returns all registered entries.
-func (r *EndpointRegistry) Entries() []RegistryEntry {
-	return r.registeredHandlers
+// MiddlewareOpts returns the OverrideOptions for the route, or nil if none exist.
+func (r *EndpointRegistry) MiddlewareOpts(route *mux.Route) middleware.OverrideOptions {
+	return r.middlewareOpts[route]
 }
 
 // PathEntry resolves a registered route that was registered by path and method,

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	xclock "github.com/m3db/m3/src/x/clock"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,7 @@ import (
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetRepairEnabled(false)
@@ -85,7 +86,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 }
 
 func TestDatabaseMediatorDisableFileOpsAndWait(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetRepairEnabled(false)
@@ -119,7 +120,7 @@ func TestDatabaseMediatorDisableFileOpsAndWait(t *testing.T) {
 }
 
 func TestDatabaseMediatorEnqueueMutuallyExclusiveFnAndExecute(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()

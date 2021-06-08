@@ -47,10 +47,8 @@ const (
 	ReadURL = handler.RoutePrefixV1 + "/graphite/render"
 )
 
-var (
-	// ReadHTTPMethods are the HTTP methods used with this resource.
-	ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// ReadHTTPMethods are the HTTP methods used with this resource.
+var ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 // A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
@@ -220,7 +218,7 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	if err := handleroptions.AddResponseHeaders(w, meta, fetchOpts, nil, nil); err != nil {
+	if err := handleroptions.AddDBResultResponseHeaders(w, meta, fetchOpts); err != nil {
 		return err
 	}
 

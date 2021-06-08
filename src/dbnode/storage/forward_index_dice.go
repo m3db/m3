@@ -23,6 +23,8 @@ package storage
 import (
 	"fmt"
 	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // forwardIndexDice is a die roll that adds a chance for incoming index writes
@@ -86,7 +88,7 @@ func newForwardIndexDice(
 }
 
 // roll decides if a timestamp is eligible for forward index writes.
-func (o *forwardIndexDice) roll(timestamp time.Time) bool {
+func (o *forwardIndexDice) roll(timestamp xtime.UnixNano) bool {
 	if !o.enabled {
 		return false
 	}

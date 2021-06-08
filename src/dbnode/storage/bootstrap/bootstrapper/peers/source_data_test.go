@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -193,7 +192,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	start := xtime.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
 
 	target := result.NewShardTimeRanges().Set(
@@ -225,7 +224,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	nsMetadata := testNamespaceMetadataNoIndex(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
-	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	start := xtime.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
 
 	goodResult := result.NewShardResult(opts.ResultOptions())
@@ -292,7 +291,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		testNsMd.Options()
 		blockSize := ropts.BlockSize()
 
-		start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+		start := xtime.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end := start.Add(2 * ropts.BlockSize())
 
 		shard0ResultBlock1 := result.NewShardResult(opts.ResultOptions())
@@ -497,14 +496,14 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	testNsMd := testNamespaceMetadataNoIndex(t)
 	ropts := testNsMd.Options().RetentionOptions()
 
-	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	start := xtime.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	midway := start.Add(ropts.BlockSize())
 	end := start.Add(2 * ropts.BlockSize())
 
 	type resultsKey struct {
 		shard       uint32
-		start       int64
-		end         int64
+		start       xtime.UnixNano
+		end         xtime.UnixNano
 		expectedErr bool
 	}
 
@@ -514,7 +513,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		r.AddBlock(ident.StringID(id), ident.NewTags(ident.StringTag(id, id)), b)
 		start := b.StartTime()
 		end := start.Add(ropts.BlockSize())
-		results[resultsKey{shard, start.UnixNano(), end.UnixNano(), expectedErr}] = r
+		results[resultsKey{shard, start, end, expectedErr}] = r
 	}
 
 	segmentError := errors.New("segment err")
@@ -572,7 +571,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	for key, result := range results {
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				key.shard, time.Unix(0, key.start), time.Unix(0, key.end),
+				key.shard, key.start, key.end,
 				gomock.Any()).
 			Return(result, nil)
 
@@ -586,7 +585,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		peerMetaIter.EXPECT().Err().Return(nil).AnyTimes()
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksMetadataFromPeers(testNsMd.ID(),
-				key.shard, time.Unix(0, key.start), time.Unix(0, key.end), gomock.Any()).
+				key.shard, key.start, key.end, gomock.Any()).
 			Return(peerMetaIter, peerError).AnyTimes()
 	}
 

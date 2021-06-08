@@ -23,7 +23,6 @@ package m3db
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -38,7 +37,7 @@ import (
 
 func buildBlock(
 	count int,
-	now time.Time,
+	now xtime.UnixNano,
 	ctrl *gomock.Controller,
 ) *encodedBlock {
 	iters := make([]encoding.SeriesIterator, count)
@@ -47,8 +46,8 @@ func buildBlock(
 		it := encoding.NewMockSeriesIterator(ctrl)
 		it.EXPECT().Next().Return(true)
 		dp := ts.Datapoint{
-			Timestamp: now,
-			Value:     float64(i),
+			TimestampNanos: now,
+			Value:          float64(i),
 		}
 
 		it.EXPECT().Current().Return(dp, xtime.Second, nil)
@@ -70,7 +69,7 @@ func TestMultiSeriesIter(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	tests := []struct {
 		concurrency int
 		sizes       []int

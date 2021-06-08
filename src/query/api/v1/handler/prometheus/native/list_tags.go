@@ -37,6 +37,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
@@ -46,10 +47,8 @@ const (
 	ListTagsURL = handler.RoutePrefixV1 + "/labels"
 )
 
-var (
-	// ListTagsHTTPMethods are the HTTP methods for this handler.
-	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// ListTagsHTTPMethods are the HTTP methods for this handler.
+var ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 // ListTagsHandler represents a handler for list tags endpoint.
 type ListTagsHandler struct {
@@ -108,8 +107,8 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query := &storage.CompleteTagsQuery{
 		CompleteNameOnly: true,
 		TagMatchers:      tagMatchers,
-		Start:            start,
-		End:              end,
+		Start:            xtime.ToUnixNano(start),
+		End:              xtime.ToUnixNano(end),
 	}
 
 	logger := logging.WithContext(ctx, h.instrumentOpts)
@@ -120,6 +119,13 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if errors.IsTimeout(err) {
 			err = errors.NewErrQueryTimeout(err)
 		}
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	err = handleroptions.AddDBResultResponseHeaders(w, result.Metadata, opts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -139,14 +145,13 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta := result.Metadata
 	limited := &handleroptions.ReturnedMetadataLimited{
 		Results:      renderResult.Results,
 		TotalResults: renderResult.TotalResults,
 		Limited:      renderResult.LimitedMaxReturnedData,
 	}
-	if err := handleroptions.AddResponseHeaders(w, meta, opts, nil, limited); err != nil {
-		logger.Error("unable to render list tags headers", zap.Error(err))
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to write returned limit response headers", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}

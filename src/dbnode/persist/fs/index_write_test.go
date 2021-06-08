@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 
 	testSnapshotSegments := []struct {
 		snapshotIndex int
-		snapshotTime  time.Time
+		snapshotTime  xtime.UnixNano
 		shards        map[uint32]struct{}
 		segments      []testIndexSegment
 	}{
@@ -117,16 +118,16 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		actualFiles = append(actualFiles, file.Name())
 	}
 	require.Equal(t, []string{
-		fmt.Sprintf("fileset-%d-0-checkpoint.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-digest.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-info.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-segment-0-first.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-segment-0-second.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-checkpoint.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-digest.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-info.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-segment-0-first.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-segment-0-second.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-0-checkpoint.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-digest.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-info.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-segment-0-first.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-segment-0-second.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-checkpoint.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-digest.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-info.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-segment-0-first.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-segment-0-second.db", test.blockStart),
 	}, actualFiles)
 
 	// Verify can read them

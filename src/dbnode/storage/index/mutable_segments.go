@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -69,7 +70,7 @@ type mutableSegments struct {
 	backgroundSegments []*readableSeg
 
 	compact                  mutableSegmentsCompact
-	blockStart               time.Time
+	blockStart               xtime.UnixNano
 	blockOpts                BlockOptions
 	opts                     Options
 	iopts                    instrument.Options
@@ -101,7 +102,7 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func newMutableSegments(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	opts Options,
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
@@ -417,7 +418,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 	m.compact.numBackground++
 
 	logger := m.logger.With(
-		zap.Time("blockStart", m.blockStart),
+		zap.Time("blockStart", m.blockStart.ToTime()),
 		zap.Int("numBackgroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
@@ -582,7 +583,7 @@ func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.Documents
 	m.compact.numForeground++
 
 	logger := m.logger.With(
-		zap.Time("blockStart", m.blockStart),
+		zap.Time("blockStart", m.blockStart.ToTime()),
 		zap.Int("numForegroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0

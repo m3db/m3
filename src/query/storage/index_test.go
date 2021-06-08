@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -274,8 +275,8 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 				RequireExhaustive: true,
 			},
 			tagQuery: &CompleteTagsQuery{
-				Start: now.Add(-1 * time.Hour),
-				End:   now,
+				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
+				End:   xtime.ToUnixNano(now),
 				TagMatchers: models.Matchers{
 					models.Matcher{Type: models.MatchNotRegexp,
 						Name: []byte("foo"), Value: []byte("bar")},
@@ -291,8 +292,8 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 				RequireExhaustive: true,
 			},
 			tagQuery: &CompleteTagsQuery{
-				Start: now.Add(-1 * time.Hour),
-				End:   now,
+				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
+				End:   xtime.ToUnixNano(now),
 				TagMatchers: models.Matchers{
 					models.Matcher{Type: models.MatchNotRegexp,
 						Name: []byte("foo"), Value: []byte("bar")},
@@ -307,8 +308,8 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 				RequireExhaustive: false,
 			},
 			tagQuery: &CompleteTagsQuery{
-				Start: now.Add(-1 * time.Hour),
-				End:   now,
+				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
+				End:   xtime.ToUnixNano(now),
 				TagMatchers: models.Matchers{
 					models.Matcher{Type: models.MatchNotRegexp,
 						Name: []byte("foo"), Value: []byte("bar")},
@@ -333,10 +334,10 @@ func TestFetchOptionsToAggregateOptions(t *testing.T) {
 			expectedStart := tt.tagQuery.Start
 			expectedEnd := tt.tagQuery.End
 			if v := tt.expectedAdjustedStart; v != nil {
-				expectedStart = *v
+				expectedStart = xtime.ToUnixNano(*v)
 			}
 			if v := tt.expectedAdjustedEnd; v != nil {
-				expectedEnd = *v
+				expectedEnd = xtime.ToUnixNano(*v)
 			}
 			require.Equal(t, expectedStart, aggOpts.StartInclusive)
 			require.Equal(t, expectedEnd, aggOpts.EndExclusive)

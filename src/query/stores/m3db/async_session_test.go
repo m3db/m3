@@ -68,17 +68,17 @@ func TestAsyncSessionError(t *testing.T) {
 	// Wait for session to be done initializing (which we mock to return an error)
 	<-done
 
-	err := asyncSession.Write(nil, nil, time.Now(), 0, xtime.Second, nil)
+	err := asyncSession.Write(nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.EqualError(t, err, expectedErrStr)
 
-	err = asyncSession.WriteTagged(nil, nil, nil, time.Now(), 0, xtime.Second, nil)
+	err = asyncSession.WriteTagged(nil, nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.EqualError(t, err, expectedErrStr)
 
-	seriesIterator, err := asyncSession.Fetch(nil, nil, time.Now(), time.Now())
+	seriesIterator, err := asyncSession.Fetch(nil, nil, xtime.Now(), xtime.Now())
 	assert.Nil(t, seriesIterator)
 	assert.EqualError(t, err, expectedErrStr)
 
-	seriesIterators, err := asyncSession.FetchIDs(nil, nil, time.Now(), time.Now())
+	seriesIterators, err := asyncSession.FetchIDs(nil, nil, xtime.Now(), xtime.Now())
 	assert.Nil(t, seriesIterators)
 	assert.EqualError(t, err, expectedErrStr)
 
@@ -138,25 +138,25 @@ func TestAsyncSessionInitialized(t *testing.T) {
 	mockSession.EXPECT().
 		Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
-	err := asyncSession.Write(nil, nil, time.Now(), 0, xtime.Second, nil)
+	err := asyncSession.Write(nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
-	err = asyncSession.WriteTagged(nil, nil, nil, time.Now(), 0, xtime.Second, nil)
+	err = asyncSession.WriteTagged(nil, nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().
 		Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil)
-	_, err = asyncSession.Fetch(nil, nil, time.Now(), time.Now())
+	_, err = asyncSession.Fetch(nil, nil, xtime.Now(), xtime.Now())
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().
 		FetchIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil)
-	_, err = asyncSession.FetchIDs(nil, nil, time.Now(), time.Now())
+	_, err = asyncSession.FetchIDs(nil, nil, xtime.Now(), xtime.Now())
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().

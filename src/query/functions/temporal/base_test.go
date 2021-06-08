@@ -161,7 +161,7 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 
 func TestGetIndicesError(t *testing.T) {
 	size := 10
-	now := time.Now().Truncate(time.Minute)
+	now := xtime.Now().Truncate(time.Minute)
 	dps := make([]ts.Datapoint, size)
 	s := int64(time.Second)
 	for i := range dps {
@@ -181,7 +181,7 @@ func TestGetIndicesError(t *testing.T) {
 	require.Equal(t, -1, r)
 	require.False(t, ok)
 
-	pastBound := xtime.ToUnixNano(now.Add(time.Hour))
+	pastBound := now.Add(time.Hour)
 	l, r, ok = getIndices(dps, pastBound, pastBound+10, 0)
 	require.Equal(t, 0, l)
 	require.Equal(t, 10, r)

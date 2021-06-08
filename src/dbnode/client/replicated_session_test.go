@@ -175,7 +175,7 @@ func (s *replicatedSessionTestSuite) TestReplicate() {
 	asyncCount := 2
 	namespace := ident.StringID("foo")
 	id := ident.StringID("bar")
-	now := time.Now()
+	now := xtime.Now()
 	value := float64(123)
 	unit := xtime.Nanosecond
 	annotation := []byte{}

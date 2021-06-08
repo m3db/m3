@@ -22,7 +22,6 @@ package result
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -134,7 +133,7 @@ func (b *IndexBuilder) Builder() segment.DocumentsBuilder {
 
 // AddBlockIfNotExists adds an index block if it does not already exist to the index results.
 func (r IndexResults) AddBlockIfNotExists(
-	t time.Time,
+	t xtime.UnixNano,
 	idxopts namespace.IndexOptions,
 ) {
 	// NB(r): The reason we can align by the retention block size and guarantee
@@ -142,7 +141,7 @@ func (r IndexResults) AddBlockIfNotExists(
 	// positive multiple of the data block size, making it easy to map a data
 	// block entry to at most one index block entry.
 	blockStart := t.Truncate(idxopts.BlockSize())
-	blockStartNanos := xtime.ToUnixNano(blockStart)
+	blockStartNanos := blockStart
 
 	_, exists := r[blockStartNanos]
 	if !exists {
@@ -158,7 +157,7 @@ func (r IndexResults) Add(blocks IndexBlockByVolumeType) {
 	}
 
 	// Merge results
-	blockStart := xtime.ToUnixNano(blocks.BlockStart())
+	blockStart := blocks.BlockStart()
 	existing, ok := r[blockStart]
 	if !ok {
 		r[blockStart] = blocks
@@ -179,7 +178,7 @@ func (r IndexResults) AddResults(other IndexResults) {
 // MarkFulfilled will mark an index block as fulfilled, either partially or
 // wholly as specified by the shard time ranges passed.
 func (r IndexResults) MarkFulfilled(
-	t time.Time,
+	t xtime.UnixNano,
 	fulfilled ShardTimeRanges,
 	indexVolumeType persist.IndexVolumeType,
 	idxopts namespace.IndexOptions,
@@ -189,7 +188,7 @@ func (r IndexResults) MarkFulfilled(
 	// positive multiple of the data block size, making it easy to map a data
 	// block entry to at most one index block entry.
 	blockStart := t.Truncate(idxopts.BlockSize())
-	blockStartNanos := xtime.ToUnixNano(blockStart)
+	blockStartNanos := blockStart
 
 	blockRange := xtime.Range{
 		Start: blockStart,
@@ -289,7 +288,7 @@ func (b IndexBlock) Merged(other IndexBlock) IndexBlock {
 }
 
 // NewIndexBlockByVolumeType returns a new bootstrap index blocks by volume type result.
-func NewIndexBlockByVolumeType(blockStart time.Time) IndexBlockByVolumeType {
+func NewIndexBlockByVolumeType(blockStart xtime.UnixNano) IndexBlockByVolumeType {
 	return IndexBlockByVolumeType{
 		blockStart: blockStart,
 		data:       make(map[persist.IndexVolumeType]IndexBlock),
@@ -297,7 +296,7 @@ func NewIndexBlockByVolumeType(blockStart time.Time) IndexBlockByVolumeType {
 }
 
 // BlockStart returns the block start.
-func (b IndexBlockByVolumeType) BlockStart() time.Time {
+func (b IndexBlockByVolumeType) BlockStart() xtime.UnixNano {
 	return b.blockStart
 }
 

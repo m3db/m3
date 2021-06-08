@@ -57,7 +57,8 @@ func TestFromNormalizedTime(t *testing.T) {
 		{60100, time.Millisecond, time.Unix(60, 100000000)},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, FromNormalizedTime(input.nt, input.u))
+		exTime := ToUnixNano(input.expected)
+		require.Equal(t, exTime, FromNormalizedTime(input.nt, input.u))
 	}
 }
 

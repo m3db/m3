@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // parseFindParamsToQueries parses an incoming request to two find queries,
@@ -114,8 +115,8 @@ func parseFindParamsToQueries(r *http.Request) (
 		CompleteNameOnly: false,
 		FilterNameTags:   filter,
 		TagMatchers:      matchers,
-		Start:            from,
-		End:              until,
+		Start:            xtime.ToUnixNano(from),
+		End:              xtime.ToUnixNano(until),
 	}
 
 	clonedMatchers := make([]models.Matcher, len(matchers))
@@ -127,8 +128,8 @@ func parseFindParamsToQueries(r *http.Request) (
 		CompleteNameOnly: false,
 		FilterNameTags:   filter,
 		TagMatchers:      clonedMatchers,
-		Start:            from,
-		End:              until,
+		Start:            xtime.ToUnixNano(from),
+		End:              xtime.ToUnixNano(until),
 	}
 
 	return terminatedQuery, childQuery, query, nil

@@ -29,7 +29,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
 
-	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,12 +46,18 @@ var histogramTimerOptions = instrument.NewHistogramTimerOptions(
 		HistogramBuckets: instrument.SparseHistogramTimerHistogramBuckets(),
 	})
 
+// MetricsOptions are the options for the metrics middleware.
+type MetricsOptions struct {
+	Config           config.MetricsMiddlewareConfiguration
+	ParseQueryParams ParseQueryParams
+}
+
 // ResponseMetrics records metrics for the http response.
-func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
+func ResponseMetrics(opts Options) mux.MiddlewareFunc {
 	var (
 		iOpts = opts.InstrumentOpts
 		route = opts.Route
-		cfg   = opts.Config
+		cfg   = opts.Metrics.Config
 	)
 
 	custom := newCustomMetrics(iOpts)
@@ -81,10 +87,10 @@ func ResponseMetrics(opts options.MiddlewareOptions) mux.MiddlewareFunc {
 			m := custom.getOrCreate(metricsType)
 			queryMetrics := m.query
 			metrics := m.route
-			querySize := inspectQuerySize(w, r, path, queryMetrics, cfg)
+			querySize := inspectQuerySize(w, r, queryMetrics, opts, start)
 
 			addLatencyStatus := false
-			if cfg != nil && cfg.AddStatusToLatencies {
+			if cfg.AddStatusToLatencies {
 				addLatencyStatus = true
 			}
 

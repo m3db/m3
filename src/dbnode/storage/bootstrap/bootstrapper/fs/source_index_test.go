@@ -47,8 +47,8 @@ type testTimesOptions struct {
 }
 
 type testBootstrapIndexTimes struct {
-	start           time.Time
-	end             time.Time
+	start           xtime.UnixNano
+	end             xtime.UnixNano
 	shardTimeRanges result.ShardTimeRanges
 }
 
@@ -56,8 +56,8 @@ func newTestBootstrapIndexTimes(
 	opts testTimesOptions,
 ) testBootstrapIndexTimes {
 	var (
-		start, end time.Time
-		at         = time.Now()
+		start, end xtime.UnixNano
+		at         = xtime.Now()
 	)
 	switch opts.numBlocks {
 	case 2:
@@ -126,7 +126,7 @@ func writeTSDBGoodTaggedSeriesDataFiles(
 	t require.TestingT,
 	dir string,
 	namespaceID ident.ID,
-	start time.Time,
+	start xtime.UnixNano,
 ) {
 	dataBlocks := testGoodTaggedSeriesDataBlocks()
 
@@ -142,7 +142,7 @@ func writeTSDBPersistedIndexBlock(
 	t *testing.T,
 	dir string,
 	namespace namespace.Metadata,
-	start time.Time,
+	start xtime.UnixNano,
 	shards map[uint32]struct{},
 	block []testSeries,
 ) {
@@ -191,13 +191,13 @@ func writeTSDBPersistedIndexBlock(
 }
 
 type expectedTaggedSeries struct {
-	indexBlockStart time.Time
+	indexBlockStart xtime.UnixNano
 	series          map[string]testSeries
 }
 
 func expectedTaggedSeriesWithOptions(
 	t require.TestingT,
-	start time.Time,
+	start xtime.UnixNano,
 	opts testTimesOptions,
 ) []expectedTaggedSeries {
 	dataBlocks := testGoodTaggedSeriesDataBlocks()
@@ -252,7 +252,7 @@ func expectedTaggedSeriesWithOptions(
 
 func validateGoodTaggedSeries(
 	t require.TestingT,
-	start time.Time,
+	start xtime.UnixNano,
 	indexResults result.IndexResults,
 	opts testTimesOptions,
 ) {
@@ -260,7 +260,7 @@ func validateGoodTaggedSeries(
 
 	expectedSeriesByBlock := expectedTaggedSeriesWithOptions(t, start, opts)
 	for _, expected := range expectedSeriesByBlock {
-		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
+		expectedAt := expected.indexBlockStart
 		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
 		for _, indexBlock := range indexBlockByVolumeType.Iter() {
@@ -348,7 +348,7 @@ func TestBootstrapIndex(t *testing.T) {
 
 	for _, infoFile := range infoFiles {
 		require.NoError(t, infoFile.Err.Error())
-		require.Equal(t, times.start.UnixNano(), infoFile.Info.BlockStart)
+		require.Equal(t, times.start, xtime.UnixNano(infoFile.Info.BlockStart))
 		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
 		require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
 		require.Equal(t, 1, len(infoFile.Info.Segments))
@@ -357,7 +357,7 @@ func TestBootstrapIndex(t *testing.T) {
 	}
 
 	// Check that the segment is not a mutable segment for this block
-	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[times.start]
 	require.True(t, ok)
 	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
@@ -367,7 +367,7 @@ func TestBootstrapIndex(t *testing.T) {
 	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable and was not written out
-	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[times.start.Add(testIndexBlockSize)]
 	require.True(t, ok)
 	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
@@ -430,7 +430,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	require.Equal(t, 0, len(infoFiles))
 
 	// Check that both segments are mutable
-	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[times.start]
 	require.True(t, ok)
 	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
@@ -439,7 +439,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	require.True(t, ok)
 	require.False(t, segment.IsPersisted())
 
-	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[times.start.Add(testIndexBlockSize)]
 	require.True(t, ok)
 	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
@@ -499,7 +499,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 
 	// Check that the segment is not a mutable segment for this block
 	// and came from disk
-	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[times.start]
 	require.True(t, ok)
 	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
@@ -509,7 +509,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable
-	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[times.start.Add(testIndexBlockSize)]
 	require.True(t, ok)
 	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
@@ -560,9 +560,9 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t, test)
-		})
+		// t.Run(test.name, func(t *testing.T) {
+		testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t, test)
+		// })
 	}
 }
 
@@ -615,7 +615,8 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 	retentionPeriod := testBlockSize
 	for {
 		// Make sure that retention is set to end half way through the first block
-		flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, time.Now())
+		flushStart := retention.FlushTimeStartForRetentionPeriod(
+			retentionPeriod, testBlockSize, xtime.Now())
 		if flushStart.Before(firstIndexBlockStart.Add(testIndexBlockSize)) {
 			break
 		}
@@ -657,18 +658,16 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 	for _, infoFile := range infoFiles {
 		require.NoError(t, infoFile.Err.Error())
 
-		if infoFile.Info.BlockStart == firstIndexBlockStart.UnixNano() {
-			expectedStart := times.end.Add(-2 * testIndexBlockSize).UnixNano()
-			require.Equal(t, expectedStart, infoFile.Info.BlockStart,
-				fmt.Sprintf("expected=%v, actual=%v",
-					time.Unix(0, expectedStart).String(),
-					time.Unix(0, infoFile.Info.BlockStart)))
+		if infoFile.Info.BlockStart == int64(firstIndexBlockStart) {
+			expectedStart := times.end.Add(-2 * testIndexBlockSize)
+			require.Equal(t, int64(expectedStart), infoFile.Info.BlockStart,
+				fmt.Sprintf("expected=%s, actual=%v",
+					expectedStart, xtime.UnixNano(infoFile.Info.BlockStart)))
 		} else {
-			expectedStart := times.end.Add(-1 * testIndexBlockSize).UnixNano()
-			require.Equal(t, expectedStart, infoFile.Info.BlockStart,
-				fmt.Sprintf("expected=%v, actual=%v",
-					time.Unix(0, expectedStart).String(),
-					time.Unix(0, infoFile.Info.BlockStart)))
+			expectedStart := times.end.Add(-1 * testIndexBlockSize)
+			require.Equal(t, int64(expectedStart), infoFile.Info.BlockStart,
+				fmt.Sprintf("expected=%s, actual=%v",
+					expectedStart, xtime.UnixNano(infoFile.Info.BlockStart)))
 		}
 
 		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
@@ -679,7 +678,7 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 	}
 
 	// Check that the segment is not a mutable segment
-	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
+	blockByVolumeType, ok := indexResults[firstIndexBlockStart]
 	require.True(t, ok)
 	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
@@ -690,7 +689,7 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 	}
 
 	// Check that the second is not a mutable segment
-	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[firstIndexBlockStart.Add(testIndexBlockSize)]
 	require.True(t, ok)
 	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)

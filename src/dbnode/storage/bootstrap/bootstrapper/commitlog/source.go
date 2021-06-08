@@ -116,7 +116,7 @@ type readSeriesBlocksWorker struct {
 	shard       uint32
 	accumulator bootstrap.NamespaceDataAccumulator
 	blocksPool  block.DatabaseBlockPool
-	blockStart  time.Time
+	blockStart  xtime.UnixNano
 	blockSize   time.Duration
 	nsCtx       namespace.Context
 }
@@ -761,12 +761,11 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 			// Anonymous func for easier clean up using defer.
 			func() {
 				var (
-					currBlockUnixNanos = xtime.ToUnixNano(currBlockStart)
 					mostRecentSnapshot fs.FileSetFile
 				)
 
 				defer func() {
-					existing := mostRecentSnapshotsByBlockShard[currBlockUnixNanos]
+					existing := mostRecentSnapshotsByBlockShard[currBlockStart]
 					if existing == nil {
 						existing = map[uint32]fs.FileSetFile{}
 					}
@@ -778,7 +777,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 						mostRecentSnapshot.CachedSnapshotTime = currBlockStart
 					}
 					existing[shard] = mostRecentSnapshot
-					mostRecentSnapshotsByBlockShard[currBlockUnixNanos] = existing
+					mostRecentSnapshotsByBlockShard[currBlockStart] = existing
 				}()
 
 				snapshotFiles, ok := snapshotFilesByShard[shard]
@@ -806,7 +805,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 					s.log.
 						With(
 							zap.Stringer("namespace", namespace),
-							zap.Time("blockStart", mostRecentSnapshot.ID.BlockStart),
+							zap.Time("blockStart", mostRecentSnapshot.ID.BlockStart.ToTime()),
 							zap.Uint32("shard", mostRecentSnapshot.ID.Shard),
 							zap.Int("index", mostRecentSnapshot.ID.VolumeIndex),
 							zap.Strings("filepaths", mostRecentSnapshot.AbsoluteFilePaths),
@@ -877,7 +876,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		}
 
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
-			snapshotsForBlock := mostRecentCompleteSnapshotByBlockShard[xtime.ToUnixNano(blockStart)]
+			snapshotsForBlock := mostRecentCompleteSnapshotByBlockShard[blockStart]
 			mostRecentCompleteSnapshotForShardBlock := snapshotsForBlock[shard]
 
 			if mostRecentCompleteSnapshotForShardBlock.CachedSnapshotTime.Equal(blockStart) ||
@@ -889,12 +888,12 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
 				s.log.Debug("no snapshots for shard and blockStart",
-					zap.Uint32("shard", shard), zap.Time("blockStart", blockStart))
+					zap.Uint32("shard", shard), zap.Time("blockStart", blockStart.ToTime()))
 				continue
 			}
 
 			writeType := series.WarmWrite
-			if _, ok := shardBlockStartsOnDisk[xtime.ToUnixNano(blockStart)]; ok {
+			if _, ok := shardBlockStartsOnDisk[blockStart]; ok {
 				writeType = series.ColdWrite
 			}
 			if err := s.bootstrapShardBlockSnapshot(
@@ -912,7 +911,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	ns namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	blockSize time.Duration,
 	mostRecentCompleteSnapshot fs.FileSetFile,
 	writeType series.WriteType,
@@ -950,7 +949,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		if err != nil {
 			s.log.Error("error closing reader for shard",
 				zap.Uint32("shard", shard),
-				zap.Time("blockStart", blockStart),
+				zap.Time("blockStart", blockStart.ToTime()),
 				zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex),
 				zap.Error(err))
 		}
@@ -958,7 +957,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 	s.log.Debug("reading snapshot for shard",
 		zap.Uint32("shard", shard),
-		zap.Time("blockStart", blockStart),
+		zap.Time("blockStart", blockStart.ToTime()),
 		zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex))
 
 	worker := &readSeriesBlocksWorker{
@@ -1026,7 +1025,7 @@ func (s *commitLogSource) mostRecentSnapshotByBlockShard(
 			s.log.Debug("most recent snapshot for block",
 				zap.Time("blockStart", block.ToTime()),
 				zap.Uint32("shard", shard),
-				zap.Time("mostRecent", mostRecent.CachedSnapshotTime))
+				zap.Time("mostRecent", mostRecent.CachedSnapshotTime.ToTime()))
 		}
 	}
 
@@ -1092,7 +1091,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 			continue
 		}
 
-		_, _, err = ref.Write(ctx, dp.Timestamp, dp.Value,
+		_, _, err = ref.Write(ctx, dp.TimestampNanos, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc:         namespace.namespaceContext.Schema,
 				BootstrapWrite:     true,

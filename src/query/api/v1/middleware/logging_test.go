@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -242,7 +243,13 @@ func TestWithResponseTimeLogging(t *testing.T) {
 	stdout, stderr, req, instrumentOpts, cleanup := setup(t, false)
 	defer cleanup()
 
-	m := ResponseLogging(time.Second, instrumentOpts)
+	m := ResponseLogging(Options{
+		Clock:          clockwork.NewRealClock(),
+		InstrumentOpts: instrumentOpts,
+		Logging: LoggingOptions{
+			Threshold: time.Second,
+		},
+	})
 	slowHandler := m.Middleware(&delayHandler{delay: time.Second})
 	fastHandler := m.Middleware(&delayHandler{delay: time.Duration(0)})
 
@@ -272,7 +279,13 @@ func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
 	defer cleanup()
 
 	writer := &httpWriter{written: make([]string, 0, 10)}
-	slowPanic := ResponseLogging(time.Second, instrumentOpts).Middleware(
+	slowPanic := ResponseLogging(Options{
+		Clock:          clockwork.NewRealClock(),
+		InstrumentOpts: instrumentOpts,
+		Logging: LoggingOptions{
+			Threshold: time.Second,
+		},
+	}).Middleware(
 		Panic(instrumentOpts).Middleware(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				time.Sleep(time.Second)
@@ -312,4 +325,86 @@ func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
 	assert.True(t, strings.Contains(last, "finished handling request"))
 	assert.True(t, strings.Contains(last, `"url": "cool"`))
 	assert.True(t, strings.Contains(last, `duration": "1.`))
+}
+
+func TestFields_Append(t *testing.T) {
+	cases := []struct {
+		name     string
+		fields   []zap.Field
+		other    []zap.Field
+		expected []zap.Field
+	}{
+		{
+			name: "both",
+			fields: []zap.Field{
+				zap.String("foo", "foos"),
+				zap.String("bar", "bars"),
+			},
+			other: []zap.Field{
+				zap.String("foo2", "foos2"),
+				zap.String("bar2", "bars2"),
+			},
+			expected: []zap.Field{
+				zap.String("foo", "foos"),
+				zap.String("bar", "bars"),
+				zap.String("foo2", "foos2"),
+				zap.String("bar2", "bars2"),
+			},
+		},
+		{
+			name:     "both nil",
+			expected: nil,
+		},
+		{
+			name: "fields nil",
+			other: []zap.Field{
+				zap.String("foo2", "foos2"),
+				zap.String("bar2", "bars2"),
+			},
+			expected: []zap.Field{
+				zap.String("foo2", "foos2"),
+				zap.String("bar2", "bars2"),
+			},
+		},
+		{
+			name: "other nil",
+			fields: []zap.Field{
+				zap.String("foo", "foos"),
+				zap.String("bar", "bars"),
+			},
+			expected: []zap.Field{
+				zap.String("foo", "foos"),
+				zap.String("bar", "bars"),
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				f Fields
+				o Fields
+			)
+			req, err := http.NewRequest("GET", "/", nil)
+			startTime := time.Now()
+			require.NoError(t, err)
+			if tc.fields != nil {
+				f = func(r *http.Request, start time.Time) []zap.Field {
+					require.Equal(t, req, r)
+					require.Equal(t, startTime, start)
+					return tc.fields
+				}
+			}
+			if tc.other != nil {
+				o = func(r *http.Request, start time.Time) []zap.Field {
+					require.Equal(t, req, r)
+					require.Equal(t, startTime, start)
+					return tc.other
+				}
+			}
+			actual := f.Append(o)(req, startTime)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
 }

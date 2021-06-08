@@ -74,7 +74,7 @@ type Encoder interface {
 
 	// Reset resets the start time of the encoder and the internal state.
 	// Reset sets up the schema for schema-aware encoders such as proto encoders.
-	Reset(t time.Time, capacity int, schema namespace.SchemaDescr)
+	Reset(t xtime.UnixNano, capacity int, schema namespace.SchemaDescr)
 
 	// Close closes the encoder and if pooled will return it to the pool.
 	Close()
@@ -84,7 +84,7 @@ type Encoder interface {
 
 	// DiscardReset will take ownership of the encoder data and reset the encoder for reuse.
 	// DiscardReset sets up the schema for schema-aware encoders such as proto encoders.
-	DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment
+	DiscardReset(t xtime.UnixNano, capacity int, schema namespace.SchemaDescr) ts.Segment
 }
 
 // NewEncoderFn creates a new encoder.
@@ -201,7 +201,7 @@ type MultiReaderIterator interface {
 
 	// Reset resets the iterator to read from a slice of readers
 	// with a new schema (for schema aware iterators).
-	Reset(readers []xio.SegmentReader, start time.Time,
+	Reset(readers []xio.SegmentReader, start xtime.UnixNano,
 		blockSize time.Duration, schema namespace.SchemaDescr)
 
 	// Reset resets the iterator to read from a slice of slice readers
@@ -242,10 +242,10 @@ type SeriesIterator interface {
 	Namespace() ident.ID
 
 	// Start returns the start time filter specified for the iterator.
-	Start() time.Time
+	Start() xtime.UnixNano
 
 	// End returns the end time filter specified for the iterator.
-	End() time.Time
+	End() xtime.UnixNano
 
 	// Reset resets the iterator to read from a set of iterators from different
 	// replicas, one  must note that this can be an array with nil entries if

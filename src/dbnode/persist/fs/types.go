@@ -59,7 +59,7 @@ var ErrIndexOutOfRetention = errors.New("out of retention index")
 type FileSetFileIdentifier struct {
 	FileSetContentType persist.FileSetContentType
 	Namespace          ident.ID
-	BlockStart         time.Time
+	BlockStart         xtime.UnixNano
 	// Only required for data content files
 	Shard uint32
 	// Required for snapshot files (index yes, data yes) and flush files (index yes, data yes)
@@ -79,7 +79,7 @@ type DataWriterOpenOptions struct {
 // DataWriterSnapshotOptions is the options struct for Open method on the DataFileSetWriter
 // that contains information specific to writing snapshot files.
 type DataWriterSnapshotOptions struct {
-	SnapshotTime time.Time
+	SnapshotTime xtime.UnixNano
 	SnapshotID   []byte
 }
 
@@ -118,7 +118,7 @@ type SnapshotMetadataFileReader interface {
 // DataFileSetReaderStatus describes the status of a file set reader.
 type DataFileSetReaderStatus struct {
 	Namespace  ident.ID
-	BlockStart time.Time
+	BlockStart xtime.UnixNano
 	Shard      uint32
 	Volume     int
 	Open       bool
@@ -210,7 +210,7 @@ type DataFileSetSeeker interface {
 	Open(
 		namespace ident.ID,
 		shard uint32,
-		start time.Time,
+		start xtime.UnixNano,
 		volume int,
 		resources ReusableSeekerResources,
 	) error
@@ -303,15 +303,15 @@ type DataFileSetSeekerManager interface {
 
 	// Borrow returns an open seeker for a given shard, block start time, and
 	// volume.
-	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
+	Borrow(shard uint32, start xtime.UnixNano) (ConcurrentDataFileSetSeeker, error)
 
 	// Return returns (closes) an open seeker for a given shard, block start
 	// time, and volume.
-	Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error
+	Return(shard uint32, start xtime.UnixNano, seeker ConcurrentDataFileSetSeeker) error
 
 	// Test checks if an ID exists in a concurrent ID bloom filter for a
 	// given shard, block, start time and volume.
-	Test(id ident.ID, shard uint32, start time.Time) (bool, error)
+	Test(id ident.ID, shard uint32, start xtime.UnixNano) (bool, error)
 }
 
 // DataBlockRetriever provides a block retriever for TSDB file sets.
@@ -333,7 +333,7 @@ type RetrievableDataBlockSegmentReader interface {
 
 // IndexWriterSnapshotOptions is a set of options for writing an index file set snapshot.
 type IndexWriterSnapshotOptions struct {
-	SnapshotTime time.Time
+	SnapshotTime xtime.UnixNano
 }
 
 // IndexWriterOpenOptions is a set of options when opening an index file set writer.
@@ -676,7 +676,7 @@ type Segments interface {
 	VolumeType() idxpersist.IndexVolumeType
 	VolumeIndex() int
 	AbsoluteFilePaths() []string
-	BlockStart() time.Time
+	BlockStart() xtime.UnixNano
 }
 
 // IndexClaimsManager manages concurrent claims to volume indices per ns and block start.
@@ -684,7 +684,7 @@ type Segments interface {
 type IndexClaimsManager interface {
 	ClaimNextIndexFileSetVolumeIndex(
 		md namespace.Metadata,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 	) (int, error)
 }
 

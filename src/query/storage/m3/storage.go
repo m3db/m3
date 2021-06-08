@@ -27,6 +27,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
@@ -41,10 +45,7 @@ import (
 	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/opentracing/opentracing-go/log"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -149,7 +150,7 @@ func FetchResultToBlockResult(
 
 	start := query.Start
 	bounds := models.Bounds{
-		Start:    start,
+		Start:    xtime.ToUnixNano(start),
 		Duration: query.End.Sub(start),
 		StepSize: query.Interval,
 	}
@@ -273,9 +274,9 @@ func (s *m3storage) fetchCompressed(
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
-		query.Start,
-		query.End,
+		xtime.ToUnixNano(s.nowFn()),
+		xtime.ToUnixNano(query.Start),
+		xtime.ToUnixNano(query.End),
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
@@ -455,8 +456,8 @@ func (s *m3storage) CompleteTags(
 			zap.Strings("filterNames", filters),
 			zap.String("matchers", query.TagMatchers.String()),
 			zap.String("m3query", m3query.String()),
-			zap.Time("start", query.Start),
-			zap.Time("end", query.End),
+			zap.Time("start", query.Start.ToTime()),
+			zap.Time("end", query.End.ToTime()),
 			zap.Bool("remote", options.Remote),
 		)
 	}
@@ -466,7 +467,7 @@ func (s *m3storage) CompleteTags(
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
+		xtime.ToUnixNano(s.nowFn()),
 		query.Start,
 		query.End,
 		s.clusters,
@@ -606,9 +607,9 @@ func (s *m3storage) SearchCompressed(
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
-		query.Start,
-		query.End,
+		xtime.ToUnixNano(s.nowFn()),
+		xtime.ToUnixNano(query.Start),
+		xtime.ToUnixNano(query.End),
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
