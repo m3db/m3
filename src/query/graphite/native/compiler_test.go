@@ -60,6 +60,7 @@ func TestCompile1(t *testing.T) {
 		scale             = findFunction("scale")
 		logarithm         = findFunction("logarithm")
 		removeEmptySeries = findFunction("removeEmptySeries")
+		filterSeries      = findFunction("filterSeries")
 	)
 
 	tests := []testCompile{
@@ -297,6 +298,17 @@ func TestCompile1(t *testing.T) {
 				in: []funcArg{
 					newFetchExpression("a.b.c"),
 					newFloat64Const(0),
+				},
+			},
+		}},
+		{"filterSeries(a.b.c, 'max', '>', 1000)", &funcExpression{
+			&functionCall{
+				f: filterSeries,
+				in: []funcArg{
+					newFetchExpression("a.b.c"),
+					newStringConst("max"),
+					newStringConst(">"),
+					newFloat64Const(1000),
 				},
 			},
 		}},
