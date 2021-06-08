@@ -275,8 +275,8 @@ func TestFetchByInvalidQuery(t *testing.T) {
 func TestTruncateBoundsToResolution(t *testing.T) {
 	var (
 		resolution    = 60 * time.Second
-		expectedStart = time.Date(2020, time.October, 8, 30, 51, 00, 0, time.UTC)
-		expectedEnd   = time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC)
+		expectedStart = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 51, 00, 0, time.UTC))
+		expectedEnd   = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC))
 		opts          = truncateBoundsToResolutionOptions{
 			shiftStepsStartWhenAtResolutionBoundary:    intRefValue(1),
 			shiftStepsEndWhenAtResolutionBoundary:      intRefValue(1),
@@ -449,8 +449,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 
 				require.Equal(t, fmt.Sprint("a", i), tt.Name(), "unexpected name")
 				require.Equal(t, ex, tt.SafeValues(), "unexpected values")
-				require.Equal(t, test.expectedStart, tt.StartTime(), "unexpected start time")
-				require.Equal(t, test.expectedEnd, tt.EndTime(), "unexpected end time")
+				require.Equal(t, test.expectedStart, tt.StartTime().UTC(), "unexpected start time")
+				require.Equal(t, test.expectedEnd, tt.EndTime().UTC(), "unexpected end time")
 			}
 		})
 	}
