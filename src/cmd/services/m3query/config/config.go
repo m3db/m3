@@ -486,8 +486,11 @@ type MiddlewareConfiguration struct {
 
 // LoggingMiddlewareConfiguration configures the logging middleware.
 type LoggingMiddlewareConfiguration struct {
-	// Threshold defines the latency threshold for logging the response.
+	// Threshold defines the latency threshold for logging the response. If zero, the default of 1s is used. To disable
+	// response logging set Disabled.
 	Threshold time.Duration
+	// Disabled turns off response logging by default for endpoints.
+	Disabled bool
 }
 
 // MetricsMiddlewareConfiguration configures the metrics middleware.
