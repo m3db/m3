@@ -269,14 +269,19 @@ func (s *m3storage) fetchCompressed(
 		return nil, index.Query{}, err
 	}
 
+	var (
+		queryStart = queryOptions.StartInclusive
+		queryEnd   = queryOptions.EndExclusive
+	)
+
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
 		xtime.ToUnixNano(s.nowFn()),
-		xtime.ToUnixNano(query.Start),
-		xtime.ToUnixNano(query.End),
+		queryStart,
+		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
@@ -298,8 +303,8 @@ func (s *m3storage) fetchCompressed(
 
 			debugLog.Write(zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
-				zap.Time("start", query.Start),
-				zap.Time("end", query.End),
+				zap.Time("start", queryStart.ToTime()),
+				zap.Time("end", queryEnd.ToTime()),
 				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
@@ -437,6 +442,8 @@ func (s *m3storage) CompleteTags(
 	}
 
 	var (
+		queryStart      = aggOpts.StartInclusive
+		queryEnd        = aggOpts.EndExclusive
 		nameOnly        = query.CompleteNameOnly
 		tagOpts         = s.opts.TagOptions()
 		accumulatedTags = consolidators.NewCompleteTagsResultBuilder(nameOnly, tagOpts)
@@ -456,8 +463,8 @@ func (s *m3storage) CompleteTags(
 			zap.Strings("filterNames", filters),
 			zap.String("matchers", query.TagMatchers.String()),
 			zap.String("m3query", m3query.String()),
-			zap.Time("start", query.Start.ToTime()),
-			zap.Time("end", query.End.ToTime()),
+			zap.Time("start", queryStart.ToTime()),
+			zap.Time("end", queryEnd.ToTime()),
 			zap.Bool("remote", options.Remote),
 		)
 	}
@@ -468,8 +475,8 @@ func (s *m3storage) CompleteTags(
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(
 		xtime.ToUnixNano(s.nowFn()),
-		query.Start,
-		query.End,
+		queryStart,
+		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
@@ -598,8 +605,10 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	var (
-		result = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
-		wg     sync.WaitGroup
+		queryStart = m3opts.StartInclusive
+		queryEnd   = m3opts.EndExclusive
+		result     = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
+		wg         sync.WaitGroup
 	)
 
 	// NB(r): Since we don't use a single index we fan out to each
@@ -608,8 +617,8 @@ func (s *m3storage) SearchCompressed(
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(
 		xtime.ToUnixNano(s.nowFn()),
-		xtime.ToUnixNano(query.Start),
-		xtime.ToUnixNano(query.End),
+		queryStart,
+		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
@@ -623,8 +632,8 @@ func (s *m3storage) SearchCompressed(
 	if debugLog != nil {
 		debugLog.Write(zap.String("query", query.Raw),
 			zap.String("m3_query", m3query.String()),
-			zap.Time("start", query.Start),
-			zap.Time("end", query.End),
+			zap.Time("start", queryStart.ToTime()),
+			zap.Time("end", queryEnd.ToTime()),
 			zap.Bool("remote", options.Remote),
 		)
 	}
