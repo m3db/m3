@@ -22,6 +22,7 @@ package storage
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -74,15 +75,12 @@ func FetchOptionsToM3Options(
 	fetchOptions *FetchOptions,
 	fetchQuery *FetchQuery,
 ) (index.QueryOptions, error) {
-	start, end, err := convertStartEndWithRangeLimit(xtime.ToUnixNano(fetchQuery.Start),
-		xtime.ToUnixNano(fetchQuery.End), fetchOptions)
+	start, end, err := convertStartEndWithRangeLimit(fetchQuery.Start,
+		fetchQuery.End, fetchOptions)
 	if err != nil {
 		return index.QueryOptions{}, err
 	}
 
-	// Also modify the query start/end so that calling code logging
-	// reflects the modified time range as well as selects correct namespaces.
-	fetchQuery.Start, fetchQuery.End = start.ToTime(), end.ToTime()
 	return index.QueryOptions{
 		SeriesLimit:       fetchOptions.SeriesLimit,
 		InstanceMultiple:  fetchOptions.InstanceMultiple,
@@ -90,15 +88,15 @@ func FetchOptionsToM3Options(
 		RequireExhaustive: fetchOptions.RequireExhaustive,
 		RequireNoWait:     fetchOptions.RequireNoWait,
 		Source:            fetchOptions.Source,
-		StartInclusive:    start,
-		EndExclusive:      end,
+		StartInclusive:    xtime.ToUnixNano(start),
+		EndExclusive:      xtime.ToUnixNano(end),
 	}, nil
 }
 
 func convertStartEndWithRangeLimit(
-	start, end xtime.UnixNano,
+	start, end time.Time,
 	fetchOptions *FetchOptions,
-) (xtime.UnixNano, xtime.UnixNano, error) {
+) (time.Time, time.Time, error) {
 	fetchRangeLimit := fetchOptions.RangeLimit
 	if fetchRangeLimit <= 0 {
 		return start, end, nil
@@ -117,7 +115,7 @@ func convertStartEndWithRangeLimit(
 			fetchRangeLimit.String(),
 			fetchRange.String())
 		err := xerrors.NewInvalidParamsError(consolidators.NewLimitError(msg))
-		return 0, 0, err
+		return time.Time{}, time.Time{}, err
 	}
 
 	// Truncate the range.
@@ -139,11 +137,8 @@ func FetchOptionsToAggregateOptions(
 	fetchOptions *FetchOptions,
 	tagQuery *CompleteTagsQuery,
 ) (index.AggregationOptions, error) {
-	// Also modify the query start/end so that calling code logging
-	// reflects the modified time range as well as selects correct namespaces.
-	var err error
-	tagQuery.Start, tagQuery.End, err = convertStartEndWithRangeLimit(tagQuery.Start,
-		tagQuery.End, fetchOptions)
+	start, end, err := convertStartEndWithRangeLimit(tagQuery.Start.ToTime(),
+		tagQuery.End.ToTime(), fetchOptions)
 	if err != nil {
 		return index.AggregationOptions{}, err
 	}
@@ -155,8 +150,8 @@ func FetchOptionsToAggregateOptions(
 			Source:            fetchOptions.Source,
 			RequireExhaustive: fetchOptions.RequireExhaustive,
 			RequireNoWait:     fetchOptions.RequireNoWait,
-			StartInclusive:    tagQuery.Start,
-			EndExclusive:      tagQuery.End,
+			StartInclusive:    xtime.ToUnixNano(start),
+			EndExclusive:      xtime.ToUnixNano(end),
 		},
 		FieldFilter: tagQuery.FilterNameTags,
 		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),
