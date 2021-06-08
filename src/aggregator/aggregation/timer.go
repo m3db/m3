@@ -50,21 +50,11 @@ func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
 
 // Add adds a timer value.
 func (t *Timer) Add(timestamp time.Time, value float64, annotation []byte) {
-	// Keep the last annotation which was set.
-	if len(annotation) > 0 {
-		if cap(t.annotation) < len(annotation) {
-			// Twice as long in case another one comes in
-			// and we could avoid realloc as long as less than this first alloc.
-			t.annotation = make([]byte, 0, 2*len(annotation))
-		}
-		// Reuse any previous allocation while taking a copy.
-		t.annotation = append(t.annotation[:0], annotation...)
-	}
-	t.AddBatch(timestamp, []float64{value})
+	t.AddBatch(timestamp, []float64{value}, annotation)
 }
 
 // AddBatch adds a batch of timer values.
-func (t *Timer) AddBatch(timestamp time.Time, values []float64) {
+func (t *Timer) AddBatch(timestamp time.Time, values []float64, annotation []byte) {
 	// Record last at just once.
 	t.recordLastAt(timestamp)
 	t.count += int64(len(values))
@@ -81,6 +71,17 @@ func (t *Timer) AddBatch(timestamp time.Time, values []float64) {
 	}
 
 	t.stream.AddBatch(values)
+
+	// Keep the last annotation which was set.
+	if len(annotation) > 0 {
+		if cap(t.annotation) < len(annotation) {
+			// Twice as long in case another one comes in
+			// and we could avoid realloc as long as less than this first alloc.
+			t.annotation = make([]byte, 0, 2*len(annotation))
+		}
+		// Reuse any previous allocation while taking a copy.
+		t.annotation = append(t.annotation[:0], annotation...)
+	}
 }
 
 func (t *Timer) recordLastAt(timestamp time.Time) {
