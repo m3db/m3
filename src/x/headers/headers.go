@@ -91,6 +91,10 @@ const (
 	// the number of docs returned by each storage node.
 	LimitMaxDocsHeader = M3HeaderPrefix + "Limit-Max-Docs"
 
+	// LimitMaxRangeHeader is the M3 limit range header that limits
+	// the time range returned by each storage node.
+	LimitMaxRangeHeader = M3HeaderPrefix + "Limit-Max-Range"
+
 	// LimitMaxReturnedDatapointsHeader is the M3 header that limits
 	// the number of datapoints returned in total to the client.
 	LimitMaxReturnedDatapointsHeader = M3HeaderPrefix + "Limit-Max-Returned-Datapoints"

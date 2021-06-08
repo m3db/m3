@@ -118,6 +118,8 @@ type FetchOptions struct {
 	InstanceMultiple float32
 	// DocsLimit is the maximum number of docs to return.
 	DocsLimit int
+	// RangeLimit is the maximum time range to return.
+	RangeLimit time.Duration
 	// ReturnedSeriesLimit is the maximum number of series to return.
 	ReturnedSeriesLimit int
 	// ReturnedDatapointsLimit is the maximum number of datapoints to return.
