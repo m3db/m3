@@ -492,7 +492,7 @@ func (h *Handler) RegisterRoutes() error {
 			InstrumentOpts: middleIOpts,
 			Route:          route,
 			Clock:          clockwork.NewRealClock(),
-			Logging: middleware.NewLoggingOptions(h.middlewareConfig.Logging),
+			Logging:        middleware.NewLoggingOptions(h.middlewareConfig.Logging),
 			Metrics: middleware.MetricsOptions{
 				Config: h.middlewareConfig.Metrics,
 			},
