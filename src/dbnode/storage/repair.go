@@ -120,12 +120,10 @@ func (r shardRepairer) Repair(
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
 	repairType := r.rpopts.Type()
-	compareOnly := false
 	switch repairType {
 	case repair.DefaultRepair:
 		defer r.metrics.runDefault.Inc(1)
 	case repair.OnlyCompareRepair:
-		compareOnly = true
 		defer r.metrics.runOnlyCompare.Inc(1)
 	default:
 		// Unknown repair type.
@@ -246,7 +244,7 @@ func (r shardRepairer) Repair(
 	// Shard repair can fail due to transient network errors due to the significant amount of data fetched from peers.
 	// So collect and emit metadata comparison metrics before fetching blocks from peer to repair.
 	r.recordFn(origin, nsCtx.ID, shard, metadataRes)
-	if compareOnly {
+	if repairType == repair.OnlyCompareRepair {
 		// Early return if repair type doesn't require executing repairing the data step.
 		return metadataRes, nil
 	}

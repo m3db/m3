@@ -43,12 +43,10 @@ const (
 	OnlyCompareRepair
 )
 
-var (
-	validTypes = []Type{
-		DefaultRepair,
-		OnlyCompareRepair,
-	}
-)
+var validTypes = []Type{
+	DefaultRepair,
+	OnlyCompareRepair,
+}
 
 // UnmarshalYAML unmarshals an Type into a valid type from string.
 func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {

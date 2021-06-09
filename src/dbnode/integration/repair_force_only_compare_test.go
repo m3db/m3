@@ -42,44 +42,36 @@ func TestRepairForceAndOnlyCompare(t *testing.T) {
 		t.SkipNow()
 	}
 
-	var (
-		// Test both disjoint and shared series repair.
-		genRepairData = genRepairDatafn(func(now xtime.UnixNano, blockSize time.Duration) (
-			node0Data generate.SeriesBlocksByStart,
-			node1Data generate.SeriesBlocksByStart,
-			node2Data generate.SeriesBlocksByStart,
-			allData generate.SeriesBlocksByStart,
-		) {
-			currBlockStart := now.Truncate(blockSize)
-			node0Data = generate.BlocksByStart([]generate.BlockConfig{
-				{IDs: []string{"foo"}, NumPoints: 90, Start: currBlockStart.Add(-4 * blockSize)},
-				{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-3 * blockSize)},
-			})
-			node1Data = generate.BlocksByStart([]generate.BlockConfig{
-				{IDs: []string{"bar"}, NumPoints: 90, Start: currBlockStart.Add(-4 * blockSize)},
-				{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-3 * blockSize)},
-			})
-
-			allData = make(map[xtime.UnixNano]generate.SeriesBlock)
-			for start, data := range node0Data {
-				for _, series := range data {
-					allData[start] = append(allData[start], series)
-				}
-			}
-			for start, data := range node1Data {
-				for _, series := range data {
-					allData[start] = append(allData[start], series)
-				}
-			}
-			for start, data := range node2Data {
-				for _, series := range data {
-					allData[start] = append(allData[start], series)
-				}
-			}
-
-			return node0Data, node1Data, node2Data, allData
+	// Test both disjoint and shared series repair.
+	genRepairData := genRepairDatafn(func(now xtime.UnixNano, blockSize time.Duration) (
+		node0Data generate.SeriesBlocksByStart,
+		node1Data generate.SeriesBlocksByStart,
+		node2Data generate.SeriesBlocksByStart,
+		allData generate.SeriesBlocksByStart,
+	) {
+		currBlockStart := now.Truncate(blockSize)
+		node0Data = generate.BlocksByStart([]generate.BlockConfig{
+			{IDs: []string{"foo"}, NumPoints: 90, Start: currBlockStart.Add(-4 * blockSize)},
+			{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-3 * blockSize)},
 		})
-	)
+		node1Data = generate.BlocksByStart([]generate.BlockConfig{
+			{IDs: []string{"bar"}, NumPoints: 90, Start: currBlockStart.Add(-4 * blockSize)},
+			{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: currBlockStart.Add(-3 * blockSize)},
+		})
+
+		allData = make(map[xtime.UnixNano]generate.SeriesBlock)
+		for start, data := range node0Data {
+			allData[start] = append(allData[start], data...)
+		}
+		for start, data := range node1Data {
+			allData[start] = append(allData[start], data...)
+		}
+		for start, data := range node2Data {
+			allData[start] = append(allData[start], data...)
+		}
+
+		return node0Data, node1Data, node2Data, allData
+	})
 
 	// Test setups.
 	log := xtest.NewLogger(t)
@@ -124,6 +116,8 @@ func TestRepairForceAndOnlyCompare(t *testing.T) {
 			RepairType:   repair.OnlyCompareRepair,
 		},
 	}
+
+	// nolint: govet
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 

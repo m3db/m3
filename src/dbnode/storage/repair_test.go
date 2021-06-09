@@ -678,6 +678,7 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			opts := DefaultTestOptions().SetRepairOptions(testRepairOptions(ctrl))
 			mockDatabase := NewMockdatabase(ctrl)
