@@ -38,6 +38,10 @@ const (
 	// DeprecatedHeader is the M3 deprecated header.
 	DeprecatedHeader = M3HeaderPrefix + "Deprecated"
 
+	// EngineHeaderName defines header name which is used to switch between
+	// prometheus and m3query engines.
+	EngineHeaderName = M3HeaderPrefix + "Engine"
+
 	// MetricsTypeHeader sets the write or read metrics type to restrict
 	// metrics to.
 	// Valid values are "unaggregated" or "aggregated".
