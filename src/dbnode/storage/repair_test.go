@@ -706,8 +706,8 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			ns1.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
 			ns2.EXPECT().ID().Return(ident.StringID("ns2")).AnyTimes()
 
-			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.expectedRepairRange)
-			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.expectedRepairRange)
+			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.expectedRepairRange, NamespaceRepairOptions{})
+			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.expectedRepairRange, NamespaceRepairOptions{})
 
 			mockDatabase.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 			require.Nil(t, repairer.Repair())
@@ -815,7 +815,7 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			var ns1RepairExpectations = make([]*gomock.Call, len(tc.expectedNS1Repairs))
 			for i, ns1Repair := range tc.expectedNS1Repairs {
 				ns1RepairExpectations[i] = ns1.EXPECT().
-					Repair(gomock.Any(), ns1Repair.expectedRepairRange).
+					Repair(gomock.Any(), ns1Repair.expectedRepairRange, NamespaceRepairOptions{}).
 					Return(ns1Repair.mockRepairResult)
 			}
 			gomock.InOrder(ns1RepairExpectations...)
@@ -824,7 +824,7 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			var ns2RepairExpectations = make([]*gomock.Call, len(tc.expectedNS2Repairs))
 			for i, ns2Repair := range tc.expectedNS2Repairs {
 				ns2RepairExpectations[i] = ns2.EXPECT().
-					Repair(gomock.Any(), ns2Repair.expectedRepairRange).
+					Repair(gomock.Any(), ns2Repair.expectedRepairRange, NamespaceRepairOptions{}).
 					Return(ns2Repair.mockRepairResult)
 			}
 			gomock.InOrder(ns2RepairExpectations...)
