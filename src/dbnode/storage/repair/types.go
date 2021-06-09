@@ -21,6 +21,7 @@
 package repair
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -30,6 +31,58 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
+
+// Type defines the type of repair to run.
+type Type uint
+
+const (
+	// DefaultRepair will compare node's integrity to other replicas and then repair blocks as required.
+	DefaultRepair Type = iota
+	// OnlyCompareRepair will compare node's integrity to other replicas without repairing blocks,
+	// this is useful for looking at the metrics emitted by the comparison.
+	OnlyCompareRepair
+)
+
+var (
+	validTypes = []Type{
+		DefaultRepair,
+		OnlyCompareRepair,
+	}
+)
+
+// UnmarshalYAML unmarshals an Type into a valid type from string.
+func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	// If unspecified, use default mode.
+	if str == "" {
+		*t = DefaultRepair
+		return nil
+	}
+
+	for _, valid := range validTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid repair Type '%s' valid types are: %s",
+		str, validTypes)
+}
+
+// String returns the bootstrap mode as a string
+func (t Type) String() string {
+	switch t {
+	case DefaultRepair:
+		return "default"
+	case OnlyCompareRepair:
+		return "only_compare"
+	}
+	return "unknown"
+}
 
 // ReplicaMetadataSlice captures a slice of block.ReplicaMetadata.
 type ReplicaMetadataSlice interface {
@@ -145,6 +198,18 @@ type MetadataComparisonResult struct {
 
 // Options are the repair options.
 type Options interface {
+	// SetType sets the type of repair to run.
+	SetType(value Type) Options
+
+	// Type returns the type of repair to run.
+	Type() Type
+
+	// SetForce sets whether to force repairs to run for all namespaces.
+	SetForce(value bool) Options
+
+	// Force returns whether to force repairs to run for all namespaces.
+	Force() bool
+
 	// SetAdminClient sets the admin client.
 	SetAdminClients(value []client.AdminClient) Options
 

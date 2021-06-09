@@ -22,6 +22,7 @@ package integration
 
 import (
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"sync"
 	"testing"
 	"time"
@@ -131,6 +132,8 @@ type BootstrappableTestSetupOptions struct {
 	DisablePeersBootstrapper     bool
 	UseTChannelClientForWriting  bool
 	EnableRepairs                bool
+	ForceRepairs                 bool
+	RepairType                   repair.Type
 	AdminClientCustomOpts        []client.CustomAdminOption
 }
 
@@ -180,6 +183,8 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			topologyInitializer         = setupOpts[i].TopologyInitializer
 			testStatsReporter           = setupOpts[i].TestStatsReporter
 			enableRepairs               = setupOpts[i].EnableRepairs
+			forceRepairs                = setupOpts[i].ForceRepairs
+			repairType                  = setupOpts[i].RepairType
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 			adminClientCustomOpts       = setupOpts[i].AdminClientCustomOpts
@@ -346,6 +351,8 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				SetRepairEnabled(true).
 				SetRepairOptions(
 					setup.StorageOpts().RepairOptions().
+						SetType(repairType).
+						SetForce(forceRepairs).
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
 						SetAdminClients([]client.AdminClient{adminClient}).
