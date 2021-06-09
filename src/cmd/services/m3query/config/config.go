@@ -382,6 +382,11 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
+	// MaxFetchedRange limits the time range of index documents matched for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedRange time.Duration `yaml:"maxFetchedRange"`
+
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
 }
@@ -408,6 +413,7 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		SeriesLimit:       int(seriesLimit),
 		InstanceMultiple:  l.InstanceMultiple,
 		DocsLimit:         int(docsLimit),
+		RangeLimit:        l.MaxFetchedRange,
 		RequireExhaustive: requireExhaustive,
 	}
 }
@@ -486,8 +492,11 @@ type MiddlewareConfiguration struct {
 
 // LoggingMiddlewareConfiguration configures the logging middleware.
 type LoggingMiddlewareConfiguration struct {
-	// Threshold defines the latency threshold for logging the response.
+	// Threshold defines the latency threshold for logging the response. If zero, the default of 1s is used. To disable
+	// response logging set Disabled.
 	Threshold time.Duration
+	// Disabled turns off response logging by default for endpoints.
+	Disabled bool
 }
 
 // MetricsMiddlewareConfiguration configures the metrics middleware.

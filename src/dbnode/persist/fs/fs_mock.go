@@ -27,7 +27,6 @@ package fs
 import (
 	"io"
 	"reflect"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	persist "github.com/m3db/m3/src/dbnode/persist"
@@ -39,7 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	time0 "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -232,10 +231,10 @@ func (mr *MockDataFileSetReaderMockRecorder) Open(arg0 interface{}) *gomock.Call
 }
 
 // Range mocks base method.
-func (m *MockDataFileSetReader) Range() time0.Range {
+func (m *MockDataFileSetReader) Range() time.Range {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Range")
-	ret0, _ := ret[0].(time0.Range)
+	ret0, _ := ret[0].(time.Range)
 	return ret0
 }
 
@@ -463,7 +462,7 @@ func (mr *MockDataFileSetSeekerMockRecorder) ConcurrentIDBloomFilter() *gomock.C
 }
 
 // Open mocks base method.
-func (m *MockDataFileSetSeeker) Open(arg0 ident.ID, arg1 uint32, arg2 time.Time, arg3 int, arg4 ReusableSeekerResources) error {
+func (m *MockDataFileSetSeeker) Open(arg0 ident.ID, arg1 uint32, arg2 time.UnixNano, arg3 int, arg4 ReusableSeekerResources) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
@@ -477,10 +476,10 @@ func (mr *MockDataFileSetSeekerMockRecorder) Open(arg0, arg1, arg2, arg3, arg4 i
 }
 
 // Range mocks base method.
-func (m *MockDataFileSetSeeker) Range() time0.Range {
+func (m *MockDataFileSetSeeker) Range() time.Range {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Range")
-	ret0, _ := ret[0].(time0.Range)
+	ret0, _ := ret[0].(time.Range)
 	return ret0
 }
 
@@ -1090,7 +1089,7 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) AssignShardSet(arg0 interfac
 }
 
 // Borrow mocks base method.
-func (m *MockDataFileSetSeekerManager) Borrow(arg0 uint32, arg1 time.Time) (ConcurrentDataFileSetSeeker, error) {
+func (m *MockDataFileSetSeekerManager) Borrow(arg0 uint32, arg1 time.UnixNano) (ConcurrentDataFileSetSeeker, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Borrow", arg0, arg1)
 	ret0, _ := ret[0].(ConcurrentDataFileSetSeeker)
@@ -1147,7 +1146,7 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) Open(arg0, arg1 interface{})
 }
 
 // Return mocks base method.
-func (m *MockDataFileSetSeekerManager) Return(arg0 uint32, arg1 time.Time, arg2 ConcurrentDataFileSetSeeker) error {
+func (m *MockDataFileSetSeekerManager) Return(arg0 uint32, arg1 time.UnixNano, arg2 ConcurrentDataFileSetSeeker) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Return", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -1161,7 +1160,7 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) Return(arg0, arg1, arg2 inte
 }
 
 // Test mocks base method.
-func (m *MockDataFileSetSeekerManager) Test(arg0 ident.ID, arg1 uint32, arg2 time.Time) (bool, error) {
+func (m *MockDataFileSetSeekerManager) Test(arg0 ident.ID, arg1 uint32, arg2 time.UnixNano) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Test", arg0, arg1, arg2)
 	ret0, _ := ret[0].(bool)
@@ -1310,7 +1309,7 @@ func (m *MockMergeWith) EXPECT() *MockMergeWithMockRecorder {
 }
 
 // ForEachRemaining mocks base method.
-func (m *MockMergeWith) ForEachRemaining(arg0 context.Context, arg1 time0.UnixNano, arg2 ForEachRemainingFn, arg3 namespace.Context) error {
+func (m *MockMergeWith) ForEachRemaining(arg0 context.Context, arg1 time.UnixNano, arg2 ForEachRemainingFn, arg3 namespace.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForEachRemaining", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
@@ -1324,7 +1323,7 @@ func (mr *MockMergeWithMockRecorder) ForEachRemaining(arg0, arg1, arg2, arg3 int
 }
 
 // Read mocks base method.
-func (m *MockMergeWith) Read(arg0 context.Context, arg1 ident.ID, arg2 time0.UnixNano, arg3 namespace.Context) ([]xio.BlockReader, bool, error) {
+func (m *MockMergeWith) Read(arg0 context.Context, arg1 ident.ID, arg2 time.UnixNano, arg3 namespace.Context) ([]xio.BlockReader, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]xio.BlockReader)

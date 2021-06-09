@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +124,7 @@ var (
 	}
 
 	bounds = models.Bounds{
-		Start:    time.Now(),
+		Start:    xtime.Now(),
 		Duration: time.Minute * 5,
 		StepSize: time.Minute,
 	}

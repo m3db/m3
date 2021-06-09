@@ -29,6 +29,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/http"
@@ -56,7 +57,19 @@ func RequestID(iOpts instrument.Options) mux.MiddlewareFunc {
 // LoggingOptions are the options for the logging middleware.
 type LoggingOptions struct {
 	Threshold time.Duration
+	Disabled  bool
 	Fields    Fields
+}
+
+// NewLoggingOptions returns new options from the config.
+func NewLoggingOptions(c config.LoggingMiddlewareConfiguration) LoggingOptions {
+	if c.Threshold == 0 {
+		c.Threshold = time.Second
+	}
+	return LoggingOptions{
+		Threshold: c.Threshold,
+		Disabled:  c.Disabled,
+	}
 }
 
 // Append the provided Fields to these Fields.
@@ -75,7 +88,7 @@ func (f Fields) Append(other Fields) Fields {
 
 // WithNoResponseLogging disables response logging for a route.
 var WithNoResponseLogging = func(opts Options) Options {
-	opts.Logging.Threshold = 0
+	opts.Logging.Disabled = true
 	return opts
 }
 
@@ -91,7 +104,7 @@ func ResponseLogging(opts Options) mux.MiddlewareFunc {
 			w = statusCodeTracking.WrappedResponseWriter()
 			base.ServeHTTP(w, r)
 			d := opts.Clock.Now().Sub(start)
-			if opts.Logging.Threshold > 0 && d >= opts.Logging.Threshold {
+			if !opts.Logging.Disabled && d >= opts.Logging.Threshold {
 				logger := logging.WithContext(r.Context(), opts.InstrumentOpts)
 				fields := []zap.Field{
 					zap.Duration("duration", d),

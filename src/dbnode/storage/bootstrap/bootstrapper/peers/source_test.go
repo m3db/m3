@@ -54,7 +54,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		blockSize                  = 2 * time.Hour
 		nsMetadata                 = testNamespaceMetadata(t)
 		numShards                  = uint32(4)
-		blockStart                 = time.Now().Truncate(blockSize)
+		blockStart                 = xtime.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
@@ -200,7 +200,7 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 		opts     = newTestDefaultOpts(t, ctrl)
 		ropts    = testNsMd.Options().RetentionOptions()
 
-		start = time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+		start = xtime.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end   = start.Add(2 * ropts.BlockSize())
 	)
 

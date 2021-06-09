@@ -25,16 +25,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/x/checked"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
-	start     = time.Now().Truncate(time.Minute)
+	start     = xtime.Now().Truncate(time.Minute)
 	blockSize = time.Minute
 	errTest   = fmt.Errorf("err")
 )

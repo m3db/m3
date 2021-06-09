@@ -22,9 +22,9 @@ package block
 
 import (
 	"errors"
-	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Scalar is a block containing a single value over a certain bound
@@ -83,7 +83,7 @@ func (b *Scalar) Value() float64 {
 
 type scalarStepIter struct {
 	numVals, idx int
-	stepTime     time.Time
+	stepTime     xtime.UnixNano
 	err          error
 	meta         Metadata
 	vals         []float64
@@ -132,11 +132,11 @@ func (it *scalarStepIter) Current() Step {
 
 type scalarStep struct {
 	vals []float64
-	time time.Time
+	time xtime.UnixNano
 }
 
-func (it *scalarStep) Time() time.Time   { return it.time }
-func (it *scalarStep) Values() []float64 { return it.vals }
+func (it *scalarStep) Time() xtime.UnixNano { return it.time }
+func (it *scalarStep) Values() []float64    { return it.vals }
 
 // SeriesIter is invalid for a scalar block.
 func (b *Scalar) SeriesIter() (SeriesIter, error) {

@@ -116,7 +116,7 @@ func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, 
 		Tags: tags,
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: parsedTime,
+				Timestamp: xtime.ToUnixNano(parsedTime),
 				Value:     req.Value,
 			},
 		},

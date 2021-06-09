@@ -63,15 +63,15 @@ func TestAggregateResultsAccumulatorIdsMerge(t *testing.T) {
 		steps: []testFetchStateWorklowStep{
 			{
 				hostname:        "testhost0",
-				aggregateResult: testSerieses{s[0], s[2], s[4]}.toRPCAggResult(th, testStartTime, true),
+				aggregateResult: testSerieses{s[0], s[2], s[4]}.toRPCAggResult(true),
 			},
 			{
 				hostname:        "testhost1",
-				aggregateResult: testSerieses{s[1], s[3]}.toRPCAggResult(th, testStartTime, true),
+				aggregateResult: testSerieses{s[1], s[3]}.toRPCAggResult(true),
 			},
 			{
 				hostname:        "testhost2",
-				aggregateResult: testSerieses{s[5]}.toRPCAggResult(th, testStartTime, true),
+				aggregateResult: testSerieses{s[5]}.toRPCAggResult(true),
 				expectedDone:    true,
 			},
 		},
@@ -104,11 +104,11 @@ func TestAggregateResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 		steps: []testFetchStateWorklowStep{
 			{
 				hostname:        "testhost0",
-				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, true),
+				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(true),
 			},
 			{
 				hostname:        "testhost1",
-				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
+				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(true),
 				expectedDone:    true,
 			},
 		},
@@ -139,11 +139,11 @@ func TestAggregateResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *testin
 		steps: []testFetchStateWorklowStep{
 			{
 				hostname:        "testhost0",
-				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, false),
+				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(false),
 			},
 			{
 				hostname:        "testhost1",
-				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
+				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(true),
 				expectedDone:    true,
 			},
 		},

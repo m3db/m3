@@ -313,6 +313,42 @@ function test_query_limits_applied {
   echo "Test query returned-series limit - below limit"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Returned-SeriesMetadata: 2" "0.0.0.0:7201/api/v1/label/metadata_test_label/values?match[]=metadata_test_series" | jq -r ".data | length") -eq 2 ]]'
+
+  # Test time range limits with query APIs.
+  query_url="0.0.0.0:7201/api/v1/query_range"
+  echo "Test query time range limit with coordinator defaults"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "${query_url}?query=database_write_tagged_success&step=15&start=0&end=$(date +%s)" | jq -r ".data.result | length") -gt 0 ]]'
+
+  echo "Test query time range limit with require-exhaustive headers false"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Range: 4h" -H "M3-Limit-Require-Exhaustive: false" "${query_url}?query=database_write_tagged_success&step=15&start=0&end=$(date +%s)" | jq -r ".data.result | length") -gt 0 ]]'
+
+  echo "Test query time range limit with require-exhaustive headers true (above limit therefore error)"
+  # Test that require exhaustive error is returned
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ -n $(curl -s -H "M3-Limit-Max-Range: 4h" -H "M3-Limit-Require-Exhaustive: true" "${query_url}?query=database_write_tagged_success&step=15&start=0&end=$(date +%s)" | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+  # Test that require exhaustive error is 4xx
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Range: 4h" -H "M3-Limit-Require-Exhaustive: true" "${query_url}?query=database_write_tagged_success&step=15&start=0&end=$(date +%s)") = "400" ]]'
+
+  # Test time range limits with metadata APIs.
+  meta_query_url="0.0.0.0:7201/api/v1/label/metadata_test_label/values"
+  echo "Test query time range limit with coordinator defaults"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "${meta_query_url}?match[]=metadata_test_series&start=0&end=$(date +%s)" | jq -r ".data | length") -gt 0 ]]'
+
+  echo "Test query time range limit with require-exhaustive headers false"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Range: 4h" -H "M3-Limit-Require-Exhaustive: false" "${meta_query_url}?match[]=metadata_test_series&start=0&end=$(date +%s)" | jq -r ".data | length") -gt 0 ]]'
+
+  echo "Test query time range limit with require-exhaustive headers true (above limit therefore error)"
+  # Test that require exhaustive error is returned
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ -n $(curl -s -H "M3-Limit-Max-Range: 4h" -H "M3-Limit-Require-Exhaustive: true" "${meta_query_url}?match[]=metadata_test_series&start=0&end=$(date +%s)" | jq ."error" | grep "$QUERY_LIMIT_MESSAGE") ]]'
+  # Test that require exhaustive error is 4xx
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Range: 4h" -H "M3-Limit-Require-Exhaustive: true" "${meta_query_url}?match[]=metadata_test_series&start=0&end=$(date +%s)") = "400" ]]'
 }
 
 function test_query_limits_global_applied {

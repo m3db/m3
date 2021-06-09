@@ -41,7 +41,7 @@ require (
 	github.com/jhump/protoreflect v1.6.1
 	github.com/jonboulle/clockwork v0.1.0
 	github.com/json-iterator/go v1.1.10
-	github.com/klauspost/compress v1.11.8
+	github.com/klauspost/compress v1.13.0
 	github.com/leanovate/gopter v0.2.8
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible

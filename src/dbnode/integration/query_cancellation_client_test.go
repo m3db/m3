@@ -109,7 +109,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 
 	var (
 		nowFn     = testSetup.StorageOpts().ClockOptions().NowFn()
-		end       = nowFn().Truncate(time.Hour)
+		end       = xtime.ToUnixNano(nowFn()).Truncate(time.Hour)
 		start     = end.Add(-time.Hour)
 		query     = index.Query{Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 		queryOpts = index.QueryOptions{StartInclusive: start, EndExclusive: end}
@@ -121,7 +121,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 		var (
 			metricName = fmt.Sprintf("metric_%v", i)
 			tags       = ident.StringTag("shared", "shared")
-			timestamp  = nowFn().Add(-time.Minute * time.Duration(i+1))
+			timestamp  = xtime.ToUnixNano(nowFn()).Add(-time.Minute * time.Duration(i+1))
 		)
 		err := session.WriteTagged(md.ID(), ident.StringID(metricName),
 			ident.NewTagsIterator(ident.NewTags(tags)), timestamp, 0.0, xtime.Second, nil)

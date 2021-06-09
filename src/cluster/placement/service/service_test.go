@@ -205,6 +205,14 @@ func TestNonShardedWorkflow(t *testing.T) {
 	assert.Equal(t, 0, p.NumShards())
 	assert.Equal(t, 2, p.ReplicaFactor())
 	assert.False(t, p.IsSharded())
+
+	// nothing happens because there are no shards
+	_, err = ps.BalanceShards()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
 }
 
 func TestBadInitialPlacement(t *testing.T) {
@@ -958,6 +966,45 @@ func TestPlacementServiceImplOptions(t *testing.T) {
 		WithAlgorithm(al))
 	assert.Equal(t, placementOptions.ValidZone(), customImpl.opts.ValidZone())
 	assert.Equal(t, al, customImpl.algo)
+}
+
+func TestBalanceShards(t *testing.T) {
+	ms := newMockStorage()
+
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(0).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	instances := []placement.Instance{i1, i2}
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{0, 1, 2, 3}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	_, err := ms.SetIfNotExist(p)
+	assert.NoError(t, err)
+
+	ps := NewPlacementService(ms, WithPlacementOptions(placement.NewOptions()))
+
+	p, err = ps.BalanceShards()
+	assert.NoError(t, err)
+
+	bi1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	bi1.Shards().Add(shard.NewShard(0).SetState(shard.Leaving))
+	bi1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	bi1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+	bi2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
+	bi2.Shards().Add(shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i1"))
+	bi2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	expectedInstances := []placement.Instance{bi1, bi2}
+	assert.Equal(t, expectedInstances, p.Instances())
 }
 
 func newMockStorage() placement.Storage {

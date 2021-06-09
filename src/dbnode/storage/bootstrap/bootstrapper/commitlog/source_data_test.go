@@ -108,7 +108,7 @@ func TestReadOnlyOnce(t *testing.T) {
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -164,7 +164,8 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		return nil, nil, errors.New("an error")
 	}
 
-	ranges := xtime.NewRanges(xtime.Range{Start: time.Now(), End: time.Now().Add(time.Hour)})
+	now := xtime.Now()
+	ranges := xtime.NewRanges(xtime.Range{Start: now, End: now.Add(time.Hour)})
 
 	md := testNsMetadata(t)
 	target := result.NewShardTimeRanges().Set(0, ranges)
@@ -193,7 +194,7 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -245,7 +246,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -297,7 +298,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -357,7 +358,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		nsCtx     = namespace.NewContextFrom(md)
 		src       = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		blockSize = md.Options().RetentionOptions().BlockSize()
-		now       = time.Now()
+		now       = xtime.Now()
 		start     = now.Truncate(blockSize).Add(-blockSize)
 		end       = now.Truncate(blockSize)
 		ranges    = xtime.NewRanges()
@@ -430,8 +431,8 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	encoder.Reset(snapshotValues[0].t, 10, nsCtx.Schema)
 	for _, value := range snapshotValues {
 		dp := ts.Datapoint{
-			Timestamp: value.t,
-			Value:     value.v,
+			TimestampNanos: value.t,
+			Value:          value.v,
 		}
 		encoder.Encode(dp, value.u, value.a)
 	}
@@ -497,7 +498,7 @@ type annotationEqual func([]byte, []byte) bool
 
 type testValue struct {
 	s ts.Series
-	t time.Time
+	t xtime.UnixNano
 	v float64
 	u xtime.Unit
 	a ts.Annotation
@@ -566,7 +567,7 @@ func (i *testCommitLogIterator) Current() commitlog.LogEntry {
 	v := i.values[idx]
 	return commitlog.LogEntry{
 		Series:     v.s,
-		Datapoint:  ts.Datapoint{Timestamp: v.t, Value: v.v},
+		Datapoint:  ts.Datapoint{TimestampNanos: v.t, Value: v.v},
 		Unit:       v.u,
 		Annotation: v.a,
 		Metadata: commitlog.LogEntryMetadata{

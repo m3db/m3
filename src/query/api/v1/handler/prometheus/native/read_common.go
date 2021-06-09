@@ -190,8 +190,8 @@ func read(
 	sp := xopentracing.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),
-		xopentracing.Time("params.start", params.Start),
-		xopentracing.Time("params.end", params.End),
+		xopentracing.Time("params.start", params.Start.ToTime()),
+		xopentracing.Time("params.end", params.End.ToTime()),
 		xopentracing.Time("params.now", params.Now),
 		xopentracing.Duration("params.step", params.Step),
 	)

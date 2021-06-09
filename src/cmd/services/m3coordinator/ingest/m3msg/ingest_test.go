@@ -87,7 +87,7 @@ func TestIngest(t *testing.T) {
 		},
 		Datapoints: ts.Datapoints{
 			ts.Datapoint{
-				Timestamp: time.Unix(0, metricNanos),
+				Timestamp: xtime.UnixNano(metricNanos),
 				Value:     val,
 			},
 		},

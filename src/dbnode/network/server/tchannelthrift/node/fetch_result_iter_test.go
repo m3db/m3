@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestFetchResultIterTest(t *testing.T) {
@@ -109,14 +110,15 @@ func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
 }
 
 func setup(mocks *gomock.Controller) (
-	context.Context, ident.ID, index.QueryResults, time.Time, time.Time, *storage.Mockdatabase,
+	context.Context, ident.ID, index.QueryResults,
+	xtime.UnixNano, xtime.UnixNano, *storage.Mockdatabase,
 ) {
 	ctx := context.NewBackground()
 	nsID := ident.StringID("testNs")
 
 	resMap := index.NewQueryResults(nsID,
 		index.QueryResultsOptions{}, testIndexOptions)
-	start := time.Now()
+	start := xtime.Now()
 	end := start.Add(24 * time.Hour)
 	db := storage.NewMockdatabase(mocks)
 

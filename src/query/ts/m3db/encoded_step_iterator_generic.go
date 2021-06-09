@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type updateFn func()
@@ -38,9 +39,9 @@ type encodedStepIterWithCollector struct {
 	finished  bool
 	err       error
 
-	stepTime   time.Time
-	bufferTime time.Time
-	blockEnd   time.Time
+	stepTime   xtime.UnixNano
+	bufferTime xtime.UnixNano
+	blockEnd   xtime.UnixNano
 	meta       block.Metadata
 	seriesMeta []block.SeriesMeta
 
@@ -63,7 +64,7 @@ func nextForStep(
 	peek peekValue,
 	iter encoding.SeriesIterator,
 	collector consolidators.StepCollector,
-	stepTime time.Time,
+	stepTime xtime.UnixNano,
 ) (peekValue, consolidators.StepCollector, error) {
 	if peek.finished {
 		// No next value in this iterator.
@@ -72,7 +73,7 @@ func nextForStep(
 
 	if peek.started {
 		point := peek.point
-		if point.Timestamp.After(stepTime) {
+		if point.TimestampNanos.After(stepTime) {
 			// This point exists further than the current step
 			// There are next values, but this point should be NaN.
 			return peek, collector, nil
@@ -87,7 +88,7 @@ func nextForStep(
 		peek.started = false
 		// If this point is currently at the boundary, finish here as there is no
 		// need to check any additional points in the enclosed iterator.
-		if point.Timestamp.Equal(stepTime) {
+		if point.TimestampNanos.Equal(stepTime) {
 			return peek, collector, nil
 		}
 	}
@@ -100,7 +101,7 @@ func nextForStep(
 
 		// If this datapoint is before the current timestamp, add it as a
 		// consolidation candidate.
-		if !dp.Timestamp.After(stepTime) {
+		if !dp.TimestampNanos.After(stepTime) {
 			peek.started = false
 			collector.AddPoint(dp)
 		} else {

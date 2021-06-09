@@ -69,7 +69,7 @@ type reader struct {
 	filePathPrefix string
 	namespace      ident.ID
 
-	start     time.Time
+	start     xtime.UnixNano
 	blockSize time.Duration
 
 	infoFdWithDigest           digest.FdWithDigestReader
@@ -220,7 +220,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	}()
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-		indexFilepath: mmap.FileDesc{
+		indexFilepath: {
 			File:       &r.indexFd,
 			Descriptor: &r.indexMmap,
 			Options: mmap.Options{
@@ -234,7 +234,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 				},
 			},
 		},
-		dataFilepath: mmap.FileDesc{
+		dataFilepath: {
 			File:       &r.dataFd,
 			Descriptor: &r.dataMmap,
 			Options: mmap.Options{
@@ -332,7 +332,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.start = xtime.FromNanoseconds(info.BlockStart)
+	r.start = xtime.UnixNano(info.BlockStart)
 	r.volume = info.VolumeIndex
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)

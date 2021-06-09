@@ -41,13 +41,12 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
 
-var (
-	errSeriesNoResolution = errors.New("series has no resolution set")
-)
+var errSeriesNoResolution = errors.New("series has no resolution set")
 
 type m3WrappedStore struct {
 	m3             storage.Storage
@@ -191,12 +190,15 @@ type truncateBoundsToResolutionOptions struct {
 }
 
 func truncateBoundsToResolution(
-	start time.Time,
-	end time.Time,
+	startTime time.Time,
+	endTime time.Time,
 	resolution time.Duration,
 	opts truncateBoundsToResolutionOptions,
-) (time.Time, time.Time) {
+) (xtime.UnixNano, xtime.UnixNano) {
 	var (
+		start = xtime.ToUnixNano(startTime)
+		end   = xtime.ToUnixNano(endTime)
+
 		truncatedStart            = start.Truncate(resolution)
 		truncatedEnd              = end.Truncate(resolution)
 		startAtResolutionBoundary = start.Equal(truncatedStart)
@@ -388,7 +390,7 @@ func translateTimeseriesFromIter(
 		}
 
 		name := string(seriesMetas[idx].Name)
-		series = append(series, ts.NewSeries(ctx, name, start, values))
+		series = append(series, ts.NewSeries(ctx, name, start.ToTime(), values))
 	}
 
 	if err := iter.Err(); err != nil {

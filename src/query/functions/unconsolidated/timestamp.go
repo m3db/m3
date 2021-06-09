@@ -118,7 +118,7 @@ func (n *timestampNode) ProcessBlock(
 	}
 
 	bounds := b.Meta().Bounds
-	currentStep := float64(bounds.Start.UnixNano()) / float64(time.Second)
+	currentStep := float64(bounds.Start) / float64(time.Second)
 	step := float64(bounds.StepSize) / float64(time.Second)
 	values := make([]float64, seriesCount)
 	for index := 0; iter.Next(); index++ {

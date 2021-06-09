@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -62,8 +63,11 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	step := func(i time.Duration) time.Time { return start.Add(time.Minute * i) }
+	start := xtime.Now().Truncate(time.Hour)
+	step := func(i int) xtime.UnixNano {
+		return start.Add(time.Minute * time.Duration(i))
+	}
+
 	unaggHr := storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
 		Resolution:  time.Hour,
@@ -359,7 +363,7 @@ func testMultiFetchResultTagDedupeMap(
 			dp, _, _ := iter.Current()
 			exDp := ex.dps[j]
 			assert.Equal(t, exDp.val, dp.Value)
-			assert.Equal(t, exDp.t, dp.Timestamp)
+			assert.Equal(t, exDp.t, dp.TimestampNanos)
 		}
 
 		assert.NoError(t, iter.Err())
@@ -372,8 +376,11 @@ func TestFilteredInsert(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	step := func(i time.Duration) time.Time { return start.Add(time.Minute * i) }
+	start := xtime.Now().Truncate(time.Hour)
+	step := func(i int) xtime.UnixNano {
+		return start.Add(time.Minute * time.Duration(i))
+	}
+
 	unaggHr := storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
 		Resolution:  time.Hour,

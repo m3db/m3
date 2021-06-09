@@ -504,6 +504,9 @@ type operations interface {
 
 	// MarkAllShardsAvailable marks shard states as available where applicable.
 	MarkAllShardsAvailable() (Placement, error)
+
+	// BalanceShards rebalances load in the cluster to achieve the most balanced shard distribution.
+	BalanceShards() (Placement, error)
 }
 
 // Algorithm places shards on instances.
@@ -535,6 +538,9 @@ type Algorithm interface {
 
 	// MarkAllShardsAvailable marks shard states as available where applicable.
 	MarkAllShardsAvailable(p Placement) (Placement, bool, error)
+
+	// BalanceShards rebalances load in the cluster to achieve the most balanced shard distribution.
+	BalanceShards(p Placement) (Placement, error)
 }
 
 // InstanceSelector selects valid instances for the placement change.

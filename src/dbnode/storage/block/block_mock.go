@@ -375,10 +375,10 @@ func (mr *MockDatabaseBlockMockRecorder) HasMergeTarget() *gomock.Call {
 }
 
 // LastReadTime mocks base method.
-func (m *MockDatabaseBlock) LastReadTime() time.Time {
+func (m *MockDatabaseBlock) LastReadTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastReadTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -431,7 +431,7 @@ func (mr *MockDatabaseBlockMockRecorder) OnEvictedFromWiredList() *gomock.Call {
 }
 
 // Reset mocks base method.
-func (m *MockDatabaseBlock) Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context) {
+func (m *MockDatabaseBlock) Reset(startTime time0.UnixNano, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", startTime, blockSize, segment, nsCtx)
 }
@@ -443,7 +443,7 @@ func (mr *MockDatabaseBlockMockRecorder) Reset(startTime, blockSize, segment, ns
 }
 
 // ResetFromDisk mocks base method.
-func (m *MockDatabaseBlock) ResetFromDisk(startTime time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID, nsCtx namespace.Context) {
+func (m *MockDatabaseBlock) ResetFromDisk(startTime time0.UnixNano, blockSize time.Duration, segment ts.Segment, id ident.ID, nsCtx namespace.Context) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ResetFromDisk", startTime, blockSize, segment, id, nsCtx)
 }
@@ -455,7 +455,7 @@ func (mr *MockDatabaseBlockMockRecorder) ResetFromDisk(startTime, blockSize, seg
 }
 
 // SetLastReadTime mocks base method.
-func (m *MockDatabaseBlock) SetLastReadTime(value time.Time) {
+func (m *MockDatabaseBlock) SetLastReadTime(value time0.UnixNano) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetLastReadTime", value)
 }
@@ -479,10 +479,10 @@ func (mr *MockDatabaseBlockMockRecorder) SetOnEvictedFromWiredList(arg0 interfac
 }
 
 // StartTime mocks base method.
-func (m *MockDatabaseBlock) StartTime() time.Time {
+func (m *MockDatabaseBlock) StartTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -752,7 +752,7 @@ func (m *MockOnEvictedFromWiredList) EXPECT() *MockOnEvictedFromWiredListMockRec
 }
 
 // OnEvictedFromWiredList mocks base method.
-func (m *MockOnEvictedFromWiredList) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+func (m *MockOnEvictedFromWiredList) OnEvictedFromWiredList(id ident.ID, blockStart time0.UnixNano) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnEvictedFromWiredList", id, blockStart)
 }
@@ -787,7 +787,7 @@ func (m *MockOnRetrieveBlock) EXPECT() *MockOnRetrieveBlockMockRecorder {
 }
 
 // OnRetrieveBlock mocks base method.
-func (m *MockOnRetrieveBlock) OnRetrieveBlock(id ident.ID, tags ident.TagIterator, startTime time.Time, segment ts.Segment, nsCtx namespace.Context) {
+func (m *MockOnRetrieveBlock) OnRetrieveBlock(id ident.ID, tags ident.TagIterator, startTime time0.UnixNano, segment ts.Segment, nsCtx namespace.Context) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnRetrieveBlock", id, tags, startTime, segment, nsCtx)
 }
@@ -933,7 +933,7 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) CacheShardIndices(shards inter
 }
 
 // Stream mocks base method.
-func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock, nsCtx namespace.Context) (xio.BlockReader, error) {
+func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time0.UnixNano, onRetrieve OnRetrieveBlock, nsCtx namespace.Context) (xio.BlockReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stream", ctx, shard, id, blockStart, onRetrieve, nsCtx)
 	ret0, _ := ret[0].(xio.BlockReader)
@@ -948,7 +948,7 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockSt
 }
 
 // StreamWideEntry mocks base method.
-func (m *MockDatabaseBlockRetriever) StreamWideEntry(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter, nsCtx namespace.Context) (StreamedWideEntry, error) {
+func (m *MockDatabaseBlockRetriever) StreamWideEntry(ctx context.Context, shard uint32, id ident.ID, blockStart time0.UnixNano, filter schema.WideEntryFilter, nsCtx namespace.Context) (StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, shard, id, blockStart, filter, nsCtx)
 	ret0, _ := ret[0].(StreamedWideEntry)
@@ -986,7 +986,7 @@ func (m *MockDatabaseShardBlockRetriever) EXPECT() *MockDatabaseShardBlockRetrie
 }
 
 // Stream mocks base method.
-func (m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock, nsCtx namespace.Context) (xio.BlockReader, error) {
+func (m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time0.UnixNano, onRetrieve OnRetrieveBlock, nsCtx namespace.Context) (xio.BlockReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stream", ctx, id, blockStart, onRetrieve, nsCtx)
 	ret0, _ := ret[0].(xio.BlockReader)
@@ -1001,7 +1001,7 @@ func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStar
 }
 
 // StreamWideEntry mocks base method.
-func (m *MockDatabaseShardBlockRetriever) StreamWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter, nsCtx namespace.Context) (StreamedWideEntry, error) {
+func (m *MockDatabaseShardBlockRetriever) StreamWideEntry(ctx context.Context, id ident.ID, blockStart time0.UnixNano, filter schema.WideEntryFilter, nsCtx namespace.Context) (StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, id, blockStart, filter, nsCtx)
 	ret0, _ := ret[0].(StreamedWideEntry)
@@ -1152,7 +1152,7 @@ func (mr *MockDatabaseSeriesBlocksMockRecorder) AllBlocks() *gomock.Call {
 }
 
 // BlockAt mocks base method.
-func (m *MockDatabaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
+func (m *MockDatabaseSeriesBlocks) BlockAt(t time0.UnixNano) (DatabaseBlock, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockAt", t)
 	ret0, _ := ret[0].(DatabaseBlock)
@@ -1193,10 +1193,10 @@ func (mr *MockDatabaseSeriesBlocksMockRecorder) Len() *gomock.Call {
 }
 
 // MaxTime mocks base method.
-func (m *MockDatabaseSeriesBlocks) MaxTime() time.Time {
+func (m *MockDatabaseSeriesBlocks) MaxTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -1207,10 +1207,10 @@ func (mr *MockDatabaseSeriesBlocksMockRecorder) MaxTime() *gomock.Call {
 }
 
 // MinTime mocks base method.
-func (m *MockDatabaseSeriesBlocks) MinTime() time.Time {
+func (m *MockDatabaseSeriesBlocks) MinTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -1233,7 +1233,7 @@ func (mr *MockDatabaseSeriesBlocksMockRecorder) RemoveAll() *gomock.Call {
 }
 
 // RemoveBlockAt mocks base method.
-func (m *MockDatabaseSeriesBlocks) RemoveBlockAt(t time.Time) {
+func (m *MockDatabaseSeriesBlocks) RemoveBlockAt(t time0.UnixNano) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RemoveBlockAt", t)
 }

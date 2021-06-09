@@ -21,8 +21,6 @@
 package repair
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -71,16 +69,16 @@ func (s *replicaMetadataSlice) Close() {
 }
 
 type replicaBlockMetadata struct {
-	start    time.Time
+	start    xtime.UnixNano
 	metadata ReplicaMetadataSlice
 }
 
 // NewReplicaBlockMetadata creates a new replica block metadata
-func NewReplicaBlockMetadata(start time.Time, p ReplicaMetadataSlice) ReplicaBlockMetadata {
+func NewReplicaBlockMetadata(start xtime.UnixNano, p ReplicaMetadataSlice) ReplicaBlockMetadata {
 	return replicaBlockMetadata{start: start, metadata: p}
 }
 
-func (m replicaBlockMetadata) Start() time.Time                   { return m.start }
+func (m replicaBlockMetadata) Start() xtime.UnixNano              { return m.start }
 func (m replicaBlockMetadata) Metadata() []block.ReplicaMetadata  { return m.metadata.Metadata() }
 func (m replicaBlockMetadata) Add(metadata block.ReplicaMetadata) { m.metadata.Add(metadata) }
 func (m replicaBlockMetadata) Close()                             { m.metadata.Close() }
@@ -95,17 +93,16 @@ func NewReplicaBlocksMetadata() ReplicaBlocksMetadata {
 func (m replicaBlocksMetadata) NumBlocks() int64                                { return int64(len(m)) }
 func (m replicaBlocksMetadata) Blocks() map[xtime.UnixNano]ReplicaBlockMetadata { return m }
 func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata) {
-	m[xtime.ToUnixNano(block.Start())] = block
+	m[block.Start()] = block
 }
 
-func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata {
-	startNano := xtime.ToUnixNano(start)
-	block, exists := m[startNano]
+func (m replicaBlocksMetadata) GetOrAdd(start xtime.UnixNano, p ReplicaMetadataSlicePool) ReplicaBlockMetadata {
+	block, exists := m[start]
 	if exists {
 		return block
 	}
 	block = NewReplicaBlockMetadata(start, p.Get())
-	m[startNano] = block
+	m[start] = block
 	return block
 }
 

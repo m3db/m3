@@ -26,7 +26,6 @@ package bootstrap
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -37,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	time0 "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -130,7 +129,7 @@ func (m *MockProcess) EXPECT() *MockProcessMockRecorder {
 }
 
 // Run mocks base method.
-func (m *MockProcess) Run(ctx context.Context, start time.Time, namespaces []ProcessNamespace) (NamespaceResults, error) {
+func (m *MockProcess) Run(ctx context.Context, start time.UnixNano, namespaces []ProcessNamespace) (NamespaceResults, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", ctx, start, namespaces)
 	ret0, _ := ret[0].(NamespaceResults)
@@ -902,7 +901,7 @@ func (mr *MockSeriesRefMockRecorder) UniqueIndex() *gomock.Call {
 }
 
 // Write mocks base method.
-func (m *MockSeriesRef) Write(ctx context.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (bool, series.WriteType, error) {
+func (m *MockSeriesRef) Write(ctx context.Context, timestamp time.UnixNano, value float64, unit time.Unit, annotation []byte, wOpts series.WriteOptions) (bool, series.WriteType, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(bool)

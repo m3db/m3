@@ -52,6 +52,7 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -482,7 +483,7 @@ func writeTestIndexDataToDisk(
 	md namespace.Metadata,
 	storageOpts storage.Options,
 	indexVolumeType idxpersist.IndexVolumeType,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	shards []uint32,
 	docs []doc.Metadata,
 ) error {

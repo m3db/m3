@@ -21,12 +21,19 @@
 package placement
 
 import (
-	"bytes"
+	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+)
+
+const _decoderInitialBufferSize = 131072
+
+var (
+	_zstdEncoder *zstd.Encoder
+	_zstdDecoder *zstd.Decoder
 )
 
 func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
@@ -35,13 +42,9 @@ func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
 	}
 
 	uncompressed, _ := p.Marshal()
-	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
-	w, err := zstd.NewWriter(nil, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer w.Close() //nolint:errcheck
-	compressed := w.EncodeAll(uncompressed, nil)
+
+	compressed := make([]byte, 0, len(uncompressed)/2) // prealloc, assuming at least 50% space savings
+	compressed = _zstdEncoder.EncodeAll(uncompressed, compressed)
 
 	return compressed, nil
 }
@@ -51,12 +54,12 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 		return nil, errNilValue
 	}
 
-	r, err := zstd.NewReader(bytes.NewReader(compressed))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	decompressed, err := r.DecodeAll(compressed, nil)
+	var (
+		decompressed = make([]byte, 0, _decoderInitialBufferSize)
+		err          error
+	)
+
+	decompressed, err = _zstdDecoder.DecodeAll(compressed, decompressed)
 	if err != nil {
 		return nil, err
 	}
@@ -67,4 +70,26 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 	}
 
 	return result, nil
+}
+
+func init() {
+	ropts := []zstd.DOption{
+		zstd.WithDecoderLowmem(false),
+	}
+
+	r, err := zstd.NewReader(nil, ropts...)
+	if err != nil {
+		panic(fmt.Errorf("error initializing zstd reader: %w", err))
+	}
+	_zstdDecoder = r
+
+	opts := []zstd.EOption{
+		zstd.WithEncoderCRC(true),
+		zstd.WithEncoderLevel(zstd.SpeedBestCompression),
+	}
+	w, err := zstd.NewWriter(nil, opts...)
+	if err != nil {
+		panic(fmt.Errorf("error initializing zstd writer: %w", err))
+	}
+	_zstdEncoder = w
 }

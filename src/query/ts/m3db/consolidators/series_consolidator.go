@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // SeriesLookbackConsolidator is a helper for consolidating a full single
@@ -34,7 +35,7 @@ import (
 type SeriesLookbackConsolidator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
-	earliestLookback time.Time
+	earliestLookback xtime.UnixNano
 	consolidated     float64
 	datapoints       []ts.Datapoint
 	fn               ConsolidationFunc
@@ -44,7 +45,7 @@ type SeriesLookbackConsolidator struct {
 // series iteration with a given lookback.
 func NewSeriesLookbackConsolidator(
 	lookbackDuration, stepSize time.Duration,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	fn ConsolidationFunc,
 ) *SeriesLookbackConsolidator {
 	datapoints := make([]ts.Datapoint, 0, initLength)
@@ -63,7 +64,7 @@ func NewSeriesLookbackConsolidator(
 func (c *SeriesLookbackConsolidator) AddPoint(
 	dp ts.Datapoint,
 ) {
-	if dp.Timestamp.Before(c.earliestLookback) {
+	if dp.TimestampNanos.Before(c.earliestLookback) {
 		// this datapoint is too far in the past, it can be dropped.
 		return
 	}
@@ -102,7 +103,7 @@ func (c *SeriesLookbackConsolidator) Empty() bool {
 // Reset purges all points from the consolidator. This should be called
 // when moving to the next series to consolidate.
 func (c *SeriesLookbackConsolidator) Reset(
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) {
 	c.earliestLookback = startTime.Add(-1 * c.lookbackDuration)
 	c.datapoints = c.datapoints[:0]

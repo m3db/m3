@@ -52,9 +52,9 @@ func (l linearRegressionProcessor) initialize(
 	opts transform.Options,
 ) processor {
 	return &linearRegressionNode{
-		timeSpec:   opts.TimeSpec(),
-		fn:         l.fn,
-		isDeriv:    l.isDeriv,
+		timeSpec: opts.TimeSpec(),
+		fn:       l.fn,
+		isDeriv:  l.isDeriv,
 	}
 }
 
@@ -119,9 +119,9 @@ func NewLinearRegressionOp(
 }
 
 type linearRegressionNode struct {
-	timeSpec   transform.TimeSpec
-	fn         linearRegFn
-	isDeriv    bool
+	timeSpec transform.TimeSpec
+	fn       linearRegFn
+	isDeriv  bool
 }
 
 func (l linearRegressionNode) process(
@@ -164,11 +164,11 @@ func linearRegression(
 
 		if valueCount == 0 && isDeriv {
 			// set interceptTime as timestamp of first non-NaN dp
-			interceptTime = xtime.ToUnixNano(dp.Timestamp)
+			interceptTime = dp.Timestamp
 		}
 
 		valueCount++
-		timeDiff := subSeconds(xtime.ToUnixNano(dp.Timestamp), interceptTime)
+		timeDiff := subSeconds(dp.Timestamp, interceptTime)
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff
