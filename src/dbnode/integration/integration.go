@@ -26,6 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
@@ -43,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -53,10 +58,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (
@@ -131,6 +132,8 @@ type BootstrappableTestSetupOptions struct {
 	DisablePeersBootstrapper     bool
 	UseTChannelClientForWriting  bool
 	EnableRepairs                bool
+	ForceRepairs                 bool
+	RepairType                   repair.Type
 	AdminClientCustomOpts        []client.CustomAdminOption
 }
 
@@ -180,6 +183,8 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			topologyInitializer         = setupOpts[i].TopologyInitializer
 			testStatsReporter           = setupOpts[i].TestStatsReporter
 			enableRepairs               = setupOpts[i].EnableRepairs
+			forceRepairs                = setupOpts[i].ForceRepairs
+			repairType                  = setupOpts[i].RepairType
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 			adminClientCustomOpts       = setupOpts[i].AdminClientCustomOpts
@@ -346,6 +351,8 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				SetRepairEnabled(true).
 				SetRepairOptions(
 					setup.StorageOpts().RepairOptions().
+						SetType(repairType).
+						SetForce(forceRepairs).
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
 						SetAdminClients([]client.AdminClient{adminClient}).

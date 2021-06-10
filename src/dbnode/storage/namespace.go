@@ -120,6 +120,7 @@ type dbNamespace struct {
 	snapshotFilesFn    snapshotFilesFn
 	log                *zap.Logger
 	bootstrapState     BootstrapState
+	repairsAny         bool
 
 	// schemaDescr caches the latest schema for the namespace.
 	// schemaDescr is updated whenever schema registry is updated.
@@ -1272,11 +1273,12 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		return errNamespaceNotBootstrapped
 	}
 	nsCtx := n.nsContextWithRLock()
+	repairsAny := n.repairsAny
 	n.RUnlock()
 
-	// If repair is enabled we still need cold flush regardless of whether cold writes is
+	// If repair has run we still need cold flush regardless of whether cold writes is
 	// enabled since repairs are dependent on the cold flushing logic.
-	enabled := n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()
+	enabled := n.nopts.ColdWritesEnabled() || repairsAny
 	if n.ReadOnly() || !enabled {
 		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
@@ -1499,9 +1501,21 @@ func (n *dbNamespace) Truncate() (int64, error) {
 func (n *dbNamespace) Repair(
 	repairer databaseShardRepairer,
 	tr xtime.Range,
+	opts NamespaceRepairOptions,
 ) error {
-	if !n.nopts.RepairEnabled() {
+	shouldRun := opts.Force || n.nopts.RepairEnabled()
+	if !shouldRun {
 		return nil
+	}
+
+	n.RLock()
+	repairsAny := n.repairsAny
+	n.RUnlock()
+	if !repairsAny {
+		// Only acquire write lock if required.
+		n.Lock()
+		n.repairsAny = true
+		n.Unlock()
 	}
 
 	var (

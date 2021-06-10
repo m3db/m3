@@ -921,8 +921,10 @@ func Run(runOpts RunOptions) {
 		repairOpts := opts.RepairOptions().
 			SetAdminClients(repairClients)
 
-		if cfg.Repair != nil {
+		if repairCfg := cfg.Repair; repairCfg != nil {
 			repairOpts = repairOpts.
+				SetType(repairCfg.Type).
+				SetForce(repairCfg.Force).
 				SetResultOptions(rsOpts).
 				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
 			if cfg.Repair.Throttle > 0 {
