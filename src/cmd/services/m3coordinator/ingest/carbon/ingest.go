@@ -325,7 +325,7 @@ func (i *ingester) Handle(conn net.Conn) {
 		if i.opts.StaticWorkerPool != nil {
 			i.opts.StaticWorkerPool.Go(work)
 		} else {
-			i.opts.DynamicWorkerPool.AlwaysGo(work)
+			i.opts.DynamicWorkerPool.GoAlways(work)
 		}
 
 		i.metrics.malformed.Inc(int64(s.MalformedCount))

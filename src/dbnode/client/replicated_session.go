@@ -163,7 +163,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 		asyncSession := asyncSession // capture var
 		select {
 		case s.replicationSemaphore <- struct{}{}:
-			s.workerPool.AlwaysGo(func() {
+			s.workerPool.GoAlways(func() {
 				var err error
 				if params.useTags {
 					err = asyncSession.WriteTagged(

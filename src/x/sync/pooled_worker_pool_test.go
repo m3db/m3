@@ -146,7 +146,7 @@ func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
 		// this test would never complete this loop as the
 		// anonymous Work function below would not complete
 		// and would block further iterations.
-		p.AlwaysGo(func() {
+		p.GoAlways(func() {
 			atomic.AddUint32(&count, 1)
 			wg.Done()
 			<-doneCh
@@ -180,7 +180,7 @@ func TestPooledWorkerPoolGoOrGrowKillWorker(t *testing.T) {
 		// this test would never complete this loop as the
 		// anonymous Work function below would not complete
 		// and would block further iterations.
-		p.AlwaysGo(func() {
+		p.GoAlways(func() {
 			atomic.AddUint32(&count, 1)
 			wg.Done()
 			<-doneCh

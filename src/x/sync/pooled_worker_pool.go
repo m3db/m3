@@ -89,7 +89,7 @@ func (p *pooledWorkerPool) Go(work Work) {
 	p.work(maybeContext{}, work, 0)
 }
 
-func (p *pooledWorkerPool) AlwaysGo(work Work) {
+func (p *pooledWorkerPool) GoAlways(work Work) {
 	p.work(maybeContext{}, work, 0)
 }
 

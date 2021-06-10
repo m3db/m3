@@ -75,14 +75,14 @@ type DynamicPooledWorkerPool interface {
 	// Init initializes the pool.
 	Init()
 
-	// AlwaysGo assigns the Work to be executed by a Goroutine, expanding the pool of goroutines to
+	// GoAlways assigns the Work to be executed by a Goroutine, expanding the pool of goroutines to
 	// accommodate the work. The newly allocated goroutine will temporarily
 	// participate in the pool in an effort to amortize its allocation cost, but
 	// will eventually be killed. This allows the pool to dynamically respond to
 	// workloads without causing excessive memory pressure. The pool will grow in
 	// size when the workload exceeds its capacity and shrink back down to its
 	// original size if/when the burst subsides.
-	AlwaysGo(work Work)
+	GoAlways(work Work)
 }
 
 // NewPooledWorkerOptions is a set of new instrument worker pool options.

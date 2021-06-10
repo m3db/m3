@@ -711,7 +711,7 @@ func (s *m3storage) Write(
 		// capture var
 		datapoint := datapoint
 		wg.Add(1)
-		s.opts.WriteWorkerPool().AlwaysGo(func() {
+		s.opts.WriteWorkerPool().GoAlways(func() {
 			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
 				multiErr.add(err)
 			}

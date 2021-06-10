@@ -514,7 +514,7 @@ func (q *queue) asyncTaggedWrite(
 	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 
-	q.workerPool.AlwaysGo(func() {
+	q.workerPool.GoAlways(func() {
 		req := q.writeTaggedBatchRawRequestPool.Get()
 		req.NameSpace = namespace.Bytes()
 		req.Elements = elems
@@ -579,7 +579,7 @@ func (q *queue) asyncTaggedWriteV2(
 	q.writeOpBatchSize.RecordValue(float64(len(req.Elements)))
 	q.Add(1)
 
-	q.workerPool.AlwaysGo(func() {
+	q.workerPool.GoAlways(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			q.writeTaggedBatchRawV2RequestElementArrayPool.Put(req.Elements)
@@ -639,7 +639,7 @@ func (q *queue) asyncWrite(
 ) {
 	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
-	q.workerPool.AlwaysGo(func() {
+	q.workerPool.GoAlways(func() {
 		req := q.writeBatchRawRequestPool.Get()
 		req.NameSpace = namespace.Bytes()
 		req.Elements = elems
@@ -703,7 +703,7 @@ func (q *queue) asyncWriteV2(
 ) {
 	q.writeOpBatchSize.RecordValue(float64(len(req.Elements)))
 	q.Add(1)
-	q.workerPool.AlwaysGo(func() {
+	q.workerPool.GoAlways(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			q.writeBatchRawV2RequestElementArrayPool.Put(req.Elements)
@@ -759,7 +759,7 @@ func (q *queue) asyncWriteV2(
 func (q *queue) asyncFetch(op *fetchBatchOp) {
 	q.fetchOpBatchSize.RecordValue(float64(len(op.request.Ids)))
 	q.Add(1)
-	q.workerPool.AlwaysGo(func() {
+	q.workerPool.GoAlways(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			op.DecRef()
@@ -807,7 +807,7 @@ func (q *queue) asyncFetchV2(
 ) {
 	q.fetchOpBatchSize.RecordValue(float64(len(currV2FetchBatchRawReq.Elements)))
 	q.Add(1)
-	q.workerPool.AlwaysGo(func() {
+	q.workerPool.GoAlways(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			q.fetchBatchRawV2RequestElementArrayPool.Put(currV2FetchBatchRawReq.Elements)
@@ -951,7 +951,7 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 func (q *queue) asyncTruncate(op *truncateOp) {
 	q.Add(1)
 
-	q.workerPool.AlwaysGo(func() {
+	q.workerPool.GoAlways(func() {
 		cleanup := q.Done
 
 		client, _, err := q.connPool.NextClient()

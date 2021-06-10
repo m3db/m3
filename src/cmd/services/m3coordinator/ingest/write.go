@@ -329,7 +329,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 		p := p // Capture for goroutine.
 
 		wg.Add(1)
-		d.workerPool.AlwaysGo(func() {
+		d.workerPool.GoAlways(func() {
 			// NB(r): Allocate the write query at the top
 			// of the pooled worker instead of need to pass
 			// the options down the stack which can cause
@@ -409,7 +409,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
-				d.workerPool.AlwaysGo(func() {
+				d.workerPool.GoAlways(func() {
 					// NB(r): Allocate the write query at the top
 					// of the pooled worker instead of need to pass
 					// the options down the stack which can cause
