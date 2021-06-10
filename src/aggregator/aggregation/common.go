@@ -43,3 +43,17 @@ func isExpensive(aggTypes aggregation.Types) bool {
 	}
 	return false
 }
+
+func maybeReplaceAnnotation(current, new []byte) []byte {
+	if len(new) == 0 {
+		return current
+	}
+	// Keep the last annotation which was set. Reuse any previous allocation while taking a copy.
+	result := current[:0]
+	if cap(result) < len(new) {
+		// Twice as long in case another one comes in
+		// and we could avoid realloc as long as less than this first alloc.
+		result = make([]byte, 0, 2*len(new))
+	}
+	return append(result, new...)
+}
