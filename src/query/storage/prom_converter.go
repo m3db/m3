@@ -22,6 +22,7 @@ package storage
 
 import (
 	"context"
+	"strconv"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
+	"github.com/m3db/m3/src/x/unsafe"
 )
 
 const initRawFetchAllocSize = 32
@@ -88,19 +90,25 @@ func toPromSequentially(
 	}, nil
 }
 
+var (
+	rollupTag              = []byte("__rollup__")
+	leTag                  = []byte("le")
+	excludeKeysRollupAndLe = [][]byte{rollupTag, leTag}
+)
+
 func toPromConcurrently(
 	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
-	count := fetchResult.Count()
 	var (
-		seriesList = make([]*prompb.TimeSeries, count)
-
-		wg       sync.WaitGroup
-		multiErr xerrors.MultiError
-		mu       sync.Mutex
+		count                 = fetchResult.Count()
+		seriesList            = make([]*prompb.TimeSeries, count)
+		excludeRollupAndLeMap *seriesGroupMap
+		wg                    sync.WaitGroup
+		multiErr              xerrors.MultiError
+		mu                    sync.Mutex
 	)
 
 	fastWorkerPool := readWorkerPool.FastContextCheck(100)
@@ -109,6 +117,36 @@ func toPromConcurrently(
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
 		if err != nil {
 			return PromResult{}, err
+		}
+
+		_, rollupTagExists := tags.Get(rollupTag)
+		leTagValue, leTagExists := tags.Get(leTag)
+		if rollupTagExists && leTagExists {
+			var group seriesGroup
+			excludeRollupAndLeKey := tags.TagsWithoutKeys(excludeKeysRollupAndLe)
+			if excludeRollupAndLeMap == nil {
+				excludeRollupAndLeMap = newSeriesGroupMap(count)
+			} else {
+				elem, ok := excludeRollupAndLeMap.Get(excludeRollupAndLeKey)
+				if ok {
+					group = elem
+				}
+			}
+
+			sortValue, err := strconv.ParseFloat(unsafe.String(leTagValue), 64)
+			if err != nil {
+				return PromResult{}, err
+			}
+
+			group.entries = append(group.entries, seriesGroupEntry{
+				sortValue: sortValue,
+				iter:      iter,
+				tags:      tags,
+			})
+
+			excludeRollupAndLeMap.Set(excludeRollupAndLeKey, group)
+
+			continue
 		}
 
 		wg.Add(1)
@@ -131,6 +169,9 @@ func toPromConcurrently(
 			break
 		}
 	}
+
+	// Need to now do a for loop over the groups, sort entries by .sortValue
+	// then process by group using the worker pool.
 
 	wg.Wait()
 	if err := multiErr.LastError(); err != nil {
@@ -182,4 +223,14 @@ func SeriesIteratorsToPromResult(
 		readWorkerPool, tagOptions)
 	promResult.Metadata = fetchResult.Metadata
 	return promResult, err
+}
+
+type seriesGroup struct {
+	entries []seriesGroupEntry
+}
+
+type seriesGroupEntry struct {
+	sortValue float64
+	iter      encoding.SeriesIterator
+	tags      models.Tags
 }
