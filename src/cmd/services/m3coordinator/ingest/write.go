@@ -104,7 +104,9 @@ type WriteOptions struct {
 }
 
 type downsamplerAndWriterMetrics struct {
-	dropped tally.Counter
+	dropped                                   tally.Counter
+	unaggregatedDatapointsWithEmptyAnnotation tally.Counter
+	aggregatedDatapointsWithEmptyAnnotation   tally.Counter
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -124,13 +126,26 @@ func NewDownsamplerAndWriter(
 	workerPool xsync.PooledWorkerPool,
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
-	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
+	var (
+		scope = instrumentOpts.MetricsScope().SubScope("downsampler")
+
+		emptyAnnotationMetricName = "datapoints_with_empty_annotation"
+		typeTag                   = func(t string) map[string]string {
+			return map[string]string{"type": t}
+		}
+		unaggregated = scope.Tagged(typeTag("unaggregated")).Counter(emptyAnnotationMetricName)
+		aggregated   = scope.Tagged(typeTag("aggregated")).Counter(emptyAnnotationMetricName)
+	)
+
 	return &downsamplerAndWriter{
 		store:       store,
 		downsampler: downsampler,
 		workerPool:  workerPool,
 		metrics: downsamplerAndWriterMetrics{
 			dropped: scope.Counter("metrics_dropped"),
+
+			unaggregatedDatapointsWithEmptyAnnotation: unaggregated,
+			aggregatedDatapointsWithEmptyAnnotation:   aggregated,
 		},
 	}
 }
@@ -316,6 +331,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 		if err != nil {
 			return err
 		}
+		d.maybeRecordDatapointsWithEmptyAnnotation(writeQuery)
 		return d.store.Write(ctx, writeQuery)
 	}
 
@@ -342,6 +358,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 				Attributes: storageAttributesFromPolicy(p),
 			})
 			if err == nil {
+				d.maybeRecordDatapointsWithEmptyAnnotation(writeQuery)
 				err = d.store.Write(ctx, writeQuery)
 			}
 			if err != nil {
@@ -356,6 +373,20 @@ func (d *downsamplerAndWriter) writeToStorage(
 
 	wg.Wait()
 	return multiErr.FinalError()
+}
+
+func (d *downsamplerAndWriter) maybeRecordDatapointsWithEmptyAnnotation(q *storage.WriteQuery) {
+	if len(q.Annotation()) == 0 {
+		n := int64(len(q.Datapoints()))
+		switch q.Attributes().MetricsType {
+		case storagemetadata.UnaggregatedMetricsType:
+			d.metrics.unaggregatedDatapointsWithEmptyAnnotation.Inc(n)
+		case storagemetadata.AggregatedMetricsType:
+			d.metrics.aggregatedDatapointsWithEmptyAnnotation.Inc(n)
+		default:
+			// ignore
+		}
+	}
 }
 
 func (d *downsamplerAndWriter) WriteBatch(
