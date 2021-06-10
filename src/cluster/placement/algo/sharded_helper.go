@@ -51,10 +51,10 @@ type optimizeType int
 
 const (
 	// safe optimizes the load distribution without violating
-	// minimal shard movemoment.
+	// minimal shard movement.
 	safe optimizeType = iota
 	// unsafe optimizes the load distribution with the potential of violating
-	// minimal shard movement in order to reach best shard distribution
+	// minimal shard movement in order to reach best shard distribution.
 	unsafe
 )
 
