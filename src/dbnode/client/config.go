@@ -347,9 +347,9 @@ func (c Configuration) NewAdminClient(
 
 		workerPoolInstrumentOpts := iopts.SetMetricsScope(writeRequestScope.SubScope("workerpool"))
 		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-			SetGrowOnDemand(true).
-			SetInstrumentOptions(workerPoolInstrumentOpts)
-		workerPool, err := xsync.NewPooledWorkerPool(size, workerPoolOpts)
+			SetInstrumentOptions(workerPoolInstrumentOpts).
+			SetNumShards(size)
+		workerPool, err := xsync.NewDynamicPooledWorkerPool(workerPoolOpts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create async worker pool: %v", err)
 		}

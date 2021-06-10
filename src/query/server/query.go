@@ -335,7 +335,7 @@ func Run(runOpts RunOptions) {
 
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
-		cfg.ReadWorkerPool,
+		cfg.ReadWorkerPoolOrDefault(),
 		cfg.WriteWorkerPoolOrDefault(),
 		scope)
 	if err != nil {
@@ -1143,26 +1143,28 @@ func startCarbonIngestion(
 	var (
 		carbonIOpts = iOpts.SetMetricsScope(
 			iOpts.MetricsScope().SubScope("ingest-carbon"))
-		carbonWorkerPoolOpts xsync.PooledWorkerPoolOptions
-		carbonWorkerPoolSize int
+		staticWorkerPool  xsync.StaticPooledWorkerPool
+		dynamicWorkerPool xsync.DynamicPooledWorkerPool
+		err               error
 	)
 	if ingesterCfg.MaxConcurrency > 0 {
 		// Use a bounded worker pool if they requested a specific maximum concurrency.
-		carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
-			SetGrowOnDemand(false).
-			SetInstrumentOptions(carbonIOpts)
-		carbonWorkerPoolSize = ingesterCfg.MaxConcurrency
+		staticWorkerPool, err = xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions().
+			SetInstrumentOptions(carbonIOpts).
+			SetNumShards(ingesterCfg.MaxConcurrency))
+		if err != nil {
+			logger.Fatal("unable to create worker pool for carbon ingester", zap.Error(err))
+		}
+		staticWorkerPool.Init()
 	} else {
-		carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
-			SetGrowOnDemand(true).
-			SetKillWorkerProbability(0.001)
-		carbonWorkerPoolSize = defaultCarbonIngesterWorkerPoolSize
+		dynamicWorkerPool, err = xsync.NewDynamicPooledWorkerPool(xsync.NewPooledWorkerPoolOptions().
+			SetKillWorkerProbability(0.001).
+			SetNumShards(defaultCarbonIngesterWorkerPoolSize))
+		if err != nil {
+			logger.Fatal("unable to create worker pool for carbon ingester", zap.Error(err))
+		}
+		dynamicWorkerPool.Init()
 	}
-	workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
-	if err != nil {
-		logger.Fatal("unable to create worker pool for carbon ingester", zap.Error(err))
-	}
-	workerPool.Init()
 
 	if m3dbClusters == nil {
 		logger.Fatal("carbon ingestion is only supported when connecting to M3DB clusters directly")
@@ -1172,7 +1174,8 @@ func startCarbonIngestion(
 	ingester, err := ingestcarbon.NewIngester(
 		downsamplerAndWriter, clusterNamespacesWatcher, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
-			WorkerPool:        workerPool,
+			StaticWorkerPool:  staticWorkerPool,
+			DynamicWorkerPool: dynamicWorkerPool,
 			IngesterConfig:    ingesterCfg,
 		})
 	if err != nil {
@@ -1209,12 +1212,12 @@ func newDownsamplerAndWriter(
 	workerPoolPolicy xconfig.WorkerPoolPolicy,
 	iOpts instrument.Options,
 ) (ingest.DownsamplerAndWriter, error) {
-	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
+	// Make sure the downsampler and writer gets its own pool and that its not shared with any other
 	// codepaths because PooledWorkerPools can deadlock if used recursively.
-	downAndWriterWorkerPoolOpts, writePoolSize := workerPoolPolicy.Options()
+	downAndWriterWorkerPoolOpts := workerPoolPolicy.Options()
 	downAndWriterWorkerPoolOpts = downAndWriterWorkerPoolOpts.SetInstrumentOptions(iOpts.
 		SetMetricsScope(iOpts.MetricsScope().SubScope("ingest-writer-worker-pool")))
-	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, downAndWriterWorkerPoolOpts)
+	downAndWriteWorkerPool, err := xsync.NewDynamicPooledWorkerPool(downAndWriterWorkerPoolOpts)
 	if err != nil {
 		return nil, err
 	}

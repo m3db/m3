@@ -26,12 +26,12 @@ import (
 )
 
 type fastPooledWorkerPool struct {
-	workerPool PooledWorkerPool
+	workerPool StaticPooledWorkerPool
 	batchSize  int
 	count      int
 }
 
-var _ PooledWorkerPool = &fastPooledWorkerPool{}
+var _ StaticPooledWorkerPool = &fastPooledWorkerPool{}
 
 func (f *fastPooledWorkerPool) Init() {
 	f.workerPool.Init()
@@ -57,6 +57,6 @@ func (f *fastPooledWorkerPool) GoWithContext(ctx context.Context, work Work) boo
 	return true
 }
 
-func (f *fastPooledWorkerPool) FastContextCheck(batchSize int) PooledWorkerPool {
+func (f *fastPooledWorkerPool) FastContextCheck(batchSize int) StaticPooledWorkerPool {
 	return &fastPooledWorkerPool{workerPool: f.workerPool, batchSize: batchSize}
 }

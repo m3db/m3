@@ -48,7 +48,7 @@ type replicatedSession struct {
 	session              clientSession
 	asyncSessions        []clientSession
 	newSessionFn         newSessionFn
-	workerPool           m3sync.PooledWorkerPool
+	workerPool           m3sync.DynamicPooledWorkerPool
 	replicationSemaphore chan struct{}
 	scope                tally.Scope
 	log                  *zap.Logger
@@ -163,7 +163,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 		asyncSession := asyncSession // capture var
 		select {
 		case s.replicationSemaphore <- struct{}{}:
-			s.workerPool.Go(func() {
+			s.workerPool.AlwaysGo(func() {
 				var err error
 				if params.useTags {
 					err = asyncSession.WriteTagged(

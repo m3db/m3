@@ -127,8 +127,7 @@ func setup(
 }
 
 func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
-	writePool, err := sync.NewPooledWorkerPool(10,
-		sync.NewPooledWorkerPoolOptions())
+	writePool, err := sync.NewDynamicPooledWorkerPool(sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
 	tagOpts := models.NewTagOptions().SetMetricName([]byte("name"))

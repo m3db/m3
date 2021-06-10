@@ -31,7 +31,7 @@ import (
 // Work is a unit of item to be worked on.
 type Work func()
 
-// PooledWorkerPool provides a pool for goroutines, but unlike WorkerPool,
+// StaticPooledWorkerPool provides a pool for goroutines, but unlike WorkerPool,
 // the actual goroutines themselves are re-used. This can be useful from a
 // performance perspective in scenarios where the allocation and growth of
 // the new goroutine and its stack is a bottleneck. Specifically, if the
@@ -40,26 +40,16 @@ type Work func()
 // allows the stack to be grown once, and then re-used for many invocations.
 //
 // In order to prevent abnormally large goroutine stacks from persisting over
-// the life-cycle of an application, the PooledWorkerPool will randomly kill
+// the life-cycle of an application, the StaticPooledWorkerPool will randomly kill
 // existing goroutines and spawn a new one.
 //
-// The PooledWorkerPool also implements sharding of its underlying worker channels
+// The StaticPooledWorkerPool also implements sharding of its underlying worker channels
 // to prevent excessive lock contention.
-type PooledWorkerPool interface {
+type StaticPooledWorkerPool interface {
 	// Init initializes the pool.
 	Init()
 
-	// Go assign the Work to be executed by a Goroutine. Whether or not
-	// it waits for an existing Goroutine to become available or not
-	// is determined by the GrowOnDemand() option. If GrowOnDemand is not
-	// set then the call to Go() will block until a goroutine is available.
-	// If GrowOnDemand() is set then it will expand the pool of goroutines to
-	// accommodate the work. The newly allocated goroutine will temporarily
-	// participate in the pool in an effort to amortize its allocation cost, but
-	// will eventually be killed. This allows the pool to dynamically respond to
-	// workloads without causing excessive memory pressure. The pool will grow in
-	// size when the workload exceeds its capacity and shrink back down to its
-	// original size if/when the burst subsides.
+	// Go assign the Work to be executed by a Goroutine, blocking until a goroutine is available.
 	Go(work Work)
 
 	// GoWithTimeout waits up to the given timeout for a worker to become
@@ -76,7 +66,23 @@ type PooledWorkerPool interface {
 	// iterations.
 	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
 	// checked the calling goroutine blocks waiting for a worker.
-	FastContextCheck(batchSize int) PooledWorkerPool
+	FastContextCheck(batchSize int) StaticPooledWorkerPool
+}
+
+// DynamicPooledWorkerPool is like a StaticPooledWorkerPool, but can dynamically grow to ensure a client is never
+// blocked enqueuing work.
+type DynamicPooledWorkerPool interface {
+	// Init initializes the pool.
+	Init()
+
+	// AlwaysGo assigns the Work to be executed by a Goroutine, expanding the pool of goroutines to
+	// accommodate the work. The newly allocated goroutine will temporarily
+	// participate in the pool in an effort to amortize its allocation cost, but
+	// will eventually be killed. This allows the pool to dynamically respond to
+	// workloads without causing excessive memory pressure. The pool will grow in
+	// size when the workload exceeds its capacity and shrink back down to its
+	// original size if/when the burst subsides.
+	AlwaysGo(work Work)
 }
 
 // NewPooledWorkerOptions is a set of new instrument worker pool options.
@@ -84,8 +90,8 @@ type NewPooledWorkerOptions struct {
 	InstrumentOptions instrument.Options
 }
 
-// NewPooledWorkerFn returns a pooled worker pool that Init must be called on.
-type NewPooledWorkerFn func(opts NewPooledWorkerOptions) (PooledWorkerPool, error)
+// NewDynamicPooledWorkerFn returns a pooled worker pool that Init must be called on.
+type NewDynamicPooledWorkerFn func(opts NewPooledWorkerOptions) (DynamicPooledWorkerPool, error)
 
 // WorkerPool provides a pool for goroutines.
 type WorkerPool interface {
@@ -130,19 +136,13 @@ type ScheduleResult struct {
 	WaitTime time.Duration
 }
 
-// PooledWorkerPoolOptions is the options for a PooledWorkerPool.
+// PooledWorkerPoolOptions is the options for a StaticPooledWorkerPool.
 type PooledWorkerPoolOptions interface {
-	// SetGrowOnDemand sets whether the GrowOnDemand feature is enabled.
-	SetGrowOnDemand(value bool) PooledWorkerPoolOptions
-
-	// GrowOnDemand returns whether the GrowOnDemand feature is enabled.
-	GrowOnDemand() bool
-
 	// SetNumShards sets the number of worker channel shards.
-	SetNumShards(value int64) PooledWorkerPoolOptions
+	SetNumShards(value int) PooledWorkerPoolOptions
 
 	// NumShards returns the number of worker channel shards.
-	NumShards() int64
+	NumShards() int
 
 	// SetKillWorkerProbability sets the probability to kill a worker.
 	SetKillWorkerProbability(value float64) PooledWorkerPoolOptions

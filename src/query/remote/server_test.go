@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -168,8 +167,7 @@ func checkErrorFetch(ctx context.Context, t *testing.T, client Client,
 }
 
 func buildClient(t *testing.T, hosts []string) Client {
-	readWorkerPool, err := xsync.NewPooledWorkerPool(runtime.NumCPU(),
-		xsync.NewPooledWorkerPoolOptions())
+	readWorkerPool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 	readWorkerPool.Init()
 	require.NoError(t, err)
 

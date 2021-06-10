@@ -68,12 +68,14 @@ var (
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 	errIOptsMustBeSet                  = errors.New("carbon ingester options: instrument options must be st")
 	errWorkerPoolMustBeSet             = errors.New("carbon ingester options: worker pool must be set")
+	errMultipleWorkerPoolsSet          = errors.New("carbon ingester options: only single worker pool can be set")
 )
 
 // Options configures the ingester.
 type Options struct {
 	InstrumentOptions instrument.Options
-	WorkerPool        xsync.PooledWorkerPool
+	StaticWorkerPool  xsync.StaticPooledWorkerPool
+	DynamicWorkerPool xsync.DynamicPooledWorkerPool
 	IngesterConfig    config.CarbonIngesterConfiguration
 }
 
@@ -87,8 +89,11 @@ func (o *Options) Validate() error {
 	if o.InstrumentOptions == nil {
 		return errIOptsMustBeSet
 	}
-	if o.WorkerPool == nil {
+	if o.StaticWorkerPool == nil && o.DynamicWorkerPool == nil {
 		return errWorkerPoolMustBeSet
+	}
+	if o.StaticWorkerPool != nil && o.DynamicWorkerPool != nil {
+		return errMultipleWorkerPoolsSet
 	}
 	return nil
 }
@@ -294,7 +299,7 @@ func (i *ingester) Handle(conn net.Conn) {
 		resources.name = copyAndRewrite(resources.name, name, rewrite)
 
 		wg.Add(1)
-		i.opts.WorkerPool.Go(func() {
+		work := func() {
 			ok := i.write(ctx, resources, xtime.ToUnixNano(timestamp), value)
 			if ok {
 				i.metrics.success.Inc(1)
@@ -316,7 +321,12 @@ func (i *ingester) Handle(conn net.Conn) {
 			// that it needed to hold onto have already been copied.
 			i.putLineResources(resources)
 			wg.Done()
-		})
+		}
+		if i.opts.StaticWorkerPool != nil {
+			i.opts.StaticWorkerPool.Go(work)
+		} else {
+			i.opts.DynamicWorkerPool.AlwaysGo(work)
+		}
 
 		i.metrics.malformed.Inc(int64(s.MalformedCount))
 		s.MalformedCount = 0
