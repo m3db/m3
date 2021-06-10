@@ -64,7 +64,6 @@ func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 
 	g.count++
 
-	// Keep the last annotation which was set.
 	g.annotation = maybeReplaceAnnotation(g.annotation, annotation)
 
 	if math.IsNaN(value) {
