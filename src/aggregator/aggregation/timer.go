@@ -72,7 +72,6 @@ func (t *Timer) AddBatch(timestamp time.Time, values []float64, annotation []byt
 
 	t.stream.AddBatch(values)
 
-	// Keep the last annotation which was set.
 	t.annotation = maybeReplaceAnnotation(t.annotation, annotation)
 }
 
