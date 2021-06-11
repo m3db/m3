@@ -104,9 +104,9 @@ type WriteOptions struct {
 }
 
 type downsamplerAndWriterMetrics struct {
-	dropped                                   tally.Counter
-	unaggregatedDatapointsWithEmptyAnnotation tally.Counter
-	aggregatedDatapointsWithEmptyAnnotation   tally.Counter
+	dropped                             tally.Counter
+	unaggregatedWritesWithoutAnnotation tally.Counter
+	aggregatedWritesWithoutAnnotation   tally.Counter
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -129,12 +129,12 @@ func NewDownsamplerAndWriter(
 	var (
 		scope = instrumentOpts.MetricsScope().SubScope("downsampler")
 
-		emptyAnnotationMetricName = "writes_without_annotation"
-		storagePolicyTag          = func(t string) map[string]string {
+		writesWithoutAnnotationMetricName = "writes_without_annotation"
+		storagePolicyTag                  = func(t string) map[string]string {
 			return map[string]string{"storage_policy": t}
 		}
-		unaggregated = scope.Tagged(storagePolicyTag("unaggregated")).Counter(emptyAnnotationMetricName)
-		aggregated   = scope.Tagged(storagePolicyTag("aggregated")).Counter(emptyAnnotationMetricName)
+		unaggregated = scope.Tagged(storagePolicyTag("unaggregated")).Counter(writesWithoutAnnotationMetricName)
+		aggregated   = scope.Tagged(storagePolicyTag("aggregated")).Counter(writesWithoutAnnotationMetricName)
 	)
 
 	return &downsamplerAndWriter{
@@ -144,8 +144,8 @@ func NewDownsamplerAndWriter(
 		metrics: downsamplerAndWriterMetrics{
 			dropped: scope.Counter("metrics_dropped"),
 
-			unaggregatedDatapointsWithEmptyAnnotation: unaggregated,
-			aggregatedDatapointsWithEmptyAnnotation:   aggregated,
+			unaggregatedWritesWithoutAnnotation: unaggregated,
+			aggregatedWritesWithoutAnnotation:   aggregated,
 		},
 	}
 }
@@ -380,9 +380,9 @@ func (d *downsamplerAndWriter) maybeRecordDatapointsWithEmptyAnnotation(q *stora
 		n := int64(len(q.Datapoints()))
 		switch q.Attributes().MetricsType {
 		case storagemetadata.UnaggregatedMetricsType:
-			d.metrics.unaggregatedDatapointsWithEmptyAnnotation.Inc(n)
+			d.metrics.unaggregatedWritesWithoutAnnotation.Inc(n)
 		case storagemetadata.AggregatedMetricsType:
-			d.metrics.aggregatedDatapointsWithEmptyAnnotation.Inc(n)
+			d.metrics.aggregatedWritesWithoutAnnotation.Inc(n)
 		default:
 			// ignore
 		}
