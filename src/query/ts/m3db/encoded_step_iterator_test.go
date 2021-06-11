@@ -422,7 +422,15 @@ func newTestOptions() Options {
 		},
 		CheckedBytesWrapperPoolSize: 1,
 	})
-	return newOptions(bytesPool, iteratorPools)
+
+	pool, err := xsync.NewPooledWorkerPool(10,
+		xsync.NewPooledWorkerPoolOptions())
+	if err != nil {
+		panic(err)
+	}
+	pool.Init()
+
+	return newOptions(bytesPool, iteratorPools).SetReadWorkerPool(pool)
 }
 
 func iterToFetchResult(

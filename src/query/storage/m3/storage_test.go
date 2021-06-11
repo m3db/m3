@@ -844,7 +844,13 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 }
 
 func TestInvalidBlockTypes(t *testing.T) {
-	opts := m3db.NewOptions()
+	pool, err := sync.NewPooledWorkerPool(10,
+		sync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+	opts := m3db.NewOptions().
+		SetReadWorkerPool(pool)
+
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
 	require.NoError(t, err)
 
