@@ -342,38 +342,41 @@ func toSamples(vals []float64) []prompb.Sample {
 	return values
 }
 
-func TestToDelta(t *testing.T) {
+func TestNormalize(t *testing.T) {
 	tests := []struct {
-		samples   []float64
-		delta     []float64
-		fromDelta []float64
+		samples    []float64
+		delta      []float64
+		normalized []float64
 	}{
 		{
-			samples:   []float64{1, 2, 3, 4, 5},
-			delta:     []float64{0, 1, 1, 1, 1},
-			fromDelta: []float64{0, 1, 2, 3, 4},
+			samples:    []float64{1, 2, 3, 4, 5},
+			delta:      []float64{0, 1, 1, 1, 1},
+			normalized: []float64{0, 1, 2, 3, 4},
 		},
 		{
-			samples:   []float64{1, 3, 6, 10, 15},
-			delta:     []float64{0, 2, 3, 4, 5},
-			fromDelta: []float64{0, 2, 5, 9, 14},
+			samples:    []float64{1, 3, 6, 10, 15},
+			delta:      []float64{0, 2, 3, 4, 5},
+			normalized: []float64{0, 2, 5, 9, 14},
 		},
 		{
-			samples:   []float64{5, 2, 7, 0, 5},
-			delta:     []float64{0, 2, 5, 0, 5},
-			fromDelta: []float64{0, 2, 7, 7, 12},
+			samples:    []float64{5, 2, 7, 0, 5},
+			delta:      []float64{0, 2, 5, 0, 5},
+			normalized: []float64{0, 2, 7, 7, 12},
 		},
 		{
-			samples:   []float64{1, 2, 1, 3, 3, 5},
-			delta:     []float64{0, 1, 1, 2, 0, 2},
-			fromDelta: []float64{0, 1, 2, 4, 4, 6},
+			samples:    []float64{1, 2, 1, 3, 3, 5},
+			delta:      []float64{0, 1, 1, 2, 0, 2},
+			normalized: []float64{0, 1, 2, 4, 4, 6},
 		},
 	}
 
 	for _, tt := range tests {
 		delta := toDelta(toSamples(tt.samples))
 		require.Equal(t, toSamples(tt.delta), delta)
-		require.Equal(t, toSamples(tt.fromDelta), fromDelta(delta))
+		require.Equal(t, toSamples(tt.normalized), fromDelta(delta))
+
+		series := &prompb.TimeSeries{Samples: toSamples(tt.samples)}
+		require.Equal(t, toSamples(tt.normalized), normalizeSeries(series).Samples)
 	}
 }
 
@@ -430,6 +433,52 @@ func TestNormalizeAggregatedHistograms(t *testing.T) {
 			actual, err := normalizeAggregatedHistograms(toHistSeries(tt.hists))
 			require.NoError(t, err)
 			require.Equal(t, toHistSeries(tt.expected), actual)
+		})
+	}
+}
+
+func TestShouldNormalizeSeries(t *testing.T) {
+	tests := []struct {
+		name     string
+		samples  []float64
+		expected bool
+	}{
+		{
+			name:     "should not normalize too few values",
+			samples:  []float64{1, 0, 1, 0, 1, 0, 1, 0, 1},
+			expected: false,
+		},
+		{
+			name:     "should normalize zeroes odd",
+			samples:  []float64{1, 0, 1, 0, 1, 0, 1, 0, 1, 0},
+			expected: true,
+		},
+		{
+			name:     "should normalize zeroes even",
+			samples:  []float64{0, 1, 0, 1, 0, 1, 0, 1, 0, 1},
+			expected: true,
+		},
+		{
+			name:     "should not normalize non zeroes on odd",
+			samples:  []float64{0, 1, 1, 1, 0, 1, 0, 1, 0, 1},
+			expected: false,
+		},
+		{
+			name:     "should not normalize non zeroes on even",
+			samples:  []float64{1, 1, 0, 1, 0, 1, 0, 1, 0, 1},
+			expected: false,
+		},
+		{
+			name:     "should not normalize too few non zero",
+			samples:  []float64{0, 1, 0, 0, 0, 0, 0, 1, 0, 1},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			series := &prompb.TimeSeries{Samples: toSamples(tt.samples)}
+			require.Equal(t, tt.expected, shouldNormalizeSeries(series))
 		})
 	}
 }

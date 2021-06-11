@@ -29,12 +29,15 @@ import (
 func newSeriesGroupMap(size int) *seriesGroupMap {
 	return _seriesGroupMapAlloc(_seriesGroupMapOptions{
 		hash: func(t models.Tags) seriesGroupMapHash {
-			return seriesGroupMapHash(t.LastComputedHashedID())
+			return seriesGroupMapHash(t.HashedID())
 		},
 		equals: func(x, y models.Tags) bool {
 			// NB: IDs are calculated once for tags, so any further calls to these
 			// equals is a simple lookup.
 			return bytes.Equal(x.LastComputedID(), y.LastComputedID())
+		},
+		copy: func(t models.Tags) models.Tags {
+			return t
 		},
 		initialSize: size,
 	})
