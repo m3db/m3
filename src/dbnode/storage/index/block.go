@@ -538,22 +538,20 @@ func (b *block) queryWithSpan(
 
 		// Ensure that the block contains any of the relevant time segments for the query range.
 		doc := iter.Current()
-		md, ok := doc.Metadata()
-		if !ok {
-			return errors.New("no doc metadata")
-		}
-		entry := md.Ref.(OnIndexSeries)
+		if md, ok := doc.Metadata(); ok {
+			if entry, ok := md.Ref.(OnIndexSeries); ok {
+				var inBlock bool
+				for currentBlock := opts.StartInclusive.Truncate(b.blockSize); currentBlock.Before(opts.EndExclusive); currentBlock = currentBlock.Add(b.blockSize) {
+					inBlock = entry.IndexedForBlockStart(xtime.ToUnixNano(currentBlock))
+					if inBlock {
+						break
+					}
+				}
 
-		var inBlock bool
-		for currentBlock := opts.StartInclusive.Truncate(b.blockSize); currentBlock.Before(opts.EndExclusive); currentBlock = currentBlock.Add(b.blockSize) {
-			inBlock = entry.IndexedForBlockStart(xtime.ToUnixNano(currentBlock))
-			if inBlock {
-				break
+				if !inBlock {
+					continue
+				}
 			}
-		}
-
-		if !inBlock {
-			continue
 		}
 
 		batch = append(batch, doc)
