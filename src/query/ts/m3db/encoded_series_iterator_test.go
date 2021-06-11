@@ -28,10 +28,23 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var optsWithPool Options
+
+func init() {
+	pool, err := xsync.NewPooledWorkerPool(10, xsync.NewPooledWorkerPoolOptions())
+	if err != nil {
+		panic(err)
+	}
+
+	pool.Init()
+	optsWithPool = NewOptions().SetReadWorkerPool(pool)
+}
 
 func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
 	vals := make([][]float64, len(dps))
@@ -50,7 +63,7 @@ func TestSeriesIterator(t *testing.T) {
 	}
 
 	j := 0
-	opts := NewOptions().
+	opts := optsWithPool.
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
 	require.NoError(t, opts.Validate())
@@ -107,7 +120,7 @@ func TestSeriesIteratorBatch(t *testing.T) {
 	}
 
 	count := 0
-	opts := NewOptions().
+	opts := optsWithPool.
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
 	require.NoError(t, opts.Validate())

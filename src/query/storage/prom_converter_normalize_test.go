@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	dts "github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
@@ -34,8 +36,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 var normalization = PromOptions{

@@ -57,7 +57,7 @@ genny-map-series-metadata-map:
 .PHONY: genny-map-series-group-map
 genny-map-series-group-map:
 	cd $(m3x_package_path) && make hashmap-gen     \
-		pkg=m3                                       \
+		pkg=storage                                  \
 		key_type=models.Tags                         \
 		value_type=seriesGroup                       \
 		rename_nogen_key=true                        \
