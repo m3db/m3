@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHanlerSwitch(t *testing.T) {
+func TestHandlerSwitch(t *testing.T) {
 	promqlCalled := 0
 	promqlHandler := func(w http.ResponseWriter, req *http.Request) {
 		promqlCalled++

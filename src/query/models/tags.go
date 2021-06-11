@@ -208,6 +208,13 @@ func (t Tags) AddTags(tags []Tag) Tags {
 	return t.Normalize()
 }
 
+// AddTagsWithoutNormalizing is used to add multiple tags.
+func (t Tags) AddTagsWithoutNormalizing(tags []Tag) Tags {
+	t.Tags = append(t.Tags, tags...)
+	t.normalized = false
+	return t
+}
+
 // AddOrUpdateTag is used to add a single tag and maintain sorted order,
 // or to replace the value of an existing tag.
 func (t Tags) AddOrUpdateTag(tag Tag) Tags {
@@ -421,6 +428,7 @@ var tagSeperator = []byte(", ")
 // String returns the string representation of the tags.
 func (t Tags) String() string {
 	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("NORMALIZED: %v", t.normalized))
 	for i, tt := range t.Tags {
 		if i != 0 {
 			sb.Write(tagSeperator)

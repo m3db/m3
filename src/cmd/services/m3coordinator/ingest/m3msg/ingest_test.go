@@ -91,7 +91,7 @@ func TestIngest(t *testing.T) {
 				Value:     val,
 			},
 		},
-		Tags: models.NewTags(2, nil).AddTags(
+		Tags: models.NewTags(2, nil).AddTagsWithoutNormalizing(
 			[]models.Tag{
 				{
 					Name:  []byte("__name__"),
@@ -106,7 +106,6 @@ func TestIngest(t *testing.T) {
 		Unit: xtime.Second,
 	})
 	require.NoError(t, err)
-
 	require.Equal(t, *expected, *appender.received[0])
 
 	// Make sure the op is put back to pool.
@@ -174,6 +173,7 @@ func (m *mockAppender) Write(ctx context.Context, query *storage.WriteQuery) err
 		m.receivedErr = append(m.receivedErr, query)
 		return m.expectErr
 	}
+
 	m.received = append(m.received, query)
 	return nil
 }

@@ -347,11 +347,11 @@ func normalizeAggregatedHistograms(
 
 		for i := 1; i < seriesLen; i++ {
 			sample := histSeries[i].Samples[idx]
-			if currTs := sample.Timestamp; ts != currTs {
+			if curr := sample.Timestamp; ts != curr {
 				// Ensure timestamps match per-step.
 				return nil, fmt.Errorf(
 					"mismatched timestamps at step %d: expected %s, got %s",
-					i, xtime.UnixNano(ts), xtime.UnixNano(currTs))
+					i, xtime.UnixNano(ts), xtime.UnixNano(curr))
 			}
 
 			if sample.Value < minValue {

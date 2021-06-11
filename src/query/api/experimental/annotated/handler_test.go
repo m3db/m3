@@ -44,31 +44,31 @@ import (
 
 var testWriteRequest = prompb.AnnotatedWriteRequest{
 	Timeseries: []prompb.AnnotatedTimeSeries{
-		prompb.AnnotatedTimeSeries{
+		{
 			Labels: []prompb.Label{
-				prompb.Label{Name: []byte("__name__"), Value: []byte("requests")},
-				prompb.Label{Name: []byte("status_code"), Value: []byte("200")},
+				{Name: []byte("__name__"), Value: []byte("requests")},
+				{Name: []byte("status_code"), Value: []byte("200")},
 			},
 			Samples: []prompb.AnnotatedSample{
-				prompb.AnnotatedSample{
+				{
 					Value:      4.2,
 					Timestamp:  testTimestampMillis,
 					Annotation: []byte("foo"),
 				},
-				prompb.AnnotatedSample{
+				{
 					Value:      3.14,
 					Timestamp:  testTimestampMillis + 10000,
 					Annotation: []byte("bar"),
 				},
 			},
 		},
-		prompb.AnnotatedTimeSeries{
+		{
 			Labels: []prompb.Label{
-				prompb.Label{Name: []byte("__name__"), Value: []byte("requests")},
-				prompb.Label{Name: []byte("status_code"), Value: []byte("500")},
+				{Name: []byte("__name__"), Value: []byte("requests")},
+				{Name: []byte("status_code"), Value: []byte("500")},
 			},
 			Samples: []prompb.AnnotatedSample{
-				prompb.AnnotatedSample{
+				{
 					Value:      6.28,
 					Timestamp:  testTimestampMillis,
 					Annotation: []byte("baz"),
