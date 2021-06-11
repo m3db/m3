@@ -331,7 +331,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 		if err != nil {
 			return err
 		}
-		d.maybeRecordDatapointsWithEmptyAnnotation(writeQuery)
+		d.maybeRecordWritesWithoutAnnotation(writeQuery)
 		return d.store.Write(ctx, writeQuery)
 	}
 
@@ -358,7 +358,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 				Attributes: storageAttributesFromPolicy(p),
 			})
 			if err == nil {
-				d.maybeRecordDatapointsWithEmptyAnnotation(writeQuery)
+				d.maybeRecordWritesWithoutAnnotation(writeQuery)
 				err = d.store.Write(ctx, writeQuery)
 			}
 			if err != nil {
@@ -375,7 +375,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 	return multiErr.FinalError()
 }
 
-func (d *downsamplerAndWriter) maybeRecordDatapointsWithEmptyAnnotation(q *storage.WriteQuery) {
+func (d *downsamplerAndWriter) maybeRecordWritesWithoutAnnotation(q *storage.WriteQuery) {
 	if len(q.Annotation()) == 0 {
 		n := int64(len(q.Datapoints()))
 		switch q.Attributes().MetricsType {
