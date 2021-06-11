@@ -295,9 +295,10 @@ func Run(runOpts RunOptions) {
 	fetchOptsBuilderLimitsOpts := cfg.Limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
 		handleroptions.FetchOptionsBuilderOptions{
-			Limits:        fetchOptsBuilderLimitsOpts,
-			RestrictByTag: storageRestrictByTags,
-			Timeout:       timeout,
+			Limits:                 fetchOptsBuilderLimitsOpts,
+			RestrictByTag:          storageRestrictByTags,
+			Timeout:                timeout,
+			AggregateNormalization: cfg.Query.NormalizeAggregates,
 		})
 	if err != nil {
 		logger.Fatal("could not set fetch options parser", zap.Error(err))
@@ -514,9 +515,10 @@ func Run(runOpts RunOptions) {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
 				handleroptions.FetchOptionsBuilderOptions{
-					Limits:        fetchOptsBuilderLimitsOpts,
-					RestrictByTag: storageRestrictByTags,
-					Timeout:       timeout,
+					Limits:                 fetchOptsBuilderLimitsOpts,
+					RestrictByTag:          storageRestrictByTags,
+					Timeout:                timeout,
+					AggregateNormalization: cfg.Query.NormalizeAggregates,
 				})
 			if err != nil {
 				logger.Fatal("could not set graphite find fetch options parser", zap.Error(err))
@@ -526,9 +528,10 @@ func Run(runOpts RunOptions) {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 			graphiteRenderFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
 				handleroptions.FetchOptionsBuilderOptions{
-					Limits:        fetchOptsBuilderLimitsOpts,
-					RestrictByTag: storageRestrictByTags,
-					Timeout:       timeout,
+					Limits:                 fetchOptsBuilderLimitsOpts,
+					RestrictByTag:          storageRestrictByTags,
+					Timeout:                timeout,
+					AggregateNormalization: cfg.Query.NormalizeAggregates,
 				})
 			if err != nil {
 				logger.Fatal("could not set graphite find fetch options parser", zap.Error(err))

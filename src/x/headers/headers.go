@@ -164,6 +164,11 @@ const (
 	// series that were fetched by the query, before computation.
 	FetchedSeriesCount = M3HeaderPrefix + "Series-Count"
 
+	// NormalizeAggregates is a header that, if set, will normalize aggregated
+	// series and histograms. This is useful for fixing edge cases in aggregated
+	// histograms to ensure that bucketing is correct.
+	NormalizeAggregates = M3HeaderPrefix + "Normalize-Aggregates"
+
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"
 

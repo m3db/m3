@@ -38,9 +38,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
-)
+var errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 
 // Type describes the type of storage.
 type Type int
@@ -147,6 +145,8 @@ type FetchOptions struct {
 	Timeout time.Duration
 	// Source is the source for the query.
 	Source []byte
+	// AggregateNormalization determines if aggregated series should be normalized.
+	AggregateNormalization bool
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
@@ -326,4 +326,10 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
+}
+
+// PromOptions are options for decoding prometheus series.
+type PromOptions struct {
+	// AggregateNormalization will normalize aggregated histograms and counters.
+	AggregateNormalization bool
 }

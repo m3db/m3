@@ -70,9 +70,10 @@ type FetchOptionsBuilder interface {
 // FetchOptionsBuilderOptions provides options to use when creating a
 // fetch options builder.
 type FetchOptionsBuilderOptions struct {
-	Limits        FetchOptionsBuilderLimitsOptions
-	RestrictByTag *storage.RestrictByTag
-	Timeout       time.Duration
+	Limits                 FetchOptionsBuilderLimitsOptions
+	RestrictByTag          *storage.RestrictByTag
+	Timeout                time.Duration
+	AggregateNormalization bool
 }
 
 // Validate validates the fetch options builder options.
@@ -399,6 +400,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		return nil, nil, fmt.Errorf("could not parse timeout: err=%w", err)
 	}
 
+	normalize, err := parseAggregateNormalization(req, b.opts.AggregateNormalization)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not parse normalization: err=%w", err)
+	}
+
+	fetchOpts.AggregateNormalization = normalize
+
 	// Set timeout on the returned context.
 	ctx, _ = contextWithRequestAndTimeout(ctx, req, fetchOpts)
 	return ctx, fetchOpts, nil
@@ -557,4 +565,21 @@ func validateTimeout(v time.Duration) error {
 			fmt.Errorf("invalid 'timeout': %v greater than max %v", v, maxTimeout))
 	}
 	return nil
+}
+
+func parseAggregateNormalization(
+	r *http.Request, defaultNormalization bool,
+) (bool, error) {
+	if str := r.Header.Get(headers.NormalizeAggregates); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			return false, fmt.Errorf(
+				"could not parse aggregate normalization: input=%s, err=%v", str, err,
+			)
+		}
+
+		return v, nil
+	}
+
+	return defaultNormalization, nil
 }

@@ -33,9 +33,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-var (
-	errNoTags = errors.New("no tags")
-)
+var errNoTags = errors.New("no tags")
 
 // NewTags builds a tags with the given size and tag options.
 func NewTags(size int, opts TagOptions) Tags {
@@ -131,6 +129,32 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 	return nil, false
 }
 
+// GetBinary returns the value for the tag with the given name by performing a
+// binary search on normalized results.
+// NB: if this tag set is not normalized, this will default to regular Get.
+func (t Tags) GetBinary(key []byte) ([]byte, bool) {
+	if !t.normalized {
+		return t.Get(key)
+	}
+
+	lenTags := len(t.Tags)
+	idx := sort.Search(lenTags, func(idx int) bool {
+		return bytes.Compare(key, t.Tags[idx].Name) > -1
+	})
+
+	if idx == lenTags {
+		return nil, false
+	}
+
+	// NB: need to verify the key matches since sort.Search does not actually
+	// determine if the element at `idx` is equal to the tag name.
+	if tag := t.Tags[idx]; bytes.Equal(key, tag.Name) {
+		return tag.Value, true
+	}
+
+	return nil, false
+}
+
 // Clone returns a copy of the tags.
 func (t Tags) Clone() Tags {
 	// TODO: Pool these
@@ -154,6 +178,7 @@ func (t Tags) AddTag(tag Tag) Tags {
 // AddTagWithoutNormalizing is used to add a single tag.
 func (t Tags) AddTagWithoutNormalizing(tag Tag) Tags {
 	t.Tags = append(t.Tags, tag)
+	t.normalized = false
 	return t
 }
 
@@ -244,6 +269,7 @@ func (t sortableTagsNumericallyAsc) Len() int { return len(t.Tags) }
 func (t sortableTagsNumericallyAsc) Swap(i, j int) {
 	t.Tags[i], t.Tags[j] = t.Tags[j], t.Tags[i]
 }
+
 func (t sortableTagsNumericallyAsc) Less(i, j int) bool {
 	iName, jName := t.Tags[i].Name, t.Tags[j].Name
 	lenDiff := len(iName) - len(jName)
@@ -265,6 +291,7 @@ func (t Tags) Normalize() Tags {
 		// Graphite tags are sorted numerically rather than lexically.
 		sort.Sort(sortableTagsNumericallyAsc(t))
 	} else {
+		t.normalized = true
 		sort.Sort(t)
 	}
 

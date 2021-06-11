@@ -22,6 +22,9 @@ package storage
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -31,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/m3db/m3/src/x/unsafe"
 )
 
@@ -60,55 +64,27 @@ func iteratorToPromResult(
 	}, nil
 }
 
-// Fall back to sequential decompression if unable to decompress concurrently.
-func toPromSequentially(
-	fetchResult consolidators.SeriesFetchResult,
-	tagOptions models.TagOptions,
-) (PromResult, error) {
-	count := fetchResult.Count()
-	seriesList := make([]*prompb.TimeSeries, 0, count)
-	for i := 0; i < count; i++ {
-		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
-		if err != nil {
-			return PromResult{}, err
-		}
-
-		series, err := iteratorToPromResult(iter, tags, tagOptions)
-		if err != nil {
-			return PromResult{}, err
-		}
-
-		if len(series.GetSamples()) > 0 {
-			seriesList = append(seriesList, series)
-		}
-	}
-
-	return PromResult{
-		PromResult: &prompb.QueryResult{
-			Timeseries: seriesList,
-		},
-	}, nil
-}
-
 var (
 	rollupTag              = []byte("__rollup__")
 	leTag                  = []byte("le")
 	excludeKeysRollupAndLe = [][]byte{rollupTag, leTag}
 )
 
-func toPromConcurrently(
+func toProm(
 	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
-) (PromResult, error) {
+	promOptions PromOptions,
+) ([]*prompb.TimeSeries, error) {
 	var (
 		count                 = fetchResult.Count()
 		seriesList            = make([]*prompb.TimeSeries, count)
-		excludeRollupAndLeMap *seriesGroupMap
 		wg                    sync.WaitGroup
+		excludeRollupAndLeMap *seriesGroupMap
 		multiErr              xerrors.MultiError
 		mu                    sync.Mutex
+		shouldNormalizeSeries bool
 	)
 
 	fastWorkerPool := readWorkerPool.FastContextCheck(100)
@@ -116,40 +92,52 @@ func toPromConcurrently(
 		i := i
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
 		if err != nil {
-			return PromResult{}, err
+			return nil, err
 		}
 
-		_, rollupTagExists := tags.Get(rollupTag)
-		leTagValue, leTagExists := tags.Get(leTag)
-		if rollupTagExists && leTagExists {
-			var group seriesGroup
-			excludeRollupAndLeKey := tags.TagsWithoutKeys(excludeKeysRollupAndLe)
-			if excludeRollupAndLeMap == nil {
-				excludeRollupAndLeMap = newSeriesGroupMap(count)
-			} else {
-				elem, ok := excludeRollupAndLeMap.Get(excludeRollupAndLeKey)
-				if ok {
-					group = elem
+		// If doing aggregate normalization, determine which histograms and counter
+		// series require normalization. These normalizations will be applied after
+		// the series are unrolled.
+		if promOptions.AggregateNormalization {
+			// NB: since tags are in name order, it is likely faster to search for
+			// the __rollup__ tag in a linear fashion.
+			_, rollupTagExists := tags.Get(rollupTag)
+			if rollupTagExists {
+				leTagValue, leTagExists := tags.GetBinary(leTag)
+				if leTagExists {
+					var group seriesGroup
+					excludeRollupAndLeKey := tags.TagsWithoutKeys(excludeKeysRollupAndLe)
+					if excludeRollupAndLeMap == nil {
+						excludeRollupAndLeMap = newSeriesGroupMap(count)
+					} else {
+						elem, ok := excludeRollupAndLeMap.Get(excludeRollupAndLeKey)
+						if ok {
+							group = elem
+						}
+					}
+
+					sortValue, err := strconv.ParseFloat(unsafe.String(leTagValue), 64)
+					if err != nil {
+						return nil, err
+					}
+
+					group.entries = append(group.entries, seriesGroupEntry{
+						sortValue: sortValue,
+						idx:       i,
+					})
+
+					excludeRollupAndLeMap.Set(excludeRollupAndLeKey, group)
 				}
+
+				// TODO: determine criteria for aggregated tag normalization here.
+				// if shouldNormalizeTagCondition {
+				//   shouldNormalizeSeries = true
+				// }
 			}
-
-			sortValue, err := strconv.ParseFloat(unsafe.String(leTagValue), 64)
-			if err != nil {
-				return PromResult{}, err
-			}
-
-			group.entries = append(group.entries, seriesGroupEntry{
-				sortValue: sortValue,
-				iter:      iter,
-				tags:      tags,
-			})
-
-			excludeRollupAndLeMap.Set(excludeRollupAndLeKey, group)
-
-			continue
 		}
 
 		wg.Add(1)
+		shouldNormalize := shouldNormalizeSeries
 		available := fastWorkerPool.GoWithContext(ctx, func() {
 			defer wg.Done()
 			series, err := iteratorToPromResult(iter, tags, tagOptions)
@@ -157,6 +145,10 @@ func toPromConcurrently(
 				mu.Lock()
 				multiErr = multiErr.Add(err)
 				mu.Unlock()
+			}
+
+			if shouldNormalize {
+				series = normalizeSeries(series)
 			}
 
 			seriesList[i] = series
@@ -172,13 +164,54 @@ func toPromConcurrently(
 
 	// Need to now do a for loop over the groups, sort entries by .sortValue
 	// then process by group using the worker pool.
+	if excludeRollupAndLeMap != nil {
+		var (
+			// TODO: if hist series from one group are gathered into a contiguous
+			// subslice in the results, can use that result slice directly here,
+			// rather than allocating this temporary buffer.
+			histogramGroup []*prompb.TimeSeries
+			err            error
+		)
+
+		for _, hg := range excludeRollupAndLeMap.Iter() {
+			group := hg.value
+
+			if histogramGroup == nil {
+				histogramGroup = make([]*prompb.TimeSeries, 0, len(group.entries))
+			} else {
+				histogramGroup = histogramGroup[:0]
+			}
+
+			// Sort entries by descending size, so that +Inf is highest and values
+			// trickle down.
+			sort.Sort(seriesGroupEntriesDesc(group.entries))
+			for _, entry := range group.entries {
+				histogramGroup = append(histogramGroup, seriesList[entry.idx])
+			}
+
+			histogramGroup, err = normalizeAggregatedHistograms(histogramGroup)
+			if err != nil {
+				return nil, err
+			}
+
+			// Now update the series list with the updated histograms.
+			for _, entry := range group.entries {
+				histogramGroup = append(histogramGroup, seriesList[entry.idx])
+			}
+		}
+	}
 
 	wg.Wait()
 	if err := multiErr.LastError(); err != nil {
-		return PromResult{}, err
+		return nil, err
 	}
 
-	// Filter out empty series inplace.
+	return seriesList, nil
+}
+
+// filterEmpty removes all-empty series in place.
+// NB: this mutates incoming slice.
+func filterEmpty(seriesList []*prompb.TimeSeries) []*prompb.TimeSeries {
 	filteredList := seriesList[:0]
 	for _, s := range seriesList {
 		if len(s.GetSamples()) > 0 {
@@ -186,11 +219,7 @@ func toPromConcurrently(
 		}
 	}
 
-	return PromResult{
-		PromResult: &prompb.QueryResult{
-			Timeseries: filteredList,
-		},
-	}, nil
+	return filteredList
 }
 
 func seriesIteratorsToPromResult(
@@ -198,12 +227,19 @@ func seriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	promOptions PromOptions,
 ) (PromResult, error) {
-	if readWorkerPool == nil {
-		return toPromSequentially(fetchResult, tagOptions)
+	seriesList, err := toProm(ctx, fetchResult, readWorkerPool, tagOptions, promOptions)
+	if err != nil {
+		return PromResult{}, err
 	}
 
-	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions)
+	filteredList := filterEmpty(seriesList)
+	return PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: filteredList,
+		},
+	}, nil
 }
 
 // SeriesIteratorsToPromResult converts raw series iterators directly to a
@@ -213,24 +249,146 @@ func SeriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	promOptions PromOptions,
 ) (PromResult, error) {
 	defer fetchResult.Close()
 	if err := fetchResult.Verify(); err != nil {
 		return PromResult{}, err
 	}
 
-	promResult, err := seriesIteratorsToPromResult(ctx, fetchResult,
-		readWorkerPool, tagOptions)
+	promResult, err := seriesIteratorsToPromResult(
+		ctx,
+		fetchResult,
+		readWorkerPool,
+		tagOptions,
+		promOptions,
+	)
 	promResult.Metadata = fetchResult.Metadata
 	return promResult, err
+}
+
+func toDelta(values []prompb.Sample) []prompb.Sample {
+	if len(values) < 2 {
+		return values
+	}
+
+	// NB: always start from 0.
+	last := values[0].Value
+	values[0].Value = 0
+	for i := 1; i < len(values); i++ {
+		curr := values[i].Value
+		diff := curr - last
+		if diff < 0 {
+			diff = curr
+		}
+
+		values[i].Value = diff
+		last = curr
+	}
+
+	return values
+}
+
+func fromDelta(values []prompb.Sample) []prompb.Sample {
+	if len(values) < 2 {
+		return values
+	}
+
+	runningTotal := values[0].Value
+	for i := 1; i < len(values); i++ {
+		values[i].Value += runningTotal
+		runningTotal = values[i].Value
+	}
+
+	return values
+}
+
+func normalizeSeries(series *prompb.TimeSeries) *prompb.TimeSeries {
+	series.Samples = fromDelta(toDelta(series.Samples))
+	return series
+}
+
+// normalizeAggregatedHistograms receives a histogram series in descending
+// order, based on the size of the histogram bucket; this is required since
+// prometheus style histogram buckets are necessarily monotonically decreasing
+// by bucket size, and aggregation tier may bucket in such a way that a point
+// in a high bucket is put in a following timestamp, and the corresponding
+// low buckets in the next timestamp are not updated.
+func normalizeAggregatedHistograms(
+	histSeries []*prompb.TimeSeries,
+) ([]*prompb.TimeSeries, error) {
+	seriesLen := len(histSeries)
+	if seriesLen < 2 {
+		return histSeries, nil
+	}
+
+	sampleCount := len(histSeries[0].Samples)
+	if sampleCount == 0 {
+		// no point trying to normalize if there are no datapoints in these series
+		return histSeries, nil
+	}
+
+	for _, s := range histSeries {
+		// verify valid lengths
+		if l := len(s.Samples); l != sampleCount {
+			return nil, fmt.Errorf(
+				"mismatched histogram sample counts: expected %d, got %d",
+				sampleCount, l)
+		}
+	}
+
+	// Now, iterate each datapoint in a step-wise fashion, by their timestamps.
+	for idx := 0; idx < sampleCount; idx++ {
+		var (
+			first    = histSeries[0].Samples[idx]
+			ts       = first.Timestamp
+			minValue = first.Value
+		)
+
+		for i := 1; i < seriesLen; i++ {
+			sample := histSeries[i].Samples[idx]
+			if currTs := sample.Timestamp; ts != currTs {
+				// Ensure timestamps match per-step.
+				return nil, fmt.Errorf(
+					"mismatched timestamps at step %d: expected %s, got %s",
+					i, xtime.UnixNano(ts), xtime.UnixNano(currTs))
+			}
+
+			if sample.Value < minValue {
+				histSeries[i].Samples[idx].Value = minValue
+			} else {
+				minValue = sample.Value
+			}
+		}
+	}
+
+	return histSeries, nil
 }
 
 type seriesGroup struct {
 	entries []seriesGroupEntry
 }
 
+type seriesGroupEntriesDesc []seriesGroupEntry
+
+var _ sort.Interface = (*seriesGroupEntriesDesc)(nil)
+
+func (e seriesGroupEntriesDesc) Len() int { return len(e) }
+
+func (e seriesGroupEntriesDesc) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
+
+func (e seriesGroupEntriesDesc) Less(i, j int) bool {
+	iVal, jVal := e[i].sortValue, e[j].sortValue
+	if math.IsInf(iVal, 1) {
+		return true
+	} else if math.IsInf(jVal, 1) {
+		return false
+	}
+
+	return iVal > jVal
+}
+
 type seriesGroupEntry struct {
 	sortValue float64
-	iter      encoding.SeriesIterator
-	tags      models.Tags
+	idx       int
 }

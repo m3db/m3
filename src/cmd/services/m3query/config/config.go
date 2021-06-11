@@ -280,6 +280,10 @@ type QueryConfiguration struct {
 	// RequireSeriesEndpointStartEndTime requires requests to /series endpoint
 	// to specify a start and end time to prevent unbounded queries.
 	RequireSeriesEndpointStartEndTime bool `yaml:"requireSeriesEndpointStartEndTime"`
+	// NormalizeAggregates is an optional configuration that normalizes aggregated
+	// series and histograms. This is useful for fixing edge cases in aggregated
+	// histograms to ensure that bucketing is correct.
+	NormalizeAggregates bool `yaml:"normalizeAggregates"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
