@@ -129,12 +129,12 @@ func NewDownsamplerAndWriter(
 	var (
 		scope = instrumentOpts.MetricsScope().SubScope("downsampler")
 
-		emptyAnnotationMetricName = "datapoints_with_empty_annotation"
-		typeTag                   = func(t string) map[string]string {
-			return map[string]string{"type": t}
+		emptyAnnotationMetricName = "writes_without_annotation"
+		storagePolicyTag          = func(t string) map[string]string {
+			return map[string]string{"storage_policy": t}
 		}
-		unaggregated = scope.Tagged(typeTag("unaggregated")).Counter(emptyAnnotationMetricName)
-		aggregated   = scope.Tagged(typeTag("aggregated")).Counter(emptyAnnotationMetricName)
+		unaggregated = scope.Tagged(storagePolicyTag("unaggregated")).Counter(emptyAnnotationMetricName)
+		aggregated   = scope.Tagged(storagePolicyTag("aggregated")).Counter(emptyAnnotationMetricName)
 	)
 
 	return &downsamplerAndWriter{
