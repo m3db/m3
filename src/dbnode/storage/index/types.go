@@ -399,6 +399,8 @@ type OnIndexSeries interface {
 	RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool)
 
 	DecrementReaderWriterCount()
+
+	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
 }
 
 // RemoveIndexedForBlockStartsResult is the result from calling

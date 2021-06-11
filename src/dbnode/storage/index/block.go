@@ -230,6 +230,7 @@ func NewBlock(
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	opts Options,
 ) (Block, error) {
+	fmt.Println("NEW BLOCK", blockStart)
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
@@ -536,7 +537,27 @@ func (b *block) queryWithSpan(
 			}
 		}
 
-		batch = append(batch, iter.Current())
+		// Ensure that the block contains any of the relevant time segments for the query range.
+		doc := iter.Current()
+		md, ok := doc.Metadata()
+		if !ok {
+			return errors.New("no doc metadata")
+		}
+		entry := md.Ref.(OnIndexSeries)
+
+		var inBlock bool
+		for currentBlock := opts.StartInclusive.Truncate(b.blockSize); currentBlock.Before(opts.EndExclusive); currentBlock = currentBlock.Add(b.blockSize) {
+			inBlock = entry.IndexedForBlockStart(xtime.ToUnixNano(currentBlock))
+			if inBlock {
+				break
+			}
+		}
+
+		if !inBlock {
+			continue
+		}
+
+		batch = append(batch, doc)
 		if len(batch) < batchSize {
 			continue
 		}
