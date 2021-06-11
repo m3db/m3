@@ -453,6 +453,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 						Attributes: storageAttributesFromPolicy(p),
 					})
 					if err == nil {
+						d.maybeRecordWritesWithoutAnnotation(writeQuery)
 						err = d.store.Write(ctx, writeQuery)
 					}
 					if err != nil {
