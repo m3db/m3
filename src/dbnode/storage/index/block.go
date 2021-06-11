@@ -230,7 +230,6 @@ func NewBlock(
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	opts Options,
 ) (Block, error) {
-	fmt.Println("NEW BLOCK", blockStart)
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
