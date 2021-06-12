@@ -22,7 +22,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -34,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
-	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/m3db/m3/src/x/unsafe"
 )
 
@@ -77,6 +75,7 @@ var (
 	rollupTag              = []byte("__rollup__")
 	leTag                  = []byte("le")
 	excludeKeysRollupAndLe = [][]byte{rollupTag, leTag}
+	leTagValueInf          = []byte("+Inf")
 )
 
 func toProm(
@@ -193,12 +192,12 @@ func toProm(
 
 			// Sort entries by descending size, so that +Inf is highest and values
 			// trickle down.
-			sort.Sort(seriesGroupEntriesDesc(group.entries))
+			sort.Sort(seriesGroupEntriesAsc(group.entries))
 			for _, entry := range group.entries {
 				histogramGroup = append(histogramGroup, seriesList[entry.idx])
 			}
 
-			histogramGroup, err = normalizeAggregatedHistograms(histogramGroup)
+			histogramGroup, err = normalizeAggregatedHistogramsAsc(histogramGroup)
 			if err != nil {
 				return nil, err
 			}
@@ -367,13 +366,13 @@ func shouldNormalizeSeries(series *prompb.TimeSeries) bool {
 	return float64(nonZeroCount) > minNonZero
 }
 
-// normalizeAggregatedHistograms receives a histogram series in descending
+// normalizeAggregatedHistogramsAsc receives a histogram series in ascending
 // order, based on the size of the histogram bucket; this is required since
-// prometheus style histogram buckets are necessarily monotonically decreasing
+// prometheus style histogram buckets are necessarily monotonically increasing
 // by bucket size, and aggregation tier may bucket in such a way that a point
 // in a high bucket is put in a following timestamp, and the corresponding
 // low buckets in the next timestamp are not updated.
-func normalizeAggregatedHistograms(
+func normalizeAggregatedHistogramsAsc(
 	histSeries []*prompb.TimeSeries,
 ) ([]*prompb.TimeSeries, error) {
 	seriesLen := len(histSeries)
@@ -381,43 +380,49 @@ func normalizeAggregatedHistograms(
 		return histSeries, nil
 	}
 
-	sampleCount := len(histSeries[0].Samples)
-	if sampleCount == 0 {
-		// no point trying to normalize if there are no datapoints in these series
-		return histSeries, nil
+	currSeriesSamples := make([][]prompb.Sample, 0, len(histSeries))
+	for _, series := range histSeries {
+		currSeriesSamples = append(currSeriesSamples, series.Samples[:])
 	}
 
-	for _, s := range histSeries {
-		// verify valid lengths
-		if l := len(s.Samples); l != sampleCount {
-			return nil, fmt.Errorf(
-				"mismatched histogram sample counts: expected %d, got %d",
-				sampleCount, l)
+	for {
+		// Remove any empty series already consumed and calc lowest TS.
+		timestampMin := int64(math.MaxInt64)
+		filtering := currSeriesSamples[:]
+		currSeriesSamples = currSeriesSamples[:0]
+		for _, samples := range filtering {
+			if len(samples) == 0 {
+				continue
+			}
+			if samples[0].Timestamp < timestampMin {
+				timestampMin = samples[0].Timestamp
+			}
+			currSeriesSamples = append(currSeriesSamples, samples)
 		}
-	}
 
-	// Now, iterate each datapoint in a step-wise fashion, by their timestamps.
-	for idx := 0; idx < sampleCount; idx++ {
-		var (
-			first    = histSeries[0].Samples[idx]
-			ts       = first.Timestamp
-			minValue = first.Value
-		)
+		// No more to process.
+		if len(currSeriesSamples) == 0 {
+			break
+		}
 
-		for i := 1; i < seriesLen; i++ {
-			sample := histSeries[i].Samples[idx]
-			if curr := sample.Timestamp; ts != curr {
-				// Ensure timestamps match per-step.
-				return nil, fmt.Errorf(
-					"mismatched timestamps at step %d: expected %s, got %s",
-					i, xtime.UnixNano(ts), xtime.UnixNano(curr))
+		lastValue := -1 * math.MaxFloat64
+		for i, samples := range currSeriesSamples {
+			if samples[0].Timestamp != timestampMin {
+				// Not at the same timestamp, so not relevant.
+				continue
 			}
 
-			if sample.Value < minValue {
-				histSeries[i].Samples[idx].Value = minValue
-			} else {
-				minValue = sample.Value
+			// If value at this ascending value is below the last bucket value
+			// then pull it upwards.
+			if samples[0].Value < lastValue {
+				samples[0].Value = lastValue
 			}
+
+			// Processed this value so move the samples slice along.
+			currSeriesSamples[i] = currSeriesSamples[i][1:]
+
+			// Track the last value in ascending order for the histogram buckets.
+			lastValue = samples[0].Value
 		}
 	}
 
@@ -428,23 +433,23 @@ type seriesGroup struct {
 	entries []seriesGroupEntry
 }
 
-type seriesGroupEntriesDesc []seriesGroupEntry
+type seriesGroupEntriesAsc []seriesGroupEntry
 
-var _ sort.Interface = (*seriesGroupEntriesDesc)(nil)
+var _ sort.Interface = (*seriesGroupEntriesAsc)(nil)
 
-func (e seriesGroupEntriesDesc) Len() int { return len(e) }
+func (e seriesGroupEntriesAsc) Len() int { return len(e) }
 
-func (e seriesGroupEntriesDesc) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
+func (e seriesGroupEntriesAsc) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 
-func (e seriesGroupEntriesDesc) Less(i, j int) bool {
+func (e seriesGroupEntriesAsc) Less(i, j int) bool {
 	iVal, jVal := e[i].sortValue, e[j].sortValue
 	if math.IsInf(iVal, 1) {
-		return true
-	} else if math.IsInf(jVal, 1) {
 		return false
+	} else if math.IsInf(jVal, 1) {
+		return true
 	}
 
-	return iVal > jVal
+	return iVal < jVal
 }
 
 type seriesGroupEntry struct {

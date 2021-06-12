@@ -430,7 +430,7 @@ func TestNormalizeAggregatedHistograms(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, err := normalizeAggregatedHistograms(toHistSeries(tt.hists))
+			actual, err := normalizeAggregatedHistogramsAsc(toHistSeries(tt.hists))
 			require.NoError(t, err)
 			require.Equal(t, toHistSeries(tt.expected), actual)
 		})
