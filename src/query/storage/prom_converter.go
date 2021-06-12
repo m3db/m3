@@ -382,7 +382,8 @@ func normalizeAggregatedHistogramsAsc(
 
 	currSeriesSamples := make([][]prompb.Sample, 0, len(histSeries))
 	for _, series := range histSeries {
-		currSeriesSamples = append(currSeriesSamples, series.Samples[:])
+		normalized := normalizeSeries(series)
+		currSeriesSamples = append(currSeriesSamples, normalized.Samples[:])
 	}
 
 	for {
