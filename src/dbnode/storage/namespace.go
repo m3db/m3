@@ -156,27 +156,30 @@ type databaseNamespaceIndexStatsLastTick struct {
 }
 
 type databaseNamespaceMetrics struct {
-	bootstrap             instrument.MethodMetrics
-	flushWarmData         instrument.MethodMetrics
-	flushColdData         instrument.MethodMetrics
-	flushIndex            instrument.MethodMetrics
-	snapshot              instrument.MethodMetrics
-	write                 instrument.MethodMetrics
-	writeTagged           instrument.MethodMetrics
-	aggregateTiles        instrument.MethodMetrics
-	read                  instrument.MethodMetrics
-	fetchBlocks           instrument.MethodMetrics
-	fetchBlocksMetadata   instrument.MethodMetrics
-	queryIDs              instrument.MethodMetrics
-	wideQuery             instrument.MethodMetrics
-	aggregateQuery        instrument.MethodMetrics
-	unfulfilled           tally.Counter
-	bootstrapStart        tally.Counter
-	bootstrapEnd          tally.Counter
-	snapshotSeriesPersist tally.Counter
-	shards                databaseNamespaceShardMetrics
-	tick                  databaseNamespaceTickMetrics
-	status                databaseNamespaceStatusMetrics
+	bootstrap           instrument.MethodMetrics
+	flushWarmData       instrument.MethodMetrics
+	flushColdData       instrument.MethodMetrics
+	flushIndex          instrument.MethodMetrics
+	snapshot            instrument.MethodMetrics
+	write               instrument.MethodMetrics
+	writeTagged         instrument.MethodMetrics
+	aggregateTiles      instrument.MethodMetrics
+	read                instrument.MethodMetrics
+	fetchBlocks         instrument.MethodMetrics
+	fetchBlocksMetadata instrument.MethodMetrics
+	queryIDs            instrument.MethodMetrics
+	wideQuery           instrument.MethodMetrics
+	aggregateQuery      instrument.MethodMetrics
+
+	unfulfilled             tally.Counter
+	bootstrapStart          tally.Counter
+	bootstrapEnd            tally.Counter
+	snapshotSeriesPersist   tally.Counter
+	writesWithoutAnnotation tally.Counter
+
+	shards databaseNamespaceShardMetrics
+	tick   databaseNamespaceTickMetrics
+	status databaseNamespaceStatusMetrics
 }
 
 type databaseNamespaceShardMetrics struct {
@@ -243,24 +246,27 @@ func newDatabaseNamespaceMetrics(
 	bootstrapScope := scope.SubScope("bootstrap")
 	snapshotScope := scope.SubScope("snapshot")
 	return databaseNamespaceMetrics{
-		bootstrap:             instrument.NewMethodMetrics(scope, "bootstrap", opts),
-		flushWarmData:         instrument.NewMethodMetrics(scope, "flushWarmData", opts),
-		flushColdData:         instrument.NewMethodMetrics(scope, "flushColdData", opts),
-		flushIndex:            instrument.NewMethodMetrics(scope, "flushIndex", opts),
-		snapshot:              instrument.NewMethodMetrics(scope, "snapshot", opts),
-		write:                 instrument.NewMethodMetrics(scope, "write", opts),
-		writeTagged:           instrument.NewMethodMetrics(scope, "write-tagged", opts),
-		aggregateTiles:        instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
-		read:                  instrument.NewMethodMetrics(scope, "read", opts),
-		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
-		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
-		queryIDs:              instrument.NewMethodMetrics(scope, "queryIDs", opts),
-		wideQuery:             instrument.NewMethodMetrics(scope, "wideQuery", opts),
-		aggregateQuery:        instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
-		unfulfilled:           bootstrapScope.Counter("unfulfilled"),
-		bootstrapStart:        bootstrapScope.Counter("start"),
-		bootstrapEnd:          bootstrapScope.Counter("end"),
-		snapshotSeriesPersist: snapshotScope.Counter("series-persist"),
+		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", opts),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", opts),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", opts),
+		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", opts),
+		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
+		write:               instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
+		aggregateTiles:      instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
+		read:                instrument.NewMethodMetrics(scope, "read", opts),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		wideQuery:           instrument.NewMethodMetrics(scope, "wideQuery", opts),
+		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
+
+		unfulfilled:             bootstrapScope.Counter("unfulfilled"),
+		bootstrapStart:          bootstrapScope.Counter("start"),
+		bootstrapEnd:            bootstrapScope.Counter("end"),
+		snapshotSeriesPersist:   snapshotScope.Counter("series-persist"),
+		writesWithoutAnnotation: scope.Counter("writes-without-annotation"),
+
 		shards: databaseNamespaceShardMetrics{
 			add:         shardsScope.Counter("add"),
 			close:       shardsScope.Counter("close"),
@@ -710,6 +716,9 @@ func (n *dbNamespace) Write(
 	}
 	seriesWrite, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation, opts)
+	if err == nil && len(annotation) == 0 {
+		n.metrics.writesWithoutAnnotation.Inc(1)
+	}
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return seriesWrite, err
 }
@@ -747,6 +756,9 @@ func (n *dbNamespace) WriteTagged(
 	}
 	seriesWrite, err := shard.WriteTagged(ctx, id, tagResolver, timestamp,
 		value, unit, annotation, opts)
+	if err == nil && len(annotation) == 0 {
+		n.metrics.writesWithoutAnnotation.Inc(1)
+	}
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return seriesWrite, err
 }
