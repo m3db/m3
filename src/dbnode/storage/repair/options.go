@@ -51,6 +51,8 @@ var (
 )
 
 type options struct {
+	repairType                       Type
+	force                            bool
 	adminClients                     []client.AdminClient
 	repairConsistencyLevel           topology.ReadConsistencyLevel
 	repairShardConcurrency           int
@@ -74,6 +76,26 @@ func NewOptions() Options {
 		debugShadowComparisonsEnabled:    defaultDebugShadowComparisonsEnabled,
 		debugShadowComparisonsPercentage: defaultDebugShadowComparisonsPercentage,
 	}
+}
+
+func (o *options) SetType(value Type) Options {
+	opts := *o
+	opts.repairType = value
+	return &opts
+}
+
+func (o *options) Type() Type {
+	return o.repairType
+}
+
+func (o *options) SetForce(value bool) Options {
+	opts := *o
+	opts.force = value
+	return &opts
+}
+
+func (o *options) Force() bool {
+	return o.force
 }
 
 func (o *options) SetAdminClients(value []client.AdminClient) Options {

@@ -68,9 +68,26 @@ type shardRepairer struct {
 	rpopts   repair.Options
 	clients  []client.AdminClient
 	recordFn recordFn
+	nowFn    clock.NowFn
 	logger   *zap.Logger
 	scope    tally.Scope
-	nowFn    clock.NowFn
+	metrics  shardRepairerMetrics
+}
+
+type shardRepairerMetrics struct {
+	runDefault     tally.Counter
+	runOnlyCompare tally.Counter
+}
+
+func newShardRepairerMetrics(scope tally.Scope) shardRepairerMetrics {
+	return shardRepairerMetrics{
+		runDefault: scope.Tagged(map[string]string{
+			"repair_type": "default",
+		}).Counter("run"),
+		runOnlyCompare: scope.Tagged(map[string]string{
+			"repair_type": "only_compare",
+		}).Counter("run"),
+	}
 }
 
 func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer {
@@ -81,9 +98,10 @@ func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer
 		opts:    opts,
 		rpopts:  rpopts,
 		clients: rpopts.AdminClients(),
+		nowFn:   opts.ClockOptions().NowFn(),
 		logger:  iopts.Logger(),
 		scope:   scope,
-		nowFn:   opts.ClockOptions().NowFn(),
+		metrics: newShardRepairerMetrics(scope),
 	}
 	r.recordFn = r.recordDifferences
 
@@ -101,6 +119,18 @@ func (r shardRepairer) Repair(
 	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
+	repairType := r.rpopts.Type()
+	switch repairType {
+	case repair.DefaultRepair:
+		defer r.metrics.runDefault.Inc(1)
+	case repair.OnlyCompareRepair:
+		defer r.metrics.runOnlyCompare.Inc(1)
+	default:
+		// Unknown repair type.
+		err := fmt.Errorf("unknown repair type: %v", repairType)
+		return repair.MetadataComparisonResult{}, err
+	}
+
 	var sessions []sessionAndTopo
 	for _, c := range r.clients {
 		session, err := c.DefaultAdminSession()
@@ -108,6 +138,7 @@ func (r shardRepairer) Repair(
 			fmtErr := fmt.Errorf("error obtaining default admin session: %v", err)
 			return repair.MetadataComparisonResult{}, fmtErr
 		}
+
 		topo, err := session.TopologyMap()
 		if err != nil {
 			fmtErr := fmt.Errorf("error obtaining topology map: %v", err)
@@ -213,6 +244,10 @@ func (r shardRepairer) Repair(
 	// Shard repair can fail due to transient network errors due to the significant amount of data fetched from peers.
 	// So collect and emit metadata comparison metrics before fetching blocks from peer to repair.
 	r.recordFn(origin, nsCtx.ID, shard, metadataRes)
+	if repairType == repair.OnlyCompareRepair {
+		// Early return if repair type doesn't require executing repairing the data step.
+		return metadataRes, nil
+	}
 
 	originID := origin.ID()
 	for _, e := range seriesWithChecksumMismatches.Iter() {
@@ -730,10 +765,11 @@ func (r *dbRepairer) repairNamespaceBlockstart(n databaseNamespace, blockStart x
 }
 
 func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.Range) error {
-	if err := n.Repair(r.shardRepairer, tr); err != nil {
+	if err := n.Repair(r.shardRepairer, tr, NamespaceRepairOptions{
+		Force: r.ropts.Force(),
+	}); err != nil {
 		return fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
 	}
-
 	return nil
 }
 

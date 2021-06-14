@@ -453,6 +453,8 @@ func TestConfiguration(t *testing.T) {
     queueChannel: null
   repair:
     enabled: false
+    type: 0
+    force: false
     throttle: 2m0s
     checkInterval: 1m0s
     debugShadowComparisonsEnabled: false

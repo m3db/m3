@@ -866,7 +866,7 @@ func TestNamespaceRepair(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.Equal(t, "foo", ns.Repair(repairer, repairTimeRange).Error())
+	require.Equal(t, "foo", ns.Repair(repairer, repairTimeRange, NamespaceRepairOptions{}).Error())
 }
 
 func TestNamespaceShardAt(t *testing.T) {
