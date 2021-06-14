@@ -47,7 +47,7 @@ import (
 
 var (
 	// Created by init().
-	testWorkerPool xsync.PooledWorkerPool
+	testWorkerPool xsync.DynamicPooledWorkerPool
 
 	testTags1 = models.NewTags(3, nil).AddTags(
 		[]models.Tag{
@@ -910,11 +910,7 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 
 func init() {
 	var err error
-	testWorkerPool, err = xsync.NewPooledWorkerPool(
-		16,
-		xsync.NewPooledWorkerPoolOptions().
-			SetGrowOnDemand(true),
-	)
+	testWorkerPool, err = xsync.NewDynamicPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 
 	if err != nil {
 		panic(fmt.Sprintf("unable to create pooled worker pool: %v", err))

@@ -34,7 +34,7 @@ import (
 func TestPooledWorkerPoolGo(t *testing.T) {
 	var count uint32
 
-	p, err := NewPooledWorkerPool(testWorkerPoolSize, NewPooledWorkerPoolOptions())
+	p, err := NewStaticPooledWorkerPool(NewPooledWorkerPoolOptions().SetNumShards(testWorkerPoolSize))
 	require.NoError(t, err)
 	p.Init()
 
@@ -55,8 +55,7 @@ func TestPooledWorkerPoolGoWithContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	wp, err := NewPooledWorkerPool(testWorkerPoolSize,
-		NewPooledWorkerPoolOptions().SetGrowOnDemand(false))
+	wp, err := NewStaticPooledWorkerPool(NewPooledWorkerPoolOptions().SetNumShards(testWorkerPoolSize))
 	require.NoError(t, err)
 	wp.Init()
 
@@ -84,9 +83,9 @@ func TestPooledWorkerPoolGoWithContext(t *testing.T) {
 func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	var (
 		workers = 2
-		opts    = NewPooledWorkerPoolOptions().SetNumShards(int64(workers))
+		opts    = NewPooledWorkerPoolOptions().SetNumShards(workers)
 	)
-	p, err := NewPooledWorkerPool(workers, opts)
+	p, err := NewStaticPooledWorkerPool(opts)
 	require.NoError(t, err)
 	p.Init()
 
@@ -97,15 +96,11 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	// Enqueue workers * 2 since buffered channel will allow workers / shards
-	// (which is 1, since 2 / 2 = 1) which means we need to enqueue two times
-	// the workers.
-	totalEnqueue := workers * 2
 	now := time.Now()
-	for i := 0; i < totalEnqueue; i++ {
+	for i := 0; i < workers; i++ {
 		// Set now in such a way that independent shards are selected.
 		shardNowSelect := now.
-			Truncate(time.Duration(totalEnqueue) * time.Nanosecond).
+			Truncate(time.Duration(workers) * time.Nanosecond).
 			Add(time.Duration(i) * time.Nanosecond)
 		pooledWorkerPool.nowFn = func() time.Time {
 			return shardNowSelect
@@ -135,10 +130,7 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
 	var count uint32
 
-	p, err := NewPooledWorkerPool(
-		1,
-		NewPooledWorkerPoolOptions().
-			SetGrowOnDemand(true))
+	p, err := NewDynamicPooledWorkerPool(NewPooledWorkerPoolOptions().SetNumShards(1))
 	require.NoError(t, err)
 	p.Init()
 
@@ -154,7 +146,7 @@ func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
 		// this test would never complete this loop as the
 		// anonymous Work function below would not complete
 		// and would block further iterations.
-		p.Go(func() {
+		p.GoAlways(func() {
 			atomic.AddUint32(&count, 1)
 			wg.Done()
 			<-doneCh
@@ -169,10 +161,9 @@ func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
 func TestPooledWorkerPoolGoOrGrowKillWorker(t *testing.T) {
 	var count uint32
 
-	p, err := NewPooledWorkerPool(
-		1,
+	p, err := NewDynamicPooledWorkerPool(
 		NewPooledWorkerPoolOptions().
-			SetGrowOnDemand(true).
+			SetNumShards(1).
 			SetKillWorkerProbability(1.0))
 	require.NoError(t, err)
 	p.Init()
@@ -189,7 +180,7 @@ func TestPooledWorkerPoolGoOrGrowKillWorker(t *testing.T) {
 		// this test would never complete this loop as the
 		// anonymous Work function below would not complete
 		// and would block further iterations.
-		p.Go(func() {
+		p.GoAlways(func() {
 			atomic.AddUint32(&count, 1)
 			wg.Done()
 			<-doneCh
@@ -204,9 +195,9 @@ func TestPooledWorkerPoolGoOrGrowKillWorker(t *testing.T) {
 func TestPooledWorkerPoolGoKillWorker(t *testing.T) {
 	var count uint32
 
-	p, err := NewPooledWorkerPool(
-		testWorkerPoolSize,
+	p, err := NewStaticPooledWorkerPool(
 		NewPooledWorkerPoolOptions().
+			SetNumShards(testWorkerPoolSize).
 			SetKillWorkerProbability(1.0))
 	require.NoError(t, err)
 	p.Init()
@@ -225,12 +216,12 @@ func TestPooledWorkerPoolGoKillWorker(t *testing.T) {
 }
 
 func TestPooledWorkerPoolSizeTooSmall(t *testing.T) {
-	_, err := NewPooledWorkerPool(0, NewPooledWorkerPoolOptions())
+	_, err := NewStaticPooledWorkerPool(NewPooledWorkerPoolOptions().SetNumShards(0))
 	require.Error(t, err)
 }
 
 func TestPooledWorkerFast(t *testing.T) {
-	wp, err := NewPooledWorkerPool(1, NewPooledWorkerPoolOptions())
+	wp, err := NewStaticPooledWorkerPool(NewPooledWorkerPoolOptions().SetNumShards(1))
 	require.NoError(t, err)
 	wp.Init()
 

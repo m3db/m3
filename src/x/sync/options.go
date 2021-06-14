@@ -29,11 +29,10 @@ import (
 
 const (
 	defaultKillWorkerProbability = 0.001
-	defaultGrowOnDemand          = false
 )
 
 var (
-	defaultNumShards = int64(runtime.NumCPU())
+	defaultNumShards = runtime.NumCPU()
 	defaultNowFn     = time.Now
 )
 
@@ -43,39 +42,27 @@ type NowFn func() time.Time
 // NewPooledWorkerPoolOptions returns a new PooledWorkerPoolOptions with default options
 func NewPooledWorkerPoolOptions() PooledWorkerPoolOptions {
 	return &pooledWorkerPoolOptions{
-		growOnDemand:          defaultGrowOnDemand,
 		numShards:             defaultNumShards,
 		killWorkerProbability: defaultKillWorkerProbability,
-		nowFn: defaultNowFn,
-		iOpts: instrument.NewOptions(),
+		nowFn:                 defaultNowFn,
+		iOpts:                 instrument.NewOptions(),
 	}
 }
 
 type pooledWorkerPoolOptions struct {
-	growOnDemand          bool
-	numShards             int64
+	numShards             int
 	killWorkerProbability float64
 	nowFn                 NowFn
 	iOpts                 instrument.Options
 }
 
-func (o *pooledWorkerPoolOptions) SetGrowOnDemand(value bool) PooledWorkerPoolOptions {
-	opts := *o
-	opts.growOnDemand = value
-	return &opts
-}
-
-func (o *pooledWorkerPoolOptions) GrowOnDemand() bool {
-	return o.growOnDemand
-}
-
-func (o *pooledWorkerPoolOptions) SetNumShards(value int64) PooledWorkerPoolOptions {
+func (o *pooledWorkerPoolOptions) SetNumShards(value int) PooledWorkerPoolOptions {
 	opts := *o
 	opts.numShards = value
 	return &opts
 }
 
-func (o *pooledWorkerPoolOptions) NumShards() int64 {
+func (o *pooledWorkerPoolOptions) NumShards() int {
 	return o.numShards
 }
 

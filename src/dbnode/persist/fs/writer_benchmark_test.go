@@ -119,8 +119,7 @@ func benchmarkCreateEmptyFilesets(b *testing.B, parallelism, numShards int) {
 		start     = xtime.Now().Truncate(blockSize)
 	)
 
-	workerPool, err := xsync.NewPooledWorkerPool(
-		parallelism, xsync.NewPooledWorkerPoolOptions())
+	workerPool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions().SetNumShards(parallelism))
 	if err != nil {
 		panic(err)
 	}

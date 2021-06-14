@@ -60,8 +60,7 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 	options := NewAdminOptions().
 		SetAsyncTopologyInitializers(topoInits)
 	if asyncCount > 0 {
-		workerPool, err := xsync.NewPooledWorkerPool(10,
-			xsync.NewPooledWorkerPoolOptions())
+		workerPool, err := xsync.NewDynamicPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 		if err != nil {
 			panic(err)
 		}

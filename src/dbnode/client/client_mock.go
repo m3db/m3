@@ -1169,10 +1169,10 @@ func (mr *MockOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call {
 }
 
 // AsyncWriteWorkerPool mocks base method.
-func (m *MockOptions) AsyncWriteWorkerPool() sync.PooledWorkerPool {
+func (m *MockOptions) AsyncWriteWorkerPool() sync.DynamicPooledWorkerPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
-	ret0, _ := ret[0].(sync.PooledWorkerPool)
+	ret0, _ := ret[0].(sync.DynamicPooledWorkerPool)
 	return ret0
 }
 
@@ -1435,10 +1435,10 @@ func (mr *MockOptionsMockRecorder) HostQueueEmitsHealthStatus() *gomock.Call {
 }
 
 // HostQueueNewPooledWorkerFn mocks base method.
-func (m *MockOptions) HostQueueNewPooledWorkerFn() sync.NewPooledWorkerFn {
+func (m *MockOptions) HostQueueNewPooledWorkerFn() sync.NewDynamicPooledWorkerFn {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HostQueueNewPooledWorkerFn")
-	ret0, _ := ret[0].(sync.NewPooledWorkerFn)
+	ret0, _ := ret[0].(sync.NewDynamicPooledWorkerFn)
 	return ret0
 }
 
@@ -1729,7 +1729,7 @@ func (mr *MockOptionsMockRecorder) SetAsyncWriteMaxConcurrency(value interface{}
 }
 
 // SetAsyncWriteWorkerPool mocks base method.
-func (m *MockOptions) SetAsyncWriteWorkerPool(value sync.PooledWorkerPool) Options {
+func (m *MockOptions) SetAsyncWriteWorkerPool(value sync.DynamicPooledWorkerPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
 	ret0, _ := ret[0].(Options)
@@ -2023,7 +2023,7 @@ func (mr *MockOptionsMockRecorder) SetHostQueueEmitsHealthStatus(value interface
 }
 
 // SetHostQueueNewPooledWorkerFn mocks base method.
-func (m *MockOptions) SetHostQueueNewPooledWorkerFn(value sync.NewPooledWorkerFn) Options {
+func (m *MockOptions) SetHostQueueNewPooledWorkerFn(value sync.NewDynamicPooledWorkerFn) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHostQueueNewPooledWorkerFn", value)
 	ret0, _ := ret[0].(Options)
@@ -2816,10 +2816,10 @@ func (mr *MockAdminOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call 
 }
 
 // AsyncWriteWorkerPool mocks base method.
-func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.PooledWorkerPool {
+func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.DynamicPooledWorkerPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
-	ret0, _ := ret[0].(sync.PooledWorkerPool)
+	ret0, _ := ret[0].(sync.DynamicPooledWorkerPool)
 	return ret0
 }
 
@@ -3166,10 +3166,10 @@ func (mr *MockAdminOptionsMockRecorder) HostQueueEmitsHealthStatus() *gomock.Cal
 }
 
 // HostQueueNewPooledWorkerFn mocks base method.
-func (m *MockAdminOptions) HostQueueNewPooledWorkerFn() sync.NewPooledWorkerFn {
+func (m *MockAdminOptions) HostQueueNewPooledWorkerFn() sync.NewDynamicPooledWorkerFn {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HostQueueNewPooledWorkerFn")
-	ret0, _ := ret[0].(sync.NewPooledWorkerFn)
+	ret0, _ := ret[0].(sync.NewDynamicPooledWorkerFn)
 	return ret0
 }
 
@@ -3474,7 +3474,7 @@ func (mr *MockAdminOptionsMockRecorder) SetAsyncWriteMaxConcurrency(value interf
 }
 
 // SetAsyncWriteWorkerPool mocks base method.
-func (m *MockAdminOptions) SetAsyncWriteWorkerPool(value sync.PooledWorkerPool) Options {
+func (m *MockAdminOptions) SetAsyncWriteWorkerPool(value sync.DynamicPooledWorkerPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
 	ret0, _ := ret[0].(Options)
@@ -3852,7 +3852,7 @@ func (mr *MockAdminOptionsMockRecorder) SetHostQueueEmitsHealthStatus(value inte
 }
 
 // SetHostQueueNewPooledWorkerFn mocks base method.
-func (m *MockAdminOptions) SetHostQueueNewPooledWorkerFn(value sync.NewPooledWorkerFn) Options {
+func (m *MockAdminOptions) SetHostQueueNewPooledWorkerFn(value sync.NewDynamicPooledWorkerFn) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHostQueueNewPooledWorkerFn", value)
 	ret0, _ := ret[0].(Options)

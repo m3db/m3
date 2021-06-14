@@ -49,7 +49,7 @@ import (
 // Options configures the ingester.
 type Options struct {
 	Appender          storage.Appender
-	Workers           xsync.PooledWorkerPool
+	Workers           xsync.StaticPooledWorkerPool
 	PoolOptions       pool.ObjectPoolOptions
 	TagDecoderPool    serialize.TagDecoderPool
 	RetryOptions      retry.Options
@@ -78,7 +78,7 @@ func newIngestMetrics(scope tally.Scope) ingestMetrics {
 
 // Ingester ingests metrics with a worker pool.
 type Ingester struct {
-	workers xsync.PooledWorkerPool
+	workers xsync.StaticPooledWorkerPool
 	p       pool.ObjectPool
 }
 
