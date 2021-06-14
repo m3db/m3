@@ -54,7 +54,7 @@ type Options interface {
 	SetConsolidationFunc(consolidators.ConsolidationFunc) Options
 	// LookbackDuration returns the consolidation function.
 	ConsolidationFunc() consolidators.ConsolidationFunc
-	// SetLookbackDuration sets the tag options for the converter.
+	// SetTagOptions sets the tag options.
 	SetTagOptions(models.TagOptions) Options
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions

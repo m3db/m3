@@ -246,7 +246,11 @@ func (c *grpcClient) FetchProm(
 		ctx,
 		result,
 		c.opts.ReadWorkerPool(),
-		c.opts.TagOptions())
+		c.opts.TagOptions(),
+		storage.PromOptions{
+			AggregateNormalization: options.AggregateNormalization,
+		},
+	)
 }
 
 func (c *grpcClient) fetchRaw(

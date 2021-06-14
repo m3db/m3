@@ -119,10 +119,11 @@ type TagOptions interface {
 
 // Tags represents a set of tags with options.
 type Tags struct {
-	Opts     TagOptions
-	Tags     []Tag
-	hashedID uint64
-	id       []byte
+	Opts       TagOptions
+	Tags       []Tag
+	hashedID   uint64
+	id         []byte
+	normalized bool
 }
 
 // Tag is a key/value metric tag pair.
@@ -131,7 +132,7 @@ type Tag struct {
 	Value []byte
 }
 
-// Equal determiens whether two tags are equal to each other.
+// Equal determines whether two tags are equal to each other.
 func (t Tag) Equal(other Tag) bool {
 	return bytes.Equal(t.Name, other.Name) && bytes.Equal(t.Value, other.Value)
 }

@@ -148,7 +148,6 @@ func testConsolidatedStepIteratorMinuteLookback(t *testing.T, withPools bool) {
 		opts := newTestOptions().
 			SetLookbackDuration(1 * time.Minute).
 			SetSplitSeriesByBlock(false)
-		require.NoError(t, opts.Validate())
 		if withPools {
 			opts = withPool(t, opts)
 		}
@@ -397,8 +396,10 @@ func (t iterType) name(name string) string {
 	return fmt.Sprintf("%s_%s", n, name)
 }
 
-type reset func()
-type stop func()
+type (
+	reset func()
+	stop  func()
+)
 
 // newTestOptions provides options with very small/non-existent pools
 // so that memory profiles don't get cluttered with pooled allocated objects.
@@ -421,7 +422,15 @@ func newTestOptions() Options {
 		},
 		CheckedBytesWrapperPoolSize: 1,
 	})
-	return newOptions(bytesPool, iteratorPools)
+
+	pool, err := xsync.NewPooledWorkerPool(10,
+		xsync.NewPooledWorkerPoolOptions())
+	if err != nil {
+		panic(err)
+	}
+	pool.Init()
+
+	return newOptions(bytesPool, iteratorPools).SetReadWorkerPool(pool)
 }
 
 func iterToFetchResult(
@@ -659,9 +668,7 @@ type profileTakenKey struct {
 	iterations int
 }
 
-var (
-	profilesTaken = make(map[profileTakenKey]int)
-)
+var profilesTaken = make(map[profileTakenKey]int)
 
 /*
 	$ go test -v -run none -bench BenchmarkNextIteration

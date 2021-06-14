@@ -46,9 +46,7 @@ const (
 	TestRetention = 30 * 24 * time.Hour
 )
 
-var (
-	defaultLookbackDuration = time.Minute
-)
+var defaultLookbackDuration = time.Minute
 
 // NewStorageAndSession generates a new m3 storage and mock session
 func NewStorageAndSession(
@@ -62,13 +60,14 @@ func NewStorageAndSession(
 		Retention:   TestRetention,
 	})
 	require.NoError(t, err)
-	writePool, err := sync.NewPooledWorkerPool(10,
+	pool, err := sync.NewPooledWorkerPool(10,
 		sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
-	writePool.Init()
+	pool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
 	opts := m3db.NewOptions().
-		SetWriteWorkerPool(writePool).
+		SetWriteWorkerPool(pool).
+		SetReadWorkerPool(pool).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(defaultLookbackDuration)
 
@@ -96,13 +95,14 @@ func NewStorageAndSessionWithAggregatedNamespaces(
 	}, aggregatedNamespaces...)
 	require.NoError(t, err)
 
-	writePool, err := sync.NewPooledWorkerPool(10,
+	pool, err := sync.NewPooledWorkerPool(10,
 		sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
-	writePool.Init()
+	pool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
 	opts := m3db.NewOptions().
-		SetWriteWorkerPool(writePool).
+		SetWriteWorkerPool(pool).
+		SetReadWorkerPool(pool).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(defaultLookbackDuration)
 

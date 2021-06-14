@@ -45,6 +45,8 @@ const (
 )
 
 // NewHistogramQuantileOp creates a new histogram quantile operation.
+// FIXME: add normalization for aggregated histogram; see
+// normalizeAggregatedHistograms in `prom_converter.go` for explanation.
 func NewHistogramQuantileOp(
 	args []interface{},
 	opType string,
@@ -127,6 +129,7 @@ func (b indexedBuckets) Len() int { return len(b.buckets) }
 func (b indexedBuckets) Swap(i, j int) {
 	b.buckets[i], b.buckets[j] = b.buckets[j], b.buckets[i]
 }
+
 func (b indexedBuckets) Less(i, j int) bool {
 	return b.buckets[i].upperBound < b.buckets[j].upperBound
 }

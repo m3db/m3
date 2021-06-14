@@ -125,8 +125,10 @@ func (s *m3storage) FetchProm(
 		result,
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
+		storage.PromOptions{
+			AggregateNormalization: options.AggregateNormalization,
+		},
 	)
-
 	if err != nil {
 		return storage.PromResult{}, err
 	}
@@ -160,7 +162,6 @@ func FetchResultToBlockResult(
 		bounds,
 		opts,
 	)
-
 	if err != nil {
 		return block.Result{
 			Metadata: block.NewResultMetadata(),

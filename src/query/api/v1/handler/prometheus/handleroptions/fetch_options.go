@@ -70,9 +70,10 @@ type FetchOptionsBuilder interface {
 // FetchOptionsBuilderOptions provides options to use when creating a
 // fetch options builder.
 type FetchOptionsBuilderOptions struct {
-	Limits        FetchOptionsBuilderLimitsOptions
-	RestrictByTag *storage.RestrictByTag
-	Timeout       time.Duration
+	Limits                 FetchOptionsBuilderLimitsOptions
+	RestrictByTag          *storage.RestrictByTag
+	Timeout                time.Duration
+	AggregateNormalization bool
 }
 
 // Validate validates the fetch options builder options.
@@ -116,7 +117,7 @@ func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse limit: input=%s, err=%v", str, err)
+				"could not parse limit: input=%s, err=%w", str, err)
 			return 0, err
 		}
 		return n, nil
@@ -126,7 +127,7 @@ func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse limit: input=%s, err=%v", str, err)
+				"could not parse limit: input=%s, err=%w", str, err)
 			return 0, err
 		}
 		return n, nil
@@ -186,7 +187,7 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse limit: input=%s, err=%v", str, err)
+				"could not parse limit: input=%s, err=%w", str, err)
 			return false, err
 		}
 		return v, nil
@@ -196,7 +197,7 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse limit: input=%s, err=%v", str, err)
+				"could not parse limit: input=%s, err=%w", str, err)
 			return false, err
 		}
 		return v, nil
@@ -325,7 +326,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		mt, err := storagemetadata.ParseMetricsType(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse metrics type: input=%s, err=%v", str, err)
+				"could not parse metrics type: input=%s, err=%w", str, err)
 			return nil, nil, err
 		}
 
@@ -339,7 +340,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		sp, err := policy.ParseStoragePolicy(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse storage policy: input=%s, err=%v", str, err)
+				"could not parse storage policy: input=%s, err=%w", str, err)
 			return nil, nil, err
 		}
 
@@ -372,7 +373,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	if restrict := fetchOpts.RestrictQueryOptions; restrict != nil {
 		if err := restrict.Validate(); err != nil {
 			err = fmt.Errorf(
-				"could not validate restrict options: err=%v", err)
+				"could not validate restrict options: err=%w", err)
 			return nil, nil, err
 		}
 	}
@@ -381,14 +382,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	// implementations should be parsed here so they can be fed to the engine.
 	if step, ok, err := ParseStep(req); err != nil {
 		err = fmt.Errorf(
-			"could not parse step: err=%v", err)
+			"could not parse step: err=%w", err)
 		return nil, nil, err
 	} else if ok {
 		fetchOpts.Step = step
 	}
 	if lookback, ok, err := ParseLookbackDuration(req); err != nil {
 		err = fmt.Errorf(
-			"could not parse lookback: err=%v", err)
+			"could not parse lookback: err=%w", err)
 		return nil, nil, err
 	} else if ok {
 		fetchOpts.LookbackDuration = &lookback
@@ -398,6 +399,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not parse timeout: err=%w", err)
 	}
+
+	normalize, err := parseAggregateNormalization(req, b.opts.AggregateNormalization)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not parse normalization: err=%w", err)
+	}
+
+	fetchOpts.AggregateNormalization = normalize
 
 	// Set timeout on the returned context.
 	ctx, _ = contextWithRequestAndTimeout(ctx, req, fetchOpts)
@@ -557,4 +565,21 @@ func validateTimeout(v time.Duration) error {
 			fmt.Errorf("invalid 'timeout': %v greater than max %v", v, maxTimeout))
 	}
 	return nil
+}
+
+func parseAggregateNormalization(
+	r *http.Request, defaultNormalization bool,
+) (bool, error) {
+	if str := r.Header.Get(headers.NormalizeAggregates); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			return false, fmt.Errorf(
+				"could not parse aggregate normalization: input=%s, err=%w", str, err,
+			)
+		}
+
+		return v, nil
+	}
+
+	return defaultNormalization, nil
 }

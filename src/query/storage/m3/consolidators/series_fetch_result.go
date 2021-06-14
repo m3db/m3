@@ -94,7 +94,6 @@ func (r *SeriesFetchResult) Count() int {
 
 // Close no-ops; these should be closed by the enclosing iterator.
 func (r *SeriesFetchResult) Close() {
-
 }
 
 // IterTagsAtIndex returns the tag iterator and tags at the given index.
@@ -102,26 +101,24 @@ func (r *SeriesFetchResult) IterTagsAtIndex(
 	idx int, tagOpts models.TagOptions,
 ) (encoding.SeriesIterator, models.Tags, error) {
 	tags := models.EmptyTags()
-	if idx < 0 || idx > len(r.seriesData.tags) {
+	if idx < 0 || idx >= len(r.seriesData.tags) {
 		return nil, tags, fmt.Errorf("series idx(%d) out of "+
 			"bounds %d ", idx, len(r.seriesData.tags))
 	}
 
 	iters := r.seriesData.seriesIterators.Iters()
-	if idx < len(r.seriesData.tags) {
-		if r.seriesData.tags[idx] == nil {
-			var err error
-			iter := iters[idx].Tags()
-			tags, err = FromIdentTagIteratorToTags(iter, tagOpts)
-			if err != nil {
-				return nil, models.EmptyTags(), err
-			}
-
-			iter.Rewind()
-			r.seriesData.tags[idx] = &tags
-		} else {
-			tags = *r.seriesData.tags[idx]
+	if r.seriesData.tags[idx] == nil {
+		var err error
+		iter := iters[idx].Tags()
+		tags, err = FromIdentTagIteratorToTags(iter, tagOpts)
+		if err != nil {
+			return nil, models.EmptyTags(), err
 		}
+
+		iter.Rewind()
+		r.seriesData.tags[idx] = &tags
+	} else {
+		tags = *r.seriesData.tags[idx]
 	}
 
 	return iters[idx], tags, nil

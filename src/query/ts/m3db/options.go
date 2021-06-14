@@ -236,7 +236,6 @@ func (o *encodedBlockOptions) SetCustomAdminOptions(
 	opts := *o
 	opts.adminOptions = val
 	return &opts
-
 }
 
 func (o *encodedBlockOptions) CustomAdminOptions() []client.CustomAdminOption {
@@ -255,7 +254,11 @@ func (o *encodedBlockOptions) Instrumented() bool {
 
 func (o *encodedBlockOptions) Validate() error {
 	if o.lookbackDuration < 0 {
-		return errors.New("unable to validate block options; negative lookback")
+		return errors.New("unable to validate options; negative lookback")
+	}
+
+	if o.readWorkerPools == nil {
+		return errors.New("unable to validate options; nil read worker pools")
 	}
 
 	if err := o.tagOptions.Validate(); err != nil {

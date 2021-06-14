@@ -57,9 +57,7 @@ const (
 	testLongestRetention = test1YearRetention
 )
 
-var (
-	testFetchResponseMetadata = client.FetchResponseMetadata{Exhaustive: true}
-)
+var testFetchResponseMetadata = client.FetchResponseMetadata{Exhaustive: true}
 
 type testSessions struct {
 	unaggregated1MonthRetention                       *client.MockSession
@@ -127,13 +125,14 @@ func setup(
 }
 
 func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
-	writePool, err := sync.NewPooledWorkerPool(10,
+	pool, err := sync.NewPooledWorkerPool(10,
 		sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
-	writePool.Init()
+	pool.Init()
 	tagOpts := models.NewTagOptions().SetMetricName([]byte("name"))
 	opts := m3db.NewOptions().
-		SetWriteWorkerPool(writePool).
+		SetWriteWorkerPool(pool).
+		SetReadWorkerPool(pool).
 		SetLookbackDuration(time.Minute).
 		SetTagOptions(tagOpts)
 	storage, err := NewStorage(clusters, opts, instrument.NewTestOptions(t))
@@ -845,7 +844,13 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 }
 
 func TestInvalidBlockTypes(t *testing.T) {
-	opts := m3db.NewOptions()
+	pool, err := sync.NewPooledWorkerPool(10,
+		sync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+	opts := m3db.NewOptions().
+		SetReadWorkerPool(pool)
+
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
 	require.NoError(t, err)
 

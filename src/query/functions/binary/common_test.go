@@ -170,12 +170,12 @@ func TestCombineMetaAndSeriesMeta(t *testing.T) {
 
 			require.Equal(t, 2, len(seriesMeta))
 			for _, meta := range seriesMeta {
-				assert.Equal(t, expectedSeriesTags, meta.Tags)
+				assert.True(t, expectedSeriesTags.Equals(meta.Tags))
 			}
 
 			require.Equal(t, 1, len(otherSeriesMeta))
 			for _, otherMeta := range otherSeriesMeta {
-				assert.Equal(t, expectedOtherTags, otherMeta.Tags)
+				assert.True(t, expectedOtherTags.Equals(otherMeta.Tags))
 			}
 		})
 	}
@@ -239,5 +239,4 @@ func TestRemoveNameTags(t *testing.T) {
 
 	ex = []models.Tag{toTag("foobar", "baz")}
 	assert.Equal(t, ex, metas[1].Tags.Tags)
-
 }

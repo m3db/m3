@@ -36,31 +36,31 @@ import (
 const testTimestampMillis = 1575000000000
 
 var testTimeseries = []prompb.AnnotatedTimeSeries{
-	prompb.AnnotatedTimeSeries{
+	{
 		Labels: []prompb.Label{
-			prompb.Label{Name: []byte("__name__"), Value: []byte("requests")},
-			prompb.Label{Name: []byte("status_code"), Value: []byte("200")},
+			{Name: []byte("__name__"), Value: []byte("requests")},
+			{Name: []byte("status_code"), Value: []byte("200")},
 		},
 		Samples: []prompb.AnnotatedSample{
-			prompb.AnnotatedSample{
+			{
 				Value:      4.2,
 				Timestamp:  testTimestampMillis,
 				Annotation: []byte("foo"),
 			},
-			prompb.AnnotatedSample{
+			{
 				Value:      3.14,
 				Timestamp:  testTimestampMillis + 10000,
 				Annotation: []byte("bar"),
 			},
 		},
 	},
-	prompb.AnnotatedTimeSeries{
+	{
 		Labels: []prompb.Label{
-			prompb.Label{Name: []byte("__name__"), Value: []byte("requests")},
-			prompb.Label{Name: []byte("status_code"), Value: []byte("500")},
+			{Name: []byte("__name__"), Value: []byte("requests")},
+			{Name: []byte("status_code"), Value: []byte("500")},
 		},
 		Samples: []prompb.AnnotatedSample{
-			prompb.AnnotatedSample{
+			{
 				Value:      6.28,
 				Timestamp:  testTimestampMillis,
 				Annotation: []byte("baz"),
@@ -79,12 +79,12 @@ func TestIter(t *testing.T) {
 			name:  "valid input",
 			input: testTimeseries,
 			wants: []iterOutput{
-				iterOutput{
+				{
 					tags: models.Tags{
 						Opts: models.NewTagOptions(),
 						Tags: []models.Tag{
-							models.Tag{Name: []byte("__name__"), Value: []byte("requests")},
-							models.Tag{Name: []byte("status_code"), Value: []byte("200")},
+							{Name: []byte("__name__"), Value: []byte("requests")},
+							{Name: []byte("status_code"), Value: []byte("200")},
 						},
 					},
 					datapoints: ts.Datapoints{
@@ -96,12 +96,12 @@ func TestIter(t *testing.T) {
 					unit:       xtime.Millisecond,
 					annotation: []byte("foo"),
 				},
-				iterOutput{
+				{
 					tags: models.Tags{
 						Opts: models.NewTagOptions(),
 						Tags: []models.Tag{
-							models.Tag{Name: []byte("__name__"), Value: []byte("requests")},
-							models.Tag{Name: []byte("status_code"), Value: []byte("200")},
+							{Name: []byte("__name__"), Value: []byte("requests")},
+							{Name: []byte("status_code"), Value: []byte("200")},
 						},
 					},
 					datapoints: ts.Datapoints{
@@ -113,12 +113,12 @@ func TestIter(t *testing.T) {
 					unit:       xtime.Millisecond,
 					annotation: []byte("bar"),
 				},
-				iterOutput{
+				{
 					tags: models.Tags{
 						Opts: models.NewTagOptions(),
 						Tags: []models.Tag{
-							models.Tag{Name: []byte("__name__"), Value: []byte("requests")},
-							models.Tag{Name: []byte("status_code"), Value: []byte("500")},
+							{Name: []byte("__name__"), Value: []byte("requests")},
+							{Name: []byte("status_code"), Value: []byte("500")},
 						},
 					},
 					datapoints: ts.Datapoints{
@@ -156,7 +156,7 @@ func testOutput(t *testing.T, iter *iter, want iterOutput) {
 	require.True(t, iter.Next())
 
 	value := iter.Current()
-	assert.Equal(t, want.tags, value.Tags)
+	assert.True(t, want.tags.Equals(value.Tags))
 	assert.Equal(t, want.datapoints, value.Datapoints)
 	assert.Equal(t, want.unit, value.Unit)
 	assert.Equal(t, want.annotation, value.Annotation)
