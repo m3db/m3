@@ -22,10 +22,7 @@ package storage
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"sort"
-	"strconv"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -35,7 +32,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/x/unsafe"
 )
 
 const (
@@ -87,13 +83,12 @@ func toProm(
 	promOptions PromOptions,
 ) ([]*prompb.TimeSeries, error) {
 	var (
-		count                 = fetchResult.Count()
-		seriesList            = make([]*prompb.TimeSeries, count)
-		wg                    sync.WaitGroup
-		excludeRollupAndLeMap *seriesGroupMap
-		multiErr              xerrors.MultiError
-		mu                    sync.Mutex
-		maybeNormalizeSeries  bool
+		count                = fetchResult.Count()
+		seriesList           = make([]*prompb.TimeSeries, count)
+		wg                   sync.WaitGroup
+		multiErr             xerrors.MultiError
+		mu                   sync.Mutex
+		maybeNormalizeSeries bool
 	)
 
 	fastWorkerPool := readWorkerPool.FastContextCheck(100)
@@ -112,33 +107,7 @@ func toProm(
 			// the __rollup__ tag in a linear fashion.
 			_, rollupTagExists := tags.Get(rollupTag)
 			if rollupTagExists {
-				leTagValue, leTagExists := tags.Get(leTag)
-				if leTagExists {
-					var group seriesGroup
-					excludeRollupAndLeKey := tags.TagsWithoutKeys(excludeKeysRollupAndLe)
-					if excludeRollupAndLeMap == nil {
-						excludeRollupAndLeMap = newSeriesGroupMap(count)
-					} else {
-						elem, ok := excludeRollupAndLeMap.Get(excludeRollupAndLeKey)
-						if ok {
-							group = elem
-						}
-					}
-
-					sortValue, err := strconv.ParseFloat(unsafe.String(leTagValue), 64)
-					if err != nil {
-						return nil, err
-					}
-
-					group.entries = append(group.entries, seriesGroupEntry{
-						sortValue: sortValue,
-						idx:       i,
-					})
-
-					excludeRollupAndLeMap.Set(excludeRollupAndLeKey, group)
-				} else {
-					maybeNormalizeSeries = true
-				}
+				maybeNormalizeSeries = true
 			}
 		}
 
@@ -228,6 +197,27 @@ func filterEmpty(seriesList []*prompb.TimeSeries) []*prompb.TimeSeries {
 	}
 
 	return filteredList
+}
+
+// filterEmpty removes all-empty series in place.
+// NB: this mutates incoming slice.
+func dropPointsBefore(
+	earliest xtime.UnixNano,
+	seriesList []*prompb.TimeSeries,
+) []*prompb.TimeSeries {
+	for idx, s := range seriesList {
+		firstPointIdx := 0
+		for pointIdx, point := range s.Samples {
+			if xtime.UnixNano(point.Timestamp).Before(earliest) {
+				firstPointIdx = pointIdx
+				break
+			}
+		}
+
+		seriesList[idx].Samples = seriesList[idx].Samples[:firstPointIdx]
+	}
+
+	return seriesList
 }
 
 func seriesIteratorsToPromResult(
@@ -365,89 +355,4 @@ func shouldNormalizeSeries(series *prompb.TimeSeries) bool {
 	}
 
 	return float64(nonZeroCount) > minNonZero
-}
-
-// normalizeAggregatedHistograms receives a histogram series in descending
-// order, based on the size of the histogram bucket; this is required since
-// prometheus style histogram buckets are necessarily monotonically decreasing
-// by bucket size, and aggregation tier may bucket in such a way that a point
-// in a high bucket is put in a following timestamp, and the corresponding
-// low buckets in the next timestamp are not updated.
-func normalizeAggregatedHistograms(
-	histSeries []*prompb.TimeSeries,
-) ([]*prompb.TimeSeries, error) {
-	seriesLen := len(histSeries)
-	if seriesLen < 2 {
-		return histSeries, nil
-	}
-
-	sampleCount := len(histSeries[0].Samples)
-	if sampleCount == 0 {
-		// no point trying to normalize if there are no datapoints in these series
-		return histSeries, nil
-	}
-
-	for _, s := range histSeries {
-		// verify valid lengths
-		if l := len(s.Samples); l != sampleCount {
-			return nil, fmt.Errorf(
-				"mismatched histogram sample counts: expected %d, got %d",
-				sampleCount, l)
-		}
-	}
-
-	// Now, iterate each datapoint in a step-wise fashion, by their timestamps.
-	for idx := 0; idx < sampleCount; idx++ {
-		var (
-			first    = histSeries[0].Samples[idx]
-			ts       = first.Timestamp
-			minValue = first.Value
-		)
-
-		for i := 1; i < seriesLen; i++ {
-			sample := histSeries[i].Samples[idx]
-			if curr := sample.Timestamp; ts != curr {
-				// Ensure timestamps match per-step.
-				return nil, fmt.Errorf(
-					"mismatched timestamps at step %d: expected %s, got %s",
-					i, xtime.UnixNano(ts), xtime.UnixNano(curr))
-			}
-
-			if sample.Value < minValue {
-				histSeries[i].Samples[idx].Value = minValue
-			} else {
-				minValue = sample.Value
-			}
-		}
-	}
-
-	return histSeries, nil
-}
-
-type seriesGroup struct {
-	entries []seriesGroupEntry
-}
-
-type seriesGroupEntriesDesc []seriesGroupEntry
-
-var _ sort.Interface = (*seriesGroupEntriesDesc)(nil)
-
-func (e seriesGroupEntriesDesc) Len() int { return len(e) }
-
-func (e seriesGroupEntriesDesc) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
-
-func (e seriesGroupEntriesDesc) Less(i, j int) bool {
-	iVal, jVal := e[i].sortValue, e[j].sortValue
-	if math.IsInf(iVal, 1) {
-		return true
-	} else if math.IsInf(jVal, 1) {
-		return false
-	}
-
-	return iVal > jVal
-}
-
-type seriesGroupEntry struct {
-	sortValue float64
-	idx       int
 }

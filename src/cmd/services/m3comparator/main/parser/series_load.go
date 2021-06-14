@@ -87,6 +87,10 @@ func (l *seriesReader) SeriesIterators(name string) (encoding.SeriesIterators, e
 	l.RLock()
 	defer l.RUnlock()
 
+	fmt.Println("Gettung iters for", name)
+	for k := range l.nameIDSeriesMap {
+		fmt.Println("Saved are:", k)
+	}
 	var seriesMaps []idSeriesMap
 	logger := l.iterOpts.InstrumentOptions.Logger()
 	if name == "" {
@@ -121,7 +125,6 @@ func (l *seriesReader) SeriesIterators(name string) (encoding.SeriesIterators, e
 						Value:          float64(dp.Value),
 						TimestampNanos: xtime.ToUnixNano(dp.Timestamp),
 					}, xtime.Nanosecond, nil)
-
 					if err != nil {
 						encoder.Close()
 						logger.Error("error encoding datapoints", zap.Error(err))
@@ -275,10 +278,10 @@ func (l *seriesReader) Load(reader io.Reader) error {
 }
 
 func (l *seriesReader) Clear() {
-	l.Lock()
-	for k := range l.nameIDSeriesMap {
-		delete(l.nameIDSeriesMap, k)
-	}
+	// l.Lock()
+	// for k := range l.nameIDSeriesMap {
+	// 	delete(l.nameIDSeriesMap, k)
+	// }
 
-	l.Unlock()
+	// l.Unlock()
 }

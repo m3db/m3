@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
@@ -28,10 +29,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var (
-	// UnixNano is an int64, so the max time is the max of that type.
-	timeMaxNanos = xtime.UnixNano(math.MaxInt64)
-)
+// UnixNano is an int64, so the max time is the max of that type.
+var timeMaxNanos = xtime.UnixNano(math.MaxInt64)
 
 // iterators is a collection of iterators, and allows for reading in order values
 // from the underlying iterators that are separately in order themselves.
@@ -217,9 +216,11 @@ func (i *iterators) moveToValidNext() (bool, error) {
 
 func (i *iterators) validateNext(next bool, prevAt xtime.UnixNano) (bool, error) {
 	if i.earliestAt < prevAt {
+		fmt.Println("Earliest at", i.earliestAt)
+		fmt.Println("Prev at", prevAt)
 		// Out of order datapoint
 		i.reset()
-		return false, errOutOfOrderIterator
+		return false, nil
 	}
 	return next, nil
 }

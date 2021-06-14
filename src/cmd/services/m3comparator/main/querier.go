@@ -151,9 +151,11 @@ func (q *querier) FetchCompressed(
 
 	name := q.iteratorOpts.TagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
+		fmt.Println("--MATCHER", string(name), string(matcher.Name))
 		if bytes.Equal(name, matcher.Name) {
 
 			metricsName := string(matcher.Value)
+			fmt.Println("--MATCHER", "metricsName", metricsName)
 
 			// NB: the default behaviour of this querier is to return predefined metrics with random data if no match by
 			// metrics name is found. To force it return an empty result, query the "nonexistent*" metrics.
@@ -163,8 +165,10 @@ func (q *querier) FetchCompressed(
 
 			if matcher.Type == models.MatchEqual {
 				strictMetricsFilter = true
+				fmt.Println("iters, err = q.handler.getSeriesIterators(metricsName)")
 				iters, err = q.handler.getSeriesIterators(metricsName)
 				if err != nil {
+					fmt.Println("ERR ", err)
 					return consolidators.SeriesFetchResult{}, noop, err
 				}
 
@@ -262,11 +266,15 @@ func (q *querier) generateSingleSeriesMetrics(
 	defer unlock()
 
 	metricNameTag := q.iteratorOpts.TagOptions.MetricName()
-	for _, matcher := range query.TagMatchers {
+	fmt.Println("NAME TAG", string(metricNameTag))
+	for i, matcher := range query.TagMatchers {
 		// filter if name, otherwise return all.
+		fmt.Println(i, "Matching tag", string(matcher.Name))
 		if bytes.Equal(metricNameTag, matcher.Name) {
 			value := string(matcher.Value)
-			for _, gen := range gens {
+			fmt.Println("Value:", value)
+			for j, gen := range gens {
+				fmt.Println(j, "gen", gen)
 				if value == gen.name {
 					actualGens = append(actualGens, gen)
 					break

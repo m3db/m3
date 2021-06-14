@@ -152,6 +152,11 @@ func NewGRPCClient(
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
 		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(interceptorOpts)),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(23159310*2),
+			grpc.MaxCallSendMsgSize(23159310*2),
+			grpc.MaxRetryRPCBufferSize(23159310*2),
+		),
 	}, defaultDialOptions...)
 	dialOptions = append(dialOptions, additionalDialOpts...)
 	cc, err := grpc.Dial("", dialOptions...)

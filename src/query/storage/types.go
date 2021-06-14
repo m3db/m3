@@ -331,5 +331,7 @@ type PromResult struct {
 // PromOptions are options for decoding prometheus series.
 type PromOptions struct {
 	// AggregateNormalization will normalize aggregated histograms and counters.
-	AggregateNormalization bool
+	AggregateNormalization       bool
+	AggregateNormalizationWindow time.Duration
+	InitialStart                 xtime.UnixNano
 }
