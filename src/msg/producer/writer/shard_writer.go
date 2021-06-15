@@ -160,6 +160,11 @@ func newReplicatedShardWriter(
 
 func (w *replicatedShardWriter) Write(rm *producer.RefCountedMessage) {
 	w.RLock()
+	if len(w.messageWriters) == 0 {
+		w.m.noWritersError.Inc(1)
+		w.RUnlock()
+		return
+	}
 	for _, mw := range w.messageWriters {
 		mw.Write(rm)
 	}
