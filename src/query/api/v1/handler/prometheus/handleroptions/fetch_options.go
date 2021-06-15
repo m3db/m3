@@ -576,7 +576,7 @@ func validateTimeout(v time.Duration) error {
 func parseAggregateNormalization(
 	r *http.Request, defaultNormalizationWindow time.Duration,
 ) (time.Duration, error) {
-	if str := r.Header.Get(headers.NormalizeAggregates); str != "" {
+	if str := r.Header.Get(headers.AggregateNormalizationBucket); str != "" {
 		return parseDuration(str)
 	}
 
