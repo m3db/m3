@@ -145,8 +145,9 @@ type FetchOptions struct {
 	Timeout time.Duration
 	// Source is the source for the query.
 	Source []byte
-	// AggregateNormalization determines if aggregated series should be normalized.
-	AggregateNormalization bool
+	// AggregateNormalizationWindow specifies an aggregation normalization window
+	// for buckets normalized at a certain size.
+	AggregateNormalizationWindow time.Duration
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
@@ -330,8 +331,21 @@ type PromResult struct {
 
 // PromOptions are options for decoding prometheus series.
 type PromOptions struct {
-	// AggregateNormalization will normalize aggregated histograms and counters.
-	AggregateNormalization       bool
+	// 	AggregateNormalizationWindow will normalize aggregated counters to the
+	// given window size.
 	AggregateNormalizationWindow time.Duration
-	InitialStart                 xtime.UnixNano
+	// InitialStart is the initial start time for this query.
+	// NB: this is only set when ShouldNormalize() is true.
+	InitialStart xtime.UnixNano
+	// NormalizedAggregationStart is the normalized start time for this query,
+	// aligned to the aggregate normalization window.
+	// NB: this is only set when ShouldNormalize() is true.
+	NormalizedAggregationStart xtime.UnixNano
+}
+
+// ShouldNormalizeAggregation is true if aggregations should be normalized for
+// counters; i.e. aggregated series should be processed to be in monotonically
+// increasing buckets of length AggregateNormalizationWindow.
+func (p PromOptions) ShouldNormalizeAggregation() bool {
+	return p.AggregateNormalizationWindow > 0
 }

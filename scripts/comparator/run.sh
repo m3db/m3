@@ -68,11 +68,14 @@ then
 	trap defer EXIT 
 fi
 
+# Run PromQL testdata tests
+go test -v -timeout 300s -tags=compatibility -count=1 github.com/m3db/m3/src/query/test/compatibility/
+
+# Run comparator tests AFTER PromQL testdata tests to keep seeded data, useful
+# for inspecting it visually. This is necessary to do in this order as the
+# PromQL testdata tests clear all seeded data as part of execution.
 $comparator -input=$QUERY_FILE \
 -s=$START \
 -e=$END \
 -comparator=$COMPARATOR_WRITE \
 -regressionDir=$REGRESSION_DIR
-
-# Run PromQL testdata tests
-go test -v -timeout 300s -tags=compatibility -count=1 github.com/m3db/m3/src/query/test/compatibility/

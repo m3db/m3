@@ -70,10 +70,10 @@ type FetchOptionsBuilder interface {
 // FetchOptionsBuilderOptions provides options to use when creating a
 // fetch options builder.
 type FetchOptionsBuilderOptions struct {
-	Limits                 FetchOptionsBuilderLimitsOptions
-	RestrictByTag          *storage.RestrictByTag
-	Timeout                time.Duration
-	AggregateNormalization bool
+	Limits                       FetchOptionsBuilderLimitsOptions
+	RestrictByTag                *storage.RestrictByTag
+	Timeout                      time.Duration
+	AggregateNormalizationBucket time.Duration
 }
 
 // Validate validates the fetch options builder options.
@@ -112,7 +112,9 @@ func NewFetchOptionsBuilder(
 }
 
 // ParseLimit parses request limit from either header or query string.
-func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (int, error) {
+func ParseLimit(
+	req *http.Request, header, formValue string, defaultLimit int,
+) (int, error) {
 	if str := req.Header.Get(header); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
@@ -139,7 +141,7 @@ func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (
 // ParseDurationLimit parses request limit from either header or query string.
 func ParseDurationLimit(
 	req *http.Request,
-	header,
+	header string,
 	formValue string,
 	defaultLimit time.Duration,
 ) (time.Duration, error) {
@@ -147,7 +149,7 @@ func ParseDurationLimit(
 		n, err := time.ParseDuration(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse duration limit: input=%s, err=%w", str, err)
+				"could not parse duration limit: input=%s, header=%s, err=%w", str, header, err)
 			return 0, err
 		}
 		return n, nil
@@ -157,7 +159,7 @@ func ParseDurationLimit(
 		n, err := time.ParseDuration(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse duration limit: input=%s, err=%w", str, err)
+				"could not parse duration limit: input=%s, header=%s, err=%w", str, header, err)
 			return 0, err
 		}
 		return n, nil
@@ -400,12 +402,12 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		return nil, nil, fmt.Errorf("could not parse timeout: err=%w", err)
 	}
 
-	normalize, err := parseAggregateNormalization(req, b.opts.AggregateNormalization)
+	window, err := parseAggregateNormalization(req, b.opts.AggregateNormalizationBucket)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not parse normalization: err=%w", err)
 	}
 
-	fetchOpts.AggregateNormalization = normalize
+	fetchOpts.AggregateNormalizationWindow = window
 
 	// Set timeout on the returned context.
 	ctx, _ = contextWithRequestAndTimeout(ctx, req, fetchOpts)
@@ -498,6 +500,10 @@ func ParseDuration(r *http.Request, key string) (time.Duration, error) {
 		return 0, errors.ErrNotFound
 	}
 
+	return parseDuration(str)
+}
+
+func parseDuration(str string) (time.Duration, error) {
 	value, durationErr := time.ParseDuration(str)
 	if durationErr == nil {
 		return value, nil
@@ -568,18 +574,11 @@ func validateTimeout(v time.Duration) error {
 }
 
 func parseAggregateNormalization(
-	r *http.Request, defaultNormalization bool,
-) (bool, error) {
+	r *http.Request, defaultNormalizationWindow time.Duration,
+) (time.Duration, error) {
 	if str := r.Header.Get(headers.NormalizeAggregates); str != "" {
-		v, err := strconv.ParseBool(str)
-		if err != nil {
-			return false, fmt.Errorf(
-				"could not parse aggregate normalization: input=%s, err=%w", str, err,
-			)
-		}
-
-		return v, nil
+		return parseDuration(str)
 	}
 
-	return defaultNormalization, nil
+	return defaultNormalizationWindow, nil
 }

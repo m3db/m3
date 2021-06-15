@@ -131,11 +131,14 @@ func main() {
 
 	if err := runRegressionSuite(regressionDir, comparatorAddress,
 		promAddress, queryAddress, log); err != nil {
-		log.Fatal("failure or mismatched queries detected in regression suite", zap.Error(err))
+		multiErr = multiErr.Add(
+			fmt.Errorf("failure or mismatched queries detected in regression suite: %w", err))
 	}
+
 	if !multiErr.Empty() {
 		log.Fatal("mismatched queries detected in base queries")
 	}
+
 	log.Info("base queries success")
 
 	log.Info("regression success")

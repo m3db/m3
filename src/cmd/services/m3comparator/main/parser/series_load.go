@@ -278,10 +278,10 @@ func (l *seriesReader) Load(reader io.Reader) error {
 }
 
 func (l *seriesReader) Clear() {
-	// l.Lock()
-	// for k := range l.nameIDSeriesMap {
-	// 	delete(l.nameIDSeriesMap, k)
-	// }
+	l.Lock()
+	for k := range l.nameIDSeriesMap {
+		delete(l.nameIDSeriesMap, k)
+	}
 
-	// l.Unlock()
+	l.Unlock()
 }

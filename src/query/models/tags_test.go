@@ -634,9 +634,7 @@ func BenchmarkIDs(b *testing.B) {
 		for _, idScheme := range tagIDSchemes {
 			name := bb.name + idScheme.name
 			b.Run(name, func(b *testing.B) {
-				var (
-					tags Tags
-				)
+				var tags Tags
 
 				if idScheme.scheme == typeQuotedEscaped {
 					opts = opts.SetIDSchemeType(TypeQuoted)
@@ -678,4 +676,30 @@ func TestSerializedLength(t *testing.T) {
 	assert.Equal(t, 10, len)
 	assert.False(t, escaping.escapeName)
 	assert.True(t, escaping.escapeValue)
+}
+
+func TestGetBinary(t *testing.T) {
+	size := 12
+	tagStrs := make([]string, 0, size*2)
+	for i := 0; i < size; i++ {
+		tagStrs = append(tagStrs, fmt.Sprintf("name_%d", i), fmt.Sprintf("val_%d", i))
+	}
+
+	tags := MustMakeTags(tagStrs...)
+	val, found := tags.GetBinary([]byte("name_11"))
+	require.True(t, found)
+	require.Equal(t, []byte("val_11"), val)
+
+	val, found = tags.GetBinary([]byte("name_1"))
+	require.True(t, found)
+	require.Equal(t, []byte("val_1"), val)
+
+	val, found = tags.GetBinary([]byte("name_1"))
+	require.True(t, found)
+	require.Equal(t, []byte("val_1"), val)
+
+	_, found = tags.GetBinary([]byte("name_00"))
+	require.False(t, found)
+	_, found = tags.GetBinary([]byte("name_12"))
+	require.False(t, found)
 }

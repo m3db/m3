@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -242,6 +243,24 @@ func (c *grpcClient) FetchProm(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
+	var promOptions storage.PromOptions
+	if options.AggregateNormalizationWindow > 0 {
+		var (
+			window       = options.AggregateNormalizationWindow
+			initialStart = query.Start
+
+			offsetFromBoundary = time.Duration(initialStart.UnixNano() % int64(window))
+			normalizedStart    = initialStart.Add(-offsetFromBoundary)
+		)
+
+		query.Start = normalizedStart
+		promOptions = storage.PromOptions{
+			AggregateNormalizationWindow: window,
+			InitialStart:                 xtime.ToUnixNano(initialStart),
+			NormalizedAggregationStart:   xtime.ToUnixNano(normalizedStart),
+		}
+	}
+
 	result, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return storage.PromResult{}, err
@@ -252,9 +271,7 @@ func (c *grpcClient) FetchProm(
 		result,
 		c.opts.ReadWorkerPool(),
 		c.opts.TagOptions(),
-		storage.PromOptions{
-			AggregateNormalization: options.AggregateNormalization,
-		},
+		promOptions,
 	)
 }
 

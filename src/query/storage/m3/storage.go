@@ -103,6 +103,24 @@ func (s *m3storage) FetchProm(
 		return storage.PromResult{}, err
 	}
 
+	var promOptions storage.PromOptions
+	if options.AggregateNormalizationWindow > 0 {
+		var (
+			window       = options.AggregateNormalizationWindow
+			initialStart = queryOptions.StartInclusive
+
+			offsetFromBoundary = time.Duration(int(initialStart) % int(window))
+			normalizedStart    = initialStart.Add(-offsetFromBoundary)
+		)
+
+		queryOptions.StartInclusive = normalizedStart
+		promOptions = storage.PromOptions{
+			AggregateNormalizationWindow: window,
+			InitialStart:                 initialStart,
+			NormalizedAggregationStart:   normalizedStart,
+		}
+	}
+
 	accumulator, _, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return storage.PromResult{}, err
@@ -125,9 +143,7 @@ func (s *m3storage) FetchProm(
 		result,
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
-		storage.PromOptions{
-			AggregateNormalization: options.AggregateNormalization,
-		},
+		promOptions,
 	)
 	if err != nil {
 		return storage.PromResult{}, err

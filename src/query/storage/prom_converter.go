@@ -22,8 +22,10 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -34,16 +36,12 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-const (
-	initRawFetchAllocSize = 32
+const initRawFetchAllocSize = 32
 
-	// series with fewer than minNormalizeLength datapoints are not eligible for
-	// normalization.
-	minNormalizeLength = 10
-	// series with fewer than minNormalizeNonZeroRatio of their values being
-	// non-zero are not eligible for normalization.
-	minNormalizeNonZeroRatio = 0.8
-)
+var rollupTags = [][]byte{
+	[]byte("__rollup__"),
+	[]byte("__rollup_type__"),
+}
 
 func iteratorToPromResult(
 	iter encoding.SeriesIterator,
@@ -54,7 +52,7 @@ func iteratorToPromResult(
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		samples = append(samples, prompb.Sample{
-			Timestamp: TimeToPromTimestamp(dp.TimestampNanos),
+			Timestamp: int64(dp.TimestampNanos),
 			Value:     dp.Value,
 		})
 	}
@@ -69,12 +67,6 @@ func iteratorToPromResult(
 	}, nil
 }
 
-var (
-	rollupTag              = []byte("__rollup__")
-	leTag                  = []byte("le")
-	excludeKeysRollupAndLe = [][]byte{rollupTag, leTag}
-)
-
 func toProm(
 	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
@@ -83,12 +75,13 @@ func toProm(
 	promOptions PromOptions,
 ) ([]*prompb.TimeSeries, error) {
 	var (
-		count                = fetchResult.Count()
-		seriesList           = make([]*prompb.TimeSeries, count)
-		wg                   sync.WaitGroup
-		multiErr             xerrors.MultiError
-		mu                   sync.Mutex
-		maybeNormalizeSeries bool
+		count       = fetchResult.Count()
+		seriesList  = make([]*prompb.TimeSeries, count)
+		normalizing = promOptions.ShouldNormalizeAggregation()
+
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		mu       sync.Mutex
 	)
 
 	fastWorkerPool := readWorkerPool.FastContextCheck(100)
@@ -99,20 +92,7 @@ func toProm(
 			return nil, err
 		}
 
-		// If doing aggregate normalization, determine which histograms and counter
-		// series require normalization. These normalizations will be applied after
-		// the series are unrolled.
-		if promOptions.AggregateNormalization {
-			// NB: since tags are in name order, it is likely faster to search for
-			// the __rollup__ tag in a linear fashion.
-			_, rollupTagExists := tags.Get(rollupTag)
-			if rollupTagExists {
-				maybeNormalizeSeries = true
-			}
-		}
-
 		wg.Add(1)
-		maybeNormalizeSeries := maybeNormalizeSeries
 		available := fastWorkerPool.GoWithContext(ctx, func() {
 			defer wg.Done()
 			series, err := iteratorToPromResult(iter, tags, tagOptions)
@@ -122,10 +102,12 @@ func toProm(
 				mu.Unlock()
 			}
 
-			if maybeNormalizeSeries {
-				if shouldNormalizeSeries(series) {
-					series = normalizeSeries(series)
-				}
+			if normalizing && shouldNormalizeSeries(tags) {
+				series = normalizeSeries(
+					promOptions.NormalizedAggregationStart,
+					promOptions.AggregateNormalizationWindow,
+					series,
+				)
 			}
 
 			seriesList[i] = series
@@ -140,44 +122,6 @@ func toProm(
 	}
 
 	wg.Wait()
-	// Need to now do a for loop over the groups, sort entries by .sortValue
-	// then process by group using the worker pool.
-	if excludeRollupAndLeMap != nil {
-		var (
-			// TODO: if hist series from one group are gathered into a contiguous
-			// subslice in the results, can use that result slice directly here,
-			// rather than allocating this temporary buffer.
-			histogramGroup []*prompb.TimeSeries
-			err            error
-		)
-
-		for _, hg := range excludeRollupAndLeMap.Iter() {
-			group := hg.value
-
-			if histogramGroup == nil {
-				histogramGroup = make([]*prompb.TimeSeries, 0, len(group.entries))
-			} else {
-				histogramGroup = histogramGroup[:0]
-			}
-
-			// Sort entries by descending size, so that +Inf is highest and values
-			// trickle down.
-			sort.Sort(seriesGroupEntriesDesc(group.entries))
-			for _, entry := range group.entries {
-				histogramGroup = append(histogramGroup, seriesList[entry.idx])
-			}
-
-			histogramGroup, err = normalizeAggregatedHistograms(histogramGroup)
-			if err != nil {
-				return nil, err
-			}
-
-			// Now update the series list with the updated histograms.
-			for _, entry := range group.entries {
-				histogramGroup = append(histogramGroup, seriesList[entry.idx])
-			}
-		}
-	}
 
 	if err := multiErr.LastError(); err != nil {
 		return nil, err
@@ -201,20 +145,25 @@ func filterEmpty(seriesList []*prompb.TimeSeries) []*prompb.TimeSeries {
 
 // filterEmpty removes all-empty series in place.
 // NB: this mutates incoming slice.
-func dropPointsBefore(
-	earliest xtime.UnixNano,
+func dropPointsBeforeAndFilterEmpty(
 	seriesList []*prompb.TimeSeries,
+	earliest xtime.UnixNano,
 ) []*prompb.TimeSeries {
+	filtered := seriesList[:0]
 	for idx, s := range seriesList {
-		firstPointIdx := 0
-		for pointIdx, point := range s.Samples {
-			if xtime.UnixNano(point.Timestamp).Before(earliest) {
-				firstPointIdx = pointIdx
-				break
-			}
+		l := len(s.Samples)
+		firstPointIdx := sort.Search(l, func(idx int) bool {
+			ts := xtime.UnixNano(s.Samples[idx].Timestamp)
+			return ts.After(earliest)
+		})
+
+		if firstPointIdx == l {
+			// NB: no points in series, can skip it.
+			continue
 		}
 
-		seriesList[idx].Samples = seriesList[idx].Samples[:firstPointIdx]
+		seriesList[idx].Samples = seriesList[idx].Samples[firstPointIdx:]
+		filtered = append(filtered, seriesList[idx])
 	}
 
 	return seriesList
@@ -232,10 +181,21 @@ func seriesIteratorsToPromResult(
 		return PromResult{}, err
 	}
 
-	filteredList := filterEmpty(seriesList)
+	if promOptions.InitialStart != promOptions.NormalizedAggregationStart {
+		seriesList = dropPointsBeforeAndFilterEmpty(seriesList, promOptions.InitialStart)
+	} else {
+		seriesList = filterEmpty(seriesList)
+	}
+
+	for seriesIdx, series := range seriesList {
+		for pointIdx, point := range series.Samples {
+			seriesList[seriesIdx].Samples[pointIdx].Timestamp = TimeToPromTimestamp(xtime.UnixNano(point.Timestamp))
+		}
+	}
+
 	return PromResult{
 		PromResult: &prompb.QueryResult{
-			Timeseries: filteredList,
+			Timeseries: seriesList,
 		},
 	}, nil
 }
@@ -265,14 +225,16 @@ func SeriesIteratorsToPromResult(
 	return promResult, err
 }
 
-func toDelta(values []prompb.Sample) []prompb.Sample {
+func toDelta(
+	// boundary xtime.UnixNano,
+	// windowSize time.Duration,
+	values []prompb.Sample,
+) []prompb.Sample {
 	if len(values) < 2 {
 		return values
 	}
 
-	// NB: always start from 0.
 	last := values[0].Value
-	values[0].Value = 0
 	for i := 1; i < len(values); i++ {
 		curr := values[i].Value
 		diff := curr - last
@@ -287,72 +249,84 @@ func toDelta(values []prompb.Sample) []prompb.Sample {
 	return values
 }
 
-func fromDelta(values []prompb.Sample) []prompb.Sample {
-	if len(values) < 2 {
+func bucketedDelta(
+	boundary xtime.UnixNano,
+	windowSize time.Duration,
+	values []prompb.Sample,
+) []prompb.Sample {
+	var (
+		numPoints                 = len(values)
+		bucketBoundaryAtNextPoint = false
+		runningTotal              = values[0].Value
+	)
+
+	if numPoints < 2 {
 		return values
 	}
 
-	runningTotal := values[0].Value
-	for i := 1; i < len(values); i++ {
+	for i := 1; i < numPoints-1; i++ {
+		// NB: reset values every windowSize, based from the first boundary value,
+		// where the deltas are zero.
+		var (
+			nextPointAtOrAfterBoundary = !xtime.UnixNano(values[i+1].Timestamp).Before(boundary)
+			val                        = values[i].Value
+		)
+
+		if val == 0 && bucketBoundaryAtNextPoint {
+			// NB: this is the first zero point after a boundary; apply a reset here
+			// and continue to the next point.
+			bucketBoundaryAtNextPoint = false
+			runningTotal = 0
+			continue
+		}
+
+		if nextPointAtOrAfterBoundary {
+			boundary = boundary.Add(windowSize)
+			if val == 0 {
+				// NB: if next point is after the boundary, and the current value is
+				// zero, apply the reset at the current point.
+				runningTotal = 0
+				continue
+			} else {
+				// Otherwise, reset at the next zero point.
+				bucketBoundaryAtNextPoint = true
+			}
+		}
+
 		values[i].Value += runningTotal
 		runningTotal = values[i].Value
+	}
+
+	// Now account for the last point. This should be reset iff the value of the
+	// point is zero, and it crosses a bucket boundary.
+	if values[numPoints-1].Value == 0 && bucketBoundaryAtNextPoint {
+		values[numPoints-1].Value = 0
+	} else {
+		values[numPoints-1].Value += runningTotal
 	}
 
 	return values
 }
 
-func normalizeSeries(series *prompb.TimeSeries) *prompb.TimeSeries {
-	series.Samples = fromDelta(toDelta(series.Samples))
+func normalizeSeries(
+	boundary xtime.UnixNano,
+	windowSize time.Duration,
+	series *prompb.TimeSeries,
+) *prompb.TimeSeries {
+	fmt.Println("BUCKETIZING BOUNDARY", boundary, windowSize)
+	series.Samples = bucketedDelta(boundary, windowSize, toDelta(series.Samples))
 	return series
 }
 
-// TODO: this is fairly arbitrary, if there is a better way to detect counters
-// and resets generated by aggregators, it should go here. The current strategy
-// is to ensure that the series has at least minNormalizeLength points, and is
-// made by an oscillating series of real values and zero values; e.g.
-//     { 0, 1.0,  0, 2.5, 0, 7...  } should be normalized, but
-//     { 0, 1.0, 2.0, 2.5, 0, 7... } should not.
-// Furthermore, at least minNormalizeNonZeroRatio/2 of the values should be
-// non-zero to be a candidate for normalization. This is divided by 2 since
-// half of the values will expectedly be zero.
-func shouldNormalizeSeries(series *prompb.TimeSeries) bool {
-	if len(series.Samples) < minNormalizeLength {
-		return false
-	}
-
-	var (
-		minNonZero    = float64(len(series.Samples)) * minNormalizeNonZeroRatio / 2
-		allZeroesEven = true
-		allZeroesOdd  = true
-
-		nonZeroCount int
-	)
-
-	for i, v := range series.Samples {
-		if i%2 == 0 {
-			if v.Value != 0 {
-				allZeroesEven = false
-				if !allZeroesOdd {
-					// NB: shortcircuit since both conditions have failed.
-					return false
-				}
-
-				nonZeroCount++
-			}
-
-			continue
-		}
-
-		if v.Value != 0 {
-			allZeroesOdd = false
-			if !allZeroesEven {
-				// NB: shortcircuit since both conditions have failed.
-				return false
-			}
-
-			nonZeroCount++
+func shouldNormalizeSeries(tags models.Tags) bool {
+	fmt.Println("CHECKING IF WE SHOULD NORMALIZE")
+	for _, tag := range rollupTags {
+		fmt.Println("CHECKING TAG", string(tag), tags)
+		if _, found := tags.Get(tag); !found {
+			return false
 		}
 	}
 
-	return float64(nonZeroCount) > minNonZero
+	fmt.Println("SHOULD NORMALIZE.")
+	return true
 }

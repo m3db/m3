@@ -139,7 +139,7 @@ func (t Tags) GetBinary(key []byte) ([]byte, bool) {
 
 	lenTags := len(t.Tags)
 	idx := sort.Search(lenTags, func(idx int) bool {
-		return bytes.Compare(key, t.Tags[idx].Name) > -1
+		return bytes.Compare(key, t.Tags[idx].Name) < 1
 	})
 
 	if idx == lenTags {

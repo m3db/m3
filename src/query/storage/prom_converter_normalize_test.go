@@ -24,6 +24,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -37,10 +38,6 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 )
-
-var normalization = PromOptions{
-	AggregateNormalization: true,
-}
 
 type normalizeTest struct {
 	vals         []float64
@@ -83,51 +80,41 @@ func TestNormalizeAggregatedSeries(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
+	initialStart := xtime.FromSeconds(302)
 	testSeries := []normalizeTest{
 		{
-			vals:         []float64{1, 0, 7, 4, 8, 13},
-			tags:         []string{"___name", "some_series", "baz", "qux"},
-			expectedVals: []float64{1, 0, 7, 4, 8, 13},
+			tags: []string{
+				"___name__", "rolled_up_series",
+				"__rollup__", "true",
+				"__rollup_type__", "counter",
+			},
+			vals:         []float64{1, 0, 7, 0, 8, 0, 3, 0, 2, 0, 0, 0, 12, 0},
+			expectedVals: []float64{0, 7, 0, 8, 8, 11, 0, 2, 2, 2, 0, 12, 12},
 		},
 		{
-			vals:         []float64{1, 0, 7, 0, 8, 0, 13, 0, 3, 0},
-			tags:         []string{"___name", "should_normalize", "__rollup__", "true"},
-			expectedVals: []float64{0, 0, 7, 7, 15, 15, 28, 28, 31, 31},
+			tags: []string{
+				"___name__", "rolled_up_incrementing",
+				"__rollup__", "true",
+				"__rollup_type__", "counter",
+			},
+			vals:         []float64{1, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0},
+			expectedVals: []float64{0, 1, 0, 2, 2, 5, 0, 4, 4, 9, 0, 6, 6},
 		},
 		{
-			vals:         []float64{1, 0, 2, 0, 3, 0},
-			tags:         []string{"__rollup__", "rolled_up_count_short"},
-			expectedVals: []float64{1, 0, 2, 0, 3, 0},
+			tags: []string{
+				"___name__", "rolled_up_incrementing_by_one",
+				"__rollup__", "true",
+				"__rollup_type__", "counter",
+			},
+			vals:         []float64{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1},
+			expectedVals: []float64{0, 1, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, 1, 2},
 		},
 		{
-			vals:         []float64{1, 2, 3, 5, 6, 23},
-			tags:         []string{"___name", "rollup_hist", "__rollup__", "rolled_up_hist", "le", "+Inf"},
-			expectedVals: []float64{1, 2, 3, 5, 6, 23},
-		},
-		{
-			vals:         []float64{1, 2, 3, 5, 6, 23},
-			tags:         []string{"___name", "regular_hist", "le", "+Inf"},
-			expectedVals: []float64{1, 2, 3, 5, 6, 23},
-		},
-		{
-			vals:         []float64{1, 0, 7, 4, 8, 13},
-			tags:         []string{"___name", "rollup_hist", "__rollup__", "rolled_up_hist", "le", "0.25"},
-			expectedVals: []float64{1, 2, 7, 5, 8, 23},
-		},
-		{
-			vals:         []float64{1, 0, 7, 4, 8, 13},
-			tags:         []string{"___name", "regular_hist", "le", "0.25"},
-			expectedVals: []float64{1, 0, 7, 4, 8, 13},
-		},
-		{
-			vals:         []float64{1, 2, 3, 5, 6, 23},
-			tags:         []string{"___name", "rollup_hist_rev", "__rollup__", "rolled_up_hist_rev", "le", "0.25"},
-			expectedVals: []float64{1, 2, 7, 5, 8, 23},
-		},
-		{
-			vals:         []float64{1, 0, 7, 4, 8, 13},
-			tags:         []string{"___name", "rollup_hist_rev", "__rollup__", "rolled_up_hist_rev", "le", "+Inf"},
-			expectedVals: []float64{1, 0, 7, 4, 8, 13},
+			tags: []string{
+				"___name__", "no_roll_up",
+			},
+			vals:         []float64{1, 0, 7, 0, 8, 0, 3, 0, 2, 0, 0, 0, 12, 0},
+			expectedVals: []float64{0, 7, 0, 8, 0, 3, 0, 2, 0, 0, 0, 12, 0},
 		},
 	}
 
@@ -138,8 +125,9 @@ func TestNormalizeAggregatedSeries(t *testing.T) {
 
 		for i, v := range vals {
 			iter.EXPECT().Next().Return(true)
-			dp := dts.Datapoint{TimestampNanos: xtime.UnixNano(1 + i), Value: v}
-			iter.EXPECT().Current().Return(dp, xtime.Second, nil)
+			ts := initialStart.Add(time.Duration(i) * time.Second)
+			dp := dts.Datapoint{TimestampNanos: ts, Value: v}
+			iter.EXPECT().Current().Return(dp, xtime.Nanosecond, nil)
 		}
 
 		iter.EXPECT().Err().Return(nil)
@@ -171,7 +159,11 @@ func TestNormalizeAggregatedSeries(t *testing.T) {
 
 	require.NoError(t, err)
 	res, err := SeriesIteratorsToPromResult(
-		context.Background(), fetchResult, pool, opts, normalization,
+		context.Background(), fetchResult, pool, opts, PromOptions{
+			AggregateNormalizationWindow: 5 * time.Second,
+			InitialStart:                 initialStart,
+			NormalizedAggregationStart:   xtime.FromSeconds(299),
+		},
 	)
 
 	require.NoError(t, err)
@@ -179,7 +171,7 @@ func TestNormalizeAggregatedSeries(t *testing.T) {
 	ex := valsFromTested(testSeries)
 	ac := valsFromPromResult(res)
 	for k, v := range ex {
-		require.Equal(t, ac[k], v)
+		require.Equal(t, v, ac[k])
 	}
 
 	require.Equal(t, ex, ac)

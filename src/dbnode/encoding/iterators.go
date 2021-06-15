@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"fmt"
 	"math"
 	"sort"
 
@@ -216,11 +215,9 @@ func (i *iterators) moveToValidNext() (bool, error) {
 
 func (i *iterators) validateNext(next bool, prevAt xtime.UnixNano) (bool, error) {
 	if i.earliestAt < prevAt {
-		fmt.Println("Earliest at", i.earliestAt)
-		fmt.Println("Prev at", prevAt)
 		// Out of order datapoint
 		i.reset()
-		return false, nil
+		return false, errOutOfOrderIterator
 	}
 	return next, nil
 }
