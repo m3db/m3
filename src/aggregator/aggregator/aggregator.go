@@ -224,16 +224,16 @@ func (agg *aggregator) AddUntimed(
 ) error {
 	sw := agg.metrics.addUntimed.SuccessLatencyStopwatch()
 	if err := agg.checkMetricType(metric); err != nil {
-		agg.metrics.addUntimed.ReportError(err)
+		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
-		agg.metrics.addUntimed.ReportError(err)
+		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	if err = shard.AddUntimed(metric, metadatas); err != nil {
-		agg.metrics.addUntimed.ReportError(err)
+		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	agg.metrics.addUntimed.ReportSuccess()
@@ -249,11 +249,11 @@ func (agg *aggregator) AddTimed(
 	agg.metrics.timed.Inc(1)
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
-		agg.metrics.addTimed.ReportError(err)
+		agg.metrics.addTimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	if err = shard.AddTimed(metric, metadata); err != nil {
-		agg.metrics.addTimed.ReportError(err)
+		agg.metrics.addTimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	agg.metrics.addTimed.ReportSuccess()
@@ -269,11 +269,11 @@ func (agg *aggregator) AddTimedWithStagedMetadatas(
 	agg.metrics.timed.Inc(1)
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
-		agg.metrics.addTimed.ReportError(err)
+		agg.metrics.addTimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	if err = shard.AddTimedWithStagedMetadatas(metric, metas); err != nil {
-		agg.metrics.addTimed.ReportError(err)
+		agg.metrics.addTimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	agg.metrics.addTimed.ReportSuccess()
@@ -289,11 +289,11 @@ func (agg *aggregator) AddForwarded(
 	agg.metrics.forwarded.Inc(1)
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
-		agg.metrics.addForwarded.ReportError(err)
+		agg.metrics.addForwarded.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	if err = shard.AddForwarded(metric, metadata); err != nil {
-		agg.metrics.addForwarded.ReportError(err)
+		agg.metrics.addForwarded.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	callEnd := agg.nowFn()
@@ -340,7 +340,7 @@ func (agg *aggregator) AddPassthrough(
 	}
 
 	if err := agg.passthroughWriter.Write(mp); err != nil {
-		agg.metrics.addPassthrough.ReportError(err)
+		agg.metrics.addPassthrough.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
 	agg.metrics.addPassthrough.ReportSuccess()
@@ -732,9 +732,30 @@ func (agg *aggregator) tickInternal() {
 	}
 }
 
-type aggregatorAddMetricMetrics struct {
-	success                    tally.Counter
-	successLatency             tally.Timer
+type aggregatorAddMetricSuccessMetrics struct {
+	success        tally.Counter
+	successLatency tally.Timer
+}
+
+func newAggregatorAddMetricSuccessMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) aggregatorAddMetricSuccessMetrics {
+	return aggregatorAddMetricSuccessMetrics{
+		success:        scope.Counter("success"),
+		successLatency: instrument.NewTimer(scope, "success-latency", opts),
+	}
+}
+
+func (m *aggregatorAddMetricSuccessMetrics) SuccessLatencyStopwatch() tally.Stopwatch {
+	return m.successLatency.Start()
+}
+
+func (m *aggregatorAddMetricSuccessMetrics) ReportSuccess() {
+	m.success.Inc(1)
+}
+
+type aggregatorAddMetricErrorMetrics struct {
 	shardNotOwned              tally.Counter
 	shardNotWriteable          tally.Counter
 	valueRateLimitExceeded     tally.Counter
@@ -743,13 +764,10 @@ type aggregatorAddMetricMetrics struct {
 	uncategorizedErrors        tally.Counter
 }
 
-func newAggregatorAddMetricMetrics(
+func newAggregatorAddMetricErrorMetrics(
 	scope tally.Scope,
-	opts instrument.TimerOptions,
-) aggregatorAddMetricMetrics {
-	return aggregatorAddMetricMetrics{
-		success:        scope.Counter("success"),
-		successLatency: instrument.NewTimer(scope, "success-latency", opts),
+) aggregatorAddMetricErrorMetrics {
+	return aggregatorAddMetricErrorMetrics{
 		shardNotOwned: scope.Tagged(map[string]string{
 			"reason": "shard-not-owned",
 		}).Counter("errors"),
@@ -771,15 +789,7 @@ func newAggregatorAddMetricMetrics(
 	}
 }
 
-func (m *aggregatorAddMetricMetrics) SuccessLatencyStopwatch() tally.Stopwatch {
-	return m.successLatency.Start()
-}
-
-func (m *aggregatorAddMetricMetrics) ReportSuccess() {
-	m.success.Inc(1)
-}
-
-func (m *aggregatorAddMetricMetrics) ReportError(err error) {
+func (m *aggregatorAddMetricErrorMetrics) ReportError(err error) {
 	if err == nil {
 		return
 	}
@@ -799,45 +809,78 @@ func (m *aggregatorAddMetricMetrics) ReportError(err error) {
 	}
 }
 
-type aggregatorAddUntimedMetrics struct {
-	aggregatorAddMetricMetrics
+type aggregatorAddUntimedErrorMetrics struct {
+	aggregatorAddMetricErrorMetrics
 
 	invalidMetricTypes tally.Counter
 }
 
-func newAggregatorAddUntimedMetrics(
+func newAggregatorAddUntimedErrorMetrics(
 	scope tally.Scope,
-	opts instrument.TimerOptions,
-) aggregatorAddUntimedMetrics {
-	return aggregatorAddUntimedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, opts),
+) aggregatorAddUntimedErrorMetrics {
+	return aggregatorAddUntimedErrorMetrics{
+		aggregatorAddMetricErrorMetrics: newAggregatorAddMetricErrorMetrics(scope),
 		invalidMetricTypes: scope.Tagged(map[string]string{
 			"reason": "invalid-metric-types",
 		}).Counter("errors"),
 	}
 }
 
-func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
-	if err == errInvalidMetricType {
-		m.invalidMetricTypes.Inc(1)
-		return
-	}
-	m.aggregatorAddMetricMetrics.ReportError(err)
+type aggregatorAddUntimedMetrics struct {
+	aggregatorAddMetricSuccessMetrics
+
+	leaderErrors    aggregatorAddUntimedErrorMetrics
+	nonLeaderErrors aggregatorAddUntimedErrorMetrics
 }
 
-type aggregatorAddTimedMetrics struct {
-	aggregatorAddMetricMetrics
+func newAggregatorAddUntimedMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) aggregatorAddUntimedMetrics {
+	var (
+		leaderScope = scope.Tagged(map[string]string{
+			"role": "leader",
+		})
+		nonLeaderScope = scope.Tagged(map[string]string{
+			"role": "non-leader",
+		})
+	)
+	return aggregatorAddUntimedMetrics{
+		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
+
+		leaderErrors:    newAggregatorAddUntimedErrorMetrics(leaderScope),
+		nonLeaderErrors: newAggregatorAddUntimedErrorMetrics(nonLeaderScope),
+	}
+}
+
+func (m *aggregatorAddUntimedMetrics) ReportError(err error, role ElectionState) {
+	var errors *aggregatorAddUntimedErrorMetrics
+	switch role {
+	case LeaderState:
+		errors = &m.leaderErrors
+	default:
+		errors = &m.nonLeaderErrors
+	}
+
+	if err == errInvalidMetricType {
+		errors.invalidMetricTypes.Inc(1)
+		return
+	}
+	errors.aggregatorAddMetricErrorMetrics.ReportError(err)
+}
+
+type aggregatorAddTimedErrorMetrics struct {
+	aggregatorAddMetricErrorMetrics
 
 	tooFarInTheFuture tally.Counter
 	tooFarInThePast   tally.Counter
 }
 
-func newAggregatorAddTimedMetrics(
+func newAggregatorAddTimedErrorMetrics(
 	scope tally.Scope,
-	opts instrument.TimerOptions,
-) aggregatorAddTimedMetrics {
-	return aggregatorAddTimedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, opts),
+) aggregatorAddTimedErrorMetrics {
+	return aggregatorAddTimedErrorMetrics{
+		aggregatorAddMetricErrorMetrics: newAggregatorAddMetricErrorMetrics(scope),
 		tooFarInTheFuture: scope.Tagged(map[string]string{
 			"reason": "too-far-in-the-future",
 		}).Counter("errors"),
@@ -847,21 +890,57 @@ func newAggregatorAddTimedMetrics(
 	}
 }
 
-func (m *aggregatorAddTimedMetrics) ReportError(err error) {
-	switch {
-	case err == errTooFarInTheFuture ||
-		xerrors.InnerError(err) == errTooFarInTheFuture:
-		m.tooFarInTheFuture.Inc(1)
-	case err == errTooFarInThePast ||
-		xerrors.InnerError(err) == errTooFarInThePast:
-		m.tooFarInThePast.Inc(1)
+type aggregatorAddTimedMetrics struct {
+	aggregatorAddMetricSuccessMetrics
+
+	leaderErrors    aggregatorAddTimedErrorMetrics
+	nonLeaderErrors aggregatorAddTimedErrorMetrics
+}
+
+func newAggregatorAddTimedMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) aggregatorAddTimedMetrics {
+	var (
+		leaderScope = scope.Tagged(map[string]string{
+			"role": "leader",
+		})
+		nonLeaderScope = scope.Tagged(map[string]string{
+			"role": "non-leader",
+		})
+	)
+	return aggregatorAddTimedMetrics{
+		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
+		leaderErrors:                      newAggregatorAddTimedErrorMetrics(leaderScope),
+		nonLeaderErrors:                   newAggregatorAddTimedErrorMetrics(nonLeaderScope),
+	}
+}
+
+func (m *aggregatorAddTimedMetrics) ReportError(err error, role ElectionState) {
+	var errors *aggregatorAddTimedErrorMetrics
+	switch role {
+	case LeaderState:
+		errors = &m.leaderErrors
 	default:
-		m.aggregatorAddMetricMetrics.ReportError(err)
+		errors = &m.nonLeaderErrors
+	}
+
+	switch {
+	case xerrors.Is(err, errTooFarInTheFuture):
+		errors.tooFarInTheFuture.Inc(1)
+	case xerrors.Is(err, errTooFarInThePast):
+		errors.tooFarInThePast.Inc(1)
+	default:
+		errors.aggregatorAddMetricErrorMetrics.ReportError(err)
 	}
 }
 
 type aggregatorAddPassthroughMetrics struct {
-	aggregatorAddMetricMetrics
+	aggregatorAddMetricSuccessMetrics
+
+	leaderErrors    aggregatorAddMetricErrorMetrics
+	nonLeaderErrors aggregatorAddMetricErrorMetrics
+
 	followerNoop tally.Counter
 }
 
@@ -869,14 +948,32 @@ func newAggregatorAddPassthroughMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) aggregatorAddPassthroughMetrics {
+	var (
+		leaderScope = scope.Tagged(map[string]string{
+			"role": "leader",
+		})
+		nonLeaderScope = scope.Tagged(map[string]string{
+			"role": "non-leader",
+		})
+	)
 	return aggregatorAddPassthroughMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, opts),
-		followerNoop:               scope.Counter("follower-noop"),
+		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
+		leaderErrors:                      newAggregatorAddMetricErrorMetrics(leaderScope),
+		nonLeaderErrors:                   newAggregatorAddMetricErrorMetrics(nonLeaderScope),
+		followerNoop:                      scope.Counter("follower-noop"),
 	}
 }
 
-func (m *aggregatorAddPassthroughMetrics) ReportError(err error) {
-	m.aggregatorAddMetricMetrics.ReportError(err)
+func (m *aggregatorAddPassthroughMetrics) ReportError(err error, role ElectionState) {
+	var errors *aggregatorAddMetricErrorMetrics
+	switch role {
+	case LeaderState:
+		errors = &m.leaderErrors
+	default:
+		errors = &m.nonLeaderErrors
+	}
+
+	errors.ReportError(err)
 }
 
 func (m *aggregatorAddPassthroughMetrics) ReportFollowerNoop() {
@@ -890,7 +987,10 @@ type latencyBucketKey struct {
 
 type aggregatorAddForwardedMetrics struct {
 	sync.RWMutex
-	aggregatorAddMetricMetrics
+	aggregatorAddMetricSuccessMetrics
+
+	leaderErrors    aggregatorAddMetricErrorMetrics
+	nonLeaderErrors aggregatorAddMetricErrorMetrics
 
 	scope                       tally.Scope
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn
@@ -902,12 +1002,34 @@ func newAggregatorAddForwardedMetrics(
 	opts instrument.TimerOptions,
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
+	var (
+		leaderScope = scope.Tagged(map[string]string{
+			"role": "leader",
+		})
+		nonLeaderScope = scope.Tagged(map[string]string{
+			"role": "non-leader",
+		})
+	)
 	return aggregatorAddForwardedMetrics{
-		aggregatorAddMetricMetrics:  newAggregatorAddMetricMetrics(scope, opts),
-		scope:                       scope,
-		maxAllowedForwardingDelayFn: maxAllowedForwardingDelayFn,
-		forwardingLatency:           make(map[latencyBucketKey]tally.Histogram),
+		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
+		leaderErrors:                      newAggregatorAddMetricErrorMetrics(leaderScope),
+		nonLeaderErrors:                   newAggregatorAddMetricErrorMetrics(nonLeaderScope),
+		scope:                             scope,
+		maxAllowedForwardingDelayFn:       maxAllowedForwardingDelayFn,
+		forwardingLatency:                 make(map[latencyBucketKey]tally.Histogram),
 	}
+}
+
+func (m *aggregatorAddForwardedMetrics) ReportError(err error, role ElectionState) {
+	var errors *aggregatorAddMetricErrorMetrics
+	switch role {
+	case LeaderState:
+		errors = &m.leaderErrors
+	default:
+		errors = &m.nonLeaderErrors
+	}
+
+	errors.ReportError(err)
 }
 
 func (m *aggregatorAddForwardedMetrics) ReportForwardingLatency(

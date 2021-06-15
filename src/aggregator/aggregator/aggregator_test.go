@@ -984,34 +984,44 @@ func TestAggregatorOwnedShards(t *testing.T) {
 	}
 }
 
-func TestAggregatorAddMetricMetrics(t *testing.T) {
+func TestAggregatorAddUntimedMetrics(t *testing.T) {
 	s := tally.NewTestScope("testScope", nil)
 	m := newAggregatorAddUntimedMetrics(s, instrument.TimerOptions{StandardSampleRate: 0.001})
 	m.ReportSuccess()
 	m.SuccessLatencyStopwatch().Stop()
-	m.ReportError(errInvalidMetricType)
-	m.ReportError(errShardNotOwned)
-	m.ReportError(errAggregatorShardNotWriteable)
-	m.ReportError(errWriteNewMetricRateLimitExceeded)
-	m.ReportError(errWriteValueRateLimitExceeded)
-	m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")))
-	m.ReportError(errors.New("foo"))
+	for _, state := range []ElectionState{LeaderState, FollowerState} {
+		m.ReportError(errInvalidMetricType, state)
+		m.ReportError(errShardNotOwned, state)
+		m.ReportError(errAggregatorShardNotWriteable, state)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
+		m.ReportError(errWriteValueRateLimitExceeded, state)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")), state)
+		m.ReportError(errors.New("foo"), state)
+	}
 
 	snapshot := s.Snapshot()
 	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
 
 	// Validate we count successes and errors correctly.
-	require.Equal(t, 8, len(counters))
-	for _, id := range []string{
+	expectedCounters := []string{
 		"testScope.success+",
-		"testScope.errors+reason=invalid-metric-types",
-		"testScope.errors+reason=shard-not-owned",
-		"testScope.errors+reason=shard-not-writeable",
-		"testScope.errors+reason=value-rate-limit-exceeded",
-		"testScope.errors+reason=new-metric-rate-limit-exceeded",
-		"testScope.errors+reason=arrived-too-late",
-		"testScope.errors+reason=not-categorized",
-	} {
+		"testScope.errors+reason=invalid-metric-types,role=leader",
+		"testScope.errors+reason=invalid-metric-types,role=non-leader",
+		"testScope.errors+reason=shard-not-owned,role=leader",
+		"testScope.errors+reason=shard-not-owned,role=non-leader",
+		"testScope.errors+reason=shard-not-writeable,role=leader",
+		"testScope.errors+reason=shard-not-writeable,role=non-leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=arrived-too-late,role=leader",
+		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=not-categorized,role=leader",
+		"testScope.errors+reason=not-categorized,role=non-leader",
+	}
+	require.Len(t, counters, len(expectedCounters))
+	for _, id := range expectedCounters {
 		c, exists := counters[id]
 		require.True(t, exists)
 		require.Equal(t, int64(1), c.Value())
@@ -1036,31 +1046,42 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	m := newAggregatorAddTimedMetrics(s, instrument.TimerOptions{})
 	m.ReportSuccess()
 	m.SuccessLatencyStopwatch().Stop()
-	m.ReportError(errShardNotOwned)
-	m.ReportError(errAggregatorShardNotWriteable)
-	m.ReportError(errWriteNewMetricRateLimitExceeded)
-	m.ReportError(errWriteValueRateLimitExceeded)
-	m.ReportError(errTooFarInTheFuture)
-	m.ReportError(errTooFarInThePast)
-	m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")))
-	m.ReportError(errors.New("foo"))
+	for _, state := range []ElectionState{LeaderState, FollowerState} {
+		m.ReportError(errShardNotOwned, state)
+		m.ReportError(errAggregatorShardNotWriteable, state)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
+		m.ReportError(errWriteValueRateLimitExceeded, state)
+		m.ReportError(errTooFarInTheFuture, state)
+		m.ReportError(errTooFarInThePast, state)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")), state)
+		m.ReportError(errors.New("foo"), state)
+	}
 
 	snapshot := s.Snapshot()
 	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
 
 	// Validate we count successes and errors correctly.
-	require.Equal(t, 9, len(counters))
-	for _, id := range []string{
+	expectedCounters := []string{
 		"testScope.success+",
-		"testScope.errors+reason=shard-not-owned",
-		"testScope.errors+reason=shard-not-writeable",
-		"testScope.errors+reason=value-rate-limit-exceeded",
-		"testScope.errors+reason=new-metric-rate-limit-exceeded",
-		"testScope.errors+reason=too-far-in-the-future",
-		"testScope.errors+reason=too-far-in-the-past",
-		"testScope.errors+reason=arrived-too-late",
-		"testScope.errors+reason=not-categorized",
-	} {
+		"testScope.errors+reason=shard-not-owned,role=leader",
+		"testScope.errors+reason=shard-not-owned,role=non-leader",
+		"testScope.errors+reason=shard-not-writeable,role=leader",
+		"testScope.errors+reason=shard-not-writeable,role=non-leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=too-far-in-the-future,role=leader",
+		"testScope.errors+reason=too-far-in-the-future,role=non-leader",
+		"testScope.errors+reason=too-far-in-the-past,role=leader",
+		"testScope.errors+reason=too-far-in-the-past,role=non-leader",
+		"testScope.errors+reason=arrived-too-late,role=leader",
+		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=not-categorized,role=leader",
+		"testScope.errors+reason=not-categorized,role=non-leader",
+	}
+	require.Len(t, counters, len(expectedCounters))
+	for _, id := range expectedCounters {
 		c, exists := counters[id]
 		require.True(t, exists)
 		require.Equal(t, int64(1), c.Value())
