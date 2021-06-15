@@ -45,8 +45,6 @@ const (
 )
 
 // NewHistogramQuantileOp creates a new histogram quantile operation.
-// FIXME: add normalization for aggregated histogram; see
-// normalizeAggregatedHistograms in `prom_converter.go` for explanation.
 func NewHistogramQuantileOp(
 	args []interface{},
 	opType string,

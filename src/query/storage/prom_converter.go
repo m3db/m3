@@ -22,7 +22,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -152,6 +151,7 @@ func dropPointsBeforeAndFilterEmpty(
 	filtered := seriesList[:0]
 	for idx, s := range seriesList {
 		l := len(s.Samples)
+		s := s
 		firstPointIdx := sort.Search(l, func(idx int) bool {
 			ts := xtime.UnixNano(s.Samples[idx].Timestamp)
 			return ts.After(earliest)
@@ -166,7 +166,7 @@ func dropPointsBeforeAndFilterEmpty(
 		filtered = append(filtered, seriesList[idx])
 	}
 
-	return seriesList
+	return filtered
 }
 
 func seriesIteratorsToPromResult(
@@ -226,8 +226,6 @@ func SeriesIteratorsToPromResult(
 }
 
 func toDelta(
-	// boundary xtime.UnixNano,
-	// windowSize time.Duration,
 	values []prompb.Sample,
 ) []prompb.Sample {
 	if len(values) < 2 {
@@ -313,20 +311,16 @@ func normalizeSeries(
 	windowSize time.Duration,
 	series *prompb.TimeSeries,
 ) *prompb.TimeSeries {
-	fmt.Println("BUCKETIZING BOUNDARY", boundary, windowSize)
 	series.Samples = bucketedDelta(boundary, windowSize, toDelta(series.Samples))
 	return series
 }
 
 func shouldNormalizeSeries(tags models.Tags) bool {
-	fmt.Println("CHECKING IF WE SHOULD NORMALIZE")
 	for _, tag := range rollupTags {
-		fmt.Println("CHECKING TAG", string(tag), tags)
 		if _, found := tags.Get(tag); !found {
 			return false
 		}
 	}
 
-	fmt.Println("SHOULD NORMALIZE.")
 	return true
 }

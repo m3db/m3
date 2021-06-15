@@ -87,10 +87,6 @@ func (l *seriesReader) SeriesIterators(name string) (encoding.SeriesIterators, e
 	l.RLock()
 	defer l.RUnlock()
 
-	fmt.Println("Gettung iters for", name)
-	for k := range l.nameIDSeriesMap {
-		fmt.Println("Saved are:", k)
-	}
 	var seriesMaps []idSeriesMap
 	logger := l.iterOpts.InstrumentOptions.Logger()
 	if name == "" {
