@@ -24,12 +24,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/pborman/uuid"
+
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules/view"
-
-	"github.com/pborman/uuid"
+	"github.com/m3db/m3/src/query/models"
 )
 
 var (
@@ -51,6 +53,7 @@ type rollupRuleSnapshot struct {
 	lastUpdatedAtNanos int64
 	lastUpdatedBy      string
 	keepOriginal       bool
+	tags               []models.Tag
 }
 
 func newRollupRuleSnapshotFromProto(
@@ -104,6 +107,7 @@ func newRollupRuleSnapshotFromProto(
 		r.LastUpdatedAtNanos,
 		r.LastUpdatedBy,
 		r.KeepOriginal,
+		models.TagsFromProto(r.Tags),
 	), nil
 }
 
@@ -116,6 +120,7 @@ func newRollupRuleSnapshotFromFields(
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 	keepOriginal bool,
+	tags []models.Tag,
 ) (*rollupRuleSnapshot, error) {
 	if _, err := filters.ValidateTagsFilter(rawFilter); err != nil {
 		return nil, err
@@ -130,6 +135,7 @@ func newRollupRuleSnapshotFromFields(
 		lastUpdatedAtNanos,
 		lastUpdatedBy,
 		keepOriginal,
+		tags,
 	), nil
 }
 
@@ -145,6 +151,7 @@ func newRollupRuleSnapshotFromFieldsInternal(
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 	keepOriginal bool,
+	tags []models.Tag,
 ) *rollupRuleSnapshot {
 	return &rollupRuleSnapshot{
 		name:               name,
@@ -156,6 +163,7 @@ func newRollupRuleSnapshotFromFieldsInternal(
 		lastUpdatedAtNanos: lastUpdatedAtNanos,
 		lastUpdatedBy:      lastUpdatedBy,
 		keepOriginal:       keepOriginal,
+		tags:               tags,
 	}
 }
 
@@ -168,6 +176,8 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 	if rrs.filter != nil {
 		filter = rrs.filter.Clone()
 	}
+	tags := make([]models.Tag, len(rrs.tags))
+	copy(tags, rrs.tags)
 	return rollupRuleSnapshot{
 		name:               rrs.name,
 		tombstoned:         rrs.tombstoned,
@@ -178,11 +188,16 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 		lastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
 		lastUpdatedBy:      rrs.lastUpdatedBy,
 		keepOriginal:       rrs.keepOriginal,
+		tags:               tags,
 	}
 }
 
 // proto returns the given MappingRuleSnapshot in protobuf form.
 func (rrs *rollupRuleSnapshot) proto() (*rulepb.RollupRuleSnapshot, error) {
+	tags := make([]*metricpb.Tag, 0, len(rrs.tags))
+	for _, tag := range rrs.tags {
+		tags = append(tags, tag.ToProto())
+	}
 	res := &rulepb.RollupRuleSnapshot{
 		Name:               rrs.name,
 		Tombstoned:         rrs.tombstoned,
@@ -191,6 +206,7 @@ func (rrs *rollupRuleSnapshot) proto() (*rulepb.RollupRuleSnapshot, error) {
 		LastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
 		LastUpdatedBy:      rrs.lastUpdatedBy,
 		KeepOriginal:       rrs.keepOriginal,
+		Tags:               tags,
 	}
 
 	targets := make([]*rulepb.RollupTargetV2, len(rrs.targets))
@@ -319,6 +335,7 @@ func (rc *rollupRule) addSnapshot(
 	rollupTargets []rollupTarget,
 	meta UpdateMetadata,
 	keepOriginal bool,
+	tags []models.Tag,
 ) error {
 	snapshot, err := newRollupRuleSnapshotFromFields(
 		name,
@@ -329,6 +346,7 @@ func (rc *rollupRule) addSnapshot(
 		meta.updatedAtNanos,
 		meta.updatedBy,
 		keepOriginal,
+		tags,
 	)
 	if err != nil {
 		return err
@@ -368,6 +386,7 @@ func (rc *rollupRule) revive(
 	targets []rollupTarget,
 	meta UpdateMetadata,
 	keepOriginal bool,
+	tags []models.Tag,
 ) error {
 	n, err := rc.name()
 	if err != nil {
@@ -376,7 +395,7 @@ func (rc *rollupRule) revive(
 	if !rc.tombstoned() {
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
-	return rc.addSnapshot(name, rawFilter, targets, meta, keepOriginal)
+	return rc.addSnapshot(name, rawFilter, targets, meta, keepOriginal, tags)
 }
 
 func (rc *rollupRule) history() ([]view.RollupRule, error) {
@@ -414,5 +433,6 @@ func (rc *rollupRule) rollupRuleView(snapshotIdx int) (view.RollupRule, error) {
 		LastUpdatedBy:       rrs.lastUpdatedBy,
 		LastUpdatedAtMillis: rrs.lastUpdatedAtNanos / nanosPerMilli,
 		KeepOriginal:        rrs.keepOriginal,
+		Tags:                rrs.tags,
 	}, nil
 }
