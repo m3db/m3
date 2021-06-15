@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
@@ -37,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/query/models"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
@@ -53,6 +55,7 @@ var (
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
 		KeepOriginal:       false,
+		Tags:               []*metricpb.Tag{},
 		Targets: []*rulepb.RollupTarget{
 			{
 				Name: "rName1",
@@ -81,6 +84,7 @@ var (
 		LastUpdatedBy:      "someone-else",
 		Filter:             "tag3:value3 tag4:value4",
 		KeepOriginal:       false,
+		Tags:               []*metricpb.Tag{},
 		Targets: []*rulepb.RollupTarget{
 			{
 				Name: "rName1",
@@ -126,6 +130,7 @@ var (
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
 		KeepOriginal:       false,
+		Tags:               []*metricpb.Tag{},
 		TargetsV2: []*rulepb.RollupTargetV2{
 			{
 				Pipeline: &pipelinepb.Pipeline{
@@ -225,6 +230,7 @@ var (
 		LastUpdatedBy:      "someone-else",
 		Filter:             "tag3:value3 tag4:value4",
 		KeepOriginal:       true,
+		Tags:               []*metricpb.Tag{},
 		TargetsV2: []*rulepb.RollupTargetV2{
 			{
 				Pipeline: &pipelinepb.Pipeline{
@@ -305,6 +311,7 @@ var (
 		cutoverNanos: 12345000000,
 		rawFilter:    "tag1:value1 tag2:value2",
 		keepOriginal: false,
+		tags:         []models.Tag{},
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -327,6 +334,7 @@ var (
 		cutoverNanos: 67890000000,
 		rawFilter:    "tag3:value3 tag4:value4",
 		keepOriginal: false,
+		tags:         []models.Tag{},
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -350,6 +358,7 @@ var (
 		cutoverNanos: 12345000000,
 		rawFilter:    "tag1:value1 tag2:value2",
 		keepOriginal: false,
+		tags:         []models.Tag{},
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -403,6 +412,7 @@ var (
 		cutoverNanos: 67890000000,
 		rawFilter:    "tag3:value3 tag4:value4",
 		keepOriginal: true,
+		tags:         []models.Tag{},
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -564,6 +574,7 @@ func TestNewRollupRuleSnapshotFromProtoTombstoned(t *testing.T) {
 		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
 		keepOriginal:       false,
+		tags:               []models.Tag{},
 	}
 	require.True(t, cmp.Equal(expected, res, testRollupRuleSnapshotCmpOpts...))
 	require.NotNil(t, res.filter)
@@ -585,6 +596,7 @@ func TestNewRollupRuleSnapshotFromFields(t *testing.T) {
 		testRollupRuleSnapshot3.lastUpdatedAtNanos,
 		testRollupRuleSnapshot3.lastUpdatedBy,
 		false,
+		[]models.Tag{},
 	)
 	require.NoError(t, err)
 	require.True(t, cmp.Equal(testRollupRuleSnapshot3, res, testRollupRuleSnapshotCmpOpts...))
@@ -607,6 +619,7 @@ func TestNewRollupRuleSnapshotFromFieldsValidationError(t *testing.T) {
 			1234,
 			"test_user",
 			false,
+			nil,
 		)
 		require.Error(t, err)
 		_, ok := err.(errors.ValidationError)
@@ -752,6 +765,7 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 		lastUpdatedAtNanos: 10000,
 		lastUpdatedBy:      "john",
 		keepOriginal:       false,
+		tags:               []models.Tag{},
 	}
 	require.True(t, cmp.Equal(expected, rr.snapshots[1], testRollupRuleSnapshotCmpOpts...))
 }
