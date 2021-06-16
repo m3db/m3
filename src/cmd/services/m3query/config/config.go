@@ -138,6 +138,9 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
+	// HTTP is the HTTP configuration.
+	HTTP HTTPConfiguration `yaml:"http"`
+
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend BackendStorageType `yaml:"backend"`
 
@@ -716,6 +719,14 @@ type RPCConfiguration struct {
 	// ReflectionEnabled will enable reflection on the GRPC server, useful
 	// for testing connectivity with grpcurl, etc.
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
+}
+
+// HTTPConfiguration is the HTTP configuration for configuring
+// the HTTP server used by the coordinator to serve incoming requests.
+type HTTPConfiguration struct {
+	// EnableH2C enables support for the HTTP/2 cleartext protocol. H2C
+	// enables the use of HTTP/2 without requiring TLS.
+	EnableH2C bool `yaml:"enableH2C"`
 }
 
 // TagOptionsConfiguration is the configuration for shared tag options
