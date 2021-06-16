@@ -136,8 +136,8 @@ func TestWriteH2C(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, close := newTestFile(t, "config.yaml", configYAML)
-	defer close()
+	configFile, closer := newTestFile(t, "config.yaml", configYAML)
+	defer closer()
 
 	var cfg config.Configuration
 	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
@@ -148,16 +148,12 @@ func TestWriteH2C(t *testing.T) {
 	testWrite(t, cfg, ctrl)
 }
 
-// TestIngest will test an M3Msg being ingested by the coordinator, it also
-// makes sure that the tag options is correctly propagated from the config
-// all the way to the M3Msg ingester and when written to the DB will include
-// the correctly formed ID.
 func TestIngestH1(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, close := newTestFile(t, "config.yaml", configYAML)
-	defer close()
+	configFile, closer := newTestFile(t, "config.yaml", configYAML)
+	defer closer()
 
 	var cfg config.Configuration
 	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
@@ -170,8 +166,8 @@ func TestIngestH2C(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, close := newTestFile(t, "config.yaml", configYAML)
-	defer close()
+	configFile, closer := newTestFile(t, "config.yaml", configYAML)
+	defer closer()
 
 	var cfg config.Configuration
 	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
@@ -279,6 +275,10 @@ func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) 
 	<-doneCh
 }
 
+// testIngest will test an M3Msg being ingested by the coordinator, it also
+// makes sure that the tag options is correctly propagated from the config
+// all the way to the M3Msg ingester and when written to the DB will include
+// the correctly formed ID.
 func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) {
 	// Override the client creation
 	require.Equal(t, 1, len(cfg.Clusters))
