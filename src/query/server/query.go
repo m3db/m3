@@ -79,6 +79,8 @@ import (
 	prometheuspromql "github.com/prometheus/prometheus/promql"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -563,7 +565,11 @@ func Run(runOpts RunOptions) {
 	}
 
 	listenAddress := cfg.ListenAddressOrDefault()
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
+	srvHandler := handler.Router()
+	if cfg.HTTP.EnableH2C {
+		srvHandler = h2c.NewHandler(handler.Router(), &http2.Server{})
+	}
+	srv := &http.Server{Addr: listenAddress, Handler: srvHandler}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {
