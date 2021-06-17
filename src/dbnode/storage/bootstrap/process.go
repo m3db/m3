@@ -26,6 +26,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -36,10 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/opentracing/opentracing-go/log"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // bootstrapProcessProvider is the bootstrapping process provider.
@@ -97,7 +98,13 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 		return nil, err
 	}
 
-	initialTopologyState, err := b.newInitialTopologyState()
+	topoMap, err := b.processOpts.TopologyMapProvider().TopologyMap()
+	if err != nil {
+		return nil, err
+	}
+
+	origin := b.processOpts.Origin()
+	initialTopologyState, err := newInitialTopologyState(origin, topoMap)
 	if err != nil {
 		return nil, err
 	}
@@ -113,16 +120,14 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	}, nil
 }
 
-func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSnapshot, error) {
-	topoMap, err := b.processOpts.TopologyMapProvider().TopologyMap()
-	if err != nil {
-		return nil, err
-	}
-
+func newInitialTopologyState(
+	origin topology.Host,
+	topoMap topology.Map,
+) (*topology.StateSnapshot, error) {
 	var (
 		hostShardSets = topoMap.HostShardSets()
 		topologyState = &topology.StateSnapshot{
-			Origin:           b.processOpts.Origin(),
+			Origin:           origin,
 			MajorityReplicas: topoMap.MajorityReplicas(),
 			ShardStates:      topology.ShardStates{},
 		}
@@ -235,8 +240,20 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
+
 		for _, entry := range namespaces.Namespaces.Iter() {
 			ns := entry.Value()
+
+			// First determine if any shards that we are bootstrapping are
+			// initializing and hence might need peer bootstrapping and if so
+			// make sure the time ranges reflect the time window that should
+			// be bootstrapped from peers (in case time has shifted considerably).
+			if !b.shardsInitializingAny(ns.Shards) {
+				// No shards initializing, don't need to run check to see if
+				// time has shifted.
+				continue
+			}
+
 			// Check if snapshot-type ranges have advanced while bootstrapping previous ranges.
 			// If yes, return an error to force a retry
 			if persistConf := ns.DataRunOptions.RunOptions.PersistConfig(); persistConf.Enabled &&
@@ -270,6 +287,33 @@ func (b bootstrapProcess) Run(
 	}
 
 	return bootstrapResult, nil
+}
+
+func (b bootstrapProcess) shardsInitializingAny(
+	shards []uint32,
+) bool {
+	for _, value := range shards {
+		shardID := topology.ShardID(value)
+		hostShardStates, ok := b.initialTopologyState.ShardStates[shardID]
+		if !ok {
+			// This shard was not part of the topology when the bootstrapping
+			// process began.
+			continue
+		}
+
+		originID := topology.HostID(b.initialTopologyState.Origin.ID())
+		originHostShardState, ok := hostShardStates[originID]
+		if !ok {
+			// This shard was not part of the origin's shard.
+			continue
+		}
+
+		if originHostShardState.ShardState == shard.Initializing {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (b bootstrapProcess) runPass(
