@@ -123,7 +123,6 @@ func TestMultiProcessSetsProcessLabel(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-
 	configFile, c := newTestFile(t, "config.yaml", configYAML)
 	defer c()
 
@@ -135,7 +134,7 @@ func TestMultiProcessSetsProcessLabel(t *testing.T) {
 	cfg.Metrics.PrometheusReporter.ListenAddress = fmt.Sprintf("127.0.0.1:%d", metricsPort)
 	cfg.MultiProcess = config.MultiProcessConfiguration{
 		Enabled: true,
-		Count: 2,
+		Count:   2,
 	}
 	detailedMetrics := instrument.DetailedExtendedMetrics
 	cfg.Metrics.ExtendedMetrics = &detailedMetrics

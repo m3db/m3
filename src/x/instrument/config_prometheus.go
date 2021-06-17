@@ -110,10 +110,13 @@ type PrometheusExternalRegistry struct {
 func (c PrometheusConfiguration) NewReporter(
 	configOpts PrometheusConfigurationOptions,
 ) (prometheus.Reporter, error) {
-	var opts prometheus.Options
-
-	if configOpts.Registry != nil {
-		opts.Registerer = configOpts.Registry
+	registry := configOpts.Registry
+	if configOpts.Registry == nil {
+		registry = prom.NewRegistry()
+	}
+	opts := prometheus.Options{
+		Registerer: registry,
+		Gatherer:   registry,
 	}
 
 	if configOpts.OnError != nil {
@@ -167,11 +170,8 @@ func (c PrometheusConfiguration) NewReporter(
 		path = handlerPath
 	}
 
-	handler := reporter.HTTPHandler()
-	if configOpts.Registry != nil {
-		gatherer := newMultiGatherer(configOpts.Registry, configOpts.ExternalRegistries, configOpts.CommonLabels)
-		handler = promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
-	}
+	gatherer := newMultiGatherer(registry, configOpts.ExternalRegistries, configOpts.CommonLabels)
+	handler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 
 	addr := strings.TrimSpace(c.ListenAddress)
 	if addr == "" && configOpts.HandlerListener == nil {
@@ -230,7 +230,7 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 		return nil, err
 	}
 
-	appendCommonLabels(g.commonLabels, results)
+	appendLabelsToMetrics(g.commonLabels, results)
 
 	if len(g.ext) == 0 {
 		return results, nil
@@ -326,7 +326,7 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 					metricEntry.Label = append(metricEntry.Label, labelEntry)
 				}
 
-				appendCommonLabelsForMetric(g.commonLabels, metricEntry)
+				appendLabels(g.commonLabels, metricEntry)
 
 				entry.Metric = append(entry.Metric, metricEntry)
 			}
@@ -338,19 +338,19 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 	return results, nil
 }
 
-func appendCommonLabelsForMetric(commonLabels map[string]string, metric *dto.Metric) {
-	for l := range commonLabels {
-		label := l
-		labelValue := commonLabels[label]
-		metric.Label = append(metric.Label, &dto.LabelPair{Name: &label, Value: &labelValue})
+func appendLabels(commonLabels map[string]string, metric *dto.Metric) {
+	for name, value := range commonLabels {
+		name := name
+		value := value
+		metric.Label = append(metric.Label, &dto.LabelPair{Name: &name, Value: &value})
 	}
 }
 
-func appendCommonLabels(commonLabels map[string]string, results []*dto.MetricFamily) {
+func appendLabelsToMetrics(commonLabels map[string]string, results []*dto.MetricFamily) {
 	if len(commonLabels) > 0 {
 		for _, metricFamily := range results {
 			for _, metric := range metricFamily.Metric {
-				appendCommonLabelsForMetric(commonLabels, metric)
+				appendLabels(commonLabels, metric)
 			}
 		}
 	}
