@@ -44,8 +44,9 @@ func (f FeatureFlagConfigurations) Parse() []FeatureFlagBundleParsed {
 // FeatureFlagConfiguration holds filter and flag combinations. The flags are
 // scoped to metrics with tags that match the filter.
 type FeatureFlagConfiguration struct {
-	// Filter is a map of tag keys and values that much match for the flags to
-	// be applied.
+	// Filter is an optional map of tag keys and values that much match for
+	// the flags to be applied.
+	// If not set then the flags will apply to all processed metrics.
 	Filter map[string]string `yaml:"filter"`
 	// Flags are the flags enabled once the filters are matched.
 	Flags FlagBundle `yaml:"flags"`
@@ -63,25 +64,26 @@ func (f FeatureFlagConfiguration) parse() FeatureFlagBundleParsed {
 		flags:                 f.Flags,
 		serializedTagMatchers: make([][]byte, 0, len(f.Filter)),
 	}
+	if f.Filter != nil {
+		for key, value := range f.Filter {
+			var (
+				byteOrder      = binary.LittleEndian
+				buff           = make([]byte, 2)
+				tagFilterBytes []byte
+			)
 
-	for key, value := range f.Filter {
-		var (
-			byteOrder      = binary.LittleEndian
-			buff           = make([]byte, 2)
-			tagFilterBytes []byte
-		)
+			// Add key bytes.
+			byteOrder.PutUint16(buff[:2], uint16(len(key)))
+			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
+			tagFilterBytes = append(tagFilterBytes, []byte(key)...)
 
-		// Add key bytes.
-		byteOrder.PutUint16(buff[:2], uint16(len(key)))
-		tagFilterBytes = append(tagFilterBytes, buff[:2]...)
-		tagFilterBytes = append(tagFilterBytes, []byte(key)...)
+			// Add value bytes.
+			byteOrder.PutUint16(buff[:2], uint16(len(value)))
+			tagFilterBytes = append(tagFilterBytes, buff[:2]...)
+			tagFilterBytes = append(tagFilterBytes, []byte(value)...)
 
-		// Add value bytes.
-		byteOrder.PutUint16(buff[:2], uint16(len(value)))
-		tagFilterBytes = append(tagFilterBytes, buff[:2]...)
-		tagFilterBytes = append(tagFilterBytes, []byte(value)...)
-
-		parsed.serializedTagMatchers = append(parsed.serializedTagMatchers, tagFilterBytes)
+			parsed.serializedTagMatchers = append(parsed.serializedTagMatchers, tagFilterBytes)
+		}
 	}
 
 	return parsed
@@ -96,10 +98,27 @@ type FeatureFlagBundleParsed struct {
 // Match matches the given byte string with all filters for the
 // parsed feature flag bundle.
 func (f FeatureFlagBundleParsed) Match(metricID []byte) (FlagBundle, bool) {
+	// Note: If serializedTagMatchers is empty (i.e. no filter set),
+	// then we should return true.
 	for _, val := range f.serializedTagMatchers {
 		if !bytes.Contains(metricID, val) {
 			return FlagBundle{}, false
 		}
 	}
 	return f.flags, true
+}
+
+// FeatureFlagBundlesParsed is a set of parsed feature flag bundles.
+type FeatureFlagBundlesParsed []FeatureFlagBundleParsed
+
+// FirstMatch will return the first matched bundle and true or zero value
+// and false if no flag bundles match.
+func (f FeatureFlagBundlesParsed) FirstMatch(metricID []byte) (FlagBundle, bool) {
+	for _, elem := range f {
+		bundle, ok := elem.Match(metricID)
+		if ok {
+			return bundle, true
+		}
+	}
+	return FlagBundle{}, false
 }
