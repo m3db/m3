@@ -168,7 +168,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		}
 	)
 
-	shardSet, err := newTestShardSet(opts.NumShards())
+	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	require.NoError(t, err)
 	for i := 0; i < replicas; i++ {
 		var (
@@ -208,8 +208,6 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				if i == instance {
 					origin = host
 				}
-				shardSet, err := newTestShardSet(opts.NumShards())
-				require.NoError(t, err)
 				hostShardSet := topology.NewHostShardSet(host, shardSet)
 				hostShardSets = append(hostShardSets, hostShardSet)
 			}
