@@ -43,6 +43,11 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var (
+	errNoOrigin      = errors.New("no origin set for initial topology state")
+	errNoTopologyMap = errors.New("no topology map set for initial topology state")
+)
+
 // bootstrapProcessProvider is the bootstrapping process provider.
 type bootstrapProcessProvider struct {
 	sync.RWMutex
@@ -124,6 +129,13 @@ func newInitialTopologyState(
 	origin topology.Host,
 	topoMap topology.Map,
 ) (*topology.StateSnapshot, error) {
+	if origin == nil {
+		return nil, errNoOrigin
+	}
+	if topoMap == nil {
+		return nil, errNoTopologyMap
+	}
+
 	var (
 		hostShardSets = topoMap.HostShardSets()
 		topologyState = &topology.StateSnapshot{
