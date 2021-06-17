@@ -118,7 +118,7 @@ writeWorkerPoolPolicy:
   killProbability: 0.3
 `
 
-func TestWrite(t *testing.T) {
+func TestWriteH1(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
@@ -129,6 +129,56 @@ func TestWrite(t *testing.T) {
 	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
+	testWrite(t, cfg, ctrl)
+}
+
+func TestWriteH2C(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	configFile, closer := newTestFile(t, "config.yaml", configYAML)
+	defer closer()
+
+	var cfg config.Configuration
+	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	cfg.HTTP.EnableH2C = true
+
+	testWrite(t, cfg, ctrl)
+}
+
+func TestIngestH1(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	configFile, closer := newTestFile(t, "config.yaml", configYAML)
+	defer closer()
+
+	var cfg config.Configuration
+	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	testIngest(t, cfg, ctrl)
+}
+
+func TestIngestH2C(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	configFile, closer := newTestFile(t, "config.yaml", configYAML)
+	defer closer()
+
+	var cfg config.Configuration
+	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	cfg.HTTP.EnableH2C = true
+
+	testIngest(t, cfg, ctrl)
+}
+
+func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) {
 	// Override the client creation
 	require.Equal(t, 1, len(cfg.Clusters))
 
@@ -225,21 +275,11 @@ func TestWrite(t *testing.T) {
 	<-doneCh
 }
 
-// TestIngest will test an M3Msg being ingested by the coordinator, it also
+// testIngest will test an M3Msg being ingested by the coordinator, it also
 // makes sure that the tag options is correctly propagated from the config
 // all the way to the M3Msg ingester and when written to the DB will include
 // the correctly formed ID.
-func TestIngest(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	configFile, close := newTestFile(t, "config.yaml", configYAML)
-	defer close()
-
-	var cfg config.Configuration
-	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
+func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) {
 	// Override the client creation
 	require.Equal(t, 1, len(cfg.Clusters))
 
@@ -404,7 +444,7 @@ func TestGRPCBackend(t *testing.T) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	grpcAddr := lis.Addr().String()
-	var grpcConfigYAML = fmt.Sprintf(`
+	grpcConfigYAML := fmt.Sprintf(`
 listenAddress: 127.0.0.1:0
 
 logging:

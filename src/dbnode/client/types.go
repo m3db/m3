@@ -626,10 +626,10 @@ type Options interface {
 	HostQueueOpsArrayPoolSize() int
 
 	// SetHostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
-	SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options
+	SetHostQueueNewPooledWorkerFn(value xsync.NewDynamicPooledWorkerFn) Options
 
 	// HostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
-	HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn
+	HostQueueNewPooledWorkerFn() xsync.NewDynamicPooledWorkerFn
 
 	// SetHostQueueEmitsHealthStatus sets the hostQueueEmitHealthStatus.
 	SetHostQueueEmitsHealthStatus(value bool) Options
@@ -668,10 +668,10 @@ type Options interface {
 	AsyncTopologyInitializers() []topology.Initializer
 
 	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
-	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
+	SetAsyncWriteWorkerPool(value xsync.DynamicPooledWorkerPool) Options
 
 	// AsyncWriteWorkerPool returns the worker pool for async writes.
-	AsyncWriteWorkerPool() xsync.PooledWorkerPool
+	AsyncWriteWorkerPool() xsync.DynamicPooledWorkerPool
 
 	// SetAsyncWriteMaxConcurrency sets the async writes maximum concurrency.
 	SetAsyncWriteMaxConcurrency(value int) Options

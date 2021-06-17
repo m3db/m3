@@ -1629,17 +1629,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadableShardAt(shardID interface{}
 }
 
 // Repair mocks base method.
-func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.Range) error {
+func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.Range, opts NamespaceRepairOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair", repairer, tr)
+	ret := m.ctrl.Call(m, "Repair", repairer, tr, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Repair indicates an expected call of Repair.
-func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseNamespace)(nil).Repair), repairer, tr)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseNamespace)(nil).Repair), repairer, tr, opts)
 }
 
 // Schema mocks base method.

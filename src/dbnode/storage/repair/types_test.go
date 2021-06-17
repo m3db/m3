@@ -18,45 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package sync
+package repair
 
 import (
-	"context"
-	"time"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-type fastPooledWorkerPool struct {
-	workerPool StaticPooledWorkerPool
-	batchSize  int
-	count      int
-}
-
-var _ StaticPooledWorkerPool = &fastPooledWorkerPool{}
-
-func (f *fastPooledWorkerPool) Init() {
-	f.workerPool.Init()
-}
-
-func (f *fastPooledWorkerPool) Go(work Work) {
-	f.workerPool.Go(work)
-}
-
-func (f *fastPooledWorkerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
-	return f.workerPool.GoWithTimeout(work, timeout)
-}
-
-func (f *fastPooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
-	f.count++
-	if f.count == 1 {
-		return f.workerPool.GoWithContext(ctx, work)
+func TestUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Type Type `yaml:"type"`
 	}
-	if f.count == f.batchSize {
-		f.count = 0
-	}
-	f.workerPool.Go(work)
-	return true
-}
 
-func (f *fastPooledWorkerPool) FastContextCheck(batchSize int) StaticPooledWorkerPool {
-	return &fastPooledWorkerPool{workerPool: f.workerPool, batchSize: batchSize}
+	for _, value := range validTypes {
+		str := fmt.Sprintf("type: %s\n", value.String())
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+		require.Equal(t, value, cfg.Type)
+	}
+
+	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte("type: abc"), &cfg))
 }

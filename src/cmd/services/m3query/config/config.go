@@ -101,10 +101,8 @@ var (
 	// users do not experience see unexpected results.
 	defaultRequireExhaustive = true
 
-	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
-		GrowOnDemand:          true,
-		Size:                  4096,
-		KillWorkerProbability: 0.001,
+	defaultWorkerPoolPolicy = xconfig.WorkerPoolPolicy{
+		NumShards: 4096,
 	}
 )
 
@@ -140,6 +138,9 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
+	// HTTP is the HTTP configuration.
+	HTTP HTTPConfiguration `yaml:"http"`
+
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend BackendStorageType `yaml:"backend"`
 
@@ -147,7 +148,7 @@ type Configuration struct {
 	TagOptions TagOptionsConfiguration `yaml:"tagOptions"`
 
 	// ReadWorkerPool is the worker pool policy for read requests.
-	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
+	ReadWorkerPool *xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool *xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
@@ -225,7 +226,16 @@ func (c *Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
 		return *c.WriteWorkerPool
 	}
 
-	return defaultWriteWorkerPool
+	return defaultWorkerPoolPolicy
+}
+
+// ReadWorkerPoolOrDefault returns the read worker pool config or default.
+func (c *Configuration) ReadWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+	if c.ReadWorkerPool != nil {
+		return *c.ReadWorkerPool
+	}
+
+	return defaultWorkerPoolPolicy
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -709,6 +719,14 @@ type RPCConfiguration struct {
 	// ReflectionEnabled will enable reflection on the GRPC server, useful
 	// for testing connectivity with grpcurl, etc.
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
+}
+
+// HTTPConfiguration is the HTTP configuration for configuring
+// the HTTP server used by the coordinator to serve incoming requests.
+type HTTPConfiguration struct {
+	// EnableH2C enables support for the HTTP/2 cleartext protocol. H2C
+	// enables the use of HTTP/2 without requiring TLS.
+	EnableH2C bool `yaml:"enableH2C"`
 }
 
 // TagOptionsConfiguration is the configuration for shared tag options

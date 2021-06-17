@@ -448,8 +448,8 @@ type databaseNamespace interface {
 	// Truncate truncates the in-memory data for this namespace.
 	Truncate() (int64, error)
 
-	// Repair repairs the namespace data for a given time range
-	Repair(repairer databaseShardRepairer, tr xtime.Range) error
+	// Repair repairs the namespace data for a given time range.
+	Repair(repairer databaseShardRepairer, tr xtime.Range, opts NamespaceRepairOptions) error
 
 	// BootstrapState returns namespaces' bootstrap state.
 	BootstrapState() BootstrapState
@@ -478,6 +478,11 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 	) (int64, error)
+}
+
+// NamespaceRepairOptions is a set of repair options for repairing a namespace.
+type NamespaceRepairOptions struct {
+	Force bool
 }
 
 // Shard is a time series database shard.

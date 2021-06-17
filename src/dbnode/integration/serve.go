@@ -42,14 +42,28 @@ import (
 	"go.uber.org/zap"
 )
 
-// newTestShardSet creates a default shard set
-func newTestShardSet(numShards int) (sharding.ShardSet, error) {
+// TestShardSetOptions is a set of test shard set options.
+type TestShardSetOptions struct {
+	ShardState shard.State
+}
+
+// newTestShardSet creates a default shard set.
+func newTestShardSet(
+	numShards int,
+	opts *TestShardSetOptions,
+) (sharding.ShardSet, error) {
+	if opts == nil {
+		opts = &TestShardSetOptions{
+			ShardState: shard.Available,
+		}
+	}
+
 	var ids []uint32
 	for i := uint32(0); i < uint32(numShards); i++ {
 		ids = append(ids, i)
 	}
 
-	shards := sharding.NewShards(ids, shard.Available)
+	shards := sharding.NewShards(ids, opts.ShardState)
 	return sharding.NewShardSet(shards, sharding.DefaultHashFn(numShards))
 }
 
