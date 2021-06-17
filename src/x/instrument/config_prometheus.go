@@ -111,7 +111,7 @@ func (c PrometheusConfiguration) NewReporter(
 	configOpts PrometheusConfigurationOptions,
 ) (prometheus.Reporter, error) {
 	registry := configOpts.Registry
-	if configOpts.Registry == nil {
+	if registry == nil {
 		registry = prom.NewRegistry()
 	}
 	opts := prometheus.Options{
