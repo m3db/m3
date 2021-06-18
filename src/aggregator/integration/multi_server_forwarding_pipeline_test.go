@@ -386,7 +386,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
 			instrumentOpts := aggregatorOpts.InstrumentOptions()
 			agg := aggregation.NewGauge(aggregation.NewOptions(instrumentOpts))
-			agg.Update(time.Now(), expectedValuesList[spIdx][i], nil)
+			agg.Update(time.Now(), expectedValuesList[spIdx][i], testAnnotation)
 			expectedValuesByTimeList[spIdx][currTime.UnixNano()] = agg
 		}
 	}
@@ -414,5 +414,6 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		expectedResultsFlattened = append(expectedResultsFlattened, expectedResults...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
-	require.True(t, cmp.Equal(expectedResultsFlattened, destinationServer.sortedResults(), testCmpOpts...))
+	actual := destinationServer.sortedResults()
+	require.True(t, cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...))
 }
