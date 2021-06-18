@@ -200,6 +200,7 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
+	var commonLabels map[string]string
 	if cfg.MultiProcess.Enabled {
 		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
 		if err != nil {
@@ -215,6 +216,7 @@ func Run(runOpts RunOptions) {
 		cfg = runResult.cfg
 		logger = runResult.logger
 		listenerOpts = runResult.listenerOpts
+		commonLabels = runResult.commonLabels
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
@@ -231,6 +233,7 @@ func Run(runOpts RunOptions) {
 				// cause a panic.
 				logger.Error("register metric error", zap.Error(err))
 			},
+			CommonLabels: commonLabels,
 		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
