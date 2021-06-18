@@ -310,7 +310,11 @@ func (c *grpcClient) FetchCompressed(
 	fanout := consolidators.NamespaceCoversAllQueryRange
 	matchOpts := c.opts.SeriesConsolidationMatchOptions()
 	tagOpts := c.opts.TagOptions()
-	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
+	limitOpts := consolidators.LimitOptions{
+		Limit:             options.SeriesLimit,
+		RequireExhaustive: options.RequireExhaustive,
+	}
+	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel

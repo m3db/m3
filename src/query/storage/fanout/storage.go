@@ -134,7 +134,11 @@ func (s *fanoutStorage) FetchProm(
 	pools := s.opts.IteratorPools()
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
 	tagOpts := s.opts.TagOptions()
-	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
+	limitOpts := consolidators.LimitOptions{
+		Limit:             options.SeriesLimit,
+		RequireExhaustive: options.RequireExhaustive,
+	}
+	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
 	defer accumulator.Close()
 	for _, store := range stores {
 		store := store
@@ -229,7 +233,11 @@ func (s *fanoutStorage) FetchCompressed(
 	pools := s.opts.IteratorPools()
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
 	tagOpts := s.opts.TagOptions()
-	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
+	limitOpts := consolidators.LimitOptions{
+		Limit:             options.SeriesLimit,
+		RequireExhaustive: options.RequireExhaustive,
+	}
+	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
 	defer accumulator.Close()
 	for _, store := range stores {
 		store := store
