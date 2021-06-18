@@ -240,7 +240,7 @@ func (m peerBlockMetadataComparisonMap) Reset() {
 }
 
 func (m replicaMetadataComparer) newPeersMetadataComparisonMap() peerMetadataComparisonMap {
-	result := make(peerMetadataComparisonMap)
+	result := make(peerMetadataComparisonMap, len(m.peers))
 	for _, peer := range m.peers {
 		result[peer.ID()] = &peerMetadataComparison{}
 	}
@@ -248,7 +248,7 @@ func (m replicaMetadataComparer) newPeersMetadataComparisonMap() peerMetadataCom
 }
 
 func (m replicaMetadataComparer) newPeersBlockMetadataComparisonMap() peerBlockMetadataComparisonMap {
-	result := make(peerBlockMetadataComparisonMap)
+	result := make(peerBlockMetadataComparisonMap, len(m.peers))
 	for _, peer := range m.peers {
 		result[peer.ID()] = &peerBlockMetadataComparison{}
 	}
