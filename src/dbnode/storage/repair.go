@@ -64,14 +64,14 @@ type recordFn func(
 
 // TODO(rartoul): See if we can find a way to guard against too much metadata.
 type shardRepairer struct {
-	opts     Options
-	rpopts   repair.Options
-	clients  []client.AdminClient
-	recordFn recordFn
-	nowFn    clock.NowFn
-	logger   *zap.Logger
-	scope    tally.Scope
-	metrics  shardRepairerMetrics
+	opts    Options
+	rpopts  repair.Options
+	clients []client.AdminClient
+	record  recordFn
+	nowFn   clock.NowFn
+	logger  *zap.Logger
+	scope   tally.Scope
+	metrics shardRepairerMetrics
 }
 
 type shardRepairerMetrics struct {
@@ -103,7 +103,7 @@ func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer
 		scope:   scope,
 		metrics: newShardRepairerMetrics(scope),
 	}
-	r.recordFn = r.recordDifferences
+	r.record = r.recordDifferences
 
 	return r
 }
@@ -243,7 +243,7 @@ func (r shardRepairer) Repair(
 
 	// Shard repair can fail due to transient network errors due to the significant amount of data fetched from peers.
 	// So collect and emit metadata comparison metrics before fetching blocks from peer to repair.
-	r.recordFn(origin, nsCtx.ID, shard, metadataRes)
+	r.record(origin, nsCtx.ID, shard, metadataRes)
 	if repairType == repair.OnlyCompareRepair {
 		// Early return if repair type doesn't require executing repairing the data step.
 		return metadataRes, nil

@@ -192,6 +192,75 @@ type MetadataComparisonResult struct {
 
 	// ChecksumDifferences returns the checksum differences.
 	ChecksumDifferences ReplicaSeriesMetadata
+
+	// PeerMetadataComparisonResults the results comparitive to each peer.
+	PeerMetadataComparisonResults PeerMetadataComparisonResults
+}
+
+// PeerMetadataComparisonResult captures metadata comparison results
+// relative to the local origin node.
+type PeerMetadataComparisonResult struct {
+	// ID is the peer ID.
+	ID string
+
+	// ComparedBlocks returns the total number of blocks.
+	ComparedBlocks int64
+
+	// ComparedDifferingBlocks returns the number of differing blocks (mismatch + missing + extra).
+	ComparedDifferingBlocks int64
+
+	// ComparedMismatchBlocks returns the number of mismatching blocks (either size or checksum).
+	ComparedMismatchBlocks int64
+
+	// ComparedMissingBlocks returns the number of missing blocks.
+	ComparedMissingBlocks int64
+
+	// ComparedExtraBlocks returns the number of extra blocks.
+	ComparedExtraBlocks int64
+}
+
+// ComparedDifferingPercent returns the percent, between range of
+// [0.0, 1.0], of all the blocks in the comparison.
+func (r PeerMetadataComparisonResult) ComparedDifferingPercent() float64 {
+	return float64(r.ComparedDifferingBlocks) / float64(r.ComparedBlocks)
+}
+
+// PeerMetadataComparisonResults is a slice of PeerMetadataComparisonResult.
+type PeerMetadataComparisonResults []PeerMetadataComparisonResult
+
+func (r PeerMetadataComparisonResults) Aggregate() AggregatePeerMetadataComparisonResult {
+	var result AggregatePeerMetadataComparisonResult
+	for _, elem := range r {
+		result.ComparedBlocks += elem.ComparedBlocks
+		result.ComparedDifferingBlocks += elem.ComparedDifferingBlocks
+		result.ComparedMismatchBlocks += elem.ComparedMismatchBlocks
+		result.ComparedMissingBlocks += elem.ComparedMissingBlocks
+		result.ComparedExtraBlocks += elem.ComparedExtraBlocks
+	}
+	result.ComparedDifferingPercent = float64(result.ComparedDifferingBlocks) / float64(result.ComparedBlocks)
+	return result
+}
+
+// AggregatePeerMetadataComparisonResult captures an aggregate metadata comparison
+// result of all peers relative to the local origin node.
+type AggregatePeerMetadataComparisonResult struct {
+	// ComparedDifferingPercent is the percent of blocks that mismatched from peers to local origin.
+	ComparedDifferingPercent float64
+
+	// ComparedBlocks returns the total number of blocks compared.
+	ComparedBlocks int64
+
+	// ComparedDifferingBlocks returns the number of differing blocks (mismatch + missing + extra).
+	ComparedDifferingBlocks int64
+
+	// ComparedMismatchBlocks returns the number of mismatching blocks (either size or checksum).
+	ComparedMismatchBlocks int64
+
+	// ComparedMissingBlocks returns the number of missing blocks.
+	ComparedMissingBlocks int64
+
+	// ComparedExtraBlocks returns the number of extra blocks.
+	ComparedExtraBlocks int64
 }
 
 // Options are the repair options.
