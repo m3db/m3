@@ -47,6 +47,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -117,6 +118,102 @@ writeWorkerPoolPolicy:
   shards: 100
   killProbability: 0.3
 `
+
+func TestMultiProcessSetsProcessLabel(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	configFile, c := newTestFile(t, "config.yaml", configYAML)
+	defer c()
+
+	var cfg config.Configuration
+	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	metricsPort := 8765
+	cfg.Metrics.PrometheusReporter.ListenAddress = fmt.Sprintf("127.0.0.1:%d", metricsPort)
+	cfg.MultiProcess = config.MultiProcessConfiguration{
+		Enabled: true,
+		Count:   2,
+	}
+	detailedMetrics := instrument.DetailedExtendedMetrics
+	cfg.Metrics.ExtendedMetrics = &detailedMetrics
+
+	// Override the client creation
+	require.Equal(t, 1, len(cfg.Clusters))
+
+	session := client.NewMockSession(ctrl)
+	session.EXPECT().Close().AnyTimes()
+
+	dbClient := client.NewMockClient(ctrl)
+	dbClient.EXPECT().DefaultSession().Return(session, nil).AnyTimes()
+
+	cfg.Clusters[0].NewClientFromConfig = m3.NewClientFromConfig(
+		func(
+			cfg client.Configuration,
+			params client.ConfigurationParameters,
+			custom ...client.CustomAdminOption,
+		) (client.Client, error) {
+			return dbClient, nil
+		})
+
+	interruptCh := make(chan error, 1)
+	doneCh := make(chan struct{}, 1)
+	listenerCh := make(chan net.Listener, 1)
+
+	rulesNamespacesValue := kv.NewMockValue(ctrl)
+	rulesNamespacesValue.EXPECT().Version().Return(0).AnyTimes()
+	rulesNamespacesValue.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v proto.Message) error {
+		msg := v.(*rulepb.Namespaces)
+		*msg = rulepb.Namespaces{}
+		return nil
+	})
+	rulesNamespacesWatchable := kv.NewValueWatchable()
+	_ = rulesNamespacesWatchable.Update(rulesNamespacesValue)
+	_, rulesNamespacesWatch, err := rulesNamespacesWatchable.Watch()
+	require.NoError(t, err)
+	kvClient := kv.NewMockStore(ctrl)
+	kvClient.EXPECT().Watch(gomock.Any()).Return(rulesNamespacesWatch, nil).AnyTimes()
+	clusterClient := clusterclient.NewMockClient(ctrl)
+	clusterClient.EXPECT().KV().Return(kvClient, nil).AnyTimes()
+	clusterClientCh := make(chan clusterclient.Client, 1)
+	clusterClientCh <- clusterClient
+
+	downsamplerReadyCh := make(chan struct{}, 1)
+
+	go func() {
+		Run(RunOptions{
+			Config:             cfg,
+			InterruptCh:        interruptCh,
+			ListenerCh:         listenerCh,
+			ClusterClient:      clusterClientCh,
+			DownsamplerReadyCh: downsamplerReadyCh,
+		})
+		doneCh <- struct{}{}
+	}()
+
+	// Wait for downsampler to be ready.
+	<-downsamplerReadyCh
+
+	// Wait for listener
+	listener := <-listenerCh
+	addr := listener.Addr().String()
+
+	// Wait for server to come up
+	waitForServerHealthy(t, addr)
+
+	r, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)) //nolint
+	require.NoError(t, err)
+	defer r.Body.Close()
+	bodyBytes, err := ioutil.ReadAll(r.Body)
+	require.NoError(t, err)
+	metricsResponse := string(bodyBytes)
+	assert.Contains(t, metricsResponse, "coordinator_runtime_memory_allocated{multiprocess_id=\"1\"}")
+	assert.Contains(t, metricsResponse, "coordinator_ingest_success{multiprocess_id=\"1\"}")
+	// Ensure close server performs as expected
+	interruptCh <- fmt.Errorf("interrupt")
+	<-doneCh
+}
 
 func TestWriteH1(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
