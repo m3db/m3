@@ -28,6 +28,10 @@ import (
 	"sync"
 	"time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -38,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -52,10 +57,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -180,6 +181,13 @@ type databaseNamespaceMetrics struct {
 	shards databaseNamespaceShardMetrics
 	tick   databaseNamespaceTickMetrics
 	status databaseNamespaceStatusMetrics
+
+	repairDifferingPercent tally.Gauge
+	repairComparedBlocks   tally.Counter
+	repairDifferingBlocks  tally.Counter
+	repairMismatchBlocks   tally.Counter
+	repairMissingBlocks    tally.Counter
+	repairExtraBlocks      tally.Counter
 }
 
 type databaseNamespaceShardMetrics struct {
@@ -245,6 +253,7 @@ func newDatabaseNamespaceMetrics(
 	indexStatusScope := statusScope.SubScope("index")
 	bootstrapScope := scope.SubScope("bootstrap")
 	snapshotScope := scope.SubScope("snapshot")
+	repairScope := scope.SubScope("repair")
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", opts),
 		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", opts),
@@ -301,6 +310,12 @@ func newDatabaseNamespaceMetrics(
 				numSegments: indexStatusScope.Gauge("num-segments"),
 			},
 		},
+		repairDifferingPercent: repairScope.Gauge("differing-percent"),
+		repairComparedBlocks:   repairScope.Counter("compared-blocks"),
+		repairDifferingBlocks:  repairScope.Counter("differing-blocks"),
+		repairMismatchBlocks:   repairScope.Counter("mismatch-blocks"),
+		repairMissingBlocks:    repairScope.Counter("missing-blocks"),
+		repairExtraBlocks:      repairScope.Counter("extra-blocks"),
 	}
 }
 
@@ -1538,16 +1553,17 @@ func (n *dbNamespace) Repair(
 	}
 
 	var (
-		wg                    sync.WaitGroup
-		mutex                 sync.Mutex
-		numShardsRepaired     int
-		numTotalSeries        int64
-		numTotalBlocks        int64
-		numSizeDiffSeries     int64
-		numSizeDiffBlocks     int64
-		numChecksumDiffSeries int64
-		numChecksumDiffBlocks int64
-		throttlePerShard      time.Duration
+		wg                      sync.WaitGroup
+		mutex                   sync.Mutex
+		numShardsRepaired       int
+		numTotalSeries          int64
+		numTotalBlocks          int64
+		numSizeDiffSeries       int64
+		numSizeDiffBlocks       int64
+		numChecksumDiffSeries   int64
+		numChecksumDiffBlocks   int64
+		peerMetadataComparisons repair.PeerMetadataComparisonResults
+		throttlePerShard        time.Duration
 	)
 
 	multiErr := xerrors.NewMultiError()
@@ -1589,6 +1605,7 @@ func (n *dbNamespace) Repair(
 				numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
 				numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
 				numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
+				peerMetadataComparisons = append(peerMetadataComparisons, metadataRes.PeerMetadataComparisonResults...)
 			}
 			mutex.Unlock()
 
@@ -1600,6 +1617,15 @@ func (n *dbNamespace) Repair(
 
 	wg.Wait()
 
+	aggregatePeerComparison := peerMetadataComparisons.Aggregate()
+
+	n.metrics.repairDifferingPercent.Update(aggregatePeerComparison.ComparedDifferingPercent)
+	n.metrics.repairComparedBlocks.Inc(aggregatePeerComparison.ComparedBlocks)
+	n.metrics.repairDifferingBlocks.Inc(aggregatePeerComparison.ComparedDifferingBlocks)
+	n.metrics.repairMismatchBlocks.Inc(aggregatePeerComparison.ComparedMismatchBlocks)
+	n.metrics.repairMissingBlocks.Inc(aggregatePeerComparison.ComparedMissingBlocks)
+	n.metrics.repairExtraBlocks.Inc(aggregatePeerComparison.ComparedExtraBlocks)
+
 	n.log.Info("repair result",
 		zap.String("repairTimeRange", tr.String()),
 		zap.Int("numTotalShards", len(shards)),
@@ -1610,6 +1636,7 @@ func (n *dbNamespace) Repair(
 		zap.Int64("numSizeDiffBlocks", numSizeDiffBlocks),
 		zap.Int64("numChecksumDiffSeries", numChecksumDiffSeries),
 		zap.Int64("numChecksumDiffBlocks", numChecksumDiffBlocks),
+		zap.Any("peerMetadataComparisons", aggregatePeerComparison),
 	)
 
 	return multiErr.FinalError()
