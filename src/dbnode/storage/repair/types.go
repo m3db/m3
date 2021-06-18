@@ -193,7 +193,7 @@ type MetadataComparisonResult struct {
 	// ChecksumDifferences returns the checksum differences.
 	ChecksumDifferences ReplicaSeriesMetadata
 
-	// PeerMetadataComparisonResults the results comparitive to each peer.
+	// PeerMetadataComparisonResults the results comparative to each peer.
 	PeerMetadataComparisonResults PeerMetadataComparisonResults
 }
 
@@ -228,6 +228,7 @@ func (r PeerMetadataComparisonResult) ComparedDifferingPercent() float64 {
 // PeerMetadataComparisonResults is a slice of PeerMetadataComparisonResult.
 type PeerMetadataComparisonResults []PeerMetadataComparisonResult
 
+// Aggregate returns an aggregate result of the PeerMetadataComparisonResults.
 func (r PeerMetadataComparisonResults) Aggregate() AggregatePeerMetadataComparisonResult {
 	var result AggregatePeerMetadataComparisonResult
 	for _, elem := range r {
