@@ -22,7 +22,6 @@ package aggregator
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -995,7 +994,7 @@ func TestAggregatorAddUntimedMetrics(t *testing.T) {
 		m.ReportError(errAggregatorShardNotWriteable, state)
 		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
 		m.ReportError(errWriteValueRateLimitExceeded, state)
-		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")), state)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
 		m.ReportError(errors.New("foo"), state)
 	}
 
@@ -1053,7 +1052,7 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 		m.ReportError(errWriteValueRateLimitExceeded, state)
 		m.ReportError(errTooFarInTheFuture, state)
 		m.ReportError(errTooFarInThePast, state)
-		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, fmt.Errorf("errorrr")), state)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
 		m.ReportError(errors.New("foo"), state)
 	}
 
