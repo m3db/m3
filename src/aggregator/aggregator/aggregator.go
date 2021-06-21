@@ -837,19 +837,11 @@ func newAggregatorAddUntimedMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) aggregatorAddUntimedMetrics {
-	var (
-		leaderScope = scope.Tagged(map[string]string{
-			"role": "leader",
-		})
-		nonLeaderScope = scope.Tagged(map[string]string{
-			"role": "non-leader",
-		})
-	)
 	return aggregatorAddUntimedMetrics{
 		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
 
-		leaderErrors:    newAggregatorAddUntimedErrorMetrics(leaderScope),
-		nonLeaderErrors: newAggregatorAddUntimedErrorMetrics(nonLeaderScope),
+		leaderErrors:    newAggregatorAddUntimedErrorMetrics(withRole("leader", scope)),
+		nonLeaderErrors: newAggregatorAddUntimedErrorMetrics(withRole("non-leader", scope)),
 	}
 }
 
@@ -901,18 +893,10 @@ func newAggregatorAddTimedMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) aggregatorAddTimedMetrics {
-	var (
-		leaderScope = scope.Tagged(map[string]string{
-			"role": "leader",
-		})
-		nonLeaderScope = scope.Tagged(map[string]string{
-			"role": "non-leader",
-		})
-	)
 	return aggregatorAddTimedMetrics{
 		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
-		leaderErrors:                      newAggregatorAddTimedErrorMetrics(leaderScope),
-		nonLeaderErrors:                   newAggregatorAddTimedErrorMetrics(nonLeaderScope),
+		leaderErrors:                      newAggregatorAddTimedErrorMetrics(withRole("leader", scope)),
+		nonLeaderErrors:                   newAggregatorAddTimedErrorMetrics(withRole("non-leader", scope)),
 	}
 }
 
@@ -948,18 +932,10 @@ func newAggregatorAddPassthroughMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) aggregatorAddPassthroughMetrics {
-	var (
-		leaderScope = scope.Tagged(map[string]string{
-			"role": "leader",
-		})
-		nonLeaderScope = scope.Tagged(map[string]string{
-			"role": "non-leader",
-		})
-	)
 	return aggregatorAddPassthroughMetrics{
 		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
-		leaderErrors:                      newAggregatorAddMetricErrorMetrics(leaderScope),
-		nonLeaderErrors:                   newAggregatorAddMetricErrorMetrics(nonLeaderScope),
+		leaderErrors:                      newAggregatorAddMetricErrorMetrics(withRole("leader", scope)),
+		nonLeaderErrors:                   newAggregatorAddMetricErrorMetrics(withRole("non-leader", scope)),
 		followerNoop:                      scope.Counter("follower-noop"),
 	}
 }
@@ -1002,18 +978,10 @@ func newAggregatorAddForwardedMetrics(
 	opts instrument.TimerOptions,
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
-	var (
-		leaderScope = scope.Tagged(map[string]string{
-			"role": "leader",
-		})
-		nonLeaderScope = scope.Tagged(map[string]string{
-			"role": "non-leader",
-		})
-	)
 	return aggregatorAddForwardedMetrics{
 		aggregatorAddMetricSuccessMetrics: newAggregatorAddMetricSuccessMetrics(scope, opts),
-		leaderErrors:                      newAggregatorAddMetricErrorMetrics(leaderScope),
-		nonLeaderErrors:                   newAggregatorAddMetricErrorMetrics(nonLeaderScope),
+		leaderErrors:                      newAggregatorAddMetricErrorMetrics(withRole("leader", scope)),
+		nonLeaderErrors:                   newAggregatorAddMetricErrorMetrics(withRole("non-leader", scope)),
 		scope:                             scope,
 		maxAllowedForwardingDelayFn:       maxAllowedForwardingDelayFn,
 		forwardingLatency:                 make(map[latencyBucketKey]tally.Histogram),
@@ -1222,6 +1190,12 @@ func newAggregatorMetrics(
 		shardSetID:     newAggregatorShardSetIDMetrics(shardSetIDScope),
 		tick:           newAggregatorTickMetrics(tickScope),
 	}
+}
+
+func withRole(role string, scope tally.Scope) tally.Scope {
+	return scope.Tagged(map[string]string{
+		"role": role,
+	})
 }
 
 // RuntimeStatus contains run-time status of the aggregator.
