@@ -1693,6 +1693,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesPerSecondSum(t *testing
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
 }
+
 func TestDownsamplerAggregationWithRulesConfigRollupRulesAugmentTags(t *testing.T) {
 	t.Parallel()
 
