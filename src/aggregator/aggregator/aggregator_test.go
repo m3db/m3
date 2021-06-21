@@ -1100,6 +1100,138 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	require.Equal(t, 0, len(gauges))
 }
 
+func TestAggregatorAddPassthroughMetrics(t *testing.T) {
+	s := tally.NewTestScope("testScope", nil)
+	m := newAggregatorAddPassthroughMetrics(s, instrument.TimerOptions{})
+	m.ReportSuccess()
+	m.SuccessLatencyStopwatch().Stop()
+	m.ReportFollowerNoop()
+	for _, state := range []ElectionState{LeaderState, FollowerState} {
+		m.ReportError(errShardNotOwned, state)
+		m.ReportError(errAggregatorShardNotWriteable, state)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
+		m.ReportError(errWriteValueRateLimitExceeded, state)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
+		m.ReportError(errors.New("foo"), state)
+	}
+
+	snapshot := s.Snapshot()
+	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
+
+	// Validate we count successes and errors correctly.
+	expectedCounters := []string{
+		"testScope.success+",
+		"testScope.follower-noop+",
+		"testScope.errors+reason=shard-not-owned,role=leader",
+		"testScope.errors+reason=shard-not-owned,role=non-leader",
+		"testScope.errors+reason=shard-not-writeable,role=leader",
+		"testScope.errors+reason=shard-not-writeable,role=non-leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=arrived-too-late,role=leader",
+		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=not-categorized,role=leader",
+		"testScope.errors+reason=not-categorized,role=non-leader",
+	}
+	require.Len(t, counters, len(expectedCounters))
+	for _, id := range expectedCounters {
+		c, exists := counters[id]
+		require.True(t, exists)
+		require.Equal(t, int64(1), c.Value())
+	}
+
+	// Validate we record times correctly.
+	require.Equal(t, 1, len(timers))
+
+	for _, id := range []string{
+		"testScope.success-latency+",
+	} {
+		_, exists := timers[id]
+		require.True(t, exists)
+	}
+
+	// Validate we do not have any gauges.
+	require.Equal(t, 0, len(gauges))
+}
+
+func TestAggregatorAddForwardedMetrics(t *testing.T) {
+	s := tally.NewTestScope("testScope", nil)
+	delayFunc := func(resolution time.Duration, numForwardedTimes int) time.Duration {
+		return time.Second
+	}
+	m := newAggregatorAddForwardedMetrics(s, instrument.TimerOptions{}, delayFunc)
+	m.ReportSuccess()
+	m.SuccessLatencyStopwatch().Stop()
+	m.ReportForwardingLatency(time.Second, 1, 100*time.Millisecond)
+	m.ReportForwardingLatency(time.Second, 2, 100*time.Millisecond)
+	for _, state := range []ElectionState{LeaderState, FollowerState} {
+		m.ReportError(errShardNotOwned, state)
+		m.ReportError(errAggregatorShardNotWriteable, state)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
+		m.ReportError(errWriteValueRateLimitExceeded, state)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
+		m.ReportError(errors.New("foo"), state)
+	}
+
+	var (
+		snapshot   = s.Snapshot()
+		counters   = snapshot.Counters()
+		timers     = snapshot.Timers()
+		gauges     = snapshot.Gauges()
+		histograms = snapshot.Histograms()
+	)
+
+	// Validate we count successes and errors correctly.
+	expectedCounters := []string{
+		"testScope.success+",
+		"testScope.errors+reason=shard-not-owned,role=leader",
+		"testScope.errors+reason=shard-not-owned,role=non-leader",
+		"testScope.errors+reason=shard-not-writeable,role=leader",
+		"testScope.errors+reason=shard-not-writeable,role=non-leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=value-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=leader",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=arrived-too-late,role=leader",
+		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=not-categorized,role=leader",
+		"testScope.errors+reason=not-categorized,role=non-leader",
+	}
+	require.Len(t, counters, len(expectedCounters))
+	for _, id := range expectedCounters {
+		c, exists := counters[id]
+		require.True(t, exists)
+		require.Equal(t, int64(1), c.Value())
+	}
+
+	// Validate we record times correctly.
+	require.Equal(t, 1, len(timers))
+
+	for _, id := range []string{
+		"testScope.success-latency+",
+	} {
+		_, exists := timers[id]
+		require.True(t, exists)
+	}
+
+	// Validate we do not have any gauges.
+	require.Equal(t, 0, len(gauges))
+
+	// Validate we measure histograms correctly.
+	expectedHistograms := []string{
+		"testScope.forwarding-latency+bucket-version=2,num-forwarded-times=1,resolution=1s",
+		"testScope.forwarding-latency+bucket-version=2,num-forwarded-times=2,resolution=1s",
+	}
+	require.Len(t, histograms, len(expectedHistograms))
+	for _, id := range expectedHistograms {
+		h, exists := histograms[id]
+		require.True(t, exists, "missing series id %v", id)
+		h.Durations()[100*time.Millisecond] = 1
+	}
+}
+
 func testAddWithShardRedirect(t *testing.T, addFn func(*aggregator) error) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
