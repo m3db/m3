@@ -271,7 +271,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 
 		databaseShardRepairer := newShardRepairer(opts, rpOpts)
 		repairer := databaseShardRepairer.(shardRepairer)
-		repairer.recordFn = func(origin topology.Host, nsID ident.ID, shard databaseShard,
+		repairer.record = func(origin topology.Host, nsID ident.ID, shard databaseShard,
 			diffRes repair.MetadataComparisonResult) {
 			resNamespace = nsID
 			resShard = shard

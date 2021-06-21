@@ -58,6 +58,10 @@ type Options interface {
 	SetTagOptions(models.TagOptions) Options
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
+	// TagsTransform returns the transform to apply to tags before storage.
+	TagsTransform() models.TagsTransform
+	// SetTagsTransform sets the TagsTransform.
+	SetTagsTransform(value models.TagsTransform) Options
 	// SetIterAlloc sets the iterator allocator.
 	SetIterAlloc(encoding.ReaderIteratorAllocate) Options
 	// IterAlloc returns the reader iterator allocator.

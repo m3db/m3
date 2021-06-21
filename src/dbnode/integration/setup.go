@@ -306,8 +306,8 @@ func NewTestSetup(
 		return nil, err
 	}
 
-	// Set up shard set
-	shardSet, err := newTestShardSet(opts.NumShards())
+	// Set up shard set.
+	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	if err != nil {
 		return nil, err
 	}
