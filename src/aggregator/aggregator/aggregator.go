@@ -846,12 +846,9 @@ func newAggregatorAddUntimedMetrics(
 }
 
 func (m *aggregatorAddUntimedMetrics) ReportError(err error, role ElectionState) {
-	var errors *aggregatorAddUntimedErrorMetrics
-	switch role {
-	case LeaderState:
+	errors := &m.nonLeaderErrors
+	if role == LeaderState {
 		errors = &m.leaderErrors
-	default:
-		errors = &m.nonLeaderErrors
 	}
 
 	if err == errInvalidMetricType {
@@ -901,12 +898,9 @@ func newAggregatorAddTimedMetrics(
 }
 
 func (m *aggregatorAddTimedMetrics) ReportError(err error, role ElectionState) {
-	var errors *aggregatorAddTimedErrorMetrics
-	switch role {
-	case LeaderState:
+	errors := &m.nonLeaderErrors
+	if role == LeaderState {
 		errors = &m.leaderErrors
-	default:
-		errors = &m.nonLeaderErrors
 	}
 
 	switch {
@@ -941,12 +935,9 @@ func newAggregatorAddPassthroughMetrics(
 }
 
 func (m *aggregatorAddPassthroughMetrics) ReportError(err error, role ElectionState) {
-	var errors *aggregatorAddMetricErrorMetrics
-	switch role {
-	case LeaderState:
+	errors := &m.nonLeaderErrors
+	if role == LeaderState {
 		errors = &m.leaderErrors
-	default:
-		errors = &m.nonLeaderErrors
 	}
 
 	errors.ReportError(err)
@@ -989,12 +980,9 @@ func newAggregatorAddForwardedMetrics(
 }
 
 func (m *aggregatorAddForwardedMetrics) ReportError(err error, role ElectionState) {
-	var errors *aggregatorAddMetricErrorMetrics
-	switch role {
-	case LeaderState:
+	errors := &m.nonLeaderErrors
+	if role == LeaderState {
 		errors = &m.leaderErrors
-	default:
-		errors = &m.nonLeaderErrors
 	}
 
 	errors.ReportError(err)
