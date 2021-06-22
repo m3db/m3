@@ -90,6 +90,7 @@ func initZstd() {
 	}
 
 	ropts := []zstd.DOption{
+		zstd.WithDecoderConcurrency(concurrency),
 		zstd.WithDecoderLowmem(false),
 	}
 	r, err := zstd.NewReader(nil, ropts...)
@@ -100,6 +101,7 @@ func initZstd() {
 
 	wopts := []zstd.EOption{
 		zstd.WithEncoderCRC(true),
+		zstd.WithEncoderConcurrency(concurrency),
 		zstd.WithEncoderLevel(zstd.SpeedBestCompression),
 	}
 	w, err := zstd.NewWriter(nil, wopts...)
