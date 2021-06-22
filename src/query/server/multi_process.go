@@ -30,7 +30,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/x/instrument"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/panicmon"
 
@@ -50,6 +49,7 @@ type multiProcessResult struct {
 	cfg          config.Configuration
 	logger       *zap.Logger
 	listenerOpts xnet.ListenerOptions
+	commonLabels map[string]string
 }
 
 func multiProcessProcessID() string {
@@ -77,19 +77,10 @@ func multiProcessRun(
 				fmt.Errorf("multi-process process ID is non-integer: %v", err)
 		}
 
-		// Set the root scope multi-process process ID.
 		metrics := cfg.MetricsOrDefault()
-		if metrics.RootScope == nil {
-			metrics.RootScope = &instrument.ScopeConfiguration{}
-		}
-		if metrics.RootScope.CommonTags == nil {
-			metrics.RootScope.CommonTags = make(map[string]string)
-		}
-		metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
-
 		// Listen on a different Prometheus metrics handler listen port.
 		if metrics.PrometheusReporter != nil && metrics.PrometheusReporter.ListenAddress != "" {
-			// Simply increment the listen address port by instance numbe
+			// Simply increment the listen address port by instance number
 			host, port, err := net.SplitHostPort(metrics.PrometheusReporter.ListenAddress)
 			if err != nil {
 				return multiProcessResult{},
@@ -113,6 +104,8 @@ func multiProcessRun(
 			cfg:          cfg,
 			logger:       logger,
 			listenerOpts: listenerOpts,
+			// Ensure multi-process process ID is set on all metrics.
+			commonLabels: map[string]string{multiProcessMetricTagID: multiProcessInstance},
 		}, nil
 	}
 

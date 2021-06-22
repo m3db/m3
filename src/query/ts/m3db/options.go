@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -45,6 +46,9 @@ var (
 	defaultIteratorBatchingFn   = iteratorBatchingFn
 	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
 	defaultInstrumented         = true
+	defaultTagsTransform        = func(ctx context.Context, tags []models.Tag) ([]models.Tag, error) {
+		return tags, nil
+	}
 )
 
 type encodedBlockOptions struct {
@@ -52,6 +56,7 @@ type encodedBlockOptions struct {
 	lookbackDuration              time.Duration
 	consolidationFn               consolidators.ConsolidationFunc
 	tagOptions                    models.TagOptions
+	tagsTransform                 models.TagsTransform
 	iterAlloc                     encoding.ReaderIteratorAllocate
 	pools                         encoding.IteratorPools
 	checkedPools                  pool.CheckedBytesPool
@@ -97,6 +102,7 @@ func newOptions(
 		queryConsolidatorMatchOptions: queryconsolidator.MatchOptions{
 			MatchType: queryconsolidator.MatchIDs,
 		},
+		tagsTransform: defaultTagsTransform,
 	}
 }
 
@@ -138,6 +144,16 @@ func (o *encodedBlockOptions) SetTagOptions(tagOptions models.TagOptions) Option
 
 func (o *encodedBlockOptions) TagOptions() models.TagOptions {
 	return o.tagOptions
+}
+
+func (o *encodedBlockOptions) SetTagsTransform(value models.TagsTransform) Options {
+	opts := *o
+	opts.tagsTransform = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) TagsTransform() models.TagsTransform {
+	return o.tagsTransform
 }
 
 func (o *encodedBlockOptions) SetIterAlloc(ia encoding.ReaderIteratorAllocate) Options {
