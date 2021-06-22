@@ -275,8 +275,9 @@ func (s *aggregatorShard) Close() {
 }
 
 func (s *aggregatorShard) isWritableWithLock() bool {
-	nowNanos := s.nowFn().UnixNano()
-	return nowNanos >= s.earliestWritableNanos && nowNanos < s.latestWriteableNanos
+	return true
+	//nowNanos := s.nowFn().UnixNano()
+	//return nowNanos >= s.earliestWritableNanos && nowNanos < s.latestWriteableNanos
 }
 
 type timeRange struct {
