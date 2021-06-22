@@ -22,6 +22,7 @@ package placement
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
@@ -32,6 +33,8 @@ import (
 const _decoderInitialBufferSize = 131072
 
 var (
+	_ztdInitialized sync.Once
+
 	_zstdEncoder *zstd.Encoder
 	_zstdDecoder *zstd.Decoder
 )
@@ -40,6 +43,8 @@ func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
 	if p == nil {
 		return nil, errNilPlacementSnapshotsProto
 	}
+
+	_ztdInitialized.Do(initZstd)
 
 	uncompressed, _ := p.Marshal()
 
@@ -53,6 +58,8 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 	if compressed == nil {
 		return nil, errNilValue
 	}
+
+	_ztdInitialized.Do(initZstd)
 
 	var (
 		decompressed = make([]byte, 0, _decoderInitialBufferSize)
@@ -72,7 +79,7 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 	return result, nil
 }
 
-func init() {
+func initZstd() {
 	ropts := []zstd.DOption{
 		zstd.WithDecoderLowmem(false),
 	}
