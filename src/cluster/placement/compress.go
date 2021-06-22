@@ -42,7 +42,7 @@ func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer w.Close()
+	defer w.Close() // nolint:errcheck
 
 	uncompressed, _ := p.Marshal()
 
@@ -66,7 +66,7 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	defer r.Close() // nolint:errcheck
 
 	decompressed, err = r.DecodeAll(compressed, decompressed)
 	if err != nil {
