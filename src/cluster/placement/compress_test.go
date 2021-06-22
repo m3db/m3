@@ -28,6 +28,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -53,6 +54,8 @@ func TestCompressAndDecompressPlacementProto(t *testing.T) {
 	})
 
 	t.Run("compress roundtrip", func(t *testing.T) {
+		defer goleak.VerifyNone(t)
+
 		var wg sync.WaitGroup
 
 		for i := 10; i < 100; i++ {
