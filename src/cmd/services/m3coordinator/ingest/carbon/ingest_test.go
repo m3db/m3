@@ -69,7 +69,7 @@ var (
 
 	testOptions = Options{
 		InstrumentOptions: instrument.NewOptions(),
-		StaticWorkerPool:  nil, // Set by init().
+		WorkerPool:        nil, // Set by init().
 	}
 
 	testTagOpts = models.NewTagOptions().
@@ -721,11 +721,11 @@ func assertTestMetricsAreEqual(t *testing.T, a, b []testMetric) {
 
 func init() {
 	var err error
-	testOptions.StaticWorkerPool, err = xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
+	testOptions.WorkerPool, err = xsync.NewPooledWorkerPool(16, xsync.NewPooledWorkerPoolOptions())
 	if err != nil {
 		panic(err)
 	}
-	testOptions.StaticWorkerPool.Init()
+	testOptions.WorkerPool.Init()
 
 	for i := 0; i < numLinesInTestPacket; i++ {
 		var metric []byte

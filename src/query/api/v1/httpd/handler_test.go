@@ -53,7 +53,7 @@ import (
 
 var (
 	// Created by init().
-	testWorkerPool            xsync.DynamicPooledWorkerPool
+	testWorkerPool            xsync.PooledWorkerPool
 	testM3DBOpts              = m3db.NewOptions()
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
@@ -291,7 +291,11 @@ func TestHealthGet(t *testing.T) {
 
 func init() {
 	var err error
-	testWorkerPool, err = xsync.NewDynamicPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
+	testWorkerPool, err = xsync.NewPooledWorkerPool(
+		16,
+		xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true),
+	)
 
 	if err != nil {
 		panic(fmt.Sprintf("unable to create pooled worker pool: %v", err))
