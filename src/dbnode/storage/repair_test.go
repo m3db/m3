@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -43,7 +44,7 @@ import (
 )
 
 func TestDatabaseRepairerStartStop(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetRepairOptions(testRepairOptions(ctrl))
@@ -93,7 +94,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 }
 
 func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetRepairOptions(testRepairOptions(ctrl))
@@ -116,7 +117,7 @@ func TestDatabaseShardRepairerRepairWithLimit(t *testing.T) {
 }
 
 func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	session := client.NewMockAdminSession(ctrl)
@@ -129,8 +130,8 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 	var (
 		rpOpts = testRepairOptions(ctrl).
 			SetAdminClients([]client.AdminClient{mockClient})
-		now            = time.Now()
-		nowFn          = func() time.Time { return now }
+		now            = xtime.Now()
+		nowFn          = func() time.Time { return now.ToTime() }
 		opts           = DefaultTestOptions()
 		copts          = opts.ClockOptions()
 		iopts          = opts.InstrumentOptions()
@@ -270,7 +271,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 
 		databaseShardRepairer := newShardRepairer(opts, rpOpts)
 		repairer := databaseShardRepairer.(shardRepairer)
-		repairer.recordFn = func(origin topology.Host, nsID ident.ID, shard databaseShard,
+		repairer.record = func(origin topology.Host, nsID ident.ID, shard databaseShard,
 			diffRes repair.MetadataComparisonResult) {
 			resNamespace = nsID
 			resShard = shard
@@ -295,7 +296,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		require.True(t, exists)
 		blocks := series.Metadata.Blocks()
 		require.Equal(t, 1, len(blocks))
-		currBlock, exists := blocks[xtime.ToUnixNano(now.Add(30*time.Minute))]
+		currBlock, exists := blocks[now.Add(30*time.Minute)]
 		require.True(t, exists)
 		require.Equal(t, now.Add(30*time.Minute), currBlock.Start())
 		expected := []block.ReplicaMetadata{
@@ -311,7 +312,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		require.True(t, exists)
 		blocks = series.Metadata.Blocks()
 		require.Equal(t, 1, len(blocks))
-		currBlock, exists = blocks[xtime.ToUnixNano(now.Add(time.Hour))]
+		currBlock, exists = blocks[now.Add(time.Hour)]
 		require.True(t, exists)
 		require.Equal(t, now.Add(time.Hour), currBlock.Start())
 		expected = []block.ReplicaMetadata{
@@ -331,20 +332,20 @@ type multiSessionTestMock struct {
 }
 
 func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// Origin is always zero (on both clients) and hosts[0] and hosts[1]
 	// represents other nodes in different clusters.
 	origin := topology.NewHost("0", "addr0")
 	mocks := []multiSessionTestMock{
-		multiSessionTestMock{
+		{
 			host:    topology.NewHost("1", "addr1"),
 			client:  client.NewMockAdminClient(ctrl),
 			session: client.NewMockAdminSession(ctrl),
 			topoMap: topology.NewMockMap(ctrl),
 		},
-		multiSessionTestMock{
+		{
 			host:    topology.NewHost("2", "addr2"),
 			client:  client.NewMockAdminClient(ctrl),
 			session: client.NewMockAdminSession(ctrl),
@@ -365,8 +366,8 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	var (
 		rpOpts = testRepairOptions(ctrl).
 			SetAdminClients(mockClients)
-		now    = time.Now()
-		nowFn  = func() time.Time { return now }
+		now    = xtime.Now()
+		nowFn  = func() time.Time { return now.ToTime() }
 		opts   = DefaultTestOptions()
 		copts  = opts.ClockOptions()
 		iopts  = opts.InstrumentOptions()
@@ -522,7 +523,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	require.True(t, exists)
 	blocks := series.Metadata.Blocks()
 	require.Equal(t, 1, len(blocks))
-	currBlock, exists := blocks[xtime.ToUnixNano(now.Add(30*time.Minute))]
+	currBlock, exists := blocks[now.Add(30*time.Minute)]
 	require.True(t, exists)
 	require.Equal(t, now.Add(30*time.Minute), currBlock.Start())
 	expected := []block.ReplicaMetadata{
@@ -540,7 +541,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	blocks = series.Metadata.Blocks()
 	require.Equal(t, 2, len(blocks))
 	// Validate first block
-	currBlock, exists = blocks[xtime.ToUnixNano(now.Add(30*time.Minute))]
+	currBlock, exists = blocks[now.Add(30*time.Minute)]
 	require.True(t, exists)
 	require.Equal(t, now.Add(30*time.Minute), currBlock.Start())
 	expected = []block.ReplicaMetadata{
@@ -551,7 +552,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	}
 	require.Equal(t, expected, currBlock.Metadata())
 	// Validate second block
-	currBlock, exists = blocks[xtime.ToUnixNano(now.Add(time.Hour))]
+	currBlock, exists = blocks[now.Add(time.Hour)]
 	require.True(t, exists)
 	require.Equal(t, now.Add(time.Hour), currBlock.Start())
 	expected = []block.ReplicaMetadata{
@@ -585,7 +586,7 @@ type expectedRepair struct {
 }
 
 func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -596,13 +597,10 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 		blockSize = rOpts.BlockSize()
 
 		// Set current time such that the previous block is flushable.
-		now = time.Now().Truncate(blockSize).Add(rOpts.BufferPast()).Add(time.Second)
+		now = xtime.Now().Truncate(blockSize).Add(rOpts.BufferPast()).Add(time.Second)
 
 		flushTimeStart = retention.FlushTimeStart(rOpts, now)
 		flushTimeEnd   = retention.FlushTimeEnd(rOpts, now)
-
-		flushTimeStartNano = xtime.ToUnixNano(flushTimeStart)
-		flushTimeEndNano   = xtime.ToUnixNano(flushTimeEnd)
 	)
 	require.NoError(t, nsOpts.Validate())
 	// Ensure only two flushable blocks in retention to make test logic simpler.
@@ -627,15 +625,15 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			title: "repairs next unrepaired block in reverse order if some (but not all) blocks have been repaired",
 			repairState: repairStatesByNs{
 				"ns1": namespaceRepairStateByTime{
-					flushTimeEndNano: repairState{
+					flushTimeEnd: repairState{
 						Status:      repairSuccess,
-						LastAttempt: time.Time{},
+						LastAttempt: 0,
 					},
 				},
 				"ns2": namespaceRepairStateByTime{
-					flushTimeEndNano: repairState{
+					flushTimeEnd: repairState{
 						Status:      repairSuccess,
-						LastAttempt: time.Time{},
+						LastAttempt: 0,
 					},
 				},
 			},
@@ -650,23 +648,23 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			title: "repairs least recently repaired block if all blocks have been repaired",
 			repairState: repairStatesByNs{
 				"ns1": namespaceRepairStateByTime{
-					flushTimeStartNano: repairState{
+					flushTimeStart: repairState{
 						Status:      repairSuccess,
-						LastAttempt: time.Time{},
+						LastAttempt: 0,
 					},
-					flushTimeEndNano: repairState{
+					flushTimeEnd: repairState{
 						Status:      repairSuccess,
-						LastAttempt: time.Time{}.Add(time.Second),
+						LastAttempt: xtime.UnixNano(time.Second),
 					},
 				},
 				"ns2": namespaceRepairStateByTime{
-					flushTimeStartNano: repairState{
+					flushTimeStart: repairState{
 						Status:      repairSuccess,
-						LastAttempt: time.Time{},
+						LastAttempt: 0,
 					},
-					flushTimeEndNano: repairState{
+					flushTimeEnd: repairState{
 						Status:      repairSuccess,
-						LastAttempt: time.Time{}.Add(time.Second),
+						LastAttempt: xtime.UnixNano(time.Second),
 					},
 				},
 			},
@@ -680,6 +678,7 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			opts := DefaultTestOptions().SetRepairOptions(testRepairOptions(ctrl))
 			mockDatabase := NewMockdatabase(ctrl)
@@ -688,7 +687,7 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			require.NoError(t, err)
 			repairer := databaseRepairer.(*dbRepairer)
 			repairer.nowFn = func() time.Time {
-				return now
+				return now.ToTime()
 			}
 			if tc.repairState == nil {
 				tc.repairState = repairStatesByNs{}
@@ -708,8 +707,8 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			ns1.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
 			ns2.EXPECT().ID().Return(ident.StringID("ns2")).AnyTimes()
 
-			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.expectedRepairRange)
-			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.expectedRepairRange)
+			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.expectedRepairRange, NamespaceRepairOptions{})
+			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.expectedRepairRange, NamespaceRepairOptions{})
 
 			mockDatabase.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 			require.Nil(t, repairer.Repair())
@@ -721,7 +720,7 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 // repair a time range of a namespace then instead of skipping repair of all past time ranges of that namespace, test
 // that database repaier tries to repair the past corrupt time range of that namespace.
 func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -732,13 +731,10 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 		blockSize = rOpts.BlockSize()
 
 		// Set current time such that the previous block is flushable.
-		now = time.Now().Truncate(blockSize).Add(rOpts.BufferPast()).Add(time.Second)
+		now = xtime.Now().Truncate(blockSize).Add(rOpts.BufferPast()).Add(time.Second)
 
 		flushTimeStart = retention.FlushTimeStart(rOpts, now)
 		flushTimeEnd   = retention.FlushTimeEnd(rOpts, now)
-
-		//flushTimeStartNano = xtime.ToUnixNano(flushTimeStart)
-		flushTimeEndNano = xtime.ToUnixNano(flushTimeEnd)
 	)
 	require.NoError(t, nsOpts.Validate())
 	// Ensure only two flushable blocks in retention to make test logic simpler.
@@ -758,9 +754,9 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			title: "attempts to keep repairing time ranges before poison time ranges",
 			repairState: repairStatesByNs{
 				"ns2": namespaceRepairStateByTime{
-					flushTimeEndNano: repairState{
+					flushTimeEnd: repairState{
 						Status:      repairSuccess,
-						LastAttempt: time.Time{},
+						LastAttempt: 0,
 					},
 				},
 			},
@@ -796,7 +792,7 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			require.NoError(t, err)
 			repairer := databaseRepairer.(*dbRepairer)
 			repairer.nowFn = func() time.Time {
-				return now
+				return now.ToTime()
 			}
 			if tc.repairState == nil {
 				tc.repairState = repairStatesByNs{}
@@ -820,7 +816,7 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			var ns1RepairExpectations = make([]*gomock.Call, len(tc.expectedNS1Repairs))
 			for i, ns1Repair := range tc.expectedNS1Repairs {
 				ns1RepairExpectations[i] = ns1.EXPECT().
-					Repair(gomock.Any(), ns1Repair.expectedRepairRange).
+					Repair(gomock.Any(), ns1Repair.expectedRepairRange, NamespaceRepairOptions{}).
 					Return(ns1Repair.mockRepairResult)
 			}
 			gomock.InOrder(ns1RepairExpectations...)
@@ -829,7 +825,7 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 			var ns2RepairExpectations = make([]*gomock.Call, len(tc.expectedNS2Repairs))
 			for i, ns2Repair := range tc.expectedNS2Repairs {
 				ns2RepairExpectations[i] = ns2.EXPECT().
-					Repair(gomock.Any(), ns2Repair.expectedRepairRange).
+					Repair(gomock.Any(), ns2Repair.expectedRepairRange, NamespaceRepairOptions{}).
 					Return(ns2Repair.mockRepairResult)
 			}
 			gomock.InOrder(ns2RepairExpectations...)

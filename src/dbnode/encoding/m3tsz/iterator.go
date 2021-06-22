@@ -95,7 +95,6 @@ func (it *readerIterator) Next() bool {
 		it.readFirstValue()
 	}
 
-	it.curr.Timestamp = it.tsIterator.PrevTime.ToTime()
 	it.curr.TimestampNanos = it.tsIterator.PrevTime
 	if !it.intOptimized || it.isFloat {
 		it.curr.Value = math.Float64frombits(it.floatIter.PrevFloatBits)

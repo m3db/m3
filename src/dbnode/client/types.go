@@ -75,7 +75,7 @@ type Session interface {
 	Write(
 		namespace,
 		id ident.ID,
-		t time.Time,
+		t xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -86,7 +86,7 @@ type Session interface {
 		namespace,
 		id ident.ID,
 		tags ident.TagIterator,
-		t time.Time,
+		t xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -97,7 +97,7 @@ type Session interface {
 		namespace,
 		id ident.ID,
 		startInclusive,
-		endExclusive time.Time,
+		endExclusive xtime.UnixNano,
 	) (encoding.SeriesIterator, error)
 
 	// FetchIDs values from the database for a set of IDs.
@@ -105,7 +105,7 @@ type Session interface {
 		namespace ident.ID,
 		ids ident.Iterator,
 		startInclusive,
-		endExclusive time.Time,
+		endExclusive xtime.UnixNano,
 	) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
@@ -260,7 +260,7 @@ type AdminSession interface {
 	FetchBootstrapBlocksFromPeers(
 		namespace namespace.Metadata,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		opts result.Options,
 	) (result.ShardResult, error)
 
@@ -269,7 +269,7 @@ type AdminSession interface {
 	FetchBootstrapBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		result result.Options,
 	) (PeerBlockMetadataIter, error)
 
@@ -278,7 +278,7 @@ type AdminSession interface {
 	FetchBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		consistencyLevel topology.ReadConsistencyLevel,
 		result result.Options,
 	) (PeerBlockMetadataIter, error)
@@ -626,10 +626,10 @@ type Options interface {
 	HostQueueOpsArrayPoolSize() int
 
 	// SetHostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
-	SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options
+	SetHostQueueNewPooledWorkerFn(value xsync.NewDynamicPooledWorkerFn) Options
 
 	// HostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
-	HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn
+	HostQueueNewPooledWorkerFn() xsync.NewDynamicPooledWorkerFn
 
 	// SetHostQueueEmitsHealthStatus sets the hostQueueEmitHealthStatus.
 	SetHostQueueEmitsHealthStatus(value bool) Options
@@ -668,10 +668,10 @@ type Options interface {
 	AsyncTopologyInitializers() []topology.Initializer
 
 	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
-	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
+	SetAsyncWriteWorkerPool(value xsync.DynamicPooledWorkerPool) Options
 
 	// AsyncWriteWorkerPool returns the worker pool for async writes.
-	AsyncWriteWorkerPool() xsync.PooledWorkerPool
+	AsyncWriteWorkerPool() xsync.DynamicPooledWorkerPool
 
 	// SetAsyncWriteMaxConcurrency sets the async writes maximum concurrency.
 	SetAsyncWriteMaxConcurrency(value int) Options

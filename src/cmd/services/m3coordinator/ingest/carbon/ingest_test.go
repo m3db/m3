@@ -69,7 +69,7 @@ var (
 
 	testOptions = Options{
 		InstrumentOptions: instrument.NewOptions(),
-		WorkerPool:        nil, // Set by init().
+		StaticWorkerPool:  nil, // Set by init().
 	}
 
 	testTagOpts = models.NewTagOptions().
@@ -226,7 +226,7 @@ func TestIngesterHandleConn(t *testing.T) {
 		// Clone tags because they (and their underlying bytes) are pooled.
 		found = append(found, testMetric{
 			tags:      tags.Clone(),
-			timestamp: int(dp[0].Timestamp.Unix()),
+			timestamp: int(dp[0].Timestamp.Seconds()),
 			value:     dp[0].Value,
 		})
 
@@ -356,7 +356,7 @@ func TestIngesterHonorsMatchers(t *testing.T) {
 					// Clone tags because they (and their underlying bytes) are pooled.
 					found = append(found, testMetric{
 						tags:      tags.Clone(),
-						timestamp: int(dp[0].Timestamp.Unix()),
+						timestamp: int(dp[0].Timestamp.Seconds()),
 						value:     dp[0].Value,
 					})
 					lock.Unlock()
@@ -542,7 +542,7 @@ func newMockDownsamplerAndWriter(
 		// Clone tags because they (and their underlying bytes) are pooled.
 		*found = append(*found, testMetric{
 			tags:      tags.Clone(),
-			timestamp: int(dp[0].Timestamp.Unix()),
+			timestamp: int(dp[0].Timestamp.Seconds()),
 			value:     dp[0].Value,
 		})
 
@@ -721,11 +721,11 @@ func assertTestMetricsAreEqual(t *testing.T, a, b []testMetric) {
 
 func init() {
 	var err error
-	testOptions.WorkerPool, err = xsync.NewPooledWorkerPool(16, xsync.NewPooledWorkerPoolOptions())
+	testOptions.StaticWorkerPool, err = xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 	if err != nil {
 		panic(err)
 	}
-	testOptions.WorkerPool.Init()
+	testOptions.StaticWorkerPool.Init()
 
 	for i := 0; i < numLinesInTestPacket; i++ {
 		var metric []byte

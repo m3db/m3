@@ -44,41 +44,35 @@ type pooledWorkerPool struct {
 	numWorkingRoutinesGauge  tally.Gauge
 	growOnDemand             bool
 	workChs                  []chan Work
-	numShards                int64
 	killWorkerProbability    float64
 	nowFn                    NowFn
 }
 
-// NewPooledWorkerPool creates a new worker pool.
-func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPool, error) {
-	if size <= 0 {
-		return nil, fmt.Errorf("pooled worker pool size too small: %d", size)
-	}
+// NewDynamicPooledWorkerPool creates a new dynamic worker pool.
+func NewDynamicPooledWorkerPool(opts PooledWorkerPoolOptions) (DynamicPooledWorkerPool, error) {
+	return newPooledWorkerPool(opts, true)
+}
 
-	numShards := opts.NumShards()
-	if int64(size) < numShards {
-		numShards = int64(size)
-	}
+// NewStaticPooledWorkerPool creates a new worker pool.
+func NewStaticPooledWorkerPool(opts PooledWorkerPoolOptions) (StaticPooledWorkerPool, error) {
+	return newPooledWorkerPool(opts, false)
+}
 
-	workChs := make([]chan Work, numShards)
-	bufSize := int64(size) / numShards
-	if opts.GrowOnDemand() {
-		// Do not use buffered channels if the pool can grow on demand. This ensures a new worker is spawned if all
-		// workers are currently busy.
-		bufSize = 0
+func newPooledWorkerPool(opts PooledWorkerPoolOptions, growOnDemand bool) (*pooledWorkerPool, error) {
+	if opts.NumShards() <= 0 {
+		return nil, fmt.Errorf("pooled worker pool size too small: %d", opts.NumShards())
 	}
+	workChs := make([]chan Work, opts.NumShards())
 	for i := range workChs {
-		workChs[i] = make(chan Work, bufSize)
+		workChs[i] = make(chan Work)
 	}
-
 	return &pooledWorkerPool{
 		numRoutinesAtomic:        0,
 		numWorkingRoutinesAtomic: 0,
 		numRoutinesGauge:         opts.InstrumentOptions().MetricsScope().Gauge("num-routines"),
 		numWorkingRoutinesGauge:  opts.InstrumentOptions().MetricsScope().Gauge("num-working-routines"),
-		growOnDemand:             opts.GrowOnDemand(),
+		growOnDemand:             growOnDemand,
 		workChs:                  workChs,
-		numShards:                numShards,
 		killWorkerProbability:    opts.KillWorkerProbability(),
 		nowFn:                    opts.NowFn(),
 	}, nil
@@ -87,13 +81,15 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 func (p *pooledWorkerPool) Init() {
 	rng := pcg.NewPCG64() // Just use default seed here
 	for _, workCh := range p.workChs {
-		for i := 0; i < cap(workCh); i++ {
-			p.spawnWorker(rng.Random(), nil, workCh, true)
-		}
+		p.spawnWorker(rng.Random(), nil, workCh, true)
 	}
 }
 
 func (p *pooledWorkerPool) Go(work Work) {
+	p.work(maybeContext{}, work, 0)
+}
+
+func (p *pooledWorkerPool) GoAlways(work Work) {
 	p.work(maybeContext{}, work, 0)
 }
 
@@ -105,7 +101,7 @@ func (p *pooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
 	return p.work(maybeContext{ctx: ctx}, work, 0)
 }
 
-func (p *pooledWorkerPool) FastContextCheck(batchSize int) PooledWorkerPool {
+func (p *pooledWorkerPool) FastContextCheck(batchSize int) StaticPooledWorkerPool {
 	return &fastPooledWorkerPool{workerPool: p, batchSize: batchSize}
 }
 
@@ -124,7 +120,7 @@ func (p *pooledWorkerPool) work(
 	var (
 		// Use time.Now() to avoid excessive synchronization
 		currTime  = p.nowFn().UnixNano()
-		workChIdx = currTime % p.numShards
+		workChIdx = currTime % int64(len(p.workChs))
 		workCh    = p.workChs[workChIdx]
 	)
 

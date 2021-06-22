@@ -27,6 +27,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
@@ -41,10 +45,7 @@ import (
 	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/opentracing/opentracing-go/log"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -97,7 +98,11 @@ func (s *m3storage) FetchProm(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
-	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	queryOptions, err := storage.FetchOptionsToM3Options(options, query)
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
 	accumulator, _, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return storage.PromResult{}, err
@@ -145,7 +150,7 @@ func FetchResultToBlockResult(
 
 	start := query.Start
 	bounds := models.Bounds{
-		Start:    start,
+		Start:    xtime.ToUnixNano(start),
 		Duration: query.End.Sub(start),
 		StepSize: query.Interval,
 	}
@@ -192,7 +197,13 @@ func (s *m3storage) FetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, Cleanup, error) {
-	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	queryOptions, err := storage.FetchOptionsToM3Options(options, query)
+	if err != nil {
+		return consolidators.SeriesFetchResult{
+			Metadata: block.NewResultMetadata(),
+		}, noop, err
+	}
+
 	accumulator, m3query, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return consolidators.SeriesFetchResult{
@@ -258,14 +269,19 @@ func (s *m3storage) fetchCompressed(
 		return nil, index.Query{}, err
 	}
 
+	var (
+		queryStart = queryOptions.StartInclusive
+		queryEnd   = queryOptions.EndExclusive
+	)
+
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
-		query.Start,
-		query.End,
+		xtime.ToUnixNano(s.nowFn()),
+		queryStart,
+		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
@@ -287,8 +303,8 @@ func (s *m3storage) fetchCompressed(
 
 			debugLog.Write(zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
-				zap.Time("start", query.Start),
-				zap.Time("end", query.End),
+				zap.Time("start", queryStart.ToTime()),
+				zap.Time("end", queryEnd.ToTime()),
 				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
@@ -420,8 +436,14 @@ func (s *m3storage) CompleteTags(
 		return nil, err
 	}
 
-	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
+	aggOpts, err := storage.FetchOptionsToAggregateOptions(options, query)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
+		queryStart      = aggOpts.StartInclusive
+		queryEnd        = aggOpts.EndExclusive
 		nameOnly        = query.CompleteNameOnly
 		tagOpts         = s.opts.TagOptions()
 		accumulatedTags = consolidators.NewCompleteTagsResultBuilder(nameOnly, tagOpts)
@@ -441,8 +463,8 @@ func (s *m3storage) CompleteTags(
 			zap.Strings("filterNames", filters),
 			zap.String("matchers", query.TagMatchers.String()),
 			zap.String("m3query", m3query.String()),
-			zap.Time("start", query.Start),
-			zap.Time("end", query.End),
+			zap.Time("start", queryStart.ToTime()),
+			zap.Time("end", queryEnd.ToTime()),
 			zap.Bool("remote", options.Remote),
 		)
 	}
@@ -452,9 +474,9 @@ func (s *m3storage) CompleteTags(
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
-		query.Start,
-		query.End,
+		xtime.ToUnixNano(s.nowFn()),
+		queryStart,
+		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
@@ -577,10 +599,16 @@ func (s *m3storage) SearchCompressed(
 		return tagResult, noop, err
 	}
 
+	m3opts, err := storage.FetchOptionsToM3Options(options, query)
+	if err != nil {
+		return tagResult, noop, err
+	}
+
 	var (
-		m3opts = storage.FetchOptionsToM3Options(options, query)
-		result = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
-		wg     sync.WaitGroup
+		queryStart = m3opts.StartInclusive
+		queryEnd   = m3opts.EndExclusive
+		result     = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
+		wg         sync.WaitGroup
 	)
 
 	// NB(r): Since we don't use a single index we fan out to each
@@ -588,9 +616,9 @@ func (s *m3storage) SearchCompressed(
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
-		query.Start,
-		query.End,
+		xtime.ToUnixNano(s.nowFn()),
+		queryStart,
+		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
@@ -604,8 +632,8 @@ func (s *m3storage) SearchCompressed(
 	if debugLog != nil {
 		debugLog.Write(zap.String("query", query.Raw),
 			zap.String("m3_query", m3query.String()),
-			zap.Time("start", query.Start),
-			zap.Time("end", query.End),
+			zap.Time("start", queryStart.ToTime()),
+			zap.Time("end", queryEnd.ToTime()),
 			zap.Bool("remote", options.Remote),
 		)
 	}
@@ -661,9 +689,14 @@ func (s *m3storage) Write(
 		datapoints = query.Datapoints()
 		idBuf      = tags.ID()
 		id         = ident.BytesID(idBuf)
+		err        error
 	)
 	// Set id to NoFinalize to avoid cloning it in write operations
 	id.NoFinalize()
+	tags.Tags, err = s.opts.TagsTransform()(ctx, tags.Tags)
+	if err != nil {
+		return err
+	}
 	tagIterator := storage.TagsToIdentTagIterator(tags)
 
 	if len(datapoints) == 1 {
@@ -683,28 +716,14 @@ func (s *m3storage) Write(
 		// capture var
 		datapoint := datapoint
 		wg.Add(1)
-
-		var (
-			now                      = time.Now()
-			deadline, deadlineExists = ctx.Deadline()
-			timeout                  = minWriteWaitTimeout
-		)
-		if deadlineExists {
-			if remain := deadline.Sub(now); remain >= timeout {
-				timeout = remain
-			}
-		}
-		spawned := s.opts.WriteWorkerPool().GoWithTimeout(func() {
+		s.opts.WriteWorkerPool().GoAlways(func() {
 			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
 				multiErr.add(err)
 			}
 
 			tagIter.Close()
 			wg.Done()
-		}, timeout)
-		if !spawned {
-			multiErr.add(fmt.Errorf("timeout exceeded waiting: %v", timeout))
-		}
+		})
 	}
 
 	wg.Wait()

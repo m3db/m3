@@ -21,6 +21,7 @@
 package repair
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -31,78 +32,129 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// ReplicaMetadataSlice captures a slice of block.ReplicaMetadata
+// Type defines the type of repair to run.
+type Type uint
+
+const (
+	// DefaultRepair will compare node's integrity to other replicas and then repair blocks as required.
+	DefaultRepair Type = iota
+	// OnlyCompareRepair will compare node's integrity to other replicas without repairing blocks,
+	// this is useful for looking at the metrics emitted by the comparison.
+	OnlyCompareRepair
+)
+
+var validTypes = []Type{
+	DefaultRepair,
+	OnlyCompareRepair,
+}
+
+// UnmarshalYAML unmarshals an Type into a valid type from string.
+func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	// If unspecified, use default mode.
+	if str == "" {
+		*t = DefaultRepair
+		return nil
+	}
+
+	for _, valid := range validTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid repair Type '%s' valid types are: %s",
+		str, validTypes)
+}
+
+// String returns the bootstrap mode as a string
+func (t Type) String() string {
+	switch t {
+	case DefaultRepair:
+		return "default"
+	case OnlyCompareRepair:
+		return "only_compare"
+	}
+	return "unknown"
+}
+
+// ReplicaMetadataSlice captures a slice of block.ReplicaMetadata.
 type ReplicaMetadataSlice interface {
-	// Add adds the metadata to the slice
+	// Add adds the metadata to the slice.
 	Add(metadata block.ReplicaMetadata)
 
-	// Metadata returns the metadata slice
+	// Metadata returns the metadata slice.
 	Metadata() []block.ReplicaMetadata
 
-	// Reset resets the metadata slice
+	// Reset resets the metadata slice.
 	Reset()
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
-// ReplicaMetadataSlicePool provides a pool for block.ReplicaMetadata slices
+// ReplicaMetadataSlicePool provides a pool for block.ReplicaMetadata slices.
 type ReplicaMetadataSlicePool interface {
-	// Get returns a ReplicaMetadata slice
+	// Get returns a ReplicaMetadata slice.
 	Get() ReplicaMetadataSlice
 
-	// Put puts a ReplicaMetadata slice back to pool
+	// Put puts a ReplicaMetadata slice back to pool.
 	Put(m ReplicaMetadataSlice)
 }
 
-// ReplicaBlockMetadata captures the block metadata from hosts in a shard replica set
+// ReplicaBlockMetadata captures the block metadata from hosts in a shard replica set.
 type ReplicaBlockMetadata interface {
-	// Start is the start time of a block
-	Start() time.Time
+	// Start is the start time of a block.
+	Start() xtime.UnixNano
 
-	// Metadata returns the metadata from all hosts
+	// Metadata returns the metadata from all hosts.
 	Metadata() []block.ReplicaMetadata
 
-	// Add adds a metadata from a host
+	// Add adds a metadata from a host.
 	Add(metadata block.ReplicaMetadata)
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
-// ReplicaBlocksMetadata captures the blocks metadata from hosts in a shard replica set
+// ReplicaBlocksMetadata captures the blocks metadata from hosts in a shard replica set.
 type ReplicaBlocksMetadata interface {
-	// NumBlocks returns the total number of blocks
+	// NumBlocks returns the total number of blocks.
 	NumBlocks() int64
 
-	// Blocks returns the blocks metadata
+	// Blocks returns the blocks metadata.
 	Blocks() map[xtime.UnixNano]ReplicaBlockMetadata
 
-	// Add adds a block metadata
+	// Add adds a block metadata.
 	Add(block ReplicaBlockMetadata)
 
-	// GetOrAdd returns the blocks metadata for a start time, creating one if it doesn't exist
-	GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata
+	// GetOrAdd returns the blocks metadata for a start time, creating one if it doesn't exist.
+	GetOrAdd(start xtime.UnixNano, p ReplicaMetadataSlicePool) ReplicaBlockMetadata
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
-// ReplicaSeriesMetadata captures the metadata for a list of series from hosts in a shard replica set
+// ReplicaSeriesMetadata captures the metadata for a list of series from hosts
+// in a shard replica set.
 type ReplicaSeriesMetadata interface {
-	// NumSeries returns the total number of series
+	// NumSeries returns the total number of series.
 	NumSeries() int64
 
-	// NumBlocks returns the total number of blocks
+	// NumBlocks returns the total number of blocks.
 	NumBlocks() int64
 
-	// Series returns the series metadata
+	// Series returns the series metadata.
 	Series() *Map
 
-	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist
+	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist.
 	GetOrAdd(id ident.ID) ReplicaBlocksMetadata
 
-	// Close performs cleanup
+	// Close performs cleanup.
 	Close()
 }
 
@@ -112,38 +164,120 @@ type ReplicaSeriesBlocksMetadata struct {
 	Metadata ReplicaBlocksMetadata
 }
 
-// ReplicaMetadataComparer compares metadata from hosts in a replica set
+// ReplicaMetadataComparer compares metadata from hosts in a replica set.
 type ReplicaMetadataComparer interface {
-	// AddLocalMetadata adds metadata from local host
+	// AddLocalMetadata adds metadata from local host.
 	AddLocalMetadata(localIter block.FilteredBlocksMetadataIter) error
 
-	// AddPeerMetadata adds metadata from peers
+	// AddPeerMetadata adds metadata from peers.
 	AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error
 
-	// Compare returns the metadata differences between local host and peers
+	// Compare returns the metadata differences between local host and peers.
 	Compare() MetadataComparisonResult
 
-	// Finalize performs cleanup during close
+	// Finalize performs cleanup during close.
 	Finalize()
 }
 
-// MetadataComparisonResult captures metadata comparison results
+// MetadataComparisonResult captures metadata comparison results.
 type MetadataComparisonResult struct {
-	// NumSeries returns the total number of series
+	// NumSeries returns the total number of series.
 	NumSeries int64
 
-	// NumBlocks returns the total number of blocks
+	// NumBlocks returns the total number of blocks.
 	NumBlocks int64
 
-	// SizeResult returns the size differences
+	// SizeResult returns the size differences.
 	SizeDifferences ReplicaSeriesMetadata
 
-	// ChecksumDifferences returns the checksum differences
+	// ChecksumDifferences returns the checksum differences.
 	ChecksumDifferences ReplicaSeriesMetadata
+
+	// PeerMetadataComparisonResults the results comparative to each peer.
+	PeerMetadataComparisonResults PeerMetadataComparisonResults
 }
 
-// Options are the repair options
+// PeerMetadataComparisonResult captures metadata comparison results
+// relative to the local origin node.
+type PeerMetadataComparisonResult struct {
+	// ID is the peer ID.
+	ID string
+
+	// ComparedBlocks returns the total number of blocks.
+	ComparedBlocks int64
+
+	// ComparedDifferingBlocks returns the number of differing blocks (mismatch + missing + extra).
+	ComparedDifferingBlocks int64
+
+	// ComparedMismatchBlocks returns the number of mismatching blocks (either size or checksum).
+	ComparedMismatchBlocks int64
+
+	// ComparedMissingBlocks returns the number of missing blocks.
+	ComparedMissingBlocks int64
+
+	// ComparedExtraBlocks returns the number of extra blocks.
+	ComparedExtraBlocks int64
+}
+
+// ComparedDifferingPercent returns the percent, between range of
+// [0.0, 1.0], of all the blocks in the comparison.
+func (r PeerMetadataComparisonResult) ComparedDifferingPercent() float64 {
+	return float64(r.ComparedDifferingBlocks) / float64(r.ComparedBlocks)
+}
+
+// PeerMetadataComparisonResults is a slice of PeerMetadataComparisonResult.
+type PeerMetadataComparisonResults []PeerMetadataComparisonResult
+
+// Aggregate returns an aggregate result of the PeerMetadataComparisonResults.
+func (r PeerMetadataComparisonResults) Aggregate() AggregatePeerMetadataComparisonResult {
+	var result AggregatePeerMetadataComparisonResult
+	for _, elem := range r {
+		result.ComparedBlocks += elem.ComparedBlocks
+		result.ComparedDifferingBlocks += elem.ComparedDifferingBlocks
+		result.ComparedMismatchBlocks += elem.ComparedMismatchBlocks
+		result.ComparedMissingBlocks += elem.ComparedMissingBlocks
+		result.ComparedExtraBlocks += elem.ComparedExtraBlocks
+	}
+	result.ComparedDifferingPercent = float64(result.ComparedDifferingBlocks) / float64(result.ComparedBlocks)
+	return result
+}
+
+// AggregatePeerMetadataComparisonResult captures an aggregate metadata comparison
+// result of all peers relative to the local origin node.
+type AggregatePeerMetadataComparisonResult struct {
+	// ComparedDifferingPercent is the percent of blocks that mismatched from peers to local origin.
+	ComparedDifferingPercent float64
+
+	// ComparedBlocks returns the total number of blocks compared.
+	ComparedBlocks int64
+
+	// ComparedDifferingBlocks returns the number of differing blocks (mismatch + missing + extra).
+	ComparedDifferingBlocks int64
+
+	// ComparedMismatchBlocks returns the number of mismatching blocks (either size or checksum).
+	ComparedMismatchBlocks int64
+
+	// ComparedMissingBlocks returns the number of missing blocks.
+	ComparedMissingBlocks int64
+
+	// ComparedExtraBlocks returns the number of extra blocks.
+	ComparedExtraBlocks int64
+}
+
+// Options are the repair options.
 type Options interface {
+	// SetType sets the type of repair to run.
+	SetType(value Type) Options
+
+	// Type returns the type of repair to run.
+	Type() Type
+
+	// SetForce sets whether to force repairs to run for all namespaces.
+	SetForce(value bool) Options
+
+	// Force returns whether to force repairs to run for all namespaces.
+	Force() bool
+
 	// SetAdminClient sets the admin client.
 	SetAdminClients(value []client.AdminClient) Options
 

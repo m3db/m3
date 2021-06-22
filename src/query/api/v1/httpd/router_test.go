@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,21 +64,21 @@ func TestHanlerSwitch(t *testing.T) {
 	assert.Equal(t, 1, m3qCalled)
 
 	req, err = http.NewRequest("GET", "/query?query=sum(metric)", nil)
-	req.Header.Add(EngineHeaderName, "m3query")
+	req.Header.Add(headers.EngineHeaderName, "m3query")
 	require.NoError(t, err)
 	router.ServeHTTP(rr, req)
 	assert.Equal(t, 1, promqlCalled)
 	assert.Equal(t, 2, m3qCalled)
 
 	req, err = http.NewRequest("GET", "/query?query=sum(metric)", nil)
-	req.Header.Add(EngineHeaderName, "M3QUERY")
+	req.Header.Add(headers.EngineHeaderName, "M3QUERY")
 	require.NoError(t, err)
 	router.ServeHTTP(rr, req)
 	assert.Equal(t, 1, promqlCalled)
 	assert.Equal(t, 3, m3qCalled)
 
 	req, err = http.NewRequest("GET", "/query?query=sum(metric)", nil)
-	req.Header.Add(EngineHeaderName, "prometheus")
+	req.Header.Add(headers.EngineHeaderName, "prometheus")
 	require.NoError(t, err)
 	router.ServeHTTP(rr, req)
 	assert.Equal(t, 2, promqlCalled)

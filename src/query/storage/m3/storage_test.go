@@ -127,8 +127,7 @@ func setup(
 }
 
 func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
-	writePool, err := sync.NewPooledWorkerPool(10,
-		sync.NewPooledWorkerPoolOptions())
+	writePool, err := sync.NewDynamicPooledWorkerPool(sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
 	tagOpts := models.NewTagOptions().SetMetricName([]byte("name"))
@@ -172,11 +171,11 @@ func newWriteQuery(t *testing.T) *storage.WriteQuery {
 		Unit: xtime.Millisecond,
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: time.Now(),
+				Timestamp: xtime.Now(),
 				Value:     1.0,
 			},
 			{
-				Timestamp: time.Now().Add(-10 * time.Second),
+				Timestamp: xtime.Now().Add(-10 * time.Second),
 				Value:     2.0,
 			},
 		},
@@ -385,11 +384,11 @@ func TestLocalWritesWithExpiredContext(t *testing.T) {
 	writeQueryOpts := newWriteQuery(t).Options()
 	writeQueryOpts.Datapoints = ts.Datapoints{
 		ts.Datapoint{
-			Timestamp: time.Now(),
+			Timestamp: xtime.Now(),
 			Value:     42,
 		},
 		ts.Datapoint{
-			Timestamp: time.Now(),
+			Timestamp: xtime.Now(),
 			Value:     84,
 		},
 	}
@@ -762,8 +761,8 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	})
 
 	req := newCompleteTagsReq()
-	req.Start = time.Now().Add(-10 * time.Minute)
-	req.End = time.Now()
+	req.Start = xtime.Now().Add(-10 * time.Minute)
+	req.End = xtime.Now()
 	result, err := store.CompleteTags(context.TODO(), req, buildFetchOpts())
 	require.NoError(t, err)
 

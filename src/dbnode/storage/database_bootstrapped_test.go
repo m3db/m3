@@ -24,20 +24,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
 		validIsBootstrapped                  = true
-		validShardSetAssignedAt              = xtime.ToUnixNano(time.Now())
-		validLastBootstrapCompletionTime     = xtime.ToUnixNano(validShardSetAssignedAt.ToTime().Add(time.Second))
-		validLastSuccessfulSnapshotStartTime = xtime.ToUnixNano(validLastBootstrapCompletionTime.ToTime().Add(time.Second))
+		validShardSetAssignedAt              = xtime.Now()
+		validLastBootstrapCompletionTime     = validShardSetAssignedAt.Add(time.Second)
+		validLastSuccessfulSnapshotStartTime = validLastBootstrapCompletionTime.Add(time.Second)
 		zeroTime                             xtime.UnixNano
 	)
 	testCases := []struct {

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -194,7 +195,7 @@ var andTests = []struct {
 }
 
 func TestAnd(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	for _, tt := range andTests {
 		t.Run(tt.name, func(t *testing.T) {
 			op, err := NewOp(

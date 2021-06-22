@@ -102,7 +102,7 @@ func TestRoundTripProp(t *testing.T) {
 	parameters.MinSuccessfulTests = 300
 	parameters.Rng.Seed(seed)
 
-	enc := NewEncoder(time.Time{}, testEncodingOptions)
+	enc := NewEncoder(0, testEncodingOptions)
 	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		if debugLogs {
@@ -122,8 +122,8 @@ func TestRoundTripProp(t *testing.T) {
 			}
 		}()
 
-		times := make([]time.Time, 0, len(input.messages))
-		currTime := time.Now()
+		times := make([]xtime.UnixNano, 0, len(input.messages))
+		currTime := xtime.Now()
 		for i, m := range input.messages {
 			duration, err := m.timeUnit.Value()
 			if err != nil {
@@ -149,7 +149,7 @@ func TestRoundTripProp(t *testing.T) {
 			if debugLogs {
 				printMessage(fmt.Sprintf("encoding %d", i), m.message)
 			}
-			err = enc.Encode(ts.Datapoint{Timestamp: times[i]}, xtime.Nanosecond, cloneBytes)
+			err = enc.Encode(ts.Datapoint{TimestampNanos: times[i]}, xtime.Nanosecond, cloneBytes)
 			if err != nil {
 				return false, fmt.Errorf(
 					"error encoding message: %v, schema: %s", err, input.schema.String())
@@ -205,8 +205,8 @@ func TestRoundTripProp(t *testing.T) {
 
 			require.Equal(t, unit, xtime.Nanosecond)
 			require.True(t,
-				times[i].Equal(dp.Timestamp),
-				"%s does not match %s", times[i], dp.Timestamp)
+				times[i].Equal(dp.TimestampNanos),
+				"%s does not match %s", times[i], dp.TimestampNanos)
 
 			if !dynamic.MessagesEqual(m, decodedM) {
 				for _, field := range m.GetKnownFields() {
@@ -256,7 +256,7 @@ func TestBijectivityProp(t *testing.T) {
 	parameters.MinSuccessfulTests = 100
 	parameters.Rng.Seed(seed)
 
-	enc := NewEncoder(time.Time{}, testEncodingOptions)
+	enc := NewEncoder(0, testEncodingOptions)
 	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
 	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
 		if len(input.messages) == 0 {
@@ -267,12 +267,12 @@ func TestBijectivityProp(t *testing.T) {
 		}
 
 		var (
-			start       = time.Now()
+			start       = xtime.Now()
 			schemaDescr = namespace.GetTestSchemaDescr(input.schema)
 
 			originalStream  xio.SegmentReader
 			originalSegment ts.Segment
-			messageTimes    []time.Time
+			messageTimes    []xtime.UnixNano
 			messageBytes    [][]byte
 		)
 
@@ -297,7 +297,7 @@ func TestBijectivityProp(t *testing.T) {
 				return false, fmt.Errorf("error marshalling proto message: %v", err)
 			}
 			// Generate times up-front so they're the same for each iteration.
-			messageTimes = append(messageTimes, time.Now())
+			messageTimes = append(messageTimes, xtime.Now())
 			messageBytes = append(messageBytes, mBytes)
 		}
 
@@ -309,7 +309,7 @@ func TestBijectivityProp(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			enc.Reset(start, 0, schemaDescr)
 			for j, mBytes := range messageBytes {
-				err := enc.Encode(ts.Datapoint{Timestamp: messageTimes[j]}, xtime.Nanosecond, mBytes)
+				err := enc.Encode(ts.Datapoint{TimestampNanos: messageTimes[j]}, xtime.Nanosecond, mBytes)
 				if err != nil {
 					return false, fmt.Errorf(
 						"error encoding message: %v, schema: %s", err, input.schema.String())

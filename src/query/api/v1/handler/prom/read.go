@@ -58,8 +58,8 @@ var (
 			return engine.NewRangeQuery(
 				queryable,
 				params.Query,
-				params.Start,
-				params.End,
+				params.Start.ToTime(),
+				params.End.ToTime(),
 				params.Step)
 		}
 	}

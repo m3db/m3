@@ -59,7 +59,7 @@ func init() {
 // code's correctness comes from the `TestRoundtripProp` test which is much more exhaustive.
 func TestRoundTrip(t *testing.T) {
 	testCases := []struct {
-		timestamp  time.Time
+		timestamp  xtime.UnixNano
 		unit       xtime.Unit
 		latitude   float64
 		longitude  float64
@@ -128,7 +128,7 @@ func TestRoundTrip(t *testing.T) {
 		},
 	}
 
-	curr := time.Now().Truncate(2 * time.Minute)
+	curr := xtime.Now().Truncate(2 * time.Minute)
 	enc := newTestEncoder(curr)
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
@@ -143,13 +143,14 @@ func TestRoundTrip(t *testing.T) {
 		currTime := curr.Add(time.Duration(i) * duration)
 		testCases[i].timestamp = currTime
 		// Encoder should ignore value so we set it to make sure it gets ignored.
-		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, tc.unit, marshalledVL)
+		err = enc.Encode(ts.Datapoint{TimestampNanos: currTime, Value: float64(i)},
+			tc.unit, marshalledVL)
 		require.NoError(t, err)
 
 		lastEncoded, err := enc.LastEncoded()
 		require.NoError(t, err)
-		require.True(t, currTime.Equal(lastEncoded.Timestamp))
-		require.True(t, currTime.Equal(lastEncoded.Timestamp))
+		require.Equal(t, currTime, lastEncoded.TimestampNanos)
+		require.Equal(t, currTime, lastEncoded.TimestampNanos)
 		require.Equal(t, float64(0), lastEncoded.Value)
 	}
 
@@ -175,9 +176,9 @@ func TestRoundTrip(t *testing.T) {
 		require.NoError(t, m.Unmarshal(annotation))
 
 		require.Equal(t, unit, testCases[i].unit)
-		require.True(t,
-			tc.timestamp.Equal(dp.Timestamp),
-			fmt.Sprintf("expected: %s, got: %s", tc.timestamp.String(), dp.Timestamp.String()))
+		require.Equal(t,
+			tc.timestamp, dp.TimestampNanos,
+			fmt.Sprintf("expected: %s, got: %s", tc.timestamp.String(), dp.TimestampNanos))
 		// Value is meaningless for proto so should always be zero
 		// regardless of whats written.
 		require.Equal(t, float64(0), dp.Value)
@@ -194,7 +195,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
-	enc := newTestEncoder(time.Now().Truncate(time.Second))
+	enc := newTestEncoder(xtime.Now().Truncate(time.Second))
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
 	attrs := map[string]string{"key1": "val1"}
@@ -202,8 +203,9 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	marshalledVL, err := vl1Write.Marshal()
 	require.NoError(t, err)
 
-	vl1WriteTime := time.Now().Truncate(time.Second)
-	err = enc.Encode(ts.Datapoint{Timestamp: vl1WriteTime}, xtime.Second, marshalledVL)
+	vl1WriteTime := xtime.Now().Truncate(time.Second)
+	err = enc.Encode(ts.Datapoint{TimestampNanos: vl1WriteTime},
+		xtime.Second, marshalledVL)
 	require.NoError(t, err)
 
 	vl2Write := newVL2(28.0, 29.0, attrs, "some_new_custom_field", map[int]int{1: 2})
@@ -211,13 +213,15 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	vl2WriteTime := vl1WriteTime.Add(time.Second)
-	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshalledVL)
+	err = enc.Encode(ts.Datapoint{TimestampNanos: vl2WriteTime},
+		xtime.Second, marshalledVL)
 	require.EqualError(t,
 		err,
 		"proto encoder: error unmarshalling message: encountered unknown field with field number: 6")
 
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVL2Schema))
-	err = enc.Encode(ts.Datapoint{Timestamp: vl2WriteTime}, xtime.Second, marshalledVL)
+	err = enc.Encode(ts.Datapoint{TimestampNanos: vl2WriteTime},
+		xtime.Second, marshalledVL)
 	require.NoError(t, err)
 
 	rawBytes, err := enc.Bytes()
@@ -232,7 +236,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	m := dynamic.NewMessage(testVLSchema)
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
-	require.Equal(t, vl1WriteTime, dp.Timestamp)
+	require.Equal(t, vl1WriteTime, dp.TimestampNanos)
 	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl1Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl1Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
@@ -245,7 +249,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	m = dynamic.NewMessage(testVLSchema)
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
-	require.Equal(t, vl2WriteTime, dp.Timestamp)
+	require.Equal(t, vl2WriteTime, dp.TimestampNanos)
 	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl2Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl2Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
@@ -268,7 +272,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	m = dynamic.NewMessage(testVL2Schema)
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
-	require.Equal(t, vl1WriteTime, dp.Timestamp)
+	require.Equal(t, vl1WriteTime, dp.TimestampNanos)
 	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl1Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl1Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
@@ -288,7 +292,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	m = dynamic.NewMessage(testVL2Schema)
 	require.NoError(t, m.Unmarshal(annotation))
 	require.Equal(t, xtime.Second, unit)
-	require.Equal(t, vl2WriteTime, dp.Timestamp)
+	require.Equal(t, vl2WriteTime, dp.TimestampNanos)
 	require.Equal(t, 5, len(m.GetKnownFields()))
 	require.Equal(t, vl2Write.GetFieldByName("latitude"), m.GetFieldByName("latitude"))
 	require.Equal(t, vl2Write.GetFieldByName("longitude"), m.GetFieldByName("longitude"))
@@ -305,7 +309,7 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, iter.Err())
 }
 
-func newTestEncoder(t time.Time) *Encoder {
+func newTestEncoder(t xtime.UnixNano) *Encoder {
 	e := NewEncoder(t, testEncodingOptions)
 	e.Reset(t, 0, nil)
 

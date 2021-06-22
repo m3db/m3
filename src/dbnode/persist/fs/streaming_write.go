@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/bloom/v4"
 )
@@ -54,7 +55,7 @@ type StreamingWriter interface {
 type StreamingWriterOpenOptions struct {
 	NamespaceID ident.ID
 	ShardID     uint32
-	BlockStart  time.Time
+	BlockStart  xtime.UnixNano
 	BlockSize   time.Duration
 	VolumeIndex int
 

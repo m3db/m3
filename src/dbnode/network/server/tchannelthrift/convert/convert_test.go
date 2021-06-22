@@ -37,13 +37,14 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func mustToRpcTime(t *testing.T, ts time.Time) int64 {
+func mustToRPCTime(t *testing.T, ts xtime.UnixNano) int64 {
 	r, err := convert.ToValue(ts, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	return r
@@ -112,8 +113,8 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 	)
 	ns := ident.StringID("abc")
 	opts := index.QueryOptions{
-		StartInclusive:    time.Now().Add(-900 * time.Hour),
-		EndExclusive:      time.Now(),
+		StartInclusive:    xtime.Now().Add(-900 * time.Hour),
+		EndExclusive:      xtime.Now(),
 		SeriesLimit:       int(seriesLimit),
 		DocsLimit:         int(docsLimit),
 		RequireExhaustive: true,
@@ -122,8 +123,8 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 	fetchData := true
 	requestSkeleton := &rpc.FetchTaggedRequest{
 		NameSpace:         ns.Bytes(),
-		RangeStart:        mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:          mustToRpcTime(t, opts.EndExclusive),
+		RangeStart:        mustToRPCTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRPCTime(t, opts.EndExclusive),
 		FetchData:         fetchData,
 		SeriesLimit:       &seriesLimit,
 		DocsLimit:         &docsLimit,
@@ -189,8 +190,8 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 	)
 	opts := index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
-			StartInclusive:    time.Now().Add(-900 * time.Hour),
-			EndExclusive:      time.Now(),
+			StartInclusive:    xtime.Now().Add(-900 * time.Hour),
+			EndExclusive:      xtime.Now(),
 			SeriesLimit:       int(seriesLimit),
 			DocsLimit:         int(docsLimit),
 			RequireExhaustive: requireExhaustive,
@@ -204,8 +205,8 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 	}
 	requestSkeleton := &rpc.AggregateQueryRawRequest{
 		NameSpace:         ns.Bytes(),
-		RangeStart:        mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:          mustToRpcTime(t, opts.EndExclusive),
+		RangeStart:        mustToRPCTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRPCTime(t, opts.EndExclusive),
 		SeriesLimit:       &seriesLimit,
 		DocsLimit:         &docsLimit,
 		RequireExhaustive: &requireExhaustive,

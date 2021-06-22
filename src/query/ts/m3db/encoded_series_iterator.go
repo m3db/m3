@@ -105,7 +105,7 @@ func (it *encodedSeriesIter) Next() bool {
 		dp, _, _ := iter.Current()
 		it.datapoints = append(it.datapoints,
 			ts.Datapoint{
-				Timestamp: dp.Timestamp,
+				Timestamp: dp.TimestampNanos,
 				Value:     dp.Value,
 			})
 	}

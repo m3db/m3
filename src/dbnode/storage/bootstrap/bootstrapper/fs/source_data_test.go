@@ -64,7 +64,7 @@ var (
 	testNs1ID                 = ident.StringID("test_namespace")
 	testBlockSize             = 2 * time.Hour
 	testIndexBlockSize        = 4 * time.Hour
-	testStart                 = time.Now().Truncate(testBlockSize)
+	testStart                 = xtime.Now().Truncate(testBlockSize)
 	testFileMode              = os.FileMode(0666)
 	testDirMode               = os.ModeDir | os.FileMode(0755)
 	testWriterBufferSize      = 10
@@ -168,26 +168,26 @@ func createTempDir(t *testing.T) string {
 }
 
 func writeInfoFile(t *testing.T, prefix string, namespace ident.ID,
-	shard uint32, start time.Time, data []byte) {
+	shard uint32, start xtime.UnixNano, data []byte) {
 	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir,
-		fmt.Sprintf("fileset-%d-0-info.db", xtime.ToNanoseconds(start)))
+		fmt.Sprintf("fileset-%d-0-info.db", start))
 	writeFile(t, filePath, data)
 }
 
 func writeDataFile(t *testing.T, prefix string, namespace ident.ID,
-	shard uint32, start time.Time, data []byte) {
+	shard uint32, start xtime.UnixNano, data []byte) {
 	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir,
-		fmt.Sprintf("fileset-%d-0-data.db", xtime.ToNanoseconds(start)))
+		fmt.Sprintf("fileset-%d-0-data.db", start))
 	writeFile(t, filePath, data)
 }
 
 func writeDigestFile(t *testing.T, prefix string, namespace ident.ID,
-	shard uint32, start time.Time, data []byte) {
+	shard uint32, start xtime.UnixNano, data []byte) {
 	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir,
-		fmt.Sprintf("fileset-%d-0-digest.db", xtime.ToNanoseconds(start)))
+		fmt.Sprintf("fileset-%d-0-digest.db", start))
 	writeFile(t, filePath, data)
 }
 
@@ -229,7 +229,7 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 
 func writeGoodFilesWithFsOpts(t *testing.T, namespace ident.ID, shard uint32, fsOpts fs.Options) {
 	inputs := []struct {
-		start time.Time
+		start xtime.UnixNano
 		id    string
 		tags  map[string]string
 		data  []byte
@@ -280,7 +280,7 @@ func writeTSDBFiles(
 	dir string,
 	namespace ident.ID,
 	shard uint32,
-	start time.Time,
+	start xtime.UnixNano,
 	series []testSeries,
 ) {
 	writeTSDBFilesWithFsOpts(t, namespace, shard, start, series, newTestFsOptions(dir))
@@ -290,7 +290,7 @@ func writeTSDBFilesWithFsOpts(
 	t require.TestingT,
 	namespace ident.ID,
 	shard uint32,
-	start time.Time,
+	start xtime.UnixNano,
 	series []testSeries,
 	opts fs.Options,
 ) {
@@ -551,7 +551,7 @@ func validateReadResults(
 		{4, 5, 6},
 	}
 
-	times := []time.Time{testStart, testStart.Add(10 * time.Hour)}
+	times := []xtime.UnixNano{testStart, testStart.Add(10 * time.Hour)}
 	for i, id := range ids {
 		seriesReaders, ok := readers[id]
 		require.True(t, ok)

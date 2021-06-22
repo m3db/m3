@@ -62,10 +62,10 @@ func (cfg Configuration) newOptions(
 	scope := instrumentOptions.MetricsScope().Tagged(
 		map[string]string{"component": "ingester"},
 	)
-	workers, err := xsync.NewPooledWorkerPool(
-		cfg.WorkerPoolSize,
+	workers, err := xsync.NewStaticPooledWorkerPool(
 		xsync.NewPooledWorkerPoolOptions().
-			SetInstrumentOptions(instrumentOptions),
+			SetInstrumentOptions(instrumentOptions).
+			SetNumShards(cfg.WorkerPoolSize),
 	)
 	if err != nil {
 		return Options{}, err

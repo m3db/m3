@@ -71,7 +71,7 @@ func verifyExpandPromSeries(
 	ctrl *gomock.Controller,
 	num int,
 	ex bool,
-	pools xsync.PooledWorkerPool,
+	pools xsync.StaticPooledWorkerPool,
 ) {
 	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, num, 2)
 	fetchResult := fr(t, iters, makeTag("foo", "bar", num)...)
@@ -105,7 +105,7 @@ func verifyExpandPromSeries(
 	}
 }
 
-func testExpandPromSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
+func testExpandPromSeries(t *testing.T, ex bool, pools xsync.StaticPooledWorkerPool) {
 	ctrl := gomock.NewController(t)
 
 	for i := 0; i < 10; i++ {
@@ -120,7 +120,7 @@ func TestContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 
@@ -137,7 +137,7 @@ func TestExpandPromSeriesNilPools(t *testing.T) {
 }
 
 func TestExpandPromSeriesValidPools(t *testing.T) {
-	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 	testExpandPromSeries(t, false, pool)
@@ -145,7 +145,7 @@ func TestExpandPromSeriesValidPools(t *testing.T) {
 }
 
 func TestExpandPromSeriesSmallValidPools(t *testing.T) {
-	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 	testExpandPromSeries(t, false, pool)
@@ -156,7 +156,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := TimeToPromTimestamp(now)
 
 	vals := ts.NewMockValues(ctrl)
@@ -250,13 +250,13 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	defer ctrl.Finish()
 
 	name := "name"
-	now := time.Now()
+	now := xtime.Now()
 	buildIter := func(val string, hasVal bool) *encoding.MockSeriesIterator {
 		iter := encoding.NewMockSeriesIterator(ctrl)
 
 		if hasVal {
 			iter.EXPECT().Next().Return(true)
-			dp := dts.Datapoint{Timestamp: now, Value: 1}
+			dp := dts.Datapoint{TimestampNanos: now, Value: 1}
 			iter.EXPECT().Current().Return(dp, xtime.Second, nil)
 		}
 
@@ -301,7 +301,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 			require.Equal(t, 1, len(samples))
 			s := samples[0]
 			assert.Equal(t, float64(1), s.GetValue())
-			assert.Equal(t, now.UnixNano()/int64(time.Millisecond), s.GetTimestamp())
+			assert.Equal(t, int64(now)/int64(time.Millisecond), s.GetTimestamp())
 		}
 	}
 
@@ -325,7 +325,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	verifyResult(t, res)
 
-	pool, err := xsync.NewPooledWorkerPool(10, xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 

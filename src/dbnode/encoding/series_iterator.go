@@ -21,8 +21,6 @@
 package encoding
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -65,12 +63,12 @@ func (it *seriesIterator) Tags() ident.TagIterator {
 	return it.tags
 }
 
-func (it *seriesIterator) Start() time.Time {
-	return it.start.ToTime()
+func (it *seriesIterator) Start() xtime.UnixNano {
+	return it.start
 }
 
-func (it *seriesIterator) End() time.Time {
-	return it.end.ToTime()
+func (it *seriesIterator) End() xtime.UnixNano {
+	return it.end
 }
 
 func (it *seriesIterator) Next() bool {

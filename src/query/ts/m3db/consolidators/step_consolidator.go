@@ -24,14 +24,15 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func removeStale(
-	earliestLookback time.Time,
+	earliestLookback xtime.UnixNano,
 	dps []ts.Datapoint,
 ) []ts.Datapoint {
 	for i, dp := range dps {
-		if !dp.Timestamp.Before(earliestLookback) {
+		if !dp.TimestampNanos.Before(earliestLookback) {
 			return dps[i:]
 		}
 	}
@@ -46,7 +47,7 @@ func removeStale(
 type StepLookbackConsolidator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
-	earliestLookback time.Time
+	earliestLookback xtime.UnixNano
 	datapoints       []ts.Datapoint
 	buffer           []float64
 	unconsumed       []float64
@@ -60,7 +61,7 @@ var _ StepCollector = (*StepLookbackConsolidator)(nil)
 // step iteration across a series list with a given lookback.
 func NewStepLookbackConsolidator(
 	lookbackDuration, stepSize time.Duration,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	fn ConsolidationFunc,
 ) *StepLookbackConsolidator {
 	datapoints := make([]ts.Datapoint, 0, initLength)
@@ -79,7 +80,7 @@ func NewStepLookbackConsolidator(
 // AddPoint adds a datapoint to a given step if it's within the valid
 // time period; otherwise drops it silently, which is fine for consolidation.
 func (c *StepLookbackConsolidator) AddPoint(dp ts.Datapoint) {
-	if dp.Timestamp.Before(c.earliestLookback) {
+	if dp.TimestampNanos.Before(c.earliestLookback) {
 		// this datapoint is too far in the past, it can be dropped.
 		return
 	}

@@ -61,8 +61,7 @@ func toDatapoints(fetched *rpc.FetchResult_) []generate.TestValue {
 	for i, dp := range fetched.Datapoints {
 		converted[i] = generate.TestValue{
 			Datapoint: ts.Datapoint{
-				Timestamp:      xtime.FromNormalizedTime(dp.Timestamp, time.Second),
-				TimestampNanos: xtime.ToUnixNano(xtime.FromNormalizedTime(dp.Timestamp, time.Second)),
+				TimestampNanos: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
 				Value:          dp.Value,
 			},
 			Annotation: dp.Annotation,
@@ -74,7 +73,7 @@ func toDatapoints(fetched *rpc.FetchResult_) []generate.TestValue {
 func verifySeriesMapForRange(
 	t *testing.T,
 	ts TestSetup,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	namespace ident.ID,
 	input generate.SeriesBlock,
 	expectedDebugFilePath string,
@@ -92,8 +91,8 @@ func verifySeriesMapForRange(
 		idString := input[i].ID.String()
 		req.NameSpace = namespace.String()
 		req.ID = idString
-		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
-		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
+		req.RangeStart = start.Seconds()
+		req.RangeEnd = end.Seconds()
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.Fetch(req)
 
@@ -217,19 +216,19 @@ func verifySeriesMapForRange(
 	return true
 }
 
-func containsSeries(ts TestSetup, namespace, seriesID ident.ID, start, end time.Time) (bool, error) {
+func containsSeries(ts TestSetup, namespace, seriesID ident.ID, start, end xtime.UnixNano) (bool, error) {
 	req := rpc.NewFetchRequest()
 	req.NameSpace = namespace.String()
 	req.ID = seriesID.String()
-	req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
-	req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
+	req.RangeStart = start.Seconds()
+	req.RangeEnd = end.Seconds()
 	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 	fetched, err := ts.Fetch(req)
 	return len(fetched) != 0, err
 }
 
 func writeVerifyDebugOutput(
-	t *testing.T, filePath string, start, end time.Time, series generate.SeriesBlock) bool {
+	t *testing.T, filePath string, start, end xtime.UnixNano, series generate.SeriesBlock) bool {
 	w, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 	if !assert.NoError(t, err) {
 		return false
@@ -256,8 +255,8 @@ func writeVerifyDebugOutput(
 		End    time.Time
 		Series readableSeriesList
 	}{
-		Start:  start,
-		End:    end,
+		Start:  start.ToTime(),
+		End:    end.ToTime(),
 		Series: list,
 	}, "", "    ")
 	if !assert.NoError(t, err) {
@@ -294,7 +293,7 @@ func verifySeriesMaps(
 	nsOpts := nsMetadata.Options()
 
 	for timestamp, sm := range seriesMaps {
-		start := timestamp.ToTime()
+		start := timestamp
 		end := start.Add(nsOpts.RetentionOptions().BlockSize())
 		matches := verifySeriesMapForRange(
 			t, ts, start, end, namespace, sm,

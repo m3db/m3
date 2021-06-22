@@ -27,13 +27,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSortFetchBlockResultByTimeAscending(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	input := []FetchBlockResult{
 		NewFetchBlockResult(now, nil, nil),
 		NewFetchBlockResult(now.Add(time.Second), nil, nil),
@@ -45,11 +46,11 @@ func TestSortFetchBlockResultByTimeAscending(t *testing.T) {
 }
 
 func TestSortFetchBlockMetadataResultByTimeAscending(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	inputs := []FetchBlockMetadataResult{
-		NewFetchBlockMetadataResult(now, 0, nil, time.Time{}, nil),
-		NewFetchBlockMetadataResult(now.Add(time.Second), 0, nil, time.Time{}, nil),
-		NewFetchBlockMetadataResult(now.Add(-time.Second), 0, nil, time.Time{}, nil),
+		NewFetchBlockMetadataResult(now, 0, nil, 0, nil),
+		NewFetchBlockMetadataResult(now.Add(time.Second), 0, nil, 0, nil),
+		NewFetchBlockMetadataResult(now.Add(-time.Second), 0, nil, 0, nil),
 	}
 	expected := []FetchBlockMetadataResult{inputs[2], inputs[0], inputs[1]}
 	res := newPooledFetchBlockMetadataResults(nil, nil)
@@ -61,7 +62,7 @@ func TestSortFetchBlockMetadataResultByTimeAscending(t *testing.T) {
 }
 
 func TestFilteredBlocksMetadataIter(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	sizes := []int64{1, 2, 3}
 	checksums := []uint32{6, 7, 8}
 	lastRead := now.Add(-100 * time.Millisecond)

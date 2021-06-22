@@ -46,7 +46,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
-	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
@@ -57,9 +56,7 @@ import (
 const (
 	healthURL = "/health"
 	routesURL = "/routes"
-	// EngineHeaderName defines header name which is used to switch between
-	// prometheus and m3query engines.
-	EngineHeaderName = headers.M3HeaderPrefix + "Engine"
+
 	// EngineURLParam defines query url parameter which is used to switch between
 	// prometheus and m3query engines.
 	EngineURLParam = "engine"
@@ -492,9 +489,7 @@ func (h *Handler) RegisterRoutes() error {
 			InstrumentOpts: middleIOpts,
 			Route:          route,
 			Clock:          clockwork.NewRealClock(),
-			Logging: middleware.LoggingOptions{
-				Threshold: h.middlewareConfig.Logging.Threshold,
-			},
+			Logging:        middleware.NewLoggingOptions(h.middlewareConfig.Logging),
 			Metrics: middleware.MetricsOptions{
 				Config: h.middlewareConfig.Metrics,
 			},

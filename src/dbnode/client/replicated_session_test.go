@@ -60,8 +60,7 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 	options := NewAdminOptions().
 		SetAsyncTopologyInitializers(topoInits)
 	if asyncCount > 0 {
-		workerPool, err := xsync.NewPooledWorkerPool(10,
-			xsync.NewPooledWorkerPoolOptions())
+		workerPool, err := xsync.NewDynamicPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
 		if err != nil {
 			panic(err)
 		}
@@ -175,7 +174,7 @@ func (s *replicatedSessionTestSuite) TestReplicate() {
 	asyncCount := 2
 	namespace := ident.StringID("foo")
 	id := ident.StringID("bar")
-	now := time.Now()
+	now := xtime.Now()
 	value := float64(123)
 	unit := xtime.Nanosecond
 	annotation := []byte{}

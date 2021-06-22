@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ var (
 )
 
 func TestReadThroughSegmentMatchRegexp(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
@@ -80,7 +81,7 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
@@ -123,7 +124,7 @@ func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -154,7 +155,7 @@ func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchTerm(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
@@ -192,7 +193,7 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
@@ -234,7 +235,7 @@ func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -263,7 +264,7 @@ func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	segment := fst.NewMockSegment(ctrl)
@@ -295,7 +296,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchField(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
@@ -332,7 +333,7 @@ func TestReadThroughSegmentMatchField(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchFieldCacheDisabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
@@ -373,7 +374,7 @@ func TestReadThroughSegmentMatchFieldCacheDisabled(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchFieldNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -401,7 +402,7 @@ func TestReadThroughSegmentMatchFieldNoCache(t *testing.T) {
 }
 
 func TestCloseNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)

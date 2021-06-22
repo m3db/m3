@@ -62,8 +62,7 @@ func NewStorageAndSession(
 		Retention:   TestRetention,
 	})
 	require.NoError(t, err)
-	writePool, err := sync.NewPooledWorkerPool(10,
-		sync.NewPooledWorkerPoolOptions())
+	writePool, err := sync.NewDynamicPooledWorkerPool(sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
@@ -96,8 +95,7 @@ func NewStorageAndSessionWithAggregatedNamespaces(
 	}, aggregatedNamespaces...)
 	require.NoError(t, err)
 
-	writePool, err := sync.NewPooledWorkerPool(10,
-		sync.NewPooledWorkerPoolOptions())
+	writePool, err := sync.NewDynamicPooledWorkerPool(sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))

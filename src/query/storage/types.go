@@ -118,6 +118,8 @@ type FetchOptions struct {
 	InstanceMultiple float32
 	// DocsLimit is the maximum number of docs to return.
 	DocsLimit int
+	// RangeLimit is the maximum time range to return.
+	RangeLimit time.Duration
 	// ReturnedSeriesLimit is the maximum number of series to return.
 	ReturnedSeriesLimit int
 	// ReturnedDatapointsLimit is the maximum number of datapoints to return.
@@ -270,9 +272,9 @@ type CompleteTagsQuery struct {
 	// TagMatchers is the search criteria for the query.
 	TagMatchers models.Matchers
 	// Start is the inclusive start for the query.
-	Start time.Time
+	Start xtime.UnixNano
 	// End is the exclusive end for the query.
-	End time.Time
+	End xtime.UnixNano
 }
 
 // SeriesMatchQuery represents a query that returns a set of series

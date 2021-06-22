@@ -92,6 +92,8 @@ type PrometheusConfigurationOptions struct {
 	// OnError allows for customization of what to do when a metric
 	// registration error fails, the default is to panic.
 	OnError func(e error)
+	// CommonLabels will be appended to every metric gathered.
+	CommonLabels map[string]string
 }
 
 // PrometheusExternalRegistry is an external Prometheus registry
@@ -108,10 +110,13 @@ type PrometheusExternalRegistry struct {
 func (c PrometheusConfiguration) NewReporter(
 	configOpts PrometheusConfigurationOptions,
 ) (prometheus.Reporter, error) {
-	var opts prometheus.Options
-
-	if configOpts.Registry != nil {
-		opts.Registerer = configOpts.Registry
+	registry := configOpts.Registry
+	if registry == nil {
+		registry = prom.NewRegistry()
+	}
+	opts := prometheus.Options{
+		Registerer: registry,
+		Gatherer:   registry,
 	}
 
 	if configOpts.OnError != nil {
@@ -165,11 +170,8 @@ func (c PrometheusConfiguration) NewReporter(
 		path = handlerPath
 	}
 
-	handler := reporter.HTTPHandler()
-	if configOpts.Registry != nil {
-		gatherer := newMultiGatherer(configOpts.Registry, configOpts.ExternalRegistries)
-		handler = promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
-	}
+	gatherer := newMultiGatherer(registry, configOpts.ExternalRegistries, configOpts.CommonLabels)
+	handler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 
 	addr := strings.TrimSpace(c.ListenAddress)
 	if addr == "" && configOpts.HandlerListener == nil {
@@ -205,18 +207,21 @@ func (c PrometheusConfiguration) NewReporter(
 func newMultiGatherer(
 	primary *prom.Registry,
 	ext []PrometheusExternalRegistry,
+	commonLabels map[string]string,
 ) prom.Gatherer {
 	return &multiGatherer{
-		primary: primary,
-		ext:     ext,
+		primary:      primary,
+		ext:          ext,
+		commonLabels: commonLabels,
 	}
 }
 
 var _ prom.Gatherer = (*multiGatherer)(nil)
 
 type multiGatherer struct {
-	primary *prom.Registry
-	ext     []PrometheusExternalRegistry
+	primary      *prom.Registry
+	ext          []PrometheusExternalRegistry
+	commonLabels map[string]string
 }
 
 func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
@@ -224,6 +229,8 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	appendLabelsToMetrics(g.commonLabels, results)
 
 	if len(g.ext) == 0 {
 		return results, nil
@@ -319,6 +326,8 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 					metricEntry.Label = append(metricEntry.Label, labelEntry)
 				}
 
+				appendLabels(g.commonLabels, metricEntry)
+
 				entry.Metric = append(entry.Metric, metricEntry)
 			}
 
@@ -327,4 +336,22 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 	}
 
 	return results, nil
+}
+
+func appendLabels(commonLabels map[string]string, metric *dto.Metric) {
+	for name, value := range commonLabels {
+		name := name
+		value := value
+		metric.Label = append(metric.Label, &dto.LabelPair{Name: &name, Value: &value})
+	}
+}
+
+func appendLabelsToMetrics(commonLabels map[string]string, results []*dto.MetricFamily) {
+	if len(commonLabels) > 0 {
+		for _, metricFamily := range results {
+			for _, metric := range metricFamily.Metric {
+				appendLabels(commonLabels, metric)
+			}
+		}
+	}
 }

@@ -27,66 +27,111 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
-	var (
-		ctrl = gomock.NewController(t)
-		ctx  = xcontext.NewBackground()
-
-		blockSize    = time.Hour
-		startTime    = time.Now().Truncate(blockSize)
-		bufferPast   = 30 * time.Minute
-		bufferFuture = 30 * time.Minute
-		// shift 'now' just enough so that after adding 'bufferFuture' it would reach the next block
-		now = startTime.Add(blockSize - bufferFuture)
-
-		retentionOpts = retention.NewOptions().
-				SetBlockSize(blockSize).
-				SetRetentionPeriod(12 * blockSize).
-				SetBufferPast(bufferPast).
-				SetBufferFuture(bufferFuture)
-		nsOptions = namespace.NewOptions().SetRetentionOptions(retentionOpts)
-		nsID      = ident.StringID("ns")
-		ns, err   = namespace.NewMetadata(nsID, nsOptions)
-	)
-	require.NoError(t, err)
-
-	processNs := []ProcessNamespace{
+	tests := []struct {
+		name               string
+		shardsInitializing bool
+		expectErr          error
+	}{
 		{
-			Metadata:        ns,
-			Shards:          []uint32{0},
-			DataAccumulator: NewMockNamespaceDataAccumulator(ctrl),
+			name:               "time shifted and shards initializing, should return error",
+			shardsInitializing: true,
+			expectErr:          ErrFileSetSnapshotTypeRangeAdvanced,
+		},
+		{
+			name:               "time shifted and shards all available, should not return error",
+			shardsInitializing: false,
 		},
 	}
 
-	bootstrapper := NewMockBootstrapper(ctrl)
-	bootstrapper.EXPECT().String().Return("mock_bootstrapper").AnyTimes()
-	bootstrapper.EXPECT().
-		Bootstrap(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_, _, _ interface{}) (NamespaceResults, error) {
-			return NewNamespaceResults(NewNamespaces(processNs)), nil
-		}).
-		AnyTimes()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	process := bootstrapProcess{
-		processOpts:          NewProcessOptions(),
-		resultOpts:           result.NewOptions(),
-		fsOpts:               fs.NewOptions(),
-		nowFn:                func() time.Time { return now },
-		log:                  instrument.NewOptions().Logger(),
-		bootstrapper:         bootstrapper,
-		initialTopologyState: &topology.StateSnapshot{},
+			var (
+				ctx          = xcontext.NewBackground()
+				blockSize    = time.Hour
+				startTime    = xtime.Now().Truncate(blockSize)
+				bufferPast   = 30 * time.Minute
+				bufferFuture = 30 * time.Minute
+				// shift 'now' just enough so that after adding 'bufferFuture' it would reach the next block
+				now           = startTime.Add(blockSize - bufferFuture)
+				shards        = []uint32{0}
+				retentionOpts = retention.NewOptions().
+						SetBlockSize(blockSize).
+						SetRetentionPeriod(12 * blockSize).
+						SetBufferPast(bufferPast).
+						SetBufferFuture(bufferFuture)
+				nsOptions = namespace.NewOptions().SetRetentionOptions(retentionOpts)
+				nsID      = ident.StringID("ns")
+				ns, err   = namespace.NewMetadata(nsID, nsOptions)
+			)
+			require.NoError(t, err)
+
+			processNs := []ProcessNamespace{
+				{
+					Metadata:        ns,
+					Shards:          shards,
+					DataAccumulator: NewMockNamespaceDataAccumulator(ctrl),
+				},
+			}
+
+			bootstrapper := NewMockBootstrapper(ctrl)
+			bootstrapper.EXPECT().String().Return("mock_bootstrapper").AnyTimes()
+			bootstrapper.EXPECT().
+				Bootstrap(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_, _, _ interface{}) (NamespaceResults, error) {
+					return NewNamespaceResults(NewNamespaces(processNs)), nil
+				}).
+				AnyTimes()
+
+			shardState := shard.Available
+			if test.shardsInitializing {
+				shardState = shard.Initializing
+			}
+			shardSet, err := sharding.NewShardSet(sharding.NewShards(shards, shardState),
+				sharding.DefaultHashFn(len(shards)))
+			require.NoError(t, err)
+
+			origin := topology.NewHost("self", "127.0.0.1:9000")
+			hostShardSet := topology.NewHostShardSet(origin, shardSet)
+
+			topoMapOpts := topology.NewStaticOptions().
+				SetReplicas(1).
+				SetShardSet(shardSet).
+				SetHostShardSets([]topology.HostShardSet{hostShardSet})
+			topoMap := topology.NewStaticMap(topoMapOpts)
+
+			topoState, err := newInitialTopologyState(origin, topoMap)
+			require.NoError(t, err)
+
+			processOpts := NewProcessOptions().SetOrigin(origin)
+			process := bootstrapProcess{
+				processOpts:          processOpts,
+				resultOpts:           result.NewOptions(),
+				fsOpts:               fs.NewOptions(),
+				nowFn:                func() time.Time { return now.ToTime() },
+				log:                  instrument.NewOptions().Logger(),
+				bootstrapper:         bootstrapper,
+				initialTopologyState: topoState,
+			}
+
+			_, err = process.Run(ctx, startTime, processNs)
+			require.Equal(t, test.expectErr, err)
+		})
 	}
-
-	_, err = process.Run(ctx, startTime, processNs)
-	require.Equal(t, ErrFileSetSnapshotTypeRangeAdvanced, err)
 }

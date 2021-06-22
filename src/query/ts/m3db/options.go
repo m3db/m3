@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -45,6 +46,9 @@ var (
 	defaultIteratorBatchingFn   = iteratorBatchingFn
 	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
 	defaultInstrumented         = true
+	defaultTagsTransform        = func(ctx context.Context, tags []models.Tag) ([]models.Tag, error) {
+		return tags, nil
+	}
 )
 
 type encodedBlockOptions struct {
@@ -52,11 +56,12 @@ type encodedBlockOptions struct {
 	lookbackDuration              time.Duration
 	consolidationFn               consolidators.ConsolidationFunc
 	tagOptions                    models.TagOptions
+	tagsTransform                 models.TagsTransform
 	iterAlloc                     encoding.ReaderIteratorAllocate
 	pools                         encoding.IteratorPools
 	checkedPools                  pool.CheckedBytesPool
-	readWorkerPools               xsync.PooledWorkerPool
-	writeWorkerPools              xsync.PooledWorkerPool
+	readWorkerPools               xsync.StaticPooledWorkerPool
+	writeWorkerPools              xsync.DynamicPooledWorkerPool
 	queryConsolidatorMatchOptions queryconsolidator.MatchOptions
 	seriesIteratorProcessor       SeriesIteratorProcessor
 	batchingFn                    IteratorBatchingFn
@@ -97,6 +102,7 @@ func newOptions(
 		queryConsolidatorMatchOptions: queryconsolidator.MatchOptions{
 			MatchType: queryconsolidator.MatchIDs,
 		},
+		tagsTransform: defaultTagsTransform,
 	}
 }
 
@@ -140,6 +146,16 @@ func (o *encodedBlockOptions) TagOptions() models.TagOptions {
 	return o.tagOptions
 }
 
+func (o *encodedBlockOptions) SetTagsTransform(value models.TagsTransform) Options {
+	opts := *o
+	opts.tagsTransform = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) TagsTransform() models.TagsTransform {
+	return o.tagsTransform
+}
+
 func (o *encodedBlockOptions) SetIterAlloc(ia encoding.ReaderIteratorAllocate) Options {
 	opts := *o
 	opts.iterAlloc = ia
@@ -170,23 +186,23 @@ func (o *encodedBlockOptions) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.checkedPools
 }
 
-func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.PooledWorkerPool) Options {
+func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.StaticPooledWorkerPool) Options {
 	opts := *o
 	opts.readWorkerPools = p
 	return &opts
 }
 
-func (o *encodedBlockOptions) ReadWorkerPool() xsync.PooledWorkerPool {
+func (o *encodedBlockOptions) ReadWorkerPool() xsync.StaticPooledWorkerPool {
 	return o.readWorkerPools
 }
 
-func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.PooledWorkerPool) Options {
+func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.DynamicPooledWorkerPool) Options {
 	opts := *o
 	opts.writeWorkerPools = p
 	return &opts
 }
 
-func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
+func (o *encodedBlockOptions) WriteWorkerPool() xsync.DynamicPooledWorkerPool {
 	return o.writeWorkerPools
 }
 

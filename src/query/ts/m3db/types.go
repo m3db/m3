@@ -58,6 +58,10 @@ type Options interface {
 	SetTagOptions(models.TagOptions) Options
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
+	// TagsTransform returns the transform to apply to tags before storage.
+	TagsTransform() models.TagsTransform
+	// SetTagsTransform sets the TagsTransform.
+	SetTagsTransform(value models.TagsTransform) Options
 	// SetIterAlloc sets the iterator allocator.
 	SetIterAlloc(encoding.ReaderIteratorAllocate) Options
 	// IterAlloc returns the reader iterator allocator.
@@ -71,13 +75,13 @@ type Options interface {
 	// CheckedBytesPool returns the checked bytes pools for the converter.
 	CheckedBytesPool() pool.CheckedBytesPool
 	// SetReadWorkerPool sets the read worker pool for the converter.
-	SetReadWorkerPool(xsync.PooledWorkerPool) Options
+	SetReadWorkerPool(xsync.StaticPooledWorkerPool) Options
 	// ReadWorkerPool returns the read worker pool for the converter.
-	ReadWorkerPool() xsync.PooledWorkerPool
-	// SetReadWorkerPool sets the write worker pool for the converter.
-	SetWriteWorkerPool(xsync.PooledWorkerPool) Options
-	// ReadWorkerPool returns the write worker pool for the converter.
-	WriteWorkerPool() xsync.PooledWorkerPool
+	ReadWorkerPool() xsync.StaticPooledWorkerPool
+	// SetWriteWorkerPool sets the write worker pool for the converter.
+	SetWriteWorkerPool(xsync.DynamicPooledWorkerPool) Options
+	// WriteWorkerPool returns the write worker pool for the converter.
+	WriteWorkerPool() xsync.DynamicPooledWorkerPool
 	// SetSeriesConsolidationMatchOptions sets series consolidation options.
 	SetSeriesConsolidationMatchOptions(value queryconsolidator.MatchOptions) Options
 	// SetSeriesConsolidationMatchOptions sets series consolidation options.

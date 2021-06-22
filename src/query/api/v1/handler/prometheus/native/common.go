@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -93,7 +94,7 @@ func parseParams(
 		return params, xerrors.NewInvalidParamsError(err)
 	}
 
-	params.Start = start
+	params.Start = xtime.ToUnixNano(start)
 	end, err := ParseTime(r, endParam, params.Now)
 	if err != nil {
 		err = fmt.Errorf(formatErrStr, endParam, err)
@@ -103,7 +104,7 @@ func parseParams(
 		err = fmt.Errorf("start (%s) must be before end (%s)", start, end)
 		return params, xerrors.NewInvalidParamsError(err)
 	}
-	params.End = end
+	params.End = xtime.ToUnixNano(end)
 
 	timeout := fetchOpts.Timeout
 	if timeout <= 0 {
@@ -226,8 +227,8 @@ func ParseQuery(r *http.Request) (string, error) {
 // RenderResultsOptions is a set of options for rendering the result.
 type RenderResultsOptions struct {
 	KeepNaNs                bool
-	Start                   time.Time
-	End                     time.Time
+	Start                   xtime.UnixNano
+	End                     xtime.UnixNano
 	ReturnedSeriesLimit     int
 	ReturnedDatapointsLimit int
 }
@@ -336,7 +337,7 @@ func RenderResultsJSON(
 			datapointsRendered++
 
 			jw.BeginArray()
-			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
 		}
@@ -425,7 +426,7 @@ func renderResultsInstantaneousJSON(
 		}
 
 		if isScalar {
-			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			returnedCount++
 			continue
@@ -449,7 +450,7 @@ func renderResultsInstantaneousJSON(
 
 		jw.BeginObjectField("value")
 		jw.BeginArray()
-		jw.WriteInt(int(dp.Timestamp.Unix()))
+		jw.WriteInt(int(dp.Timestamp.Seconds()))
 		jw.WriteString(utils.FormatFloat(dp.Value))
 		jw.EndArray()
 		jw.EndObject()

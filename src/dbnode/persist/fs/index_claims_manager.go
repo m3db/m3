@@ -24,7 +24,6 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -92,13 +91,14 @@ func NewIndexClaimsManager(opts Options) (IndexClaimsManager, error) {
 
 func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
 	md namespace.Metadata,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (int, error) {
 	i.Lock()
+	now := xtime.ToUnixNano(i.nowFn())
 	earliestBlockStart := retention.FlushTimeStartForRetentionPeriod(
 		md.Options().RetentionOptions().RetentionPeriod(),
 		md.Options().IndexOptions().BlockSize(),
-		i.nowFn(),
+		now,
 	)
 	defer func() {
 		i.deleteOutOfRetentionEntriesWithLock(md.ID(), earliestBlockStart)
@@ -116,12 +116,11 @@ func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
 		i.volumeIndexClaims[md.ID().String()] = volumeIndexClaimsByBlockStart
 	}
 
-	blockStartUnixNanos := xtime.ToUnixNano(blockStart)
-	if curr, ok := volumeIndexClaimsByBlockStart[blockStartUnixNanos]; ok {
+	if curr, ok := volumeIndexClaimsByBlockStart[blockStart]; ok {
 		// Already had a previous claim, return the next claim.
 		next := curr
 		next.volumeIndex++
-		volumeIndexClaimsByBlockStart[blockStartUnixNanos] = next
+		volumeIndexClaimsByBlockStart[blockStart] = next
 		return next.volumeIndex, nil
 	}
 
@@ -130,7 +129,7 @@ func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
 	if err != nil {
 		return 0, err
 	}
-	volumeIndexClaimsByBlockStart[blockStartUnixNanos] = volumeIndexClaim{
+	volumeIndexClaimsByBlockStart[blockStart] = volumeIndexClaim{
 		volumeIndex: volumeIndex,
 	}
 	return volumeIndex, nil
@@ -138,12 +137,11 @@ func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
 
 func (i *indexClaimsManager) deleteOutOfRetentionEntriesWithLock(
 	nsID ident.ID,
-	earliestBlockStart time.Time,
+	earliestBlockStart xtime.UnixNano,
 ) {
-	earliestBlockStartUnixNanos := xtime.ToUnixNano(earliestBlockStart)
 	// ns ID already exists at this point since the delete call is deferred.
 	for blockStart := range i.volumeIndexClaims[nsID.String()] {
-		if blockStart.Before(earliestBlockStartUnixNanos) {
+		if blockStart.Before(earliestBlockStart) {
 			delete(i.volumeIndexClaims[nsID.String()], blockStart)
 		}
 	}
@@ -152,5 +150,5 @@ func (i *indexClaimsManager) deleteOutOfRetentionEntriesWithLock(
 type nextIndexFileSetVolumeIndexFn func(
 	filePathPrefix string,
 	namespace ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (int, error)

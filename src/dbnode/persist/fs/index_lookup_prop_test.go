@@ -29,7 +29,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/mmap"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -257,7 +257,8 @@ func genTagIdent() gopter.Gen {
 	})
 }
 
-func readIndexFileOffsets(shardDirPath string, numEntries int, start time.Time) (map[string]int64, error) {
+func readIndexFileOffsets(shardDirPath string, numEntries int,
+	start xtime.UnixNano) (map[string]int64, error) {
 	indexFilePath := dataFilesetPathFromTimeAndIndex(shardDirPath, start, 0, indexFileSuffix, false)
 	buf, err := ioutil.ReadFile(indexFilePath)
 	if err != nil {

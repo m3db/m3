@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -205,7 +206,7 @@ type generateTaggedBlockConfig struct {
 	series     int
 	numPoints  int
 	commonTags []ident.Tag
-	blockStart time.Time
+	blockStart xtime.UnixNano
 }
 
 func generateTaggedBlockConfigs(

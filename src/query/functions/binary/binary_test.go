@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -539,7 +540,7 @@ var singleSeriesTests = []struct {
 }
 
 func TestSingleSeriesReturnBool(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -607,7 +608,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 }
 
 func TestSingleSeriesReturnValues(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -888,7 +889,7 @@ var bothSeriesTests = []struct {
 }
 
 func TestBothSeries(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	for _, tt := range bothSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -937,7 +938,7 @@ func TestBothSeries(t *testing.T) {
 }
 
 func TestBinaryFunctionWithDifferentNames(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
 		return block.Metadata{
@@ -1029,7 +1030,7 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 }
 
 func TestOneToOneMatcher(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
 		return block.Metadata{

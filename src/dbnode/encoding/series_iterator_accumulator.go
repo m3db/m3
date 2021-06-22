@@ -23,7 +23,6 @@ package encoding
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -35,8 +34,8 @@ var _ SeriesIteratorAccumulator = (*seriesIteratorAccumulator)(nil)
 type seriesIteratorAccumulator struct {
 	id              ident.ID
 	nsID            ident.ID
-	start           time.Time
-	end             time.Time
+	start           xtime.UnixNano
+	end             xtime.UnixNano
 	iters           iterators
 	tagIterator     ident.TagIterator
 	seriesIterators []SeriesIterator
@@ -126,11 +125,11 @@ func (it *seriesIteratorAccumulator) Tags() ident.TagIterator {
 	return it.seriesIterators[0].Tags()
 }
 
-func (it *seriesIteratorAccumulator) Start() time.Time {
+func (it *seriesIteratorAccumulator) Start() xtime.UnixNano {
 	return it.start
 }
 
-func (it *seriesIteratorAccumulator) End() time.Time {
+func (it *seriesIteratorAccumulator) End() xtime.UnixNano {
 	return it.end
 }
 

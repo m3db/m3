@@ -26,8 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 func TestOneClientMultiTypeUntimedMetricsWithStagedMetadatas(t *testing.T) {

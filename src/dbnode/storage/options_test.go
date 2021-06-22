@@ -23,14 +23,14 @@ package storage
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
-
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestOptionsValidateDefaults(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockInit := namespace.NewMockInitializer(ctrl)

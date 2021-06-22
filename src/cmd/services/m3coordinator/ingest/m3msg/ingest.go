@@ -23,7 +23,6 @@ package ingestm3msg
 import (
 	"bytes"
 	"context"
-	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
@@ -41,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -49,7 +49,7 @@ import (
 // Options configures the ingester.
 type Options struct {
 	Appender          storage.Appender
-	Workers           xsync.PooledWorkerPool
+	Workers           xsync.StaticPooledWorkerPool
 	PoolOptions       pool.ObjectPoolOptions
 	TagDecoderPool    serialize.TagDecoderPool
 	RetryOptions      retry.Options
@@ -78,7 +78,7 @@ func newIngestMetrics(scope tally.Scope) ingestMetrics {
 
 // Ingester ingests metrics with a worker pool.
 type Ingester struct {
-	workers xsync.PooledWorkerPool
+	workers xsync.StaticPooledWorkerPool
 	p       pool.ObjectPool
 }
 
@@ -267,6 +267,6 @@ func (op *ingestOp) resetDataPoints() {
 	if len(op.datapoints) != 1 {
 		op.datapoints = make(ts.Datapoints, 1)
 	}
-	op.datapoints[0].Timestamp = time.Unix(0, op.metricNanos)
+	op.datapoints[0].Timestamp = xtime.UnixNano(op.metricNanos)
 	op.datapoints[0].Value = op.value
 }

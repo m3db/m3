@@ -38,6 +38,10 @@ const (
 	// DeprecatedHeader is the M3 deprecated header.
 	DeprecatedHeader = M3HeaderPrefix + "Deprecated"
 
+	// EngineHeaderName defines header name which is used to switch between
+	// prometheus and m3query engines.
+	EngineHeaderName = M3HeaderPrefix + "Engine"
+
 	// MetricsTypeHeader sets the write or read metrics type to restrict
 	// metrics to.
 	// Valid values are "unaggregated" or "aggregated".
@@ -90,6 +94,10 @@ const (
 	// LimitMaxDocsHeader is the M3 limit docs header that limits
 	// the number of docs returned by each storage node.
 	LimitMaxDocsHeader = M3HeaderPrefix + "Limit-Max-Docs"
+
+	// LimitMaxRangeHeader is the M3 limit range header that limits
+	// the time range returned by each storage node.
+	LimitMaxRangeHeader = M3HeaderPrefix + "Limit-Max-Range"
 
 	// LimitMaxReturnedDatapointsHeader is the M3 header that limits
 	// the number of datapoints returned in total to the client.

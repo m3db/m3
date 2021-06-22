@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -51,14 +50,14 @@ func BenchmarkM3TSZEncode(b *testing.B) {
 	var (
 		encodingOpts = encoding.NewOptions()
 		seriesRun    = prepareSampleSeriesEncRun(b)
-		encoder      = NewEncoder(time.Now(), nil, DefaultIntOptimizationEnabled, encodingOpts)
+		encoder      = NewEncoder(xtime.Now(), nil, DefaultIntOptimizationEnabled, encodingOpts)
 	)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		run := seriesRun[i]
-		encoder.Reset(run[0].Timestamp, len(run), nil)
+		encoder.Reset(run[0].TimestampNanos, len(run), nil)
 
 		for i := range run {
 			// Using index access to avoid copying a 40 byte datapoint.

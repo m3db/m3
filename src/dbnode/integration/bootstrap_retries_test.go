@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
@@ -209,7 +210,13 @@ func bootstrapRetryTestSetup(t *testing.T, bootstrapFn bootstrapFn) (TestSetup, 
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(rOpts))
 	require.NoError(t, err)
 	opts := NewTestOptions(t).
-		SetNamespaces([]namespace.Metadata{ns1})
+		SetNamespaces([]namespace.Metadata{ns1}).
+		SetShardSetOptions(&TestShardSetOptions{
+			// Set all shards to initializing so bootstrap is
+			// retried on an obsolete range (which is not done
+			// if all shards are available and hence coming from disk).
+			ShardState: shard.Initializing,
+		})
 
 	setup, err := NewTestSetup(t, opts, nil, func(storageOpts storage.Options) storage.Options {
 		return storageOpts.SetInstrumentOptions(storageOpts.InstrumentOptions().SetMetricsScope(testScope))

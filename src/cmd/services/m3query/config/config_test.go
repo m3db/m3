@@ -99,6 +99,9 @@ func TestConfigLoading(t *testing.T) {
 			RequireExhaustive: &requireExhaustive,
 		},
 	}, &cfg.Limits)
+
+	assert.Equal(t, HTTPConfiguration{EnableH2C: true}, cfg.HTTP)
+
 	// TODO: assert on more fields here.
 }
 
@@ -132,7 +135,8 @@ func TestConfigValidation(t *testing.T) {
 			cfg.Limits = LimitsConfiguration{
 				PerQuery: PerQueryLimitsConfiguration{
 					MaxFetchedSeries: tc.limit,
-				}}
+				},
+			}
 
 			assert.NoError(t, validator.Validate(cfg))
 		})
@@ -153,7 +157,7 @@ func TestGraphiteIDGenerationSchemeIsInvalid(t *testing.T) {
 }
 
 func TestTagOptionsConfigWithTagGenerationScheme(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		schemeStr string
 		scheme    models.IDSchemeType
 	}{

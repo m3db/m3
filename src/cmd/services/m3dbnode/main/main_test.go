@@ -207,10 +207,10 @@ func TestConfig(t *testing.T) {
 	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
 	session := adminSession.(client.Session)
 
-	start := time.Now().Add(-time.Minute)
+	start := xtime.Now().Add(-time.Minute)
 	values := []struct {
 		value float64
-		at    time.Time
+		at    xtime.UnixNano
 		unit  xtime.Unit
 	}{
 		{value: 1.0, at: start, unit: xtime.Second},
@@ -239,7 +239,7 @@ func TestConfig(t *testing.T) {
 		assert.Equal(t, v.value, dp.Value)
 		// Account for xtime.Second precision on values going in
 		expectAt := v.at.Truncate(time.Second)
-		assert.Equal(t, expectAt, dp.Timestamp)
+		assert.Equal(t, expectAt, dp.TimestampNanos)
 		assert.Equal(t, v.unit, unit)
 	}
 
@@ -421,10 +421,10 @@ func TestEmbeddedConfig(t *testing.T) {
 	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
 	session := adminSession.(client.Session)
 
-	start := time.Now().Add(-time.Minute)
+	start := xtime.Now().Add(-time.Minute)
 	values := []struct {
 		value float64
-		at    time.Time
+		at    xtime.UnixNano
 		unit  xtime.Unit
 	}{
 		{value: 1.0, at: start, unit: xtime.Second},
@@ -453,7 +453,7 @@ func TestEmbeddedConfig(t *testing.T) {
 		assert.Equal(t, v.value, dp.Value)
 		// Account for xtime.Second precision on values going in
 		expectAt := v.at.Truncate(time.Second)
-		assert.Equal(t, expectAt, dp.Timestamp)
+		assert.Equal(t, expectAt, dp.TimestampNanos)
 		assert.Equal(t, v.unit, unit)
 	}
 

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	xts "github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // StepLookbackAccumulator is a helper for accumulating series in a step-wise
@@ -34,7 +35,7 @@ import (
 type StepLookbackAccumulator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
-	earliestLookback time.Time
+	earliestLookback xtime.UnixNano
 	datapoints       []xts.Datapoint
 	buffer           [][]xts.Datapoint
 	unconsumed       [][]xts.Datapoint
@@ -47,7 +48,7 @@ var _ StepCollector = (*StepLookbackAccumulator)(nil)
 // step iteration across a series list with a given lookback.
 func NewStepLookbackAccumulator(
 	lookbackDuration, stepSize time.Duration,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) *StepLookbackAccumulator {
 	datapoints := make([]xts.Datapoint, 0, initLength)
 	buffer := make([][]xts.Datapoint, BufferSteps)
@@ -64,13 +65,13 @@ func NewStepLookbackAccumulator(
 // AddPoint adds a datapoint to a given step if it's within the valid
 // time period; otherwise drops it silently, which is fine for accumulation.
 func (c *StepLookbackAccumulator) AddPoint(dp ts.Datapoint) {
-	if dp.Timestamp.Before(c.earliestLookback) {
+	if dp.TimestampNanos.Before(c.earliestLookback) {
 		// this datapoint is too far in the past, it can be dropped.
 		return
 	}
 
 	c.datapoints = append(c.datapoints, xts.Datapoint{
-		Timestamp: dp.Timestamp,
+		Timestamp: dp.TimestampNanos,
 		Value:     dp.Value,
 	})
 }

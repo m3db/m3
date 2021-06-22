@@ -112,7 +112,7 @@ type downsamplerAndWriterMetrics struct {
 type downsamplerAndWriter struct {
 	store       storage.Storage
 	downsampler downsample.Downsampler
-	workerPool  xsync.PooledWorkerPool
+	workerPool  xsync.DynamicPooledWorkerPool
 
 	metrics downsamplerAndWriterMetrics
 }
@@ -121,7 +121,7 @@ type downsamplerAndWriter struct {
 func NewDownsamplerAndWriter(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
-	workerPool xsync.PooledWorkerPool,
+	workerPool xsync.DynamicPooledWorkerPool,
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
@@ -280,7 +280,9 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 		if result.ShouldDropTimestamp {
 			err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Value, annotation)
 		} else {
-			err = result.SamplesAppender.AppendGaugeSample(dp.Timestamp, dp.Value, annotation)
+			err = result.SamplesAppender.AppendGaugeSample(
+				dp.Timestamp, dp.Value, annotation,
+			)
 		}
 		if err != nil {
 			return result.IsDropPolicyApplied, err
@@ -327,7 +329,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 		p := p // Capture for goroutine.
 
 		wg.Add(1)
-		d.workerPool.Go(func() {
+		d.workerPool.GoAlways(func() {
 			// NB(r): Allocate the write query at the top
 			// of the pooled worker instead of need to pass
 			// the options down the stack which can cause
@@ -407,7 +409,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
-				d.workerPool.Go(func() {
+				d.workerPool.GoAlways(func() {
 					// NB(r): Allocate the write query at the top
 					// of the pooled worker instead of need to pass
 					// the options down the stack which can cause
@@ -507,19 +509,26 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				if result.ShouldDropTimestamp {
 					err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Value, value.Annotation)
 				} else {
-					err = result.SamplesAppender.AppendGaugeSample(dp.Timestamp, dp.Value, value.Annotation)
+					err = result.SamplesAppender.AppendGaugeSample(
+						dp.Timestamp, dp.Value, value.Annotation,
+					)
 				}
 			case ts.M3MetricTypeCounter:
 				if result.ShouldDropTimestamp {
-					err = result.SamplesAppender.AppendUntimedCounterSample(int64(dp.Value), value.Annotation)
+					err = result.SamplesAppender.AppendUntimedCounterSample(
+						int64(dp.Value), value.Annotation)
 				} else {
-					err = result.SamplesAppender.AppendCounterSample(dp.Timestamp, int64(dp.Value), value.Annotation)
+					err = result.SamplesAppender.AppendCounterSample(
+						dp.Timestamp, int64(dp.Value), value.Annotation,
+					)
 				}
 			case ts.M3MetricTypeTimer:
 				if result.ShouldDropTimestamp {
 					err = result.SamplesAppender.AppendUntimedTimerSample(dp.Value, value.Annotation)
 				} else {
-					err = result.SamplesAppender.AppendTimerSample(dp.Timestamp, dp.Value, value.Annotation)
+					err = result.SamplesAppender.AppendTimerSample(
+						dp.Timestamp, dp.Value, value.Annotation,
+					)
 				}
 			}
 			if err != nil {
