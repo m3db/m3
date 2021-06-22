@@ -23,6 +23,7 @@ package encoding
 import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -40,6 +41,7 @@ var (
 )
 
 type options struct {
+	iOpts                   instrument.Options
 	defaultTimeUnit         xtime.Unit
 	timeEncodingSchemes     TimeEncodingSchemes
 	markerEncodingScheme    *MarkerEncodingScheme
@@ -55,6 +57,7 @@ type options struct {
 
 func newOptions() Options {
 	return &options{
+		iOpts:                  instrument.NewOptions(),
 		defaultTimeUnit:        defaultDefaultTimeUnit,
 		timeEncodingSchemes:    NewTimeEncodingSchemes(defaultTimeEncodingSchemes),
 		markerEncodingScheme:   defaultMarkerEncodingScheme,
@@ -67,6 +70,16 @@ func newOptions() Options {
 // NewOptions creates a new options.
 func NewOptions() Options {
 	return defaultOptions
+}
+
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.iOpts = value
+	return &opts
+}
+
+func (o *options) InstrumentOptions() instrument.Options {
+	return o.iOpts
 }
 
 func (o *options) SetDefaultTimeUnit(value xtime.Unit) Options {

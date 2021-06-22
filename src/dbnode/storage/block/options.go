@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
@@ -59,6 +60,7 @@ type options struct {
 
 // NewOptions creates new database block options
 func NewOptions() Options {
+	iOpts := instrument.NewOptions()
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
@@ -83,6 +85,7 @@ func NewOptions() Options {
 	})
 
 	encodingOpts := encoding.NewOptions().
+		SetInstrumentOptions(iOpts).
 		SetBytesPool(bytesPool).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).

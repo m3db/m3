@@ -1677,6 +1677,7 @@ func withEncodingAndPoolingOptions(
 	bytesWrapperPool.Init()
 
 	encodingOpts := encoding.NewOptions().
+		SetInstrumentOptions(iOpts).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).

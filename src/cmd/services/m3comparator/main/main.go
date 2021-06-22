@@ -62,7 +62,10 @@ func init() {
 	checkedBytesPool = pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
 	checkedBytesPool.Init()
 
-	encodingOpts = encoding.NewOptions().SetEncoderPool(encoderPool).SetBytesPool(checkedBytesPool)
+	encodingOpts = encoding.NewOptions().
+		SetInstrumentOptions(iOpts.SetMetricsScope(iOpts.MetricsScope().SubScope("encoding"))).
+		SetEncoderPool(encoderPool).
+		SetBytesPool(checkedBytesPool)
 
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(0, nil, true, encodingOpts)
