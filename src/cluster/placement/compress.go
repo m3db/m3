@@ -21,39 +21,33 @@
 package placement
 
 import (
-	"fmt"
-	"runtime"
-	"sync"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
-const (
-	_decoderInitialBufferSize = 131072
-	_maxConcurrency           = 4
-)
-
-var (
-	_ztdInitialized sync.Once
-
-	_zstdEncoder *zstd.Encoder
-	_zstdDecoder *zstd.Decoder
-)
+const _decoderInitialBufferSize = 131072
 
 func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
 	if p == nil {
 		return nil, errNilPlacementSnapshotsProto
 	}
 
-	_ztdInitialized.Do(initZstd)
+	w, err := zstd.NewWriter(
+		nil,
+		zstd.WithEncoderCRC(true),
+		zstd.WithEncoderConcurrency(1),
+		zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	if err != nil {
+		return nil, err
+	}
+	defer w.Close()
 
 	uncompressed, _ := p.Marshal()
 
 	compressed := make([]byte, 0, len(uncompressed)/2) // prealloc, assuming at least 50% space savings
-	compressed = _zstdEncoder.EncodeAll(uncompressed, compressed)
+	compressed = w.EncodeAll(uncompressed, compressed)
 
 	return compressed, nil
 }
@@ -63,14 +57,18 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 		return nil, errNilValue
 	}
 
-	_ztdInitialized.Do(initZstd)
-
-	var (
-		decompressed = make([]byte, 0, _decoderInitialBufferSize)
-		err          error
+	decompressed := make([]byte, 0, _decoderInitialBufferSize)
+	r, err := zstd.NewReader(
+		nil,
+		zstd.WithDecoderConcurrency(1),
+		zstd.WithDecoderLowmem(false),
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
 
-	decompressed, err = _zstdDecoder.DecodeAll(compressed, decompressed)
+	decompressed, err = r.DecodeAll(compressed, decompressed)
 	if err != nil {
 		return nil, err
 	}
@@ -81,32 +79,4 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 	}
 
 	return result, nil
-}
-
-func initZstd() {
-	concurrency := runtime.GOMAXPROCS(0)
-	if concurrency > _maxConcurrency {
-		concurrency = _maxConcurrency
-	}
-
-	ropts := []zstd.DOption{
-		zstd.WithDecoderConcurrency(concurrency),
-		zstd.WithDecoderLowmem(false),
-	}
-	r, err := zstd.NewReader(nil, ropts...)
-	if err != nil {
-		panic(fmt.Errorf("error initializing zstd reader: %w", err))
-	}
-	_zstdDecoder = r
-
-	wopts := []zstd.EOption{
-		zstd.WithEncoderCRC(true),
-		zstd.WithEncoderConcurrency(concurrency),
-		zstd.WithEncoderLevel(zstd.SpeedBestCompression),
-	}
-	w, err := zstd.NewWriter(nil, wopts...)
-	if err != nil {
-		panic(fmt.Errorf("error initializing zstd writer: %w", err))
-	}
-	_zstdEncoder = w
 }
