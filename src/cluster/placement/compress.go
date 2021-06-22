@@ -22,6 +22,7 @@ package placement
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -30,7 +31,10 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
-const _decoderInitialBufferSize = 131072
+const (
+	_decoderInitialBufferSize = 131072
+	_maxConcurrency           = 4
+)
 
 var (
 	_ztdInitialized sync.Once
@@ -80,21 +84,25 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 }
 
 func initZstd() {
+	concurrency := runtime.GOMAXPROCS(0)
+	if concurrency > _maxConcurrency {
+		concurrency = _maxConcurrency
+	}
+
 	ropts := []zstd.DOption{
 		zstd.WithDecoderLowmem(false),
 	}
-
 	r, err := zstd.NewReader(nil, ropts...)
 	if err != nil {
 		panic(fmt.Errorf("error initializing zstd reader: %w", err))
 	}
 	_zstdDecoder = r
 
-	opts := []zstd.EOption{
+	wopts := []zstd.EOption{
 		zstd.WithEncoderCRC(true),
 		zstd.WithEncoderLevel(zstd.SpeedBestCompression),
 	}
-	w, err := zstd.NewWriter(nil, opts...)
+	w, err := zstd.NewWriter(nil, wopts...)
 	if err != nil {
 		panic(fmt.Errorf("error initializing zstd writer: %w", err))
 	}
