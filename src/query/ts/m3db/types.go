@@ -75,13 +75,13 @@ type Options interface {
 	// CheckedBytesPool returns the checked bytes pools for the converter.
 	CheckedBytesPool() pool.CheckedBytesPool
 	// SetReadWorkerPool sets the read worker pool for the converter.
-	SetReadWorkerPool(xsync.StaticPooledWorkerPool) Options
+	SetReadWorkerPool(xsync.PooledWorkerPool) Options
 	// ReadWorkerPool returns the read worker pool for the converter.
-	ReadWorkerPool() xsync.StaticPooledWorkerPool
-	// SetWriteWorkerPool sets the write worker pool for the converter.
-	SetWriteWorkerPool(xsync.DynamicPooledWorkerPool) Options
-	// WriteWorkerPool returns the write worker pool for the converter.
-	WriteWorkerPool() xsync.DynamicPooledWorkerPool
+	ReadWorkerPool() xsync.PooledWorkerPool
+	// SetReadWorkerPool sets the write worker pool for the converter.
+	SetWriteWorkerPool(xsync.PooledWorkerPool) Options
+	// ReadWorkerPool returns the write worker pool for the converter.
+	WriteWorkerPool() xsync.PooledWorkerPool
 	// SetSeriesConsolidationMatchOptions sets series consolidation options.
 	SetSeriesConsolidationMatchOptions(value queryconsolidator.MatchOptions) Options
 	// SetSeriesConsolidationMatchOptions sets series consolidation options.

@@ -112,7 +112,7 @@ type downsamplerAndWriterMetrics struct {
 type downsamplerAndWriter struct {
 	store       storage.Storage
 	downsampler downsample.Downsampler
-	workerPool  xsync.DynamicPooledWorkerPool
+	workerPool  xsync.PooledWorkerPool
 
 	metrics downsamplerAndWriterMetrics
 }
@@ -121,7 +121,7 @@ type downsamplerAndWriter struct {
 func NewDownsamplerAndWriter(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
-	workerPool xsync.DynamicPooledWorkerPool,
+	workerPool xsync.PooledWorkerPool,
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
@@ -329,7 +329,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 		p := p // Capture for goroutine.
 
 		wg.Add(1)
-		d.workerPool.GoAlways(func() {
+		d.workerPool.Go(func() {
 			// NB(r): Allocate the write query at the top
 			// of the pooled worker instead of need to pass
 			// the options down the stack which can cause
@@ -409,7 +409,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
-				d.workerPool.GoAlways(func() {
+				d.workerPool.Go(func() {
 					// NB(r): Allocate the write query at the top
 					// of the pooled worker instead of need to pass
 					// the options down the stack which can cause

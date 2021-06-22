@@ -29,19 +29,37 @@ import (
 
 func TestWorkerPoolPolicyConvertsToOptionsDefault(t *testing.T) {
 	wpp := WorkerPoolPolicy{}
-	opts := wpp.Options()
+	opts, size := wpp.Options()
 	defaultOpts := sync.NewPooledWorkerPoolOptions()
 
+	assert.False(t, opts.GrowOnDemand())
 	assert.Equal(t, defaultOpts.NumShards(), opts.NumShards())
 	assert.Equal(t, defaultOpts.KillWorkerProbability(), opts.KillWorkerProbability())
+	assert.Equal(t, defaultWorkerPoolStaticSize, size)
+}
+
+func TestWorkerPoolPolicyConvertsToOptionsDefaultGrow(t *testing.T) {
+	wpp := WorkerPoolPolicy{GrowOnDemand: true}
+	opts, size := wpp.Options()
+	defaultOpts := sync.NewPooledWorkerPoolOptions()
+
+	assert.True(t, opts.GrowOnDemand())
+	assert.Equal(t, defaultOpts.NumShards(), opts.NumShards())
+	assert.Equal(t, defaultGrowKillProbability, opts.KillWorkerProbability())
+	assert.Equal(t, opts.NumShards(), int64(size))
 }
 
 func TestWorkerPoolPolicyConvertsToOptions(t *testing.T) {
 	wpp := WorkerPoolPolicy{
+		GrowOnDemand:          true,
+		Size:                  100,
 		NumShards:             200,
 		KillWorkerProbability: 0.5,
 	}
-	opts := wpp.Options()
-	assert.Equal(t, 200, opts.NumShards())
+	opts, size := wpp.Options()
+	assert.True(t, opts.GrowOnDemand())
+	assert.Equal(t, int64(200), opts.NumShards())
 	assert.Equal(t, 0.5, opts.KillWorkerProbability())
+	assert.Equal(t, 100, size)
+
 }
