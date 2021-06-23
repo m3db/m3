@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -51,11 +50,7 @@ type TimestampEncoder struct {
 	// Only taken into account if using the WriteTime() API.
 	hasWrittenFirst bool
 
-	metrics timestampEncoderMetrics
-}
-
-type timestampEncoderMetrics struct {
-	annotationRewritten tally.Counter
+	metrics encoding.TimestampEncoderMetrics
 }
 
 var emptyAnnotationChecksum = xxhash.Sum64(nil)
@@ -63,17 +58,13 @@ var emptyAnnotationChecksum = xxhash.Sum64(nil)
 // NewTimestampEncoder creates a new TimestampEncoder.
 func NewTimestampEncoder(
 	start xtime.UnixNano, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("timestamp-encoder")
 	return TimestampEncoder{
 		PrevTime:               start,
 		TimeUnit:               initialTimeUnit(start, timeUnit),
 		PrevAnnotationChecksum: emptyAnnotationChecksum,
 		markerEncodingScheme:   opts.MarkerEncodingScheme(),
 		timeEncodingSchemes:    opts.TimeEncodingSchemes(),
-
-		metrics: timestampEncoderMetrics{
-			annotationRewritten: scope.Counter("annotation-rewritten"),
-		},
+		metrics:                opts.Metrics().TimestampEncoder,
 	}
 }
 
@@ -195,7 +186,7 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 	stream.WriteBytes(ant)
 
 	if enc.PrevAnnotationChecksum != emptyAnnotationChecksum {
-		enc.metrics.annotationRewritten.Inc(1)
+		enc.metrics.IncAnnotationRewritten()
 	}
 	enc.PrevAnnotationChecksum = checksum
 }

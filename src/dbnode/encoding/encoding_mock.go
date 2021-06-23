@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	time0 "github.com/m3db/m3/src/x/time"
@@ -338,20 +337,6 @@ func (mr *MockOptionsMockRecorder) IStreamReaderSizeProto() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IStreamReaderSizeProto", reflect.TypeOf((*MockOptions)(nil).IStreamReaderSizeProto))
 }
 
-// InstrumentOptions mocks base method.
-func (m *MockOptions) InstrumentOptions() instrument.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InstrumentOptions")
-	ret0, _ := ret[0].(instrument.Options)
-	return ret0
-}
-
-// InstrumentOptions indicates an expected call of InstrumentOptions.
-func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
-}
-
 // MarkerEncodingScheme mocks base method.
 func (m *MockOptions) MarkerEncodingScheme() *MarkerEncodingScheme {
 	m.ctrl.T.Helper()
@@ -364,6 +349,20 @@ func (m *MockOptions) MarkerEncodingScheme() *MarkerEncodingScheme {
 func (mr *MockOptionsMockRecorder) MarkerEncodingScheme() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkerEncodingScheme", reflect.TypeOf((*MockOptions)(nil).MarkerEncodingScheme))
+}
+
+// Metrics mocks base method.
+func (m *MockOptions) Metrics() Metrics {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Metrics")
+	ret0, _ := ret[0].(Metrics)
+	return ret0
+}
+
+// Metrics indicates an expected call of Metrics.
+func (mr *MockOptionsMockRecorder) Metrics() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metrics", reflect.TypeOf((*MockOptions)(nil).Metrics))
 }
 
 // ReaderIteratorPool mocks base method.
@@ -492,20 +491,6 @@ func (mr *MockOptionsMockRecorder) SetIStreamReaderSizeProto(value interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIStreamReaderSizeProto", reflect.TypeOf((*MockOptions)(nil).SetIStreamReaderSizeProto), value)
 }
 
-// SetInstrumentOptions mocks base method.
-func (m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetInstrumentOptions indicates an expected call of SetInstrumentOptions.
-func (mr *MockOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), value)
-}
-
 // SetMarkerEncodingScheme mocks base method.
 func (m *MockOptions) SetMarkerEncodingScheme(value *MarkerEncodingScheme) Options {
 	m.ctrl.T.Helper()
@@ -518,6 +503,20 @@ func (m *MockOptions) SetMarkerEncodingScheme(value *MarkerEncodingScheme) Optio
 func (mr *MockOptionsMockRecorder) SetMarkerEncodingScheme(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMarkerEncodingScheme", reflect.TypeOf((*MockOptions)(nil).SetMarkerEncodingScheme), value)
+}
+
+// SetMetrics mocks base method.
+func (m *MockOptions) SetMetrics(value Metrics) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMetrics", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMetrics indicates an expected call of SetMetrics.
+func (mr *MockOptionsMockRecorder) SetMetrics(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetrics", reflect.TypeOf((*MockOptions)(nil).SetMetrics), value)
 }
 
 // SetReaderIteratorPool mocks base method.

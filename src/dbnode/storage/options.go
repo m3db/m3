@@ -490,11 +490,11 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.segmentReaderPool = segmentReaderPool
 
 	encodingOpts := encoding.NewOptions().
-		SetInstrumentOptions(opts.instrumentOpts).
 		SetBytesPool(bytesPool).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
-		SetSegmentReaderPool(segmentReaderPool)
+		SetSegmentReaderPool(segmentReaderPool).
+		SetMetrics(encoding.NewMetrics(opts.InstrumentOptions().MetricsScope()))
 
 	// initialize encoder pool
 	encoderPool.Init(func() encoding.Encoder {

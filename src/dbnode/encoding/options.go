@@ -41,7 +41,6 @@ var (
 )
 
 type options struct {
-	iOpts                   instrument.Options
 	defaultTimeUnit         xtime.Unit
 	timeEncodingSchemes     TimeEncodingSchemes
 	markerEncodingScheme    *MarkerEncodingScheme
@@ -53,33 +52,24 @@ type options struct {
 	byteFieldDictLRUSize    int
 	iStreamReaderSizeM3TSZ  int
 	iStreamReaderSizeProto  int
+	metrics                 Metrics
 }
 
 func newOptions() Options {
 	return &options{
-		iOpts:                  instrument.NewOptions(),
 		defaultTimeUnit:        defaultDefaultTimeUnit,
 		timeEncodingSchemes:    NewTimeEncodingSchemes(defaultTimeEncodingSchemes),
 		markerEncodingScheme:   defaultMarkerEncodingScheme,
 		byteFieldDictLRUSize:   defaultByteFieldDictLRUSize,
 		iStreamReaderSizeM3TSZ: defaultIStreamReaderSizeM3TSZ,
 		iStreamReaderSizeProto: defaultIStreamReaderSizeProto,
+		metrics:                NewMetrics(instrument.NewOptions().MetricsScope()),
 	}
 }
 
 // NewOptions creates a new options.
 func NewOptions() Options {
 	return defaultOptions
-}
-
-func (o *options) SetInstrumentOptions(value instrument.Options) Options {
-	opts := *o
-	opts.iOpts = value
-	return &opts
-}
-
-func (o *options) InstrumentOptions() instrument.Options {
-	return o.iOpts
 }
 
 func (o *options) SetDefaultTimeUnit(value xtime.Unit) Options {
@@ -190,4 +180,14 @@ func (o *options) SetIStreamReaderSizeProto(value int) Options {
 
 func (o *options) IStreamReaderSizeProto() int {
 	return o.iStreamReaderSizeProto
+}
+
+func (o *options) SetMetrics(value Metrics) Options {
+	opts := *o
+	opts.metrics = value
+	return &opts
+}
+
+func (o *options) Metrics() Metrics {
+	return o.metrics
 }

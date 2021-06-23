@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -93,12 +92,6 @@ type NewEncoderFn func(start time.Time, bytes []byte) Encoder
 
 // Options represents different options for encoding time as well as markers.
 type Options interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
-
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
-
 	// SetDefaultTimeUnit sets the default time unit for the encoder.
 	SetDefaultTimeUnit(tu xtime.Unit) Options
 
@@ -172,6 +165,12 @@ type Options interface {
 	// SetIStreamReaderSizeProto returns the IStream bufio reader size
 	// for proto encoding iteration.
 	IStreamReaderSizeProto() int
+
+	// SetMetrics sets the encoding metrics.
+	SetMetrics(value Metrics) Options
+
+	// Metrics returns the encoding metrics.
+	Metrics() Metrics
 }
 
 // Iterator is the generic interface for iterating over encoded data.

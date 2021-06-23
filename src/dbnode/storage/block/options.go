@@ -85,11 +85,11 @@ func NewOptions() Options {
 	})
 
 	encodingOpts := encoding.NewOptions().
-		SetInstrumentOptions(iOpts).
 		SetBytesPool(bytesPool).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
-		SetSegmentReaderPool(segmentReaderPool)
+		SetSegmentReaderPool(segmentReaderPool).
+		SetMetrics(encoding.NewMetrics(iOpts.MetricsScope()))
 
 	o.encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
