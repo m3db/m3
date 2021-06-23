@@ -69,20 +69,20 @@ func BuildWorkerPools(
 	instrumentOptions instrument.Options,
 	readPoolPolicy, writePoolPolicy xconfig.WorkerPoolPolicy,
 	scope tally.Scope,
-) (xsync.StaticPooledWorkerPool, xsync.DynamicPooledWorkerPool, error) {
-	opts := readPoolPolicy.Options()
+) (xsync.PooledWorkerPool, xsync.PooledWorkerPool, error) {
+	opts, readPoolSize := readPoolPolicy.Options()
 	opts = opts.SetInstrumentOptions(instrumentOptions.
 		SetMetricsScope(scope.SubScope("read-worker-pool")))
-	readWorkerPool, err := xsync.NewStaticPooledWorkerPool(opts)
+	readWorkerPool, err := xsync.NewPooledWorkerPool(readPoolSize, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	readWorkerPool.Init()
-	opts = writePoolPolicy.Options()
+	opts, writePoolSize := writePoolPolicy.Options()
 	opts = opts.SetInstrumentOptions(instrumentOptions.
 		SetMetricsScope(scope.SubScope("write-worker-pool")))
-	writeWorkerPool, err := xsync.NewDynamicPooledWorkerPool(opts)
+	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, opts)
 	if err != nil {
 		return nil, nil, err
 	}

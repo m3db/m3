@@ -101,8 +101,10 @@ var (
 	// users do not experience see unexpected results.
 	defaultRequireExhaustive = true
 
-	defaultWorkerPoolPolicy = xconfig.WorkerPoolPolicy{
-		NumShards: 4096,
+	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
+		GrowOnDemand:          true,
+		Size:                  4096,
+		KillWorkerProbability: 0.001,
 	}
 )
 
@@ -148,7 +150,7 @@ type Configuration struct {
 	TagOptions TagOptionsConfiguration `yaml:"tagOptions"`
 
 	// ReadWorkerPool is the worker pool policy for read requests.
-	ReadWorkerPool *xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
+	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool *xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
@@ -226,16 +228,7 @@ func (c *Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
 		return *c.WriteWorkerPool
 	}
 
-	return defaultWorkerPoolPolicy
-}
-
-// ReadWorkerPoolOrDefault returns the read worker pool config or default.
-func (c *Configuration) ReadWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
-	if c.ReadWorkerPool != nil {
-		return *c.ReadWorkerPool
-	}
-
-	return defaultWorkerPoolPolicy
+	return defaultWriteWorkerPool
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.

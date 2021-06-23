@@ -716,14 +716,28 @@ func (s *m3storage) Write(
 		// capture var
 		datapoint := datapoint
 		wg.Add(1)
-		s.opts.WriteWorkerPool().GoAlways(func() {
+
+		var (
+			now                      = time.Now()
+			deadline, deadlineExists = ctx.Deadline()
+			timeout                  = minWriteWaitTimeout
+		)
+		if deadlineExists {
+			if remain := deadline.Sub(now); remain >= timeout {
+				timeout = remain
+			}
+		}
+		spawned := s.opts.WriteWorkerPool().GoWithTimeout(func() {
 			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
 				multiErr.add(err)
 			}
 
 			tagIter.Close()
 			wg.Done()
-		})
+		}, timeout)
+		if !spawned {
+			multiErr.add(fmt.Errorf("timeout exceeded waiting: %v", timeout))
+		}
 	}
 
 	wg.Wait()

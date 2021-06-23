@@ -22,31 +22,51 @@ package config
 
 import "github.com/m3db/m3/src/x/sync"
 
+const (
+	defaultWorkerPoolStaticSize = 4096
+	defaultGrowKillProbability  = 0.001
+)
+
 // WorkerPoolPolicy specifies the policy for the worker pool.
 type WorkerPoolPolicy struct {
 	// Determines if the worker pool automatically grows to capacity.
-	// Deprecated: not used. Pools are explicitly defined as static or dynamic.
 	GrowOnDemand bool `yaml:"grow"`
 
 	// Size for static pools, initial size for dynamically growing pools.
-	// Deprecated: not used. NumShards controls the size of the pool.
 	Size int `yaml:"size"`
 
-	// NumShards is the number of worker channels in the pool.
-	NumShards int `yaml:"shards"`
+	// The number of shards for the pool.
+	NumShards int64 `yaml:"shards"`
 
-	// The probability that a worker is killed after completing the task.
+	// The probablility that a worker is killed after completing the task.
 	KillWorkerProbability float64 `yaml:"killProbability" validate:"min=0.0,max=1.0"`
 }
 
-// Options converts policy to options
-func (w WorkerPoolPolicy) Options() sync.PooledWorkerPoolOptions {
+// Options converts the worker pool policy to options, providing
+// the options, as well as the default size for the worker pool.
+func (w WorkerPoolPolicy) Options() (sync.PooledWorkerPoolOptions, int) {
 	opts := sync.NewPooledWorkerPoolOptions()
+	grow := w.GrowOnDemand
+	opts = opts.SetGrowOnDemand(grow)
 	if w.KillWorkerProbability != 0 {
 		opts = opts.SetKillWorkerProbability(w.KillWorkerProbability)
+	} else if grow {
+		// NB: if using a growing pool, default kill probability is too low, causing
+		// the pool to quickly grow out of control. Use a higher default kill probability
+		opts = opts.SetKillWorkerProbability(defaultGrowKillProbability)
 	}
+
 	if w.NumShards != 0 {
 		opts = opts.SetNumShards(w.NumShards)
 	}
-	return opts
+
+	if w.Size == 0 {
+		if grow {
+			w.Size = int(opts.NumShards())
+		} else {
+			w.Size = defaultWorkerPoolStaticSize
+		}
+	}
+
+	return opts, w.Size
 }

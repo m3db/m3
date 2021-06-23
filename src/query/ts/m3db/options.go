@@ -60,8 +60,8 @@ type encodedBlockOptions struct {
 	iterAlloc                     encoding.ReaderIteratorAllocate
 	pools                         encoding.IteratorPools
 	checkedPools                  pool.CheckedBytesPool
-	readWorkerPools               xsync.StaticPooledWorkerPool
-	writeWorkerPools              xsync.DynamicPooledWorkerPool
+	readWorkerPools               xsync.PooledWorkerPool
+	writeWorkerPools              xsync.PooledWorkerPool
 	queryConsolidatorMatchOptions queryconsolidator.MatchOptions
 	seriesIteratorProcessor       SeriesIteratorProcessor
 	batchingFn                    IteratorBatchingFn
@@ -186,23 +186,23 @@ func (o *encodedBlockOptions) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.checkedPools
 }
 
-func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.StaticPooledWorkerPool) Options {
+func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.PooledWorkerPool) Options {
 	opts := *o
 	opts.readWorkerPools = p
 	return &opts
 }
 
-func (o *encodedBlockOptions) ReadWorkerPool() xsync.StaticPooledWorkerPool {
+func (o *encodedBlockOptions) ReadWorkerPool() xsync.PooledWorkerPool {
 	return o.readWorkerPools
 }
 
-func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.DynamicPooledWorkerPool) Options {
+func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.PooledWorkerPool) Options {
 	opts := *o
 	opts.writeWorkerPools = p
 	return &opts
 }
 
-func (o *encodedBlockOptions) WriteWorkerPool() xsync.DynamicPooledWorkerPool {
+func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
 	return o.writeWorkerPools
 }
 
