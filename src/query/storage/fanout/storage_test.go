@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"testing"
 	"time"
 
@@ -126,7 +127,7 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	}
 
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), models.NewTagOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	return store
 }
 
@@ -154,7 +155,7 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		store1, store2,
 	}
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), models.NewTagOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	return store
 }
 
@@ -236,7 +237,7 @@ func TestQueryStorageMetadataAttributesMultipleStores(t *testing.T) {
 
 func TestFanoutReadEmpty(t *testing.T) {
 	store := setupFanoutRead(t, false)
-	res, err := store.FetchProm(context.TODO(), nil, nil)
+	res, err := store.FetchProm(context.TODO(), nil, storage.NewFetchOptions())
 	assert.NoError(t, err)
 	require.NotNil(t, res)
 	assert.Equal(t, 0, len(res.PromResult.GetTimeseries()))
@@ -391,7 +392,7 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{warnStore, okStore, dupeStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), instrument.NewOptions())
+		models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.SearchSeries(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -442,7 +443,7 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{warnStore, okStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), instrument.NewOptions())
+		models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	q := &storage.CompleteTagsQuery{CompleteNameOnly: true}
 	result, err := store.CompleteTags(context.TODO(), q, opts)
@@ -483,7 +484,7 @@ func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{warnStore, okStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), instrument.NewOptions())
+		models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.FetchBlocks(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -544,7 +545,7 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{warnStore, okStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), instrument.NewOptions())
+		models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.FetchProm(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)

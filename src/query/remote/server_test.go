@@ -195,6 +195,8 @@ func TestRpc(t *testing.T) {
 		assert.NoError(t, client.Close())
 	}()
 
+	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+
 	checkFetch(ctx, t, client, read, readOpts)
 }
 
@@ -228,7 +230,6 @@ func TestRpcMultipleRead(t *testing.T) {
 
 	ctx, read, readOpts := createCtxReadOpts(t)
 	store := newMockStorage(t, ctrl, mockStorageOptions{})
-
 	listener := startServer(t, ctrl, store)
 	client := buildClient(t, []string{listener.Addr().String()})
 	defer func() {
@@ -237,6 +238,7 @@ func TestRpcMultipleRead(t *testing.T) {
 
 	fetch, err := client.FetchProm(ctx, read, readOpts)
 	require.NoError(t, err)
+	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	checkRemoteFetch(t, fetch)
 }
 
@@ -259,7 +261,9 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 	defer cancel()
 
 	_, err := client.FetchProm(ctx, read, readOpts)
+	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	require.Error(t, err)
+
 }
 
 func TestMultipleClientRpc(t *testing.T) {
@@ -289,6 +293,7 @@ func TestMultipleClientRpc(t *testing.T) {
 		wg.Add(1)
 		client := client
 		go func() {
+			store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 			checkFetch(ctx, t, client, read, readOpts)
 			wg.Done()
 		}()
@@ -321,6 +326,7 @@ func TestErrRpc(t *testing.T) {
 		assert.NoError(t, client.Close())
 	}()
 
+	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	checkErrorFetch(ctx, t, client, read, readOpts)
 }
 
@@ -363,6 +369,7 @@ func TestRoundRobinClientRpc(t *testing.T) {
 		}
 	}
 
+	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	assert.True(t, hitHost, "round robin did not fetch from host")
 	assert.True(t, hitErrHost, "round robin did not fetch from error host")
 }

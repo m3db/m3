@@ -218,7 +218,7 @@ func (s *m3storage) FetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (consolidators.MultiFetchResult, error) {
-	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	queryOptions, _ := storage.FetchOptionsToM3Options(options, query)
 	accumulator, _, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	return accumulator, err
 }

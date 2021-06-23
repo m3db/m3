@@ -337,7 +337,12 @@ func testMultiFetchResultTagDedupeMap(
 	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools, opts, tagOptions, limitOpts)
 
 	for _, entry := range test.entries {
-		r.Add(entry.iter, entry.meta, entry.attr, entry.err)
+		r.Add(MultiFetchResults{
+			SeriesIterators: entry.iter,
+			Metadata:        entry.meta,
+			Attrs:           entry.attr,
+			Err:             entry.err,
+		})
 	}
 
 	result, attrs, err := r.FinalResultWithAttrs()

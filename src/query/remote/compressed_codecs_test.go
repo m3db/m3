@@ -327,8 +327,6 @@ func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	mockIter.EXPECT().Start().Return(xtime.Now()).Times(1)
 	mockIter.EXPECT().End().Return(xtime.Now()).Times(1)
 	mockIter.EXPECT().Tags().Return(ident.NewTagsIterator(ident.NewTags())).Times(1)
-	mockIter.EXPECT().Namespace().Return(ident.StringID("")).Times(1)
-	mockIter.EXPECT().ID().Return(ident.StringID("")).Times(1)
 
 	CompressedSeriesFromSeriesIterator(mockIter, nil)
 }
