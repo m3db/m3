@@ -369,6 +369,7 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule1.snapshot3",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -388,6 +389,7 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule3.snapshot2",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -408,6 +410,7 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule4.snapshot1",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -427,6 +430,7 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule5.snapshot1",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -446,6 +450,7 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule6.snapshot1",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -1745,6 +1750,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot2",
@@ -1795,6 +1801,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot3",
@@ -1827,6 +1834,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -1864,6 +1872,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule2.snapshot2",
@@ -1905,6 +1914,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule2.snapshot3",
@@ -1937,6 +1947,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2016,6 +2027,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule3.snapshot2",
@@ -2057,6 +2069,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2094,6 +2107,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2131,6 +2145,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2168,6 +2183,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
