@@ -210,13 +210,13 @@ func (r *multiResult) Add(add MultiFetchResults) {
 		return
 	}
 
-	if newIterators == nil || newIterators.Len() == 0 || newIterators.Iters() == nil || len(newIterators.Iters()) == 0 {
+	if newIterators == nil || newIterators.Len() == 0 {
 		return
 	}
 
 	nsID := ""
 	if newIterators.Iters()[0].Namespace() != nil {
-		nsID = newIterators.Iters()[0].Namespace().String() //todo: sometimes the namespace ID is empty
+		nsID = newIterators.Iters()[0].Namespace().String() // sometimes the namespace ID is empty
 	}
 
 	// the series limit was reached within this namespace.
