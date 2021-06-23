@@ -51,7 +51,7 @@ type encodedStepIterWithCollector struct {
 
 	updateFn updateFn
 
-	workerPool xsync.StaticPooledWorkerPool
+	workerPool xsync.PooledWorkerPool
 	wg         sync.WaitGroup
 }
 

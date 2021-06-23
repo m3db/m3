@@ -105,7 +105,7 @@ type writerManager struct {
 	closed  bool
 	metrics writerManagerMetrics
 	_       cpu.CacheLinePad
-	pool    xsync.StaticPooledWorkerPool
+	pool    xsync.PooledWorkerPool
 }
 
 func newInstanceWriterManager(opts Options) (instanceWriterManager, error) {
@@ -116,9 +116,9 @@ func newInstanceWriterManager(opts Options) (instanceWriterManager, error) {
 		doneCh:  make(chan struct{}),
 	}
 
-	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions().
-		SetKillWorkerProbability(0.05).
-		SetNumShards(opts.FlushWorkerCount()),
+	pool, err := xsync.NewPooledWorkerPool(
+		opts.FlushWorkerCount(),
+		xsync.NewPooledWorkerPoolOptions().SetKillWorkerProbability(0.05),
 	)
 	if err != nil {
 		return nil, err

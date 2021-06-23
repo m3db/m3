@@ -274,7 +274,7 @@ type options struct {
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
-	hostQueueNewPooledWorkerFn              xsync.NewDynamicPooledWorkerFn
+	hostQueueNewPooledWorkerFn              xsync.NewPooledWorkerFn
 	hostQueueEmitsHealthStatus              bool
 	seriesIteratorPoolSize                  int
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
@@ -289,7 +289,7 @@ type options struct {
 	schemaRegistry                          namespace.SchemaRegistry
 	isProtoEnabled                          bool
 	asyncTopologyInitializers               []topology.Initializer
-	asyncWriteWorkerPool                    xsync.DynamicPooledWorkerPool
+	asyncWriteWorkerPool                    xsync.PooledWorkerPool
 	asyncWriteMaxConcurrency                int
 	useV2BatchAPIs                          bool
 	iterationOptions                        index.IterationOptions
@@ -368,15 +368,18 @@ func newOptions() *options {
 
 	hostQueueNewPooledWorkerFn := func(
 		opts xsync.NewPooledWorkerOptions,
-	) (xsync.DynamicPooledWorkerPool, error) {
+	) (xsync.PooledWorkerPool, error) {
 		if opts.InstrumentOptions == nil {
 			return nil, errors.New("instrument options required for new pooled worker fn")
 		}
 
 		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true).
 			SetKillWorkerProbability(defaultHostQueueWorkerPoolKillProbability).
 			SetInstrumentOptions(opts.InstrumentOptions)
-		return xsync.NewDynamicPooledWorkerPool(workerPoolOpts)
+		return xsync.NewPooledWorkerPool(
+			int(workerPoolOpts.NumShards()),
+			workerPoolOpts)
 	}
 
 	opts := &options{
@@ -936,13 +939,13 @@ func (o *options) HostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
 }
 
-func (o *options) SetHostQueueNewPooledWorkerFn(value xsync.NewDynamicPooledWorkerFn) Options {
+func (o *options) SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options {
 	opts := *o
 	opts.hostQueueNewPooledWorkerFn = value
 	return &opts
 }
 
-func (o *options) HostQueueNewPooledWorkerFn() xsync.NewDynamicPooledWorkerFn {
+func (o *options) HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn {
 	return o.hostQueueNewPooledWorkerFn
 }
 
@@ -1066,13 +1069,13 @@ func (o *options) AsyncTopologyInitializers() []topology.Initializer {
 	return o.asyncTopologyInitializers
 }
 
-func (o *options) SetAsyncWriteWorkerPool(value xsync.DynamicPooledWorkerPool) Options {
+func (o *options) SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options {
 	opts := *o
 	opts.asyncWriteWorkerPool = value
 	return &opts
 }
 
-func (o *options) AsyncWriteWorkerPool() xsync.DynamicPooledWorkerPool {
+func (o *options) AsyncWriteWorkerPool() xsync.PooledWorkerPool {
 	return o.asyncWriteWorkerPool
 }
 

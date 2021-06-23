@@ -71,7 +71,7 @@ func verifyExpandPromSeries(
 	ctrl *gomock.Controller,
 	num int,
 	ex bool,
-	pools xsync.StaticPooledWorkerPool,
+	pools xsync.PooledWorkerPool,
 ) {
 	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, num, 2)
 	fetchResult := fr(t, iters, makeTag("foo", "bar", num)...)
@@ -105,7 +105,7 @@ func verifyExpandPromSeries(
 	}
 }
 
-func testExpandPromSeries(t *testing.T, ex bool, pools xsync.StaticPooledWorkerPool) {
+func testExpandPromSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
 	ctrl := gomock.NewController(t)
 
 	for i := 0; i < 10; i++ {
@@ -120,7 +120,7 @@ func TestContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 
@@ -137,7 +137,7 @@ func TestExpandPromSeriesNilPools(t *testing.T) {
 }
 
 func TestExpandPromSeriesValidPools(t *testing.T) {
-	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 	testExpandPromSeries(t, false, pool)
@@ -145,7 +145,7 @@ func TestExpandPromSeriesValidPools(t *testing.T) {
 }
 
 func TestExpandPromSeriesSmallValidPools(t *testing.T) {
-	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 	testExpandPromSeries(t, false, pool)
@@ -325,7 +325,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	verifyResult(t, res)
 
-	pool, err := xsync.NewStaticPooledWorkerPool(xsync.NewPooledWorkerPoolOptions())
+	pool, err := xsync.NewPooledWorkerPool(10, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 

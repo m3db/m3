@@ -91,7 +91,7 @@ func toPromSequentially(
 func toPromConcurrently(
 	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
-	readWorkerPool xsync.StaticPooledWorkerPool,
+	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
@@ -155,7 +155,7 @@ func toPromConcurrently(
 func seriesIteratorsToPromResult(
 	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
-	readWorkerPool xsync.StaticPooledWorkerPool,
+	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	if readWorkerPool == nil {
@@ -170,7 +170,7 @@ func seriesIteratorsToPromResult(
 func SeriesIteratorsToPromResult(
 	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
-	readWorkerPool xsync.StaticPooledWorkerPool,
+	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	defer fetchResult.Close()
