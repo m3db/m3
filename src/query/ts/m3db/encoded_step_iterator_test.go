@@ -52,9 +52,11 @@ import (
 func withPool(t testing.TB, options Options) Options {
 	opts := xsync.
 		NewPooledWorkerPoolOptions().
-		SetKillWorkerProbability(0)
+		SetGrowOnDemand(false).
+		SetKillWorkerProbability(0).
+		SetNumShards(1)
 
-	readWorkerPools, err := xsync.NewStaticPooledWorkerPool(opts)
+	readWorkerPools, err := xsync.NewPooledWorkerPool(64, opts)
 	require.NoError(t, err)
 	readWorkerPools.Init()
 
@@ -522,7 +524,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 	opts := newTestOptions()
 	if usePools {
 		poolOpts := xsync.NewPooledWorkerPoolOptions()
-		readWorkerPools, err := xsync.NewStaticPooledWorkerPool(poolOpts)
+		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, poolOpts)
 		require.NoError(b, err)
 		readWorkerPools.Init()
 		opts = opts.SetReadWorkerPool(readWorkerPools)
