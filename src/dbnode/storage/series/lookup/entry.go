@@ -166,13 +166,19 @@ func (entry *Entry) IndexedOrAttemptedAny() bool {
 // OnIndexFinalze() call. This is required for correct lifecycle maintenance.
 func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
 	// first we try the low-cost path: acquire a RLock and see if the given block start
-	// has been marked successful or that we've attempted it.
+	// has been marked successful.
 	entry.reverseIndex.RLock()
-	alreadyIndexedOrAttempted := entry.reverseIndex.indexedOrAttemptedWithRLock(indexBlockStartForWrite)
+	alreadyIndexed := entry.reverseIndex.indexedWithRLock(indexBlockStartForWrite)
+	attempted := entry.reverseIndex.attemptedWithRLock(indexBlockStartForWrite)
 	entry.reverseIndex.RUnlock()
-	if alreadyIndexedOrAttempted {
+	if alreadyIndexed {
 		// if so, the entry does not need to be indexed.
 		return false
+	}
+	if attempted {
+		// already attempted, but should re-attempt in case current attempt fails.
+		// note: do not need to update attempted and acquire lock since already true.
+		return true
 	}
 
 	// now acquire a write lock and set that we're going to attempt to do this so we don't try
@@ -181,8 +187,8 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 	// NB(prateek): not defer-ing here, need to avoid the the extra ~150ns to minimize contention.
 
 	// but first, we have to ensure no one has done so since we released the read lock
-	alreadyIndexedOrAttempted = entry.reverseIndex.indexedOrAttemptedWithRLock(indexBlockStartForWrite)
-	if alreadyIndexedOrAttempted {
+	alreadyIndexed = entry.reverseIndex.indexedWithRLock(indexBlockStartForWrite)
+	if alreadyIndexed {
 		entry.reverseIndex.Unlock()
 		return false
 	}
@@ -352,6 +358,14 @@ func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
 	return false
 }
 
+func (s *entryIndexState) attemptedWithRLock(t xtime.UnixNano) bool {
+	v, ok := s.states[t]
+	if ok {
+		return v.attempt
+	}
+	return false
+}
+
 func (s *entryIndexState) indexedOrAttemptedAnyWithRLock() bool {
 	for _, state := range s.states {
 		if state.success || state.attempt {
@@ -377,23 +391,15 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	// NB(r): If not inserted state yet that means we need to make an insertion,
 	// this will happen if synchronously indexing and we haven't called
 	// NeedIndexUpdate before we indexed the series.
-	s.states[t] = entryIndexBlockState{
-		success: true,
-	}
+	var v entryIndexBlockState
+	v = s.states[t]
+	v.success = true
+	s.states[t] = v
 }
 
 func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
-	v, ok := s.states[t]
-	if ok {
-		if v.success {
-			return // Attempt is not relevant if success.
-		}
-		v.attempt = attempt
-		s.states[t] = v
-		return
-	}
-
-	s.states[t] = entryIndexBlockState{
-		attempt: attempt,
-	}
+	var v entryIndexBlockState
+	v = s.states[t]
+	v.attempt = attempt
+	s.states[t] = v
 }
