@@ -186,8 +186,8 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 	stream.WriteBytes(ant)
 
 	if enc.PrevAnnotationChecksum != emptyAnnotationChecksum {
-		// NB: current assumption is that in the most cases no annotation writes should happen and that
-		// annotations should be rewritten rarely. If this assumption changes, it might not be worth
+		// NB: current assumption is that each time series should have a single annotation write per block
+		// and that annotations should be rewritten rarely. If this assumption changes, it might not be worth
 		// keeping this metric around.
 		enc.metrics.IncAnnotationRewritten()
 	}
