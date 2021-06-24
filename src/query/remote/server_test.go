@@ -71,47 +71,44 @@ func newMockStorage(
 	opts mockStorageOptions,
 ) *m3.MockStorage {
 	store := m3.NewMockStorage(ctrl)
-	store.EXPECT().
-		FetchCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(
-			ctx context.Context,
-			query *storage.FetchQuery,
-			options *storage.FetchOptions,
-		) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
-			var cleanup = func() error { return nil }
-			if opts.cleanup != nil {
-				cleanup = opts.cleanup
-			}
 
-			if opts.err != nil {
-				return consolidators.SeriesFetchResult{
-					Metadata: block.NewResultMetadata(),
-				}, cleanup, opts.err
-			}
+	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(
+		ctx context.Context,
+		query *storage.FetchQuery,
+		options *storage.FetchOptions,
+	) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
+		var cleanup = func() error { return nil }
+		if opts.cleanup != nil {
+			cleanup = opts.cleanup
+		}
 
-			if opts.fetchCompressedSleep > 0 {
-				time.Sleep(opts.fetchCompressedSleep)
-			}
+		if opts.err != nil {
+			return consolidators.SeriesFetchResult{
+				Metadata: block.NewResultMetadata(),
+			}, cleanup, opts.err
+		}
 
-			iters := opts.iters
-			if iters == nil {
-				it, err := test.BuildTestSeriesIterator(seriesID)
-				require.NoError(t, err)
-				iters = encoding.NewSeriesIterators(
-					[]encoding.SeriesIterator{it},
-					nil,
-				)
-			}
+		if opts.fetchCompressedSleep > 0 {
+			time.Sleep(opts.fetchCompressedSleep)
+		}
 
-			res, err := consolidators.NewSeriesFetchResult(
-				iters,
+		iters := opts.iters
+		if iters == nil {
+			it, err := test.BuildTestSeriesIterator(seriesID)
+			require.NoError(t, err)
+			iters = encoding.NewSeriesIterators(
+				[]encoding.SeriesIterator{it},
 				nil,
-				block.NewResultMetadata(),
 			)
+		}
 
-			return res, cleanup, err
-		}).
-		AnyTimes()
+		res, err := consolidators.NewSeriesFetchResult(
+			iters,
+			nil,
+			block.NewResultMetadata(),
+		)
+		return res, cleanup, err
+	}).AnyTimes()
 	return store
 }
 
@@ -151,6 +148,7 @@ func createCtxReadOpts(t *testing.T) (context.Context,
 	ctx := context.Background()
 	read, _, _ := createStorageFetchQuery(t)
 	readOpts := storage.NewFetchOptions()
+	readOpts.SeriesLimit = 300
 	return ctx, read, readOpts
 }
 
@@ -195,8 +193,6 @@ func TestRpc(t *testing.T) {
 		assert.NoError(t, client.Close())
 	}()
 
-	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
-
 	checkFetch(ctx, t, client, read, readOpts)
 }
 
@@ -238,7 +234,7 @@ func TestRpcMultipleRead(t *testing.T) {
 
 	fetch, err := client.FetchProm(ctx, read, readOpts)
 	require.NoError(t, err)
-	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+
 	checkRemoteFetch(t, fetch)
 }
 
@@ -261,7 +257,7 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 	defer cancel()
 
 	_, err := client.FetchProm(ctx, read, readOpts)
-	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+
 	require.Error(t, err)
 
 }
@@ -293,7 +289,7 @@ func TestMultipleClientRpc(t *testing.T) {
 		wg.Add(1)
 		client := client
 		go func() {
-			store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+
 			checkFetch(ctx, t, client, read, readOpts)
 			wg.Done()
 		}()
@@ -326,7 +322,6 @@ func TestErrRpc(t *testing.T) {
 		assert.NoError(t, client.Close())
 	}()
 
-	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	checkErrorFetch(ctx, t, client, read, readOpts)
 }
 
@@ -369,7 +364,6 @@ func TestRoundRobinClientRpc(t *testing.T) {
 		}
 	}
 
-	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	assert.True(t, hitHost, "round robin did not fetch from host")
 	assert.True(t, hitErrHost, "round robin did not fetch from error host")
 }
