@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -51,6 +52,9 @@ type reporterMetrics struct {
 	reportGauge      instrument.MethodMetrics
 	reportPending    tally.Gauge
 	flush            instrument.MethodMetrics
+
+	r2Metrics    tally.Counter
+	nonR2Metrics tally.Counter
 }
 
 func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
@@ -69,6 +73,8 @@ func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
 		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", timerOpts),
 		flush:            instrument.NewMethodMetrics(scope, "flush", timerOpts),
 		reportPending:    hostScope.Gauge("report-pending"),
+		r2Metrics:        scope.Counter("r2-metrics"),
+		nonR2Metrics:     scope.Counter("non-r2-metrics"),
 	}
 }
 
@@ -130,6 +136,12 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
 	)
 
+	if rules.IsEmptyMatchResult(matchResult) {
+		r.metrics.nonR2Metrics.Inc(1)
+	} else {
+		r.metrics.r2Metrics.Inc(1)
+	}
+
 	if !dropOriginal {
 		err := r.client.WriteUntimedCounter(counter, stagedMetadatas)
 		if err != nil {
@@ -177,6 +189,12 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
 	)
 
+	if rules.IsEmptyMatchResult(matchResult) {
+		r.metrics.nonR2Metrics.Inc(1)
+	} else {
+		r.metrics.r2Metrics.Inc(1)
+	}
+
 	if !dropOriginal {
 		err := r.client.WriteUntimedBatchTimer(batchTimer, stagedMetadatas)
 		if err != nil {
@@ -222,6 +240,12 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 		hasDropPolicy   = stagedMetadatas.IsDropPolicyApplied()
 		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
 	)
+
+	if rules.IsEmptyMatchResult(matchResult) {
+		r.metrics.nonR2Metrics.Inc(1)
+	} else {
+		r.metrics.r2Metrics.Inc(1)
+	}
 
 	if !dropOriginal {
 		err := r.client.WriteUntimedGauge(gauge, stagedMetadatas)
