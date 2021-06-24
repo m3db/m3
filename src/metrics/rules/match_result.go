@@ -38,13 +38,13 @@ var (
 	)
 )
 
-func IsEmptyMatchResult(res MatchResult) bool {
-	return res.version == EmptyMatchResult.version &&
-		res.expireAtNanos == EmptyMatchResult.expireAtNanos &&
-		res.forExistingID.Equal(EmptyMatchResult.forExistingID) &&
-		res.forNewRollupIDs == nil &&
-		res.keepOriginal == EmptyMatchResult.keepOriginal
-}
+// func IsEmptyMatchResult(res MatchResult) bool {
+// 	return res.version == EmptyMatchResult.version &&
+// 		res.expireAtNanos == EmptyMatchResult.expireAtNanos &&
+// 		res.forExistingID.Equal(EmptyMatchResult.forExistingID) &&
+// 		res.forNewRollupIDs == nil &&
+// 		res.keepOriginal == EmptyMatchResult.keepOriginal
+// }
 
 // IDWithMetadatas is a pair of metric ID and the associated staged metadatas.
 type IDWithMetadatas struct {
