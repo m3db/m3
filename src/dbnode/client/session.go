@@ -84,10 +84,8 @@ const (
 	resultTypeRaw                      = "raw"
 )
 
-var (
-	errUnknownWriteAttemptType = errors.New(
-		"unknown write attempt type specified, internal error")
-)
+var errUnknownWriteAttemptType = errors.New(
+	"unknown write attempt type specified, internal error")
 
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
@@ -550,7 +548,7 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-tagged-pool"),
 		))
-	s.pools.writeTaggedOperation = newWriteTaggedOpPool(writeTaggedOperationPoolOpts)
+	s.pools.writeTaggedOperation = newWriteTaggedOpPool(writeTaggedOperationPoolOpts, s.opts.NewTagTransformer())
 	s.pools.writeTaggedOperation.Init()
 
 	writeStatePoolSize := s.opts.WriteOpPoolSize()
@@ -1199,6 +1197,7 @@ func (s *session) Write(
 }
 
 func (s *session) WriteTagged(
+	ctx context.Context,
 	nsID, id ident.ID,
 	tags ident.TagIterator,
 	t xtime.UnixNano,
@@ -1208,6 +1207,7 @@ func (s *session) WriteTagged(
 ) error {
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
+	w.args.ctx = ctx
 	w.args.namespace, w.args.id, w.args.tags = nsID, id, tags
 	w.args.t = t
 	w.args.value, w.args.unit, w.args.annotation = value, unit, annotation
@@ -1217,6 +1217,7 @@ func (s *session) WriteTagged(
 }
 
 func (s *session) writeAttempt(
+	ctx context.Context,
 	wType writeAttemptType,
 	nsID, id ident.ID,
 	inputTags ident.TagIterator,
@@ -1244,7 +1245,7 @@ func (s *session) writeAttempt(
 	}
 
 	state, majority, enqueued, err := s.writeAttemptWithRLock(
-		wType, nsID, id, inputTags, timestamp, value, timeType, annotation)
+		ctx, wType, nsID, id, inputTags, timestamp, value, timeType, annotation)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1272,6 +1273,7 @@ func (s *session) writeAttempt(
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
 func (s *session) writeAttemptWithRLock(
+	ctx context.Context,
 	wType writeAttemptType,
 	namespace, id ident.ID,
 	inputTags ident.TagIterator,
@@ -1293,13 +1295,6 @@ func (s *session) writeAttemptWithRLock(
 	nsID := s.cloneFinalizable(namespace)
 	tsID := s.cloneFinalizable(id)
 	var tagEncoder serialize.TagEncoder
-	if wType == taggedWriteAttemptType {
-		tagEncoder = s.pools.tagEncoder.Get()
-		if err := tagEncoder.Encode(inputTags); err != nil {
-			tagEncoder.Finalize()
-			return nil, 0, 0, err
-		}
-	}
 
 	var op writeOp
 	switch wType {
@@ -1320,6 +1315,16 @@ func (s *session) writeAttemptWithRLock(
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
 		wop.request.ID = tsID.Bytes()
+		var err error
+		inputTags, err = wop.tagsTransformer.Transform(ctx.GoContext(), inputTags)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		tagEncoder = s.pools.tagEncoder.Get()
+		if err := tagEncoder.Encode(inputTags); err != nil {
+			tagEncoder.Finalize()
+			return nil, 0, 0, err
+		}
 		encodedTagBytes, ok := tagEncoder.Data()
 		if !ok {
 			return nil, 0, 0, errUnableToEncodeTags
@@ -3939,7 +3944,6 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		blockSize := currReader.BlockSize
 
 		encoder, err := r.mergeReaders(start, blockSize, readers)
-
 		if err != nil {
 			return err
 		}
@@ -4253,9 +4257,11 @@ type receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc []receivedBlockMetad
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Len() int {
 	return len(arr)
 }
+
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
+
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Less(i, j int) bool {
 	peerI := arr[i].queue.peer
 	peerJ := arr[j].queue.peer

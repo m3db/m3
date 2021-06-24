@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
@@ -281,7 +282,9 @@ func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) 
 
 	session := client.NewMockSession(ctrl)
 	for _, value := range []float64{1, 2} {
-		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
+		session.EXPECT().WriteTagged(
+			gomock.Any(),
+			ident.NewIDMatcher("prometheus_metrics"),
 			ident.NewIDMatcher(`{_new="first",biz="baz",foo="bar"}`),
 			gomock.Any(),
 			gomock.Any(),
@@ -290,7 +293,9 @@ func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) 
 			nil)
 	}
 	for _, value := range []float64{3, 4} {
-		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
+		session.EXPECT().WriteTagged(
+			gomock.Any(),
+			ident.NewIDMatcher("prometheus_metrics"),
 			ident.NewIDMatcher(`{_new="second",bar="baz",foo="qux"}`),
 			gomock.Any(),
 			gomock.Any(),
@@ -384,14 +389,16 @@ func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller)
 
 	session := client.NewMockSession(ctrl)
 	session.EXPECT().
-		WriteTagged(ident.NewIDMatcher("prometheus_metrics_1m_aggregated"),
+		WriteTagged(
+			xcontext.NewBackground(),
+			ident.NewIDMatcher("prometheus_metrics_1m_aggregated"),
 			ident.NewIDMatcher(`{_new="first",biz="baz",foo="bar"}`),
 			gomock.Any(),
 			gomock.Any(),
 			42.0,
 			gomock.Any(),
 			nil).
-		Do(func(_, _, _, _, _, _, _ interface{}) {
+		Do(func(_, _, _, _, _, _, _, _ interface{}) {
 			numWrites.Add(1)
 		})
 	session.EXPECT().Close().AnyTimes()

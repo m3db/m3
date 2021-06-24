@@ -373,7 +373,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	for _, tag := range req.Tags {
 		tags.Append(s.idPool.GetStringTag(ctx, tag.Name, tag.Value))
 	}
-	err = session.WriteTagged(nsID, tsID, ident.NewTagsIterator(tags),
+	err = session.WriteTagged(ctx, nsID, tsID, ident.NewTagsIterator(tags),
 		ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
 		return convert.ToRPCError(err)

@@ -34,19 +34,23 @@ var (
 )
 
 type writeTaggedOperation struct {
-	namespace    ident.ID
-	shardID      uint32
-	request      rpc.WriteTaggedBatchRawRequestElement
-	requestV2    rpc.WriteTaggedBatchRawV2RequestElement
-	datapoint    rpc.Datapoint
-	completionFn completionFn
-	pool         *writeTaggedOperationPool
+	namespace       ident.ID
+	shardID         uint32
+	request         rpc.WriteTaggedBatchRawRequestElement
+	requestV2       rpc.WriteTaggedBatchRawV2RequestElement
+	datapoint       rpc.Datapoint
+	completionFn    completionFn
+	pool            *writeTaggedOperationPool
+	tagsTransformer ident.TagTransformer
 }
 
 func (w *writeTaggedOperation) reset() {
+	tagTransformer := w.tagsTransformer
 	*w = writeTaggedOperationZeroed
 	w.request.Datapoint = &w.datapoint
 	w.requestV2.Datapoint = &w.datapoint
+	w.tagsTransformer = tagTransformer
+	w.tagsTransformer.Reset()
 }
 
 func (w *writeTaggedOperation) Close() {
@@ -75,17 +79,21 @@ func (w *writeTaggedOperation) ShardID() uint32 {
 }
 
 type writeTaggedOperationPool struct {
-	pool pool.ObjectPool
+	pool              pool.ObjectPool
+	newTagTransformer ident.NewTagTransformer
 }
 
-func newWriteTaggedOpPool(opts pool.ObjectPoolOptions) *writeTaggedOperationPool {
+func newWriteTaggedOpPool(
+	opts pool.ObjectPoolOptions,
+	newTagTransformer ident.NewTagTransformer,
+) *writeTaggedOperationPool {
 	p := pool.NewObjectPool(opts)
-	return &writeTaggedOperationPool{pool: p}
+	return &writeTaggedOperationPool{pool: p, newTagTransformer: newTagTransformer}
 }
 
 func (p *writeTaggedOperationPool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeTaggedOperation{}
+		w := &writeTaggedOperation{tagsTransformer: p.newTagTransformer()}
 		w.reset()
 		return w
 	})

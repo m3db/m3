@@ -135,7 +135,7 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
 	session1.EXPECT().
-		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 			gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
@@ -145,7 +145,7 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, errs[0]).AnyTimes()
 
 	session2.EXPECT().
-		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 			gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[len(errs)-1])
 	session2.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()

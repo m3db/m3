@@ -537,7 +537,7 @@ func testWriteTaggedOp(
 	timeType rpc.TimeType,
 	completionFn completionFn,
 ) *writeTaggedOperation {
-	w := &writeTaggedOperation{}
+	w := &writeTaggedOperation{tagsTransformer: ident.NewNoTagTransformer()}
 	w.reset()
 	w.namespace = ident.StringID(namespace)
 	w.request.ID = []byte(id)

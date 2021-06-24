@@ -190,7 +190,7 @@ func newWriteQuery(t *testing.T) *storage.WriteQuery {
 func setupLocalWrite(t *testing.T, ctrl *gomock.Controller) storage.Storage {
 	store, sessions := setup(t, ctrl)
 	session := sessions.unaggregated1MonthRetention
-	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	return store
 }
@@ -336,7 +336,7 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	session := sessions.aggregated1MonthRetention1MinuteResolution
-	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(len(writeQuery.Datapoints()))
 
 	err = store.Write(context.TODO(), writeQuery)

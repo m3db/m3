@@ -224,7 +224,8 @@ var (
 	}
 
 	// defaultThriftContextFn is the default thrift context function.
-	defaultThriftContextFn = thrift.Wrap
+	defaultThriftContextFn   = thrift.Wrap
+	defaultNewTagTransformer = ident.NewNoTagTransformer
 
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
@@ -296,6 +297,7 @@ type options struct {
 	writeTimestampOffset                    time.Duration
 	namespaceInitializer                    namespace.Initializer
 	thriftContextFn                         ThriftContextFn
+	newTagTransformer                       ident.NewTagTransformer
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -438,6 +440,7 @@ func newOptions() *options {
 		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
 		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
 		thriftContextFn:                         defaultThriftContextFn,
+		newTagTransformer:                       defaultNewTagTransformer,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -777,6 +780,16 @@ func (o *options) SetTagEncoderOptions(value serialize.TagEncoderOptions) Option
 
 func (o *options) TagEncoderOptions() serialize.TagEncoderOptions {
 	return o.tagEncoderOpts
+}
+
+func (o *options) SetNewTagTransformer(value ident.NewTagTransformer) Options {
+	opts := *o
+	opts.newTagTransformer = value
+	return &opts
+}
+
+func (o *options) NewTagTransformer() ident.NewTagTransformer {
+	return o.newTagTransformer
 }
 
 func (o *options) SetTagEncoderPoolSize(value int) Options {

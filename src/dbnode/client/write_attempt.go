@@ -21,6 +21,7 @@
 package client
 
 import (
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -48,6 +49,7 @@ type writeAttempt struct {
 }
 
 type writeAttemptArgs struct {
+	ctx         context.Context
 	namespace   ident.ID
 	id          ident.ID
 	tags        ident.TagIterator
@@ -63,7 +65,7 @@ func (w *writeAttempt) reset() {
 }
 
 func (w *writeAttempt) perform() error {
-	err := w.session.writeAttempt(w.args.attemptType,
+	err := w.session.writeAttempt(w.args.ctx, w.args.attemptType,
 		w.args.namespace, w.args.id, w.args.tags, w.args.t,
 		w.args.value, w.args.unit, w.args.annotation)
 

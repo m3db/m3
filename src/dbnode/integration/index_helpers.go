@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -148,7 +149,7 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 func (w TestIndexWrites) Write(t *testing.T, ns ident.ID, s client.Session) {
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
-		require.NoError(t, s.WriteTagged(ns,
+		require.NoError(t, s.WriteTagged(xcontext.NewBackground(), ns,
 			wi.ID,
 			wi.Tags.Duplicate(),
 			wi.Timestamp,

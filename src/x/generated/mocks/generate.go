@@ -21,7 +21,7 @@
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
 
 //go:generate sh -c "mockgen -package=serialize $PACKAGE/src/x/serialize TagEncoder,TagEncoderPool,TagDecoder,TagDecoderPool,MetricTagsIterator,MetricTagsIteratorPool | genclean -pkg $PACKAGE/src/x/serialize -out $GOPATH/src/$PACKAGE/src/x/serialize/serialize_mock.go"
-//go:generate sh -c "mockgen -package=ident $PACKAGE/src/x/ident ID,TagIterator | genclean -pkg $PACKAGE/src/x/ident -out $GOPATH/src/$PACKAGE/src/x/ident/ident_mock.go"
+//go:generate sh -c "mockgen -package=ident $PACKAGE/src/x/ident ID,TagIterator,TagTransformer | genclean -pkg $PACKAGE/src/x/ident -out $GOPATH/src/$PACKAGE/src/x/ident/ident_mock.go"
 //go:generate sh -c "mockgen -package=checked $PACKAGE/src/x/checked Bytes | genclean -pkg $PACKAGE/src/x/checked -out $GOPATH/src/$PACKAGE/src/x/checked/checked_mock.go"
 //go:generate sh -c "mockgen -package=pool $PACKAGE/src/x/pool CheckedBytesPool,BytesPool | genclean -pkg $PACKAGE/src/x/pool -out $GOPATH/src/$PACKAGE/src/x/pool/pool_mock.go"
 

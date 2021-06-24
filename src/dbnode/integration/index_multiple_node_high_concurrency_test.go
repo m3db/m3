@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
+	xcontext "github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -96,6 +97,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				start := time.Now()
 				log.Info("starting data write")
 
+				ctx := xcontext.NewBackground()
 				for i := 0; i < concurrency; i++ {
 					insertWg.Add(1)
 					idx := i
@@ -103,7 +105,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 						numErrors := uint32(0)
 						for j := 0; j < writeEach; j++ {
 							id, tags := genIDTags(idx, j, numTags)
-							err := session.WriteTagged(testNamespaces[0], id, tags, now, float64(1.0), xtime.Second, nil)
+							err := session.WriteTagged(ctx, testNamespaces[0], id, tags, now, float64(1.0), xtime.Second, nil)
 							if err != nil {
 								numErrors++
 							}

@@ -31,6 +31,7 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 	yaml "gopkg.in/yaml.v2"
@@ -40,9 +41,7 @@ const (
 	namespace = "default"
 )
 
-var (
-	namespaceID = ident.StringID(namespace)
-)
+var namespaceID = ident.StringID(namespace)
 
 type config struct {
 	Client client.Configuration `yaml:"m3db_client"`
@@ -154,7 +153,7 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 	}
 
 	// Write a tagged series ID. Pass 0 for value since it is ignored.
-	if err := session.WriteTagged(namespaceID, seriesID, tagsIter, xtime.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
+	if err := session.WriteTagged(xcontext.NewBackground(), namespaceID, seriesID, tagsIter, xtime.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
 		log.Fatalf("error writing series %s, err: %v", seriesID.String(), err)
 	}
 

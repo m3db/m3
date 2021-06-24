@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	testm3 "github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
+	xcontext "github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -424,6 +425,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndStoragePolicies(t *testing.T) {
 	for range aggregatedNamespaces {
 		for _, dp := range testDatapoints1 {
 			session.EXPECT().WriteTagged(
+				xcontext.NewBackground(),
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
 		}
 	}
@@ -483,6 +485,7 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	for _, entry := range testEntries {
 		for _, dp := range entry.datapoints {
 			session.EXPECT().WriteTagged(
+				xcontext.NewBackground(),
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
 			)
 		}
@@ -530,6 +533,7 @@ func TestDownsampleAndWriteBatchBadTags(t *testing.T) {
 	for _, entry := range testEntries[1:] {
 		for _, dp := range entry.datapoints {
 			session.EXPECT().WriteTagged(
+				xcontext.NewBackground(),
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
 			)
 		}
@@ -594,6 +598,7 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 	for _, entry := range testEntries2 {
 		for _, dp := range entry.datapoints {
 			session.EXPECT().WriteTagged(
+				xcontext.NewBackground(),
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
 			)
 		}
@@ -642,7 +647,7 @@ func TestDownsampleAndWriteBatchSingleDrop(t *testing.T) {
 	mockMetricsAppender.EXPECT().Finalize()
 
 	for _, dp := range testEntries[1].datapoints {
-		session.EXPECT().WriteTagged(
+		session.EXPECT().WriteTagged(xcontext.NewBackground(),
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), testEntries[1].annotation,
 		)
 	}
@@ -694,12 +699,14 @@ func TestDownsampleAndWriteBatchDropTimestamp(t *testing.T) {
 
 	for _, dp := range testEntries[0].datapoints {
 		session.EXPECT().WriteTagged(
+			xcontext.NewBackground(),
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), testEntries[0].annotation,
 		)
 	}
 
 	for _, dp := range testEntries[1].datapoints {
 		session.EXPECT().WriteTagged(
+			xcontext.NewBackground(),
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), testEntries[1].annotation,
 		)
 	}
@@ -719,6 +726,7 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 	for _, entry := range testEntries {
 		for _, dp := range entry.datapoints {
 			session.EXPECT().WriteTagged(
+				xcontext.NewBackground(),
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
 			)
 		}
@@ -812,6 +820,7 @@ func TestDownsampleAndWriteBatchOverrideStoragePolicies(t *testing.T) {
 			for _, dp := range entry.datapoints {
 				namespaceMatcher := ident.NewIDMatcher(namespace.NamespaceID.String())
 				session.EXPECT().WriteTagged(
+					xcontext.NewBackground(),
 					namespaceMatcher, gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
 				)
 			}
@@ -858,6 +867,7 @@ func expectDefaultDownsampling(
 func expectDefaultStorageWrites(session *client.MockSession, datapoints []ts.Datapoint, annotation []byte) {
 	for _, dp := range datapoints {
 		session.EXPECT().WriteTagged(
+			xcontext.NewBackground(),
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), annotation)
 	}
 }

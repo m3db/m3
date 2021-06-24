@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -67,7 +68,7 @@ func TestQueryLimitExceededError(t *testing.T) {
 			tags       = ident.StringTag("tag", "value")
 			timestamp  = xtime.ToUnixNano(nowFn()).Add(-time.Minute * time.Duration(i+1))
 		)
-		err := session.WriteTagged(ns.ID(), ident.StringID(metricName),
+		err := session.WriteTagged(xcontext.NewBackground(), ns.ID(), ident.StringID(metricName),
 			ident.NewTagsIterator(ident.NewTags(tags)), timestamp, 0.0, xtime.Second, nil)
 		require.NoError(t, err)
 	}
@@ -80,7 +81,6 @@ func TestQueryLimitExceededError(t *testing.T) {
 	_, _, err = session.Aggregate(ContextWithDefaultTimeout(), ns.ID(), query, aggOpts)
 	require.True(t, client.IsResourceExhaustedError(err),
 		"expected aggregate resource exhausted error, got: %v", err)
-
 }
 
 func newTestOptionsWithIndexedNamespace(t *testing.T) (TestOptions, namespace.Metadata) {

@@ -323,17 +323,17 @@ func (mr *MockSessionMockRecorder) WriteClusterAvailability() *gomock.Call {
 }
 
 // WriteTagged mocks base method.
-func (m *MockSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockSession) WriteTagged(ctx context0.Context, namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tags, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteTagged indicates an expected call of WriteTagged.
-func (mr *MockSessionMockRecorder) WriteTagged(namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockSessionMockRecorder) WriteTagged(ctx, namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockSession)(nil).WriteTagged), namespace, id, tags, t, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockSession)(nil).WriteTagged), ctx, namespace, id, tags, t, value, unit, annotation)
 }
 
 // MockAggregatedTagsIterator is a mock of AggregatedTagsIterator interface.
@@ -1105,17 +1105,17 @@ func (mr *MockAdminSessionMockRecorder) WriteClusterAvailability() *gomock.Call 
 }
 
 // WriteTagged mocks base method.
-func (m *MockAdminSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockAdminSession) WriteTagged(ctx context0.Context, namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tags, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteTagged indicates an expected call of WriteTagged.
-func (mr *MockAdminSessionMockRecorder) WriteTagged(namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockAdminSessionMockRecorder) WriteTagged(ctx, namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockAdminSession)(nil).WriteTagged), namespace, id, tags, t, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockAdminSession)(nil).WriteTagged), ctx, namespace, id, tags, t, value, unit, annotation)
 }
 
 // MockOptions is a mock of Options interface.
@@ -1615,6 +1615,20 @@ func (m *MockOptions) NewConnectionFn() NewConnectionFn {
 func (mr *MockOptionsMockRecorder) NewConnectionFn() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockOptions)(nil).NewConnectionFn))
+}
+
+// NewTagTransformer mocks base method.
+func (m *MockOptions) NewTagTransformer() ident.NewTagTransformer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewTagTransformer")
+	ret0, _ := ret[0].(ident.NewTagTransformer)
+	return ret0
+}
+
+// NewTagTransformer indicates an expected call of NewTagTransformer.
+func (mr *MockOptionsMockRecorder) NewTagTransformer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewTagTransformer", reflect.TypeOf((*MockOptions)(nil).NewTagTransformer))
 }
 
 // ReadConsistencyLevel mocks base method.
@@ -2189,6 +2203,20 @@ func (m *MockOptions) SetNewConnectionFn(value NewConnectionFn) AdminOptions {
 func (mr *MockOptionsMockRecorder) SetNewConnectionFn(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNewConnectionFn", reflect.TypeOf((*MockOptions)(nil).SetNewConnectionFn), value)
+}
+
+// SetNewTagTransformer mocks base method.
+func (m *MockOptions) SetNewTagTransformer(value ident.NewTagTransformer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNewTagTransformer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNewTagTransformer indicates an expected call of SetNewTagTransformer.
+func (mr *MockOptionsMockRecorder) SetNewTagTransformer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNewTagTransformer", reflect.TypeOf((*MockOptions)(nil).SetNewTagTransformer), value)
 }
 
 // SetReadConsistencyLevel mocks base method.
@@ -3348,6 +3376,20 @@ func (mr *MockAdminOptionsMockRecorder) NewConnectionFn() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockAdminOptions)(nil).NewConnectionFn))
 }
 
+// NewTagTransformer mocks base method.
+func (m *MockAdminOptions) NewTagTransformer() ident.NewTagTransformer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewTagTransformer")
+	ret0, _ := ret[0].(ident.NewTagTransformer)
+	return ret0
+}
+
+// NewTagTransformer indicates an expected call of NewTagTransformer.
+func (mr *MockAdminOptionsMockRecorder) NewTagTransformer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewTagTransformer", reflect.TypeOf((*MockAdminOptions)(nil).NewTagTransformer))
+}
+
 // Origin mocks base method.
 func (m *MockAdminOptions) Origin() topology.Host {
 	m.ctrl.T.Helper()
@@ -4018,6 +4060,20 @@ func (m *MockAdminOptions) SetNewConnectionFn(value NewConnectionFn) AdminOption
 func (mr *MockAdminOptionsMockRecorder) SetNewConnectionFn(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNewConnectionFn", reflect.TypeOf((*MockAdminOptions)(nil).SetNewConnectionFn), value)
+}
+
+// SetNewTagTransformer mocks base method.
+func (m *MockAdminOptions) SetNewTagTransformer(value ident.NewTagTransformer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNewTagTransformer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNewTagTransformer indicates an expected call of SetNewTagTransformer.
+func (mr *MockAdminOptionsMockRecorder) SetNewTagTransformer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNewTagTransformer", reflect.TypeOf((*MockAdminOptions)(nil).SetNewTagTransformer), value)
 }
 
 // SetOrigin mocks base method.
@@ -4989,17 +5045,17 @@ func (mr *MockclientSessionMockRecorder) WriteClusterAvailability() *gomock.Call
 }
 
 // WriteTagged mocks base method.
-func (m *MockclientSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockclientSession) WriteTagged(ctx context0.Context, namespace, id ident.ID, tags ident.TagIterator, t time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
+	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tags, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteTagged indicates an expected call of WriteTagged.
-func (mr *MockclientSessionMockRecorder) WriteTagged(namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockclientSessionMockRecorder) WriteTagged(ctx, namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockclientSession)(nil).WriteTagged), namespace, id, tags, t, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockclientSession)(nil).WriteTagged), ctx, namespace, id, tags, t, value, unit, annotation)
 }
 
 // MockhostQueue is a mock of hostQueue interface.

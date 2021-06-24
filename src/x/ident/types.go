@@ -22,6 +22,7 @@
 package ident
 
 import (
+	stdctx "context"
 	"fmt"
 	"sync"
 
@@ -224,6 +225,37 @@ type TagIterator interface {
 	// Rewind resets the tag iterator to the initial position.
 	Rewind()
 }
+
+// TagTransformer transforms tags.
+type TagTransformer interface {
+
+	// Transform the provided TagIterator into a new TagIterator.
+	Transform(stdctx.Context, TagIterator) (TagIterator, error)
+
+	// Reset the transformer so it can be used.
+	Reset()
+}
+
+// NewTagTransformer is a factory method for building a new TagTransformer.
+type NewTagTransformer func() TagTransformer
+
+// TagIteratorTransform transforms the provided TagIterator into a new TagIterator.
+type TagIteratorTransform func(stdctx.Context, TagIterator) (TagIterator, error)
+
+// NewNoTagTransformer builds a new TagTransformer that does not transformation.
+func NewNoTagTransformer() TagTransformer {
+	return &noTagTransformer{}
+}
+
+type noTagTransformer struct{}
+
+var _ TagTransformer = &noTagTransformer{}
+
+func (n *noTagTransformer) Transform(ctx stdctx.Context, iterator TagIterator) (TagIterator, error) {
+	return iterator, nil
+}
+
+func (n *noTagTransformer) Reset() {}
 
 // TagsIterator represents a TagIterator that can be reset with a Tags
 // collection type. It is not thread-safe.

@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -123,7 +124,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 			tags       = ident.StringTag("shared", "shared")
 			timestamp  = xtime.ToUnixNano(nowFn()).Add(-time.Minute * time.Duration(i+1))
 		)
-		err := session.WriteTagged(md.ID(), ident.StringID(metricName),
+		err := session.WriteTagged(xcontext.NewBackground(), md.ID(), ident.StringID(metricName),
 			ident.NewTagsIterator(ident.NewTags(tags)), timestamp, 0.0, xtime.Second, nil)
 		require.NoError(t, err)
 	}

@@ -83,6 +83,7 @@ type Session interface {
 
 	// WriteTagged value to the database for an ID and given tags.
 	WriteTagged(
+		ctx context.Context,
 		namespace,
 		id ident.ID,
 		tags ident.TagIterator,
@@ -583,6 +584,12 @@ type Options interface {
 	// WriteTaggedOpPoolSize returns the writeTaggedOperationPoolSize.
 	WriteTaggedOpPoolSize() int
 
+	// NewTagTransformer returns the factory method for constructing a new TagTransformer.
+	NewTagTransformer() ident.NewTagTransformer
+
+	// SetNewTagTransformer sets NewTagTransformer.
+	SetNewTagTransformer(value ident.NewTagTransformer) Options
+
 	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize.
 	SetFetchBatchOpPoolSize(value int) Options
 
@@ -870,8 +877,10 @@ type op interface {
 	CompletionFn() completionFn
 }
 
-type enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
-type enqueueDelayedDoneFn func()
+type (
+	enqueueDelayedFn     func(peersMetadata []receivedBlockMetadata)
+	enqueueDelayedDoneFn func()
+)
 
 type enqueueChannel interface {
 	enqueue(peersMetadata []receivedBlockMetadata) error

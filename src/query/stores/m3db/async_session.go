@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -37,9 +38,7 @@ const (
 	errNewSessionFailFmt = "M3DB session failed to initialize: %v"
 )
 
-var (
-	errSessionUninitialized = errors.New("M3DB session not yet initialized")
-)
+var errSessionUninitialized = errors.New("M3DB session not yet initialized")
 
 // AsyncSession is a thin wrapper around an M3DB session that does not block
 // on initialization.  Calls to methods while uninitialized will return an
@@ -128,15 +127,23 @@ func (s *AsyncSession) Write(namespace, id ident.ID, t xtime.UnixNano, value flo
 }
 
 // WriteTagged writes a value to the database for an ID and given tags.
-func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator,
-	t xtime.UnixNano, value float64, unit xtime.Unit, annotation []byte) error {
+func (s *AsyncSession) WriteTagged(
+	ctx xcontext.Context,
+	namespace,
+	id ident.ID,
+	tags ident.TagIterator,
+	t xtime.UnixNano,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
 		return s.err
 	}
 
-	return s.session.WriteTagged(namespace, id, tags, t, value, unit, annotation)
+	return s.session.WriteTagged(ctx, namespace, id, tags, t, value, unit, annotation)
 }
 
 // Fetch fetches values from the database for an ID.

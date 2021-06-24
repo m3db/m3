@@ -21,6 +21,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -28,8 +29,10 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/topology"
+	xcontext "github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -140,10 +143,22 @@ func getWriteTaggedState(ctrl *gomock.Controller, s *session, w writeTaggedStub)
 }
 
 func writeTaggedTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, topology.Host) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	s := newDefaultTestSession(t).(*session)
+	tagTransformer := ident.NewMockTagTransformer(ctrl)
+	opts := newSessionTestOptions()
+	opts = opts.SetNewTagTransformer(func() ident.TagTransformer {
+		return tagTransformer
+	})
+	tagTransformer.EXPECT().Transform(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, it ident.TagIterator) (ident.TagIterator, error) {
+			return it, nil
+		})
+	// A pool entry is reset many times in a test. Just make sure it happens at least once.
+	tagTransformer.EXPECT().Reset().MinTimes(1)
+
+	s := newTestSession(t, opts).(*session)
 	w := newWriteTaggedStub()
 
 	var completionFn completionFn
@@ -165,7 +180,9 @@ func writeTaggedTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *
 	// Begin write
 	writeWg.Add(1)
 	go func() {
-		s.WriteTagged(w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+		err := s.WriteTagged(xcontext.NewBackground(), w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit,
+			w.annotation)
+		require.NoError(t, err)
 		writeWg.Done()
 	}()
 

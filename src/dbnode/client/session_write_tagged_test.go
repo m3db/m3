@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/x/checked"
+	xcontext "github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -53,10 +54,9 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 
 	s := newDefaultTestSession(t)
 
-	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
+	err := s.WriteTagged(xcontext.NewBackground(), ident.StringID("namespace"), ident.StringID("foo"),
 		ident.EmptyTagIterator, xtime.Now(), 1.337, xtime.Second, nil)
 	assert.Equal(t, errSessionStatusNotOpen, err)
-
 }
 
 func TestSessionWriteTaggedEmptyTagName(t *testing.T) {
@@ -67,7 +67,7 @@ func TestSessionWriteTaggedEmptyTagName(t *testing.T) {
 	mockHostQueues(ctrl, s, sessionTestReplicas, nil)
 	assert.NoError(t, s.Open())
 
-	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
+	err := s.WriteTagged(xcontext.NewBackground(), ident.StringID("namespace"), ident.StringID("foo"),
 		ident.MustNewTagStringsIterator("", "something"), xtime.Now(),
 		1.337, xtime.Second, nil)
 	require.Error(t, err)
@@ -93,7 +93,7 @@ func TestSessionWriteTaggedEmptyTagValue(t *testing.T) {
 	hosts = s.state.topoMap.Hosts()
 	s.state.RUnlock()
 
-	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
+	err := s.WriteTagged(xcontext.NewBackground(), ident.StringID("namespace"), ident.StringID("foo"),
 		ident.MustNewTagStringsIterator("something", ""), xtime.Now(),
 		1.337, xtime.Second, nil)
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestSessionWriteTagged(t *testing.T) {
 	var writeWg sync.WaitGroup
 	writeWg.Add(1)
 	go func() {
-		resultErr = session.WriteTagged(w.ns, w.id, ident.NewTagsIterator(w.tags),
+		resultErr = session.WriteTagged(xcontext.NewBackground(), w.ns, w.id, ident.NewTagsIterator(w.tags),
 			w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
@@ -199,7 +199,7 @@ func TestSessionWriteTaggedDoesNotCloneNoFinalize(t *testing.T) {
 	var writeWg sync.WaitGroup
 	writeWg.Add(1)
 	go func() {
-		resultErr = session.WriteTagged(w.ns, w.id, ident.NewTagsIterator(w.tags),
+		resultErr = session.WriteTagged(xcontext.NewBackground(), w.ns, w.id, ident.NewTagsIterator(w.tags),
 			w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
@@ -246,7 +246,7 @@ func TestSessionWriteTaggedBadUnitErr(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	assert.Error(t, session.WriteTagged(
-		w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation))
+		xcontext.NewBackground(), w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation))
 
 	assert.NoError(t, session.Close())
 }
@@ -280,7 +280,7 @@ func TestSessionWriteTaggedBadTags(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	err := session.WriteTagged(
-		w.ns, w.id, &erroredTagIter{}, w.t, w.value, w.unit, w.annotation)
+		xcontext.NewBackground(), w.ns, w.id, &erroredTagIter{}, w.t, w.value, w.unit, w.annotation)
 	assert.Error(t, err)
 
 	assert.NoError(t, session.Close())
@@ -333,7 +333,7 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 	session.state.RUnlock()
 
 	err := session.WriteTagged(
-		w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+		xcontext.NewBackground(), w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 
@@ -407,7 +407,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	writeWg.Add(1)
 	go func() {
 		resultErr = session.WriteTagged(
-			w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+			xcontext.NewBackground(), w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 
@@ -503,7 +503,7 @@ func testWriteTaggedConsistencyLevel(
 	writeWg.Add(1)
 	go func() {
 		resultErr = session.WriteTagged(
-			w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+			xcontext.NewBackground(), w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 

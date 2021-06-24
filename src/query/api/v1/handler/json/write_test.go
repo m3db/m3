@@ -29,12 +29,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/m3"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFailingJSONWriteParsing(t *testing.T) {
@@ -73,7 +73,7 @@ func TestJSONWrite(t *testing.T) {
 
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
-		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		AnyTimes()
 	session.EXPECT().IteratorPools().
@@ -103,7 +103,7 @@ func TestJSONWriteError(t *testing.T) {
 
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
-		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		AnyTimes().
 		Return(expectedErr)

@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -71,7 +72,8 @@ func TestAsyncSessionError(t *testing.T) {
 	err := asyncSession.Write(nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.EqualError(t, err, expectedErrStr)
 
-	err = asyncSession.WriteTagged(nil, nil, nil, xtime.Now(), 0, xtime.Second, nil)
+	err = asyncSession.WriteTagged(xcontext.NewBackground(), nil, nil, nil, xtime.Now(), 0,
+		xtime.Second, nil)
 	assert.EqualError(t, err, expectedErrStr)
 
 	seriesIterator, err := asyncSession.Fetch(nil, nil, xtime.Now(), xtime.Now())
@@ -142,9 +144,11 @@ func TestAsyncSessionInitialized(t *testing.T) {
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().
-		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any()).
 		Return(nil)
-	err = asyncSession.WriteTagged(nil, nil, nil, xtime.Now(), 0, xtime.Second, nil)
+	err = asyncSession.WriteTagged(xcontext.NewBackground(), nil, nil, nil, xtime.Now(), 0,
+		xtime.Second, nil)
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().

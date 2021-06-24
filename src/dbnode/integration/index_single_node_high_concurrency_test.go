@@ -206,6 +206,7 @@ func testIndexSingleNodeHighConcurrency(
 	workerPool := xsync.NewWorkerPool(opts.concurrencyWrites)
 	workerPool.Init()
 
+	ctx := context.NewBackground()
 	for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
 		i := i
 		wg.Add(1)
@@ -231,7 +232,7 @@ func testIndexSingleNodeHighConcurrency(
 
 					id, tags := genIDTags(i, j, opts.numTags, genOpts...)
 					timestamp := xtime.Now()
-					err := session.WriteTagged(md.ID(), id, tags,
+					err := session.WriteTagged(ctx, md.ID(), id, tags,
 						timestamp, float64(j), xtime.Second, nil)
 					if err != nil {
 						if n := numTotalErrors.Inc(); n < 10 {

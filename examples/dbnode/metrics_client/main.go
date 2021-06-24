@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -40,9 +41,7 @@ const (
 	namespace = "default"
 )
 
-var (
-	namespaceID = ident.StringID(namespace)
-)
+var namespaceID = ident.StringID(namespace)
 
 type config struct {
 	Client client.Configuration `yaml:"client"`
@@ -99,7 +98,8 @@ func runTaggedExample(session client.Session) {
 	// Write a tagged series ID using millisecond precision.
 	timestamp := xtime.Now()
 	value := 42.0
-	err := session.WriteTagged(namespaceID, seriesID, tagsIter,
+	err := session.WriteTagged(
+		xcontext.NewBackground(), namespaceID, seriesID, tagsIter,
 		timestamp, value, xtime.Millisecond, nil)
 	if err != nil {
 		log.Fatalf("error writing series %s, err: %v", seriesID.String(), err)

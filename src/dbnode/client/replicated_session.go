@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	m3sync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -146,6 +147,7 @@ func (s *replicatedSession) setAsyncSessions(opts []Options) error {
 }
 
 type replicatedParams struct {
+	ctx        xcontext.Context
 	namespace  ident.ID
 	id         ident.ID
 	t          xtime.UnixNano
@@ -166,7 +168,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 			s.workerPool.Go(func() {
 				var err error
 				if params.useTags {
-					err = asyncSession.WriteTagged(
+					err = asyncSession.WriteTagged(params.ctx,
 						params.namespace, params.id, params.tags, params.t,
 						params.value, params.unit, params.annotation,
 					)
@@ -194,7 +196,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 	}
 
 	if params.useTags {
-		return s.session.WriteTagged(
+		return s.session.WriteTagged(params.ctx,
 			params.namespace, params.id, params.tags, params.t,
 			params.value, params.unit, params.annotation,
 		)
@@ -220,6 +222,7 @@ func (s replicatedSession) Write(
 	unit xtime.Unit, annotation []byte,
 ) error {
 	return s.replicate(replicatedParams{
+		ctx:        xcontext.NewBackground(),
 		namespace:  namespace,
 		id:         id,
 		t:          t.Add(-s.writeTimestampOffset),
@@ -231,10 +234,11 @@ func (s replicatedSession) Write(
 
 // WriteTagged value to the database for an ID and given tags.
 func (s replicatedSession) WriteTagged(
-	namespace, id ident.ID, tags ident.TagIterator, t xtime.UnixNano,
+	ctx xcontext.Context, namespace, id ident.ID, tags ident.TagIterator, t xtime.UnixNano,
 	value float64, unit xtime.Unit, annotation []byte,
 ) error {
 	return s.replicate(replicatedParams{
+		ctx:        ctx,
 		namespace:  namespace,
 		id:         id,
 		t:          t.Add(-s.writeTimestampOffset),

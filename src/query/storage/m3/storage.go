@@ -710,14 +710,9 @@ func (s *m3storage) Write(
 		datapoints = query.Datapoints()
 		idBuf      = tags.ID()
 		id         = ident.BytesID(idBuf)
-		err        error
 	)
 	// Set id to NoFinalize to avoid cloning it in write operations
 	id.NoFinalize()
-	tags.Tags, err = s.opts.TagsTransform()(ctx, tags.Tags)
-	if err != nil {
-		return err
-	}
 	tagIterator := storage.TagsToIdentTagIterator(tags)
 
 	if len(datapoints) == 1 {
@@ -814,6 +809,7 @@ func (s *m3storage) writeSingle(
 
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
-	return session.WriteTagged(namespaceID, identID, iterator,
+
+	return session.WriteTagged(xcontext.NewWithGoContext(ctx), namespaceID, identID, iterator,
 		datapoint.Timestamp, datapoint.Value, query.Unit(), query.Annotation())
 }

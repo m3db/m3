@@ -274,7 +274,7 @@ func makeTestWriteTagged(
 		require.NoError(t, err)
 
 		now := nodes[0].NowFn()().Add(time.Minute)
-		return s.WriteTagged(testNamespaces[0], ident.StringID("quorumTest"),
+		return s.WriteTagged(context.NewBackground(), testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
 			now, 42, xtime.Second, nil)
 	}

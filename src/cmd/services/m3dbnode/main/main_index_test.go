@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
 	xconfig "github.com/m3db/m3/src/x/config"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -230,8 +231,9 @@ func TestIndexEnabledServer(t *testing.T) {
 
 	// unknown ns test
 	randomNs := "random-ns"
+	ctx := xcontext.NewBackground()
 	for _, v := range values {
-		err := session.WriteTagged(ident.StringID(randomNs),
+		err := session.WriteTagged(ctx, ident.StringID(randomNs),
 			ident.StringID("foo"),
 			ident.NewTagsIterator(ident.NewTags(
 				ident.StringTag("foo", "bar"),
@@ -243,7 +245,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	}
 
 	for _, v := range values {
-		err := session.WriteTagged(ident.StringID(namespaceID),
+		err := session.WriteTagged(ctx, ident.StringID(namespaceID),
 			ident.StringID("foo"),
 			ident.NewTagsIterator(ident.NewTags(
 				ident.StringTag("foo", "bar"),
@@ -263,10 +265,10 @@ func TestIndexEnabledServer(t *testing.T) {
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	goCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	iters, fetchResponse, err := session.FetchTagged(ctx,
+	iters, fetchResponse, err := session.FetchTagged(goCtx,
 		ident.StringID(namespaceID),
 		index.Query{reQuery},
 		index.QueryOptions{
@@ -291,7 +293,7 @@ func TestIndexEnabledServer(t *testing.T) {
 		assert.Equal(t, v.unit, unit)
 	}
 
-	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(ctx,
+	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(goCtx,
 		ident.StringID(namespaceID),
 		index.Query{reQuery},
 		index.QueryOptions{
