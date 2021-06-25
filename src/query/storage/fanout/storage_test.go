@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"testing"
 	"time"
@@ -33,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	errs "github.com/m3db/m3/src/query/errors"
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
@@ -482,7 +482,7 @@ func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
 	warnStore.EXPECT().ErrorBehavior().Return(storage.BehaviorWarn)
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
-	stores := []storage.Storage{warnStore, okStore}
+	stores := []storage.Storage{okStore, warnStore}
 	store := NewStorage(stores, filter, filter, tFilter,
 		models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
@@ -511,48 +511,56 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 	}
 
 	okStore := storage.NewMockStorage(ctrl)
-	okStore.EXPECT().FetchProm(gomock.Any(), gomock.Any(), gomock.Any()).
+	okStore.EXPECT().FetchCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			storage.PromResult{
-				PromResult: &prompb.QueryResult{
-					Timeseries: []*prompb.TimeSeries{
-						{
-							Labels: []prompb.Label{{Name: []byte("ok")}},
-						},
-					},
-				},
-			},
+			fetchResult("ok"),
 			nil,
-		)
+		).AnyTimes()
 	okStore.EXPECT().Type().Return(storage.TypeLocalDC).AnyTimes()
 
 	warnStore := storage.NewMockStorage(ctrl)
-	warnStore.EXPECT().FetchProm(gomock.Any(), gomock.Any(), gomock.Any()).
+	warnStore.EXPECT().FetchCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			storage.PromResult{
-				PromResult: &prompb.QueryResult{
-					Timeseries: []*prompb.TimeSeries{
-						{
-							Labels: []prompb.Label{{Name: []byte("warn")}},
-						},
-					},
-				},
-			},
+			fetchResult("warn"),
 			errors.New("e"),
 		)
 	warnStore.EXPECT().ErrorBehavior().Return(storage.BehaviorWarn)
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
-	stores := []storage.Storage{warnStore, okStore}
+	stores := []storage.Storage{okStore, warnStore}
 	store := NewStorage(stores, filter, filter, tFilter,
 		models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
+	opts.SeriesLimit = 300
 	result, err := store.FetchProm(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
 
 	series := result.PromResult.GetTimeseries()
 	require.Equal(t, 1, len(series))
-	labels := series[0].GetLabels()
-	require.Equal(t, 1, len(labels))
-	assert.Equal(t, "ok", string(labels[0].GetName()))
+}
+
+func fetchResult(name string) consolidators.MultiFetchResult {
+	it, _ := test.BuildTestSeriesIterator(name)
+	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{it}, nil)
+	result := consolidators.NewMultiFetchResult(
+		consolidators.NamespaceCoversAllQueryRange,
+		nil,
+		consolidators.MatchOptions{MatchType: consolidators.MatchTags},
+		models.NewTagOptions(),
+		consolidators.LimitOptions{
+			Limit:             300,
+			RequireExhaustive: false,
+		},
+	)
+	result.Add(consolidators.MultiFetchResults{
+		SeriesIterators: iters,
+		Metadata:        block.NewResultMetadata(),
+		Attrs: storagemetadata.Attributes{
+			MetricsType: 0,
+			Retention:   30,
+			Resolution:  30,
+		},
+		Err: nil,
+	})
+	return result
 }
