@@ -933,6 +933,9 @@ func Run(runOpts RunOptions) {
 			if cfg.Repair.CheckInterval > 0 {
 				repairOpts = repairOpts.SetRepairCheckInterval(cfg.Repair.CheckInterval)
 			}
+			if cfg.Repair.Concurrency > 0 {
+				repairOpts = repairOpts.SetRepairShardConcurrency(cfg.Repair.Concurrency)
+			}
 
 			if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
 				// Set conditionally to avoid stomping on the default value of 1.0.

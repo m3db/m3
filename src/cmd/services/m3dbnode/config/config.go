@@ -549,6 +549,9 @@ type RepairPolicy struct {
 	// The repair check interval.
 	CheckInterval time.Duration `yaml:"checkInterval"`
 
+	// Concurrency sets the repair shard concurrency if set.
+	Concurrency int `yaml:"concurrency"`
+
 	// Whether debug shadow comparisons are enabled.
 	DebugShadowComparisonsEnabled bool `yaml:"debugShadowComparisonsEnabled"`
 
