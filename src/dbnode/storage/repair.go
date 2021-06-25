@@ -666,6 +666,20 @@ func (r *dbRepairer) Repair() error {
 		return err
 	}
 
+	var (
+		strategy                           = r.ropts.Strategy()
+		repairBlockStartShortCircuitRepair bool
+	)
+	switch strategy {
+	case repair.DefaultStrategy:
+		repairBlockStartShortCircuitRepair = true
+	case repair.FullSweepStrategy:
+		repairBlockStartShortCircuitRepair = false
+	default:
+		// Unrecognized strategy.
+		return fmt.Errorf("unknown repair strategy: %v", strategy)
+	}
+
 	for _, n := range namespaces {
 		repairRange := r.namespaceRepairTimeRange(n)
 		blockSize := n.Options().RetentionOptions().BlockSize()
@@ -681,6 +695,13 @@ func (r *dbRepairer) Repair() error {
 			leastRecentlyRepairedBlockStartLastRepairTime xtime.UnixNano
 		)
 		repairRange.IterateBackward(blockSize, func(blockStart xtime.UnixNano) bool {
+			// Update metrics around progress of repair.
+			blockStartUnixSeconds := blockStart.ToTime().Unix()
+			r.scope.Tagged(map[string]string{
+				"namespace": n.ID().String(),
+			}).Gauge("timestamp-current-block-repair").Update(float64(blockStartUnixSeconds))
+
+			// Update state for later reporting of least recently repaired block.
 			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
 			if ok && (leastRecentlyRepairedBlockStart.IsZero() ||
 				repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime)) {
@@ -694,7 +715,7 @@ func (r *dbRepairer) Repair() error {
 
 			// Failed or unrepair block from this point onwards.
 			numUnrepairedBlocks++
-			if hasRepairedABlockStart {
+			if hasRepairedABlockStart && repairBlockStartShortCircuitRepair {
 				// Only want to repair one namespace/blockStart per call to Repair()
 				// so once we've repaired a single blockStart we don't perform any
 				// more actual repairs although we do keep iterating so that we can

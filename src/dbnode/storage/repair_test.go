@@ -586,9 +586,6 @@ type expectedRepair struct {
 }
 
 func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
 	var (
 		rOpts = retention.NewOptions().
 			SetRetentionPeriod(retention.NewOptions().BlockSize() * 2)
@@ -607,22 +604,25 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 	require.Equal(t, blockSize, flushTimeEnd.Sub(flushTimeStart))
 
 	testCases := []struct {
-		title             string
-		repairState       repairStatesByNs
-		expectedNS1Repair expectedRepair
-		expectedNS2Repair expectedRepair
+		title              string
+		strategy           repair.Strategy
+		repairState        repairStatesByNs
+		expectedNS1Repairs []expectedRepair
+		expectedNS2Repairs []expectedRepair
 	}{
 		{
-			title: "repairs most recent block if no repair state",
-			expectedNS1Repair: expectedRepair{
-				expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
+			title:    "repairs most recent block if no repair state",
+			strategy: repair.DefaultStrategy,
+			expectedNS1Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)}},
 			},
-			expectedNS2Repair: expectedRepair{
-				expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
+			expectedNS2Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)}},
 			},
 		},
 		{
-			title: "repairs next unrepaired block in reverse order if some (but not all) blocks have been repaired",
+			title:    "repairs next unrepaired block in reverse order if some (but not all) blocks have been repaired",
+			strategy: repair.DefaultStrategy,
 			repairState: repairStatesByNs{
 				"ns1": namespaceRepairStateByTime{
 					flushTimeEnd: repairState{
@@ -637,15 +637,16 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 					},
 				},
 			},
-			expectedNS1Repair: expectedRepair{
-				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+			expectedNS1Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
 			},
-			expectedNS2Repair: expectedRepair{
-				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+			expectedNS2Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
 			},
 		},
 		{
-			title: "repairs least recently repaired block if all blocks have been repaired",
+			title:    "repairs least recently repaired block if all blocks have been repaired",
+			strategy: repair.DefaultStrategy,
 			repairState: repairStatesByNs{
 				"ns1": namespaceRepairStateByTime{
 					flushTimeStart: repairState{
@@ -668,11 +669,23 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 					},
 				},
 			},
-			expectedNS1Repair: expectedRepair{
-				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+			expectedNS1Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
 			},
-			expectedNS2Repair: expectedRepair{
-				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+			expectedNS2Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
+			},
+		},
+		{
+			title:    "repairs all blocks block if no repair state with full sweep strategy",
+			strategy: repair.FullSweepStrategy,
+			expectedNS1Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)}},
+				{expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
+			},
+			expectedNS2Repairs: []expectedRepair{
+				{expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)}},
+				{expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
 			},
 		},
 	}
@@ -680,7 +693,11 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
-			opts := DefaultTestOptions().SetRepairOptions(testRepairOptions(ctrl))
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
+
+			repairOpts := testRepairOptions(ctrl).SetStrategy(tc.strategy)
+			opts := DefaultTestOptions().SetRepairOptions(repairOpts)
 			mockDatabase := NewMockdatabase(ctrl)
 
 			databaseRepairer, err := newDatabaseRepairer(mockDatabase, opts)
@@ -707,8 +724,12 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			ns1.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
 			ns2.EXPECT().ID().Return(ident.StringID("ns2")).AnyTimes()
 
-			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.expectedRepairRange, NamespaceRepairOptions{})
-			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.expectedRepairRange, NamespaceRepairOptions{})
+			for _, expected := range tc.expectedNS1Repairs {
+				ns1.EXPECT().Repair(gomock.Any(), expected.expectedRepairRange, NamespaceRepairOptions{})
+			}
+			for _, expected := range tc.expectedNS2Repairs {
+				ns2.EXPECT().Repair(gomock.Any(), expected.expectedRepairRange, NamespaceRepairOptions{})
+			}
 
 			mockDatabase.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 			require.Nil(t, repairer.Repair())
@@ -718,7 +739,7 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 
 // Database repairer repairs blocks in decreasing time ranges for each namespace. If database repairer fails to
 // repair a time range of a namespace then instead of skipping repair of all past time ranges of that namespace, test
-// that database repaier tries to repair the past corrupt time range of that namespace.
+// that database repairer tries to repair the past corrupt time range of that namespace.
 func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()

@@ -540,6 +540,9 @@ type RepairPolicy struct {
 	// Type is the type of repair to run.
 	Type repair.Type `yaml:"type"`
 
+	// Strategy is the type of repair strategy to use.
+	Strategy repair.Strategy `yaml:"strategy"`
+
 	// Force the repair to run regardless of whether namespaces have repair enabled or not.
 	Force bool `yaml:"force"`
 

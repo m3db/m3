@@ -924,6 +924,7 @@ func Run(runOpts RunOptions) {
 		if repairCfg := cfg.Repair; repairCfg != nil {
 			repairOpts = repairOpts.
 				SetType(repairCfg.Type).
+				SetStrategy(repairCfg.Strategy).
 				SetForce(repairCfg.Force).
 				SetResultOptions(rsOpts).
 				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
