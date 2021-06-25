@@ -23,6 +23,7 @@ package view
 import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // RollupTarget is a rollup target model.
@@ -53,6 +54,7 @@ type RollupRule struct {
 	LastUpdatedBy       string         `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64          `json:"lastUpdatedAtMillis"`
 	KeepOriginal        bool           `json:"keepOriginal"`
+	Tags                []models.Tag   `json:"tags"`
 }
 
 // Equal determines whether two rollup rules are equal.
@@ -62,6 +64,14 @@ func (r *RollupRule) Equal(other *RollupRule) bool {
 	}
 	if r == nil || other == nil {
 		return false
+	}
+	if len(r.Tags) != len(other.Tags) {
+		return false
+	}
+	for i := 0; i < len(r.Tags); i++ {
+		if !r.Tags[i].Equal(other.Tags[i]) {
+			return false
+		}
 	}
 	return r.ID == other.ID &&
 		r.Name == other.Name &&

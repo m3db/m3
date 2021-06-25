@@ -187,6 +187,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -219,6 +225,12 @@ var (
 						Tombstoned:   true,
 						CutoverNanos: 67890,
 						Filter:       "tag3:value3 tag4:value4",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -268,6 +280,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -300,6 +318,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 67890,
 						Filter:       "tag3:value3 tag4:value4",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -349,7 +373,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
-
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
