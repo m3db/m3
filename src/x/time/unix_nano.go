@@ -39,7 +39,12 @@ func ToUnixNano(t time.Time) UnixNano {
 }
 
 // Truncate returns the result of rounding u down to a multiple of d.
+// If d <= 0, Truncate returns u unchanged.
 func (u UnixNano) Truncate(d time.Duration) UnixNano {
+	if d <= 0 {
+		return u
+	}
+
 	duration := UnixNano(d)
 	return (u / duration) * duration
 }
