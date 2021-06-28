@@ -298,6 +298,10 @@ func (r PeerMetadataComparisonResults) Aggregate() AggregatePeerMetadataComparis
 		result.ComparedMissingBlocks += elem.ComparedMissingBlocks
 		result.ComparedExtraBlocks += elem.ComparedExtraBlocks
 	}
+	if result.ComparedBlocks > 0 {
+		// Do not divide by zero and end up with a struct that cannot be JSON serialized.
+		return result
+	}
 	result.ComparedDifferingPercent = float64(result.ComparedDifferingBlocks) / float64(result.ComparedBlocks)
 	return result
 }
