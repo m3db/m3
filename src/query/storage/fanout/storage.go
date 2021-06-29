@@ -25,6 +25,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -33,11 +36,10 @@ import (
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/util/execution"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -71,6 +73,20 @@ func NewStorage(
 		tagOptions:         tagOptions,
 		instrumentOpts:     instrumentOpts,
 	}
+}
+
+func (s *fanoutStorage) QueryStorageMetadataAttributes(
+	ctx context.Context,
+	queryStart, queryEnd time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	// Optimization for the single store case
+	if len(s.stores) != 1 {
+		// Error (but should probably consolidated all together instead by using a map with storagemetadata.Attributes as a key)
+		return nil, fmt.Errorf("only support single store: stores=%d", len(s.stores))
+	}
+
+	return s.stores[0].QueryStorageMetadataAttributes(ctx, queryStart, queryEnd, opts)
 }
 
 func (s *fanoutStorage) FetchProm(
