@@ -1681,7 +1681,8 @@ func withEncodingAndPoolingOptions(
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).
 		SetSegmentReaderPool(segmentReaderPool).
-		SetCheckedBytesWrapperPool(bytesWrapperPool)
+		SetCheckedBytesWrapperPool(bytesWrapperPool).
+		SetMetrics(encoding.NewMetrics(scope))
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
