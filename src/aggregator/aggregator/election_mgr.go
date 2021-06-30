@@ -661,9 +661,9 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 			mgr.metrics.campaignCheckHasActiveShards.Inc(1)
 			switch mgr.ElectionState() {
 			case LeaderState:
-					mgr.metrics.leadersWithActiveShards.Update(float64(1))
+				mgr.metrics.leadersWithActiveShards.Update(float64(1))
 			case FollowerState:
-					mgr.metrics.followersWithActiveShards.Update(float64(1))
+				mgr.metrics.followersWithActiveShards.Update(float64(1))
 			default:
 			}
 			return true, nil
