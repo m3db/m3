@@ -3,15 +3,13 @@ title: "Flushing"
 weight: 2
 ---
 
-**Please note:** This documentation is a work in progress and more detail is required.
-
 ## Overview
 
-Flushing is the process by which m3aggregator instances output the aggregated data 
+Flushing is the process by which m3aggregator instances output the aggregated time series data 
 (by using [m3msg](https://github.com/m3db/m3/tree/master/src/msg#readme) protocol).
 There are two targets to which the data is flushed:
-1. Persistence: the aggregated data is flushed to m3coordinator (write) which then 
-   persists it in m3db.
+1. Persistence: the aggregated data is flushed to `m3coordinator` which then 
+   persists it in `m3db`.
 1. Forwarding: intermediate aggregation data is flushed to other nodes of `m3aggregator`
    (in a multi-node setup) for further processing. This is necessary for rollup rule 
    processing - eg. when a label is dropped, the resulting time series has a new id
@@ -48,7 +46,7 @@ aggregator:
 are timestamps that can be used to control flushing from the given shard.
 They are shard fields in the placement structure.
 
-  If the shard has its cutover field set to some value, the shard will only
+If the shard has its cutover field set to some timestamp value, the shard will only
 [start flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L313) 
 once the wall clock will go past the given cutover timestamp. Until this happens, any aggregated
 data gets discarded.
@@ -56,3 +54,5 @@ data gets discarded.
 Similarly, if the shard has its cutoff field set to some value, the shard will 
 [stop flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L323-L330) 
 once the wall clock will go past the given cutoff timestamp.
+
+If the shard does not have cutover/cutoff fields set, it is flushing.
