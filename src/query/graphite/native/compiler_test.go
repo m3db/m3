@@ -452,8 +452,7 @@ func TestCompileErrors(t *testing.T) {
 			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)",
 			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)': " +
 				"invalid function call scale, " +
-				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)': " +
-				"could not find function named e",
+				"arg 1: expected a float64, received 'fetch(e)'",
 		},
 		{
 			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)",

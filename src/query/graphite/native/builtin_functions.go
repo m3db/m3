@@ -1663,6 +1663,7 @@ func safeIndex(len, index int) int {
 // of the array (if only one integer n is passed) or n - m elements of the array (if two integers n and m
 // are passed).
 func substr(_ *common.Context, seriesList singlePathSpec, start, stop int) (ts.SeriesList, error) {
+	origStart, origStop := start, stop
 	results := make([]*ts.Series, len(seriesList.Values))
 	re := regexp.MustCompile(",.*$")
 	for i, series := range seriesList.Values {
@@ -1676,18 +1677,26 @@ func substr(_ *common.Context, seriesList singlePathSpec, start, stop int) (ts.S
 		right = safeIndex(length, right)
 		nameParts := strings.Split(name[left:right], ".")
 		numParts := len(nameParts)
+		currStart, currStop := start, stop
+		// Graphite supports negative indexing, so we need to also.
+		if currStart < 0 {
+			currStart += numParts
+		}
+		if currStop < 0 {
+			currStop += numParts
+		}
 		// If stop == 0, it's as if stop was unspecified
-		if start < 0 || start >= numParts || (stop != 0 && stop < start) {
+		if currStart < 0 || currStart >= numParts || (currStop != 0 && currStop < currStart) {
 			err := xerrors.NewInvalidParamsError(fmt.Errorf(
-				"invalid substr params, start=%d, stop=%d", start, stop))
+				"invalid substr params: start=%d, stop=%d", origStart, origStop))
 			return ts.NewSeriesList(), err
 		}
 		var newName string
-		if stop == 0 {
-			newName = strings.Join(nameParts[start:], ".")
+		if currStop == 0 {
+			newName = strings.Join(nameParts[currStart:], ".")
 		} else {
-			stop = safeIndex(numParts, stop)
-			newName = strings.Join(nameParts[start:stop], ".")
+			stop = safeIndex(numParts, currStop)
+			newName = strings.Join(nameParts[currStart:currStop], ".")
 		}
 		newName = re.ReplaceAllString(newName, "")
 		results[i] = series.RenamedTo(newName)

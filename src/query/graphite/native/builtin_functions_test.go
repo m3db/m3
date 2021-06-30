@@ -3244,7 +3244,7 @@ func TestSubstr(t *testing.T) {
 		Values: []*ts.Series{series},
 	}, 1, 0)
 	expected := common.TestSeries{Name: "bar", Data: input.values}
-	require.Nil(t, err)
+	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
 		[]common.TestSeries{expected}, results.Values)
 
@@ -3252,7 +3252,7 @@ func TestSubstr(t *testing.T) {
 		Values: []*ts.Series{series},
 	}, 0, 2)
 	expected = common.TestSeries{Name: "foo.bar", Data: input.values}
-	require.Nil(t, err)
+	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
 		[]common.TestSeries{expected}, results.Values)
 
@@ -3260,24 +3260,28 @@ func TestSubstr(t *testing.T) {
 		Values: []*ts.Series{series},
 	}, 0, 0)
 	expected = common.TestSeries{Name: "foo.bar", Data: input.values}
-	require.Nil(t, err)
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
+		[]common.TestSeries{expected}, results.Values)
+
+	// Negative support -1, 0.
+	results, err = substr(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, -1, 0)
+	expected = common.TestSeries{Name: "bar", Data: input.values}
+	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
 		[]common.TestSeries{expected}, results.Values)
 
 	results, err = substr(ctx, singlePathSpec{
 		Values: []*ts.Series{series},
 	}, 2, 1)
-	require.NotNil(t, err)
-
-	results, err = substr(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, -1, 1)
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	results, err = substr(ctx, singlePathSpec{
 		Values: []*ts.Series{series},
 	}, 3, 4)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 type mockStorage struct{}
