@@ -26,7 +26,7 @@ Election state of the node can be checked by using `/status` endpoint:
 }
 ```
 
-`canLead` field is set to `true` for on the follower node when that node is ready to take 
+`canLead` field is set to `true` on the follower node when that node is ready to take 
 leader role without data loss. For that, the node must have accumulated all the data since
 the last flush done by the current leader (for the shardset that it owns).
 
