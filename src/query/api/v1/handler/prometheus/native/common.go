@@ -42,10 +42,12 @@ import (
 )
 
 const (
+	// QueryParam is the name of the query form/url parameter
+	QueryParam = "query"
+
 	endParam          = "end"
 	startParam        = "start"
 	timeParam         = "time"
-	queryParam        = "query"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
 	blockTypeParam    = "block-type"
@@ -125,7 +127,7 @@ func parseParams(
 	query, err := ParseQuery(r)
 	if err != nil {
 		return params, xerrors.NewInvalidParamsError(
-			fmt.Errorf(formatErrStr, queryParam, err))
+			fmt.Errorf(formatErrStr, QueryParam, err))
 	}
 	params.Query = query
 
@@ -211,7 +213,7 @@ func ParseQuery(r *http.Request) (string, error) {
 	// parameters taking precedence over URL parameters (see r.ParseForm() docs
 	// for more details). We depend on the generic behavior for properly parsing
 	// POST and GET queries.
-	queries, ok := r.Form[queryParam]
+	queries, ok := r.Form[QueryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
 		return "", errors.ErrNoQueryFound
 	}

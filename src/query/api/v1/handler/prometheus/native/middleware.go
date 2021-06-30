@@ -51,7 +51,7 @@ var WithQueryParams middleware.OverrideOptions = func(opts middleware.Options) m
 
 var middlewareParseParams middleware.ParseQueryParams = func(r *http.Request, requestStart time.Time) (
 	middleware.QueryParams, error) {
-	query := r.FormValue(queryParam)
+	query := r.FormValue(QueryParam)
 	if query == "" {
 		return middleware.QueryParams{}, nil
 	}
