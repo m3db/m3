@@ -65,7 +65,7 @@ func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 
 	go lex.Run()
 
-	close := closer(func() {
+	cleanup := closer(func() {
 		// Exhaust all tokens until closed or else lexer won't close.
 		for range tokens {
 		}
@@ -74,7 +74,7 @@ func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 	return &compiler{
 		input:  input,
 		tokens: newTokenLookforward(tokens),
-	}, close
+	}, cleanup
 }
 
 type tokenLookforward struct {
