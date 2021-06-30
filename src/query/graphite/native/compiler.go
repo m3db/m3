@@ -362,7 +362,7 @@ func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, erro
 
 	return token, nil
 }
-P
+
 // errorf returns a formatted error vfrom the compiler
 func (c *compiler) errorf(msg string, args ...interface{}) error {
 	return errors.NewInvalidParamsError(fmt.Errorf("invalid expression '%s': %s", c.input, fmt.Sprintf(msg, args...)))
