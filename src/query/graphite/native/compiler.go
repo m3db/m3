@@ -21,6 +21,7 @@
 package native
 
 import (
+	goerrors "errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -64,7 +65,7 @@ func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 
 	go lex.Run()
 
-	closer := closer(func() {
+	close := closer(func() {
 		// Exhaust all tokens until closed or else lexer won't close.
 		for range tokens {
 		}
@@ -73,7 +74,7 @@ func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 	return &compiler{
 		input:  input,
 		tokens: newTokenLookforward(tokens),
-	}, closer
+	}, close
 }
 
 type tokenLookforward struct {
@@ -137,8 +138,8 @@ func (c *compiler) compileExpression() (Expression, error) {
 		fc, err := c.compileFunctionCall(token.Value())
 		fetchCandidate := false
 		if err != nil {
-			_, fnNotFound := err.(errFuncNotFound)
-			if fnNotFound && c.canCompileAsFetch(token.Value()) {
+			var notFoundErr *errFuncNotFound
+			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(token.Value()) {
 				fetchCandidate = true
 				expr = newFetchExpression(token.Value())
 			} else {
@@ -184,13 +185,13 @@ func (c *compiler) canCompileAsFetch(fname string) bool {
 
 type errFuncNotFound struct{ err error }
 
-func (e errFuncNotFound) Error() string { return e.err.Error() }
+func (e *errFuncNotFound) Error() string { return e.err.Error() }
 
 // compileFunctionCall compiles a function call
 func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 	fn := findFunction(fname)
 	if fn == nil {
-		return nil, errFuncNotFound{c.errorf("could not find function named %s", fname)}
+		return nil, &errFuncNotFound{c.errorf("could not find function named %s", fname)}
 	}
 
 	if _, err := c.expectToken(lexer.LParenthesis); err != nil {
@@ -335,8 +336,8 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 		fc, err := c.compileFunctionCall(currentToken)
 		if err != nil {
-			_, fnNotFound := err.(errFuncNotFound)
-			if fnNotFound && c.canCompileAsFetch(currentToken) {
+			var notFoundErr *errFuncNotFound
+			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(currentToken) {
 				return newFetchExpression(currentToken), nil
 			}
 			return nil, err
@@ -361,7 +362,7 @@ func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, erro
 
 	return token, nil
 }
-
+P
 // errorf returns a formatted error vfrom the compiler
 func (c *compiler) errorf(msg string, args ...interface{}) error {
 	return errors.NewInvalidParamsError(fmt.Errorf("invalid expression '%s': %s", c.input, fmt.Sprintf(msg, args...)))

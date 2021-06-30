@@ -199,7 +199,7 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	series := []*ts.Series{
 		ts.NewSeries(ctx, "derivative(servers.bob02-foo.cpu.load_5)", now, values),
 		ts.NewSeries(ctx, "derivative(derivative(servers.bob02-foo.cpu.load_5))", now, values),
-		ts.NewSeries(ctx, "~~~", now, values),
+		ts.NewSeries(ctx, "fooble", now, values),
 		ts.NewSeries(ctx, "", now, values),
 	}
 	results, err := aliasByNode(ctx, singlePathSpec{
@@ -209,7 +209,7 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
 	assert.Equal(t, "servers.bob02-foo", results.Values[1].Name())
-	assert.Equal(t, "~~~", results.Values[2].Name())
+	assert.Equal(t, "fooble", results.Values[2].Name())
 	assert.Equal(t, "", results.Values[3].Name())
 }
 
