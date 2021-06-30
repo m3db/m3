@@ -90,16 +90,9 @@ type ElectionState int
 
 // A list of supported election states.
 const (
-	// Unknown election state.
 	UnknownState ElectionState = iota
-
-	// Follower state.
 	FollowerState
-
-	// Pending follower state.
 	PendingFollowerState
-
-	// Leader state.
 	LeaderState
 )
 
@@ -656,30 +649,33 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// causing incomplete data to be flushed.
 	var (
 		nowNanos        = mgr.nowFn().UnixNano()
-		noCutoverShards = true
-		allCutoffShards = true
+		noShardsCutover = true
+		allShardsCutoff = true
 		allShards       = shards.All()
 	)
 	for _, shard := range allShards {
 		hasCutover := nowNanos >= shard.CutoverNanos()
-		hasNotCutoff := nowNanos < shard.CutoffNanos()-int64(mgr.shardCutoffCheckOffset)
-		if hasCutover && hasNotCutoff {
+		hasCutoff := nowNanos >= shard.CutoffNanos()-int64(mgr.shardCutoffCheckOffset)
+
+		if hasCutover && !hasCutoff {
 			mgr.metrics.campaignCheckHasActiveShards.Inc(1)
-			if mgr.ElectionState() == LeaderState {
-				mgr.metrics.leadersWithActiveShards.Update(float64(1))
-			}
-			if mgr.ElectionState() == FollowerState {
-				mgr.metrics.followersWithActiveShards.Update(float64(1))
+			switch mgr.ElectionState() {
+			case LeaderState:
+					mgr.metrics.leadersWithActiveShards.Update(float64(1))
+			case FollowerState:
+					mgr.metrics.followersWithActiveShards.Update(float64(1))
+			default:
 			}
 			return true, nil
 		}
-		noCutoverShards = noCutoverShards && !hasCutover
-		allCutoffShards = allCutoffShards && !hasNotCutoff
+
+		noShardsCutover = noShardsCutover && !hasCutover
+		allShardsCutoff = allShardsCutoff && hasCutoff
 	}
 
 	// If no shards have been cut over, campaign is disabled to avoid writing
 	// incomplete data before shards are cut over.
-	if noCutoverShards {
+	if noShardsCutover {
 		mgr.metrics.campaignCheckNoCutoverShards.Inc(1)
 		mgr.logger.Warn("campaign is not enabled, no cutover shards")
 		return false, nil
@@ -692,7 +688,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// * There is an instance with the same shard set id replacing the current instance,
 	//   indicating the replacement instance has a copy of this instance's data and as
 	//   such this instance's data are no longer needed.
-	if allCutoffShards {
+	if allShardsCutoff {
 		multiErr := xerrors.NewMultiError()
 
 		// Check flush times persisted in kv.
