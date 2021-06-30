@@ -81,12 +81,27 @@ func (s *fanoutStorage) QueryStorageMetadataAttributes(
 	opts *storage.FetchOptions,
 ) ([]storagemetadata.Attributes, error) {
 	// Optimization for the single store case
-	if len(s.stores) != 1 {
-		// Error (but should probably consolidated all together instead by using a map with storagemetadata.Attributes as a key)
-		return nil, fmt.Errorf("only support single store: stores=%d", len(s.stores))
+	if len(s.stores) == 1 {
+		return s.stores[0].QueryStorageMetadataAttributes(ctx, queryStart, queryEnd, opts)
 	}
 
-	return s.stores[0].QueryStorageMetadataAttributes(ctx, queryStart, queryEnd, opts)
+	found := make(map[storagemetadata.Attributes]bool)
+	for _, store := range s.stores {
+		attrs, err := store.QueryStorageMetadataAttributes(ctx, queryStart, queryEnd, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, attr := range attrs {
+			found[attr] = true
+		}
+	}
+
+	attrs := make([]storagemetadata.Attributes, 0, len(found))
+	for attr := range found {
+		attrs = append(attrs, attr)
+	}
+
+	return attrs, nil
 }
 
 func (s *fanoutStorage) FetchProm(

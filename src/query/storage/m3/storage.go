@@ -86,7 +86,7 @@ func NewStorage(
 }
 
 func (s *m3storage) QueryStorageMetadataAttributes(
-	ctx context.Context,
+	_ context.Context,
 	queryStart, queryEnd time.Time,
 	opts *storage.FetchOptions,
 ) ([]storagemetadata.Attributes, error) {
@@ -149,7 +149,6 @@ func (s *m3storage) FetchProm(
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
 	)
-
 	if err != nil {
 		return storage.PromResult{}, err
 	}
@@ -183,7 +182,6 @@ func FetchResultToBlockResult(
 		bounds,
 		opts,
 	)
-
 	if err != nil {
 		return block.Result{
 			Metadata: block.NewResultMetadata(),

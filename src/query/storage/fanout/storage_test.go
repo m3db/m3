@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
+	storagem3 "github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/m3"
@@ -72,7 +73,8 @@ func fakeIterator(t *testing.T) encoding.SeriesIterators {
 			Namespace: namespace,
 			Tags: seriesiter.GenerateSingleSampleTagIterator(
 				xtest.NewController(t), seriesiter.GenerateTag()),
-		}, nil)}, nil)
+		}, nil),
+	}, nil)
 }
 
 type fetchResponse struct {
@@ -156,6 +158,82 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	return store
 }
 
+func TestQueryStorageMetadataAttributes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	store1, _ := m3.NewStorageAndSession(t, ctrl)
+
+	stores := []storage.Storage{store1}
+
+	store := NewStorage(stores, filterFunc(false), filterFunc(false),
+		filterCompleteTagsFunc(false), models.NewTagOptions(), instrument.NewOptions())
+
+	attrs, err := store.QueryStorageMetadataAttributes(
+		context.Background(),
+		time.Now().Add(-10*time.Minute),
+		time.Now(),
+		storage.NewFetchOptions(),
+	)
+	require.NoError(t, err)
+	require.Equal(t, []storagemetadata.Attributes{
+		{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+			Retention:   m3.TestRetention,
+		},
+	}, attrs)
+}
+
+func TestQueryStorageMetadataAttributesMultipleStores(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	aggNs1 := []storagem3.AggregatedClusterNamespaceDefinition{
+		{
+			NamespaceID: ident.StringID("5m:90d"),
+			Resolution:  5 * time.Minute,
+			Retention:   120 * 24 * time.Hour,
+		},
+	}
+	aggNs2 := []storagem3.AggregatedClusterNamespaceDefinition{
+		{
+			NamespaceID: ident.StringID("5m:90d"),
+			Resolution:  5 * time.Minute,
+			Retention:   120 * 24 * time.Hour,
+		},
+		{
+			NamespaceID: ident.StringID("10m:120d"),
+			Resolution:  10 * time.Minute,
+			Retention:   150 * 24 * time.Hour,
+		},
+	}
+	store1, _ := m3.NewStorageAndSessionWithAggregatedNamespaces(t, ctrl, aggNs1)
+	store2, _ := m3.NewStorageAndSessionWithAggregatedNamespaces(t, ctrl, aggNs2)
+
+	stores := []storage.Storage{store1, store2}
+
+	store := NewStorage(stores, filterFunc(false), filterFunc(false),
+		filterCompleteTagsFunc(false), models.NewTagOptions(), instrument.NewOptions())
+
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.FanoutOptions.FanoutAggregated = storage.FanoutForceEnable
+	attrs, err := store.QueryStorageMetadataAttributes(
+		context.Background(),
+		time.Now().Add(-200*24*time.Hour),
+		time.Now(),
+		fetchOpts,
+	)
+	require.NoError(t, err)
+	require.Equal(t, []storagemetadata.Attributes{
+		{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Resolution:  5 * time.Minute,
+			Retention:   120 * 24 * time.Hour,
+		},
+		{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Resolution:  10 * time.Minute,
+			Retention:   150 * 24 * time.Hour,
+		},
+	}, attrs)
+}
+
 func TestFanoutReadEmpty(t *testing.T) {
 	store := setupFanoutRead(t, false)
 	res, err := store.FetchProm(context.TODO(), nil, nil)
@@ -173,7 +251,8 @@ func TestFanoutReadError(t *testing.T) {
 
 func TestFanoutReadSuccess(t *testing.T) {
 	store := setupFanoutRead(t, true, &fetchResponse{
-		result: fakeIterator(t)},
+		result: fakeIterator(t),
+	},
 		&fetchResponse{result: fakeIterator(t)},
 	)
 	res, err := store.FetchProm(context.TODO(), &storage.FetchQuery{

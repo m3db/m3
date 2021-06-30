@@ -24,6 +24,9 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
+
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
@@ -44,6 +47,7 @@ type Storage interface {
 	SetCompleteTagsResult(*consolidators.CompleteTagsResult, error)
 	SetWriteResult(error)
 	SetFetchBlocksResult(block.Result, error)
+	SetQueryStorageMetadataAttributesResult([]storagemetadata.Attributes, error)
 	SetCloseResult(error)
 	Writes() []*storage.WriteQuery
 }
@@ -77,6 +81,10 @@ type mockStorage struct {
 	}
 	closeResult struct {
 		err error
+	}
+	queryStorageMetadataAttributesResult struct {
+		attrs []storagemetadata.Attributes
+		err   error
 	}
 	writes []*storage.WriteQuery
 }
@@ -139,6 +147,13 @@ func (s *mockStorage) SetCompleteTagsResult(result *consolidators.CompleteTagsRe
 	defer s.Unlock()
 	s.completeTagsResult.result = result
 	s.completeTagsResult.err = err
+}
+
+func (s *mockStorage) SetQueryStorageMetadataAttributesResult(attrs []storagemetadata.Attributes, err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.queryStorageMetadataAttributesResult.attrs = attrs
+	s.queryStorageMetadataAttributesResult.err = err
 }
 
 func (s *mockStorage) SetCloseResult(err error) {
@@ -215,6 +230,17 @@ func (s *mockStorage) CompleteTags(
 	defer s.RUnlock()
 	s.lastFetchOptions = opts
 	return s.completeTagsResult.result, s.completeTagsResult.err
+}
+
+func (s *mockStorage) QueryStorageMetadataAttributes(
+	_ context.Context,
+	_, _ time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	s.RLock()
+	defer s.RUnlock()
+	s.lastFetchOptions = opts
+	return s.queryStorageMetadataAttributesResult.attrs, s.queryStorageMetadataAttributesResult.err
 }
 
 func (s *mockStorage) Write(
