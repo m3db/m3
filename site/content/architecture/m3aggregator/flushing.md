@@ -49,9 +49,10 @@ are timestamps that can be used to control flushing from the given shard.
 They are shard fields in the placement structure.
 
   If the shard has its cutover field set to some value, the shard will only
-[START flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L313) 
+[start flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L313) 
 once the wall clock will go past the given cutover timestamp. Until this happens, any aggregated
 data gets discarded.
 
-Similarly, if the shard has its cutoff field set to some value, the shard will STOP flushing 
+Similarly, if the shard has its cutoff field set to some value, the shard will 
+[stop flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L323-L330) 
 once the wall clock will go past the given cutoff timestamp.
