@@ -8,7 +8,7 @@ is elected to be a leader. Both leader and
 follower nodes are receiving the writes and performing the aggregation. 
 The main difference between the leader and the follower is that the leader node
 is responsible for flushing (persisting) the data it has aggregated 
-(see [Flushing](/docs/architecture/m3aggregator/flushing.md) for more details).
+(see [Flushing](/docs/architecture/m3aggregator/flushing) for more details).
 The follower is standing by ready to take over flushing in case the current leader fails.
 
 Election state of the node can be checked by using `/status` endpoint:

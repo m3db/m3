@@ -20,6 +20,6 @@ shards to the shardsets, and shardsets to individual nodes is part of the
 [binary protobuf struct](https://github.com/m3db/m3/blob/master/src/cluster/generated/proto/placementpb/placement.proto).
 
 The communication protocol used by `m3aggregator` is [m3msg](https://github.com/m3db/m3/tree/master/src/msg#readme).
-`m3aggregator` receives the input data from [m3coordinator](/docs/architecture/m3coordinator.md).
-See [Flushing](/docs/architecture/m3aggregator/flushing.md) for how the aggregator outputs the 
+`m3aggregator` receives the input data from [m3coordinator](/docs/architecture/m3coordinator).
+See [Flushing](/docs/architecture/m3aggregator/flushing) for how the aggregator outputs the 
 aggregated data (also for the inter-node communication).
