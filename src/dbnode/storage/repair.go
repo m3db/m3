@@ -695,13 +695,14 @@ func (r *dbRepairer) Repair() error {
 			hasRepairedABlockStart                        = false
 			leastRecentlyRepairedBlockStart               xtime.UnixNano
 			leastRecentlyRepairedBlockStartLastRepairTime xtime.UnixNano
+			namespaceScope                                = r.scope.Tagged(map[string]string{
+				"namespace": n.ID().String(),
+			})
 		)
 		repairRange.IterateBackward(blockSize, func(blockStart xtime.UnixNano) bool {
 			// Update metrics around progress of repair.
 			blockStartUnixSeconds := blockStart.ToTime().Unix()
-			r.scope.Tagged(map[string]string{
-				"namespace": n.ID().String(),
-			}).Gauge("timestamp-current-block-repair").Update(float64(blockStartUnixSeconds))
+			namespaceScope.Gauge("timestamp-current-block-repair").Update(float64(blockStartUnixSeconds))
 
 			// Update state for later reporting of least recently repaired block.
 			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
@@ -735,15 +736,11 @@ func (r *dbRepairer) Repair() error {
 		})
 
 		// Update metrics with statistics about repair status.
-		r.scope.Tagged(map[string]string{
-			"namespace": n.ID().String(),
-		}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
+		namespaceScope.Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
 
 		secondsSinceLastRepair := xtime.ToUnixNano(r.nowFn()).
 			Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
-		r.scope.Tagged(map[string]string{
-			"namespace": n.ID().String(),
-		}).Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
+		namespaceScope.Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
 
 		if hasRepairedABlockStart {
 			// Previous loop performed a repair which means we've hit our limit of repairing

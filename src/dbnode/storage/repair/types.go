@@ -78,8 +78,9 @@ func (t Type) String() string {
 		return "default"
 	case OnlyCompareRepair:
 		return "only_compare"
+	default:
+		return "unknown"
 	}
-	return "unknown"
 }
 
 // Strategy defines the repair strategy.
@@ -138,8 +139,9 @@ func (t Strategy) String() string {
 		return "default"
 	case FullSweepStrategy:
 		return "full_sweep"
+	default:
+		return "unknown"
 	}
-	return "unknown"
 }
 
 // ReplicaMetadataSlice captures a slice of block.ReplicaMetadata.
