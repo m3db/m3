@@ -703,7 +703,7 @@ func assertFetchBlocksFromPeersResult(
 	}
 	extraBlocks := []peerBlocksDatapoint{}
 	for observedBlocksIter.Next() {
-		observedHost, observedID, observedBlock := observedBlocksIter.Current()
+		observedHost, observedID, _, observedBlock := observedBlocksIter.Current()
 
 		// find which peer the current datapoint is for
 		peerIdx := -1
