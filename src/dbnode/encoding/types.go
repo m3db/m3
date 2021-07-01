@@ -165,6 +165,12 @@ type Options interface {
 	// SetIStreamReaderSizeProto returns the IStream bufio reader size
 	// for proto encoding iteration.
 	IStreamReaderSizeProto() int
+
+	// SetMetrics sets the encoding metrics.
+	SetMetrics(value Metrics) Options
+
+	// Metrics returns the encoding metrics.
+	Metrics() Metrics
 }
 
 // Iterator is the generic interface for iterating over encoded data.

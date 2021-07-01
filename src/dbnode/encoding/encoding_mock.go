@@ -351,6 +351,20 @@ func (mr *MockOptionsMockRecorder) MarkerEncodingScheme() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkerEncodingScheme", reflect.TypeOf((*MockOptions)(nil).MarkerEncodingScheme))
 }
 
+// Metrics mocks base method.
+func (m *MockOptions) Metrics() Metrics {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Metrics")
+	ret0, _ := ret[0].(Metrics)
+	return ret0
+}
+
+// Metrics indicates an expected call of Metrics.
+func (mr *MockOptionsMockRecorder) Metrics() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metrics", reflect.TypeOf((*MockOptions)(nil).Metrics))
+}
+
 // ReaderIteratorPool mocks base method.
 func (m *MockOptions) ReaderIteratorPool() ReaderIteratorPool {
 	m.ctrl.T.Helper()
@@ -489,6 +503,20 @@ func (m *MockOptions) SetMarkerEncodingScheme(value *MarkerEncodingScheme) Optio
 func (mr *MockOptionsMockRecorder) SetMarkerEncodingScheme(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMarkerEncodingScheme", reflect.TypeOf((*MockOptions)(nil).SetMarkerEncodingScheme), value)
+}
+
+// SetMetrics mocks base method.
+func (m *MockOptions) SetMetrics(value Metrics) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMetrics", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMetrics indicates an expected call of SetMetrics.
+func (mr *MockOptionsMockRecorder) SetMetrics(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetrics", reflect.TypeOf((*MockOptions)(nil).SetMetrics), value)
 }
 
 // SetReaderIteratorPool mocks base method.

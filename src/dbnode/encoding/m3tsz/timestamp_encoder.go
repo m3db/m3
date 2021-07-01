@@ -49,6 +49,8 @@ type TimestampEncoder struct {
 	timeUnitEncodedManually bool
 	// Only taken into account if using the WriteTime() API.
 	hasWrittenFirst bool
+
+	metrics encoding.TimestampEncoderMetrics
 }
 
 var emptyAnnotationChecksum = xxhash.Sum64(nil)
@@ -62,6 +64,7 @@ func NewTimestampEncoder(
 		PrevAnnotationChecksum: emptyAnnotationChecksum,
 		markerEncodingScheme:   opts.MarkerEncodingScheme(),
 		timeEncodingSchemes:    opts.TimeEncodingSchemes(),
+		metrics:                opts.Metrics().TimestampEncoder,
 	}
 }
 
@@ -182,6 +185,12 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 	stream.WriteBytes(buf[:annotationLength])
 	stream.WriteBytes(ant)
 
+	if enc.PrevAnnotationChecksum != emptyAnnotationChecksum {
+		// NB: current assumption is that each time series should have a single annotation write per block
+		// and that annotations should be rewritten rarely. If this assumption changes, it might not be worth
+		// keeping this metric around.
+		enc.metrics.IncAnnotationRewritten()
+	}
 	enc.PrevAnnotationChecksum = checksum
 }
 

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/x/errors"
@@ -40,19 +39,6 @@ func Alias(_ *Context, series ts.SeriesList, a string) (ts.SeriesList, error) {
 	renamed := make([]*ts.Series, series.Len())
 	for i := range series.Values {
 		renamed[i] = series.Values[i].RenamedTo(a)
-	}
-	series.Values = renamed
-	return series, nil
-}
-
-// AliasByMetric takes a seriesList and applies an alias derived from the base
-// metric name.
-func AliasByMetric(ctx *Context, series ts.SeriesList) (ts.SeriesList, error) {
-	renamed := make([]*ts.Series, series.Len())
-	for i, s := range series.Values {
-		firstPart := strings.Split(s.Name(), ",")[0]
-		terms := strings.Split(firstPart, ".")
-		renamed[i] = s.RenamedTo(terms[len(terms)-1])
 	}
 	series.Values = renamed
 	return series, nil
