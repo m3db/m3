@@ -220,7 +220,7 @@ func testSetupToSeriesMaps(
 		require.NotNil(t, blocksIter)
 
 		for blocksIter.Next() {
-			_, id, blk := blocksIter.Current()
+			_, id, tags, blk := blocksIter.Current()
 			ctx := context.NewBackground()
 			reader, err := blk.Stream(ctx)
 			require.NoError(t, err)
@@ -242,6 +242,7 @@ func testSetupToSeriesMaps(
 			seriesMapList := seriesMap[firstTS.Truncate(blockSize)]
 			seriesMapList = append(seriesMapList, generate.Series{
 				ID:   id,
+				Tags: tags,
 				Data: datapoints,
 			})
 			seriesMap[firstTS.Truncate(blockSize)] = seriesMapList

@@ -212,7 +212,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		shard.EXPECT().ID().Return(shardID).AnyTimes()
 
 		peerIter := client.NewMockPeerBlockMetadataIter(ctrl)
-		inputBlocks := []block.ReplicaMetadata{
+		inBlocks := []block.ReplicaMetadata{
 			{
 				Host:     topology.NewHost("1", "addr1"),
 				Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead),
@@ -230,11 +230,11 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 
 		gomock.InOrder(
 			peerIter.EXPECT().Next().Return(true),
-			peerIter.EXPECT().Current().Return(inputBlocks[0].Host, inputBlocks[0].Metadata),
+			peerIter.EXPECT().Current().Return(inBlocks[0].Host, inBlocks[0].Metadata),
 			peerIter.EXPECT().Next().Return(true),
-			peerIter.EXPECT().Current().Return(inputBlocks[1].Host, inputBlocks[1].Metadata),
+			peerIter.EXPECT().Current().Return(inBlocks[1].Host, inBlocks[1].Metadata),
 			peerIter.EXPECT().Next().Return(true),
-			peerIter.EXPECT().Current().Return(inputBlocks[2].Host, inputBlocks[2].Metadata),
+			peerIter.EXPECT().Current().Return(inBlocks[2].Host, inBlocks[2].Metadata),
 			peerIter.EXPECT().Next().Return(false),
 			peerIter.EXPECT().Err().Return(nil),
 		)
@@ -245,22 +245,24 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 
 		peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
 		dbBlock1 := block.NewMockDatabaseBlock(ctrl)
-		dbBlock1.EXPECT().StartTime().Return(inputBlocks[2].Metadata.Start).AnyTimes()
+		dbBlock1.EXPECT().StartTime().Return(inBlocks[2].Metadata.Start).AnyTimes()
 		dbBlock2 := block.NewMockDatabaseBlock(ctrl)
-		dbBlock2.EXPECT().StartTime().Return(inputBlocks[2].Metadata.Start).AnyTimes()
+		dbBlock2.EXPECT().StartTime().Return(inBlocks[2].Metadata.Start).AnyTimes()
 		// Ensure merging logic works.
 		dbBlock1.EXPECT().Merge(dbBlock2)
 		gomock.InOrder(
 			peerBlocksIter.EXPECT().Next().Return(true),
-			peerBlocksIter.EXPECT().Current().Return(inputBlocks[2].Host, inputBlocks[2].Metadata.ID, dbBlock1),
+			peerBlocksIter.EXPECT().Current().
+				Return(inBlocks[2].Host, inBlocks[2].Metadata.ID, inBlocks[2].Metadata.Tags, dbBlock1),
 			peerBlocksIter.EXPECT().Next().Return(true),
-			peerBlocksIter.EXPECT().Current().Return(inputBlocks[2].Host, inputBlocks[2].Metadata.ID, dbBlock2),
+			peerBlocksIter.EXPECT().Current().
+				Return(inBlocks[2].Host, inBlocks[2].Metadata.ID, inBlocks[2].Metadata.Tags, dbBlock2),
 			peerBlocksIter.EXPECT().Next().Return(false),
 		)
 		nsMeta, err := namespace.NewMetadata(namespaceID, namespace.NewOptions())
 		require.NoError(t, err)
 		session.EXPECT().
-			FetchBlocksFromPeers(nsMeta, shardID, rpOpts.RepairConsistencyLevel(), inputBlocks[2:], gomock.Any()).
+			FetchBlocksFromPeers(nsMeta, shardID, rpOpts.RepairConsistencyLevel(), inBlocks[2:], gomock.Any()).
 			Return(peerBlocksIter, nil)
 
 		var (
@@ -302,7 +304,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		expected := []block.ReplicaMetadata{
 			// Checksum difference for series "bar".
 			{Host: topology.NewHost("0", "addr0"), Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead)},
-			{Host: topology.NewHost("1", "addr1"), Metadata: inputBlocks[2].Metadata},
+			{Host: topology.NewHost("1", "addr1"), Metadata: inBlocks[2].Metadata},
 		}
 		require.Equal(t, expected, currBlock.Metadata())
 
@@ -318,7 +320,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		expected = []block.ReplicaMetadata{
 			// Size difference for series "foo".
 			{Host: topology.NewHost("0", "addr0"), Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Hour), sizes[1], &checksums[1], lastRead)},
-			{Host: topology.NewHost("1", "addr1"), Metadata: inputBlocks[1].Metadata},
+			{Host: topology.NewHost("1", "addr1"), Metadata: inBlocks[1].Metadata},
 		}
 		require.Equal(t, expected, currBlock.Metadata())
 	}
@@ -424,7 +426,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 	shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
 
-	inputBlocks := []block.ReplicaMetadata{
+	inBlocks := []block.ReplicaMetadata{
 		{
 			// Peer block size size[2] is different from origin block size size[0]
 			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[0], lastRead),
@@ -460,20 +462,20 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		session := mock.session
 		// Make a copy of the input blocks where the host is set to the host for
 		// the cluster associated with the current session.
-		inputBlocksForSession := make([]block.ReplicaMetadata, len(inputBlocks))
-		copy(inputBlocksForSession, inputBlocks)
-		for j := range inputBlocksForSession {
-			inputBlocksForSession[j].Host = hosts[i]
+		inBlocksForSession := make([]block.ReplicaMetadata, len(inBlocks))
+		copy(inBlocksForSession, inBlocks)
+		for j := range inBlocksForSession {
+			inBlocksForSession[j].Host = hosts[i]
 		}
 
 		peerIter := client.NewMockPeerBlockMetadataIter(ctrl)
 		gomock.InOrder(
 			peerIter.EXPECT().Next().Return(true),
-			peerIter.EXPECT().Current().Return(inputBlocksForSession[0].Host, inputBlocks[0].Metadata),
+			peerIter.EXPECT().Current().Return(inBlocksForSession[0].Host, inBlocks[0].Metadata),
 			peerIter.EXPECT().Next().Return(true),
-			peerIter.EXPECT().Current().Return(inputBlocksForSession[1].Host, inputBlocks[1].Metadata),
+			peerIter.EXPECT().Current().Return(inBlocksForSession[1].Host, inBlocks[1].Metadata),
 			peerIter.EXPECT().Next().Return(true),
-			peerIter.EXPECT().Current().Return(inputBlocksForSession[2].Host, inputBlocks[2].Metadata),
+			peerIter.EXPECT().Current().Return(inBlocksForSession[2].Host, inBlocks[2].Metadata),
 			peerIter.EXPECT().Next().Return(false),
 			peerIter.EXPECT().Err().Return(nil),
 		)
@@ -484,23 +486,25 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 
 		peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
 		dbBlock1 := block.NewMockDatabaseBlock(ctrl)
-		dbBlock1.EXPECT().StartTime().Return(inputBlocksForSession[2].Metadata.Start).AnyTimes()
+		dbBlock1.EXPECT().StartTime().Return(inBlocksForSession[2].Metadata.Start).AnyTimes()
 		dbBlock2 := block.NewMockDatabaseBlock(ctrl)
-		dbBlock2.EXPECT().StartTime().Return(inputBlocksForSession[2].Metadata.Start).AnyTimes()
+		dbBlock2.EXPECT().StartTime().Return(inBlocksForSession[2].Metadata.Start).AnyTimes()
 		// Ensure merging logic works. Nede AnyTimes() because the Merge() will only be called on dbBlock1
 		// for the first session (all subsequent blocks from other sessions will get merged into dbBlock1
 		// from the first session.)
 		dbBlock1.EXPECT().Merge(dbBlock2).AnyTimes()
 		gomock.InOrder(
 			peerBlocksIter.EXPECT().Next().Return(true),
-			peerBlocksIter.EXPECT().Current().Return(inputBlocksForSession[2].Host, inputBlocks[2].Metadata.ID, dbBlock1),
+			peerBlocksIter.EXPECT().Current().
+				Return(inBlocksForSession[2].Host, inBlocks[2].Metadata.ID, inBlocks[2].Metadata.Tags, dbBlock1),
 			peerBlocksIter.EXPECT().Next().Return(true),
-			peerBlocksIter.EXPECT().Current().Return(inputBlocksForSession[2].Host, inputBlocks[2].Metadata.ID, dbBlock2),
+			peerBlocksIter.EXPECT().Current().
+				Return(inBlocksForSession[2].Host, inBlocks[2].Metadata.ID, inBlocks[2].Metadata.Tags, dbBlock2),
 			peerBlocksIter.EXPECT().Next().Return(false),
 		)
 		require.NoError(t, err)
 		session.EXPECT().
-			FetchBlocksFromPeers(nsMeta, shardID, rpOpts.RepairConsistencyLevel(), inputBlocksForSession[2:], gomock.Any()).
+			FetchBlocksFromPeers(nsMeta, shardID, rpOpts.RepairConsistencyLevel(), inBlocksForSession[2:], gomock.Any()).
 			Return(peerBlocksIter, nil)
 	}
 
@@ -529,8 +533,8 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	expected := []block.ReplicaMetadata{
 		// Checksum difference for series "bar".
 		{Host: origin, Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead)},
-		{Host: hosts[0], Metadata: inputBlocks[2].Metadata},
-		{Host: hosts[1], Metadata: inputBlocks[2].Metadata},
+		{Host: hosts[0], Metadata: inBlocks[2].Metadata},
+		{Host: hosts[1], Metadata: inBlocks[2].Metadata},
 	}
 	require.Equal(t, expected, currBlock.Metadata())
 
@@ -547,8 +551,8 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	expected = []block.ReplicaMetadata{
 		// Size difference for series "foo".
 		{Host: origin, Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead)},
-		{Host: hosts[0], Metadata: inputBlocks[0].Metadata},
-		{Host: hosts[1], Metadata: inputBlocks[0].Metadata},
+		{Host: hosts[0], Metadata: inBlocks[0].Metadata},
+		{Host: hosts[1], Metadata: inBlocks[0].Metadata},
 	}
 	require.Equal(t, expected, currBlock.Metadata())
 	// Validate second block
@@ -558,8 +562,8 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	expected = []block.ReplicaMetadata{
 		// Size difference for series "foo".
 		{Host: origin, Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Hour), sizes[1], &checksums[1], lastRead)},
-		{Host: hosts[0], Metadata: inputBlocks[1].Metadata},
-		{Host: hosts[1], Metadata: inputBlocks[1].Metadata},
+		{Host: hosts[0], Metadata: inBlocks[1].Metadata},
+		{Host: hosts[1], Metadata: inBlocks[1].Metadata},
 	}
 	require.Equal(t, expected, currBlock.Metadata())
 
