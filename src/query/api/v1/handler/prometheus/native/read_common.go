@@ -297,7 +297,7 @@ func RewriteRangeDuration(
 	parsedOpts ParsedOptions,
 	handlerOpts options.HandlerOptions,
 ) (bool, models.RequestParams, error) {
-	rewriteMultiplier := handlerOpts.Config().Query.RewriteRangesLessThanResolutionMultiplier
+	rewriteMultiplier := handlerOpts.Config().Query.Prometheus.RewriteRangesLessThanResolutionMultiplier
 	if rewriteMultiplier == 0 {
 		return false, parsedOpts.Params, nil
 	}
@@ -344,6 +344,7 @@ func RewriteRangeDuration(
 func rewriteRangeInQuery(expr parser.Node, res time.Duration, multiplier int) bool {
 	updated := false
 	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
+		// nolint:gocritic
 		switch n := node.(type) {
 		case *parser.MatrixSelector:
 			if n.Range <= res {

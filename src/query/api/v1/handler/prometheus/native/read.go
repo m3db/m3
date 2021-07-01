@@ -132,23 +132,21 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		zap.Duration("fetchTimeout", parsedOptions.FetchOpts.Timeout),
 	)
 
-	if !h.instant {
-		updated, params, err := RewriteRangeDuration(ctx, parsedOptions, h.opts)
-		if err != nil {
-			logger.Error("could not rewrite range duration", zap.Error(err))
-			xhttp.WriteError(w, err)
-			return
-		}
+	updated, params, err := RewriteRangeDuration(ctx, parsedOptions, h.opts)
+	if err != nil {
+		logger.Error("could not rewrite range duration", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
 
-		if updated {
-			originalQuery := parsedOptions.Params.Query
-			parsedOptions.Params = params
-			r.Form.Set(QueryParam, params.Query)
+	if updated {
+		originalQuery := parsedOptions.Params.Query
+		parsedOptions.Params = params
+		r.Form.Set(QueryParam, params.Query)
 
-			logger.Debug("rewrote range duration value within query",
-				zap.String("originalQuery", originalQuery),
-				zap.String("updatedQuery", params.Query))
-		}
+		logger.Debug("rewrote range duration value within query",
+			zap.String("originalQuery", originalQuery),
+			zap.String("updatedQuery", params.Query))
 	}
 
 	result, err := read(ctx, parsedOptions, h.opts)

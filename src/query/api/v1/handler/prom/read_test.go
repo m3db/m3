@@ -87,7 +87,7 @@ func setupTestWithStoreAndMultiplier(t *testing.T, store storage.Storage, mult i
 		SetStorage(store)
 
 	cfg := hOpts.Config()
-	cfg.Query.RewriteRangesLessThanResolutionMultiplier = mult
+	cfg.Query.Prometheus.RewriteRangesLessThanResolutionMultiplier = mult
 	hOpts = hOpts.SetConfig(cfg)
 
 	queryable := &mockQueryable{}

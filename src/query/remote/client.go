@@ -60,7 +60,9 @@ const (
 var (
 	errAlreadyClosed = goerrors.New("already closed")
 
-	errQueryStorageMetadataAttributesNotImplemented = goerrors.New("remote storage does not implement QueryStorageMetadataAttributes")
+	errQueryStorageMetadataAttributesNotImplemented = goerrors.New(
+		"remote storage does not implement QueryStorageMetadataAttributes",
+	)
 
 	// NB(r): These options tries to ensure we don't let connections go stale
 	// and cause failed RPCs as a result.

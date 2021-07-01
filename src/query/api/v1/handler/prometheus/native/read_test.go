@@ -169,10 +169,10 @@ func TestPromReadHandlerWithRewrite(t *testing.T) {
 
 	// Set rewrite config
 	cfg := promRead.opts.Config()
-	cfg.Query.RewriteRangesLessThanResolutionMultiplier = 2
+	cfg.Query.Prometheus.RewriteRangesLessThanResolutionMultiplier = 2
 	promRead.opts = promRead.opts.SetConfig(cfg)
 
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", PromReadURL, nil)
 	params := defaultParams()
 	params.Set(startParam, time.Now().Add(-60*24*time.Hour).Format(time.RFC3339))
 	params.Set(QueryParam, `rate(http_requests_total{group="canary",job="prometheus"}[1m])`)

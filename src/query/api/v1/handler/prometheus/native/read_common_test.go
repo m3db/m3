@@ -159,7 +159,7 @@ func TestRewriteRangeDuration(t *testing.T) {
 				SetStorage(store)
 
 			cfg := hOpts.Config()
-			cfg.Query.RewriteRangesLessThanResolutionMultiplier = tt.mult
+			cfg.Query.Prometheus.RewriteRangesLessThanResolutionMultiplier = tt.mult
 			hOpts = hOpts.SetConfig(cfg)
 
 			store.EXPECT().QueryStorageMetadataAttributes(

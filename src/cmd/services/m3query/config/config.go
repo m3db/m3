@@ -283,12 +283,6 @@ type QueryConfiguration struct {
 	// RequireSeriesEndpointStartEndTime requires requests to /series endpoint
 	// to specify a start and end time to prevent unbounded queries.
 	RequireSeriesEndpointStartEndTime bool `yaml:"requireSeriesEndpointStartEndTime"`
-	// RewriteRangesLessThanResolutionMultiplier will rewrite the range in a query if it's
-	// determined that the namespaces used to service the request have resolution(s)
-	// that are greater than the range. The range will be updated to the largest resolution
-	// of the namespaces to service the request * the multiplier specified here. If this multiplier
-	// is 0, then this feature is disabled.
-	RewriteRangesLessThanResolutionMultiplier int `yaml:"rewriteRangesLessThanResolutionMultiplier"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -349,6 +343,12 @@ type ConsolidationConfiguration struct {
 type PrometheusQueryConfiguration struct {
 	// MaxSamplesPerQuery is the limit on fetched samples per query.
 	MaxSamplesPerQuery *int `yaml:"maxSamplesPerQuery"`
+	// RewriteRangesLessThanResolutionMultiplier will rewrite the range in a query if it's
+	// determined that the namespaces used to service the request have resolution(s)
+	// that are greater than the range. The range will be updated to the largest resolution
+	// of the namespaces to service the request * the multiplier specified here. If this multiplier
+	// is 0, then this feature is disabled.
+	RewriteRangesLessThanResolutionMultiplier int `yaml:"rewriteRangesLessThanResolutionMultiplier"`
 }
 
 // MaxSamplesPerQueryOrDefault returns the max samples per query or default.

@@ -26,11 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 // Storage implements storage.Storage and provides methods to help
