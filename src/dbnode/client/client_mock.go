@@ -722,13 +722,14 @@ func (m *MockPeerBlocksIter) EXPECT() *MockPeerBlocksIterMockRecorder {
 }
 
 // Current mocks base method.
-func (m *MockPeerBlocksIter) Current() (topology.Host, ident.ID, block.DatabaseBlock) {
+func (m *MockPeerBlocksIter) Current() (topology.Host, ident.ID, ident.Tags, block.DatabaseBlock) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(topology.Host)
 	ret1, _ := ret[1].(ident.ID)
-	ret2, _ := ret[2].(block.DatabaseBlock)
-	return ret0, ret1, ret2
+	ret2, _ := ret[2].(ident.Tags)
+	ret3, _ := ret[3].(block.DatabaseBlock)
+	return ret0, ret1, ret2, ret3
 }
 
 // Current indicates an expected call of Current.

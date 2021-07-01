@@ -540,6 +540,9 @@ type RepairPolicy struct {
 	// Type is the type of repair to run.
 	Type repair.Type `yaml:"type"`
 
+	// Strategy is the type of repair strategy to use.
+	Strategy repair.Strategy `yaml:"strategy"`
+
 	// Force the repair to run regardless of whether namespaces have repair enabled or not.
 	Force bool `yaml:"force"`
 
@@ -548,6 +551,9 @@ type RepairPolicy struct {
 
 	// The repair check interval.
 	CheckInterval time.Duration `yaml:"checkInterval"`
+
+	// Concurrency sets the repair shard concurrency if set.
+	Concurrency int `yaml:"concurrency"`
 
 	// Whether debug shadow comparisons are enabled.
 	DebugShadowComparisonsEnabled bool `yaml:"debugShadowComparisonsEnabled"`

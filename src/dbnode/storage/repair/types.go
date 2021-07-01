@@ -78,8 +78,70 @@ func (t Type) String() string {
 		return "default"
 	case OnlyCompareRepair:
 		return "only_compare"
+	default:
+		return "unknown"
 	}
-	return "unknown"
+}
+
+// Strategy defines the repair strategy.
+type Strategy uint
+
+const (
+	// DefaultStrategy will compare iterating backwards then on repairing a
+	// block needing repair it will restart from the latest block start and
+	// work backwards again.
+	// This strategy is best at keeping most recent data repaired as quickly
+	// as possible but when turning on repair for the first time in a cluster
+	// you may want to do run repairs in full sweep for a while first.
+	DefaultStrategy Strategy = iota
+	// FullSweepStrategy will compare iterating backwards and repairing
+	// blocks needing repair until reaching the end of retention and then only
+	// once reaching the end of retention to repair does the repair restart
+	// evaluating blocks from the most recent block starts again.
+	// This mode may be more ideal in clusters that have never had repair
+	// enabled to ensure that historical data gets repaired at least once on
+	// a full sweep before switching back to the default strategy.
+	FullSweepStrategy
+)
+
+var validStrategies = []Strategy{
+	DefaultStrategy,
+	FullSweepStrategy,
+}
+
+// UnmarshalYAML unmarshals an Type into a valid type from string.
+func (t *Strategy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	// If unspecified, use default mode.
+	if str == "" {
+		*t = DefaultStrategy
+		return nil
+	}
+
+	for _, valid := range validStrategies {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid repair Strategy '%s' valid types are: %s",
+		str, validStrategies)
+}
+
+// String returns the bootstrap mode as a string
+func (t Strategy) String() string {
+	switch t {
+	case DefaultStrategy:
+		return "default"
+	case FullSweepStrategy:
+		return "full_sweep"
+	default:
+		return "unknown"
+	}
 }
 
 // ReplicaMetadataSlice captures a slice of block.ReplicaMetadata.
@@ -219,12 +281,6 @@ type PeerMetadataComparisonResult struct {
 	ComparedExtraBlocks int64
 }
 
-// ComparedDifferingPercent returns the percent, between range of
-// [0.0, 1.0], of all the blocks in the comparison.
-func (r PeerMetadataComparisonResult) ComparedDifferingPercent() float64 {
-	return float64(r.ComparedDifferingBlocks) / float64(r.ComparedBlocks)
-}
-
 // PeerMetadataComparisonResults is a slice of PeerMetadataComparisonResult.
 type PeerMetadataComparisonResults []PeerMetadataComparisonResult
 
@@ -237,6 +293,10 @@ func (r PeerMetadataComparisonResults) Aggregate() AggregatePeerMetadataComparis
 		result.ComparedMismatchBlocks += elem.ComparedMismatchBlocks
 		result.ComparedMissingBlocks += elem.ComparedMissingBlocks
 		result.ComparedExtraBlocks += elem.ComparedExtraBlocks
+	}
+	if result.ComparedBlocks <= 0 {
+		// Do not divide by zero and end up with a struct that cannot be JSON serialized.
+		return result
 	}
 	result.ComparedDifferingPercent = float64(result.ComparedDifferingBlocks) / float64(result.ComparedBlocks)
 	return result
@@ -271,6 +331,12 @@ type Options interface {
 
 	// Type returns the type of repair to run.
 	Type() Type
+
+	// SetStrategy sets the repair strategy.
+	SetStrategy(value Strategy) Options
+
+	// Strategy returns the repair strategy.
+	Strategy() Strategy
 
 	// SetForce sets whether to force repairs to run for all namespaces.
 	SetForce(value bool) Options

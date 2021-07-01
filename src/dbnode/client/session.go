@@ -2416,9 +2416,48 @@ func (s *session) FetchBlocksFromPeers(
 	if err != nil {
 		return nil, err
 	}
+
 	peersByHost := make(map[string]peer, len(peers.peers))
 	for _, peer := range peers.peers {
 		peersByHost[peer.Host().ID()] = peer
+	}
+
+	// If any metadata has tags then encode them up front so can
+	// return an error on tag encoding rather than logging error that would
+	// possibly get missed.
+	var (
+		metadatasEncodedTags []checked.Bytes
+		anyTags              bool
+	)
+	for _, meta := range metadatas {
+		if len(meta.Tags.Values()) > 0 {
+			anyTags = true
+			break
+		}
+	}
+	if anyTags {
+		// NB(r): Allocate exact length so nil is used and each index
+		// references same index as the incoming metadatas being fetched.
+		metadatasEncodedTags = make([]checked.Bytes, len(metadatas))
+		tagsIter := ident.NewTagsIterator(ident.Tags{})
+		for idx, meta := range metadatas {
+			if len(meta.Tags.Values()) == 0 {
+				continue
+			}
+
+			tagsIter.Reset(meta.Tags)
+			tagsEncoder := s.pools.tagEncoder.Get()
+			if err := tagsEncoder.Encode(tagsIter); err != nil {
+				return nil, err
+			}
+
+			encodedTagsCheckedBytes, ok := tagsEncoder.Data()
+			if !ok {
+				return nil, fmt.Errorf("could not encode tags: id=%s", meta.ID.String())
+			}
+
+			metadatasEncodedTags[idx] = encodedTagsCheckedBytes
+		}
 	}
 
 	go func() {
@@ -2431,7 +2470,7 @@ func (s *session) FetchBlocksFromPeers(
 
 	metadataCh := make(chan receivedBlockMetadata, blockMetadataChBufSize)
 	go func() {
-		for _, rb := range metadatas {
+		for idx, rb := range metadatas {
 			peer, ok := peersByHost[rb.Host.ID()]
 			if !ok {
 				logger.Warn("replica requested from unknown peer, skipping",
@@ -2441,9 +2480,20 @@ func (s *session) FetchBlocksFromPeers(
 				)
 				continue
 			}
+
+			// Attach encoded tags if present.
+			var encodedTags checked.Bytes
+			if idx < len(metadatasEncodedTags) {
+				// Note: could still be nil if had no tags, but the slice
+				// was built so need to take ref to encoded tags if
+				// was encoded.
+				encodedTags = metadatasEncodedTags[idx]
+			}
+
 			metadataCh <- receivedBlockMetadata{
-				id:   rb.ID,
-				peer: peer,
+				id:          rb.Metadata.ID,
+				encodedTags: encodedTags,
+				peer:        peer,
 				block: blockMetadata{
 					start:    rb.Start,
 					size:     rb.Size,
@@ -3769,8 +3819,8 @@ func newPeerBlocksIter(
 	}
 }
 
-func (it *peerBlocksIter) Current() (topology.Host, ident.ID, block.DatabaseBlock) {
-	return it.current.peer, it.current.id, it.current.block
+func (it *peerBlocksIter) Current() (topology.Host, ident.ID, ident.Tags, block.DatabaseBlock) {
+	return it.current.peer, it.current.id, it.current.tags, it.current.block
 }
 
 func (it *peerBlocksIter) Err() error {

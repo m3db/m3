@@ -319,15 +319,17 @@ func (r shardRepairer) Repair(
 		}
 
 		for perSeriesReplicaIter.Next() {
-			_, id, block := perSeriesReplicaIter.Current()
-			// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
+			_, id, tags, block := perSeriesReplicaIter.Current()
 			if existing, ok := results.BlockAt(id, block.StartTime()); ok {
+				// Merge contents with existing block.
 				if err := existing.Merge(block); err != nil {
 					return repair.MetadataComparisonResult{}, err
 				}
-			} else {
-				results.AddBlock(id, ident.Tags{}, block)
+				continue
 			}
+
+			// Add block for first time to results.
+			results.AddBlock(id, tags, block)
 		}
 	}
 
@@ -666,6 +668,20 @@ func (r *dbRepairer) Repair() error {
 		return err
 	}
 
+	var (
+		strategy                           = r.ropts.Strategy()
+		repairBlockStartShortCircuitRepair bool
+	)
+	switch strategy {
+	case repair.DefaultStrategy:
+		repairBlockStartShortCircuitRepair = true
+	case repair.FullSweepStrategy:
+		repairBlockStartShortCircuitRepair = false
+	default:
+		// Unrecognized strategy.
+		return fmt.Errorf("unknown repair strategy: %v", strategy)
+	}
+
 	for _, n := range namespaces {
 		repairRange := r.namespaceRepairTimeRange(n)
 		blockSize := n.Options().RetentionOptions().BlockSize()
@@ -679,8 +695,16 @@ func (r *dbRepairer) Repair() error {
 			hasRepairedABlockStart                        = false
 			leastRecentlyRepairedBlockStart               xtime.UnixNano
 			leastRecentlyRepairedBlockStartLastRepairTime xtime.UnixNano
+			namespaceScope                                = r.scope.Tagged(map[string]string{
+				"namespace": n.ID().String(),
+			})
 		)
 		repairRange.IterateBackward(blockSize, func(blockStart xtime.UnixNano) bool {
+			// Update metrics around progress of repair.
+			blockStartUnixSeconds := blockStart.ToTime().Unix()
+			namespaceScope.Gauge("timestamp-current-block-repair").Update(float64(blockStartUnixSeconds))
+
+			// Update state for later reporting of least recently repaired block.
 			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
 			if ok && (leastRecentlyRepairedBlockStart.IsZero() ||
 				repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime)) {
@@ -694,7 +718,7 @@ func (r *dbRepairer) Repair() error {
 
 			// Failed or unrepair block from this point onwards.
 			numUnrepairedBlocks++
-			if hasRepairedABlockStart {
+			if hasRepairedABlockStart && repairBlockStartShortCircuitRepair {
 				// Only want to repair one namespace/blockStart per call to Repair()
 				// so once we've repaired a single blockStart we don't perform any
 				// more actual repairs although we do keep iterating so that we can
@@ -712,15 +736,11 @@ func (r *dbRepairer) Repair() error {
 		})
 
 		// Update metrics with statistics about repair status.
-		r.scope.Tagged(map[string]string{
-			"namespace": n.ID().String(),
-		}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
+		namespaceScope.Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
 
 		secondsSinceLastRepair := xtime.ToUnixNano(r.nowFn()).
 			Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
-		r.scope.Tagged(map[string]string{
-			"namespace": n.ID().String(),
-		}).Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
+		namespaceScope.Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
 
 		if hasRepairedABlockStart {
 			// Previous loop performed a repair which means we've hit our limit of repairing
