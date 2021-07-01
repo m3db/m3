@@ -3769,8 +3769,8 @@ func newPeerBlocksIter(
 	}
 }
 
-func (it *peerBlocksIter) Current() (topology.Host, ident.ID, block.DatabaseBlock) {
-	return it.current.peer, it.current.id, it.current.block
+func (it *peerBlocksIter) Current() (topology.Host, ident.ID, ident.Tags, block.DatabaseBlock) {
+	return it.current.peer, it.current.id, it.current.tags, it.current.block
 }
 
 func (it *peerBlocksIter) Err() error {

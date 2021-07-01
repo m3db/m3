@@ -319,15 +319,17 @@ func (r shardRepairer) Repair(
 		}
 
 		for perSeriesReplicaIter.Next() {
-			_, id, block := perSeriesReplicaIter.Current()
-			// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
+			_, id, tags, block := perSeriesReplicaIter.Current()
 			if existing, ok := results.BlockAt(id, block.StartTime()); ok {
+				// Merge contents with existing block.
 				if err := existing.Merge(block); err != nil {
 					return repair.MetadataComparisonResult{}, err
 				}
-			} else {
-				results.AddBlock(id, ident.Tags{}, block)
+				continue
 			}
+
+			// Add block for first time to results.
+			results.AddBlock(id, tags, block)
 		}
 	}
 

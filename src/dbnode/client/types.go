@@ -230,7 +230,7 @@ type PeerBlocksIter interface {
 
 	// Current returns the metadata, and block data for a single block replica.
 	// These remain valid until Next() is called again.
-	Current() (topology.Host, ident.ID, block.DatabaseBlock)
+	Current() (topology.Host, ident.ID, ident.Tags, block.DatabaseBlock)
 
 	// Err returns any error encountered.
 	Err() error
