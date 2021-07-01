@@ -279,12 +279,6 @@ type PeerMetadataComparisonResult struct {
 	ComparedExtraBlocks int64
 }
 
-// ComparedDifferingPercent returns the percent, between range of
-// [0.0, 1.0], of all the blocks in the comparison.
-func (r PeerMetadataComparisonResult) ComparedDifferingPercent() float64 {
-	return float64(r.ComparedDifferingBlocks) / float64(r.ComparedBlocks)
-}
-
 // PeerMetadataComparisonResults is a slice of PeerMetadataComparisonResult.
 type PeerMetadataComparisonResults []PeerMetadataComparisonResult
 
