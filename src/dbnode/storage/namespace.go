@@ -1618,7 +1618,6 @@ func (n *dbNamespace) Repair(
 	wg.Wait()
 
 	aggregatePeerComparison := peerMetadataComparisons.Aggregate()
-
 	n.metrics.repairDifferingPercent.Update(aggregatePeerComparison.ComparedDifferingPercent)
 	n.metrics.repairComparedBlocks.Inc(aggregatePeerComparison.ComparedBlocks)
 	n.metrics.repairDifferingBlocks.Inc(aggregatePeerComparison.ComparedDifferingBlocks)
@@ -1636,7 +1635,12 @@ func (n *dbNamespace) Repair(
 		zap.Int64("numSizeDiffBlocks", numSizeDiffBlocks),
 		zap.Int64("numChecksumDiffSeries", numChecksumDiffSeries),
 		zap.Int64("numChecksumDiffBlocks", numChecksumDiffBlocks),
-		zap.Any("peerMetadataComparisons", aggregatePeerComparison),
+		zap.Float64("peerComparisonComparedDifferingPercent", aggregatePeerComparison.ComparedDifferingPercent),
+		zap.Int64("peerComparisonComparedBlocks", aggregatePeerComparison.ComparedBlocks),
+		zap.Int64("peerComparisonComparedDifferingBlocks", aggregatePeerComparison.ComparedDifferingBlocks),
+		zap.Int64("peerComparisonComparedMismatchBlocks", aggregatePeerComparison.ComparedMismatchBlocks),
+		zap.Int64("peerComparisonComparedMissingBlocks", aggregatePeerComparison.ComparedMissingBlocks),
+		zap.Int64("peerComparisonComparedExtraBlocks", aggregatePeerComparison.ComparedExtraBlocks),
 	)
 
 	return multiErr.FinalError()
