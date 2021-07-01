@@ -95,7 +95,7 @@ type mutableSegments struct {
 	writeIndexingConcurrency int
 	cachedSearchesWorkers    xsync.WorkerPool
 
-	sealedBlockStarts          map[xtime.UnixNano]struct{}
+	flushedBlockStarts         map[xtime.UnixNano]struct{}
 	backgroundCompactGCPending bool
 	backgroundCompactDisable   bool
 
@@ -213,7 +213,7 @@ func newMutableSegments(
 		blockOpts:             blockOpts,
 		compact:               mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
 		cachedSearchesWorkers: cachedSearchesWorkers,
-		sealedBlockStarts:     make(map[xtime.UnixNano]struct{}),
+		flushedBlockStarts:    make(map[xtime.UnixNano]struct{}),
 		iopts:                 iopts,
 		metrics:               newMutableSegmentsMetrics(iopts.MetricsScope()),
 		logger:                iopts.Logger(),
@@ -222,7 +222,7 @@ func newMutableSegments(
 	return m, nil
 }
 
-func (m *mutableSegments) NotifySealedBlocks(
+func (m *mutableSegments) NotifyFlushedBlocks(
 	sealed []xtime.UnixNano,
 ) error {
 	if len(sealed) == 0 {
@@ -232,11 +232,11 @@ func (m *mutableSegments) NotifySealedBlocks(
 	m.Lock()
 	updated := false
 	for _, blockStart := range sealed {
-		_, exists := m.sealedBlockStarts[blockStart]
+		_, exists := m.flushedBlockStarts[blockStart]
 		if exists {
 			continue
 		}
-		m.sealedBlockStarts[blockStart] = struct{}{}
+		m.flushedBlockStarts[blockStart] = struct{}{}
 		updated = true
 	}
 	if updated {
@@ -507,15 +507,15 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 	}
 
 	var (
-		gcRequired        = false
-		gcPlan            = &compaction.Plan{}
-		gcAlreadyRunning  = m.compact.compactingBackgroundGarbageCollect
-		sealedBlockStarts = make(map[xtime.UnixNano]struct{}, len(m.sealedBlockStarts))
+		gcRequired         = false
+		gcPlan             = &compaction.Plan{}
+		gcAlreadyRunning   = m.compact.compactingBackgroundGarbageCollect
+		flushedBlockStarts = make(map[xtime.UnixNano]struct{}, len(m.flushedBlockStarts))
 	)
 	// Take copy of sealed block starts so can act on this
 	// async.
-	for k, v := range m.sealedBlockStarts {
-		sealedBlockStarts[k] = v
+	for k, v := range m.flushedBlockStarts {
+		flushedBlockStarts[k] = v
 	}
 	if !gcAlreadyRunning && m.backgroundCompactGCPending {
 		gcRequired = true
@@ -567,7 +567,7 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		m.compact.compactingBackgroundStandard = true
 		go func() {
 			m.backgroundCompactWithPlan(plan, m.compact.backgroundCompactors,
-				gcRequired, sealedBlockStarts)
+				gcRequired, flushedBlockStarts)
 
 			m.Lock()
 			m.compact.compactingBackgroundStandard = false
@@ -587,7 +587,7 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 				})
 			} else {
 				m.backgroundCompactWithPlan(gcPlan, compactors,
-					gcRequired, sealedBlockStarts)
+					gcRequired, flushedBlockStarts)
 				m.closeCompactors(compactors)
 			}
 

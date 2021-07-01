@@ -283,13 +283,13 @@ func NewBlock(
 	return b, nil
 }
 
-func (b *block) InMemoryBlockNotifySealedBlocks(
+func (b *block) InMemoryBlockNotifyFlushedBlocks(
 	sealed []xtime.UnixNano,
 ) error {
 	if !b.blockOpts.InMemoryBlock {
 		return fmt.Errorf("block not in-memory block: start=%v", b.StartTime())
 	}
-	return b.mutableSegments.NotifySealedBlocks(sealed)
+	return b.mutableSegments.NotifyFlushedBlocks(sealed)
 }
 
 func (b *block) StartTime() time.Time {

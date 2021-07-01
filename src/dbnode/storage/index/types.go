@@ -390,9 +390,9 @@ type RemoveIndexedForBlockStartsResult struct {
 // Block represents a collection of segments. Each `Block` is a complete reverse
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
-	// InMemoryBlockNotifySealedBlocks notifies an in memory block of
+	// InMemoryBlockNotifyFlushedBlocks notifies an in memory block of
 	// sealed blocks.
-	InMemoryBlockNotifySealedBlocks(sealed []xtime.UnixNano) error
+	InMemoryBlockNotifyFlushedBlocks(flushed []xtime.UnixNano) error
 
 	// StartTime returns the start time of the period this Block indexes.
 	StartTime() time.Time
