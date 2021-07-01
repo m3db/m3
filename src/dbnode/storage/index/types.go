@@ -451,9 +451,9 @@ type Block interface {
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
 
-	// ActiveBlockNotifySealedBlocks notifies an active in-memory block of
+	// ActiveBlockNotifyFlushedBlocks notifies an active in-memory block of
 	// sealed blocks.
-	ActiveBlockNotifySealedBlocks(sealed []xtime.UnixNano) error
+	ActiveBlockNotifyFlushedBlocks(sealed []xtime.UnixNano) error
 
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)

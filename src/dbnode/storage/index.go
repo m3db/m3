@@ -945,13 +945,13 @@ func (i *nsIndex) Tick(
 	result.NumTotalDocs += blockTickResult.NumDocs
 	result.FreeMmap += blockTickResult.FreeMmap
 
-	// Notify in memory block of sealed blocks
+	// Notify in memory block of sealed and flushed blocks
 	// and make sure to do this out of the lock since
 	// this can take a considerable amount of time
 	// and is an expensive task that doesn't require
 	// holding the index lock.
-	_ = tickingBlocks.activeBlock.ActiveBlockNotifySealedBlocks(tickingBlocks.sealedBlocks)
-	i.metrics.blocksNotifySealed.Inc(int64(len(tickingBlocks.sealedBlocks)))
+	_ = tickingBlocks.activeBlock.ActiveBlockNotifyFlushedBlocks(tickingBlocks.flushedBlocks)
+	i.metrics.blocksNotifyFlushed.Inc(int64(len(tickingBlocks.flushedBlocks)))
 	i.metrics.tick.Inc(1)
 
 	return result, multiErr.FinalError()
@@ -962,7 +962,7 @@ type tickingBlocksResult struct {
 	evictedBlocks int
 	activeBlock   index.Block
 	tickingBlocks []index.Block
-	sealedBlocks  []xtime.UnixNano
+	flushedBlocks []xtime.UnixNano
 }
 
 func (i *nsIndex) tickingBlocks(
@@ -976,7 +976,7 @@ func (i *nsIndex) tickingBlocks(
 	i.state.Lock()
 	activeBlock := i.activeBlock
 	tickingBlocks := make([]index.Block, 0, len(i.state.blocksByTime))
-	sealedBlocks := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
+	flushedBlocks := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
 	defer func() {
 		i.updateBlockStartsWithLock()
 		i.state.Unlock()
@@ -1000,8 +1000,10 @@ func (i *nsIndex) tickingBlocks(
 			multiErr = multiErr.Add(block.Seal())
 		}
 
-		if block.IsSealed() {
-			sealedBlocks = append(sealedBlocks, blockStart)
+		if block.IsSealed() && !block.NeedsMutableSegmentsEvicted() {
+			// If sealed and does not need any in memory data evicted then
+			// we can call this block flushed.
+			flushedBlocks = append(flushedBlocks, blockStart)
 		}
 	}
 
@@ -1009,7 +1011,7 @@ func (i *nsIndex) tickingBlocks(
 		totalBlocks:   len(i.state.blocksByTime),
 		activeBlock:   activeBlock,
 		tickingBlocks: tickingBlocks,
-		sealedBlocks:  sealedBlocks,
+		flushedBlocks: flushedBlocks,
 	}, multiErr
 }
 
@@ -2354,7 +2356,7 @@ type nsIndexMetrics struct {
 	forwardIndexCounter              tally.Counter
 	insertEndToEndLatency            tally.Timer
 	blocksEvictedMutableSegments     tally.Counter
-	blocksNotifySealed               tally.Counter
+	blocksNotifyFlushed              tally.Counter
 	blockMetrics                     nsIndexBlocksMetrics
 	indexingConcurrencyMin           tally.Gauge
 	indexingConcurrencyMax           tally.Gauge
@@ -2422,7 +2424,7 @@ func newNamespaceIndexMetrics(
 		insertEndToEndLatency: instrument.NewTimer(scope,
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
-		blocksNotifySealed:           scope.Counter("blocks-notify-sealed"),
+		blocksNotifyFlushed:          scope.Counter("blocks-notify-flushed"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 		indexingConcurrencyMin: scope.Tagged(map[string]string{
 			"stat": "min",
