@@ -55,7 +55,7 @@ const (
 func defaultParams() url.Values {
 	vals := url.Values{}
 	now := time.Now()
-	vals.Add(queryParam, promQuery)
+	vals.Add(QueryParam, promQuery)
 	vals.Add(startParam, now.Format(time.RFC3339))
 	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
 	vals.Add(handleroptions.StepParam, (time.Duration(10) * time.Second).String())
@@ -102,7 +102,7 @@ func TestInstantaneousParamParsing(t *testing.T) {
 	req := httptest.NewRequest("GET", PromReadURL, nil)
 	params := url.Values{}
 	now := time.Now()
-	params.Add(queryParam, promQuery)
+	params.Add(QueryParam, promQuery)
 	params.Add(timeParam, now.Format(time.RFC3339))
 	req.URL.RawQuery = params.Encode()
 	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
@@ -132,7 +132,7 @@ func TestInvalidStart(t *testing.T) {
 func TestInvalidTarget(t *testing.T) {
 	req := httptest.NewRequest("GET", PromReadURL, nil)
 	vals := defaultParams()
-	vals.Del(queryParam)
+	vals.Del(QueryParam)
 	req.URL.RawQuery = vals.Encode()
 
 	p, err := testParseParams(req)

@@ -25,6 +25,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -33,11 +36,10 @@ import (
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/util/execution"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -71,6 +73,35 @@ func NewStorage(
 		tagOptions:         tagOptions,
 		instrumentOpts:     instrumentOpts,
 	}
+}
+
+func (s *fanoutStorage) QueryStorageMetadataAttributes(
+	ctx context.Context,
+	queryStart, queryEnd time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	// Optimization for the single store case
+	if len(s.stores) == 1 {
+		return s.stores[0].QueryStorageMetadataAttributes(ctx, queryStart, queryEnd, opts)
+	}
+
+	found := make(map[storagemetadata.Attributes]bool)
+	for _, store := range s.stores {
+		attrs, err := store.QueryStorageMetadataAttributes(ctx, queryStart, queryEnd, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, attr := range attrs {
+			found[attr] = true
+		}
+	}
+
+	attrs := make([]storagemetadata.Attributes, 0, len(found))
+	for attr := range found {
+		attrs = append(attrs, attr)
+	}
+
+	return attrs, nil
 }
 
 func (s *fanoutStorage) FetchProm(

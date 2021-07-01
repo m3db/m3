@@ -239,6 +239,14 @@ type Querier interface {
 		query *CompleteTagsQuery,
 		options *FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
+
+	// QueryStorageMetadataAttributes returns the storage metadata
+	// attributes for a query.
+	QueryStorageMetadataAttributes(
+		ctx context.Context,
+		queryStart, queryEnd time.Time,
+		opts *FetchOptions,
+	) ([]storagemetadata.Attributes, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.

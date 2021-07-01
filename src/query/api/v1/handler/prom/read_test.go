@@ -35,9 +35,13 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/prometheus"
+	m3test "github.com/m3db/m3/src/query/test/m3"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
@@ -63,6 +67,10 @@ type testHandlers struct {
 }
 
 func setupTest(t *testing.T) testHandlers {
+	return setupTestWithStoreAndMultiplier(t, nil, 0)
+}
+
+func setupTestWithStoreAndMultiplier(t *testing.T, store storage.Storage, mult int) testHandlers {
 	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{
 		Timeout: 15 * time.Second,
 	}
@@ -75,7 +83,13 @@ func setupTest(t *testing.T) testHandlers {
 	engine := executor.NewEngine(engineOpts)
 	hOpts := options.EmptyHandlerOptions().
 		SetFetchOptionsBuilder(fetchOptsBuilder).
-		SetEngine(engine)
+		SetEngine(engine).
+		SetStorage(store)
+
+	cfg := hOpts.Config()
+	cfg.Query.Prometheus.RewriteRangesLessThanResolutionMultiplier = mult
+	hOpts = hOpts.SetConfig(cfg)
+
 	queryable := &mockQueryable{}
 	readHandler, err := newReadHandler(hOpts, opts{
 		promQLEngine: testPromQLEngine,
@@ -129,6 +143,40 @@ func TestPromReadHandler(t *testing.T) {
 	var resp response
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
 	require.Equal(t, statusSuccess, resp.Status)
+}
+
+func TestPromReadHandlerWithRewrite(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	aggregatedNamespaces := []m3.AggregatedClusterNamespaceDefinition{
+		{
+			NamespaceID: ident.StringID("1m:30d"),
+			Resolution:  time.Minute,
+			Retention:   30 * 24 * time.Hour,
+		},
+		{
+			NamespaceID: ident.StringID("5m:90d"),
+			Resolution:  5 * time.Minute,
+			Retention:   90 * 24 * time.Hour,
+		},
+	}
+	store, _ := m3test.NewStorageAndSessionWithAggregatedNamespaces(t, ctrl, aggregatedNamespaces)
+	setup := setupTestWithStoreAndMultiplier(t, store, 2)
+
+	req, _ := http.NewRequest("GET", native.PromReadURL, nil)
+	params := defaultParams()
+	params.Set(startParam, time.Now().Add(-60*24*time.Hour).Format(time.RFC3339))
+	params.Set(queryParam, `rate(http_requests_total{group="canary",job="prometheus"}[1m])`)
+	req.URL.RawQuery = params.Encode()
+
+	recorder := httptest.NewRecorder()
+	setup.readHandler.ServeHTTP(recorder, req)
+
+	var resp response
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, statusSuccess, resp.Status)
+	require.Equal(t, `rate(http_requests_total{group="canary",job="prometheus"}[10m])`, req.FormValue(queryParam))
 }
 
 func TestPromReadHandlerInvalidQuery(t *testing.T) {

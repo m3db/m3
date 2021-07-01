@@ -57,9 +57,7 @@ const (
 	testLongestRetention = test1YearRetention
 )
 
-var (
-	testFetchResponseMetadata = client.FetchResponseMetadata{Exhaustive: true}
-)
+var testFetchResponseMetadata = client.FetchResponseMetadata{Exhaustive: true}
 
 type testSessions struct {
 	unaggregated1MonthRetention                       *client.MockSession
@@ -195,6 +193,46 @@ func setupLocalWrite(t *testing.T, ctrl *gomock.Controller) storage.Storage {
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	return store
+}
+
+func TestQueryStorageMetadataAttributes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	store, _ := setup(t, ctrl)
+
+	unaggAttrs, err := store.QueryStorageMetadataAttributes(
+		context.Background(),
+		time.Now().Add(-10*time.Minute),
+		time.Now(),
+		buildFetchOpts(),
+	)
+	require.NoError(t, err)
+	require.Equal(t, []storagemetadata.Attributes{
+		{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+			Retention:   test1MonthRetention,
+		},
+	}, unaggAttrs)
+
+	aggAttrs, err := store.QueryStorageMetadataAttributes(
+		context.Background(),
+		time.Now().Add(-120*24*time.Hour),
+		time.Now(),
+		buildFetchOpts(),
+	)
+	require.NoError(t, err)
+	require.Equal(t, []storagemetadata.Attributes{
+		{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Retention:   test1YearRetention,
+			Resolution:  10 * time.Minute,
+		},
+		{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Retention:   test6MonthRetention,
+			Resolution:  1 * time.Minute,
+		},
+	}, aggAttrs)
 }
 
 func TestLocalWriteEmpty(t *testing.T) {
