@@ -150,6 +150,20 @@ func TestSmartSummarize(t *testing.T) {
 			end,
 			[]float64{15, 51},
 		},
+		{"smartSummarize(foo, \"40s\", \"median\")",
+			"40s",
+			"median",
+			start,
+			end,
+			[]float64{1.5, 5.5, 9.5},
+		},
+		{"smartSummarize(foo, \"30s\", \"median\")",
+			"30s",
+			"median",
+			start,
+			end,
+			[]float64{1, 4, 7, 10},
+		},
 	}
 
 	for _, test := range tests {
