@@ -167,6 +167,16 @@ func TestAggregationFunctions(t *testing.T) {
 				1,
 			},
 		},
+		{
+			input: input{
+				"count",
+				[]float64{1, 2, 3, math.NaN()},
+			},
+			output: output{
+				3,
+				1,
+			},
+		},
 	}
 
 	for _, test := range tests {

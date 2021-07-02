@@ -79,6 +79,7 @@ var SafeAggregationFns = map[string]SafeAggregationFn{
 	"range":    SafeRange,
 	"multiply": SafeMul,
 	"last":     SafeLast,
+	"count":    SafeCount,
 }
 
 // SafeSort sorts the input slice and returns the number of NaNs in the input.
@@ -244,6 +245,16 @@ func SafeLast(input []float64) (float64, int, bool) {
 	}
 
 	return safeValues[len(safeValues)-1], nans, true
+}
+
+// SafeCount returns the number of valid values in the input slice and the number of NaNs in the input.
+func SafeCount(input []float64) (float64, int, bool) {
+	safeValues, nans, ok := safeValues(input)
+	if !ok {
+		return 0, 0, false
+	}
+
+	return float64(len(safeValues)), nans, true
 }
 
 func safeValues(input []float64) ([]float64, int, bool) {
