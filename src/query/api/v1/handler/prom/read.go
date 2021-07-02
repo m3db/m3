@@ -109,24 +109,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, params, err := native.RewriteRangeDuration(ctx, request, h.hOpts)
-	if err != nil {
-		h.logger.Error("could not rewrite range duration", zap.Error(err))
-		xhttp.WriteError(w, err)
-		return
-	}
-
-	if updated {
-		originalQuery := request.Params.Query
-		request.Params = params
-		r.Form.Set(native.QueryParam, params.Query)
-
-		h.logger.Debug("rewrote range duration value within query",
-			zap.String("originalQuery", originalQuery),
-			zap.String("updatedQuery", params.Query))
-	}
-
-	params = request.Params
+	params := request.Params
 	fetchOptions := request.FetchOpts
 
 	// NB (@shreyas): We put the FetchOptions in context so it can be

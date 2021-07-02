@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -35,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -56,17 +56,6 @@ const (
 	nowTimeValue = "now"
 )
 
-// ParseTime parses a time out of a request key, with a default value.
-func ParseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
-	if t := r.FormValue(key); t != "" {
-		if t == nowTimeValue {
-			return now, nil
-		}
-		return util.ParseTimeString(t)
-	}
-	return time.Time{}, errors.ErrNotFound
-}
-
 // parseParams parses all params from the GET request
 func parseParams(
 	r *http.Request,
@@ -83,21 +72,21 @@ func parseParams(
 	params.Now = time.Now()
 	if v := r.FormValue(timeParam); v != "" {
 		var err error
-		params.Now, err = ParseTime(r, timeParam, params.Now)
+		params.Now, err = prometheus.ParseTime(r, timeParam, params.Now)
 		if err != nil {
 			err = fmt.Errorf(formatErrStr, timeParam, err)
 			return params, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
-	start, err := ParseTime(r, startParam, params.Now)
+	start, err := prometheus.ParseTime(r, startParam, params.Now)
 	if err != nil {
 		err = fmt.Errorf(formatErrStr, startParam, err)
 		return params, xerrors.NewInvalidParamsError(err)
 	}
 
 	params.Start = xtime.ToUnixNano(start)
-	end, err := ParseTime(r, endParam, params.Now)
+	end, err := prometheus.ParseTime(r, endParam, params.Now)
 	if err != nil {
 		err = fmt.Errorf(formatErrStr, endParam, err)
 		return params, xerrors.NewInvalidParamsError(err)
