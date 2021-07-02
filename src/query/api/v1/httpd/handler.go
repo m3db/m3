@@ -174,7 +174,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:               native.PromReadURL,
 		Handler:            h.options.QueryRouter(),
 		Methods:            native.PromReadHTTPMethods,
-		MiddlewareOverride: native.WithQueryParams,
+		MiddlewareOverride: native.WithQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:               native.PromReadInstantURL,
 		Handler:            h.options.InstantQueryRouter(),
 		Methods:            native.PromReadInstantHTTPMethods,
-		MiddlewareOverride: native.WithQueryParams,
+		MiddlewareOverride: native.WithQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:               "/prometheus" + native.PromReadURL,
 		Handler:            promqlQueryHandler,
 		Methods:            native.PromReadHTTPMethods,
-		MiddlewareOverride: native.WithQueryParams,
+		MiddlewareOverride: native.WithQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:               "/prometheus" + native.PromReadInstantURL,
 		Handler:            promqlInstantQueryHandler,
 		Methods:            native.PromReadInstantHTTPMethods,
-		MiddlewareOverride: native.WithQueryParams,
+		MiddlewareOverride: native.WithQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:               "/m3query" + native.PromReadURL,
 		Handler:            nativePromReadHandler,
 		Methods:            native.PromReadHTTPMethods,
-		MiddlewareOverride: native.WithQueryParams,
+		MiddlewareOverride: native.WithQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
@@ -218,7 +218,7 @@ func (h *Handler) RegisterRoutes() error {
 		Path:               "/m3query" + native.PromReadInstantURL,
 		Handler:            nativePromReadInstantHandler,
 		Methods:            native.PromReadInstantHTTPMethods,
-		MiddlewareOverride: native.WithQueryParams,
+		MiddlewareOverride: native.WithQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
@@ -492,6 +492,11 @@ func (h *Handler) RegisterRoutes() error {
 			Logging:        middleware.NewLoggingOptions(h.middlewareConfig.Logging),
 			Metrics: middleware.MetricsOptions{
 				Config: h.middlewareConfig.Metrics,
+			},
+			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
+				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),
+				ResolutionMultiplier: h.middlewareConfig.PrometheusRangeRewrite.ResolutionMultiplier,
+				Storage:              h.options.Storage(),
 			},
 		}
 		override := h.registry.MiddlewareOpts(route)

@@ -47,10 +47,7 @@ const (
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
 	tolerance           = 0.0000001
-)
-
-var (
-	roleName = []byte("role")
+	nowTimeValue        = "now"
 )
 
 // ParsePromCompressedRequestResult is the result of a
@@ -602,4 +599,15 @@ func FilterSeriesByOptions(
 	}
 
 	return series
+}
+
+// ParseTime parses a time out of a request key, with a default value.
+func ParseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
+	if t := r.FormValue(key); t != "" {
+		if t == nowTimeValue {
+			return now, nil
+		}
+		return util.ParseTimeString(t)
+	}
+	return time.Time{}, errors.ErrNotFound
 }
