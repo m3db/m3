@@ -147,7 +147,7 @@ func (h *renderHandler) serveHTTP(
 			defer func() {
 				if err := recover(); err != nil {
 					// Allow recover from panic.
-					sendError(errorCh, fmt.Errorf("error target '%s' caused panic: %s", target, err))
+					sendError(errorCh, fmt.Errorf("error target '%s' caused panic: %v", target, err))
 
 					// Log panic.
 					logger := logging.WithContext(r.Context(), h.instrumentOpts).
@@ -174,7 +174,7 @@ func (h *renderHandler) serveHTTP(
 			targetSeries, err := exp.Execute(childCtx)
 			if err != nil {
 				sendError(errorCh, errors.NewRenamedError(err,
-					fmt.Errorf("error target '%s' returned: %s", target, err)))
+					fmt.Errorf("error target '%s' returned: %w", target, err)))
 				return
 			}
 
