@@ -818,7 +818,7 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 10 * 12},
 		}},
 		{"median", []int{2, 4}, []result{ // test with different function
-			{"pod1.400",  ((20 + 30) / 2) * 12},
+			{"pod1.400", ((20 + 30) / 2) * 12},
 			{"pod1.500", 4 * 12},
 			{"pod2.400", 40 * 12},
 			{"pod2.500", ((8 + 10) / 2) * 12},
