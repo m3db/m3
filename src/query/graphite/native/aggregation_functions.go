@@ -680,27 +680,21 @@ func groupByNodes(ctx *common.Context, seriesList singlePathSpec, fname string, 
 }
 
 func applyFnToMetaSeries(ctx *common.Context, series singlePathSpec, metaSeries map[string][]*ts.Series, fname string) (ts.SeriesList, error) {
-	if fname == "" {
-		fname = sumFnName
-	}
-
-	f, fexists := summarizeFuncs[fname]
-	if !fexists {
-		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
-	}
-
 	newSeries := make([]*ts.Series, 0, len(metaSeries))
 	for key, metaSeries := range metaSeries {
 		seriesList := ts.SeriesList{
 			Values:   metaSeries,
 			Metadata: series.Metadata,
 		}
-		output, err := combineSeries(ctx, multiplePathSpecs(seriesList), key, f.consolidationFunc)
+		output, err := aggregate(ctx, singlePathSpec(seriesList), fname)
 		if err != nil {
 			return ts.NewSeriesList(), err
 		}
-		output.Values[0].Specification = f.specificationFunc(seriesList)
-		newSeries = append(newSeries, output.Values...)
+
+		if len(output.Values) > 0 {
+			series := output.Values[0].RenamedTo(key)
+			newSeries = append(newSeries, series)
+		}
 	}
 
 	r := ts.SeriesList(series)

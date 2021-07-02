@@ -206,10 +206,6 @@ func lastSpecificationFunc(series ts.SeriesList) string {
 	return wrapPathExpr("lastSeries", series)
 }
 
-func medianSpecificationFunc(series ts.SeriesList) string {
-	return wrapPathExpr("medianSeries", series)
-}
-
 type funcInfo struct {
 	fname             string
 	consolidationFunc ts.ConsolidationFunc
@@ -242,11 +238,6 @@ var (
 		consolidationFunc: ts.Avg,
 		specificationFunc: averageSpecificationFunc,
 	}
-	medianFuncInfo = funcInfo{
-		fname: "median",
-		// median does not have a consolidationFunc
-		specificationFunc: medianSpecificationFunc,
-	}
 
 	summarizeFuncs = map[string]funcInfo{
 		"sum":           sumFuncInfo,
@@ -257,7 +248,6 @@ var (
 		"average":       avgFuncInfo,
 		"sumSeries":     sumFuncInfo,
 		"maxSeries":     maxFuncInfo,
-		"median":        medianFuncInfo,
 		"minSeries":     minFuncInfo,
 		"averageSeries": avgFuncInfo,
 		"":              sumFuncInfo,
