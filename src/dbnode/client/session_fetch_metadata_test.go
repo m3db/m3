@@ -97,7 +97,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 
 	var actual []testHostBlock
 	it := newMetadataIter(inputCh, errCh,
-		testTagDecodingPool.Get(), testIDPool)
+		testTagDecodingPool, testIDPool)
 	for it.Next() {
 		host, curr := it.Current()
 		result := block.NewMetadata(curr.ID, curr.Tags, curr.Start, curr.Size,
