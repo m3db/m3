@@ -37,12 +37,16 @@ import (
 )
 
 func TestPrometheusRangeRewrite(t *testing.T) {
+	// nolint:maligned
 	queryTests := []struct {
 		name     string
 		attrs    []storagemetadata.Attributes
 		enabled  bool
 		mult     int
 		query    string
+		start    string
+		end      string
+		instant  bool
 		expected string
 	}{
 		{
@@ -55,6 +59,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  true,
 			mult:     2,
+			start:    "1614882294",
+			end:      "1625250298",
 			query:    "rate(foo[1m])",
 			expected: "rate(foo[1m])",
 		},
@@ -68,6 +74,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  true,
 			mult:     2,
+			start:    "1614882294",
+			end:      "1625250298",
 			query:    "foo",
 			expected: "foo",
 		},
@@ -82,6 +90,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  true,
 			mult:     2,
+			start:    "1614882294",
+			end:      "1625250298",
 			query:    "rate(foo[30s])",
 			expected: "rate(foo[10m])",
 		},
@@ -96,6 +106,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  true,
 			mult:     2,
+			start:    "1614882294",
+			end:      "1625250298",
 			query:    "rate(foo[5m])",
 			expected: "rate(foo[5m])",
 		},
@@ -110,6 +122,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  false,
 			mult:     2,
+			start:    "1614882294",
+			end:      "1625250298",
 			query:    "rate(foo[30s])",
 			expected: "rate(foo[30s])",
 		},
@@ -124,27 +138,24 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  false,
 			mult:     0,
+			start:    "1614882294",
+			end:      "1625250298",
 			query:    "rate(foo[30s])",
 			expected: "rate(foo[30s])",
 		},
 		{
-			name: "query with range to multiple aggs; rewrite to largest",
+			name: "instant query; no rewrite",
 			attrs: []storagemetadata.Attributes{
 				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Retention:   30 * 24 * time.Hour,
-					Resolution:  2 * time.Minute,
-				},
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Retention:   60 * 24 * time.Hour,
-					Resolution:  4 * time.Minute,
+					MetricsType: storagemetadata.UnaggregatedMetricsType,
+					Retention:   7 * 24 * time.Hour,
 				},
 			},
 			enabled:  true,
 			mult:     3,
+			instant:  true,
 			query:    "rate(foo[1m])",
-			expected: "rate(foo[12m])",
+			expected: "rate(foo[1m])",
 		},
 	}
 	for _, tt := range queryTests {
@@ -158,6 +169,7 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 
 			opts.PrometheusRangeRewrite.Enabled = tt.enabled
 			opts.PrometheusRangeRewrite.ResolutionMultiplier = tt.mult
+			opts.PrometheusRangeRewrite.Instant = tt.instant
 
 			h := PrometheusRangeRewrite(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, r.FormValue(queryParam), tt.expected)
@@ -173,10 +185,11 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			)
 
 			// Validate as GET
-			args := "step=3600&start=1614882294&end=1625250298&query=" + tt.query
+			args := "step=3600&start=" + tt.start + "&end=" + tt.end + "&query=" + tt.query
 			resp, err = server.Client().Get(server.URL + "/query_range?" + args) //nolint: noctx
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
+			require.Equal(t, 200, resp.StatusCode)
 
 			// Validate as POST
 			// nolint: noctx
@@ -187,6 +200,7 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
+			require.Equal(t, 200, resp.StatusCode)
 		})
 	}
 }

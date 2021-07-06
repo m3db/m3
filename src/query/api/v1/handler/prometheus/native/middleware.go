@@ -50,11 +50,25 @@ var WithQueryParams middleware.OverrideOptions = func(opts middleware.Options) m
 	return opts
 }
 
-// WithQueryParamsAndRangeRewriting adds the query request parameters to the middleware options and enables range
-// rewriting
-var WithQueryParamsAndRangeRewriting middleware.OverrideOptions = func(opts middleware.Options) middleware.Options {
+// WithRangeQueryParamsAndRangeRewriting adds the range query request parameters to the
+// middleware options and enables range rewriting
+var WithRangeQueryParamsAndRangeRewriting middleware.OverrideOptions = func(
+	opts middleware.Options,
+) middleware.Options {
 	opts = WithQueryParams(opts)
 	opts.PrometheusRangeRewrite.Enabled = true
+
+	return opts
+}
+
+// WithInstantQueryParamsAndRangeRewriting adds the instant query request parameters to the
+// middleware options and enables range rewriting
+var WithInstantQueryParamsAndRangeRewriting middleware.OverrideOptions = func(
+	opts middleware.Options,
+) middleware.Options {
+	opts = WithQueryParams(opts)
+	opts.PrometheusRangeRewrite.Enabled = true
+	opts.PrometheusRangeRewrite.Instant = true
 
 	return opts
 }
