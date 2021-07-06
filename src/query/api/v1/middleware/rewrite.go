@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/storage"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // PrometheusRangeRewriteOptions are the options for the prometheus range rewriting middleware.
@@ -66,8 +67,9 @@ func PrometheusRangeRewrite(opts Options) mux.MiddlewareFunc {
 
 			logger := opts.InstrumentOpts.Logger()
 			if err := rewriteRangeDuration(r, mwOpts, logger); err != nil {
-				logger.Warn("could not rewrite range. "+
-					"continuing with request", zap.Error(err))
+				logger.Error("could not rewrite range", zap.Error(err))
+				xhttp.WriteError(w, err)
+				return
 			}
 			base.ServeHTTP(w, r)
 		})

@@ -491,8 +491,8 @@ type MiddlewareConfiguration struct {
 	Logging LoggingMiddlewareConfiguration `yaml:"logging"`
 	// Metrics configures the metrics middleware.
 	Metrics MetricsMiddlewareConfiguration `yaml:"metrics"`
-	// PrometheusRangeRewrite configures the range rewriting middleware.
-	PrometheusRangeRewrite PrometheusRangeRewriteMiddlewareConfiguration `yaml:"prometheusRangeRewrite"`
+	// Prometheus configures prometheus-related middleware.
+	Prometheus PrometheusMiddlewareConfiguration `yaml:"prometheus"`
 }
 
 // LoggingMiddlewareConfiguration configures the logging middleware.
@@ -522,8 +522,8 @@ type MetricsMiddlewareConfiguration struct {
 	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
 }
 
-// PrometheusRangeRewriteMiddlewareConfiguration configures the range rewriting middleware.
-type PrometheusRangeRewriteMiddlewareConfiguration struct {
+// PrometheusMiddlewareConfiguration configures the range rewriting middleware.
+type PrometheusMiddlewareConfiguration struct {
 	// ResolutionMultiplier is the multiple that will be applied to the range if it's determined
 	// that it needs to be updated. If this value is greater than 0, the range in a query will be
 	// updated if the namespaces used to service the request have resolution(s)
