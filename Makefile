@@ -118,7 +118,7 @@ ifeq ($(SERVICE),m3ctl)
 endif
 	@echo Building $(SERVICE)
 	[ -d $(VENDOR) ] || make install-vendor-m3
-	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
+	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) -gcflags "all=-N -l" ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:

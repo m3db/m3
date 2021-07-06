@@ -23,6 +23,7 @@ require (
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
 	github.com/ghodss/yaml v1.0.0
 	github.com/gnewton/jargo v0.0.0-20150417131352-41f5f186a805 // indirect
+	github.com/go-delve/delve v1.6.1 // indirect
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
