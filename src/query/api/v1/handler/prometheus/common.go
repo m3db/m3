@@ -43,11 +43,16 @@ import (
 )
 
 const (
-	queryParam          = "query"
+	queryParam   = "query"
+	endParam     = "end"
+	startParam   = "start"
+	nowTimeValue = "now"
+	timeParam    = "time"
+	formatErrStr = "error parsing param: %s, error: %v"
+
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
 	tolerance           = 0.0000001
-	nowTimeValue        = "now"
 )
 
 // ParsePromCompressedRequestResult is the result of a
@@ -610,4 +615,52 @@ func ParseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
 		return util.ParseTimeString(t)
 	}
 	return time.Time{}, errors.ErrNotFound
+}
+
+// TimeParams represents the time parameters within a request.
+type TimeParams struct {
+	Now   time.Time
+	Start time.Time
+	End   time.Time
+}
+
+// ParseTimeParams parses the time params (now, start, end) from a request.
+func ParseTimeParams(r *http.Request) (TimeParams, error) {
+	var params TimeParams
+
+	params.Now = time.Now()
+	if v := r.FormValue(timeParam); v != "" {
+		var err error
+		params.Now, err = ParseTime(r, timeParam, params.Now)
+		if err != nil {
+			err = fmt.Errorf(formatErrStr, timeParam, err)
+			return params, xerrors.NewInvalidParamsError(err)
+		}
+	}
+
+	start, err := ParseTime(r, startParam, params.Now)
+	if err != nil {
+		err = fmt.Errorf(formatErrStr, startParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
+	}
+
+	end, err := ParseTime(r, endParam, params.Now)
+	if err != nil {
+		err = fmt.Errorf(formatErrStr, endParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
+	}
+	if start.After(end) {
+		err = fmt.Errorf("start (%s) must be before end (%s)", start, end)
+		return params, xerrors.NewInvalidParamsError(err)
+	}
+
+	return params, nil
+}
+
+// SetDefaultStartEndParamsForInstant sets the start and end values for instant queries. Instant queries
+// don't specify start and end, but these params are required to be set to be successfully processed
+// by storage.
+func SetDefaultStartEndParamsForInstant(r *http.Request) {
+	r.Form.Set(startParam, nowTimeValue)
+	r.Form.Set(endParam, nowTimeValue)
 }

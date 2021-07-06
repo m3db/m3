@@ -22,7 +22,6 @@ package middleware
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -42,6 +41,7 @@ import (
 type PrometheusRangeRewriteOptions struct {
 	Enabled              bool
 	FetchOptionsBuilder  handleroptions.FetchOptionsBuilder
+	Instant              bool
 	ResolutionMultiplier int
 	Storage              storage.Storage
 }
@@ -76,11 +76,7 @@ func PrometheusRangeRewrite(opts Options) mux.MiddlewareFunc {
 	}
 }
 
-const (
-	queryParam = "query"
-	endParam   = "end"
-	startParam = "start"
-)
+const queryParam = "query"
 
 func rewriteRangeDuration(
 	r *http.Request,
@@ -88,7 +84,7 @@ func rewriteRangeDuration(
 	logger *zap.Logger,
 ) error {
 	// Extract relevant query params
-	query, start, end, err := extractParams(r)
+	query, start, end, err := extractParams(r, opts.Instant)
 	if err != nil {
 		return err
 	}
@@ -163,29 +159,23 @@ func rewriteRangeDuration(
 	return nil
 }
 
-func extractParams(r *http.Request) (string, time.Time, time.Time, error) {
+func extractParams(r *http.Request, instant bool) (string, time.Time, time.Time, error) {
 	if err := r.ParseForm(); err != nil {
 		return "", time.Time{}, time.Time{}, err
 	}
 
 	query := r.FormValue(queryParam)
 
-	now := time.Now()
-	start, err := prometheus.ParseTime(r, startParam, now)
+	if instant {
+		prometheus.SetDefaultStartEndParamsForInstant(r)
+	}
+
+	timeParams, err := prometheus.ParseTimeParams(r)
 	if err != nil {
 		return "", time.Time{}, time.Time{}, err
 	}
 
-	end, err := prometheus.ParseTime(r, endParam, now)
-	if err != nil {
-		return "", time.Time{}, time.Time{}, err
-	}
-	if start.After(end) {
-		err = fmt.Errorf("start (%s) must be before end (%s)", start, end)
-		return "", time.Time{}, time.Time{}, err
-	}
-
-	return query, start, end, nil
+	return query, timeParams.Start, timeParams.End, nil
 }
 
 func rewriteRangeInQuery(expr parser.Node, res time.Duration, multiplier int) bool {
