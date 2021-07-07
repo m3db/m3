@@ -24,7 +24,6 @@ import (
 	"context"
 	"math"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -39,7 +38,6 @@ import (
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/uber-go/tally"
 )
 
@@ -285,75 +283,4 @@ type ReturnedDataLimited struct {
 	// Limited signals that the results returned were
 	// limited by either series or datapoint limits.
 	Limited bool
-}
-
-// RewriteRangeDuration checks the query for a range and validates that the range
-// is acceptable for the namespaces that will be used to return data for the query.
-// If the range is too low, the range will be adjusted to resolution * multiplier where resolution
-// is the highest resolution of the namespaces required to service the request.
-// Returns true if the query params were modified.
-func RewriteRangeDuration(
-	ctx context.Context,
-	parsedOpts ParsedOptions,
-	handlerOpts options.HandlerOptions,
-) (bool, models.RequestParams, error) {
-	rewriteMultiplier := handlerOpts.Config().Query.Prometheus.RewriteRangesLessThanResolutionMultiplier
-	if rewriteMultiplier == 0 {
-		return false, parsedOpts.Params, nil
-	}
-
-	// Query for namespace metadata of namespaces used to service the request
-	var (
-		store  = handlerOpts.Storage()
-		params = parsedOpts.Params
-	)
-	attrs, err := store.QueryStorageMetadataAttributes(
-		ctx, params.Start.ToTime(), params.End.ToTime(), parsedOpts.FetchOpts,
-	)
-	if err != nil {
-		return false, params, err
-	}
-
-	// Find the largest resolution
-	var res time.Duration
-	for _, attr := range attrs {
-		if attr.Resolution > res {
-			res = attr.Resolution
-		}
-	}
-
-	// Largest resolution is 0 which means we're routing to the unaggregated namespace.
-	// Unaggregated namespace can service all requests, so return.
-	if res == 0 {
-		return false, params, nil
-	}
-
-	// Rewrite ranges within the query, if necessary
-	expr, err := parser.ParseExpr(params.Query)
-	if err != nil {
-		return false, params, err
-	}
-	updated := rewriteRangeInQuery(expr, res, rewriteMultiplier)
-	if updated {
-		params.Query = expr.String()
-	}
-
-	return updated, params, nil
-}
-
-func rewriteRangeInQuery(expr parser.Node, res time.Duration, multiplier int) bool {
-	updated := false
-	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
-		// nolint:gocritic
-		switch n := node.(type) {
-		case *parser.MatrixSelector:
-			if n.Range <= res {
-				n.Range = res * time.Duration(multiplier)
-				updated = true
-			}
-		}
-		return nil
-	})
-
-	return updated
 }

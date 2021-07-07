@@ -23,7 +23,6 @@ package native
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -35,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/x/instrument"
@@ -122,67 +120,6 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 	require.Equal(t,
 		"context deadline exceeded",
 		err.Error())
-}
-
-func TestPromReadHandlerWithRewrite(t *testing.T) {
-	ctrl := xtest.NewController(t)
-
-	// Configure engine to execute query and return results
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	seriesMeta := test.NewSeriesMeta("dummy", len(values))
-	m := block.Metadata{
-		Bounds:         bounds,
-		Tags:           models.NewTags(0, models.NewTagOptions()),
-		ResultMetadata: block.NewResultMetadata(),
-	}
-	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(m, seriesMeta, values)
-	engine := executor.NewMockEngine(ctrl)
-	engine.EXPECT().
-		Options().
-		Return(executor.NewEngineOptions()).
-		AnyTimes()
-	engine.EXPECT().
-		ExecuteExpr(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context,
-			parser parser.Parser,
-			opts *executor.QueryOptions,
-			fetchOpts *storage.FetchOptions,
-			params models.RequestParams,
-		) (block.Block, error) {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			return b, nil
-		})
-
-	setup := newTestSetup(t, engine)
-	promRead := setup.Handlers.read
-
-	// Configure mock storage
-	setup.Storage.SetQueryStorageMetadataAttributesResult([]storagemetadata.Attributes{
-		{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			Resolution:  5 * time.Minute,
-			Retention:   90 * 24 * time.Hour,
-		},
-	}, nil)
-
-	// Set rewrite config
-	cfg := promRead.opts.Config()
-	cfg.Query.Prometheus.RewriteRangesLessThanResolutionMultiplier = 2
-	promRead.opts = promRead.opts.SetConfig(cfg)
-
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", PromReadURL, nil)
-	params := defaultParams()
-	params.Set(startParam, time.Now().Add(-60*24*time.Hour).Format(time.RFC3339))
-	params.Set(QueryParam, `rate(http_requests_total{group="canary",job="prometheus"}[1m])`)
-	req.URL.RawQuery = params.Encode()
-
-	recorder := httptest.NewRecorder()
-	promRead.ServeHTTP(recorder, req)
-
-	require.Equal(t, 200, recorder.Code)
-	require.Equal(t, `rate(http_requests_total{group="canary",job="prometheus"}[10m])`, req.FormValue(QueryParam))
 }
 
 func testPromReadHandlerRead(t *testing.T, resultMeta block.ResultMetadata) {

@@ -44,9 +44,10 @@ type Options struct {
 	Route          *mux.Route
 
 	// Specific options for middleware functions.
-	Logging LoggingOptions
-	Metrics MetricsOptions
-	Source  SourceOptions
+	Logging                LoggingOptions
+	Metrics                MetricsOptions
+	Source                 SourceOptions
+	PrometheusRangeRewrite PrometheusRangeRewriteOptions
 }
 
 // OverrideOptions is a function that returns new Options from the provided Options.
@@ -63,6 +64,7 @@ func Default(opts Options) []mux.MiddlewareFunc {
 		// install source before logging so the source is available for response logging.
 		Source(opts),
 		RequestID(opts.InstrumentOpts),
+		PrometheusRangeRewrite(opts),
 		ResponseLogging(opts),
 		ResponseMetrics(opts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.

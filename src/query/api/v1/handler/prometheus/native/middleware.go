@@ -27,6 +27,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/middleware"
 )
 
@@ -49,6 +50,29 @@ var WithQueryParams middleware.OverrideOptions = func(opts middleware.Options) m
 	return opts
 }
 
+// WithRangeQueryParamsAndRangeRewriting adds the range query request parameters to the
+// middleware options and enables range rewriting
+var WithRangeQueryParamsAndRangeRewriting middleware.OverrideOptions = func(
+	opts middleware.Options,
+) middleware.Options {
+	opts = WithQueryParams(opts)
+	opts.PrometheusRangeRewrite.Enabled = true
+
+	return opts
+}
+
+// WithInstantQueryParamsAndRangeRewriting adds the instant query request parameters to the
+// middleware options and enables range rewriting
+var WithInstantQueryParamsAndRangeRewriting middleware.OverrideOptions = func(
+	opts middleware.Options,
+) middleware.Options {
+	opts = WithQueryParams(opts)
+	opts.PrometheusRangeRewrite.Enabled = true
+	opts.PrometheusRangeRewrite.Instant = true
+
+	return opts
+}
+
 var middlewareParseParams middleware.ParseQueryParams = func(r *http.Request, requestStart time.Time) (
 	middleware.QueryParams, error) {
 	query := r.FormValue(QueryParam)
@@ -57,12 +81,12 @@ var middlewareParseParams middleware.ParseQueryParams = func(r *http.Request, re
 	}
 	// N.B - instant queries set startParam/endParam to "now" if not set. ParseTime can handle this special
 	// "now" value. Use when this middleware ran as the approximate now value.
-	start, err := ParseTime(r, startParam, requestStart)
+	start, err := prometheus.ParseTime(r, startParam, requestStart)
 	if err != nil {
 		return middleware.QueryParams{}, err
 	}
 
-	end, err := ParseTime(r, endParam, requestStart)
+	end, err := prometheus.ParseTime(r, endParam, requestStart)
 	if err != nil {
 		return middleware.QueryParams{}, err
 	}
