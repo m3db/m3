@@ -118,11 +118,15 @@ ifeq ($(SERVICE),m3ctl)
 endif
 	@echo Building $(SERVICE)
 	[ -d $(VENDOR) ] || make install-vendor-m3
+ifeq ("$(WITH_DEBUG_FLAGS)","true")
+	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) -gcflags "all=-N -l" ./src/cmd/services/$(SERVICE)/main/.
+else
 	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
+endif
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
-	$(LINUX_AMD64_ENV) make $(SERVICE)
+	$(LINUX_AMD64_ENV) make $(SERVICE) WITH_DEBUG_FLAGS=$(WITH_DEBUG_FLAGS)
 
 .PHONY: $(SERVICE)-docker-dev
 $(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
@@ -135,6 +139,15 @@ $(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
 $(SERVICE)-docker-dev-push: $(SERVICE)-docker-dev
 	docker push quay.io/m3dbtest/$(SERVICE):dev-$(USER)
 	@echo "Pushed quay.io/m3dbtest/$(SERVICE):dev-$(USER)"
+
+.PHONY: $(SERVICE)-docker-debug
+$(SERVICE)-docker-debug: clean-build
+	make $(SERVICE)-linux-amd64 WITH_DEBUG_FLAGS=true
+	make docker-dev-prep
+
+	# Build debug docker image
+	docker build -t $(SERVICE):debug -t quay.io/m3dbtest/$(SERVICE):debug-$(USER) -f ./docker/$(SERVICE)/debug.Dockerfile ./bin
+
 
 endef
 
