@@ -103,6 +103,7 @@ type WriterConfiguration struct {
 	Encoder                           *proto.Configuration           `yaml:"encoder"`
 	Decoder                           *proto.Configuration           `yaml:"decoder"`
 	Connection                        *ConnectionConfiguration       `yaml:"connection"`
+	IgnoreCutoffCutover               bool                           `yaml:"ignoreCutoffCutover""`
 }
 
 // NewOptions creates writer options.
@@ -177,6 +178,8 @@ func (c *WriterConfiguration) NewOptions(
 	if c.Connection != nil {
 		opts = opts.SetConnectionOptions(c.Connection.NewOptions(iOpts))
 	}
+
+	opts = opts.SetIgnoreCutoffCutover(c.IgnoreCutoffCutover)
 
 	opts = opts.SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions))
 	return opts, nil

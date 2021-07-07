@@ -180,6 +180,9 @@ type AggregatorConfiguration struct {
 
 	// FeatureFlags are feature flags to apply.
 	FeatureFlags aggregator.FeatureFlagConfigurations `yaml:"featureFlags"`
+
+	// WritesIgnoreCutoffCutover allows accepting writes ignoring cutoff/cutover timestamp.
+	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -487,6 +490,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool.Init(func() *aggregator.Entry {
 		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
 	})
+
+	opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
 
 	return opts, nil
 }
