@@ -341,10 +341,12 @@ type Options interface {
 	// SetFeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
 	SetFeatureFlagBundlesParsed([]FeatureFlagBundleParsed) Options
 
-	// WritesIgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps are ignored for incoming writes.
+	// WritesIgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
 	WritesIgnoreCutoffCutover() bool
 
-	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps are ignored for incoming writes.
+	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
 	SetWritesIgnoreCutoffCutover(value bool) Options
 }
 

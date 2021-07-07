@@ -103,7 +103,7 @@ type WriterConfiguration struct {
 	Encoder                           *proto.Configuration           `yaml:"encoder"`
 	Decoder                           *proto.Configuration           `yaml:"decoder"`
 	Connection                        *ConnectionConfiguration       `yaml:"connection"`
-	IgnoreCutoffCutover               bool                           `yaml:"ignoreCutoffCutover""`
+	IgnoreCutoffCutover               bool                           `yaml:"ignoreCutoffCutover"`
 }
 
 // NewOptions creates writer options.
