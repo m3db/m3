@@ -177,13 +177,20 @@ type BackendStorageTransform func(
 	instrument.Options,
 ) storage.Storage
 
+// RunResult returns metadata about the process run.
+type RunResult struct {
+	MultiProcessRun               bool
+	MultiProcessIsParentCleanExit bool
+}
+
 // Run runs the server programmatically given a filename for the configuration file.
-func Run(runOpts RunOptions) {
+func Run(runOpts RunOptions) RunResult {
 	rand.Seed(time.Now().UnixNano())
 
 	var (
 		cfg          = runOpts.Config
 		listenerOpts = xnet.NewListenerOptions()
+		runResult    RunResult
 	)
 
 	logger, err := cfg.LoggingOrDefault().BuildLogger()
@@ -202,21 +209,25 @@ func Run(runOpts RunOptions) {
 
 	var commonLabels map[string]string
 	if cfg.MultiProcess.Enabled {
-		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
+		// Mark as a multi-process run result.
+		runResult.MultiProcessRun = true
+
+		// Execute multi-process parent spawn or child setup code path.
+		multiProcessRunResult, err := multiProcessRun(cfg, logger, listenerOpts)
 		if err != nil {
 			logger = logger.With(zap.String("processID", multiProcessProcessID()))
 			logger.Fatal("failed to run", zap.Error(err))
 		}
-		if runResult.isParentCleanExit {
+		if multiProcessRunResult.isParentCleanExit {
 			// Parent process clean exit.
-			os.Exit(0)
-			return
+			runResult.MultiProcessIsParentCleanExit = true
+			return runResult
 		}
 
-		cfg = runResult.cfg
-		logger = runResult.logger
-		listenerOpts = runResult.listenerOpts
-		commonLabels = runResult.commonLabels
+		cfg = multiProcessRunResult.cfg
+		logger = multiProcessRunResult.logger
+		listenerOpts = multiProcessRunResult.listenerOpts
+		commonLabels = multiProcessRunResult.commonLabels
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
@@ -644,6 +655,8 @@ func Run(runOpts RunOptions) {
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,
 	})
+
+	return runResult
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage

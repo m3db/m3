@@ -139,6 +139,18 @@ func TestMultiProcessSetsProcessLabel(t *testing.T) {
 	detailedMetrics := instrument.DetailedExtendedMetrics
 	cfg.Metrics.ExtendedMetrics = &detailedMetrics
 
+	multiProcessInstance := multiProcessProcessID()
+	if multiProcessInstance == "" {
+		// Parent process just needs to ensure that it spawns the child and
+		// that the child exits cleanly.
+		// The child process will ensure that everything comes up properly
+		// and that the metrics have the correct labels on it.
+		result := Run(RunOptions{Config: cfg})
+		assert.True(t, result.MultiProcessRun)
+		assert.True(t, result.MultiProcessIsParentCleanExit)
+		return
+	}
+
 	// Override the client creation
 	require.Equal(t, 1, len(cfg.Clusters))
 
@@ -182,13 +194,15 @@ func TestMultiProcessSetsProcessLabel(t *testing.T) {
 	downsamplerReadyCh := make(chan struct{}, 1)
 
 	go func() {
-		Run(RunOptions{
+		result := Run(RunOptions{
 			Config:             cfg,
 			InterruptCh:        interruptCh,
 			ListenerCh:         listenerCh,
 			ClusterClient:      clusterClientCh,
 			DownsamplerReadyCh: downsamplerReadyCh,
 		})
+		assert.True(t, result.MultiProcessRun)
+		assert.False(t, result.MultiProcessIsParentCleanExit)
 		doneCh <- struct{}{}
 	}()
 
