@@ -39,6 +39,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -110,6 +111,13 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = handleroptions.AddDBResultResponseHeaders(w, result.Metadata, opts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	// First write out results to zero output to check if will limit
 	// results and if so then write the header about truncation if occurred.
 	var (
@@ -125,14 +133,13 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta := result.Metadata
 	limited := &handleroptions.ReturnedMetadataLimited{
 		Results:      renderResult.Results,
 		TotalResults: renderResult.TotalResults,
 		Limited:      renderResult.LimitedMaxReturnedData,
 	}
-	if err := handleroptions.AddResponseHeaders(w, meta, opts, nil, limited); err != nil {
-		logger.Error("unable to render tag values headers", zap.Error(err))
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to add returned data headers", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -188,8 +195,8 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 	}
 
 	return &storage.CompleteTagsQuery{
-		Start:            start,
-		End:              end,
+		Start:            xtime.ToUnixNano(start),
+		End:              xtime.ToUnixNano(end),
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{nameBytes},
 		TagMatchers:      tagMatchers,

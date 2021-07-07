@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -54,9 +55,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	testBlockSize = time.Hour
-)
+var testBlockSize = time.Hour
 
 // TestPostingsListCacheDoesNotAffectBlockQueryResults verifies that the postings list
 // cache does not affect the results of querying a block by creating two blocks, one with
@@ -79,12 +78,11 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
-	uncachedBlock, err := newPropTestBlock(
+	uncachedBlock := newPropTestBlock(
 		t, blockStart, testMD, testOpts.SetPostingsListCache(nil))
-	require.NoError(t, err)
 
 	plCache, err := NewPostingsListCache(1000, PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
@@ -98,9 +96,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 			CacheRegexp: true,
 			CacheTerms:  true,
 		})
-	cachedBlock, err := newPropTestBlock(t, blockStart, testMD, cachedOptions)
-	require.NoError(t, err)
-
+	cachedBlock := newPropTestBlock(t, blockStart, testMD, cachedOptions)
 	properties.Property("Index block with and without postings list cache always return the same results", prop.ForAll(
 		func(q search.Query, identicalTermAndRegexp []search.Query) (bool, error) {
 			queries := []search.Query{
@@ -178,7 +174,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 	}
 }
 
-func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metadata, opts Options) (Block, error) {
+func newPropTestBlock(t *testing.T, blockStart xtime.UnixNano,
+	nsMeta namespace.Metadata, opts Options) Block {
 	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{},
 		namespace.NewRuntimeOptionsManager(nsMeta.ID().String()), opts)
 	require.NoError(t, err)
@@ -196,7 +193,7 @@ func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metad
 	// in a ReadThroughSegment to use the postings list cache.
 	err = blk.AddResults(indexBlockByVolumeType)
 	require.NoError(t, err)
-	return blk, nil
+	return blk
 }
 
 type testFields struct {
@@ -228,8 +225,10 @@ type propTestSegment struct {
 	segmentMap segmentMap
 }
 
-type testValuesSet map[string]struct{}   //nolint:gofumpt
-type segmentMap map[string]testValuesSet //nolint:gofumpt
+type (
+	testValuesSet map[string]struct{}      //nolint:gofumpt
+	segmentMap    map[string]testValuesSet //nolint:gofumpt
+)
 
 func genTestSegment() gopter.Gen {
 	return gen.SliceOf(genField()).Map(func(input []testFields) propTestSegment {
@@ -349,7 +348,7 @@ func TestAggregateDocLimits(t *testing.T) {
 			testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
 			testMD := newTestNSMetadata(t)
-			start := time.Now().Truncate(time.Hour)
+			start := xtime.Now().Truncate(time.Hour)
 			blk, err := NewBlock(start, testMD, BlockOptions{},
 				namespace.NewRuntimeOptionsManager("foo"), testOpts)
 			if err != nil {

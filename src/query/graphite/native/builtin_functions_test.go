@@ -2046,27 +2046,110 @@ func TestRemoveEmptySeries(t *testing.T) {
 
 	nan := math.NaN()
 	tests := []struct {
-		inputs  []common.TestSeries
-		outputs []common.TestSeries
+		inputs       []common.TestSeries
+		xFilesFactor float64
+		outputs      []common.TestSeries
 	}{
 		{
 			[]common.TestSeries{
-				{"foo", []float64{nan, 601, nan, nan}},
-				{"bar", []float64{500, nan}},
-				{"baz", []float64{nan, nan, nan}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
 			},
+			0,
 			[]common.TestSeries{
-				{"foo", []float64{nan, 601, nan, nan}},
-				{"bar", []float64{500, nan}},
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+			},
+		},
+		{
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
+			},
+			0.5,
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+			},
+		},
+		{
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
+			},
+			1,
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
 			},
 		},
 	}
 	start := time.Now()
 	step := 100
 	for _, test := range tests {
-		outputs, err := removeEmptySeries(ctx, singlePathSpec{
-			Values: generateSeriesList(ctx, start, test.inputs, step),
-		})
+		outputs, err := removeEmptySeries(ctx,
+			singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step)},
+			test.xFilesFactor)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, step, start,
+			test.outputs, outputs.Values)
+	}
+}
+
+func TestFilterSeries(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	nan := math.NaN()
+	tests := []struct {
+		inputs        []common.TestSeries
+		aggregationFn string
+		comparator    string
+		threashold    float64
+		outputs       []common.TestSeries
+	}{
+		{
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
+			},
+			"max",
+			">",
+			600,
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+			},
+		},
+		{
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+				{Name: "baz", Data: []float64{500, nan, nan}},
+				{Name: "qux", Data: []float64{nan, nan, nan}},
+			},
+			"max",
+			">=",
+			600,
+			[]common.TestSeries{
+				{Name: "foo", Data: []float64{500, 600, 700}},
+				{Name: "bar", Data: []float64{500, 600, nan}},
+			},
+		},
+	}
+	start := time.Now()
+	step := 100
+	for _, test := range tests {
+		outputs, err := filterSeries(ctx,
+			singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step)},
+			test.aggregationFn, test.comparator, test.threashold)
 		require.NoError(t, err)
 		common.CompareOutputsAndExpected(t, step, start,
 			test.outputs, outputs.Values)
@@ -3161,7 +3244,7 @@ func TestSubstr(t *testing.T) {
 		Values: []*ts.Series{series},
 	}, 1, 0)
 	expected := common.TestSeries{Name: "bar", Data: input.values}
-	require.Nil(t, err)
+	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
 		[]common.TestSeries{expected}, results.Values)
 
@@ -3169,7 +3252,7 @@ func TestSubstr(t *testing.T) {
 		Values: []*ts.Series{series},
 	}, 0, 2)
 	expected = common.TestSeries{Name: "foo.bar", Data: input.values}
-	require.Nil(t, err)
+	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
 		[]common.TestSeries{expected}, results.Values)
 
@@ -3177,24 +3260,28 @@ func TestSubstr(t *testing.T) {
 		Values: []*ts.Series{series},
 	}, 0, 0)
 	expected = common.TestSeries{Name: "foo.bar", Data: input.values}
-	require.Nil(t, err)
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
+		[]common.TestSeries{expected}, results.Values)
+
+	// Negative support -1, 0.
+	results, err = substr(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, -1, 0)
+	expected = common.TestSeries{Name: "bar", Data: input.values}
+	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
 		[]common.TestSeries{expected}, results.Values)
 
 	results, err = substr(ctx, singlePathSpec{
 		Values: []*ts.Series{series},
 	}, 2, 1)
-	require.NotNil(t, err)
-
-	results, err = substr(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, -1, 1)
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	results, err = substr(ctx, singlePathSpec{
 		Values: []*ts.Series{series},
 	}, 3, 4)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 type mockStorage struct{}

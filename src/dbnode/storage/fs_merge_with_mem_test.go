@@ -54,7 +54,7 @@ func TestRead(t *testing.T) {
 	ctx := context.NewBackground()
 	nsCtx := namespace.Context{}
 	result := block.FetchBlockResult{
-		Blocks: []xio.BlockReader{xio.BlockReader{}},
+		Blocks: []xio.BlockReader{{}},
 	}
 	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version, nil).AnyTimes()
 
@@ -62,22 +62,22 @@ func TestRead(t *testing.T) {
 	dirtySeriesToWrite := make(map[xtime.UnixNano]*idList)
 
 	data := []dirtyData{
-		dirtyData{start: 0, id: ident.StringID("id0")},
-		dirtyData{start: 0, id: ident.StringID("id1")},
-		dirtyData{start: 1, id: ident.StringID("id2")},
-		dirtyData{start: 1, id: ident.StringID("id3")},
-		dirtyData{start: 1, id: ident.StringID("id4")},
-		dirtyData{start: 2, id: ident.StringID("id5")},
-		dirtyData{start: 3, id: ident.StringID("id6")},
-		dirtyData{start: 3, id: ident.StringID("id7")},
-		dirtyData{start: 4, id: ident.StringID("id8")},
+		{start: 0, id: ident.StringID("id0")},
+		{start: 0, id: ident.StringID("id1")},
+		{start: 1, id: ident.StringID("id2")},
+		{start: 1, id: ident.StringID("id3")},
+		{start: 1, id: ident.StringID("id4")},
+		{start: 2, id: ident.StringID("id5")},
+		{start: 3, id: ident.StringID("id6")},
+		{start: 3, id: ident.StringID("id7")},
+		{start: 4, id: ident.StringID("id8")},
 	}
 
 	// Populate bookkeeping data structures with above test data.
 	for _, d := range data {
 		addDirtySeries(dirtySeries, dirtySeriesToWrite, d.id, d.start)
 		shard.EXPECT().
-			FetchBlocksForColdFlush(gomock.Any(), d.id, d.start.ToTime(), version+1, nsCtx).
+			FetchBlocksForColdFlush(gomock.Any(), d.id, d.start, version+1, nsCtx).
 			Return(result, nil)
 	}
 
@@ -137,7 +137,7 @@ func TestForEachRemaining(t *testing.T) {
 	ctx := context.NewBackground()
 	nsCtx := namespace.Context{}
 	result := block.FetchBlockResult{
-		Blocks: []xio.BlockReader{xio.BlockReader{}},
+		Blocks: []xio.BlockReader{{}},
 	}
 	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version, nil).AnyTimes()
 
@@ -154,15 +154,15 @@ func TestForEachRemaining(t *testing.T) {
 	id7 := ident.StringID("id7")
 	id8 := ident.StringID("id8")
 	data := []dirtyData{
-		dirtyData{start: 0, id: id0},
-		dirtyData{start: 0, id: id1},
-		dirtyData{start: 1, id: id2},
-		dirtyData{start: 1, id: id3},
-		dirtyData{start: 1, id: id4},
-		dirtyData{start: 2, id: id5},
-		dirtyData{start: 3, id: id6},
-		dirtyData{start: 3, id: id7},
-		dirtyData{start: 4, id: id8},
+		{start: 0, id: id0},
+		{start: 0, id: id1},
+		{start: 1, id: id2},
+		{start: 1, id: id3},
+		{start: 1, id: id4},
+		{start: 2, id: id5},
+		{start: 3, id: id6},
+		{start: 3, id: id7},
+		{start: 4, id: id8},
 	}
 
 	// Populate bookkeeping data structures with above test data.
@@ -175,16 +175,17 @@ func TestForEachRemaining(t *testing.T) {
 	var forEachCalls []doc.Metadata
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id0"),
-			xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
+			xtime.UnixNano(0), version+1, gomock.Any()).
 		Return(result, nil)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id1"),
-			xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
+			xtime.UnixNano(0), version+1, gomock.Any()).
 		Return(result, nil)
-	err := mergeWith.ForEachRemaining(ctx, 0, func(seriesMetadata doc.Metadata, result block.FetchBlockResult) error {
-		forEachCalls = append(forEachCalls, seriesMetadata)
-		return nil
-	}, nsCtx)
+	err := mergeWith.ForEachRemaining(ctx, 0,
+		func(seriesMetadata doc.Metadata, result block.FetchBlockResult) error {
+			forEachCalls = append(forEachCalls, seriesMetadata)
+			return nil
+		}, nsCtx)
 	require.NoError(t, err)
 	require.Len(t, forEachCalls, 2)
 	assert.Equal(t, id0.Bytes(), forEachCalls[0].ID)
@@ -196,7 +197,7 @@ func TestForEachRemaining(t *testing.T) {
 	// start 1.
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id3"),
-			xtime.UnixNano(1).ToTime(), version+1, nsCtx).
+			xtime.UnixNano(1), version+1, nsCtx).
 		Return(result, nil)
 	res, exists, err := mergeWith.Read(ctx, id3, 1, nsCtx)
 	require.NoError(t, err)
@@ -204,11 +205,11 @@ func TestForEachRemaining(t *testing.T) {
 	assert.Equal(t, result.Blocks, res)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id2"),
-			xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
+			xtime.UnixNano(1), version+1, gomock.Any()).
 		Return(result, nil)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id4"),
-			xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
+			xtime.UnixNano(1), version+1, gomock.Any()).
 		Return(result, nil)
 	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesMetadata doc.Metadata, result block.FetchBlockResult) error {
 		forEachCalls = append(forEachCalls, seriesMetadata)
@@ -221,7 +222,7 @@ func TestForEachRemaining(t *testing.T) {
 
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id8"),
-			xtime.UnixNano(4).ToTime(), version+1, gomock.Any()).
+			xtime.UnixNano(4), version+1, gomock.Any()).
 		Return(result, nil)
 
 	// Test call with bad function execution.

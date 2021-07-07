@@ -199,25 +199,23 @@ var (
 	genericInterfaceType       = reflect.TypeOf((*genericInterface)(nil)).Elem()
 )
 
-var (
-	allowableTypes = reflectTypeSet{
-		// these are for return types
-		timeSeriesListType,
-		unaryContextShifterPtrType,
-		seriesListType,
-		singlePathSpecType,
-		multiplePathSpecsType,
-		interfaceType, // only for function parameters
-		float64Type,
-		float64SliceType,
-		intType,
-		intSliceType,
-		stringType,
-		stringSliceType,
-		boolType,
-		boolSliceType,
-	}
-)
+var allowableTypes = reflectTypeSet{
+	// these are for return types
+	timeSeriesListType,
+	unaryContextShifterPtrType,
+	seriesListType,
+	singlePathSpecType,
+	multiplePathSpecsType,
+	interfaceType, // only for function parameters
+	float64Type,
+	float64SliceType,
+	intType,
+	intSliceType,
+	stringType,
+	stringSliceType,
+	boolType,
+	boolSliceType,
+}
 
 var (
 	errNonFunction   = xerrors.NewInvalidParamsError(errors.New("not a function"))
@@ -499,7 +497,7 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 
 // A funcArg is an argument to a function that gets resolved at runtime
 type funcArg interface {
-	ArgumentASTNode
+	ASTNode
 	Evaluate(ctx *common.Context) (reflect.Value, error)
 	CompatibleWith(reflectType reflect.Type) bool
 }
@@ -519,8 +517,9 @@ func (c constFuncArg) Evaluate(ctx *common.Context) (reflect.Value, error) { ret
 func (c constFuncArg) CompatibleWith(reflectType reflect.Type) bool {
 	return c.value.Type() == reflectType || reflectType == interfaceType
 }
-func (c constFuncArg) String() string                 { return fmt.Sprintf("%v", c.value.Interface()) }
-func (c constFuncArg) PathExpression() (string, bool) { return "", false }
+func (c constFuncArg) String() string                      { return fmt.Sprintf("%v", c.value.Interface()) }
+func (c constFuncArg) PathExpression() (string, bool)      { return "", false }
+func (c constFuncArg) CallExpression() (CallASTNode, bool) { return nil, false }
 
 // A functionCall is an actual call to a function, with resolution for arguments
 type functionCall struct {
@@ -532,16 +531,20 @@ func (call *functionCall) Name() string {
 	return call.f.name
 }
 
-func (call *functionCall) Arguments() []ArgumentASTNode {
-	args := make([]ArgumentASTNode, len(call.in))
-	for i, arg := range call.in {
-		args[i] = arg
+func (call *functionCall) Arguments() []ASTNode {
+	args := make([]ASTNode, 0, len(call.in))
+	for _, arg := range call.in {
+		args = append(args, arg)
 	}
 	return args
 }
 
 func (call *functionCall) PathExpression() (string, bool) {
 	return "", false
+}
+
+func (call *functionCall) CallExpression() (CallASTNode, bool) {
+	return call, true
 }
 
 // Evaluate evaluates the function call and returns the result as a reflect.Value

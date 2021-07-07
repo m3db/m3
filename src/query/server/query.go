@@ -79,6 +79,8 @@ import (
 	prometheuspromql "github.com/prometheus/prometheus/promql"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -198,6 +200,7 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
+	var commonLabels map[string]string
 	if cfg.MultiProcess.Enabled {
 		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
 		if err != nil {
@@ -213,6 +216,7 @@ func Run(runOpts RunOptions) {
 		cfg = runResult.cfg
 		logger = runResult.logger
 		listenerOpts = runResult.listenerOpts
+		commonLabels = runResult.commonLabels
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
@@ -229,6 +233,7 @@ func Run(runOpts RunOptions) {
 				// cause a panic.
 				logger.Error("register metric error", zap.Error(err))
 			},
+			CommonLabels: commonLabels,
 		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
@@ -557,13 +562,17 @@ func Run(runOpts RunOptions) {
 	}
 
 	customHandlers := runOpts.CustomHandlerOptions.CustomHandlers
-	handler := httpd.NewHandler(handlerOptions, customHandlers...)
+	handler := httpd.NewHandler(handlerOptions, cfg.Middleware, customHandlers...)
 	if err := handler.RegisterRoutes(); err != nil {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
 
 	listenAddress := cfg.ListenAddressOrDefault()
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
+	srvHandler := handler.Router()
+	if cfg.HTTP.EnableH2C {
+		srvHandler = h2c.NewHandler(handler.Router(), &http2.Server{})
+	}
+	srv := &http.Server{Addr: listenAddress, Handler: srvHandler}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {

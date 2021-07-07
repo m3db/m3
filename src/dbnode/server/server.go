@@ -921,8 +921,11 @@ func Run(runOpts RunOptions) {
 		repairOpts := opts.RepairOptions().
 			SetAdminClients(repairClients)
 
-		if cfg.Repair != nil {
+		if repairCfg := cfg.Repair; repairCfg != nil {
 			repairOpts = repairOpts.
+				SetType(repairCfg.Type).
+				SetStrategy(repairCfg.Strategy).
+				SetForce(repairCfg.Force).
 				SetResultOptions(rsOpts).
 				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
 			if cfg.Repair.Throttle > 0 {
@@ -930,6 +933,9 @@ func Run(runOpts RunOptions) {
 			}
 			if cfg.Repair.CheckInterval > 0 {
 				repairOpts = repairOpts.SetRepairCheckInterval(cfg.Repair.CheckInterval)
+			}
+			if cfg.Repair.Concurrency > 0 {
+				repairOpts = repairOpts.SetRepairShardConcurrency(cfg.Repair.Concurrency)
 			}
 
 			if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
@@ -1323,6 +1329,7 @@ func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimit
 		Limit:         dynamicLimit.Limit,
 		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
 		ForceExceeded: dynamicLimit.ForceExceeded,
+		ForceWaited:   dynamicLimit.ForceWaited,
 	}
 }
 
@@ -1678,15 +1685,16 @@ func withEncodingAndPoolingOptions(
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).
 		SetSegmentReaderPool(segmentReaderPool).
-		SetCheckedBytesWrapperPool(bytesWrapperPool)
+		SetCheckedBytesWrapperPool(bytesWrapperPool).
+		SetMetrics(encoding.NewMetrics(scope))
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
-			enc := proto.NewEncoder(time.Time{}, encodingOpts)
+			enc := proto.NewEncoder(0, encodingOpts)
 			return enc
 		}
 
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
@@ -1759,7 +1767,7 @@ func withEncodingAndPoolingOptions(
 			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+		return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)

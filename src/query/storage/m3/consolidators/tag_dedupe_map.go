@@ -52,8 +52,27 @@ func (m *tagDedupeMap) close() {
 	m.mapWrapper.close()
 }
 
+func (m *tagDedupeMap) len() int {
+	return m.mapWrapper.len()
+}
+
 func (m *tagDedupeMap) list() []multiResultSeries {
 	return m.mapWrapper.list()
+}
+
+func (m *tagDedupeMap) update(
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+) (bool, error) {
+	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
+	if err != nil {
+		return false, err
+	}
+	existing, exists := m.mapWrapper.get(tags)
+	if !exists {
+		return false, nil
+	}
+	return true, m.doUpdate(existing, tags, iter, attrs)
 }
 
 func (m *tagDedupeMap) add(
@@ -66,18 +85,23 @@ func (m *tagDedupeMap) add(
 	}
 
 	iter.Tags().Rewind()
-	series := multiResultSeries{
-		iter:  iter,
-		attrs: attrs,
-		tags:  tags,
-	}
-
 	existing, exists := m.mapWrapper.get(tags)
 	if !exists {
-		m.mapWrapper.set(tags, series)
+		m.mapWrapper.set(tags, multiResultSeries{
+			iter:  iter,
+			attrs: attrs,
+			tags:  tags,
+		})
 		return nil
 	}
+	return m.doUpdate(existing, tags, iter, attrs)
+}
 
+func (m *tagDedupeMap) doUpdate(
+	existing multiResultSeries,
+	tags models.Tags,
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes) error {
 	var existsBetter bool
 	var existsEqual bool
 	switch m.fanout {
@@ -103,6 +127,7 @@ func (m *tagDedupeMap) add(
 	if existsEqual {
 		acc, ok := existing.iter.(encoding.SeriesIteratorAccumulator)
 		if !ok {
+			var err error
 			acc, err = encoding.NewSeriesIteratorAccumulator(existing.iter,
 				encoding.SeriesAccumulatorOptions{})
 			if err != nil {
@@ -115,8 +140,11 @@ func (m *tagDedupeMap) add(
 		}
 
 		// Update accumulated result series.
-		series.iter = acc
-		m.mapWrapper.set(tags, series)
+		m.mapWrapper.set(tags, multiResultSeries{
+			iter:  acc,
+			attrs: attrs,
+			tags:  tags,
+		})
 		return nil
 	}
 
@@ -127,7 +155,11 @@ func (m *tagDedupeMap) add(
 
 	// Override
 	existing.iter.Close()
-	m.mapWrapper.set(tags, series)
+	m.mapWrapper.set(tags, multiResultSeries{
+		iter:  iter,
+		attrs: attrs,
+		tags:  tags,
+	})
 
 	return nil
 }

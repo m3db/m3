@@ -32,6 +32,7 @@ import (
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
+	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
@@ -302,6 +303,7 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 		cutoverNanos  int64
 		rollupTargets []rollupTarget
 		keepOriginal  bool
+		tags          [][]models.Tag
 	)
 
 	for _, rollupRule := range as.rollupRules {
@@ -332,10 +334,11 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 
 		for _, target := range snapshot.targets {
 			rollupTargets = append(rollupTargets, target.clone())
+			tags = append(tags, snapshot.tags)
 		}
 	}
 	// NB: could log the matching error here if needed.
-	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal)
+	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags)
 	return res
 }
 
@@ -351,6 +354,7 @@ func (as *activeRuleSet) toRollupResults(
 	cutoverNanos int64,
 	targets []rollupTarget,
 	keepOriginal bool,
+	tags [][]models.Tag,
 ) (rollupResults, error) {
 	if len(targets) == 0 {
 		return rollupResults{}, nil
@@ -370,7 +374,7 @@ func (as *activeRuleSet) toRollupResults(
 		tagPairs           []metricid.TagPair
 	)
 
-	for _, target := range targets {
+	for idx, target := range targets {
 		pipeline := target.Pipeline
 		// A rollup target should always have a non-empty pipeline but
 		// just being defensive here.
@@ -405,6 +409,7 @@ func (as *activeRuleSet) toRollupResults(
 				sortedTagPairBytes,
 				firstOp.Rollup,
 				tagPairs,
+				tags[idx],
 				matchRollupTargetOptions{generateRollupID: true},
 			)
 			if !matched {
@@ -419,7 +424,7 @@ func (as *activeRuleSet) toRollupResults(
 			continue
 		}
 		tagPairs = tagPairs[:0]
-		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs)
+		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs, tags[idx])
 		if err != nil {
 			err = fmt.Errorf("failed to apply id %s to pipeline %v: %v", id, toApply, err)
 			multiErr = multiErr.Add(err)
@@ -434,6 +439,9 @@ func (as *activeRuleSet) toRollupResults(
 			// The applied pipeline applies to the incoming ID.
 			pipelines = append(pipelines, newPipeline)
 		} else {
+			if len(tags[idx]) > 0 {
+				newPipeline.Tags = tags[idx]
+			}
 			// The applied pipeline applies to a new rollup ID.
 			matchResults := ruleMatchResults{
 				cutoverNanos: cutoverNanos,
@@ -458,6 +466,7 @@ func (as *activeRuleSet) matchRollupTarget(
 	sortedTagPairBytes []byte,
 	rollupOp mpipeline.RollupOp,
 	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
+	tags []models.Tag,
 	opts matchRollupTargetOptions,
 ) ([]byte, bool) {
 	if rollupOp.Type == mpipeline.ExcludeByRollupType && !opts.generateRollupID {
@@ -538,6 +547,13 @@ func (as *activeRuleSet) matchRollupTarget(
 		return nil, true
 	}
 
+	for _, tag := range tags {
+		tagPairs = append(tagPairs, metricid.TagPair{
+			Name:  tag.Name,
+			Value: tag.Value,
+		})
+	}
+
 	newName := rollupOp.NewName(nameTagValue)
 	return as.newRollupIDFn(newName, tagPairs), true
 }
@@ -546,6 +562,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 	sortedTagPairBytes []byte,
 	pipeline mpipeline.Pipeline,
 	tagPairs []metricid.TagPair, // buffer for reuse across calls
+	tags []models.Tag,
 ) (applied.Pipeline, error) {
 	operations := make([]applied.OpUnion, 0, pipeline.Len())
 	for i := 0; i < pipeline.Len(); i++ {
@@ -564,6 +581,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 				sortedTagPairBytes,
 				rollupOp,
 				tagPairs,
+				tags,
 				matchRollupTargetOptions{generateRollupID: true},
 			)
 			if !matched {
@@ -670,6 +688,7 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 				if _, matched := as.matchRollupTarget(
 					sortedTagPairBytes,
 					rollupOp,
+					nil,
 					nil,
 					matchRollupTargetOptions{generateRollupID: false},
 				); !matched {

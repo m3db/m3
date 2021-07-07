@@ -53,10 +53,12 @@ func TestFetchOptionsBuilder(t *testing.T) {
 	tests := []struct {
 		name                 string
 		defaultLimit         int
+		defaultRangeLimit    time.Duration
 		defaultRestrictByTag *storage.RestrictByTag
 		headers              map[string]string
 		query                string
 		expectedLimit        int
+		expectedRangeLimit   time.Duration
 		expectedRestrict     *storage.RestrictQueryOptions
 		expectedLookback     *expectedLookback
 		expectedErr          bool
@@ -76,10 +78,33 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			expectedLimit: 4242,
 		},
 		{
-			name:         "bad header",
+			name:         "bad limit header",
 			defaultLimit: 42,
 			headers: map[string]string{
 				headers.LimitMaxSeriesHeader: "not_a_number",
+			},
+			expectedErr: true,
+		},
+		{
+			name:               "default range limit with no headers",
+			defaultRangeLimit:  42 * time.Hour,
+			headers:            map[string]string{},
+			expectedRangeLimit: 42 * time.Hour,
+		},
+		{
+			name:              "range limit with header",
+			defaultRangeLimit: 42 * time.Hour,
+			headers: map[string]string{
+				headers.LimitMaxRangeHeader: "84h",
+			},
+			expectedRangeLimit: 84 * time.Hour,
+		},
+		{
+			name:              "bad range limit header",
+			defaultRangeLimit: 42 * time.Hour,
+			headers: map[string]string{
+				// Not a parseable time range string.
+				headers.LimitMaxRangeHeader: "4242",
 			},
 			expectedErr: true,
 		},
@@ -474,4 +499,21 @@ func TestTimeoutParseWithGetRequestParam(t *testing.T) {
 	timeout, err := ParseRequestTimeout(req, time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, time.Millisecond)
+}
+
+func TestInstanceMultiple(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	m, err := ParseInstanceMultiple(req, 2.0)
+	require.NoError(t, err)
+	require.Equal(t, float32(2.0), m)
+
+	req.Header.Set(headers.LimitInstanceMultipleHeader, "3.0")
+	m, err = ParseInstanceMultiple(req, 2.0)
+	require.NoError(t, err)
+	require.Equal(t, float32(3.0), m)
+
+	req.Header.Set(headers.LimitInstanceMultipleHeader, "blah")
+	_, err = ParseInstanceMultiple(req, 2.0)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "could not parse instance multiple")
 }

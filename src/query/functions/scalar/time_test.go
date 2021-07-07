@@ -60,7 +60,7 @@ func TestTime(t *testing.T) {
 	assert.Equal(t, block.BlockTime, sink.Info.Type())
 
 	for i, vals := range sink.Values {
-		assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), vals[0])
+		assert.Equal(t, float64(start.Add(time.Duration(i)*step).Seconds()), vals[0])
 	}
 
 	resultMeta := sink.Meta.ResultMetadata

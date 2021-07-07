@@ -382,14 +382,23 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			},
 		},
 		{
-			interval: time.Second,
+			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[3].flushers[0],
+					flushBeforeNanos: 3658000000001,
+				},
+			},
+		},
+		{
+			interval: time.Second,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[4].flushers[0],
 					flushBeforeNanos: 3663000000000,
 				},
 				{
-					flusher:          buckets[3].flushers[1],
+					flusher:          buckets[4].flushers[1],
 					flushBeforeNanos: 3658000000000,
 				},
 			},
@@ -398,7 +407,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
-					flusher:          buckets[4].flushers[0],
+					flusher:          buckets[5].flushers[0],
 					flushBeforeNanos: 3660000000000,
 				},
 			},
@@ -407,7 +416,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
-					flusher:          buckets[5].flushers[0],
+					flusher:          buckets[6].flushers[0],
 					flushBeforeNanos: 3600000000000,
 				},
 			},
@@ -482,23 +491,23 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 			},
 		},
 		{
-			interval: time.Second,
+			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[3].flushers[0],
 					flushBeforeNanos: 1244000000000,
 				},
-				{
-					flusher:          buckets[3].flushers[1],
-					flushBeforeNanos: 1244000000000,
-				},
 			},
 		},
 		{
-			interval: time.Minute,
+			interval: time.Second,
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[4].flushers[0],
+					flushBeforeNanos: 1244000000000,
+				},
+				{
+					flusher:          buckets[4].flushers[1],
 					flushBeforeNanos: 1244000000000,
 				},
 			},
@@ -508,6 +517,15 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[5].flushers[0],
+					flushBeforeNanos: 1244000000000,
+				},
+			},
+		},
+		{
+			interval: time.Minute,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[6].flushers[0],
 					flushBeforeNanos: 1244000000000,
 				},
 			},

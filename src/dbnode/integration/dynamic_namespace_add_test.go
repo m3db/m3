@@ -111,7 +111,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 		leaseDescriptor := block.LeaseDescriptor{
 			Namespace:  ns0.ID(),
 			Shard:      uint32(0),
-			BlockStart: time.Now().Truncate(ns0.Options().RetentionOptions().BlockSize()),
+			BlockStart: xtime.Now().Truncate(ns0.Options().RetentionOptions().BlockSize()),
 		}
 		wg.Add(2)
 		go func() {
@@ -140,7 +140,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	for _, input := range inputData {
 		start := input.Start
 		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(start)] = testData
+		seriesMaps[start] = testData
 	}
 	log.Info("test data is now generated")
 
@@ -164,7 +164,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// write to new namespace
 	for start, testData := range seriesMaps {
-		testSetup.SetNowFn(start.ToTime())
+		testSetup.SetNowFn(start)
 		require.NoError(t, testSetup.WriteBatch(ns0.ID(), testData))
 	}
 	log.Info("test data is now written")

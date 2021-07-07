@@ -22,7 +22,6 @@ package writes
 
 import (
 	"errors"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -91,7 +90,7 @@ func NewWriteBatch(
 func (b *writeBatch) Add(
 	originalIndex int,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -109,7 +108,7 @@ func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
 	encodedTags ts.EncodedTags,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -249,7 +248,7 @@ func newBatchWriterWrite(
 	namespace ident.ID,
 	id ident.ID,
 	encodedTags ts.EncodedTags,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -267,8 +266,7 @@ func newBatchWriterWrite(
 				Namespace:   namespace,
 			},
 			Datapoint: ts.Datapoint{
-				Timestamp:      timestamp,
-				TimestampNanos: xtime.ToUnixNano(timestamp),
+				TimestampNanos: timestamp,
 				Value:          value,
 			},
 			Unit:       unit,

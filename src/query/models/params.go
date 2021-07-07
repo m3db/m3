@@ -23,6 +23,8 @@ package models
 import (
 	"fmt"
 	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // FormatType describes what format to return the data in.
@@ -59,8 +61,8 @@ const (
 
 // RequestParams represents the params from the request.
 type RequestParams struct {
-	Start time.Time
-	End   time.Time
+	Start xtime.UnixNano
+	End   xtime.UnixNano
 	// Now captures the current time and fixes it throughout the request, we
 	// may let people override it in the future.
 	Now              time.Time
@@ -76,7 +78,7 @@ type RequestParams struct {
 }
 
 // ExclusiveEnd returns the end exclusive.
-func (r RequestParams) ExclusiveEnd() time.Time {
+func (r RequestParams) ExclusiveEnd() xtime.UnixNano {
 	if r.IncludeEnd {
 		return r.End.Add(r.Step)
 	}

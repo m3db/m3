@@ -80,7 +80,6 @@ func main() {
 		validateConcurrency: *optValidateConcurrency,
 		log:                 log,
 	})
-
 }
 
 type runOptions struct {
@@ -203,7 +202,7 @@ func readBlockSegments(
 	log = log.With(
 		zap.String("namespace", nsID.String()),
 		zap.String("blockStart", infoFile.ID.BlockStart.String()),
-		zap.Int64("blockStartUnixNano", infoFile.ID.BlockStart.UnixNano()),
+		zap.Int64("blockStartUnixNano", int64(infoFile.ID.BlockStart)),
 		zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
 		zap.Strings("files", infoFile.AbsoluteFilePaths))
 

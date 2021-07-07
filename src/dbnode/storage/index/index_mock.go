@@ -1027,10 +1027,10 @@ func (mr *MockBlockMockRecorder) Close() *gomock.Call {
 }
 
 // EndTime mocks base method.
-func (m *MockBlock) EndTime() time.Time {
+func (m *MockBlock) EndTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EndTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -1197,10 +1197,10 @@ func (mr *MockBlockMockRecorder) Seal() *gomock.Call {
 }
 
 // StartTime mocks base method.
-func (m *MockBlock) StartTime() time.Time {
+func (m *MockBlock) StartTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 

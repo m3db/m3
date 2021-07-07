@@ -22,7 +22,6 @@ package storage
 
 import (
 	"bytes"
-	gocontext "context"
 	"errors"
 	"fmt"
 	"io"
@@ -70,6 +69,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -196,7 +196,7 @@ type nsIndexRuntimeOptions struct {
 // live in the period (-infinity, exclusiveTime).
 type indexFilesetsBeforeFn func(dir string,
 	nsID ident.ID,
-	exclusiveTime time.Time,
+	exclusiveTime xtime.UnixNano,
 ) ([]string, error)
 
 type readIndexInfoFilesFn func(opts fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult
@@ -233,7 +233,8 @@ type newBlockIterFn func(
 // asyncQueryExecState tracks the async execution errors for a query.
 type asyncQueryExecState struct {
 	sync.RWMutex
-	multiErr xerrors.MultiError
+	multiErr  xerrors.MultiError
+	waitCount atomic.Uint64
 }
 
 func (s *asyncQueryExecState) hasErr() bool {
@@ -246,6 +247,14 @@ func (s *asyncQueryExecState) addErr(err error) {
 	s.Lock()
 	s.multiErr = s.multiErr.Add(err)
 	s.Unlock()
+}
+
+func (s *asyncQueryExecState) incWaited(i int) {
+	s.waitCount.Add(uint64(i))
+}
+
+func (s *asyncQueryExecState) waited() int {
+	return int(s.waitCount.Load())
 }
 
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
@@ -377,7 +386,7 @@ func newNamespaceIndexWithOptions(
 		shardSet:             shardSet,
 	}
 
-	activeBlock, err := idx.newBlockFn(time.Time{}, idx.nsMetadata,
+	activeBlock, err := idx.newBlockFn(xtime.UnixNano(0), idx.nsMetadata,
 		index.BlockOptions{ActiveBlock: true}, idx.namespaceRuntimeOptsMgr,
 		idx.opts.IndexOptions())
 	if err != nil {
@@ -423,7 +432,7 @@ func newNamespaceIndexWithOptions(
 	idx.state.insertQueue = queue
 
 	// allocate the current block to ensure we're able to index as soon as we return
-	currentBlock := nowFn().Truncate(idx.blockSize)
+	currentBlock := xtime.ToUnixNano(nowFn()).Truncate(idx.blockSize)
 	idx.state.RLock()
 	_, err = idx.ensureBlockPresentWithRLock(currentBlock)
 	idx.state.RUnlock()
@@ -579,11 +588,11 @@ func (i *nsIndex) reportStats() error {
 	return nil
 }
 
-func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
-	return xtime.ToUnixNano(writeTime.Truncate(i.blockSize))
+func (i *nsIndex) BlockStartForWriteTime(writeTime xtime.UnixNano) xtime.UnixNano {
+	return writeTime.Truncate(i.blockSize)
 }
 
-func (i *nsIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
+func (i *nsIndex) BlockForBlockStart(blockStart xtime.UnixNano) (index.Block, error) {
 	result, err := i.ensureBlockPresent(blockStart)
 	if err != nil {
 		return nil, err
@@ -706,7 +715,7 @@ func (i *nsIndex) writeBatches(
 		return
 	}
 	var (
-		now                        = i.nowFn()
+		now                        = xtime.ToUnixNano(i.nowFn())
 		blockSize                  = i.blockSize
 		futureLimit                = now.Add(1 * i.bufferFuture)
 		pastLimit                  = now.Add(-1 * i.bufferPast)
@@ -785,8 +794,7 @@ func (i *nsIndex) writeBatches(
 				if forwardIndexDice.roll(ts) {
 					forwardIndexHits++
 					forwardEntryTimestamp := ts.Truncate(blockSize).Add(blockSize)
-					xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
-					if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
+					if entry.OnIndexSeries.NeedsIndexUpdate(forwardEntryTimestamp) {
 						forwardIndexEntry := entry
 						forwardIndexEntry.Timestamp = forwardEntryTimestamp
 						t := i.BlockStartForWriteTime(forwardEntryTimestamp)
@@ -820,7 +828,7 @@ func (i *nsIndex) writeBatches(
 }
 
 func (i *nsIndex) writeBatchForBlockStart(
-	blockStart time.Time, batch *index.WriteBatch,
+	blockStart xtime.UnixNano, batch *index.WriteBatch,
 ) {
 	// NB(r): Capture pending entries so we can emit the latencies
 	pending := batch.PendingEntries()
@@ -890,7 +898,7 @@ func (i *nsIndex) Bootstrap(
 
 	var multiErr xerrors.MultiError
 	for blockStart, blockResults := range bootstrapResults {
-		blockResult, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
+		blockResult, err := i.ensureBlockPresentWithRLock(blockStart)
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
@@ -912,7 +920,7 @@ func (i *nsIndex) Bootstrapped() bool {
 
 func (i *nsIndex) Tick(
 	c context.Cancellable,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) (namespaceIndexTickResult, error) {
 	var result namespaceIndexTickResult
 
@@ -966,7 +974,7 @@ type tickingBlocksResult struct {
 }
 
 func (i *nsIndex) tickingBlocks(
-	startTime time.Time,
+	startTime xtime.UnixNano,
 ) (tickingBlocksResult, xerrors.MultiError) {
 	multiErr := xerrors.NewMultiError()
 	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(
@@ -984,7 +992,7 @@ func (i *nsIndex) tickingBlocks(
 
 	for blockStart, block := range i.state.blocksByTime {
 		// Drop any blocks past the retention period.
-		if blockStart.ToTime().Before(earliestBlockStartToRetain) {
+		if blockStart.Before(earliestBlockStartToRetain) {
 			multiErr = multiErr.Add(block.Close())
 			delete(i.state.blocksByTime, blockStart)
 			evictedBlocks++
@@ -996,7 +1004,7 @@ func (i *nsIndex) tickingBlocks(
 		tickingBlocks = append(tickingBlocks, block)
 
 		// Seal any blocks that are sealable while holding lock (seal is fast).
-		if !blockStart.ToTime().After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
+		if !blockStart.After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
 			multiErr = multiErr.Add(block.Seal())
 		}
 
@@ -1082,7 +1090,7 @@ func (i *nsIndex) WarmFlush(
 			// flushed any mutable data.
 			i.logger.Warn("encountered error while evicting mutable segments for index block",
 				zap.Error(err),
-				zap.Time("blockStart", block.StartTime()),
+				zap.Time("blockStart", block.StartTime().ToTime()),
 			)
 		}
 	}
@@ -1136,7 +1144,7 @@ func (i *nsIndex) flushableBlocks(
 	})
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 
-	now := i.nowFn()
+	now := xtime.ToUnixNano(i.nowFn())
 	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
 	currentBlockStart := now.Truncate(i.blockSize)
 	// Check for flushable blocks by iterating through all block starts w/in retention.
@@ -1146,7 +1154,7 @@ func (i *nsIndex) flushableBlocks(
 			return nil, err
 		}
 
-		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, blockStart,
+		canFlush, err := i.canFlushBlockWithRLock(infoFiles, blockStart,
 			blockResult.block, shards, flushType)
 		if err != nil {
 			return nil, err
@@ -1162,8 +1170,7 @@ func (i *nsIndex) flushableBlocks(
 
 func (i *nsIndex) canFlushBlockWithRLock(
 	infoFiles []fs.ReadIndexInfoFileResult,
-	startTime time.Time,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	block index.Block,
 	shards []databaseShard,
 	flushType series.WriteType,
@@ -1211,7 +1218,7 @@ func (i *nsIndex) canFlushBlockWithRLock(
 
 func (i *nsIndex) hasIndexWarmFlushedToDisk(
 	infoFiles []fs.ReadIndexInfoFileResult,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) bool {
 	var hasIndexWarmFlushedToDisk bool
 	// NB(bodu): We consider the block to have been warm flushed if there are any
@@ -1449,8 +1456,8 @@ func (i *nsIndex) Query(
 			opentracinglog.String("namespace", i.nsMetadata.ID().String()),
 			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 			opentracinglog.Int("docsLimit", opts.DocsLimit),
-			xopentracing.Time("queryStart", opts.StartInclusive),
-			xopentracing.Time("queryEnd", opts.EndExclusive),
+			xopentracing.Time("queryStart", opts.StartInclusive.ToTime()),
+			xopentracing.Time("queryEnd", opts.EndExclusive.ToTime()),
 		}
 		sp.LogFields(logFields...)
 	}
@@ -1462,7 +1469,7 @@ func (i *nsIndex) Query(
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
-	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn,
+	queryRes, err := i.query(ctx, query, results, opts, i.execBlockQueryFn,
 		i.newBlockQueryIterFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -1470,7 +1477,8 @@ func (i *nsIndex) Query(
 	}
 	return index.QueryResult{
 		Results:    results,
-		Exhaustive: exhaustive,
+		Exhaustive: queryRes.exhaustive,
+		Waited:     queryRes.waited,
 	}, nil
 }
 
@@ -1484,8 +1492,8 @@ func (i *nsIndex) WideQuery(
 		opentracinglog.String("wideQuery", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
 		opentracinglog.Int("batchSize", opts.BatchSize),
-		xopentracing.Time("queryStart", opts.StartInclusive),
-		xopentracing.Time("queryEnd", opts.EndExclusive),
+		xopentracing.Time("queryStart", opts.StartInclusive.ToTime()),
+		xopentracing.Time("queryEnd", opts.EndExclusive.ToTime()),
 	}
 
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxWideQuery)
@@ -1526,8 +1534,8 @@ func (i *nsIndex) AggregateQuery(
 		opentracinglog.String("namespace", id.String()),
 		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 		opentracinglog.Int("docsLimit", opts.DocsLimit),
-		xopentracing.Time("queryStart", opts.StartInclusive),
-		xopentracing.Time("queryEnd", opts.EndExclusive),
+		xopentracing.Time("queryStart", opts.StartInclusive.ToTime()),
+		xopentracing.Time("queryEnd", opts.EndExclusive.ToTime()),
 	}
 
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxAggregateQuery)
@@ -1562,15 +1570,21 @@ func (i *nsIndex) AggregateQuery(
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(id, aopts)
-	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn,
+	queryRes, err := i.query(ctx, query, results, opts.QueryOptions, fn,
 		i.newBlockAggregatorIterFn, logFields)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
 	return index.AggregateQueryResult{
 		Results:    results,
-		Exhaustive: exhaustive,
+		Exhaustive: queryRes.exhaustive,
+		Waited:     queryRes.waited,
 	}, nil
+}
+
+type queryResult struct {
+	exhaustive bool
+	waited     int
 }
 
 func (i *nsIndex) query(
@@ -1581,7 +1595,7 @@ func (i *nsIndex) query(
 	execBlockFn execBlockQueryFn,
 	newBlockIterFn newBlockIterFn,
 	logFields []opentracinglog.Field,
-) (bool, error) {
+) (queryResult, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSIdxQueryHelper)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
@@ -1590,22 +1604,22 @@ func (i *nsIndex) query(
 		sp.LogFields(logFields...)
 	}
 
-	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn,
+	queryRes, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn,
 		newBlockIterFn, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 
-		if exhaustive {
+		if queryRes.exhaustive {
 			i.metrics.queryExhaustiveInternalError.Inc(1)
 		} else {
 			i.metrics.queryNonExhaustiveInternalError.Inc(1)
 		}
-		return exhaustive, err
+		return queryRes, err
 	}
 
-	if exhaustive {
+	if queryRes.exhaustive {
 		i.metrics.queryExhaustiveSuccess.Inc(1)
-		return exhaustive, nil
+		return queryRes, nil
 	}
 
 	// If require exhaustive but not, return error.
@@ -1621,7 +1635,7 @@ func (i *nsIndex) query(
 		}
 
 		// NB(r): Make sure error is not retried and returns as bad request.
-		return exhaustive, xerrors.NewInvalidParamsError(limits.NewQueryLimitExceededError(fmt.Sprintf(
+		return queryRes, xerrors.NewInvalidParamsError(limits.NewQueryLimitExceededError(fmt.Sprintf(
 			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
 			opts.SeriesLimit,
@@ -1633,7 +1647,7 @@ func (i *nsIndex) query(
 
 	// Otherwise non-exhaustive but not required to be.
 	i.metrics.queryNonExhaustiveSuccess.Inc(1)
-	return exhaustive, nil
+	return queryRes, nil
 }
 
 // blockIter is a composite type to hold various state about a block while iterating over the results.
@@ -1654,11 +1668,11 @@ func (i *nsIndex) queryWithSpan(
 	newBlockIterFn newBlockIterFn,
 	span opentracing.Span,
 	logFields []opentracinglog.Field,
-) (bool, error) {
+) (queryResult, error) {
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		return false, errDbIndexUnableToQueryClosed
+		return queryResult{}, errDbIndexUnableToQueryClosed
 	}
 
 	// Track this as an inflight query that needs to finish
@@ -1690,7 +1704,7 @@ func (i *nsIndex) queryWithSpan(
 	)
 	perms, err := i.permitsManager.NewPermits(ctx)
 	if err != nil {
-		return false, err
+		return queryResult{}, err
 	}
 
 	var blockIters []*blockIter
@@ -1698,7 +1712,7 @@ func (i *nsIndex) queryWithSpan(
 		block := blocks.Current()
 		iter, err := newBlockIterFn(ctx, block, query, results)
 		if err != nil {
-			return false, err
+			return queryResult{}, err
 		}
 		blockIters = append(blockIters, &blockIter{
 			iter:       iter,
@@ -1724,19 +1738,38 @@ func (i *nsIndex) queryWithSpan(
 		if queryCanceled() {
 			return nil, 0
 		}
+
 		startWait := time.Now()
-		permit, err := perms.Acquire(ctx)
+		acquireResult, err := perms.Acquire(ctx)
 		waitTime := time.Since(startWait)
+		var success bool
+		defer func() {
+			// Note: ALWAYS release if we do not successfully return back
+			// the permit and we checked one out.
+			if !success && acquireResult.Permit != nil {
+				perms.Release(acquireResult.Permit)
+			}
+		}()
+		if acquireResult.Waited {
+			// Potentially break an error if require no wait set.
+			if err == nil && opts.RequireNoWait {
+				// Fail iteration if request requires no waiting occurs.
+				err = permits.ErrOperationWaitedOnRequireNoWait
+			}
+			state.incWaited(1)
+		}
 		if err != nil {
 			state.addErr(err)
 			return nil, waitTime
 		}
+
 		// make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
-			perms.Release(permit)
 			return nil, waitTime
 		}
-		return permit, waitTime
+
+		success = true
+		return acquireResult.Permit, waitTime
 	}
 
 	// We're looping through all the blocks that we need to query and kicking
@@ -1802,12 +1835,10 @@ func (i *nsIndex) queryWithSpan(
 	multiErr := state.multiErr
 	err = multiErr.FinalError()
 
-	if err != nil && !multiErr.Contains(gocontext.DeadlineExceeded) && !multiErr.Contains(gocontext.Canceled) {
-		// an unexpected error occurred processing the query, bail without updating timing metrics.
-		return false, err
-	}
-
-	return exhaustive, err
+	return queryResult{
+		exhaustive: exhaustive,
+		waited:     state.waited(),
+	}, err
 }
 
 func (i *nsIndex) newBlockQueryIterFn(
@@ -1831,8 +1862,8 @@ func (i *nsIndex) execBlockQueryFn(
 	logFields []opentracinglog.Field,
 ) {
 	logFields = append(logFields,
-		xopentracing.Time("blockStart", block.StartTime()),
-		xopentracing.Time("blockEnd", block.EndTime()),
+		xopentracing.Time("blockStart", block.StartTime().ToTime()),
+		xopentracing.Time("blockEnd", block.EndTime().ToTime()),
 	)
 
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQuery)
@@ -1877,8 +1908,8 @@ func (i *nsIndex) execBlockWideQueryFn(
 	logFields []opentracinglog.Field,
 ) {
 	logFields = append(logFields,
-		xopentracing.Time("blockStart", block.StartTime()),
-		xopentracing.Time("blockEnd", block.EndTime()),
+		xopentracing.Time("blockStart", block.StartTime().ToTime()),
+		xopentracing.Time("blockEnd", block.EndTime().ToTime()),
 	)
 
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQuery)
@@ -1940,8 +1971,8 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 	logFields []opentracinglog.Field,
 ) {
 	logFields = append(logFields,
-		xopentracing.Time("blockStart", block.StartTime()),
-		xopentracing.Time("blockEnd", block.EndTime()),
+		xopentracing.Time("blockStart", block.StartTime().ToTime()),
+		xopentracing.Time("blockEnd", block.EndTime().ToTime()),
 	)
 
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQuery)
@@ -2001,7 +2032,7 @@ type blockPresentResult struct {
 	latest bool
 }
 
-func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (blockPresentResult, error) {
+func (i *nsIndex) ensureBlockPresent(blockStart xtime.UnixNano) (blockPresentResult, error) {
 	i.state.RLock()
 	defer i.state.RUnlock()
 	if !i.isOpenWithRLock() {
@@ -2010,14 +2041,14 @@ func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (blockPresentResult, 
 	return i.ensureBlockPresentWithRLock(blockStart)
 }
 
-func (i *nsIndex) isLatestBlockWithRLock(blockStart time.Time) bool {
+func (i *nsIndex) isLatestBlockWithRLock(blockStart xtime.UnixNano) bool {
 	return i.state.latestBlock != nil && i.state.latestBlock.StartTime().Equal(blockStart)
 }
 
 // ensureBlockPresentWithRLock guarantees an index.Block exists for the specified
 // blockStart, allocating one if it does not. It returns the desired block, or
 // error if it's unable to do so.
-func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresentResult, error) {
+func (i *nsIndex) ensureBlockPresentWithRLock(blockStart xtime.UnixNano) (blockPresentResult, error) {
 	// check if the current latest block matches the required block, this
 	// is the usual path and can short circuit the rest of the logic in this
 	// function in most cases.
@@ -2030,8 +2061,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 
 	// check if exists in the map (this can happen if the latestBlock has not
 	// been rotated yet).
-	blockStartNanos := xtime.ToUnixNano(blockStart)
-	if block, ok := i.state.blocksByTime[blockStartNanos]; ok {
+	if block, ok := i.state.blocksByTime[blockStart]; ok {
 		return blockPresentResult{block: block}, nil
 	}
 
@@ -2049,7 +2079,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 	}()
 
 	// re-check if exists in the map (another routine did the alloc)
-	if block, ok := i.state.blocksByTime[blockStartNanos]; ok {
+	if block, ok := i.state.blocksByTime[blockStart]; ok {
 		return blockPresentResult{
 			block:  block,
 			latest: i.isLatestBlockWithRLock(blockStart),
@@ -2065,14 +2095,14 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 
 	// NB(bodu): Use same time barrier as `Tick` to make sealing of cold index blocks consistent.
 	// We need to seal cold blocks write away for cold writes.
-	if !blockStart.After(i.lastSealableBlockStart(i.nowFn())) {
+	if !blockStart.After(i.lastSealableBlockStart(xtime.ToUnixNano(i.nowFn()))) {
 		if err := block.Seal(); err != nil {
 			return blockPresentResult{}, err
 		}
 	}
 
 	// add to tracked blocks map
-	i.state.blocksByTime[blockStartNanos] = block
+	i.state.blocksByTime[blockStart] = block
 
 	// update ordered blockStarts slice, and latestBlock
 	i.updateBlockStartsWithLock()
@@ -2083,7 +2113,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 	}, nil
 }
 
-func (i *nsIndex) lastSealableBlockStart(t time.Time) time.Time {
+func (i *nsIndex) lastSealableBlockStart(t xtime.UnixNano) xtime.UnixNano {
 	return retention.FlushTimeEndForBlockSize(i.blockSize, t.Add(-i.bufferPast))
 }
 
@@ -2126,7 +2156,7 @@ func (i *nsIndex) isOpenWithRLock() bool {
 	return !i.state.closed
 }
 
-func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
+func (i *nsIndex) CleanupExpiredFileSets(t xtime.UnixNano) error {
 	// we only expire data on drive that we don't hold a reference to, and is
 	// past the expiration period. the earliest data we have to retain is given
 	// by the following computation:
@@ -2142,8 +2172,8 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 
 	// now we loop through the blocks we hold, to ensure we don't delete any data for them.
 	for t := range i.state.blocksByTime {
-		if t.ToTime().Before(earliestBlockStartToRetain) {
-			earliestBlockStartToRetain = t.ToTime()
+		if t.Before(earliestBlockStartToRetain) {
+			earliestBlockStartToRetain = t
 		}
 	}
 
@@ -2161,6 +2191,118 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	return i.deleteFilesFn(filesets)
 }
 
+func (i *nsIndex) CleanupCorruptedFileSets() error {
+	/*
+	   Corrupted index filesets can be safely cleaned up if its not
+	   the latest volume index per index volume type/block start combo.
+
+	   We are guaranteed not to be actively writing to an index fileset once
+	   we're already writing to later volume indices.
+	*/
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
+	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   fsOpts.FilePathPrefix(),
+		Namespace:        i.nsMetadata.ID(),
+		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+		IncludeCorrupted: true,
+	})
+
+	if len(infoFiles) == 0 {
+		return nil
+	}
+
+	var (
+		toDelete []string
+		begin    = 0 // marks the beginning of a subslice that contains filesets with same block starts
+	)
+	// It's expected that info files are ordered by block start and volume index
+	for j := range infoFiles {
+		if infoFiles[begin].ID.BlockStart.Before(infoFiles[j].ID.BlockStart) {
+			files, err := i.getCorruptedVolumesForDeletion(infoFiles[begin:j])
+			if err != nil {
+				return err
+			}
+			toDelete = append(toDelete, files...)
+			begin = j
+		} else if infoFiles[begin].ID.BlockStart.After(infoFiles[j].ID.BlockStart) {
+			errorMessage := "filesets are expected to be ordered by block start"
+			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(errorMessage)
+			})
+			return instrument.InvariantErrorf(errorMessage)
+		}
+	}
+
+	// Process the volumes in the last block, which are not covered by the loop.
+	files, err := i.getCorruptedVolumesForDeletion(infoFiles[begin:])
+	if err != nil {
+		return err
+	}
+	toDelete = append(toDelete, files...)
+
+	return i.deleteFilesFn(toDelete)
+}
+
+func (i *nsIndex) getCorruptedVolumesForDeletion(filesets []fs.ReadIndexInfoFileResult) ([]string, error) {
+	if len(filesets) <= 1 {
+		return nil, nil
+	}
+
+	// Check for invariants.
+	for j := 1; j < len(filesets); j++ {
+		if !filesets[j-1].ID.BlockStart.Equal(filesets[j].ID.BlockStart) {
+			errorMessage := "all the filesets passed to this function should have the same block start"
+			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(errorMessage)
+			})
+			return nil, instrument.InvariantErrorf(errorMessage)
+		} else if filesets[j-1].ID.VolumeIndex >= filesets[j].ID.VolumeIndex {
+			errorMessage := "filesets should be ordered by volume index in increasing order"
+			instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(errorMessage)
+			})
+			return nil, instrument.InvariantErrorf(errorMessage)
+		}
+	}
+
+	toDelete := make([]string, 0)
+	hasMoreRecentVolumeOfType := make(map[idxpersist.IndexVolumeType]struct{})
+	// Iterate filesets in reverse order to process higher volume indexes first.
+	for j := len(filesets) - 1; j >= 0; j-- {
+		f := filesets[j]
+
+		// NB: If the fileset info fields contains inconsistent information (e.g. block start inside
+		// info file doesn't match the block start extracted from the filename), it means that info file
+		// is missing or corrupted. Thus we cannot trust the information of this fileset
+		// and we cannot be sure what's the actual volume type of it. However, a part of corrupted
+		// fileset cleanup logic depends on knowing the volume type.
+		//
+		// Such fileset is deleted, except when it is the most recent volume in the block.
+		//
+		// The most recent volume is excluded because it is more likely to be actively written to.
+		// If info file writes are not atomic, due to timing readers might observe the file
+		// to be corrupted, even though at that moment the file is being written/re-written.
+		if f.Corrupted && !f.ID.BlockStart.Equal(xtime.UnixNano(f.Info.BlockStart)) {
+			if j != len(filesets)-1 {
+				toDelete = append(toDelete, f.AbsoluteFilePaths...)
+			}
+			continue
+		}
+
+		volType := idxpersist.DefaultIndexVolumeType
+		if f.Info.IndexVolumeType != nil {
+			volType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
+		}
+		// Delete corrupted filesets if there are more recent volumes with the same volume type.
+		if _, ok := hasMoreRecentVolumeOfType[volType]; !ok {
+			hasMoreRecentVolumeOfType[volType] = struct{}{}
+		} else if f.Corrupted {
+			toDelete = append(toDelete, f.AbsoluteFilePaths...)
+		}
+	}
+	return toDelete, nil
+}
+
 func (i *nsIndex) CleanupDuplicateFileSets(activeShards []uint32) error {
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
@@ -2172,7 +2314,7 @@ func (i *nsIndex) CleanupDuplicateFileSets(activeShards []uint32) error {
 	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[xtime.UnixNano]map[idxpersist.IndexVolumeType][]fs.Segments)
 	for _, file := range infoFiles {
 		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilePaths)
-		blockStart := xtime.ToUnixNano(seg.BlockStart())
+		blockStart := seg.BlockStart()
 		segmentsOrderByVolumeIndexByVolumeType, ok := segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart[blockStart]
 		if !ok {
 			segmentsOrderByVolumeIndexByVolumeType = make(map[idxpersist.IndexVolumeType][]fs.Segments)

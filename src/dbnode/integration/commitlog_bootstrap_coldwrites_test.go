@@ -105,7 +105,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 	// not contains the same series.
 	allSeriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock, len(dataFilesSeriesMaps))
 	for i := -2; i < 0; i++ {
-		unixNano := xtime.ToUnixNano(start.Add(time.Duration(i) * blockSize))
+		unixNano := start.Add(time.Duration(i) * blockSize)
 		series := append(dataFilesSeriesMaps[unixNano], commitLogSeriesMaps[unixNano]...)
 		allSeriesMaps[unixNano] = series
 	}

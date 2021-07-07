@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/retention"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +60,7 @@ func TestDisabledForwardIndexDice(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, dice.enabled)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(time.Hour)
 
 	for ts := start; ts.Before(end); ts = ts.Add(time.Second) {
@@ -96,7 +97,7 @@ func TestAlwaysOnForwardIndexDice(t *testing.T) {
 	require.True(t, dice.enabled)
 
 	var (
-		start     = time.Now().Truncate(time.Hour)
+		start     = xtime.Now().Truncate(time.Hour)
 		threshold = start.Add(time.Minute * 51)
 		end       = start.Add(time.Hour)
 	)
@@ -136,7 +137,7 @@ func TestCustomDice(t *testing.T) {
 	}
 
 	var (
-		start     = time.Now().Truncate(time.Hour)
+		start     = xtime.Now().Truncate(time.Hour)
 		threshold = start.Add(time.Minute * 50)
 		end       = start.Add(time.Hour)
 	)

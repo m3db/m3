@@ -139,8 +139,8 @@ type block struct {
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
 	newExecutorWithRLockFn          newExecutorFn
 	addAggregateResultsFn           addAggregateResultsFn
-	blockStart                      time.Time
-	blockEnd                        time.Time
+	blockStart                      xtime.UnixNano
+	blockEnd                        xtime.UnixNano
 	blockSize                       time.Duration
 	opts                            Options
 	iopts                           instrument.Options
@@ -211,7 +211,7 @@ type BlockOptions struct {
 
 // NewBlockFn is a new block constructor.
 type NewBlockFn func(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	md namespace.Metadata,
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
@@ -224,7 +224,7 @@ var _ NewBlockFn = NewBlock
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func NewBlock(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	md namespace.Metadata,
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
@@ -295,11 +295,11 @@ func (b *block) ActiveBlockNotifyFlushedBlocks(
 	return b.mutableSegments.NotifyFlushedBlocks(flushed)
 }
 
-func (b *block) StartTime() time.Time {
+func (b *block) StartTime() xtime.UnixNano {
 	return b.blockStart
 }
 
-func (b *block) EndTime() time.Time {
+func (b *block) EndTime() xtime.UnixNano {
 	return b.blockEnd
 }
 
@@ -542,7 +542,7 @@ func (b *block) queryWithSpan(
 			if entry, ok := md.Ref.(OnIndexSeries); ok {
 				var inBlock bool
 				for currentBlock := opts.StartInclusive.Truncate(b.blockSize); currentBlock.Before(opts.EndExclusive); currentBlock = currentBlock.Add(b.blockSize) {
-					inBlock = entry.IndexedForBlockStart(xtime.ToUnixNano(currentBlock))
+					inBlock = entry.IndexedForBlockStart(currentBlock)
 					if inBlock {
 						break
 					}

@@ -28,6 +28,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -37,15 +42,11 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -58,6 +59,10 @@ const (
 
 var (
 	errAlreadyClosed = goerrors.New("already closed")
+
+	errQueryStorageMetadataAttributesNotImplemented = goerrors.New(
+		"remote storage does not implement QueryStorageMetadataAttributes",
+	)
 
 	// NB(r): These options tries to ensure we don't let connections go stale
 	// and cause failed RPCs as a result.
@@ -173,6 +178,14 @@ func NewGRPCClient(
 	}
 	go c.healthCheckUntilClosed()
 	return c, nil
+}
+
+func (s *grpcClient) QueryStorageMetadataAttributes(
+	ctx context.Context,
+	queryStart, queryEnd time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	return nil, errQueryStorageMetadataAttributesNotImplemented
 }
 
 func (c *grpcClient) healthCheckUntilClosed() {

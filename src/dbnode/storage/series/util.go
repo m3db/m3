@@ -58,7 +58,7 @@ func (v ValuesByTime) Swap(lhs, rhs int) {
 // DecodedTestValue is a decoded datapoint.
 type DecodedTestValue struct {
 	// Timestamp is the data point timestamp.
-	Timestamp time.Time
+	Timestamp xtime.UnixNano
 	// Value is the data point value.
 	Value float64
 	// Unit is the data point unit.
@@ -74,7 +74,7 @@ func DecodeSegmentValues(
 	iter encoding.MultiReaderIterator,
 	schema namespace.SchemaDescr,
 ) ([]DecodedTestValue, error) {
-	iter.Reset(results, time.Time{}, time.Duration(0), schema)
+	iter.Reset(results, 0, time.Duration(0), schema)
 	defer iter.Close()
 
 	var all []DecodedTestValue
@@ -82,8 +82,7 @@ func DecodeSegmentValues(
 		dp, unit, annotation := iter.Current()
 		// Iterator reuse annotation byte slices, so make a copy.
 		annotationCopy := append([]byte(nil), annotation...)
-		all = append(all, DecodedTestValue{
-			dp.Timestamp, dp.Value, unit, annotationCopy})
+		all = append(all, DecodedTestValue{dp.TimestampNanos, dp.Value, unit, annotationCopy})
 	}
 
 	if err := iter.Err(); err != nil {

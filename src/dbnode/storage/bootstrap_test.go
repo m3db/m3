@@ -47,7 +47,7 @@ func TestDatabaseBootstrapEnqueueWithBootstrapError(t *testing.T) {
 }
 
 func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -112,7 +112,7 @@ func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -170,7 +170,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 }
 
 func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()

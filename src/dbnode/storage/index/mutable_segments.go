@@ -74,7 +74,7 @@ type mutableSegments struct {
 	backgroundSegments []*readableSeg
 
 	compact                  mutableSegmentsCompact
-	blockStart               time.Time
+	blockStart               xtime.UnixNano
 	blockSize                time.Duration
 	blockOpts                BlockOptions
 	opts                     Options
@@ -123,7 +123,7 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 // for the duration of time specified. It is backed by one or more segments.
 func newMutableSegments(
 	md namespace.Metadata,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	opts Options,
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
@@ -589,7 +589,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 	m.compact.numBackground++
 
 	logger := m.logger.With(
-		zap.Time("blockStart", m.blockStart),
+		zap.Time("blockStart", m.blockStart.ToTime()),
 		zap.Int("numBackgroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
@@ -848,7 +848,7 @@ func (m *mutableSegments) foregroundCompactWithBuilder(
 	m.compact.numForeground++
 
 	logger := m.logger.With(
-		zap.Time("blockStart", m.blockStart),
+		zap.Time("blockStart", m.blockStart.ToTime()),
 		zap.Int("numForegroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0

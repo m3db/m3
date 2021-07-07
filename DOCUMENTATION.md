@@ -1,6 +1,6 @@
 # Documentation Guide
 
-M3 is a large and complex project, and any help you can offer to explain it better is most welcome. If you have a suggestion for the documentation M3 welcomes it, and documentation pull requests follow the same process as [code contributions](CONTRIBUTING.MD).
+M3 is a large and complex project, and any help you can offer to explain it better is most welcome. If you have a suggestion for the documentation M3 welcomes it, and documentation pull requests follow the same process as [code contributions](CONTRIBUTING.md).
 
 The rest of this document explains how to setup the documentation locally and the structure of the content.
 

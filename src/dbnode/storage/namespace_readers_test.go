@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -39,7 +39,7 @@ import (
 )
 
 func TestNamespaceReadersGet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID,
@@ -47,7 +47,7 @@ func TestNamespaceReadersGet(t *testing.T) {
 	require.NoError(t, err)
 	shard := uint32(0)
 	blockSize := metadata.Options().RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := xtime.Now().Truncate(blockSize)
 
 	mockBlockLeaseMgr := block.NewMockLeaseManager(ctrl)
 	mockBlockLeaseMgr.EXPECT().RegisterLeaser(gomock.Any()).Return(nil)
@@ -139,7 +139,7 @@ func TestNamespaceReadersGet(t *testing.T) {
 	}
 	nsReaderMgrImpl.openReaders[cachedOpenReaderKey{
 		shard:      shard,
-		blockStart: xtime.ToUnixNano(start),
+		blockStart: start,
 		position:   pos,
 	}] = cachedReader{reader: case4CachedReader}
 	case4Reader, err := nsReaderMgr.get(shard, start, pos)
@@ -167,7 +167,7 @@ func TestNamespaceReadersGet(t *testing.T) {
 }
 
 func TestNamespaceReadersPutTickClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID,
@@ -175,7 +175,7 @@ func TestNamespaceReadersPutTickClose(t *testing.T) {
 	require.NoError(t, err)
 	shard := uint32(0)
 	blockSize := metadata.Options().RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := xtime.Now().Truncate(blockSize)
 
 	mockFSReader := fs.NewMockDataFileSetReader(ctrl)
 	mockBlockLeaseMgr := block.NewMockLeaseManager(ctrl)
@@ -247,7 +247,7 @@ func TestNamespaceReadersPutTickClose(t *testing.T) {
 	mockExistingFSReader := fs.NewMockDataFileSetReader(ctrl)
 	nsReaderMgrImpl.openReaders[cachedOpenReaderKey{
 		shard:      shard,
-		blockStart: xtime.ToUnixNano(start),
+		blockStart: start,
 		position: readerPosition{
 			volume:      3,
 			dataIdx:     7,
@@ -270,7 +270,7 @@ func TestNamespaceReadersPutTickClose(t *testing.T) {
 }
 
 func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID,
@@ -278,7 +278,7 @@ func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
 	require.NoError(t, err)
 	shard := uint32(0)
 	blockSize := metadata.Options().RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := xtime.Now().Truncate(blockSize)
 
 	mockFSReader := fs.NewMockDataFileSetReader(ctrl)
 	mockFSReader.EXPECT().Close().Return(nil).Times(2)
@@ -292,7 +292,7 @@ func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
 
 	nsReaderMgrImpl.openReaders[cachedOpenReaderKey{
 		shard:      shard,
-		blockStart: xtime.ToUnixNano(start),
+		blockStart: start,
 		position: readerPosition{
 			volume:      0,
 			dataIdx:     1,
@@ -301,7 +301,7 @@ func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
 	}] = cachedReader{reader: mockFSReader}
 	nsReaderMgrImpl.openReaders[cachedOpenReaderKey{
 		shard:      shard,
-		blockStart: xtime.ToUnixNano(start),
+		blockStart: start,
 		position: readerPosition{
 			volume:      1,
 			dataIdx:     2,
@@ -310,7 +310,7 @@ func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
 	}] = cachedReader{reader: mockFSReader}
 	remainingKey := cachedOpenReaderKey{
 		shard:      shard,
-		blockStart: xtime.ToUnixNano(start),
+		blockStart: start,
 		position: readerPosition{
 			volume:      2,
 			dataIdx:     4,
@@ -343,7 +343,7 @@ func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
 }
 
 func TestNamespaceReadersFilesetExistsAt(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID,
@@ -361,10 +361,10 @@ func TestNamespaceReadersFilesetExistsAt(t *testing.T) {
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope,
 		DefaultTestOptions().SetBlockLeaseManager(mockBlockLeaseMgr))
 
-	exists, err := nsReaderMgr.filesetExistsAt(0, timeZero)
+	exists, err := nsReaderMgr.filesetExistsAt(0, 0)
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	_, err = nsReaderMgr.filesetExistsAt(0, timeZero)
+	_, err = nsReaderMgr.filesetExistsAt(0, 0)
 	require.Error(t, err)
 }

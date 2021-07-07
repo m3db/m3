@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -35,33 +36,24 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
+	// QueryParam is the name of the query form/url parameter
+	QueryParam = "query"
+
 	endParam          = "end"
 	startParam        = "start"
 	timeParam         = "time"
-	queryParam        = "query"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
 	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
-	nowTimeValue = "now"
 )
-
-func parseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
-	if t := r.FormValue(key); t != "" {
-		if t == nowTimeValue {
-			return now, nil
-		}
-		return util.ParseTimeString(t)
-	}
-	return time.Time{}, errors.ErrNotFound
-}
 
 // parseParams parses all params from the GET request
 func parseParams(
@@ -76,33 +68,14 @@ func parseParams(
 		return params, xerrors.NewInvalidParamsError(err)
 	}
 
-	params.Now = time.Now()
-	if v := r.FormValue(timeParam); v != "" {
-		var err error
-		params.Now, err = parseTime(r, timeParam, params.Now)
-		if err != nil {
-			err = fmt.Errorf(formatErrStr, timeParam, err)
-			return params, xerrors.NewInvalidParamsError(err)
-		}
+	timeParams, err := prometheus.ParseTimeParams(r)
+	if err != nil {
+		return params, err
 	}
 
-	start, err := parseTime(r, startParam, params.Now)
-	if err != nil {
-		err = fmt.Errorf(formatErrStr, startParam, err)
-		return params, xerrors.NewInvalidParamsError(err)
-	}
-
-	params.Start = start
-	end, err := parseTime(r, endParam, params.Now)
-	if err != nil {
-		err = fmt.Errorf(formatErrStr, endParam, err)
-		return params, xerrors.NewInvalidParamsError(err)
-	}
-	if start.After(end) {
-		err = fmt.Errorf("start (%s) must be before end (%s)", start, end)
-		return params, xerrors.NewInvalidParamsError(err)
-	}
-	params.End = end
+	params.Now = timeParams.Now
+	params.Start = xtime.ToUnixNano(timeParams.Start)
+	params.End = xtime.ToUnixNano(timeParams.End)
 
 	timeout := fetchOpts.Timeout
 	if timeout <= 0 {
@@ -120,10 +93,10 @@ func parseParams(
 	}
 	params.Step = fetchOpts.Step
 
-	query, err := parseQuery(r)
+	query, err := ParseQuery(r)
 	if err != nil {
 		return params, xerrors.NewInvalidParamsError(
-			fmt.Errorf(formatErrStr, queryParam, err))
+			fmt.Errorf(formatErrStr, QueryParam, err))
 	}
 	params.Query = query
 
@@ -189,8 +162,7 @@ func parseInstantaneousParams(
 		fetchOpts.Step = time.Second
 	}
 
-	r.Form.Set(startParam, nowTimeValue)
-	r.Form.Set(endParam, nowTimeValue)
+	prometheus.SetDefaultStartEndParamsForInstant(r)
 	params, err := parseParams(r, engineOpts, fetchOpts)
 	if err != nil {
 		return params, err
@@ -199,7 +171,8 @@ func parseInstantaneousParams(
 	return params, nil
 }
 
-func parseQuery(r *http.Request) (string, error) {
+// ParseQuery parses a query out of an HTTP request.
+func ParseQuery(r *http.Request) (string, error) {
 	if err := r.ParseForm(); err != nil {
 		return "", err
 	}
@@ -208,7 +181,7 @@ func parseQuery(r *http.Request) (string, error) {
 	// parameters taking precedence over URL parameters (see r.ParseForm() docs
 	// for more details). We depend on the generic behavior for properly parsing
 	// POST and GET queries.
-	queries, ok := r.Form[queryParam]
+	queries, ok := r.Form[QueryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
 		return "", errors.ErrNoQueryFound
 	}
@@ -224,8 +197,8 @@ func parseQuery(r *http.Request) (string, error) {
 // RenderResultsOptions is a set of options for rendering the result.
 type RenderResultsOptions struct {
 	KeepNaNs                bool
-	Start                   time.Time
-	End                     time.Time
+	Start                   xtime.UnixNano
+	End                     xtime.UnixNano
 	ReturnedSeriesLimit     int
 	ReturnedDatapointsLimit int
 }
@@ -334,7 +307,7 @@ func RenderResultsJSON(
 			datapointsRendered++
 
 			jw.BeginArray()
-			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
 		}
@@ -423,7 +396,7 @@ func renderResultsInstantaneousJSON(
 		}
 
 		if isScalar {
-			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			returnedCount++
 			continue
@@ -447,7 +420,7 @@ func renderResultsInstantaneousJSON(
 
 		jw.BeginObjectField("value")
 		jw.BeginArray()
-		jw.WriteInt(int(dp.Timestamp.Unix()))
+		jw.WriteInt(int(dp.Timestamp.Seconds()))
 		jw.WriteString(utils.FormatFloat(dp.Value))
 		jw.EndArray()
 		jw.EndObject()

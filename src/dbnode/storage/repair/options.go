@@ -31,6 +31,8 @@ import (
 )
 
 const (
+	defaultRepairType     = DefaultRepair
+	defaultRepairStrategy = DefaultStrategy
 	// Allow repairs to progress when a single peer is down (I.E during single node failure
 	// or deployments).
 	defaultRepairConsistencyLevel           = topology.ReadConsistencyLevelUnstrictMajority
@@ -51,6 +53,9 @@ var (
 )
 
 type options struct {
+	repairType                       Type
+	strategy                         Strategy
+	force                            bool
 	adminClients                     []client.AdminClient
 	repairConsistencyLevel           topology.ReadConsistencyLevel
 	repairShardConcurrency           int
@@ -65,6 +70,8 @@ type options struct {
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
+		repairType:                       defaultRepairType,
+		strategy:                         defaultRepairStrategy,
 		repairConsistencyLevel:           defaultRepairConsistencyLevel,
 		repairShardConcurrency:           defaultRepairShardConcurrency,
 		repairCheckInterval:              defaultRepairCheckInterval,
@@ -74,6 +81,36 @@ func NewOptions() Options {
 		debugShadowComparisonsEnabled:    defaultDebugShadowComparisonsEnabled,
 		debugShadowComparisonsPercentage: defaultDebugShadowComparisonsPercentage,
 	}
+}
+
+func (o *options) SetType(value Type) Options {
+	opts := *o
+	opts.repairType = value
+	return &opts
+}
+
+func (o *options) Type() Type {
+	return o.repairType
+}
+
+func (o *options) SetStrategy(value Strategy) Options {
+	opts := *o
+	opts.strategy = value
+	return &opts
+}
+
+func (o *options) Strategy() Strategy {
+	return o.strategy
+}
+
+func (o *options) SetForce(value bool) Options {
+	opts := *o
+	opts.force = value
+	return &opts
+}
+
+func (o *options) Force() bool {
+	return o.force
 }
 
 func (o *options) SetAdminClients(value []client.AdminClient) Options {

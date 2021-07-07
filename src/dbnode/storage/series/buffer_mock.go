@@ -26,7 +26,6 @@ package series
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -34,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	time0 "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -63,7 +62,7 @@ func (m *MockdatabaseBuffer) EXPECT() *MockdatabaseBufferMockRecorder {
 }
 
 // ColdFlushBlockStarts mocks base method.
-func (m *MockdatabaseBuffer) ColdFlushBlockStarts(blockStates map[time0.UnixNano]BlockState) OptimizedTimes {
+func (m *MockdatabaseBuffer) ColdFlushBlockStarts(blockStates map[time.UnixNano]BlockState) OptimizedTimes {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushBlockStarts", blockStates)
 	ret0, _ := ret[0].(OptimizedTimes)
@@ -77,7 +76,7 @@ func (mr *MockdatabaseBufferMockRecorder) ColdFlushBlockStarts(blockStates inter
 }
 
 // FetchBlocks mocks base method.
-func (m *MockdatabaseBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
+func (m *MockdatabaseBuffer) FetchBlocks(ctx context.Context, starts []time.UnixNano, nsCtx namespace.Context) []block.FetchBlockResult {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, starts, nsCtx)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
@@ -91,7 +90,7 @@ func (mr *MockdatabaseBufferMockRecorder) FetchBlocks(ctx, starts, nsCtx interfa
 }
 
 // FetchBlocksForColdFlush mocks base method.
-func (m *MockdatabaseBuffer) FetchBlocksForColdFlush(ctx context.Context, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
+func (m *MockdatabaseBuffer) FetchBlocksForColdFlush(ctx context.Context, start time.UnixNano, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, start, version, nsCtx)
 	ret0, _ := ret[0].(block.FetchBlockResult)
@@ -106,7 +105,7 @@ func (mr *MockdatabaseBufferMockRecorder) FetchBlocksForColdFlush(ctx, start, ve
 }
 
 // FetchBlocksMetadata mocks base method.
-func (m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, start, end time.Time, opts FetchBlocksMetadataOptions) (block.FetchBlockMetadataResults, error) {
+func (m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, start, end time.UnixNano, opts FetchBlocksMetadataOptions) (block.FetchBlockMetadataResults, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadata", ctx, start, end, opts)
 	ret0, _ := ret[0].(block.FetchBlockMetadataResults)
@@ -135,7 +134,7 @@ func (mr *MockdatabaseBufferMockRecorder) IsEmpty() *gomock.Call {
 }
 
 // IsEmptyAtBlockStart mocks base method.
-func (m *MockdatabaseBuffer) IsEmptyAtBlockStart(arg0 time.Time) bool {
+func (m *MockdatabaseBuffer) IsEmptyAtBlockStart(arg0 time.UnixNano) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsEmptyAtBlockStart", arg0)
 	ret0, _ := ret[0].(bool)
@@ -175,7 +174,7 @@ func (mr *MockdatabaseBufferMockRecorder) MoveTo(buffer, nsCtx interface{}) *gom
 }
 
 // ReadEncoded mocks base method.
-func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Time, nsCtx namespace.Context) ([][]xio.BlockReader, error) {
+func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.UnixNano, nsCtx namespace.Context) ([][]xio.BlockReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, start, end, nsCtx)
 	ret0, _ := ret[0].([][]xio.BlockReader)
@@ -202,7 +201,7 @@ func (mr *MockdatabaseBufferMockRecorder) Reset(opts interface{}) *gomock.Call {
 }
 
 // Snapshot mocks base method.
-func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) (SnapshotResult, error) {
+func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.UnixNano, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) (SnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart, metadata, persistFn, nsCtx)
 	ret0, _ := ret[0].(SnapshotResult)
@@ -245,7 +244,7 @@ func (mr *MockdatabaseBufferMockRecorder) Tick(versions, nsCtx interface{}) *gom
 }
 
 // WarmFlush mocks base method.
-func (m *MockdatabaseBuffer) WarmFlush(ctx context.Context, blockStart time.Time, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) (FlushOutcome, error) {
+func (m *MockdatabaseBuffer) WarmFlush(ctx context.Context, blockStart time.UnixNano, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) (FlushOutcome, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", ctx, blockStart, metadata, persistFn, nsCtx)
 	ret0, _ := ret[0].(FlushOutcome)
@@ -260,7 +259,7 @@ func (mr *MockdatabaseBufferMockRecorder) WarmFlush(ctx, blockStart, metadata, p
 }
 
 // Write mocks base method.
-func (m *MockdatabaseBuffer) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts WriteOptions) (bool, WriteType, error) {
+func (m *MockdatabaseBuffer) Write(ctx context.Context, id ident.ID, timestamp time.UnixNano, value float64, unit time.Unit, annotation []byte, wOpts WriteOptions) (bool, WriteType, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(bool)

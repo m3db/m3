@@ -125,8 +125,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = logging.NewContext(ctx,
 		iOpts,
 		zap.String("query", parsedOptions.Params.Query),
-		zap.Time("start", parsedOptions.Params.Start),
-		zap.Time("end", parsedOptions.Params.End),
+		zap.Time("start", parsedOptions.Params.Start.ToTime()),
+		zap.Time("end", parsedOptions.Params.End.ToTime()),
 		zap.Duration("step", parsedOptions.Params.Step),
 		zap.Duration("timeout", parsedOptions.Params.Timeout),
 		zap.Duration("fetchTimeout", parsedOptions.FetchOpts.Timeout),
@@ -152,6 +152,13 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	h.promReadMetrics.fetchSuccess.Inc(1)
+
+	err = handleroptions.AddDBResultResponseHeaders(w, result.Meta, parsedOptions.FetchOpts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
 
 	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
 	if !keepNaNs {
@@ -182,14 +189,13 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.returnedDataMetrics.FetchDatapoints.RecordValue(float64(renderResult.Datapoints))
 	h.promReadMetrics.returnedDataMetrics.FetchSeries.RecordValue(float64(renderResult.Series))
 
-	meta := result.Meta
 	limited := &handleroptions.ReturnedDataLimited{
 		Limited:     renderResult.LimitedMaxReturnedData,
 		Series:      renderResult.Series,
 		TotalSeries: renderResult.TotalSeries,
 		Datapoints:  renderResult.Datapoints,
 	}
-	err = handleroptions.AddResponseHeaders(w, meta, parsedOptions.FetchOpts, limited, nil)
+	err = handleroptions.AddReturnedLimitResponseHeaders(w, limited, nil)
 	if err != nil {
 		logger.Error("error writing returned data limited header", zap.Error(err))
 		xhttp.WriteError(w, err)

@@ -49,7 +49,7 @@ var (
 )
 
 type snapshotID struct {
-	blockStart time.Time
+	blockStart xtime.UnixNano
 	minVolume  int
 }
 
@@ -57,7 +57,7 @@ func getLatestSnapshotVolumeIndex(
 	fsOpts fs.Options,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) int {
 	latestVolumeIndex := -1
 
@@ -158,7 +158,7 @@ func waitUntilDataFilesFlushed(
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
 				exists, err := fs.DataFileSetExists(
-					filePathPrefix, namespace, shard, timestamp.ToTime(), 0)
+					filePathPrefix, namespace, shard, timestamp, 0)
 				if err != nil {
 					panic(err)
 				}
@@ -221,7 +221,7 @@ func verifyForTime(
 	reader fs.DataFileSetReader,
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	nsCtx ns.Context,
 	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
@@ -237,7 +237,7 @@ func checkForTime(
 	reader fs.DataFileSetReader,
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	nsCtx ns.Context,
 	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
@@ -354,7 +354,7 @@ func checkFlushedDataFiles(
 	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for timestamp, seriesList := range seriesMaps {
 		err := checkForTime(
-			storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
+			storageOpts, reader, shardSet, iteratorPool, timestamp,
 			nsCtx, persist.FileSetFlushType, seriesList)
 		if err != nil {
 			return err
@@ -378,7 +378,7 @@ func verifySnapshottedDataFiles(
 	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for blockStart, seriesList := range seriesMaps {
 		verifyForTime(
-			t, storageOpts, reader, shardSet, iteratorPool, blockStart.ToTime(),
+			t, storageOpts, reader, shardSet, iteratorPool, blockStart,
 			nsCtx, persist.FileSetSnapshotType, seriesList)
 	}
 

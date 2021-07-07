@@ -1848,6 +1848,21 @@ func (mr *MockServiceMockRecorder) AddReplica() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*MockService)(nil).AddReplica))
 }
 
+// BalanceShards mocks base method.
+func (m *MockService) BalanceShards() (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BalanceShards")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BalanceShards indicates an expected call of BalanceShards.
+func (mr *MockServiceMockRecorder) BalanceShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalanceShards", reflect.TypeOf((*MockService)(nil).BalanceShards))
+}
+
 // BuildInitialPlacement mocks base method.
 func (m *MockService) BuildInitialPlacement(instances []Instance, numShards, rf int) (Placement, error) {
 	m.ctrl.T.Helper()
@@ -2148,6 +2163,21 @@ func (mr *MockOperatorMockRecorder) AddReplica() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*MockOperator)(nil).AddReplica))
 }
 
+// BalanceShards mocks base method.
+func (m *MockOperator) BalanceShards() (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BalanceShards")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BalanceShards indicates an expected call of BalanceShards.
+func (mr *MockOperatorMockRecorder) BalanceShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalanceShards", reflect.TypeOf((*MockOperator)(nil).BalanceShards))
+}
+
 // BuildInitialPlacement mocks base method.
 func (m *MockOperator) BuildInitialPlacement(instances []Instance, numShards, rf int) (Placement, error) {
 	m.ctrl.T.Helper()
@@ -2312,6 +2342,21 @@ func (mr *MockoperationsMockRecorder) AddReplica() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*Mockoperations)(nil).AddReplica))
 }
 
+// BalanceShards mocks base method.
+func (m *Mockoperations) BalanceShards() (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BalanceShards")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BalanceShards indicates an expected call of BalanceShards.
+func (mr *MockoperationsMockRecorder) BalanceShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalanceShards", reflect.TypeOf((*Mockoperations)(nil).BalanceShards))
+}
+
 // BuildInitialPlacement mocks base method.
 func (m *Mockoperations) BuildInitialPlacement(instances []Instance, numShards, rf int) (Placement, error) {
 	m.ctrl.T.Helper()
@@ -2459,6 +2504,21 @@ func (m *MockAlgorithm) AddReplica(p Placement) (Placement, error) {
 func (mr *MockAlgorithmMockRecorder) AddReplica(p interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*MockAlgorithm)(nil).AddReplica), p)
+}
+
+// BalanceShards mocks base method.
+func (m *MockAlgorithm) BalanceShards(p Placement) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BalanceShards", p)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BalanceShards indicates an expected call of BalanceShards.
+func (mr *MockAlgorithmMockRecorder) BalanceShards(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalanceShards", reflect.TypeOf((*MockAlgorithm)(nil).BalanceShards), p)
 }
 
 // InitialPlacement mocks base method.

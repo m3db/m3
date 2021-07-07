@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +60,7 @@ func TestCloner(t *testing.T) {
 		PathPrefix: srcData,
 		Namespace:  "testns-src",
 		Shard:      123,
-		Blockstart: time.Now().Truncate(srcBlockSize),
+		Blockstart: xtime.Now().Truncate(srcBlockSize),
 	}
 	testBytes.IncRef()
 	defer testBytes.DecRef()
@@ -73,7 +74,7 @@ func TestCloner(t *testing.T) {
 		PathPrefix: clonedData,
 		Namespace:  "testns-dest",
 		Shard:      321,
-		Blockstart: time.Now().Add(-1 * 24 * 30 * time.Hour).Truncate(destBlockSize),
+		Blockstart: xtime.Now().Add(-1 * 24 * 30 * time.Hour).Truncate(destBlockSize),
 	}
 	cloner := New(opts)
 	require.NoError(t, cloner.Clone(src, dest, destBlockSize))

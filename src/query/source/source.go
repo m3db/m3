@@ -23,16 +23,6 @@ package source
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-
-	"github.com/gorilla/mux"
-	"go.uber.org/zap"
-
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/headers"
-	"github.com/m3db/m3/src/x/instrument"
-	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 type key int
@@ -49,12 +39,11 @@ type Deserializer func([]byte) (interface{}, error)
 // NewContext returns a new context with the source bytes as a value if the source is non-nil.
 // If a non-nil deserializer is provided an additional typed value is added for easier use.
 func NewContext(ctx context.Context, source []byte, deserialize Deserializer) (context.Context, error) {
-	if source != nil {
-		ctx = context.WithValue(ctx, rawKey, source)
+	if source == nil {
+		return ctx, nil
 	}
+	ctx = context.WithValue(ctx, rawKey, source)
 	if deserialize != nil {
-		// N.B - it's ok to pass a nil source to the deserializer so it can populate an "empty" value for the
-		// application.
 		typed, err := deserialize(source)
 		if err != nil {
 			return nil, err
@@ -78,40 +67,4 @@ func FromContext(ctx context.Context) (interface{}, bool) {
 func RawFromContext(ctx context.Context) ([]byte, bool) {
 	b, ok := ctx.Value(rawKey).([]byte)
 	return b, ok
-}
-
-var errInvalidSourceHeader = xhttp.NewError(
-	fmt.Errorf("invalid %s header", headers.SourceHeader),
-	http.StatusBadRequest)
-
-// Middleware adds the headers.SourceHeader value to the request context.
-// Installing this middleware function allows application code to access the typed source value using FromContext.
-// Additionally a source log field is added to the request scope logger.
-func Middleware(d Deserializer, iOpts instrument.Options) mux.MiddlewareFunc {
-	return func(base http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var s []byte
-			l := logging.WithContext(r.Context(), iOpts)
-			hs := r.Header[headers.SourceHeader]
-			if len(hs) > 1 {
-				l.Error("multiple values for source header", zap.Strings("headers", hs))
-				xhttp.WriteError(w, errInvalidSourceHeader)
-				return
-			}
-			// an empty header value is ok. allow the deserializer to populate an "empty" source value.
-			if len(hs) == 1 {
-				s = []byte(hs[0])
-			}
-			ctx := logging.NewContext(r.Context(), iOpts, zap.ByteString("source", s))
-			l = logging.WithContext(ctx, iOpts)
-			ctx, err := NewContext(ctx, s, d)
-			if err != nil {
-				l.Error("failed to deserialize source", zap.Error(err))
-				base.ServeHTTP(w, r)
-				xhttp.WriteError(w, errInvalidSourceHeader)
-				return
-			}
-			base.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
 }

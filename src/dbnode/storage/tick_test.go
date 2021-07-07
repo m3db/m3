@@ -27,13 +27,15 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/context"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTickManagerTickNormalFlow(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -47,12 +49,12 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
-	require.NoError(t, tm.Tick(noForce, time.Now()))
+	require.NoError(t, tm.Tick(noForce, xtime.Now()))
 	require.Equal(t, 1, len(tm.tokenCh))
 }
 
 func TestTickManagerTickCancelled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var wg sync.WaitGroup
@@ -62,7 +64,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
-	namespace.EXPECT().Tick(c, gomock.Any()).Do(func(context.Cancellable, time.Time) {
+	namespace.EXPECT().Tick(c, gomock.Any()).Do(func(context.Cancellable, xtime.UnixNano) {
 		ch1 <- struct{}{}
 		<-ch2
 	})
@@ -76,7 +78,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.Equal(t, errTickCancelled, tm.Tick(noForce, time.Now()))
+		require.Equal(t, errTickCancelled, tm.Tick(noForce, xtime.Now()))
 		require.Equal(t, 1, len(tm.tokenCh))
 	}()
 
@@ -88,7 +90,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 }
 
 func TestTickManagerTickErrorFlow(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -103,14 +105,14 @@ func TestTickManagerTickErrorFlow(t *testing.T) {
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
-	err := tm.Tick(noForce, time.Now())
+	err := tm.Tick(noForce, xtime.Now())
 	require.Error(t, err)
 	require.Equal(t, fakeErr.Error(), err.Error())
 	require.Equal(t, 1, len(tm.tokenCh))
 }
 
 func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var wg sync.WaitGroup
@@ -120,7 +122,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
-	namespace.EXPECT().Tick(c, gomock.Any()).Do(func(context.Cancellable, time.Time) {
+	namespace.EXPECT().Tick(c, gomock.Any()).Do(func(context.Cancellable, xtime.UnixNano) {
 		ch1 <- struct{}{}
 		<-ch2
 	})
@@ -134,12 +136,12 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.NoError(t, tm.Tick(noForce, time.Now()))
+		require.NoError(t, tm.Tick(noForce, xtime.Now()))
 	}()
 
 	// Wait for tick to start
 	<-ch1
-	require.Equal(t, errTickInProgress, tm.Tick(noForce, time.Now()))
+	require.Equal(t, errTickInProgress, tm.Tick(noForce, xtime.Now()))
 
 	ch2 <- struct{}{}
 	wg.Wait()
@@ -148,7 +150,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 }
 
 func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var wg sync.WaitGroup
@@ -159,7 +161,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 
 	namespace := NewMockdatabaseNamespace(ctrl)
 	gomock.InOrder(
-		namespace.EXPECT().Tick(c, gomock.Any()).Do(func(context.Cancellable, time.Time) {
+		namespace.EXPECT().Tick(c, gomock.Any()).Do(func(context.Cancellable, xtime.UnixNano) {
 			ch1 <- struct{}{}
 			<-ch2
 		}),
@@ -175,7 +177,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.Equal(t, errTickCancelled, tm.Tick(noForce, time.Now()))
+		require.Equal(t, errTickCancelled, tm.Tick(noForce, xtime.Now()))
 	}()
 
 	go func() {
@@ -183,7 +185,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 
 		// Wait for tick to start
 		<-ch1
-		require.NoError(t, tm.Tick(force, time.Now()))
+		require.NoError(t, tm.Tick(force, xtime.Now()))
 	}()
 
 	go func() {

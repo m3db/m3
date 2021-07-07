@@ -23,13 +23,18 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/tallytest"
 )
 
 func TestResponseMetrics(t *testing.T) {
@@ -38,7 +43,12 @@ func TestResponseMetrics(t *testing.T) {
 
 	r := mux.NewRouter()
 	route := r.NewRoute()
-	h := ResponseMetrics(iOpts, route).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	opts := Options{
+		InstrumentOpts: iOpts,
+		Route:          route,
+	}
+
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))
 	route.Path("/test").Handler(h)
@@ -51,10 +61,311 @@ func TestResponseMetrics(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 
 	snapshot := scope.Snapshot()
-	counters := snapshot.Counters()
-	require.Len(t, counters, 1)
-	require.Equal(t, int64(1), counters["request+path=/test,status=200"].Value())
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":            "/test",
+		"status":          "200",
+		"size":            "small",
+		"type":            "coordinator",
+		"count_threshold": "0",
+		"range_threshold": "0",
+	})
+
 	hist := snapshot.Histograms()
-	require.NotNil(t, hist["latency+path=/test"])
-	require.Len(t, hist, 1)
+	require.True(t, len(hist) == 1)
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+		require.Equal(t, map[string]string{
+			"path":            "/test",
+			"size":            "small",
+			"type":            "coordinator",
+			"count_threshold": "0",
+			"range_threshold": "0",
+		}, h.Tags())
+	}
+}
+
+func TestResponseMetricsCustomMetricType(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	r := mux.NewRouter()
+	route := r.NewRoute()
+	opts := Options{
+		InstrumentOpts: iOpts,
+		Route:          route,
+	}
+
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set(headers.CustomResponseMetricsType, "foo")
+		w.WriteHeader(200)
+	}))
+	route.Path("/test").Handler(h)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/test?foo=bar") //nolint: noctx
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	snapshot := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":            "/test",
+		"status":          "200",
+		"size":            "small",
+		"type":            "foo",
+		"count_threshold": "0",
+		"range_threshold": "0",
+	})
+
+	hist := snapshot.Histograms()
+	require.True(t, len(hist) == 1)
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+		require.Equal(t, map[string]string{
+			"path":            "/test",
+			"size":            "small",
+			"type":            "foo",
+			"count_threshold": "0",
+			"range_threshold": "0",
+		}, h.Tags())
+	}
+}
+
+var parseQueryParams ParseQueryParams = func(r *http.Request, _ time.Time) (QueryParams, error) {
+	if err := r.ParseForm(); err != nil {
+		return QueryParams{}, err
+	}
+	params := QueryParams{
+		Query: r.FormValue("query"),
+	}
+	if s := r.FormValue("start"); s != "" {
+		start, err := strconv.Atoi(r.FormValue("start"))
+		if err != nil {
+			return QueryParams{}, err
+		}
+		params.Start = time.Unix(int64(start), 0)
+	}
+
+	if s := r.FormValue("end"); s != "" {
+		end, err := strconv.Atoi(r.FormValue("end"))
+		if err != nil {
+			return QueryParams{}, err
+		}
+		params.End = time.Unix(int64(end), 0)
+	}
+	return params, nil
+}
+
+func TestLargeResponseMetrics(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	r := mux.NewRouter()
+	route := r.NewRoute()
+	opts := Options{
+		InstrumentOpts: iOpts,
+		Route:          route,
+		Metrics: MetricsOptions{
+			Config: config.MetricsMiddlewareConfiguration{
+				InspectQuerySize:          true,
+				LargeSeriesCountThreshold: 10,
+				LargeSeriesRangeThreshold: time.Minute * 15,
+			},
+			ParseQueryParams: parseQueryParams,
+		},
+	}
+
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add(headers.FetchedSeriesCount, "15")
+		w.WriteHeader(200)
+	}))
+	route.Path("/api/v1/query").Handler(h)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/api/v1/query?query=rate(up[20m])") //nolint: noctx
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	snapshot := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":            "/api/v1/query",
+		"status":          "200",
+		"size":            "large",
+		"type":            "coordinator",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
+	})
+
+	hist := snapshot.Histograms()
+	require.True(t, len(hist) == 1)
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+		require.Equal(t, map[string]string{
+			"path":            "/api/v1/query",
+			"size":            "large",
+			"type":            "coordinator",
+			"count_threshold": "10",
+			"range_threshold": "15m0s",
+		}, h.Tags())
+	}
+}
+
+func TestMultipleLargeResponseMetricsWithLatencyStatus(t *testing.T) {
+	testMultipleLargeResponseMetrics(t, true)
+}
+
+func TestMultipleLargeResponseMetricsWithoutLatencyStatus(t *testing.T) {
+	testMultipleLargeResponseMetrics(t, false)
+}
+
+func TestCustomMetricsRepeatedGets(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	cm := newCustomMetrics(iOpts)
+
+	_ = cm.getOrCreate("foo")
+	_ = cm.getOrCreate("foo")
+	require.Equal(t, len(cm.metrics), 1)
+
+	_ = cm.getOrCreate("foo2")
+	require.Equal(t, len(cm.metrics), 2)
+}
+
+func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	r := mux.NewRouter()
+	route := r.NewRoute()
+	opts := Options{
+		InstrumentOpts: iOpts,
+		Route:          route,
+		Metrics: MetricsOptions{
+			Config: config.MetricsMiddlewareConfiguration{
+				InspectQuerySize:          true,
+				LargeSeriesCountThreshold: 10,
+				LargeSeriesRangeThreshold: time.Minute * 15,
+				AddStatusToLatencies:      addStatus,
+			},
+			ParseQueryParams: parseQueryParams,
+		},
+	}
+
+	// NB: pass expected seriesCount from qs to the test.
+	seriesCount := "series_count"
+	responseCode := "response_code"
+	h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := r.URL.Query().Get(seriesCount)
+		w.Header().Add(headers.FetchedSeriesCount, count)
+		code := r.URL.Query().Get(responseCode)
+		c, err := strconv.Atoi(code)
+		require.NoError(t, err)
+		w.WriteHeader(c)
+	}))
+
+	route.Path("/api/v1/query_range").Handler(h)
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	urls := []string{
+		"query=rate(up[20m])&series_count=15&response_code=200&start=1&end=1",
+		"query=rate(up[10m])&series_count=15&response_code=200&start=1&end=1",
+		"query=rate(up[10m])&series_count=5&response_code=200&start=1&end=1",
+		"query=rate(up[20m])&series_count=15&response_code=300&start=1&end=1",
+		// NB: this should be large since the end-start + query duration is 15m.
+		"query=rate(up[14m])&series_count=15&response_code=200&start=1621458000&end=1621458060",
+	}
+
+	for _, url := range urls {
+		resp, err := server.Client().Get(server.URL + "/api/v1/query_range?" + url) //nolint: noctx
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	snapshot := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 2, snapshot, "request", map[string]string{
+		"path":            "/api/v1/query_range",
+		"status":          "200",
+		"size":            "large",
+		"type":            "coordinator",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
+	})
+
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":            "/api/v1/query_range",
+		"status":          "300",
+		"size":            "large",
+		"type":            "coordinator",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
+	})
+
+	tallytest.AssertCounterValue(t, 2, snapshot, "request", map[string]string{
+		"path":            "/api/v1/query_range",
+		"status":          "200",
+		"size":            "small",
+		"type":            "coordinator",
+		"count_threshold": "10",
+		"range_threshold": "15m0s",
+	})
+
+	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+		"type":   "coordinator",
+		"status": "below_range_threshold",
+	})
+	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+		"type":   "coordinator",
+		"status": "below_count_threshold",
+	})
+	tallytest.AssertCounterValue(t, 3, snapshot, "count", map[string]string{
+		"type":   "coordinator",
+		"status": "large_query",
+	})
+
+	var (
+		hist       = snapshot.Histograms()
+		exHistLen  = 2
+		exLarge    = 1
+		exTagCount = 5
+	)
+
+	if addStatus {
+		// NB: if status is added, we expect to see three histogram entries,
+		// since they will also include the status code in the tags list; otherwise
+		// code:200 and code:300 queries are expected to go to the same histogram
+		// metric.
+		exHistLen++
+		exLarge++
+		exTagCount++
+	}
+
+	require.True(t, len(hist) == exHistLen)
+	sizes := map[string]int{}
+	statuses := map[string]int{}
+	for _, h := range hist {
+		require.Equal(t, "latency", h.Name())
+
+		tags := h.Tags()
+		require.Equal(t, exTagCount, len(tags))
+		require.Equal(t, "/api/v1/query_range", tags["path"])
+		require.Equal(t, "10", tags["count_threshold"])
+		require.Equal(t, "15m0s", tags["range_threshold"])
+		require.Equal(t, metricsTypeTagDefaultValue, tags[metricsTypeTagName])
+
+		sizes[tags["size"]]++
+		if addStatus {
+			statuses[tags["status"]]++
+		}
+	}
+
+	if addStatus {
+		require.Equal(t, map[string]int{"200": 2, "300": 1}, statuses)
+	}
+
+	require.Equal(t, map[string]int{"small": 1, "large": exLarge}, sizes)
 }

@@ -475,10 +475,10 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		iopts := pm.opts.InstrumentOptions()
 		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 			l.With(
-				zap.Time("blockStart", blockStart),
+				zap.Time("blockStart", blockStart.ToTime()),
 				zap.String("fileSetType", opts.FileSetType.String()),
 				zap.Int("volumeIndex", volumeIndex),
-				zap.Time("snapshotStart", snapshotTime),
+				zap.Time("snapshotStart", snapshotTime.ToTime()),
 				zap.String("namespace", nsID.String()),
 				zap.Uint32("shard", shard),
 			).Error("prepared writing fileset volume that already exists")

@@ -22,13 +22,17 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/headers"
+	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -50,19 +54,86 @@ func RequestID(iOpts instrument.Options) mux.MiddlewareFunc {
 	}
 }
 
+// LoggingOptions are the options for the logging middleware.
+type LoggingOptions struct {
+	Threshold time.Duration
+	Disabled  bool
+	Fields    Fields
+}
+
+// NewLoggingOptions returns new options from the config.
+func NewLoggingOptions(c config.LoggingMiddlewareConfiguration) LoggingOptions {
+	if c.Threshold == 0 {
+		c.Threshold = time.Second
+	}
+	return LoggingOptions{
+		Threshold: c.Threshold,
+		Disabled:  c.Disabled,
+	}
+}
+
+// Append the provided Fields to these Fields.
+func (f Fields) Append(other Fields) Fields {
+	return func(r *http.Request, start time.Time) []zap.Field {
+		var fields []zap.Field
+		if f != nil {
+			fields = f(r, start)
+		}
+		if other != nil {
+			fields = append(fields, other(r, start)...)
+		}
+		return fields
+	}
+}
+
+// WithNoResponseLogging disables response logging for a route.
+var WithNoResponseLogging = func(opts Options) Options {
+	opts.Logging.Disabled = true
+	return opts
+}
+
+// Fields returns additional logging fields to add to the response log message.
+type Fields func(r *http.Request, start time.Time) []zap.Field
+
 // ResponseLogging logs the response time if the request took longer than the configured threshold.
-func ResponseLogging(threshold time.Duration, iOpts instrument.Options) mux.MiddlewareFunc {
+func ResponseLogging(opts Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			startTime := time.Now()
+			start := opts.Clock.Now()
+			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w, TrackError: true}
+			w = statusCodeTracking.WrappedResponseWriter()
 			base.ServeHTTP(w, r)
-			d := time.Since(startTime)
-			if threshold > 0 && d >= threshold {
-				logger := logging.WithContext(r.Context(), iOpts)
-				logger.Info("finished handling request",
+			d := opts.Clock.Now().Sub(start)
+			if !opts.Logging.Disabled && d >= opts.Logging.Threshold {
+				logger := logging.WithContext(r.Context(), opts.InstrumentOpts)
+				fields := []zap.Field{
 					zap.Duration("duration", d),
-					zap.String("url", r.URL.RequestURI()))
+					zap.String("url", r.URL.RequestURI()),
+					zap.Int("status", statusCodeTracking.Status),
+				}
+				if statusCodeTracking.ErrMsg != "" {
+					fields = append(fields, zap.String("error", statusCodeTracking.ErrMsg))
+				}
+				fields = appendM3Headers(r.Header, fields)
+				fields = appendM3Headers(w.Header(), fields)
+				if opts.Logging.Fields != nil {
+					fields = append(fields, opts.Logging.Fields(r, start)...)
+				}
+				logger.Info("finished handling request", fields...)
 			}
 		})
 	}
+}
+
+func appendM3Headers(h http.Header, fields []zap.Field) []zap.Field {
+	for k, v := range h {
+		if strings.HasPrefix(k, headers.M3HeaderPrefix) {
+			if len(v) == 1 {
+				fields = append(fields, zap.String(k, v[0]))
+			} else {
+				fields = append(fields, zap.Strings(k, v))
+			}
+		}
+	}
+	return fields
 }

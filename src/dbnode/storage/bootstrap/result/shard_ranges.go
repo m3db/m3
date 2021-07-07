@@ -30,7 +30,7 @@ import (
 )
 
 // NewShardTimeRangesFromRange returns a new ShardTimeRanges with provided shards and time range.
-func NewShardTimeRangesFromRange(start, end time.Time, shards ...uint32) ShardTimeRanges {
+func NewShardTimeRangesFromRange(start, end xtime.UnixNano, shards ...uint32) ShardTimeRanges {
 	timeRange := xtime.NewRanges(xtime.Range{Start: start, End: end})
 	ranges := make(shardTimeRanges, len(shards))
 	for _, s := range shards {
@@ -256,8 +256,8 @@ func (r shardTimeRanges) Subtract(other ShardTimeRanges) {
 
 // MinMax will return the very minimum time as a start and the
 // maximum time as an end in the ranges.
-func (r shardTimeRanges) MinMax() (time.Time, time.Time) {
-	min, max := time.Time{}, time.Time{}
+func (r shardTimeRanges) MinMax() (xtime.UnixNano, xtime.UnixNano) {
+	min, max := xtime.UnixNano(0), xtime.UnixNano(0)
 	for _, ranges := range r {
 		if ranges.IsEmpty() {
 			continue
@@ -277,7 +277,7 @@ func (r shardTimeRanges) MinMax() (time.Time, time.Time) {
 }
 
 // MinMaxRange returns the min and max times, and the duration for this range.
-func (r shardTimeRanges) MinMaxRange() (time.Time, time.Time, time.Duration) {
+func (r shardTimeRanges) MinMaxRange() (xtime.UnixNano, xtime.UnixNano, time.Duration) {
 	min, max := r.MinMax()
 	return min, max, max.Sub(min)
 }

@@ -56,6 +56,7 @@ type readerIterator struct {
 	mult uint8 // current int multiplier
 	sig  uint8 // current number of significant bits for int diff
 
+	curr         ts.Datapoint
 	intOptimized bool // whether encoding scheme is optimized for ints
 	isFloat      bool // whether encoding is in int or float
 
@@ -92,6 +93,13 @@ func (it *readerIterator) Next() bool {
 		it.readNextValue()
 	} else {
 		it.readFirstValue()
+	}
+
+	it.curr.TimestampNanos = it.tsIterator.PrevTime
+	if !it.intOptimized || it.isFloat {
+		it.curr.Value = math.Float64frombits(it.floatIter.PrevFloatBits)
+	} else {
+		it.curr.Value = convertFromIntFloat(it.intVal, it.mult)
 	}
 
 	return it.hasNext()
@@ -219,18 +227,7 @@ func (it *readerIterator) readBits(numBits uint8) (res uint64) {
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
 func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	dp := ts.Datapoint{
-		Timestamp:      it.tsIterator.PrevTime.ToTime(),
-		TimestampNanos: it.tsIterator.PrevTime,
-	}
-
-	if !it.intOptimized || it.isFloat {
-		dp.Value = math.Float64frombits(it.floatIter.PrevFloatBits)
-	} else {
-		dp.Value = convertFromIntFloat(it.intVal, it.mult)
-	}
-
-	return dp, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
+	return it.curr, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 }
 
 // Err returns the error encountered

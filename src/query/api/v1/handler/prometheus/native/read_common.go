@@ -22,7 +22,6 @@ package native
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"net/http"
 
@@ -35,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
@@ -190,8 +188,8 @@ func read(
 	sp := xopentracing.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),
-		xopentracing.Time("params.start", params.Start),
-		xopentracing.Time("params.end", params.End),
+		xopentracing.Time("params.start", params.Start.ToTime()),
+		xopentracing.Time("params.end", params.End.ToTime()),
 		xopentracing.Time("params.now", params.Now),
 		xopentracing.Duration("params.step", params.Step),
 	)
@@ -285,15 +283,4 @@ type ReturnedDataLimited struct {
 	// Limited signals that the results returned were
 	// limited by either series or datapoint limits.
 	Limited bool
-}
-
-// WriteReturnedDataLimitedHeader writes a header to indicate the returned data
-// was limited based on returned series or datapoint limits.
-func WriteReturnedDataLimitedHeader(w http.ResponseWriter, r ReturnedDataLimited) error {
-	s, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-	w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
-	return nil
 }

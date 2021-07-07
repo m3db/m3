@@ -37,13 +37,14 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func mustToRpcTime(t *testing.T, ts time.Time) int64 {
+func mustToRPCTime(t *testing.T, ts xtime.UnixNano) int64 {
 	r, err := convert.ToValue(ts, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	return r
@@ -112,19 +113,23 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 	)
 	ns := ident.StringID("abc")
 	opts := index.QueryOptions{
-		StartInclusive: time.Now().Add(-900 * time.Hour),
-		EndExclusive:   time.Now(),
-		SeriesLimit:    int(seriesLimit),
-		DocsLimit:      int(docsLimit),
+		StartInclusive:    xtime.Now().Add(-900 * time.Hour),
+		EndExclusive:      xtime.Now(),
+		SeriesLimit:       int(seriesLimit),
+		DocsLimit:         int(docsLimit),
+		RequireExhaustive: true,
+		RequireNoWait:     true,
 	}
 	fetchData := true
 	requestSkeleton := &rpc.FetchTaggedRequest{
-		NameSpace:   ns.Bytes(),
-		RangeStart:  mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:    mustToRpcTime(t, opts.EndExclusive),
-		FetchData:   fetchData,
-		SeriesLimit: &seriesLimit,
-		DocsLimit:   &docsLimit,
+		NameSpace:         ns.Bytes(),
+		RangeStart:        mustToRPCTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRPCTime(t, opts.EndExclusive),
+		FetchData:         fetchData,
+		SeriesLimit:       &seriesLimit,
+		DocsLimit:         &docsLimit,
+		RequireExhaustive: true,
+		RequireNoWait:     true,
 	}
 	requireEqual := func(a, b interface{}) {
 		d := cmp.Diff(a, b)
@@ -180,15 +185,17 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 		seriesLimit       int64 = 10
 		docsLimit         int64 = 10
 		requireExhaustive       = true
+		requireNoWait           = true
 		ns                      = ident.StringID("abc")
 	)
 	opts := index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
-			StartInclusive:    time.Now().Add(-900 * time.Hour),
-			EndExclusive:      time.Now(),
+			StartInclusive:    xtime.Now().Add(-900 * time.Hour),
+			EndExclusive:      xtime.Now(),
 			SeriesLimit:       int(seriesLimit),
 			DocsLimit:         int(docsLimit),
 			RequireExhaustive: requireExhaustive,
+			RequireNoWait:     requireNoWait,
 		},
 		Type: index.AggregateTagNamesAndValues,
 		FieldFilter: index.AggregateFieldFilter{
@@ -198,11 +205,12 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 	}
 	requestSkeleton := &rpc.AggregateQueryRawRequest{
 		NameSpace:         ns.Bytes(),
-		RangeStart:        mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:          mustToRpcTime(t, opts.EndExclusive),
+		RangeStart:        mustToRPCTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRPCTime(t, opts.EndExclusive),
 		SeriesLimit:       &seriesLimit,
 		DocsLimit:         &docsLimit,
 		RequireExhaustive: &requireExhaustive,
+		RequireNoWait:     &requireNoWait,
 		TagNameFilter: [][]byte{
 			[]byte("some"),
 			[]byte("string"),

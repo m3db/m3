@@ -40,8 +40,8 @@ type testSeries struct {
 	id          string
 	nsID        string
 	retainTag   bool
-	start       time.Time
-	end         time.Time
+	start       xtime.UnixNano
+	end         xtime.UnixNano
 	input       []inputReplica
 	expected    []testValue
 	expectedErr *testSeriesErr
@@ -58,7 +58,7 @@ type testSeriesErr struct {
 }
 
 func TestMultiReaderMergesReplicas(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []inputReplica{
@@ -106,7 +106,7 @@ func TestMultiReaderMergesReplicas(t *testing.T) {
 }
 
 func TestMultiReaderFiltersToRange(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	input := []inputReplica{
@@ -135,7 +135,7 @@ func TestMultiReaderFiltersToRange(t *testing.T) {
 }
 
 func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []testValue{
@@ -162,7 +162,7 @@ func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
 
 func TestSeriesIteratorDoesNotIgnoreReplicasWithErrors(t *testing.T) {
 	var (
-		start = time.Now().Truncate(time.Minute)
+		start = xtime.Now().Truncate(time.Minute)
 		end   = start.Add(time.Minute)
 		err   = errors.New("some-iteration-error")
 	)
@@ -182,7 +182,7 @@ func TestSeriesIteratorDoesNotIgnoreReplicasWithErrors(t *testing.T) {
 }
 
 func TestSeriesIteratorErrorOnOutOfOrder(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []testValue{
@@ -294,8 +294,8 @@ func newTestSeriesIterator(
 		ID:             ident.StringID(series.id),
 		Namespace:      ident.StringID(series.nsID),
 		Tags:           ident.EmptyTagIterator,
-		StartInclusive: xtime.ToUnixNano(series.start),
-		EndExclusive:   xtime.ToUnixNano(series.end),
+		StartInclusive: series.start,
+		EndExclusive:   series.end,
 		Replicas:       iters,
 	}, nil)
 
@@ -331,7 +331,7 @@ func assertTestSeriesIterator(
 		dp, unit, annotation := iter.Current()
 		expected := series.expected[i]
 		assert.Equal(t, expected.value, dp.Value)
-		assert.Equal(t, expected.t, dp.Timestamp)
+		assert.Equal(t, expected.t, dp.TimestampNanos)
 		assert.Equal(t, expected.unit, unit)
 		assert.Equal(t, expected.annotation, []byte(annotation))
 	}

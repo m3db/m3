@@ -230,7 +230,7 @@ func testIndexSingleNodeHighConcurrency(
 					}
 
 					id, tags := genIDTags(i, j, opts.numTags, genOpts...)
-					timestamp := time.Now()
+					timestamp := xtime.Now()
 					err := session.WriteTagged(md.ID(), id, tags,
 						timestamp, float64(j), xtime.Second, nil)
 					if err != nil {
@@ -289,7 +289,7 @@ func testIndexSingleNodeHighConcurrency(
 						match := idx.NewTermQuery([]byte("common_i"), []byte(strconv.Itoa(randI)))
 						q := index.Query{Query: match}
 
-						now := time.Now()
+						now := xtime.Now()
 						qOpts := index.AggregationOptions{
 							QueryOptions: index.QueryOptions{
 								StartInclusive: now.Add(-md.Options().RetentionOptions().RetentionPeriod()),

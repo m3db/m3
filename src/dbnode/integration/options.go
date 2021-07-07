@@ -267,6 +267,12 @@ type TestOptions interface {
 	// SetNumShards sets the number of shards to use.
 	SetNumShards(value int) TestOptions
 
+	// ShardSetOptions returns the test shard set options.
+	ShardSetOptions() *TestShardSetOptions
+
+	// SetShardSetOptions returns the test shard set options.
+	SetShardSetOptions(value *TestShardSetOptions) TestOptions
+
 	// MaxWiredBlocks returns the maximum number of wired blocks to keep in memory using the LRU cache.
 	MaxWiredBlocks() uint
 
@@ -347,6 +353,7 @@ type options struct {
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
+	shardSetOptions                    *TestShardSetOptions
 	maxWiredBlocks                     uint
 	customClientAdminOptions           []client.CustomAdminOption
 	useTChannelClientForReading        bool
@@ -657,6 +664,16 @@ func (o *options) NumShards() int {
 func (o *options) SetNumShards(value int) TestOptions {
 	opts := *o
 	opts.numShards = value
+	return &opts
+}
+
+func (o *options) ShardSetOptions() *TestShardSetOptions {
+	return o.shardSetOptions
+}
+
+func (o *options) SetShardSetOptions(value *TestShardSetOptions) TestOptions {
+	opts := *o
+	opts.shardSetOptions = value
 	return &opts
 }
 

@@ -52,6 +52,26 @@ func (m *idDedupeMap) list() []multiResultSeries {
 	return result
 }
 
+func (m *idDedupeMap) len() int {
+	return len(m.series)
+}
+
+func (m *idDedupeMap) update(
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+) (bool, error) {
+	id := iter.ID().String()
+	existing, exists := m.series[id]
+	if !exists {
+		return false, nil
+	}
+	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
+	if err != nil {
+		return false, err
+	}
+	return true, m.doUpdate(id, existing, tags, iter, attrs)
+}
+
 func (m *idDedupeMap) add(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
@@ -74,7 +94,15 @@ func (m *idDedupeMap) add(
 		}
 		return nil
 	}
+	return m.doUpdate(id, existing, tags, iter, attrs)
+}
 
+func (m *idDedupeMap) doUpdate(
+	id string,
+	existing multiResultSeries,
+	tags models.Tags,
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes) error {
 	var existsBetter bool
 	switch m.fanout {
 	case NamespaceCoversAllQueryRange:

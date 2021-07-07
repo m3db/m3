@@ -23,75 +23,50 @@ package middleware
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jonboulle/clockwork"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
-	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/source"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/net/http/cors"
 )
 
+// Register is a func to build the set of middleware functions.
+type Register func(opts Options) []mux.MiddlewareFunc
+
+// Options is the set of parameters passed to the Register function.
+type Options struct {
+	// Common options for all middleware functions.
+	InstrumentOpts instrument.Options
+	Clock          clockwork.Clock
+	Route          *mux.Route
+
+	// Specific options for middleware functions.
+	Logging                LoggingOptions
+	Metrics                MetricsOptions
+	Source                 SourceOptions
+	PrometheusRangeRewrite PrometheusRangeRewriteOptions
+}
+
+// OverrideOptions is a function that returns new Options from the provided Options.
+type OverrideOptions func(opts Options) Options
+
 // Default is the default list of middleware functions applied if no middleware functions are set in the
 // HandlerOptions.
-func Default(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
+func Default(opts Options) []mux.MiddlewareFunc {
 	// The order of middleware is important. Be very careful when reordering existing middleware.
 	return []mux.MiddlewareFunc{
 		Cors(),
 		// install tracing before logging so the trace_id is available for response logging.
 		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
-		RequestID(opts.InstrumentOpts),
-		ResponseLogging(time.Second, opts.InstrumentOpts),
-		ResponseMetrics(opts.InstrumentOpts, opts.Route),
-		// install panic handler after any middleware that adds extra useful information to the context logger.
-		Panic(opts.InstrumentOpts),
-		Compression(),
-	}
-}
-
-// Query is the list of middleware functions for query endpoints.
-func Query(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
-	return query(ResponseLogging(time.Second, opts.InstrumentOpts), opts)
-}
-
-// PromQuery is the list of middleware functions for prometheus query endpoints.
-func PromQuery(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
-	return query(native.QueryResponse(native.QueryResponseOptions{
-		Threshold:      time.Second,
-		InstrumentOpts: opts.InstrumentOpts,
-		Clock:          clockwork.NewRealClock(),
-	}), opts)
-}
-
-func query(response mux.MiddlewareFunc, opts options.MiddlewareOptions) []mux.MiddlewareFunc {
-	// The order of middleware is important. Be very careful when reordering existing middleware.
-	return []mux.MiddlewareFunc{
-		Cors(),
-		// install tracing before logging so the trace_id is available for response logging.
-		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
-		RequestID(opts.InstrumentOpts),
 		// install source before logging so the source is available for response logging.
-		source.Middleware(nil, opts.InstrumentOpts),
-		response,
-		ResponseMetrics(opts.InstrumentOpts, opts.Route),
-		// install panic handler after any middleware that adds extra useful information to the context logger.
-		Panic(opts.InstrumentOpts),
-		Compression(),
-	}
-}
-
-// NoResponseLogging removes response logging from the set of Default.
-func NoResponseLogging(opts options.MiddlewareOptions) []mux.MiddlewareFunc {
-	// The order of middleware is important. Be very careful when reordering existing middleware.
-	return []mux.MiddlewareFunc{
-		Cors(),
-		Tracing(opentracing.GlobalTracer(), opts.InstrumentOpts),
+		Source(opts),
 		RequestID(opts.InstrumentOpts),
-		ResponseMetrics(opts.InstrumentOpts, opts.Route),
+		PrometheusRangeRewrite(opts),
+		ResponseLogging(opts),
+		ResponseMetrics(opts),
 		// install panic handler after any middleware that adds extra useful information to the context logger.
 		Panic(opts.InstrumentOpts),
 		Compression(),

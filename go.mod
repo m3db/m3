@@ -41,7 +41,7 @@ require (
 	github.com/jhump/protoreflect v1.6.1
 	github.com/jonboulle/clockwork v0.1.0
 	github.com/json-iterator/go v1.1.10
-	github.com/klauspost/compress v1.11.8
+	github.com/klauspost/compress v1.13.1
 	github.com/leanovate/gopter v0.2.8
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
@@ -86,7 +86,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
-	github.com/uber-go/tally v3.3.17+incompatible
+	github.com/uber-go/tally v3.4.1+incompatible
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.4.0+incompatible
 	github.com/uber/tchannel-go v1.20.1

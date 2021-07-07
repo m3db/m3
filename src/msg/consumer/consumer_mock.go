@@ -79,6 +79,20 @@ func (mr *MockMessageMockRecorder) Bytes() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockMessage)(nil).Bytes))
 }
 
+// ShardID mocks base method.
+func (m *MockMessage) ShardID() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardID")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ShardID indicates an expected call of ShardID.
+func (mr *MockMessageMockRecorder) ShardID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardID", reflect.TypeOf((*MockMessage)(nil).ShardID))
+}
+
 // MockMessageProcessor is a mock of MessageProcessor interface.
 type MockMessageProcessor struct {
 	ctrl     *gomock.Controller
