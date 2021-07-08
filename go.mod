@@ -39,8 +39,8 @@ require (
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.8.4
 	github.com/jhump/protoreflect v1.6.1
-	github.com/jonboulle/clockwork v0.1.0
-	github.com/json-iterator/go v1.1.10
+	github.com/jonboulle/clockwork v0.2.2
+	github.com/json-iterator/go v1.1.11
 	github.com/klauspost/compress v1.13.1
 	github.com/leanovate/gopter v0.2.8
 	github.com/lightstep/lightstep-tracer-go v0.18.1
@@ -70,8 +70,8 @@ require (
 	github.com/pointlander/jetset v1.0.0 // indirect
 	github.com/pointlander/peg v1.0.0
 	github.com/prashantv/protectmem v0.0.0-20171002184600-e20412882b3a // indirect
-	github.com/prometheus/client_golang v1.10.0
-	github.com/prometheus/common v0.20.0
+	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/common v0.26.0
 	github.com/prometheus/prometheus v1.8.2-0.20210331101223-3cafc58827d1
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
@@ -90,31 +90,30 @@ require (
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.4.0+incompatible
 	github.com/uber/tchannel-go v1.20.1
+	github.com/urfave/cli v1.22.4 // indirect
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	github.com/wjdp/htmltest v0.13.0
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
-
-	// This is 3.4.13. Note: we need to specify the version this way due to the issue
-	// described in https://github.com/etcd-io/etcd/issues/11154 .
-	// Version string was obtained by the method described in
-	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
-	go.opentelemetry.io/otel v1.0.0-RC1
-	go.opentelemetry.io/otel/bridge/opentracing v0.21.1-0.20210625145612-6428cd693163
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC1
-	go.opentelemetry.io/otel/metric v0.20.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.0.0-RC1
-	go.opentelemetry.io/otel/trace v1.0.0-RC1
+	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
+	go.etcd.io/etcd/client/v3 v3.5.0
+	go.etcd.io/etcd/server/v3 v3.5.0
+	go.etcd.io/etcd/tests/v3 v3.5.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0 // indirect
+	go.opentelemetry.io/otel v0.20.0
+	go.opentelemetry.io/otel/bridge/opentracing v0.20.0
+	go.opentelemetry.io/otel/exporters/otlp v0.20.0
+	go.opentelemetry.io/otel/sdk v0.20.0
+	go.opentelemetry.io/otel/trace v0.20.0
 	go.uber.org/atomic v1.7.0
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
-	go.uber.org/zap v1.16.0
-	golang.org/x/net v0.0.0-20210324051636-2c4c8ecb7826
+	go.uber.org/zap v1.17.0
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210324051608-47abb6519492
-	golang.org/x/tools v0.1.0
-	google.golang.org/grpc v1.38.0
+	golang.org/x/sys v0.0.0-20210603081109-ebe580a85c40
+	golang.org/x/tools v0.1.2
+	google.golang.org/grpc v1.39.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
@@ -143,13 +142,5 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.2016
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
-
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
-
-// Pull in https://github.com/etcd-io/bbolt/pull/220, required for go 1.14 compatibility
-//
-// etcd 3.14.13 depends on v1.3.3, but everything before v1.3.5 has unsafe misuses, and fails hard on go 1.14
-// TODO: remove after etcd pulls in the change to a new release on 3.4 branch
-replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5

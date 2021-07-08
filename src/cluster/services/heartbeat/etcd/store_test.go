@@ -28,9 +28,9 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/tests/v3/integration"
 )
 
 func TestKeys(t *testing.T) {

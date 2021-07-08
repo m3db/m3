@@ -26,9 +26,9 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/tests/v3/integration"
 )
 
 var (
@@ -63,7 +63,7 @@ func (tc *testCluster) Close() {
 	tc.cluster.Terminate(tc.t)
 }
 
-func (tc *testCluster) etcdClient() *clientv3.Client {
+func (tc *testCluster) etcdClient() *client.Client {
 	return tc.cluster.RandClient()
 }
 

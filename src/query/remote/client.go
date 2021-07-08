@@ -32,6 +32,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/resolver/manual"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -150,10 +152,18 @@ func NewGRPCClient(
 	scope := instrumentOpts.MetricsScope()
 	interceptorOpts := xgrpc.InterceptorInstrumentOptions{Scope: scope}
 
-	resolver := newStaticResolver(addresses)
-	balancer := grpc.RoundRobin(resolver)
+	addrs := make([]resolver.Address, 0, len(addresses))
+	for _, addr := range addresses {
+		addrs = append(addrs, resolver.Address{
+			Addr: addr,
+		})
+	}
+
+	manualResolver := manual.NewBuilderWithScheme("")
+	manualResolver.InitialState(resolver.State{Addresses: addrs})
+
 	dialOptions := append([]grpc.DialOption{
-		grpc.WithBalancer(balancer),
+		grpc.WithResolvers(manualResolver),
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
 		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(interceptorOpts)),
