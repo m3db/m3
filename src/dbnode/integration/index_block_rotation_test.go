@@ -130,16 +130,24 @@ func TestIndexBlockRotation(t *testing.T) {
 	// move time to 4p
 	testSetup.SetNowFn(t2)
 
-	// ensure all data remains present despite block rotation.
-	// this is due to the index active block.
+	// ensure all data is absent
 	log.Info("querying period0 results after expiry")
-
-	// await the rotation.
+	// await for results to be empty.
 	// in practice we've seen it take 11s, so make it 30s to be safe.
-	time.Sleep(time.Second * 30)
-	period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
-		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
-	require.NoError(t, err)
-	writesPeriod0.MatchesSeriesIters(t, period0Results)
-	require.True(t, period0Results.Len() == 50, "results empty after block rotation despite active block")
+	time.Sleep(time.Second * 4)
+	timeout := time.Second * 30
+	noData := xclock.WaitUntil(func() bool {
+		period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
+			md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
+		require.NoError(t, err)
+		require.True(t, period0Results.Len() == 50, "results still indexed")
+
+		for _, i := range period0Results.Iters() {
+			if i.Next() {
+				return false
+			}
+		}
+		return true
+	}, timeout)
+	require.True(t, noData, "data still present after %s", timeout)
 }

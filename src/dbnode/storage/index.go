@@ -1475,6 +1475,7 @@ func (i *nsIndex) Query(
 		sp.LogFields(opentracinglog.Error(err))
 		return index.QueryResult{}, err
 	}
+
 	return index.QueryResult{
 		Results:    results,
 		Exhaustive: queryRes.exhaustive,
