@@ -119,7 +119,25 @@ var _ OnIndexSeries = mockOnIndexSeries{}
 
 func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano)  {}
 func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {}
-func (m mockOnIndexSeries) OnIndexPrepare()                           {}
+func (m mockOnIndexSeries) OnIndexPrepare(blockStart xtime.UnixNano)  {}
 func (m mockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
 	return false
+}
+func (m mockOnIndexSeries) DecrementReaderWriterCount() {}
+func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
+	blockStart xtime.UnixNano,
+) bool {
+	return false
+}
+func (m mockOnIndexSeries) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
+	return false
+}
+func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
+	blockStarts map[xtime.UnixNano]struct{},
+) RemoveIndexedForBlockStartsResult {
+	return RemoveIndexedForBlockStartsResult{}
+}
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool { return false }
+func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
+	return m, false
 }
