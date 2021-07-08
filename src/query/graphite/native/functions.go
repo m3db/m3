@@ -171,11 +171,19 @@ type contextShiftFunc func(*common.Context) *common.Context
 // unaryTransformer takes in one series and returns a transformed series.
 type unaryTransformer func(ts.SeriesList) (ts.SeriesList, error)
 
+// contextShiftAdjustFunc determines after an initial context shift whether
+// an adjustment is necessary or not
+type contextShiftAdjustFunc func(
+	shiftedContext *common.Context,
+	bootstrappedSeries ts.SeriesList,
+) (*common.Context, bool, error)
+
 // unaryContextShifter contains a contextShiftFunc for generating shift contexts
 // as well as a unaryTransformer for transforming one series to another.
 type unaryContextShifter struct {
-	ContextShiftFunc contextShiftFunc
-	UnaryTransformer unaryTransformer
+	ContextShiftFunc       contextShiftFunc
+	UnaryTransformer       unaryTransformer
+	ContextShiftAdjustFunc contextShiftAdjustFunc
 }
 
 var (
@@ -589,8 +597,33 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	if err != nil {
 		return reflect.Value{}, err
 	}
-	transformerFn := contextShifter.Field(1)
-	var ret []reflect.Value
+
+	// Determine if need to adjust the shift based on fetched series.
+	adjustFn := contextShifter.Field(2)
+	if !adjustFn.IsNil() {
+		reflected := adjustFn.Call([]reflect.Value{
+			reflect.ValueOf(shiftedCtx),
+			shiftedSeries,
+		})
+		if reflectedErr := reflected[2]; !reflectedErr.IsNil() {
+			return reflect.Value{}, reflectedErr.Interface().(error)
+		}
+		if reflectedAdjust := reflected[1]; reflectedAdjust.Bool() {
+			// Adjusted again, need to re-bootstrap from the shifted series.
+			adjustedShiftedCtx := reflected[0].Interface().(*common.Context)
+			series, err := call.in[0].Evaluate(adjustedShiftedCtx)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+			// Override previously shifted series fetched.
+			shiftedSeries = series
+		}
+	}
+
+	var (
+		transformerFn = contextShifter.Field(1)
+		ret           []reflect.Value
+	)
 	switch call.f.out {
 	case unaryContextShifterPtrType:
 		// unary function
