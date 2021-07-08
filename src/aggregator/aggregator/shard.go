@@ -22,7 +22,6 @@ package aggregator
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -161,7 +160,6 @@ func (s *aggregatorShard) SetWriteableRange(rng timeRange) {
 	if cutoffNanos <= math.MaxInt64-int64(s.bufferDurationAfterShardCutoff) {
 		latestNanos = cutoffNanos + int64(s.bufferDurationAfterShardCutoff)
 	}
-	fmt.Printf("SetWriteableRange, cutoverNanos=%d cutoffNanos=%d earliestNanos=%d latestNanos=%d\n", cutoverNanos, cutoffNanos, earliestNanos, latestNanos)
 	s.Lock()
 	s.cutoverNanos = cutoverNanos
 	s.cutoffNanos = cutoffNanos
@@ -279,11 +277,7 @@ func (s *aggregatorShard) Close() {
 
 func (s *aggregatorShard) isWritableWithLock() bool {
 	nowNanos := s.nowFn().UnixNano()
-	x := nowNanos >= s.earliestWritableNanos && nowNanos < s.latestWriteableNanos
-	if !x {
-		fmt.Printf("isWritableWithLock false, nowNanos=%d earliestNanos=%d latestNanos=%d\n", nowNanos, s.earliestWritableNanos, s.latestWriteableNanos)
-	}
-	return x
+	return nowNanos >= s.earliestWritableNanos && nowNanos < s.latestWriteableNanos
 }
 
 type timeRange struct {
