@@ -111,7 +111,7 @@ func setupForwardIndex(
 
 	gomock.InOrder(
 		lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true),
-		lifecycle.EXPECT().OnIndexPrepare(),
+		lifecycle.EXPECT().OnIndexPrepare(ts),
 
 		lifecycle.EXPECT().OnIndexSuccess(ts),
 		lifecycle.EXPECT().OnIndexFinalize(ts),
@@ -366,7 +366,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	)
 
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
-	lifecycle.EXPECT().OnIndexPrepare()
+	lifecycle.EXPECT().OnIndexPrepare(ts)
 
 	setupMockBlock(t, mockBlock, now, id, tag, lifecycle)
 	setupMockBlock(t, futureBlock, futureStart, id, tag, lifecycle)
@@ -408,7 +408,7 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 	)
 
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
-	lifecycle.EXPECT().OnIndexPrepare()
+	lifecycle.EXPECT().OnIndexPrepare(ts)
 
 	setupMockBlock(t, mockBlock, now, id, tag, lifecycle)
 	setupMockBlock(t, futureBlock, futureStart, id, tag, lifecycle)
