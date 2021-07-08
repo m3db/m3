@@ -135,11 +135,13 @@ func TestIndexBlockRotation(t *testing.T) {
 	// await for results to be empty.
 	// in practice we've seen it take 11s, so make it 30s to be safe.
 	timeout := time.Second * 30
+	fetched := 0
 	empty := xclock.WaitUntil(func() bool {
 		period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
 			md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 		require.NoError(t, err)
-		return period0Results.Len() == 0
+		fetched = period0Results.Len()
+		return fetched == 0
 	}, timeout)
-	require.True(t, empty, "results not empty after %s", timeout)
+	require.True(t, empty, "results not empty (%d) after %s", fetched, timeout)
 }
