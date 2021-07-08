@@ -47,11 +47,10 @@ func newTime(n int) xtime.UnixNano {
 
 func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
 	e := NewEntry(NewEntryOptions{})
-	require.Equal(t, 3, cap(e.reverseIndex.states))
 	for i := 0; i < 10; i++ {
 		ti := newTime(i)
 		require.True(t, e.NeedsIndexUpdate(ti))
-		require.Equal(t, 3, cap(e.reverseIndex.states))
+		require.Equal(t, i+1, len(e.reverseIndex.states))
 	}
 
 	// ensure only the latest ones are held on to
@@ -66,7 +65,9 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	now := time.Now()
 	blockStart := newTime(0)
 	mockIndexWriter := NewMockIndexWriter(ctrl)
-	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart).Return(blockStart)
+	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart).
+		Return(blockStart).
+		Times(2)
 
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
 	mockSeries.EXPECT().Metadata().Return(doc.Metadata{})

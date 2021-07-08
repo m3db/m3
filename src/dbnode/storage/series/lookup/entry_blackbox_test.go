@@ -59,7 +59,7 @@ func TestEntryIndexSuccessPath(t *testing.T) {
 	require.False(t, e.IndexedForBlockStart(t0))
 
 	require.True(t, e.NeedsIndexUpdate(t0))
-	e.OnIndexPrepare()
+	e.OnIndexPrepare(t0)
 	e.OnIndexSuccess(t0)
 	e.OnIndexFinalize(t0)
 
@@ -74,7 +74,7 @@ func TestEntryIndexFailPath(t *testing.T) {
 	require.False(t, e.IndexedForBlockStart(t0))
 
 	require.True(t, e.NeedsIndexUpdate(t0))
-	e.OnIndexPrepare()
+	e.OnIndexPrepare(t0)
 	e.OnIndexFinalize(t0)
 
 	require.False(t, e.IndexedForBlockStart(t0))
