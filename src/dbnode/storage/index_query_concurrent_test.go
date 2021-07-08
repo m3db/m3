@@ -171,6 +171,9 @@ func testNamespaceIndexHighConcurrentQueries(
 		onIndexSeries.EXPECT().
 			OnIndexFinalize(gomock.Any()).
 			Times(idsPerBlock)
+		onIndexSeries.EXPECT().
+			IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
+			Times(idsPerBlock)
 
 		batch := index.NewWriteBatch(index.WriteBatchOptions{
 			InitialCapacity: idsPerBlock,
