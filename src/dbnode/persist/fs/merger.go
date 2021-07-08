@@ -126,13 +126,7 @@ func (m *merger) Merge(
 	if err := reader.Open(openOpts); err != nil {
 		return closer, err
 	}
-	defer func() {
-		// Only set the error here if not set by the end of the function, since
-		// all other errors take precedence.
-		if err == nil {
-			err = reader.Close()
-		}
-	}()
+	defer reader.Close() // nolint
 
 	nsMd, err := namespace.NewMetadata(nsID, nsOpts)
 	if err != nil {
