@@ -491,7 +491,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
 	})
 
-	opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
+	opts = opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
 
 	return opts, nil
 }
