@@ -85,6 +85,29 @@ func NewStorage(
 	}, nil
 }
 
+func (s *m3storage) QueryStorageMetadataAttributes(
+	_ context.Context,
+	queryStart, queryEnd time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	now := xtime.ToUnixNano(s.nowFn())
+	_, namespaces, err := resolveClusterNamespacesForQuery(now,
+		xtime.ToUnixNano(queryStart),
+		xtime.ToUnixNano(queryEnd),
+		s.clusters,
+		opts.FanoutOptions,
+		opts.RestrictQueryOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]storagemetadata.Attributes, 0, len(namespaces))
+	for _, ns := range namespaces {
+		results = append(results, ns.Options().Attributes())
+	}
+	return results, nil
+}
+
 func (s *m3storage) ErrorBehavior() storage.ErrorBehavior {
 	return storage.BehaviorFail
 }
@@ -126,7 +149,6 @@ func (s *m3storage) FetchProm(
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
 	)
-
 	if err != nil {
 		return storage.PromResult{}, err
 	}
@@ -160,7 +182,6 @@ func FetchResultToBlockResult(
 		bounds,
 		opts,
 	)
-
 	if err != nil {
 		return block.Result{
 			Metadata: block.NewResultMetadata(),

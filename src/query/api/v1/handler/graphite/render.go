@@ -27,6 +27,9 @@ import (
 	"sort"
 	"sync"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -37,8 +40,10 @@ import (
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -58,6 +63,7 @@ type renderHandler struct {
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	queryContextOpts    models.QueryContextOptions
 	graphiteOpts        graphite.M3WrappedStorageOptions
+	instrumentOpts      instrument.Options
 }
 
 type respError struct {
@@ -77,6 +83,7 @@ func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 		fetchOptionsBuilder: opts.GraphiteRenderFetchOptionsBuilder(),
 		queryContextOpts:    opts.QueryContextOptions(),
 		graphiteOpts:        opts.GraphiteStorageOptions(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -136,15 +143,19 @@ func (h *renderHandler) serveHTTP(
 	for i, target := range p.Targets {
 		i, target := i, target
 		go func() {
-			// Log the query that causes us to panic.
-			defer func() {
-				if err := recover(); err != nil {
-					panic(fmt.Errorf("panic executing query '%s': %v", target, err))
-				}
-			}()
-
 			childCtx := ctx.NewChildContext(common.NewChildContextOptions())
 			defer func() {
+				if err := recover(); err != nil {
+					// Allow recover from panic.
+					sendError(errorCh, fmt.Errorf("error target '%s' caused panic: %v", target, err))
+
+					// Log panic.
+					logger := logging.WithContext(r.Context(), h.instrumentOpts).
+						WithOptions(zap.AddStacktrace(zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+							return lvl >= zapcore.ErrorLevel
+						})))
+					logger.Error("panic captured", zap.Any("stack", err))
+				}
 				_ = childCtx.Close()
 				wg.Done()
 			}()
@@ -163,7 +174,7 @@ func (h *renderHandler) serveHTTP(
 			targetSeries, err := exp.Execute(childCtx)
 			if err != nil {
 				sendError(errorCh, errors.NewRenamedError(err,
-					fmt.Errorf("error: target %s returned %s", target, err)))
+					fmt.Errorf("error target '%s' returned: %w", target, err)))
 				return
 			}
 

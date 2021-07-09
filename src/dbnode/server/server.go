@@ -924,6 +924,7 @@ func Run(runOpts RunOptions) {
 		if repairCfg := cfg.Repair; repairCfg != nil {
 			repairOpts = repairOpts.
 				SetType(repairCfg.Type).
+				SetStrategy(repairCfg.Strategy).
 				SetForce(repairCfg.Force).
 				SetResultOptions(rsOpts).
 				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
@@ -932,6 +933,9 @@ func Run(runOpts RunOptions) {
 			}
 			if cfg.Repair.CheckInterval > 0 {
 				repairOpts = repairOpts.SetRepairCheckInterval(cfg.Repair.CheckInterval)
+			}
+			if cfg.Repair.Concurrency > 0 {
+				repairOpts = repairOpts.SetRepairShardConcurrency(cfg.Repair.Concurrency)
 			}
 
 			if cfg.Repair.DebugShadowComparisonsPercentage > 0 {

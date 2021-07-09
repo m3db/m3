@@ -2305,7 +2305,7 @@ func (s *session) fetchBlocksMetadataFromPeers(
 	}()
 
 	iter := newMetadataIter(metadataCh, errCh,
-		s.pools.tagDecoder.Get(), s.pools.id)
+		s.pools.tagDecoder, s.pools.id)
 	return iter, nil
 }
 
@@ -2401,7 +2401,7 @@ func (s *session) FetchBlocksFromPeers(
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
 		result   = newStreamBlocksResult(nsCtx, s.opts, opts, outputCh,
-			s.pools.tagDecoder.Get(), s.pools.id)
+			s.pools.tagDecoder, s.pools.id)
 		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
 			select {
@@ -2416,9 +2416,48 @@ func (s *session) FetchBlocksFromPeers(
 	if err != nil {
 		return nil, err
 	}
+
 	peersByHost := make(map[string]peer, len(peers.peers))
 	for _, peer := range peers.peers {
 		peersByHost[peer.Host().ID()] = peer
+	}
+
+	// If any metadata has tags then encode them up front so can
+	// return an error on tag encoding rather than logging error that would
+	// possibly get missed.
+	var (
+		metadatasEncodedTags []checked.Bytes
+		anyTags              bool
+	)
+	for _, meta := range metadatas {
+		if len(meta.Tags.Values()) > 0 {
+			anyTags = true
+			break
+		}
+	}
+	if anyTags {
+		// NB(r): Allocate exact length so nil is used and each index
+		// references same index as the incoming metadatas being fetched.
+		metadatasEncodedTags = make([]checked.Bytes, len(metadatas))
+		tagsIter := ident.NewTagsIterator(ident.Tags{})
+		for idx, meta := range metadatas {
+			if len(meta.Tags.Values()) == 0 {
+				continue
+			}
+
+			tagsIter.Reset(meta.Tags)
+			tagsEncoder := s.pools.tagEncoder.Get()
+			if err := tagsEncoder.Encode(tagsIter); err != nil {
+				return nil, err
+			}
+
+			encodedTagsCheckedBytes, ok := tagsEncoder.Data()
+			if !ok {
+				return nil, fmt.Errorf("could not encode tags: id=%s", meta.ID.String())
+			}
+
+			metadatasEncodedTags[idx] = encodedTagsCheckedBytes
+		}
 	}
 
 	go func() {
@@ -2431,7 +2470,7 @@ func (s *session) FetchBlocksFromPeers(
 
 	metadataCh := make(chan receivedBlockMetadata, blockMetadataChBufSize)
 	go func() {
-		for _, rb := range metadatas {
+		for idx, rb := range metadatas {
 			peer, ok := peersByHost[rb.Host.ID()]
 			if !ok {
 				logger.Warn("replica requested from unknown peer, skipping",
@@ -2441,9 +2480,20 @@ func (s *session) FetchBlocksFromPeers(
 				)
 				continue
 			}
+
+			// Attach encoded tags if present.
+			var encodedTags checked.Bytes
+			if idx < len(metadatasEncodedTags) {
+				// Note: could still be nil if had no tags, but the slice
+				// was built so need to take ref to encoded tags if
+				// was encoded.
+				encodedTags = metadatasEncodedTags[idx]
+			}
+
 			metadataCh <- receivedBlockMetadata{
-				id:   rb.ID,
-				peer: peer,
+				id:          rb.Metadata.ID,
+				encodedTags: encodedTags,
+				peer:        peer,
 				block: blockMetadata{
 					start:    rb.Start,
 					size:     rb.Size,
@@ -3697,10 +3747,10 @@ var _ blocksResult = (*streamBlocksResult)(nil)
 
 type streamBlocksResult struct {
 	baseBlocksResult
-	outputCh   chan<- peerBlocksDatapoint
-	tagDecoder serialize.TagDecoder
-	idPool     ident.Pool
-	nsCtx      namespace.Context
+	outputCh       chan<- peerBlocksDatapoint
+	tagDecoderPool serialize.TagDecoderPool
+	idPool         ident.Pool
+	nsCtx          namespace.Context
 }
 
 func newStreamBlocksResult(
@@ -3708,14 +3758,14 @@ func newStreamBlocksResult(
 	opts Options,
 	resultOpts result.Options,
 	outputCh chan<- peerBlocksDatapoint,
-	tagDecoder serialize.TagDecoder,
+	tagDecoderPool serialize.TagDecoderPool,
 	idPool ident.Pool,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
 		nsCtx:            nsCtx,
 		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
 		outputCh:         outputCh,
-		tagDecoder:       tagDecoder,
+		tagDecoderPool:   tagDecoderPool,
 		idPool:           idPool,
 	}
 }
@@ -3738,7 +3788,7 @@ func (s *streamBlocksResult) addBlockFromPeer(
 		return err
 	}
 	tags, err := newTagsFromEncodedTags(id, encodedTags,
-		s.tagDecoder, s.idPool)
+		s.tagDecoderPool, s.idPool)
 	if err != nil {
 		return err
 	}
@@ -3769,8 +3819,8 @@ func newPeerBlocksIter(
 	}
 }
 
-func (it *peerBlocksIter) Current() (topology.Host, ident.ID, block.DatabaseBlock) {
-	return it.current.peer, it.current.id, it.current.block
+func (it *peerBlocksIter) Current() (topology.Host, ident.ID, ident.Tags, block.DatabaseBlock) {
+	return it.current.peer, it.current.id, it.current.tags, it.current.block
 }
 
 func (it *peerBlocksIter) Err() error {
@@ -3850,10 +3900,8 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 
 			// Tags not decoded yet, attempt decoded and then reinsert
 			attemptedDecodeTags = true
-			tagDecoder := r.tagDecoderPool.Get()
 			tags, err = newTagsFromEncodedTags(id, encodedTags,
-				tagDecoder, r.idPool)
-			tagDecoder.Close()
+				r.tagDecoderPool, r.idPool)
 			if err != nil {
 				return err
 			}
@@ -4295,27 +4343,27 @@ func newTimesByRPCBlocks(values []*rpc.Block) []time.Time {
 }
 
 type metadataIter struct {
-	inputCh    <-chan receivedBlockMetadata
-	errCh      <-chan error
-	host       topology.Host
-	metadata   block.Metadata
-	tagDecoder serialize.TagDecoder
-	idPool     ident.Pool
-	done       bool
-	err        error
+	inputCh        <-chan receivedBlockMetadata
+	errCh          <-chan error
+	host           topology.Host
+	metadata       block.Metadata
+	tagDecoderPool serialize.TagDecoderPool
+	idPool         ident.Pool
+	done           bool
+	err            error
 }
 
 func newMetadataIter(
 	inputCh <-chan receivedBlockMetadata,
 	errCh <-chan error,
-	tagDecoder serialize.TagDecoder,
+	tagDecoderPool serialize.TagDecoderPool,
 	idPool ident.Pool,
 ) PeerBlockMetadataIter {
 	return &metadataIter{
-		inputCh:    inputCh,
-		errCh:      errCh,
-		tagDecoder: tagDecoder,
-		idPool:     idPool,
+		inputCh:        inputCh,
+		errCh:          errCh,
+		tagDecoderPool: tagDecoderPool,
+		idPool:         idPool,
 	}
 }
 
@@ -4331,7 +4379,7 @@ func (it *metadataIter) Next() bool {
 	}
 	var tags ident.Tags
 	tags, it.err = newTagsFromEncodedTags(m.id, m.encodedTags,
-		it.tagDecoder, it.idPool)
+		it.tagDecoderPool, it.idPool)
 	if it.err != nil {
 		return false
 	}
@@ -4357,7 +4405,7 @@ type idAndBlockStart struct {
 func newTagsFromEncodedTags(
 	seriesID ident.ID,
 	encodedTags checked.Bytes,
-	tagDecoder serialize.TagDecoder,
+	tagDecoderPool serialize.TagDecoderPool,
 	idPool ident.Pool,
 ) (ident.Tags, error) {
 	if encodedTags == nil {
@@ -4365,7 +4413,10 @@ func newTagsFromEncodedTags(
 	}
 
 	encodedTags.IncRef()
+
+	tagDecoder := tagDecoderPool.Get()
 	tagDecoder.Reset(encodedTags)
+	defer tagDecoder.Close()
 
 	tags, err := idxconvert.TagsFromTagsIter(seriesID, tagDecoder, idPool)
 

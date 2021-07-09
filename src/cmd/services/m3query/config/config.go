@@ -491,6 +491,8 @@ type MiddlewareConfiguration struct {
 	Logging LoggingMiddlewareConfiguration `yaml:"logging"`
 	// Metrics configures the metrics middleware.
 	Metrics MetricsMiddlewareConfiguration `yaml:"metrics"`
+	// Prometheus configures prometheus-related middleware.
+	Prometheus PrometheusMiddlewareConfiguration `yaml:"prometheus"`
 }
 
 // LoggingMiddlewareConfiguration configures the logging middleware.
@@ -518,6 +520,17 @@ type MetricsMiddlewareConfiguration struct {
 	// NB: Setting this to true will increase cardinality by the number of
 	// expected response codes (likely around ~10).
 	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
+}
+
+// PrometheusMiddlewareConfiguration configures the range rewriting middleware.
+type PrometheusMiddlewareConfiguration struct {
+	// ResolutionMultiplier is the multiple that will be applied to the range if it's determined
+	// that it needs to be updated. If this value is greater than 0, the range in a query will be
+	// updated if the namespaces used to service the request have resolution(s)
+	// that are greater than the range. The range will be updated to the largest resolution
+	// of the namespaces to service the request * the multiplier specified here. If this multiplier
+	// is 0, then this feature is disabled.
+	ResolutionMultiplier int `yaml:"resolutionMultiplier"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
