@@ -1459,10 +1459,16 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	h1 := NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	h2 := NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1490,7 +1496,11 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	ctx := context.NewBackground()
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
+	err = b.QueryWithIter(ctx, QueryOptions{
+		SeriesLimit:    limit,
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 1, results.Size())
@@ -1541,10 +1551,16 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	h1 := NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	h2 := NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
+	h2.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1582,7 +1598,10 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1634,6 +1653,9 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	h1 := NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1667,7 +1689,10 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 

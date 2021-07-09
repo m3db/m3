@@ -540,10 +540,14 @@ func (b *block) queryWithSpan(
 		doc := iter.Current()
 		if md, ok := doc.Metadata(); ok {
 			if entry, ok := md.Ref.(OnIndexSeries); ok {
-				var inBlock bool
-				for currentBlock := opts.StartInclusive.Truncate(b.blockSize); currentBlock.Before(opts.EndExclusive); currentBlock = currentBlock.Add(b.blockSize) {
+				var (
+					inBlock      bool
+					currentBlock = opts.StartInclusive.Truncate(b.blockSize)
+				)
+				for !inBlock {
 					inBlock = entry.IndexedForBlockStart(currentBlock)
-					if inBlock {
+					currentBlock = currentBlock.Add(b.blockSize)
+					if !currentBlock.Before(opts.EndExclusive) {
 						break
 					}
 				}
