@@ -34,7 +34,7 @@
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 metaDataFormat = "yaml"
 # theme = "docs-theme"
-baseURL = "/v1.0/"
+# baseURL = "/v1.0/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
 defaultContentLanguageInSubdir = true
