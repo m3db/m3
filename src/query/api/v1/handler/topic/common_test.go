@@ -23,14 +23,14 @@ package topic
 import (
 	"testing"
 
-	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
-	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
+	"github.com/m3db/m3/src/msg/topic"
 )
 
 var (

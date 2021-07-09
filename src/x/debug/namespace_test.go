@@ -26,7 +26,8 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"

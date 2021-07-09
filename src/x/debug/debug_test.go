@@ -37,14 +37,14 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	clusterplacement "github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -182,22 +182,31 @@ func TestHTTPEndpoint(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, zipReader)
 		for _, f := range zipReader.File {
-			var expectedContent string
-			if f.Name == "test" {
-				expectedContent = "test"
-			} else if f.Name == "foo" {
-				expectedContent = "bar"
-			} else {
-				t.Errorf("bad filename from archive %s", f.Name)
-			}
+			f := f
+			t.Run(f.Name, func(t *testing.T) {
+				var expectedContent string
+				switch {
+				case f.Name == "test":
+					expectedContent = "test"
+				case f.Name == "foo":
+					expectedContent = "bar"
+				default:
+					t.Errorf("bad filename from archive %s", f.Name)
+				}
 
-			rc, ferr := f.Open()
-			require.NoError(t, ferr)
-			defer rc.Close()
+				rc, ferr := f.Open()
+				require.NoError(t, ferr)
+				defer func() {
+					require.NoError(t, rc.Close())
+				}()
 
-			content := make([]byte, len(expectedContent))
-			rc.Read(content)
-			require.Equal(t, expectedContent, string(content))
+				content := make([]byte, len(expectedContent))
+				_, err = rc.Read(content)
+				if assert.Error(t, err) {
+					require.Equal(t, err, io.EOF)
+				}
+				require.Equal(t, expectedContent, string(content))
+			})
 		}
 	})
 
@@ -215,7 +224,7 @@ func TestHTTPEndpoint(t *testing.T) {
 	})
 }
 
-func newHandlerOptsAndClient(t *testing.T) (placement.HandlerOptions, *kv.MockStore, *clusterclient.MockClient) {
+func newHandlerOptsAndClient(t *testing.T) (placementhandler.HandlerOptions, *kv.MockStore, *clusterclient.MockClient) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"host1": &placementpb.Instance{
@@ -265,8 +274,8 @@ func newHandlerOptsAndClient(t *testing.T) (placement.HandlerOptions, *kv.MockSt
 	mockClient.EXPECT().KV().Return(mockKV, nil).AnyTimes()
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).AnyTimes()
 
-	handlerOpts, err := placement.NewHandlerOptions(
-		mockClient, config.Configuration{}, nil, instrument.NewOptions())
+	handlerOpts, err := placementhandler.NewHandlerOptions(
+		mockClient, clusterplacement.Configuration{}, nil, instrument.NewOptions())
 	require.NoError(t, err)
 
 	return handlerOpts, mockKV, mockClient

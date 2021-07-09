@@ -29,8 +29,8 @@ import (
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -84,7 +84,7 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 	cpuProfileDuration time.Duration,
 	clusterClient clusterclient.Client,
-	placementsOpts placement.HandlerOptions,
+	placementsOpts placementhandler.HandlerOptions,
 	services []handleroptions.ServiceNameAndDefaults,
 	instrumentOpts instrument.Options,
 ) (ZipWriter, error) {

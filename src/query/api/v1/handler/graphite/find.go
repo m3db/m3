@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	graphitestorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -41,7 +41,7 @@ import (
 
 const (
 	// FindURL is the url for finding graphite metrics.
-	FindURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
+	FindURL = route.PrefixV1 + "/graphite/metrics/find"
 )
 
 // FindHTTPMethods are the HTTP methods for this handler.

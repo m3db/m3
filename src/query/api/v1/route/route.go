@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package handler contains root level handlers.
-package handler
+// Package route stores common HTTP route handling code
+package route
 
 const (
-	// RoutePrefixV1 is the v1 prefix for all coordinator routes.
-	RoutePrefixV1 = "/api/v1"
+	// PrefixV1 is the v1 prefix for all coordinator routes.
+	PrefixV1 = "/api/v1"
 
-	// RoutePrefixExperimental is the experimental prefix for all coordinator routes.
-	RoutePrefixExperimental = "/api/experimental"
+	// PrefixExperimental is the experimental prefix for all coordinator routes.
+	PrefixExperimental = "/api/experimental"
 )

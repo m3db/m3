@@ -27,6 +27,8 @@ import (
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -36,9 +38,7 @@ import (
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prom"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
@@ -396,10 +396,15 @@ func (h *Handler) RegisterRoutes() error {
 			return err
 		}
 
-		err = placement.RegisterRoutes(h.registry,
-			serviceOptionDefaults, placementOpts)
-		if err != nil {
-			return err
+		routes := placementhandler.MakeRoutes(serviceOptionDefaults, placementOpts)
+		for _, route := range routes {
+			err := h.registry.RegisterPaths(route.Paths, queryhttp.RegisterPathsOptions{
+				Handler: route.Handler,
+				Methods: route.Methods,
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		err = namespace.RegisterRoutes(h.registry, clusterClient,
@@ -525,10 +530,10 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-func (h *Handler) placementOpts() (placement.HandlerOptions, error) {
-	return placement.NewHandlerOptions(
+func (h *Handler) placementOpts() (placementhandler.HandlerOptions, error) {
+	return placementhandler.NewHandlerOptions(
 		h.options.ClusterClient(),
-		h.options.Config(),
+		h.options.Config().ClusterManagement.Placement,
 		h.m3AggServiceOptions(),
 		h.options.InstrumentOpts(),
 	)
