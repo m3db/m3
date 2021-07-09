@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -380,6 +381,7 @@ func testOptions() Options {
 			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem").SetCACrtPath("foo_ca.pem")),
 	}
 	return NewOptions().
+		SetRetryOptions(retry.NewOptions().SetMaxRetries(0)).
 		SetClusters(clusters).
 		SetService("test_app").
 		SetZone("zone1").
