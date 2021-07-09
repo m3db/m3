@@ -35,10 +35,14 @@ import (
 )
 
 func TestConfiguration(t *testing.T) {
+	ctx := context.Background()
 	addr := localAddress(t)
 	r := grpcReceiver(t, "receiver", addr, consumertest.NewNop(), consumertest.NewNop())
 	require.NotNil(t, r)
-	require.NoError(t, r.Start(context.Background(), componenttest.NewNopHost()))
+	require.NoError(t, r.Start(ctx, componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, r.Shutdown(ctx))
+	}()
 
 	cfg := Configuration{
 		ServiceName: "foo",
@@ -47,7 +51,6 @@ func TestConfiguration(t *testing.T) {
 		Attributes:  map[string]string{"bar": "baz"},
 	}
 
-	ctx := context.Background()
 	tracerProvider, err := cfg.NewTracerProvider(ctx, tally.NoopScope,
 		TracerProviderOptions{})
 	require.NoError(t, err)
