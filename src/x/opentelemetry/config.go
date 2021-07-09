@@ -26,6 +26,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpgrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -40,36 +41,44 @@ type Configuration struct {
 	ServiceName string            `yaml:"serviceName"`
 	Endpoint    string            `yaml:"endpoint"`
 	Insecure    bool              `yaml:"insecure"`
-	Tags        map[string]string `yaml:""`
+	Attributes  map[string]string `yaml:"attributes"`
 }
 
 // TracerProviderOptions is a set of options to use when creating the
 // trace provider.
 type TracerProviderOptions struct {
-	// Tags is a set of programmatic tags to add at construction.
-	Tags map[string]string
+	// Attributes is a set of programmatic attributes to add at construction.
+	Attributes []attribute.KeyValue
 }
 
 // NewTracerProvider returns a new tracer provider.
 func (c Configuration) NewTracerProvider(
 	ctx context.Context,
 	scope tally.Scope,
-	_ TracerProviderOptions,
+	opts TracerProviderOptions,
 ) (*sdktrace.TracerProvider, error) {
-	res, err := resource.New(ctx, resource.WithAttributes(
-		semconv.ServiceNameKey.String(c.ServiceName)))
+	attributes := make([]attribute.KeyValue, 0, 1+len(c.Attributes)+len(opts.Attributes))
+	attributes = append(attributes, semconv.ServiceNameKey.String(c.ServiceName))
+	for k, v := range c.Attributes {
+		attributes = append(attributes, attribute.String(k, v))
+	}
+	for _, attr := range opts.Attributes {
+		attributes = append(attributes, attr)
+	}
+
+	res, err := resource.New(ctx, resource.WithAttributes(attributes...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	opts := []otlpgrpc.Option{
+	driverOpts := []otlpgrpc.Option{
 		otlpgrpc.WithEndpoint(c.Endpoint),
 		otlpgrpc.WithDialOption(grpc.WithBlock()),
 	}
 	if c.Insecure {
-		opts = append(opts, otlpgrpc.WithInsecure())
+		driverOpts = append(driverOpts, otlpgrpc.WithInsecure())
 	}
-	driver := otlpgrpc.NewDriver(opts...)
+	driver := otlpgrpc.NewDriver(driverOpts...)
 	traceExporter, err := otlp.NewExporter(ctx, driver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to trace exporter: %w", err)

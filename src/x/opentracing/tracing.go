@@ -37,6 +37,7 @@ import (
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 	jaegerzap "github.com/uber/jaeger-client-go/log/zap"
 	jaegertally "github.com/uber/jaeger-lib/metrics/tally"
+	"go.opentelemetry.io/otel/attribute"
 	otelopentracing "go.opentelemetry.io/otel/bridge/opentracing"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
@@ -125,7 +126,11 @@ func (cfg *TracingConfiguration) newOpenTelemetryTracer(
 	}
 
 	ctx := context.Background()
-	opts := opentelemetry.TracerProviderOptions{Tags: tracerSpanTags}
+	attrs := make([]attribute.KeyValue, 0, len(tracerSpanTags))
+	for k, v := range tracerSpanTags {
+		attrs = append(attrs, attribute.String(k, v))
+	}
+	opts := opentelemetry.TracerProviderOptions{Attributes: attrs}
 	tracerProvider, err := cfg.OpenTelemetry.NewTracerProvider(ctx, scope, opts)
 	if err != nil {
 		return nil, nil, err
