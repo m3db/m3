@@ -103,7 +103,10 @@ type WriterConfiguration struct {
 	Encoder                           *proto.Configuration           `yaml:"encoder"`
 	Decoder                           *proto.Configuration           `yaml:"decoder"`
 	Connection                        *ConnectionConfiguration       `yaml:"connection"`
-	IgnoreCutoffCutover               bool                           `yaml:"ignoreCutoffCutover"`
+
+	// IgnoreCutoffCutover allows producing writes ignoring cutoff/cutover timestamp.
+	// Must be in sync with AggregatorConfiguration.WritesIgnoreCutoffCutover.
+	IgnoreCutoffCutover bool `yaml:"ignoreCutoffCutover"`
 }
 
 // NewOptions creates writer options.

@@ -182,6 +182,7 @@ type AggregatorConfiguration struct {
 	FeatureFlags aggregator.FeatureFlagConfigurations `yaml:"featureFlags"`
 
 	// WritesIgnoreCutoffCutover allows accepting writes ignoring cutoff/cutover timestamp.
+	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
 	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
 }
 
