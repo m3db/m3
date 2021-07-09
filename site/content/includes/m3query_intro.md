@@ -1,0 +1,3 @@
+M3 Query is a distributed query engine for querying realtime and historical data stored in M3DB nodes, supporting several query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over larger datasets for analytical use cases.
+
+For example, if you are using the Prometheus remote write endpoint with [M3 Coordinator](/v1.0/docs/integrations/prometheus), you can use M3 Query instead of the Prometheus remote read endpoint. By doing so, you get all the benefits of M3 Query's engine such as [block processing](/v1.0/docs/architecture/m3query/blocks/). As M3 Query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.
