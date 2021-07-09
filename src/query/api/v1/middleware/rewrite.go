@@ -76,7 +76,11 @@ func PrometheusRangeRewrite(opts Options) mux.MiddlewareFunc {
 	}
 }
 
-const queryParam = "query"
+const (
+	queryParam = "query"
+	startParam = "start"
+	endParam   = "end"
+)
 
 func rewriteRangeDuration(
 	r *http.Request,
@@ -88,6 +92,18 @@ func rewriteRangeDuration(
 	if err != nil {
 		return err
 	}
+	defer func() {
+		// Reset the body on the request for any handlers that may want access to the raw body.
+		if opts.Instant {
+			// NB(nate): shared time param parsing logic modifies the form on the request to set these
+			// to the "now" string to aid in parsing. Remove these before resetting the body.
+			r.Form.Del(startParam)
+			r.Form.Del(endParam)
+		}
+
+		body := r.Form.Encode()
+		r.Body = ioutil.NopCloser(bytes.NewBufferString(body))
+	}()
 
 	// Query for namespace metadata of namespaces used to service the request
 	store := opts.Storage
@@ -147,10 +163,6 @@ func rewriteRangeDuration(
 	if r.Form.Get(queryParam) != "" {
 		r.Form.Set(queryParam, updatedQuery)
 	}
-
-	// Reset the body on the request for any handlers that may want access to the raw body.
-	updatedBody := r.Form.Encode()
-	r.Body = ioutil.NopCloser(bytes.NewBufferString(updatedBody))
 
 	logger.Debug("rewrote range duration value within query",
 		zap.String("originalQuery", query),

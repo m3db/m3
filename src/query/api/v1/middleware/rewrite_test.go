@@ -22,8 +22,10 @@ package middleware
 
 import (
 	"bytes"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -44,6 +46,7 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 		enabled  bool
 		mult     int
 		query    string
+		now      string
 		start    string
 		end      string
 		instant  bool
@@ -153,9 +156,26 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  true,
 			mult:     3,
+			now:      "1614882294",
 			instant:  true,
 			query:    "rate(foo[1m])",
 			expected: "rate(foo[1m])",
+		},
+		{
+			name: "instant query; rewrite",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  5 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled:  true,
+			mult:     3,
+			now:      "1614882294",
+			instant:  true,
+			query:    "rate(foo[30s])",
+			expected: "rate(foo[15m])",
 		},
 	}
 	for _, tt := range queryTests {
@@ -171,10 +191,36 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			opts.PrometheusRangeRewrite.ResolutionMultiplier = tt.mult
 			opts.PrometheusRangeRewrite.Instant = tt.instant
 
+			params := url.Values{}
+			params.Add("step", (time.Duration(3600) * time.Second).String())
+			if tt.instant {
+				params.Add("now", tt.now)
+			} else {
+				params.Add(startParam, tt.start)
+				params.Add(endParam, tt.end)
+			}
+			params.Add(queryParam, tt.query)
+			encodedParams := params.Encode()
+
 			h := PrometheusRangeRewrite(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, r.FormValue(queryParam), tt.expected)
+
+				enabled := tt.enabled && tt.mult > 0
+				if enabled && r.Method == "POST" {
+					params.Set("query", tt.expected)
+
+					body, err := ioutil.ReadAll(r.Body)
+					require.NoError(t, err)
+					// request body should be exactly the same with the exception of an updated
+					// query, potentially.
+					require.Equal(t, params.Encode(), string(body))
+				}
 			}))
-			opts.Route.Path("/query_range").Handler(h)
+			path := "/query_range"
+			if tt.instant {
+				path = "/query"
+			}
+			opts.Route.Path(path).Handler(h)
 
 			server := httptest.NewServer(r)
 			defer server.Close()
@@ -185,19 +231,19 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			)
 
 			// Validate as GET
-			args := "step=3600&start=" + tt.start + "&end=" + tt.end + "&query=" + tt.query
-			resp, err = server.Client().Get(server.URL + "/query_range?" + args) //nolint: noctx
+			resp, err = server.Client().Get(
+				server.URL + path + "?" + encodedParams,
+			) //nolint: noctx
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, 200, resp.StatusCode)
 
 			// Validate as POST
-			// nolint: noctx
 			resp, err = server.Client().Post(
-				server.URL+"/query_range",
+				server.URL+path,
 				"application/x-www-form-urlencoded",
-				bytes.NewReader([]byte(args)),
-			)
+				bytes.NewReader([]byte(encodedParams)),
+			) // nolint: noctx
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, 200, resp.StatusCode)
