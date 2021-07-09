@@ -5,10 +5,10 @@ weight: 2
 
 # Creating an M3 Cluster with Binaries
 
-This guide shows you the steps involved in creating an M3 cluster using M3 binaries, typically you would automate this with infrastructure as code tools such as Terraform or [Kubernetes](/docs/operator).
+This guide shows you the steps involved in creating an M3 cluster using M3 binaries, typically you would automate this with infrastructure as code tools such as Terraform or [Kubernetes](/v0.15.17/docs/operator).
 
 {{% notice note %}}
-This guide assumes you have read the [quickstart](/docs/quickstart/binaries), and builds upon the concepts in that guide.
+This guide assumes you have read the [quickstart](/v0.15.17/docs/quickstart/binaries), and builds upon the concepts in that guide.
 {{% /notice %}}
 
 ## M3 Architecture
@@ -110,7 +110,7 @@ Depending on your operating system setup, you might need to prefix the command w
 
 ### Kernel Configuration
 
-Depending on the default limits of your bare-metal machine or VM, M3 may need some Kernel tweaks to run as efficiently as possible, and [we recommend you review those](/docs/operational_guide/kernel_configuration) before running M3 in production.
+Depending on the default limits of your bare-metal machine or VM, M3 may need some Kernel tweaks to run as efficiently as possible, and [we recommend you review those](/v0.15.17/docs/operational_guide/kernel_configuration) before running M3 in production.
 
 ## Configuration files
 
@@ -119,7 +119,7 @@ You configure each M3 component by passing the location of a YAML file with the 
 The file groups configuration into `coordinator` or `db` sections that represent the `M3Coordinator` and `M3DB` instances of single-node cluster.
 
 {{% notice tip %}}
-You can find more information on configuring M3DB in the [operational guides section](/docs/operational_guide/).
+You can find more information on configuring M3DB in the [operational guides section](/v0.15.17/docs/operational_guide/).
 {{% /notice %}}
 
 {{% notice note %}}
@@ -171,9 +171,9 @@ You can daemon-ize the node startup process using your favorite utility such as 
 
 This guide uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
 
-You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
+You can create [placements](/v0.15.17/docs/operational_guide/placement_configuration/) and [namespaces](/v0.15.17/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
-In the example below, the configuration for each host matches the details outlined above for the three nodes used. `isolationGroup` specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. You should use at least as many isolation groups as your replication factor. This example uses the availability zones `us-east1-a`, `us-east1-b`, `us-east1-c` as the isolation groups which matches our replication factor of 3. [Read more details in this guide](/docs/operational_guide/replication_and_deployment_in_zones).
+In the example below, the configuration for each host matches the details outlined above for the three nodes used. `isolationGroup` specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. You should use at least as many isolation groups as your replication factor. This example uses the availability zones `us-east1-a`, `us-east1-b`, `us-east1-c` as the isolation groups which matches our replication factor of 3. [Read more details in this guide](/v0.15.17/docs/operational_guide/replication_and_deployment_in_zones).
 
 {{< tabs name="database_create" >}}
 {{% tab name="Command" %}}
@@ -260,11 +260,11 @@ Once a namespace has finished bootstrapping, you must mark it as ready before re
 
 ### Replication factor
 
-We recommend a replication factor of **3**, with each replica spread across failure domains such as a physical server rack, data center or availability zone. Read our [replication factor recommendations](/docs/operational_guide/replication_and_deployment_in_zones) for more details.
+We recommend a replication factor of **3**, with each replica spread across failure domains such as a physical server rack, data center or availability zone. Read our [replication factor recommendations](/v0.15.17/docs/operational_guide/replication_and_deployment_in_zones) for more details.
 
 ### Shards
 
-Read the [placement configuration guide](/docs/operational_guide/placement_configuration) to determine the appropriate number of shards to specify.
+Read the [placement configuration guide](/v0.15.17/docs/operational_guide/placement_configuration) to determine the appropriate number of shards to specify.
 
 {{< fileinclude file="cluster-common-steps.md" >}}
 

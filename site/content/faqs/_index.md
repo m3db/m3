@@ -5,13 +5,13 @@ chapter: true
 ---
 
 - **Is there a way to disable M3DB embedded `etcd` and just use an external `etcd` cluster?**
-Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](/docs/operational_guide/etcd#external-etcd) for more information on configuring an external `etcd` cluster.
+Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](/v0.15.17/docs/operational_guide/etcd#external-etcd) for more information on configuring an external `etcd` cluster.
 
 - **Is there a client that lets me send metrics to m3coordinator without going through Prometheus?**
 Yes, you can use the [Prometheus remote write client](https://github.com/m3db/prometheus_remote_client_golang/).
 
 - **Why does my dbnode keep OOM’ing?**
-Refer to the [troubleshooting guide](/docs/troubleshooting).
+Refer to the [troubleshooting guide](/v0.15.17/docs/troubleshooting).
 
 - **Do you support PromQL?**
 Yes, M3Query and M3Coordinator both support PromQL.
@@ -33,7 +33,7 @@ If you’re adding namespaces, the m3dbnode process will pickup the new namespac
 If you’re removing or modifying an existing namespace, you’ll need to restart the m3dbnode process in order to complete the namespace deletion/modification process. It is recommended to restart one node at a time and wait for a node to be completely bootstrapped before restarting another node.
 
 - **How do I set up aggregation in the coordinator?**
-Refer to the [Aggregation section](/docs/how_to/query) of the M3Query how-to guide.
+Refer to the [Aggregation section](/v0.15.17/docs/how_to/query) of the M3Query how-to guide.
 
 - **How do I set up aggregation using a separate aggregation tier?**
 See this [WIP documentation](https://github.com/m3db/m3/pull/1741/files#diff-0a1009f86783ca8fd4499418e556c6f5).
@@ -48,7 +48,7 @@ You can check if your nodes are snapshotting by looking at the `Background tasks
 See [M3DB OpenAPI](https://m3db.io/openapi).
 
 - **What is the recommended way to upgrade my M3 stack?**
-See the [Upgrading M3](/docs/operational_guide/upgrading_m3) guide.
+See the [Upgrading M3](/v0.15.17/docs/operational_guide/upgrading_m3) guide.
 
 - **When graphing my Prometheus data in Grafana, I see gaps. How do I resolve this?**
 This is due to M3 having a concept of `null` datapoints whereas Prometheus does not. To resolve this, change `Stacking & Null value` to `Connected` under the `Visualization` tab of your graph.
@@ -65,7 +65,7 @@ etcdClusters:
 ``` 
 
 - **How can I get a heap dump, cpu profile, etc.**
-See our docs on the [/debug/dump api](/docs/troubleshooting)
+See our docs on the [/debug/dump api](/v0.15.17/docs/troubleshooting)
 
 - **How much memory utilization should I run M3DB at?**
 We recommend not going above 50%.
@@ -74,7 +74,7 @@ We recommend not going above 50%.
 TBA
 
 - **What is the recommended way to create a new namespace?**
-Refer to the [Namespace configuration guide](/docs/operational_guide/namespace_configuration).
+Refer to the [Namespace configuration guide](/v0.15.17/docs/operational_guide/namespace_configuration).
 
 - **How can I see the cardinality of my metrics?**
 Currently, the best way is to go to the [M3DB Node Details Dashboard](https://grafana.com/grafana/dashboards/8126) and look at the `Ticking` panel. However, this is not entirely accurate because of the way data is stored in M3DB -- time series are stored inside time-based blocks that you configure. In actuality, the `Ticking` graph shows you how many unique series there are for the most recent block that has persisted. In the future, we plan to introduce easier ways to determine the number of unique time series. 

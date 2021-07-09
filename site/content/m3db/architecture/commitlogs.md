@@ -53,7 +53,7 @@ CommitLogMetadata {
 
 ### Compaction / Snapshotting
 
-Commit log files are compacted via the snapshotting proccess which (if enabled at the namespace level) will snapshot all data in memory into compressed files which have the same structure as the [fileset files](/docs/m3db/architecture/storage) but are stored in a different location. Once these snapshot files are created, then all the commit log files whose data are captured by the snapshot files can be deleted. This can result in significant disk savings for M3DB nodes running with large block sizes and high write volume where the size of the (uncompressed) commit logs can quickly get out of hand.
+Commit log files are compacted via the snapshotting proccess which (if enabled at the namespace level) will snapshot all data in memory into compressed files which have the same structure as the [fileset files](/v0.15.17/docs/m3db/architecture/storage) but are stored in a different location. Once these snapshot files are created, then all the commit log files whose data are captured by the snapshot files can be deleted. This can result in significant disk savings for M3DB nodes running with large block sizes and high write volume where the size of the (uncompressed) commit logs can quickly get out of hand.
 
 In addition, since the snapshot files are already compressed, bootstrapping from them is much faster than bootstrapping from raw commit log files because the individual datapoints don't need to be decoded and then M3TSZ encoded. The M3DB node just needs to read the raw bytes off disk and load them into memory.
 

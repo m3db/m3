@@ -66,9 +66,9 @@ The in-memory portion of M3DB is implemented via a hierarchy of objects:
 
 1.  A `database` of which there is only one per M3DB process. The `database` owns multiple `namespace`s.
 2.  A `namespace` is similar to a table in other databases. Each `namespace` has a unique name and a set of configuration options, such as data retention and block size (which we will discuss in more detail later). A namespace owns multiple `shard`s.
-3.  A [`shard`](/docs/m3db/architecture/sharding) is effectively the same as a "virtual shard" in Cassandra in that it provides an arbitrary distribution of time series data via a simple hash of the series ID. A shard owns multiple `series`.
+3.  A [`shard`](/v0.15.17/docs/m3db/architecture/sharding) is effectively the same as a "virtual shard" in Cassandra in that it provides an arbitrary distribution of time series data via a simple hash of the series ID. A shard owns multiple `series`.
 4. A `series` represents a sequence of time series datapoints. For example, the CPU utilization for a host could be represented as a series with the ID "host1.system.cpu.utilization" (or "__name__=system_cpu_utilization,host=host1"), and a vector of (TIMESTAMP, CPU_LEVEL) tuples. Visualizing this example in a graph, there would a single line with time on the x-axis and CPU utilization on the y-axis. A `series` owns a `buffer` and any cached `block`s.
-5. The `buffer` is where all data that has yet to be written to disk gets stored in memory, for a specific series. This includes both new writes to M3DB and data obtained through [bootstrapping](/docs/operational_guide/bootstrapping_crash_recovery). More details on the [buffer](/docs/m3db/architecture/engine#buffer) is explained below. Upon [flushing](/docs/m3db/architecture/engine#flushing), the buffer creates a `block` of its data to be persisted to disk.
+5. The `buffer` is where all data that has yet to be written to disk gets stored in memory, for a specific series. This includes both new writes to M3DB and data obtained through [bootstrapping](/v0.15.17/docs/operational_guide/bootstrapping_crash_recovery). More details on the [buffer](/v0.15.17/docs/m3db/architecture/engine#buffer) is explained below. Upon [flushing](/v0.15.17/docs/m3db/architecture/engine#flushing), the buffer creates a `block` of its data to be persisted to disk.
 6. A `block` represents a stream of compressed single time series data for a pre-configured block size, for example, a block could hold data for 6-8PM (block size of two hours). A `block` can arrive directly into the series only as a result of getting cached after a read request. Since blocks are in a compressed format, individual datapoints cannot be read from it. In other words, in order to read a single datapoint, the entire block up to that datapoint needs to be decompressed beforehand.
 
 ### Persistent storage
@@ -77,16 +77,16 @@ While in-memory databases can be useful (and M3DB supports operating in a memory
 
 In addition, with large volumes of data, it becomes prohibitively expensive to keep all the data in memory. This is especially true for monitoring workloads which often follow a "write-once, read-never" pattern where less than a few percent of all the data that's stored is ever read. With that type of workload, it's wasteful to keep all of that data in memory when it could be persisted on disk and retrieved when required.
 
-M3DB takes a two-pronged approach to persistent storage that involves combining a [commit log](/docs/m3db/architecture/commitlogs) for disaster recovery with periodic flushing (writing [fileset files](/docs/m3db/architecture/storage) to disk) for efficient retrieval:
+M3DB takes a two-pronged approach to persistent storage that involves combining a [commit log](/v0.15.17/docs/m3db/architecture/commitlogs) for disaster recovery with periodic flushing (writing [fileset files](/v0.15.17/docs/m3db/architecture/storage) to disk) for efficient retrieval:
 
 1.  All writes are persisted to a commit log (the commit log can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commit log is completely uncompressed and exists only to recover unflushed data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.
-2.  Periodically (based on the configured block size), all data in the buffer is flushed to disk as immutable [fileset files](/docs/m3db/architecture/storage). These files are highly compressed and can be indexed into via their complementary index files. Check out the [flushing section](#flushing) to learn more about the background flushing process.
+2.  Periodically (based on the configured block size), all data in the buffer is flushed to disk as immutable [fileset files](/v0.15.17/docs/m3db/architecture/storage). These files are highly compressed and can be indexed into via their complementary index files. Check out the [flushing section](#flushing) to learn more about the background flushing process.
 
 The block size parameter is the most important variable that needs to be tuned for a particular workload. A small block size will mean more frequent flushing and a smaller memory footprint for the data that is being actively compressed, but it will also reduce the compression ratio and data will take up more space on disk.
 
 If the database is stopped for any reason in between flushes, then when the node is started back up those writes will be recovered by reading the commit log or streaming in the data from a peer responsible for the same shard (if the replication factor is larger than one).
 
-While the fileset files are designed to support efficient data retrieval via the series ID, there is still a heavy cost associated with any query that has to retrieve data from disk because going to disk is always much slower than accessing main memory. To compensate for that, M3DB supports various [caching policies](/docs/m3db/architecture/caching) which can significantly improve the performance of reads by caching data in memory.
+While the fileset files are designed to support efficient data retrieval via the series ID, there is still a heavy cost associated with any query that has to retrieve data from disk because going to disk is always much slower than accessing main memory. To compensate for that, M3DB supports various [caching policies](/v0.15.17/docs/m3db/architecture/caching) which can significantly improve the performance of reads by caching data in memory.
 
 ## Write Path
 
@@ -99,10 +99,10 @@ We now have enough context of M3DB's architecture to discuss the lifecycle of a 
 
 M3DB will consult the database object to check if the namespace exists, and if it does, then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then an encoder in the buffer will encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some additional logic for handling multiple encoders and filesets which is discussed in the [buffer](#buffer) section.
 
-At the same time, the write will be appended to the commit log, which is periodically compacted via a snapshot process. Details of this is outlined in the [commit log](/docs/m3db/architecture/commitlogs) page.
+At the same time, the write will be appended to the commit log, which is periodically compacted via a snapshot process. Details of this is outlined in the [commit log](/v0.15.17/docs/m3db/architecture/commitlogs) page.
 
 {{% notice warning %}}
-Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured [consistency level](/docs/m3db/architecture/consistencylevels).
+Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured [consistency level](/v0.15.17/docs/m3db/architecture/consistencylevels).
 {{% /notice %}}
 
 {{% notice warning %}}
@@ -139,7 +139,7 @@ Then M3DB will need to consolidate:
 
 1.  The not-yet-sealed block from the buffer (located inside an internal lookup in the Series object) **[6PM - 8PM]**
 2.  The in-memory cached block (also located inside an internal lookup in the Series object). Since there are also cold writes in this block, the cold writes will be consolidated in memory with data found in the cached block before returning. **[4PM - 6PM]**
-3.  The block from disk (the block will be retrieved from disk and will then be cached according to the current [caching policy](/docs/m3db/architecture/caching)) **[2PM - 4PM]**
+3.  The block from disk (the block will be retrieved from disk and will then be cached according to the current [caching policy](/v0.15.17/docs/m3db/architecture/caching)) **[2PM - 4PM]**
 
 Retrieving blocks from the buffer and in-memory cache is simple, the data is already present in memory and easily accessible via hashmaps keyed by series ID. Retrieving a block from disk is more complicated. The flow for retrieving a block from disk is as follows:
 
@@ -148,7 +148,7 @@ Retrieving blocks from the buffer and in-memory cache is simple, the data is alr
 3.  Jump to the offset in the index file that we obtained from the binary search in the previous step, and begin scanning forward until we identify the index entry for the series ID we're looking for _or_ we get far enough in the index file that it becomes clear that the ID we're looking for doesn't exist (this is possible because the index file is sorted by ID)
 4.  Jump to the offset in the data file that we obtained from scanning the index file in the previous step, and begin streaming data.
 
-Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. Whether or not the client returns a success to the caller for the read is dependent on the configured [consistency level](/docs/m3db/architecture/consistencylevels).
+Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. Whether or not the client returns a success to the caller for the read is dependent on the configured [consistency level](/v0.15.17/docs/m3db/architecture/consistencylevels).
 
 **Note:** Since M3DB nodes return compressed blocks (the M3DB client decompresses them), it's not possible to return "partial results" for a given block. If any portion of a read request spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
 
@@ -217,7 +217,7 @@ M3DB has a variety of processes that run in the background during normal operati
 
 ### Flushing
 
-As discussed in the [architecture](#architecture) section, writes are actively buffered / compressed in memory and the commit log is continuously being written to, but eventually data needs to be flushed to disk in the form of [fileset files](/docs/m3db/architecture/storage) to facilitate efficient storage and retrieval.
+As discussed in the [architecture](#architecture) section, writes are actively buffered / compressed in memory and the commit log is continuously being written to, but eventually data needs to be flushed to disk in the form of [fileset files](/v0.15.17/docs/m3db/architecture/storage) to facilitate efficient storage and retrieval.
 
 This is where the configurable "block size" comes into play. The block size is simply a duration of time dictating how long new writes will be compressed (in a streaming manner) in memory before being flushed to disk. Let's use a block size of two hours as an example.
 
@@ -243,7 +243,7 @@ If there are multiple encoders for a block, they need to be merged before flushi
 
 #### Removing expired / flushed series and blocks from memory
 
-Depending on the configured [caching policy](/docs/m3db/architecture/caching), the [in-memory object layout](#in-memory-object-layout) can end up with references to series or data blocks that are expired (have fallen out of the retention period) or no longer needed to be in memory (due to the data being flushed to disk or no longer needing to be cached). The background tick will identify these structures and release them from memory.
+Depending on the configured [caching policy](/v0.15.17/docs/m3db/architecture/caching), the [in-memory object layout](#in-memory-object-layout) can end up with references to series or data blocks that are expired (have fallen out of the retention period) or no longer needed to be in memory (due to the data being flushed to disk or no longer needing to be cached). The background tick will identify these structures and release them from memory.
 
 #### Clean up of expired data
 

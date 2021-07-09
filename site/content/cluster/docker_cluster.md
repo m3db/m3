@@ -9,7 +9,7 @@ draft: true
 This guide shows you the steps involved in creating an M3 cluster using Docker containers, typically you would automate this with infrastructure as code tools such as Terraform or Kubernetes.
 
 {{% notice note %}}
-This guide assumes you have read the [quickstart](/docs/quickstart), and builds upon the concepts in that guide.
+This guide assumes you have read the [quickstart](/v0.15.17/docs/quickstart), and builds upon the concepts in that guide.
 {{% /notice %}}
 
 ## M3 Architecture

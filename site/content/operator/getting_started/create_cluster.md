@@ -5,7 +5,7 @@ weight: 12
 chapter: true
 ---
 
-Once you've [installed](/docs/operator/getting_started/installation) the M3DB operator and read over the [requirements](/docs/operator/getting_started/requirements), you can start
+Once you've [installed](/v0.15.17/docs/operator/getting_started/installation) the M3DB operator and read over the [requirements](/v0.15.17/docs/operator/getting_started/requirements), you can start
 creating some M3DB clusters!
 
 ## Basic Cluster
@@ -148,7 +148,7 @@ spec:
 ```
 
 This will create a highly available cluster with RF=3 spread evenly across the three given zones within a region. A
-pod's UID will be used for its [identity][pod-identity]. The cluster will have 1 [namespace](/docs/operator/configuration/namespaces) that stores
+pod's UID will be used for its [identity][pod-identity]. The cluster will have 1 [namespace](/v0.15.17/docs/operator/configuration/namespaces) that stores
 metrics for 2 days at 10s resolution.
 
 Next, apply your manifest:

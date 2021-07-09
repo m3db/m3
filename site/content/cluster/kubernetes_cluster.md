@@ -8,11 +8,11 @@ weight: 1
 This guide shows you how to create an M3 cluster of 3 nodes, designed to run locally on the same machine. It is designed to show you how M3 and Kubernetes can work together, but not as a production example.
 
 {{% notice note %}}
-This guide assumes you have read the [quickstart](/docs/quickstart/docker), and builds upon the concepts in that guide.
+This guide assumes you have read the [quickstart](/v0.15.17/docs/quickstart/docker), and builds upon the concepts in that guide.
 {{% /notice %}}
 
 {{% notice tip %}}
-We recommend you use [our Kubernetes operator](/docs/operator/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
+We recommend you use [our Kubernetes operator](/v0.15.17/docs/operator/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
 {{% /notice %}}
 
 ## Prerequisites

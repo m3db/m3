@@ -75,7 +75,7 @@ promremotecli_log 2019/06/25 04:13:56 write success
 # quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
 ```
 
-For more details on querying data in PromQL that was written using this endpoint, see the [query API documentation](/docs/m3query/api/query).
+For more details on querying data in PromQL that was written using this endpoint, see the [query API documentation](/v0.15.17/docs/m3query/api/query).
 
 ## Remote Read
 

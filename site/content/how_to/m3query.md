@@ -1,35 +1,56 @@
 ---
-title: Setting up M3 Query
-menuTitle: M3Query
+title: Query Data with M3 Query
 weight: 4
 ---
 
-M3 Query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with [m3coordinator](/v0.15.17/docs/integrations/prometheus), you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as [block processing](/v0.15.17/docs/m3query/architecture/blocks/). Furthermore, since m3query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.
+{{< fileinclude file="m3query_intro.md" >}}
 
-## Configuration
+## Prerequisites
 
-Before setting up m3query, make sure that you have at least [one M3DB node running](/v0.15.17/docs/quickstart). In order to start m3query, you need to configure a `yaml` file, that will be used to connect to M3DB. Here is a link to a [sample config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) file that is used for an embedded etcd cluster within M3DB.
+Before running M3 Query, you need to have at least [one M3DB node running](/v0.15.17/docs/quickstart).
 
-### Running
+## Configuring M3 Query
 
-You can run m3query by either building and running the binary yourself:
+To start M3 Query, you need a YAML configuration file that specifies the M3 nodes it connects to.
+
+{{% notice tip %}}
+You can use [this sample configuration file](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) for experimenting with a local cluster that uses an embedded etcd cluster. [Read the etcd documentation](/v0.15.17/docs/operational_guide/etcd) for more details on running in production with an external etcd cluster.
+{{% /notice %}}
+
+## Running M3 Query
+
+{{< tabs name="run_m3query" >}}
+{{% tab name="Prebuilt Binaries" %}}
+
+M3 Query has pre-built binaries available for Linux and macOS. [Download the latest release from GitHub](https://github.com/m3db/m3/releases/latest).
+
+[Download the sample configuration file](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) mentioned above.
+
+```shell
+./bin/m3query -f .m3query-local-etcd.yml
+```
+
+{{% /tab %}}
+{{% tab name="Self-built binary" %}}
+
+{{< fileinclude file="build_prerequisites.md" >}}
+
+Build and run the binary:
 
 ```shell
 make m3query
 ./bin/m3query -f ./src/query/config/m3query-local-etcd.yml
 ```
 
-Or you can run it with Docker using the Docker file located at `$GOPATH/src/github.com/m3db/m3/docker/m3query/Dockerfile`.
+{{% /tab %}}
+{{% tab name="Docker" %}}
 
-### Namespaces
+```shell
+docker run quay.io/m3db/m3query:v1.1.0
+```
 
-All namespaces that you wish to query from must be configured when [setting up M3DB](/v0.15.17/docs/quickstart). If you wish to add or change an existing namespace, please follow the namespace operational guide [here](/v0.15.17/docs/operational_guide/namespace_configuration).
-
-### etcd
-
-The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an [external etcd](/v0.15.17/docs/operational_guide/etcd) cluster.
-
-<!-- TODO: link to etcd operational guide -->
+{{% /tab %}}
+{{< /tabs >}}
 
 ## Aggregation
 
@@ -68,7 +89,6 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
   }
 }'
 ```
-
 
 ### Disabling automatic aggregation
 

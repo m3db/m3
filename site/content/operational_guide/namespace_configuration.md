@@ -3,7 +3,7 @@ title: "Namespace Configuration"
 weight: 8
 ---
 
-Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces and the technical details of their implementation, read our [storage engine documentation](/docs/m3db/architecture/engine).
+Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces and the technical details of their implementation, read our [storage engine documentation](/v0.15.17/docs/m3db/architecture/engine).
 
 ## Namespace Operations
 
@@ -131,7 +131,7 @@ in duration format as opposed to nanoseconds (default).
 
 ### bootstrapEnabled
 
-This controls whether M3DB will attempt to [bootstrap](/docs/operational_guide/bootstrapping_crash_recovery) the namespace on startup. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` can cause data loss when restarting nodes.
+This controls whether M3DB will attempt to [bootstrap](/v0.15.17/docs/operational_guide/bootstrapping_crash_recovery) the namespace on startup. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` can cause data loss when restarting nodes.
 
 Can be modified without creating a new namespace: `yes`
 
@@ -149,7 +149,7 @@ Can be modified without creating a new namespace: `yes`
 
 ### snapshotEnabled
 
-This controls whether M3DB will periodically write out [snapshot files](/docs/m3db/architecture/commitlogs) for this namespace which act as compacted commitlog files. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).
+This controls whether M3DB will periodically write out [snapshot files](/v0.15.17/docs/m3db/architecture/commitlogs) for this namespace which act as compacted commitlog files. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).
 
 Can be modified without creating a new namespace: `yes`
 
@@ -167,7 +167,7 @@ Can be modified without creating a new namespace: `yes`
 
 #### blockSize
 
-This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](/docs/m3db/architecture/storage) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression. In testing, good compression occurs with blocksizes containing around 720 samples per timeseries.
+This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](/v0.15.17/docs/m3db/architecture/storage) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression. In testing, good compression occurs with blocksizes containing around 720 samples per timeseries.
 
 Can be modified without creating a new namespace: `no`
 

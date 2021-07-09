@@ -11,7 +11,7 @@ M3 supports ingesting Graphite metrics using the [Carbon plaintext protocol](htt
 
 ## Ingestion
 
-Setting up the M3 stack to ingest carbon metrics is straightforward. First, make sure you've followed our [other documentation](/docs/quickstart) to get m3coordinator and M3DB setup. Also, familiarize yourself with how M3 [handles aggregation](/docs/how_to/query).
+Setting up the M3 stack to ingest carbon metrics is straightforward. First, make sure you've followed our [other documentation](/v0.15.17/docs/quickstart) to get m3coordinator and M3DB setup. Also, familiarize yourself with how M3 [handles aggregation](/v0.15.17/docs/how_to/query).
 
 Once you have both of those services running properly, modify your m3coordinator configuration to add the following lines and restart it:
 
@@ -21,7 +21,7 @@ carbon:
     listenAddress: "0.0.0.0:7204"
 ```
 
-This will enable a line-based TCP carbon ingestion server on the specified port. By default, the server will write all carbon metrics to every aggregated namespace specified in the m3coordinator [configuration file](/docs/how_to/query) and aggregate them using a default strategy of `mean` (equivalent to Graphite's `Average`).
+This will enable a line-based TCP carbon ingestion server on the specified port. By default, the server will write all carbon metrics to every aggregated namespace specified in the m3coordinator [configuration file](/v0.15.17/docs/how_to/query) and aggregate them using a default strategy of `mean` (equivalent to Graphite's `Average`).
 
 This default setup makes sense if your carbon metrics are unaggregated, however, if you've already aggregated your data using something like [statsite](https://github.com/statsite/statsite) then you may want to disable M3 aggregation. In that case, you can do something like the following:
 
