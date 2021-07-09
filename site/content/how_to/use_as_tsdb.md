@@ -6,13 +6,13 @@ title: Using M3DB as a general purpose time series database
 
 ## Overview
 
-M3 has native integrations that make it particularly easy to use it as a metrics storage for [Prometheus](/docs/integrations/prometheus) and [Graphite](/docs/integrations/graphite). M3DB can also be used as a general purpose distributed time series database by itself.
+M3 has native integrations that make it particularly easy to use it as a metrics storage for [Prometheus](/v1.0/docs/integrations/prometheus) and [Graphite](/v1.0/docs/integrations/graphite). M3DB can also be used as a general purpose distributed time series database by itself.
 
 ## Data Model
 
 ### IDs and Tags
 
-M3DB's data model allows multiple namespaces, each of which can be [configured and tuned independently](/docs/operational_guide/namespace_configuration).
+M3DB's data model allows multiple namespaces, each of which can be [configured and tuned independently](/v1.0/docs/operational_guide/namespace_configuration).
 
 Each namespace can also be configured with its own schema (see "Schema Modeling" section below).
 
@@ -114,7 +114,7 @@ For more details on the compression scheme and its limitations, review [the docu
 
 #### M3DB setup
 
-For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](/docs/cluster/binaries_cluster) or [using Kubernetes](/docs/cluster/kubernetes_cluster). However, this tutorial will walk you through configuring a single node setup locally for development.
+For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](/v1.0/docs/cluster/binaries_cluster) or [using Kubernetes](/v1.0/docs/cluster/kubernetes_cluster). However, this tutorial will walk you through configuring a single node setup locally for development.
 
 First, run the following command to pull the latest M3DB image:
 

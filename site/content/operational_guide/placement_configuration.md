@@ -5,7 +5,7 @@ weight: 7
 
 M3DB was designed from the ground up to be a distributed (clustered) database that is availability zone or rack aware (by using isolation groups). Clusters will seamlessly scale with your data, and you can start with a small number of nodes and grow it to a size of several hundred nodes with no downtime or expensive migrations.
 
-Before reading the rest of this document, we recommend familiarizing yourself with the [M3DB placement documentation](/docs/operational_guide/placement).
+Before reading the rest of this document, we recommend familiarizing yourself with the [M3DB placement documentation](/v1.0/docs/operational_guide/placement).
 
 **Note**: The primary limiting factor for the maximum size of an M3DB cluster is the number of shards. Picking an appropriate number of shards is more of an art than a science, but our recommendation is as follows:
 
@@ -76,7 +76,7 @@ The instructions below all contain sample curl commands, but you can always revi
 
 `http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
-**Note**: The [peers bootstrapper](/docs/operational_guide/bootstrapping_crash_recovery) must be configured on all nodes in the M3DB cluster for placement changes to work. The `peers` bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration
+**Note**: The [peers bootstrapper](/v1.0/docs/operational_guide/bootstrapping_crash_recovery) must be configured on all nodes in the M3DB cluster for placement changes to work. The `peers` bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration
 
 Additionally, the following headers can be used in the placement operations: 
 
@@ -156,7 +156,7 @@ After sending the delete command you will need to wait for the M3DB cluster to r
 
 #### Adding / Removing Seed Nodes
 
-If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an [external etcd](/docs/operational_guide/etcd) cluster, as
+If you find yourself adding or removing etcd seed nodes then we highly recommend setting up an [external etcd](/v1.0/docs/operational_guide/etcd) cluster, as
 the overhead of operating two stateful systems at once is non-trivial. As this is not a recommended production setup,
 this section is intentionally brief.
 

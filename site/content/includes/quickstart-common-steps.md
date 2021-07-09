@@ -19,7 +19,7 @@ For example, if the cluster placement states that node A owns shards 1, 2, and 3
 
 This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
 
-You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
+You can create [placements](/v1.0/docs/operational_guide/placement_configuration/) and [namespaces](/v1.0/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
 In another terminal, use the following command.
 
@@ -185,7 +185,7 @@ curl {{% apiendpoint %}}services/m3db/placement | jq .
 {{< /tabs >}}
 
 {{% notice tip %}}
-[Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
+[Read more about the bootstrapping process](/v1.0/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
 
 ### Ready a Namespace
@@ -273,7 +273,7 @@ This quickstart focuses on Prometheus metrics which consist of a value, a timest
 
 You can write metrics using one of two endpoints:
 
--   _[{{% apiendpoint %}}prom/remote/write](/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
+-   _[{{% apiendpoint %}}prom/remote/write](/v1.0/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
 -   _{{% apiendpoint %}}json/write_ - Write a JSON payload of metrics data. This endpoint is quick for testing purposes but is not as performant for production usage.
 
 {{< tabs name="prom_http_write" >}}

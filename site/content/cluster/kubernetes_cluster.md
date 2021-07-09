@@ -7,11 +7,11 @@ weight: 1
 This guide shows you how to create an M3 cluster of 3 nodes, designed to run locally on the same machine. It is designed to show you how M3 and Kubernetes can work together, but not as a production example.
 
 {{% notice note %}}
-This guide assumes you have read the [quickstart](/docs/quickstart/docker), and builds upon the concepts in that guide.
+This guide assumes you have read the [quickstart](/v1.0/docs/quickstart/docker), and builds upon the concepts in that guide.
 {{% /notice %}}
 
 {{% notice tip %}}
-We recommend you use [our Kubernetes operator](/docs/operator/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
+We recommend you use [our Kubernetes operator](/v1.0/docs/operator/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
 {{% /notice %}}
 
 {{< fileinclude file="cluster-architecture.md" >}}
@@ -109,7 +109,7 @@ For example, if the cluster placement states that node A owns shards 1, 2, and 3
 
 This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
 
-You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
+You can create [placements](/v1.0/docs/operational_guide/placement_configuration/) and [namespaces](/v1.0/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
 In another terminal, use the following command.
 
@@ -275,7 +275,7 @@ curl {{% apiendpoint %}}services/m3db/placement | jq .
 {{< /tabs >}}
 
 {{% notice tip %}}
-[Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
+[Read more about the bootstrapping process](/v1.0/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
 
 ### Ready a Namespace

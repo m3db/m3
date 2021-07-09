@@ -4,7 +4,7 @@ weight: 9
 ---
 ## Introduction
 
-We recommend reading the [placement operational guide](/docs/operational_guide/placement) before reading the rest of this document.
+We recommend reading the [placement operational guide](/v1.0/docs/operational_guide/placement) before reading the rest of this document.
 
 When an M3DB node is turned on (goes through a placement change) it needs to go through a bootstrapping process to determine the integrity of data that it has, replay writes from the commit log, and/or stream missing data from its peers. In most cases, as long as you're running with the default and recommended bootstrapper configuration of: `filesystem,commitlog,peers,uninitialized_topology` then you should not need to worry about the bootstrapping process at all and M3DB will take care of doing the right thing such that you don't lose data and consistency guarantees are met. Note that the order of the configured bootstrappers *does* matter.
 
@@ -29,7 +29,7 @@ For example, imagine a M3DB node that is responsible for shards 1, 5, 13, and 25
 
 ### Filesystem Bootstrapper
 
-The `filesystem` bootstrapper's responsibility is to determine which immutable [Fileset files](/docs/m3db/architecture/storage) exist on disk, and if so, mark them as fulfilled. The `filesystem` bootstrapper achieves this by scanning M3DB's directory structure and determining which Fileset files exist on disk. Unlike the other bootstrappers, the `filesystem` bootstrapper does not need to load any data into memory, it simply verifies the checksums of the data on disk and other components of the M3DB node will handle reading (and caching) the data dynamically once it begins to serve reads.
+The `filesystem` bootstrapper's responsibility is to determine which immutable [Fileset files](/v1.0/docs/m3db/architecture/storage) exist on disk, and if so, mark them as fulfilled. The `filesystem` bootstrapper achieves this by scanning M3DB's directory structure and determining which Fileset files exist on disk. Unlike the other bootstrappers, the `filesystem` bootstrapper does not need to load any data into memory, it simply verifies the checksums of the data on disk and other components of the M3DB node will handle reading (and caching) the data dynamically once it begins to serve reads.
 
 ### Commitlog Bootstrapper
 

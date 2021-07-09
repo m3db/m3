@@ -5,7 +5,7 @@ weight: 11
 chapter: true
 ---
 
-Be sure to take a look at the [requirements](/docs/operator/getting_started/requirements) before installing the operator.
+Be sure to take a look at the [requirements](/v1.0/docs/operator/getting_started/requirements) before installing the operator.
 
 ## Helm
 

@@ -9,11 +9,11 @@ M3 Coordinator is a service that coordinates reads and writes between upstream s
 
 ## M3DB
 
-M3DB is a distributed time series database that provides scalable storage and a reverse index of time series. It is optimized as a cost effective and reliable realtime and long term retention metrics store and index.  For more details, see the [M3DB documentation](/docs/m3db/).
+M3DB is a distributed time series database that provides scalable storage and a reverse index of time series. It is optimized as a cost effective and reliable realtime and long term retention metrics store and index.  For more details, see the [M3DB documentation](/v1.0/docs/m3db/).
 
 ## M3 Query
 
-M3 Query is a service that houses a distributed query engine for querying both realtime and historical metrics, supporting several different query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over much larger datasets, for analytical use cases.  For more details, see the [query engine documentation](/docs/m3query/).
+M3 Query is a service that houses a distributed query engine for querying both realtime and historical metrics, supporting several different query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over much larger datasets, for analytical use cases.  For more details, see the [query engine documentation](/v1.0/docs/m3query/).
 
 ## M3 Aggregator
 

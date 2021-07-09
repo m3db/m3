@@ -1,5 +1,5 @@
 *   `M3-Metrics-Type`:  
-    If this header is set, it determines what type of metric to store this metric value as. Otherwise by default, metrics will be stored in all namespaces that are configured. You can also disable this default behavior by setting `downsample` options to `all: false` for a namespace in the coordinator config, for more see [disabling automatic aggregation](/docs/how_to/query.md#disabling-automatic-aggregation).
+    If this header is set, it determines what type of metric to store this metric value as. Otherwise by default, metrics will be stored in all namespaces that are configured. You can also disable this default behavior by setting `downsample` options to `all: false` for a namespace in the coordinator config, for more see [disabling automatic aggregation](/v1.0/docs/how_to/query.md#disabling-automatic-aggregation).
 
      Must be one of:  
     `unaggregated`: Write metrics directly to configured unaggregated namespace.  

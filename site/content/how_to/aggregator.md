@@ -12,7 +12,7 @@ Similar to M3DB, `m3aggregator` supports clustering and replication by default. 
 
 ## Configuration
 
-Before setting up m3aggregator, make sure that you have at least [one M3DB node running](/docs/quickstart) and a dedicated m3coordinator setup.
+Before setting up m3aggregator, make sure that you have at least [one M3DB node running](/v1.0/docs/quickstart) and a dedicated m3coordinator setup.
 
 We highly recommend running with at least a replication factor 2 for a `m3aggregator` deployment. If you run with replication factor 1 then when you restart an aggregator it will temporarily interrupt good the stream of aggregated metrics and there will be some data loss.
 

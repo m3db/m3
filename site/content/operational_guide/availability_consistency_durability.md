@@ -20,7 +20,7 @@ While reading it, we recommend referring to [the default configuration file](htt
 We recommend running the client with `writeConsistencyLevel` set to `majority` and `readConsistencyLevel` set to `unstrict_majority`.
 This means that all write must be acknowledged by a quorums of nodes in order to be considered succesful, and that reads will attempt to achieve quorum, but will return the data from a single node if they are unable to achieve quorum. This ensures that reads will normally ensure consistency, but degraded conditions will cause reads to fail outright as long as at least a single node can satisfy the request.
 
-You can read about the consistency levels in more detail in [the Consistency Levels section](/docs/m3db/architecture/consistencylevels)
+You can read about the consistency levels in more detail in [the Consistency Levels section](/v1.0/docs/m3db/architecture/consistencylevels)
 
 ### Commitlog Configuration
 
@@ -90,12 +90,12 @@ This issue requires an operator with significant M3DB operational experience to 
 
 The most important thing to understand is that **if you want to guarantee that you will be able to read the result of every successful write, then both writes and reads must be done with `majority` consistency.**
 This means that both writes _and_ reads will fail if a quorum of nodes are unavailable for a given shard.
-You can read about the consistency levels in more detail in [the Consistency Levels section](/docs/m3db/architecture/consistencylevels)
+You can read about the consistency levels in more detail in [the Consistency Levels section](/v1.0/docs/m3db/architecture/consistencylevels)
 
 ### Commitlog Configuration
 
 M3DB supports running the commitlog synchronously such that every write is flushed to disk and fsync'd before the client receives a successful acknowledgement, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
-We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](/docs/operational_guide/bootstrapping_crash_recovery).
+We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](/v1.0/docs/operational_guide/bootstrapping_crash_recovery).
 
 ### Writing New Series Asynchronously
 
