@@ -390,7 +390,7 @@ func newNamespaceIndexWithOptions(
 		index.BlockOptions{ActiveBlock: true}, idx.namespaceRuntimeOptsMgr,
 		idx.opts.IndexOptions())
 	if err != nil {
-		return nil, err
+		return nil, idx.unableToAllocBlockInvariantError(err)
 	}
 
 	idx.activeBlock = activeBlock

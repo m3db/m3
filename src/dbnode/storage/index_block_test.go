@@ -143,15 +143,22 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 
 	mockBlock := index.NewMockBlock(ctrl)
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
-	mockBlock.EXPECT().Close().Return(nil)
+	mockBlock.EXPECT().StartTime().Return(now.Truncate(blockSize)).AnyTimes()
+	mockBlock.EXPECT().Close().Return(nil).AnyTimes()
 	newBlockFn := func(
 		ts xtime.UnixNano,
 		md namespace.Metadata,
-		_ index.BlockOptions,
+		opts index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
-		require.Equal(t, now.Truncate(blockSize), ts)
+		// If active block, the blockStart should be zero.
+		// Otherwise, it should match the actual time.
+		if opts.ActiveBlock {
+			require.Equal(t, xtime.UnixNano(0), ts)
+		} else {
+			require.Equal(t, now.Truncate(blockSize), ts)
+		}
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
@@ -167,7 +174,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	blocksSlice := index.(*nsIndex).state.blocksDescOrderImmutable
 
 	require.Equal(t, 1, len(blocksSlice))
-	require.Equal(t, now.Truncate(blockSize), blocksSlice[0])
+	require.Equal(t, now.Truncate(blockSize), blocksSlice[0].blockStart)
 
 	require.Equal(t, mockBlock, index.(*nsIndex).state.latestBlock)
 
