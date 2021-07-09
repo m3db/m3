@@ -77,7 +77,7 @@ func newMockStorage(
 		query *storage.FetchQuery,
 		options *storage.FetchOptions,
 	) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
-		var cleanup = func() error {
+		cleanup := func() error {
 			return nil
 		}
 		if opts.cleanup != nil {
@@ -261,7 +261,6 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 	_, err := client.FetchProm(ctx, read, readOpts)
 
 	require.Error(t, err)
-
 }
 
 func TestMultipleClientRpc(t *testing.T) {
@@ -291,7 +290,6 @@ func TestMultipleClientRpc(t *testing.T) {
 		wg.Add(1)
 		client := client
 		go func() {
-
 			checkFetch(ctx, t, client, read, readOpts)
 			wg.Done()
 		}()
@@ -377,8 +375,10 @@ func TestBatchedFetch(t *testing.T) {
 	ctx, read, readOpts := createCtxReadOpts(t)
 	exNames := []string{"baz", "foo"}
 	exValues := []string{"qux", "bar"}
-	sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
-		defaultBatch + 1, defaultBatch*2 + 1}
+	sizes := []int{
+		0, 1, defaultBatch - 1, defaultBatch,
+		defaultBatch + 1, defaultBatch*2 + 1,
+	}
 
 	for _, size := range sizes {
 		var (
@@ -437,8 +437,10 @@ func TestBatchedSearch(t *testing.T) {
 	defer ctrl.Finish()
 
 	ctx, q, readOpts := createCtxReadOpts(t)
-	sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
-		defaultBatch + 1, defaultBatch*2 + 1}
+	sizes := []int{
+		0, 1, defaultBatch - 1, defaultBatch,
+		defaultBatch + 1, defaultBatch*2 + 1,
+	}
 	for _, size := range sizes {
 		var (
 			msg     = fmt.Sprintf("batch size: %d", size)
@@ -508,8 +510,10 @@ func TestBatchedCompleteTags(t *testing.T) {
 			CompleteNameOnly: nameOnly,
 		}
 
-		sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
-			defaultBatch + 1, defaultBatch*2 + 1}
+		sizes := []int{
+			0, 1, defaultBatch - 1, defaultBatch,
+			defaultBatch + 1, defaultBatch*2 + 1,
+		}
 		for _, size := range sizes {
 			var (
 				msg  = fmt.Sprintf("batch size: %d, name only: %t", size, nameOnly)
@@ -536,7 +540,7 @@ func TestBatchedCompleteTags(t *testing.T) {
 				Metadata: block.ResultMetadata{
 					Exhaustive: false,
 					LocalOnly:  true,
-					Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+					Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 				},
 			}
 

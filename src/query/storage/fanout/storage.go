@@ -175,7 +175,6 @@ func (s *fanoutStorage) FetchProm(
 				r.Metadata.Warnings = append(r.Metadata.Warnings, warnings...)
 				accumulator.Add(r)
 			}
-
 		}()
 	}
 
