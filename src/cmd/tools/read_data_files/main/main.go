@@ -31,9 +31,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/tools"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/getopt"
@@ -114,6 +117,8 @@ func main() {
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
+	encodingOpts := encoding.NewOptions().SetBytesPool(bytesPool)
+
 	var (
 		seriesCount         = 0
 		datapointCount      = 0
@@ -123,11 +128,13 @@ func main() {
 		metricsMap = make(map[string]struct{})
 	)
 
+	fmt.Printf("Reading shards [0-%d)\n", *optShard)
+
 	for shardID := uint32(0); shardID < *optShard; shardID++ {
 
 		reader, err := fs.NewReader(bytesPool, fsOpts)
 		if err != nil {
-			log.Fatalf("could not create new reader: %v", err)
+			log.Fatalf("could not create new reader for shard %d: %v", shardID, err)
 		}
 
 		openOpts := fs.DataReaderOpenOptions{
@@ -147,9 +154,7 @@ func main() {
 		}
 
 		nameTag := ident.BytesID("__name__")
-		jobTag := ident.BytesID("job")
-		spuSerialTag := ident.BytesID("spu_serial")
-		orgTag := ident.BytesID("org")
+		//jobTag := ident.BytesID("job")
 
 		for {
 			entry, err := reader.StreamingRead()
@@ -166,28 +171,36 @@ func main() {
 				continue
 			}
 
+			hasAnnotation := false
+			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(entry.Data), true, encodingOpts)
+			if iter.Next() {
+				_, _, annotation := iter.Current()
+				hasAnnotation = len(annotation) > 0
+			}
+			if err := iter.Err(); err != nil {
+				log.Fatalf("unable to iterate original data: %v", err)
+			}
+			iter.Close()
+
+			if hasAnnotation {
+				continue
+			}
+
 			doc, err := convert.FromSeriesIDAndEncodedTags(id, entry.EncodedTags)
 			if err != nil {
 				log.Fatalf("err decoding tags: %v", err)
 			}
-			var name, job []byte
-			var hasSPUSerial, hasOrg bool
+			var name []byte
 			for _, field := range doc.Fields {
 				if bytes.Equal(field.Name, nameTag) {
 					name = field.Value
 				}
-				if bytes.Equal(field.Name, jobTag) {
-					job = field.Value
-				}
-				if bytes.Equal(field.Name, spuSerialTag) {
-					hasSPUSerial = true
-				}
-				if bytes.Equal(field.Name, orgTag) {
-					hasOrg = true
-				}
+				//if bytes.Equal(field.Name, jobTag) {
+				//	job = field.Value
+				//}
 			}
 
-			res := fmt.Sprintf("%s,%s,%t,%t", name, job, hasSPUSerial, hasOrg)
+			res := fmt.Sprintf("%s", name)
 			metricsMap[res] = struct{}{}
 
 			seriesCount++
