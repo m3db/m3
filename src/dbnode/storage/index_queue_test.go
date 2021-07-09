@@ -147,6 +147,9 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(now.Truncate(idx.blockSize))
+	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
+		Return(false).
+		AnyTimes()
 	entry, document := testWriteBatchEntry(id, tags, now, lifecycle)
 	assert.Error(t, idx.WriteBatch(testWriteBatch(entry, document,
 		testWriteBatchBlockSizeOption(idx.blockSize))))
