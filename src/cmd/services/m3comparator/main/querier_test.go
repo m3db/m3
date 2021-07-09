@@ -21,6 +21,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -97,7 +98,7 @@ func TestFetchCompressed(t *testing.T) {
 			query := matcherQuery(t, tt.queryTagName, tt.queryTagValue)
 			querier := setupQuerier(ctrl, query)
 
-			result, cleanup, err := querier.FetchCompressedResult(nil, query, nil)
+			result, cleanup, err := querier.FetchCompressedResult(context.TODO(), query, nil)
 			assert.NoError(t, err)
 			defer cleanup()
 
@@ -293,7 +294,7 @@ func TestGenerateRandomSeries(t *testing.T) {
 			querier, err := setupRandomGenQuerier(ctrl)
 			assert.NoError(t, err)
 
-			result, cleanup, err := querier.FetchCompressedResult(nil, tt.givenQuery, nil)
+			result, cleanup, err := querier.FetchCompressedResult(context.TODO(), tt.givenQuery, nil)
 			assert.NoError(t, err)
 			defer cleanup()
 
@@ -316,7 +317,7 @@ func TestHistogramBucketsAddUp(t *testing.T) {
 	assert.NoError(t, err)
 
 	histogramQuery := matcherQuery(t, metricNameTag, "histogram_1_bucket")
-	result, cleanup, err := querier.FetchCompressedResult(nil, histogramQuery, nil)
+	result, cleanup, err := querier.FetchCompressedResult(context.TODO(), histogramQuery, nil)
 	assert.NoError(t, err)
 	defer cleanup()
 

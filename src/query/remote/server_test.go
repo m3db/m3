@@ -77,7 +77,9 @@ func newMockStorage(
 		query *storage.FetchQuery,
 		options *storage.FetchOptions,
 	) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
-		var cleanup = func() error { return nil }
+		var cleanup = func() error {
+			return nil
+		}
 		if opts.cleanup != nil {
 			cleanup = opts.cleanup
 		}

@@ -37,11 +37,9 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/util/execution"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
 )
 
 const (
@@ -125,11 +123,10 @@ func (s *fanoutStorage) FetchProm(
 		wg         sync.WaitGroup
 		multiErr   xerrors.MultiError
 		numWarning int
-		series     []*prompb.TimeSeries
 	)
 
 	wg.Add(len(stores))
-	resultMeta := block.NewResultMetadata()
+
 	fanout := consolidators.NamespaceCoversAllQueryRange
 	pools := s.opts.IteratorPools()
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
@@ -139,7 +136,9 @@ func (s *fanoutStorage) FetchProm(
 		RequireExhaustive: options.RequireExhaustive,
 	}
 	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
-	defer accumulator.Close()
+	defer func() {
+		_ = accumulator.Close()
+	}()
 	for _, store := range stores {
 		store := store
 		go func() {
@@ -161,25 +160,22 @@ func (s *fanoutStorage) FetchProm(
 						zap.Error(err),
 						zap.String("store", store.Name()),
 						zap.String("function", "FetchProm"))
+				} else {
+					multiErr = multiErr.Add(err)
+					s.instrumentOpts.Logger().Error(
+						"fanout to store returned error",
+						zap.Error(err),
+						zap.String("store", store.Name()),
+						zap.String("function", "FetchProm"))
 					return
 				}
-
-				multiErr = multiErr.Add(err)
-				s.instrumentOpts.Logger().Error(
-					"fanout to store returned error",
-					zap.Error(err),
-					zap.String("store", store.Name()),
-					zap.String("function", "FetchProm"))
-				return
 			}
 
-			if series == nil {
-				series = result.PromResult.GetTimeseries()
-			} else {
-				series = append(series, result.PromResult.GetTimeseries()...)
+			for _, r := range storeResult.Results() {
+				r.Metadata.Warnings = append(r.Metadata.Warnings, warnings...)
+				accumulator.Add(r)
 			}
 
-			resultMeta = resultMeta.CombineMetadata(result.Metadata)
 		}()
 	}
 
@@ -238,7 +234,9 @@ func (s *fanoutStorage) FetchCompressed(
 		RequireExhaustive: options.RequireExhaustive,
 	}
 	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
-	defer accumulator.Close()
+	defer func() {
+		_ = accumulator.Close()
+	}()
 	for _, store := range stores {
 		store := store
 		go func() {

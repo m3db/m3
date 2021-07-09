@@ -180,7 +180,7 @@ func NewGRPCClient(
 	return c, nil
 }
 
-func (s *grpcClient) QueryStorageMetadataAttributes(
+func (c *grpcClient) QueryStorageMetadataAttributes(
 	ctx context.Context,
 	queryStart, queryEnd time.Time,
 	opts *storage.FetchOptions,

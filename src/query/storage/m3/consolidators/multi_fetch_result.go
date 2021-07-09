@@ -198,14 +198,13 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	newIterators := add.SeriesIterators
 	metadata := add.Metadata
 	attrs := add.Attrs
-	err := add.Err
 
 	r.Lock()
 	defer r.Unlock()
 
 	r.all = append(r.all, add)
 
-	if err != nil {
+	if err := add.Err; err != nil {
 		r.err = r.err.Add(err)
 		return
 	}

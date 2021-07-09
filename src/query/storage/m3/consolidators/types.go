@@ -70,6 +70,8 @@ func (t QueryFanoutType) String() string {
 	}
 }
 
+// MultiFetchResults is a deduping accumalator for series iterators
+// that allows merging using a given strategy.
 type MultiFetchResults struct {
 	SeriesIterators encoding.SeriesIterators
 	Metadata        block.ResultMetadata

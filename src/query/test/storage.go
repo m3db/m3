@@ -37,7 +37,8 @@ type slowStorage struct {
 	delay   time.Duration
 }
 
-func (s *slowStorage) FetchCompressed(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
+func (s *slowStorage) FetchCompressed(ctx context.Context,
+	query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
 	time.Sleep(s.delay)
 	return s.storage.FetchCompressed(ctx, query, options)
 }

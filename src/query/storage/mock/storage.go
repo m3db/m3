@@ -93,7 +93,8 @@ func NewMockStorage() Storage {
 	return &mockStorage{}
 }
 
-func (s *mockStorage) FetchCompressed(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
+func (s *mockStorage) FetchCompressed(ctx context.Context,
+	query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
 	panic("implement me")
 }
 

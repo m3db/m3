@@ -166,7 +166,7 @@ func TestQueryStorageMetadataAttributes(t *testing.T) {
 	stores := []storage.Storage{store1}
 
 	store := NewStorage(stores, filterFunc(false), filterFunc(false),
-		filterCompleteTagsFunc(false), models.NewTagOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(false), models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 
 	attrs, err := store.QueryStorageMetadataAttributes(
 		context.Background(),
@@ -210,7 +210,7 @@ func TestQueryStorageMetadataAttributesMultipleStores(t *testing.T) {
 	stores := []storage.Storage{store1, store2}
 
 	store := NewStorage(stores, filterFunc(false), filterFunc(false),
-		filterCompleteTagsFunc(false), models.NewTagOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(false), models.NewTagOptions(), m3db.NewOptions(), instrument.NewOptions())
 
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.FanoutOptions.FanoutAggregated = storage.FanoutForceEnable
