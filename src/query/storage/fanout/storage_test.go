@@ -536,7 +536,7 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 	assert.NoError(t, err)
 
 	series := result.PromResult.GetTimeseries()
-	require.Equal(t, 1, len(series))
+	require.Equal(t, 2, len(series))
 }
 
 func fetchResult(name string) consolidators.MultiFetchResult {
