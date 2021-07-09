@@ -34,7 +34,7 @@
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 metaDataFormat = "yaml"
 # theme = "docs-theme"
-# baseURL = "/"
+baseURL = "/v1.0/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
 defaultContentLanguageInSubdir = true
@@ -61,18 +61,18 @@ pygmentsUseClassic = false
 # enableGitInfo = true
 
 [permalinks]
-  "/" = "/v1.0/docs/:section/:filename/"
-  "faqs" = "/v1.0/docs/:section/:filename/"
-  "glossaries" = "/v1.0/docs/:section/:filename/"
-  "how_tos" = "/v1.0/docs/:section/:filename/"
-  "integrations" = "/v1.0/docs/:section/:filename/"
-  "m3coordinators" = "/v1.0/docs/:section/:filename/"
-  "m3dbs" = "/v1.0/docs/:section/:filename/"
-  "m3querys" = "/v1.0/docs/:section/:filename/"
-  "operational_guides" = "/v1.0/docs/:section/:filename/"
-  "overviews" = "/v1.0/docs/:section/:filename/"
-  "quickstarts" = "/v1.0/docs/:section/:filename/"
-  "troubleshootings" = "/v1.0/docs/:section/:filename/"
+  "/" = "/docs/:section/:filename/"
+  "faqs" = "/docs/:section/:filename/"
+  "glossaries" = "/docs/:section/:filename/"
+  "how_tos" = "/docs/:section/:filename/"
+  "integrations" = "/docs/:section/:filename/"
+  "m3coordinators" = "/docs/:section/:filename/"
+  "m3dbs" = "/docs/:section/:filename/"
+  "m3querys" = "/docs/:section/:filename/"
+  "operational_guides" = "/docs/:section/:filename/"
+  "overviews" = "/docs/:section/:filename/"
+  "quickstarts" = "/docs/:section/:filename/"
+  "troubleshootings" = "/docs/:section/:filename/"
 
 [frontmatter]
 # date = ["date", ":filename", "publishDate", "lastmod"]
