@@ -231,19 +231,21 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			)
 
 			// Validate as GET
+			// nolint: noctx
 			resp, err = server.Client().Get(
 				server.URL + path + "?" + encodedParams,
-			) //nolint: noctx
+			)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, 200, resp.StatusCode)
 
 			// Validate as POST
+			// nolint: noctx
 			resp, err = server.Client().Post(
 				server.URL+path,
 				"application/x-www-form-urlencoded",
 				bytes.NewReader([]byte(encodedParams)),
-			) // nolint: noctx
+			)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, 200, resp.StatusCode)
