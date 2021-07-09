@@ -28,25 +28,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/x/instrument"
+
 	lightstep "github.com/lightstep/lightstep-tracer-go"
+	"github.com/m3db/m3/src/x/opentelemetry"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 	jaegerzap "github.com/uber/jaeger-client-go/log/zap"
 	jaegertally "github.com/uber/jaeger-lib/metrics/tally"
-	"go.opentelemetry.io/otel"
 	otelopentracing "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/exporters/otlp"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpgrpc"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/semconv"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -85,122 +78,11 @@ var (
 // TracingConfiguration configures an opentracing backend for m3query to use. Currently only jaeger is supported.
 // Tracing is disabled if no backend is specified.
 type TracingConfiguration struct {
-	ServiceName   string                     `yaml:"serviceName"`
-	Backend       string                     `yaml:"backend"`
-	OpenTelemetry OpenTelemetryConfiguration `yaml:"opentelemetry"`
-	Jaeger        jaegercfg.Configuration    `yaml:"jaeger"`
-	Lightstep     lightstep.Options          `yaml:"lightstep"`
-}
-
-// OpenTelemetryConfiguration is the configuration for open telemetry.
-type OpenTelemetryConfiguration struct {
-	ServiceName string `yaml:"serviceName"`
-	Endpoint    string `yaml:"endpoint"`
-	Insecure    bool   `yaml:"insecure"`
-}
-
-type traceProviderCloser struct {
-	ctx            context.Context
-	tracerProvider *sdktrace.TracerProvider
-}
-
-func newTraceProviderCloser(
-	ctx context.Context,
-	tracerProvider *sdktrace.TracerProvider,
-) io.Closer {
-	return &traceProviderCloser{
-		ctx:            ctx,
-		tracerProvider: tracerProvider,
-	}
-}
-
-func (c *traceProviderCloser) Close() error {
-	return c.tracerProvider.Shutdown(c.ctx)
-}
-
-type traceSpanProcessor struct {
-	traceStart       tally.Counter
-	traceEnd         tally.Counter
-	tracerShutdown   tally.Counter
-	tracerForceFlush tally.Counter
-}
-
-func newTraceSpanProcessor(scope tally.Scope) sdktrace.SpanProcessor {
-	traceScope := scope.SubScope("trace")
-	tracerScope := scope.SubScope("tracer")
-	return &traceSpanProcessor{
-		traceStart:       traceScope.Counter("start"),
-		traceEnd:         traceScope.Counter("end"),
-		tracerShutdown:   tracerScope.Counter("shutdown"),
-		tracerForceFlush: tracerScope.Counter("force-flush"),
-	}
-}
-
-func (p *traceSpanProcessor) OnStart(parent context.Context, s sdktrace.ReadWriteSpan) {
-	p.traceStart.Inc(1)
-}
-
-func (p *traceSpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
-	p.traceEnd.Inc(1)
-}
-
-func (p *traceSpanProcessor) Shutdown(ctx context.Context) error {
-	p.tracerShutdown.Inc(1)
-	return nil
-}
-
-func (p *traceSpanProcessor) ForceFlush(ctx context.Context) error {
-	p.tracerForceFlush.Inc(1)
-	return nil
-}
-
-func (c OpenTelemetryConfiguration) NewTraceProviderAndOpenTracingTracer(
-	ctx context.Context,
-	scope tally.Scope,
-) (
-	context.Context,
-	trace.TracerProvider,
-	opentracing.Tracer,
-	io.Closer,
-	error,
-) {
-	res, err := resource.New(ctx, resource.WithAttributes(
-		semconv.ServiceNameKey.String(c.ServiceName)))
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create resource: %w", err)
-	}
-
-	opts := []otlpgrpc.Option{
-		otlpgrpc.WithEndpoint(c.Endpoint),
-		otlpgrpc.WithDialOption(grpc.WithBlock()),
-	}
-	if c.Insecure {
-		opts = append(opts, otlpgrpc.WithInsecure())
-	}
-	driver := otlpgrpc.NewDriver(opts...)
-	traceExporter, err := otlp.NewExporter(ctx, driver)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to trace exporter: %w", err)
-	}
-
-	// Register the trace exporter with a TracerProvider, using a batch
-	// span processor to aggregate spans before export.
-	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(traceExporter)
-	tracerMetricsProcessor := newTraceSpanProcessor(scope)
-	tracerProvider := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithResource(res),
-		sdktrace.WithSpanProcessor(batchSpanProcessor),
-		sdktrace.WithSpanProcessor(tracerMetricsProcessor),
-	)
-	otel.SetTracerProvider(tracerProvider)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
-
-	// Tracer created without name with receive the default tracer name.
-	tracer := tracerProvider.Tracer("")
-	ctx, bridgeTracer, wrappedTracer := otelopentracing.NewTracerPairWithContext(ctx, tracer)
-	closer := newTraceProviderCloser(ctx, tracerProvider)
-	return ctx, wrappedTracer, bridgeTracer, closer, nil
+	ServiceName   string                      `yaml:"serviceName"`
+	Backend       string                      `yaml:"backend"`
+	OpenTelemetry opentelemetry.Configuration `yaml:"opentelemetry"`
+	Jaeger        jaegercfg.Configuration     `yaml:"jaeger"`
+	Lightstep     lightstep.Options           `yaml:"lightstep"`
 }
 
 // NewTracer returns a tracer configured with the configuration provided by this struct. The tracer's concrete
@@ -216,7 +98,7 @@ func (cfg *TracingConfiguration) NewTracer(
 		return opentracing.NoopTracer{}, noopCloser{}, nil
 
 	case TracingBackendOpenTelemetry:
-		logger.Info("initializing LightStep tracer")
+		logger.Info("initializing OpenTelemetry tracer")
 		return cfg.newOpenTelemetryTracer(defaultServiceName, scope)
 
 	case TracingBackendJaeger:
@@ -243,13 +125,35 @@ func (cfg *TracingConfiguration) newOpenTelemetryTracer(
 	}
 
 	ctx := context.Background()
-	conf := cfg.OpenTelemetry
-	_, _, openTracingTracer, closer, err := conf.NewTraceProviderAndOpenTracingTracer(ctx, scope)
+	opts := opentelemetry.TracerProviderOptions{Tags: tracerSpanTags}
+	tracerProvider, err := cfg.OpenTelemetry.NewTracerProvider(ctx, scope, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return openTracingTracer, closer, err
+	tracer := tracerProvider.Tracer("")
+	ctx, openTracingBridgeTracer, _ := otelopentracing.NewTracerPairWithContext(ctx, tracer)
+	closer := newTraceProviderCloser(ctx, tracerProvider)
+	return openTracingBridgeTracer, closer, err
+}
+
+type traceProviderCloser struct {
+	ctx            context.Context
+	tracerProvider *sdktrace.TracerProvider
+}
+
+func newTraceProviderCloser(
+	ctx context.Context,
+	tracerProvider *sdktrace.TracerProvider,
+) io.Closer {
+	return &traceProviderCloser{
+		ctx:            ctx,
+		tracerProvider: tracerProvider,
+	}
+}
+
+func (c *traceProviderCloser) Close() error {
+	return c.tracerProvider.Shutdown(c.ctx)
 }
 
 func (cfg *TracingConfiguration) newJaegerTracer(
