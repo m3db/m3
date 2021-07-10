@@ -84,7 +84,6 @@ require (
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/uber/tchannel-go v1.20.1
-	github.com/urfave/cli v1.22.4 // indirect
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	github.com/wjdp/htmltest v0.13.0
@@ -107,7 +106,7 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273
 	golang.org/x/tools v0.1.3
-	google.golang.org/grpc v1.39.0
+	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
@@ -137,3 +136,9 @@ replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
+
+// Force golangci-lint to v1.37.0 and compatible honnef.co/go/tools regardless 
+// of other dependencies which was forcing incompatible versions of 
+// golangci-lint and honnef.co/go/tools combined together.
+replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.37.0
+replace honnef.co/go/tools => honnef.co/go/tools v0.0.1-2019.2.3
