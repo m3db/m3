@@ -2309,35 +2309,43 @@ func newMovingBinaryTransform(
 		return childCtx
 	}
 
+	// Save the original context in case we need to reference it
+	// during a context adjust step for ContextShiftAdjustFunc.
+	originalCtx := ctx
+	contextShiftingAdjustFn := func(
+		shiftedContext *common.Context,
+		bootstrappedSeries ts.SeriesList,
+	) (*common.Context, bool, error) {
+		newWindowSize, err := parseWindowSize(windowSizeValue,
+			singlePathSpec(bootstrappedSeries))
+		if err != nil {
+			return nil, false, err
+		}
+		if newWindowSize.deltaValue == windowSize.deltaValue {
+			// No adjustment necessary.
+			return nil, false, nil
+		}
+
+		// Adjustment necessary, update variables and validate.
+		windowSize = newWindowSize
+		interval = windowSize.deltaValue
+		if interval <= 0 {
+			return nil, false, common.ErrInvalidIntervalFormat
+		}
+
+		// Create new child context.
+		opts := common.NewChildContextOptions()
+		opts.AdjustTimeRange(0, 0, interval, 0)
+		// Be sure to use the original ctx to shift from (since
+		// recalculated the window size and need to shift from the
+		// original start time).
+		childCtx := originalCtx.NewChildContext(opts)
+		return childCtx, true, nil
+	}
+
 	return &unaryContextShifter{
-		ContextShiftFunc: contextShiftingFn,
-		ContextShiftAdjustFunc: func(
-			shiftedContext *common.Context,
-			bootstrappedSeries ts.SeriesList,
-		) (*common.Context, bool, error) {
-			newWindowSize, err := parseWindowSize(windowSizeValue,
-				singlePathSpec(bootstrappedSeries))
-			if err != nil {
-				return nil, false, err
-			}
-			if newWindowSize.deltaValue == windowSize.deltaValue {
-				// No adjustment necessary.
-				return nil, false, nil
-			}
-
-			// Adjustment necessary, update variables and validate.
-			windowSize = newWindowSize
-			interval = windowSize.deltaValue
-			if interval <= 0 {
-				return nil, false, common.ErrInvalidIntervalFormat
-			}
-
-			// Create new child context.
-			opts := common.NewChildContextOptions()
-			opts.AdjustTimeRange(0, 0, interval, 0)
-			childCtx := shiftedContext.NewChildContext(opts)
-			return childCtx, true, nil
-		},
+		ContextShiftFunc:       contextShiftingFn,
+		ContextShiftAdjustFunc: contextShiftingAdjustFn,
 		UnaryTransformer: func(bootstrapped ts.SeriesList) (ts.SeriesList, error) {
 			results := make([]*ts.Series, 0, bootstrapped.Len())
 			maxWindowPoints := 0

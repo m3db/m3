@@ -598,9 +598,15 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 		return reflect.Value{}, err
 	}
 
-	// Determine if need to adjust the shift based on fetched series.
-	adjustFn := contextShifter.Field(2)
-	if !adjustFn.IsNil() {
+	// Determine if need to adjust the shift based on fetched series
+	// from the context shift.
+MaybeAdjustShiftLoop:
+	for {
+		adjustFn := contextShifter.Field(2)
+		if adjustFn.IsNil() {
+			break MaybeAdjustShiftLoop
+		}
+
 		reflected := adjustFn.Call([]reflect.Value{
 			reflect.ValueOf(shiftedCtx),
 			shiftedSeries,
@@ -608,18 +614,25 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 		if reflectedErr := reflected[2]; !reflectedErr.IsNil() {
 			return reflect.Value{}, reflectedErr.Interface().(error)
 		}
-		if reflectedAdjust := reflected[1]; reflectedAdjust.Bool() {
-			// Adjusted again, need to re-bootstrap from the shifted series.
-			adjustedShiftedCtx := reflected[0].Interface().(*common.Context)
-			series, err := call.in[0].Evaluate(adjustedShiftedCtx)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			// Override previously shifted series fetched.
-			shiftedSeries = series
+
+		if reflectedAdjust := reflected[1]; !reflectedAdjust.Bool() {
+			// No further adjust.
+			break MaybeAdjustShiftLoop
 		}
+
+		// Adjusted again, need to re-bootstrap from the shifted series.
+		adjustedShiftedCtx := reflected[0].Interface().(*common.Context)
+		adjustedShiftedSeries, err := call.in[0].Evaluate(adjustedShiftedCtx)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+
+		// Override previously shifted context and series fetched and re-eval.
+		shiftedCtx = adjustedShiftedCtx
+		shiftedSeries = adjustedShiftedSeries
 	}
 
+	// Execute the unary transformer function with the shifted series.
 	var (
 		transformerFn = contextShifter.Field(1)
 		ret           []reflect.Value
