@@ -18,33 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package extdebug
 
 import (
 	"bytes"
 	"net/http"
 	"testing"
 
-	"github.com/golang/mock/gomock"
-
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	debugtest "github.com/m3db/m3/src/x/debug/test"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestNamespaceSource(t *testing.T) {
-	_, mockKV, mockClient := newHandlerOptsAndClient(t)
-	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+func TestPlacementSource(t *testing.T) {
+	handlerOpts, _, _ := debugtest.NewTestHandlerOptsAndClient(t)
 	iOpts := instrument.NewOptions()
-	n, err := NewNamespaceInfoSource(mockClient, []handleroptions.ServiceNameAndDefaults{
-		{
-			ServiceName: handleroptions.M3DBServiceName,
-		},
-	}, iOpts)
+	svcDefaults := handleroptions.ServiceNameAndDefaults{
+		ServiceName: "m3db",
+	}
+	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
-	n.Write(buff, &http.Request{})
+	p.Write(buff, &http.Request{})
 	require.NotZero(t, buff.Len())
 }

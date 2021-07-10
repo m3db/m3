@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package extdebug
 
 import (
 	"bytes"
@@ -26,21 +26,25 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	debugtest "github.com/m3db/m3/src/x/debug/test"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPlacementSource(t *testing.T) {
-	handlerOpts, _, _ := newHandlerOptsAndClient(t)
+func TestNamespaceSource(t *testing.T) {
+	_, mockKV, mockClient := debugtest.NewTestHandlerOptsAndClient(t)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 	iOpts := instrument.NewOptions()
-	svcDefaults := handleroptions.ServiceNameAndDefaults{
-		ServiceName: "m3db",
-	}
-	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
+	n, err := NewNamespaceInfoSource(mockClient, []handleroptions.ServiceNameAndDefaults{
+		{
+			ServiceName: handleroptions.M3DBServiceName,
+		},
+	}, iOpts)
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff, &http.Request{})
+	n.Write(buff, &http.Request{})
 	require.NotZero(t, buff.Len())
 }

@@ -84,6 +84,7 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -804,7 +805,7 @@ func Run(runOpts RunOptions) {
 					zap.Error(err),
 					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
 			} else {
-				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+				debugWriter, err = extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 					cpuProfileDuration,
 					syncCfg.ClusterClient,
 					handlerOpts,

@@ -29,21 +29,10 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
-	"time"
 
-	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
-	"github.com/m3db/m3/src/cluster/kv"
-	clusterplacement "github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/cluster/placementhandler"
-	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/x/instrument"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,121 +211,4 @@ func TestHTTPEndpoint(t *testing.T) {
 
 		require.Equal(t, rr.Code, http.StatusInternalServerError)
 	})
-}
-
-func newHandlerOptsAndClient(t *testing.T) (placementhandler.HandlerOptions, *kv.MockStore, *clusterclient.MockClient) {
-	placementProto := &placementpb.Placement{
-		Instances: map[string]*placementpb.Instance{
-			"host1": &placementpb.Instance{
-				Id:             "host1",
-				IsolationGroup: "rack1",
-				Zone:           "test",
-				Weight:         1,
-				Endpoint:       "http://host1:1234",
-				Hostname:       "host1",
-				Port:           1234,
-			},
-			"host2": &placementpb.Instance{
-				Id:             "host2",
-				IsolationGroup: "rack1",
-				Zone:           "test",
-				Weight:         1,
-				Endpoint:       "http://host2:1234",
-				Hostname:       "host2",
-				Port:           1234,
-			},
-		},
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockClient := clusterclient.NewMockClient(ctrl)
-	require.NotNil(t, mockClient)
-
-	mockKV := kv.NewMockStore(ctrl)
-	require.NotNil(t, mockKV)
-
-	mockServices := services.NewMockServices(ctrl)
-	require.NotNil(t, mockServices)
-
-	mockPlacement := clusterplacement.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Proto().Return(placementProto, nil).AnyTimes()
-	mockPlacement.EXPECT().Version().Return(0).AnyTimes()
-
-	mockPlacementService := clusterplacement.NewMockService(ctrl)
-	require.NotNil(t, mockPlacementService)
-
-	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil).AnyTimes()
-	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil).AnyTimes()
-	mockPlacementService.EXPECT().Placement().Return(mockPlacement, nil).AnyTimes()
-
-	mockClient.EXPECT().KV().Return(mockKV, nil).AnyTimes()
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).AnyTimes()
-
-	handlerOpts, err := placementhandler.NewHandlerOptions(
-		mockClient, clusterplacement.Configuration{}, nil, instrument.NewOptions())
-	require.NoError(t, err)
-
-	return handlerOpts, mockKV, mockClient
-}
-
-func TestDefaultSources(t *testing.T) {
-	defaultSources := []string{
-		"cpu.prof",
-		"heap.prof",
-		"host.json",
-		"goroutine.prof",
-		"namespace.json",
-		"placement-m3db.json",
-	}
-
-	handlerOpts, mockKV, mockClient := newHandlerOptsAndClient(t)
-	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
-	svcDefaults := []handleroptions.ServiceNameAndDefaults{{
-		ServiceName: handleroptions.M3DBServiceName,
-	}}
-	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, mockClient, handlerOpts, svcDefaults, instrument.NewOptions())
-	require.NoError(t, err)
-	require.NotNil(t, zw)
-
-	// Make sure all default sources are present
-	for _, source := range defaultSources {
-		iv := reflect.ValueOf(zw).Elem().Interface()
-		z, ok := iv.(zipWriter)
-		require.True(t, ok)
-		_, ok = z.sources[source]
-		require.True(t, ok)
-	}
-
-	// Check writing ZIP is ok
-	buff := bytes.NewBuffer([]byte{})
-	err = zw.WriteZip(buff, &http.Request{})
-	require.NoError(t, err)
-	require.NotZero(t, buff.Len())
-
-	// Check written ZIP is not empty
-	bytesReader := bytes.NewReader(buff.Bytes())
-	zipReader, err := zip.NewReader(bytesReader, int64(bytesReader.Len()))
-	require.NoError(t, err)
-	require.NotNil(t, zipReader)
-
-	actualFnames := make(map[string]bool)
-	for _, f := range zipReader.File {
-		actualFnames[f.Name] = true
-
-		rc, ferr := f.Open()
-		require.NoError(t, ferr)
-		defer rc.Close()
-
-		content := []byte{}
-		rc.Read(content)
-		require.NotZero(t, content)
-	}
-
-	for _, source := range defaultSources {
-		_, ok := actualFnames[source]
-		require.True(t, ok)
-	}
-
 }

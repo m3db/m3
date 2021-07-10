@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
@@ -368,7 +369,7 @@ func (h *Handler) RegisterRoutes() error {
 		placementServices = append(placementServices, service)
 	}
 
-	debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+	debugWriter, err := extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 		h.options.CPUProfileDuration(),
 		clusterClient,
 		placementOpts,

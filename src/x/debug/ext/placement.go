@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package extdebug
 
 import (
 	"fmt"
@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -43,7 +44,7 @@ func NewPlacementInfoSource(
 	service handleroptions.ServiceNameAndDefaults,
 	placementOpts placementhandler.HandlerOptions,
 	iopts instrument.Options,
-) (Source, error) {
+) (debug.Source, error) {
 	handler := placementhandler.NewGetHandler(placementOpts)
 	return &placementInfoSource{
 		getHandler: handler,
