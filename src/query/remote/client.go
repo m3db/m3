@@ -31,6 +31,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
@@ -164,6 +165,7 @@ func NewGRPCClient(
 
 	dialOptions := append([]grpc.DialOption{
 		grpc.WithResolvers(manualResolver),
+		grpc.WithBalancerName(roundrobin.Name),
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
 		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(interceptorOpts)),
