@@ -137,8 +137,9 @@ replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
 
-// Force golangci-lint to v1.37.0 and compatible honnef.co/go/tools regardless 
-// of other dependencies which was forcing incompatible versions of 
+// Force golangci-lint to v1.37.0 and compatible honnef.co/go/tools regardless
+// of other dependencies which was forcing incompatible versions of
 // golangci-lint and honnef.co/go/tools combined together.
 replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.37.0
+
 replace honnef.co/go/tools => honnef.co/go/tools v0.0.1-2019.2.3
