@@ -28,11 +28,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.etcd.io/etcd/client/v3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/tests/v3/integration"
 	"golang.org/x/net/context"
 )

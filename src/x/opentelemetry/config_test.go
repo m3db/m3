@@ -88,6 +88,6 @@ func grpcReceiver(
 func localAddress(t *testing.T) string {
 	ln, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	return ln.Addr().String()
 }

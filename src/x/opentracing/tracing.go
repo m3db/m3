@@ -28,9 +28,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	lightstep "github.com/lightstep/lightstep-tracer-go"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/opentelemetry"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"

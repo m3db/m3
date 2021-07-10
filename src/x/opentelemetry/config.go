@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package opentelemetry provides Open Telemetry configuration.
 package opentelemetry
 
 import (
@@ -62,9 +63,7 @@ func (c Configuration) NewTracerProvider(
 	for k, v := range c.Attributes {
 		attributes = append(attributes, attribute.String(k, v))
 	}
-	for _, attr := range opts.Attributes {
-		attributes = append(attributes, attr)
-	}
+	attributes = append(attributes, opts.Attributes...)
 
 	res, err := resource.New(ctx, resource.WithAttributes(attributes...))
 	if err != nil {
