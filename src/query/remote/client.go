@@ -165,6 +165,8 @@ func NewGRPCClient(
 
 	dialOptions := append([]grpc.DialOption{
 		grpc.WithResolvers(manualResolver),
+		// Allow round robin balancer to match existing behavior before GRPC upgrade.
+		// nolint: staticcheck
 		grpc.WithBalancerName(roundrobin.Name),
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
