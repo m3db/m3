@@ -29,8 +29,6 @@ import (
 	"time"
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/opentelemetry"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
@@ -40,6 +38,9 @@ import (
 	otelopentracing "go.opentelemetry.io/otel/bridge/opentracing"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/opentelemetry"
 )
 
 const (

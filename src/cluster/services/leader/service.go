@@ -25,9 +25,10 @@ import (
 	"fmt"
 	"sync"
 
+	clientv3 "go.etcd.io/etcd/client/v3"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader/campaign"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 const (
