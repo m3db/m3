@@ -310,7 +310,7 @@ func TestWatchCompactedRevision(t *testing.T) {
 	}
 
 	errN := ts.Snapshot().Counters()["errors+"].Value()
-	assert.Equal(t, int64(1), errN, "expected to encounter watch error")
+	assert.True(t, errN > 0, "expected to encounter watch error")
 
 	atomic.AddInt32(shouldStop, 1)
 	<-doneCh
