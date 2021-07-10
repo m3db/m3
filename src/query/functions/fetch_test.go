@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -86,8 +87,8 @@ func TestOffsetFetch(t *testing.T) {
 	start := now.Add(time.Hour * -1)
 	opts := transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
-			Start: start,
-			End:   now,
+			Start: xtime.ToUnixNano(start),
+			End:   xtime.ToUnixNano(now),
 			Now:   now,
 		},
 	})

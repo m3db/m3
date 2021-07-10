@@ -45,11 +45,11 @@ func testRepairOptions() Options {
 
 func TestReplicaBlockMetadataAdd(t *testing.T) {
 	meta1 := block.NewMetadata(
-		ident.StringID("some-id"), ident.Tags{}, time.Time{}, 1, nil, time.Time{})
+		ident.StringID("some-id"), ident.Tags{}, 0, 1, nil, 0)
 	meta2 := block.NewMetadata(
-		ident.StringID("some-id"), ident.Tags{}, time.Time{}, 2, new(uint32), time.Time{})
+		ident.StringID("some-id"), ident.Tags{}, 0, 2, new(uint32), 0)
 
-	now := time.Now()
+	now := xtime.Now()
 	m := NewReplicaBlockMetadata(now, newReplicaMetadataSlice())
 	inputs := []block.ReplicaMetadata{
 		{Host: topology.NewHost("foo", "addrFoo"), Metadata: meta1},
@@ -63,7 +63,7 @@ func TestReplicaBlockMetadataAdd(t *testing.T) {
 }
 
 func TestReplicaBlocksMetadataAdd(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	block := NewReplicaBlockMetadata(now, newReplicaMetadataSlice())
 	m := NewReplicaBlocksMetadata()
 	m.Add(block)
@@ -71,13 +71,13 @@ func TestReplicaBlocksMetadataAdd(t *testing.T) {
 	blocks := m.Blocks()
 	require.Equal(t, 1, len(blocks))
 
-	block, exists := blocks[xtime.ToUnixNano(now)]
+	block, exists := blocks[now]
 	require.True(t, exists)
 	require.Equal(t, now, block.Start())
 }
 
 func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	m := NewReplicaBlocksMetadata()
 	require.Equal(t, 0, len(m.Blocks()))
 
@@ -86,7 +86,7 @@ func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 	require.Equal(t, now, b.Start())
 	blocks := m.Blocks()
 	require.Equal(t, 1, len(blocks))
-	block, exists := blocks[xtime.ToUnixNano(now)]
+	block, exists := blocks[now]
 	require.True(t, exists)
 	require.Equal(t, now, block.Start())
 
@@ -112,7 +112,7 @@ func TestReplicaSeriesMetadataGetOrAdd(t *testing.T) {
 
 type testBlock struct {
 	id     ident.ID
-	ts     time.Time
+	ts     xtime.UnixNano
 	blocks []block.ReplicaMetadata
 }
 
@@ -122,7 +122,7 @@ func assertEqual(t *testing.T, expected []testBlock, actual ReplicaSeriesMetadat
 	for _, b := range expected {
 		series, ok := actual.Series().Get(b.id)
 		require.True(t, ok)
-		blocks := series.Metadata.Blocks()[xtime.ToUnixNano(b.ts)]
+		blocks := series.Metadata.Blocks()[b.ts]
 		require.Equal(t, b.blocks, blocks.Metadata())
 	}
 }
@@ -132,12 +132,12 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 	defer ctrl.Finish()
 
 	origin := topology.NewHost("foo", "addrFoo")
-	now := time.Now()
+	now := xtime.Now()
 	localIter := block.NewMockFilteredBlocksMetadataIter(ctrl)
 	inputBlocks := []block.Metadata{
-		block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now, int64(0), new(uint32), time.Time{}),
-		block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Second), int64(2), new(uint32), time.Time{}),
-		block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now, int64(4), nil, time.Time{}),
+		block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now, int64(0), new(uint32), 0),
+		block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Second), int64(2), new(uint32), 0),
+		block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now, int64(4), nil, 0),
 	}
 
 	gomock.InOrder(
@@ -167,28 +167,28 @@ func TestReplicaMetadataComparerAddPeerMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	peerIter := client.NewMockPeerBlockMetadataIter(ctrl)
 	inputBlocks := []block.ReplicaMetadata{
 		{
 			Host: topology.NewHost("1", "addr1"),
 			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{},
-				now, int64(0), new(uint32), time.Time{}),
+				now, int64(0), new(uint32), 0),
 		},
 		{
 			Host: topology.NewHost("1", "addr1"),
 			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{},
-				now.Add(time.Second), int64(1), new(uint32), time.Time{}),
+				now.Add(time.Second), int64(1), new(uint32), 0),
 		},
 		{
 			Host: topology.NewHost("2", "addr2"),
 			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{},
-				now, int64(2), nil, time.Time{}),
+				now, int64(2), nil, 0),
 		},
 		{
 			Host: topology.NewHost("2", "addr2"),
 			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{},
-				now.Add(time.Second), int64(3), nil, time.Time{}),
+				now.Add(time.Second), int64(3), nil, 0),
 		},
 	}
 	expectedErr := errors.New("some error")
@@ -226,7 +226,7 @@ func TestReplicaMetadataComparerAddPeerMetadata(t *testing.T) {
 
 func TestReplicaMetadataComparerCompare(t *testing.T) {
 	var (
-		now   = time.Now()
+		now   = xtime.Now()
 		hosts = []topology.Host{topology.NewHost("foo", "foo"), topology.NewHost("bar", "bar")}
 	)
 
@@ -236,51 +236,51 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 	ten := uint32(10)
 	twenty := uint32(20)
 	inputs := []block.ReplicaMetadata{
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[0],
-			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now, int64(1), &ten, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now, int64(1), &ten, 0),
 		},
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[1],
-			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now, int64(1), &ten, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now, int64(1), &ten, 0),
 		},
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[0],
-			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(time.Second), int64(0), &ten, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(time.Second), int64(0), &ten, 0),
 		},
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[1],
-			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(time.Second), int64(1), &ten, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(time.Second), int64(1), &ten, 0),
 		},
 		// hosts[0] has a checksum but hosts[1] doesn't so this block will not be repaired (skipped until the next attempt) at
 		// which points hosts[1] will have merged the blocks and an accurate comparison can be made.
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[0],
-			Metadata: block.NewMetadata(ident.StringID("baz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &twenty, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("baz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &twenty, 0),
 		},
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[1],
-			Metadata: block.NewMetadata(ident.StringID("baz"), ident.Tags{}, now.Add(2*time.Second), int64(2), nil, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("baz"), ident.Tags{}, now.Add(2*time.Second), int64(2), nil, 0),
 		},
 		// hosts[0] and hosts[1] both have a checksum, but they differ, so this should trigger a checksum mismatch.
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[0],
-			Metadata: block.NewMetadata(ident.StringID("boz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &twenty, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("boz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &twenty, 0),
 		},
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[1],
-			Metadata: block.NewMetadata(ident.StringID("boz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &ten, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("boz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &ten, 0),
 		},
 		// Block only exists for host[1] but host[0] is the origin so should be consider a size/checksum mismatch.
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[1],
-			Metadata: block.NewMetadata(ident.StringID("gah"), ident.Tags{}, now.Add(3*time.Second), int64(1), &ten, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("gah"), ident.Tags{}, now.Add(3*time.Second), int64(1), &ten, 0),
 		},
 		// Block only exists for host[0] but host[0] is also the origin so should not be considered a size/checksum mismatch
 		// since the peer not the origin is missing data.
-		block.ReplicaMetadata{
+		{
 			Host:     hosts[0],
-			Metadata: block.NewMetadata(ident.StringID("grr"), ident.Tags{}, now.Add(3*time.Second), int64(1), &ten, time.Time{}),
+			Metadata: block.NewMetadata(ident.StringID("grr"), ident.Tags{}, now.Add(3*time.Second), int64(1), &ten, 0),
 		},
 	}
 	for _, input := range inputs {

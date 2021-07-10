@@ -26,7 +26,8 @@ package block
 
 import (
 	"reflect"
-	"time"
+
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -389,10 +390,10 @@ func (m *MockStep) EXPECT() *MockStepMockRecorder {
 }
 
 // Time mocks base method.
-func (m *MockStep) Time() time.Time {
+func (m *MockStep) Time() time.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Time")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time.UnixNano)
 	return ret0
 }
 

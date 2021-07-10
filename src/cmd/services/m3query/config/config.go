@@ -140,6 +140,9 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
+	// HTTP is the HTTP configuration.
+	HTTP HTTPConfiguration `yaml:"http"`
+
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend BackendStorageType `yaml:"backend"`
 
@@ -165,7 +168,7 @@ type Configuration struct {
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
 	// Middleware is middleware-specific configuration.
-	Middleware *MiddlewareConfiguration `yaml:"middleware"`
+	Middleware MiddlewareConfiguration `yaml:"middleware"`
 
 	// Query is the query configuration.
 	Query QueryConfiguration `yaml:"query"`
@@ -382,6 +385,11 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
+	// MaxFetchedRange limits the time range of index documents matched for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedRange time.Duration `yaml:"maxFetchedRange"`
+
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
 }
@@ -408,6 +416,7 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		SeriesLimit:       int(seriesLimit),
 		InstanceMultiple:  l.InstanceMultiple,
 		DocsLimit:         int(docsLimit),
+		RangeLimit:        l.MaxFetchedRange,
 		RequireExhaustive: requireExhaustive,
 	}
 }
@@ -478,6 +487,25 @@ type CarbonConfiguration struct {
 
 // MiddlewareConfiguration is middleware-specific configuration.
 type MiddlewareConfiguration struct {
+	// Logging configures the logging middleware.
+	Logging LoggingMiddlewareConfiguration `yaml:"logging"`
+	// Metrics configures the metrics middleware.
+	Metrics MetricsMiddlewareConfiguration `yaml:"metrics"`
+	// Prometheus configures prometheus-related middleware.
+	Prometheus PrometheusMiddlewareConfiguration `yaml:"prometheus"`
+}
+
+// LoggingMiddlewareConfiguration configures the logging middleware.
+type LoggingMiddlewareConfiguration struct {
+	// Threshold defines the latency threshold for logging the response. If zero, the default of 1s is used. To disable
+	// response logging set Disabled.
+	Threshold time.Duration
+	// Disabled turns off response logging by default for endpoints.
+	Disabled bool
+}
+
+// MetricsMiddlewareConfiguration configures the metrics middleware.
+type MetricsMiddlewareConfiguration struct {
 	// LargeSeriesCountThreshold is the minimum number of series fetched by
 	// a query necessary to classify it as large.
 	LargeSeriesCountThreshold int `yaml:"largeSeriesCountThreshold"`
@@ -492,6 +520,17 @@ type MiddlewareConfiguration struct {
 	// NB: Setting this to true will increase cardinality by the number of
 	// expected response codes (likely around ~10).
 	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
+}
+
+// PrometheusMiddlewareConfiguration configures the range rewriting middleware.
+type PrometheusMiddlewareConfiguration struct {
+	// ResolutionMultiplier is the multiple that will be applied to the range if it's determined
+	// that it needs to be updated. If this value is greater than 0, the range in a query will be
+	// updated if the namespaces used to service the request have resolution(s)
+	// that are greater than the range. The range will be updated to the largest resolution
+	// of the namespaces to service the request * the multiplier specified here. If this multiplier
+	// is 0, then this feature is disabled.
+	ResolutionMultiplier int `yaml:"resolutionMultiplier"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
@@ -686,6 +725,14 @@ type RPCConfiguration struct {
 	// ReflectionEnabled will enable reflection on the GRPC server, useful
 	// for testing connectivity with grpcurl, etc.
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
+}
+
+// HTTPConfiguration is the HTTP configuration for configuring
+// the HTTP server used by the coordinator to serve incoming requests.
+type HTTPConfiguration struct {
+	// EnableH2C enables support for the HTTP/2 cleartext protocol. H2C
+	// enables the use of HTTP/2 without requiring TLS.
+	EnableH2C bool `yaml:"enableH2C"`
 }
 
 // TagOptionsConfiguration is the configuration for shared tag options

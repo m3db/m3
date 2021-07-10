@@ -22,7 +22,6 @@ package storage
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -62,18 +61,18 @@ const (
 type databaseNamespaceReaderManager interface {
 	filesetExistsAt(
 		shard uint32,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 	) (bool, error)
 
 	get(
 		shard uint32,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		position readerPosition,
 	) (fs.DataFileSetReader, error)
 
 	put(reader fs.DataFileSetReader) error
 
-	latestVolume(shard uint32, blockStart time.Time) (int, error)
+	latestVolume(shard uint32, blockStart xtime.UnixNano) (int, error)
 
 	assignShardSet(shardSet sharding.ShardSet)
 
@@ -86,7 +85,7 @@ type fsFileSetExistsFn func(
 	prefix string,
 	namespace ident.ID,
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	volume int,
 ) (bool, error)
 
@@ -179,7 +178,7 @@ func newNamespaceReaderManager(
 
 func (m *namespaceReaderManager) latestVolume(
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (int, error) {
 	state, err := m.blockLeaseManager.OpenLatestLease(m, block.LeaseDescriptor{
 		Namespace:  m.namespace.ID(),
@@ -195,7 +194,7 @@ func (m *namespaceReaderManager) latestVolume(
 
 func (m *namespaceReaderManager) filesetExistsAt(
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (bool, error) {
 	latestVolume, err := m.latestVolume(shard, blockStart)
 	if err != nil {
@@ -282,7 +281,7 @@ func (m *namespaceReaderManager) cachedReaderForKey(
 
 func (m *namespaceReaderManager) get(
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	position readerPosition,
 ) (fs.DataFileSetReader, error) {
 	latestVolume, err := m.latestVolume(shard, blockStart)
@@ -306,7 +305,7 @@ func (m *namespaceReaderManager) get(
 
 	key := cachedOpenReaderKey{
 		shard:      shard,
-		blockStart: xtime.ToUnixNano(blockStart),
+		blockStart: blockStart,
 		position:   position,
 	}
 
@@ -402,7 +401,7 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 
 	key := cachedOpenReaderKey{
 		shard:      shard,
-		blockStart: xtime.ToUnixNano(status.BlockStart),
+		blockStart: status.BlockStart,
 		position: readerPosition{
 			volume:      status.Volume,
 			dataIdx:     reader.EntriesRead(),
@@ -498,7 +497,7 @@ func (m *namespaceReaderManager) UpdateOpenLease(
 	// Close and remove open readers with matching key but lower volume.
 	for readerKey, cachedReader := range m.openReaders {
 		if readerKey.shard == descriptor.Shard &&
-			readerKey.blockStart == xtime.ToUnixNano(descriptor.BlockStart) &&
+			readerKey.blockStart == descriptor.BlockStart &&
 			readerKey.position.volume < state.Volume {
 			delete(m.openReaders, readerKey)
 			if err := m.closeAndPushReaderWithLock(cachedReader.reader); err != nil {

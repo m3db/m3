@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type multiSeriesBlock struct {
@@ -47,7 +48,7 @@ func newMultiSeriesBlock(
 ) block.Block {
 	meta := block.Metadata{
 		Bounds: models.Bounds{
-			Start:    query.Start,
+			Start:    xtime.ToUnixNano(query.Start),
 			Duration: query.End.Sub(query.Start),
 			StepSize: query.Interval,
 		},

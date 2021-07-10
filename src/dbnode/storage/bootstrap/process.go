@@ -26,6 +26,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -36,10 +41,11 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
+)
 
-	"github.com/opentracing/opentracing-go/log"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+var (
+	errNoOrigin      = errors.New("no origin set for initial topology state")
+	errNoTopologyMap = errors.New("no topology map set for initial topology state")
 )
 
 // bootstrapProcessProvider is the bootstrapping process provider.
@@ -97,7 +103,13 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 		return nil, err
 	}
 
-	initialTopologyState, err := b.newInitialTopologyState()
+	topoMap, err := b.processOpts.TopologyMapProvider().TopologyMap()
+	if err != nil {
+		return nil, err
+	}
+
+	origin := b.processOpts.Origin()
+	initialTopologyState, err := newInitialTopologyState(origin, topoMap)
 	if err != nil {
 		return nil, err
 	}
@@ -113,16 +125,21 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	}, nil
 }
 
-func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSnapshot, error) {
-	topoMap, err := b.processOpts.TopologyMapProvider().TopologyMap()
-	if err != nil {
-		return nil, err
+func newInitialTopologyState(
+	origin topology.Host,
+	topoMap topology.Map,
+) (*topology.StateSnapshot, error) {
+	if origin == nil {
+		return nil, errNoOrigin
+	}
+	if topoMap == nil {
+		return nil, errNoTopologyMap
 	}
 
 	var (
 		hostShardSets = topoMap.HostShardSets()
 		topologyState = &topology.StateSnapshot{
-			Origin:           b.processOpts.Origin(),
+			Origin:           origin,
 			MajorityReplicas: topoMap.MajorityReplicas(),
 			ShardStates:      topology.ShardStates{},
 		}
@@ -160,7 +177,7 @@ type bootstrapProcess struct {
 
 func (b bootstrapProcess) Run(
 	ctx context.Context,
-	at time.Time,
+	at xtime.UnixNano,
 	namespaces []ProcessNamespace,
 ) (NamespaceResults, error) {
 	namespacesRunFirst := Namespaces{
@@ -235,14 +252,26 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
+
 		for _, entry := range namespaces.Namespaces.Iter() {
 			ns := entry.Value()
+
+			// First determine if any shards that we are bootstrapping are
+			// initializing and hence might need peer bootstrapping and if so
+			// make sure the time ranges reflect the time window that should
+			// be bootstrapped from peers (in case time has shifted considerably).
+			if !b.shardsInitializingAny(ns.Shards) {
+				// No shards initializing, don't need to run check to see if
+				// time has shifted.
+				continue
+			}
+
 			// Check if snapshot-type ranges have advanced while bootstrapping previous ranges.
 			// If yes, return an error to force a retry
 			if persistConf := ns.DataRunOptions.RunOptions.PersistConfig(); persistConf.Enabled &&
 				persistConf.FileSetType == persist.FileSetSnapshotType {
 				var (
-					now                = b.nowFn()
+					now                = xtime.ToUnixNano(b.nowFn())
 					nsOptions          = ns.Metadata.Options()
 					upToDateDataRanges = b.targetRangesForData(now, nsOptions.RetentionOptions())
 				)
@@ -270,6 +299,33 @@ func (b bootstrapProcess) Run(
 	}
 
 	return bootstrapResult, nil
+}
+
+func (b bootstrapProcess) shardsInitializingAny(
+	shards []uint32,
+) bool {
+	for _, value := range shards {
+		shardID := topology.ShardID(value)
+		hostShardStates, ok := b.initialTopologyState.ShardStates[shardID]
+		if !ok {
+			// This shard was not part of the topology when the bootstrapping
+			// process began.
+			continue
+		}
+
+		originID := topology.HostID(b.initialTopologyState.Origin.ID())
+		originHostShardState, ok := hostShardStates[originID]
+		if !ok {
+			// This shard was not part of the origin's shard.
+			continue
+		}
+
+		if originHostShardState.ShardState == shard.Initializing {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (b bootstrapProcess) runPass(
@@ -339,14 +395,14 @@ func (b bootstrapProcess) logFields(
 		zap.String("bootstrapper", b.bootstrapper.String()),
 		zap.Stringer("namespace", namespace.ID()),
 		zap.Int("numShards", len(shards)),
-		zap.Time("dataFrom", dataTimeWindow.Start),
-		zap.Time("dataTo", dataTimeWindow.End),
+		zap.Time("dataFrom", dataTimeWindow.Start.ToTime()),
+		zap.Time("dataTo", dataTimeWindow.End.ToTime()),
 		zap.Duration("dataRange", dataTimeWindow.End.Sub(dataTimeWindow.Start)),
 	}
 	if namespace.Options().IndexOptions().Enabled() {
 		fields = append(fields,
-			zap.Time("indexFrom", indexTimeWindow.Start),
-			zap.Time("indexTo", indexTimeWindow.End),
+			zap.Time("indexFrom", indexTimeWindow.Start.ToTime()),
+			zap.Time("indexTo", indexTimeWindow.End.ToTime()),
 			zap.Duration("indexRange", indexTimeWindow.End.Sub(indexTimeWindow.Start)),
 		)
 	}
@@ -387,7 +443,7 @@ func (b bootstrapProcess) logBootstrapResult(
 }
 
 func (b bootstrapProcess) targetRangesForData(
-	at time.Time,
+	at xtime.UnixNano,
 	ropts retention.Options,
 ) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
@@ -400,7 +456,7 @@ func (b bootstrapProcess) targetRangesForData(
 }
 
 func (b bootstrapProcess) targetRangesForIndex(
-	at time.Time,
+	at xtime.UnixNano,
 	ropts retention.Options,
 	idxopts namespace.IndexOptions,
 ) targetRangesResult {
@@ -427,7 +483,7 @@ type targetRangesResult struct {
 }
 
 func (b bootstrapProcess) targetRanges(
-	at time.Time,
+	at xtime.UnixNano,
 	opts targetRangesOptions,
 ) targetRangesResult {
 	start := at.Add(-opts.retentionPeriod).

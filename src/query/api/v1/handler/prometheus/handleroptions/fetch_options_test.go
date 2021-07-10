@@ -53,10 +53,12 @@ func TestFetchOptionsBuilder(t *testing.T) {
 	tests := []struct {
 		name                 string
 		defaultLimit         int
+		defaultRangeLimit    time.Duration
 		defaultRestrictByTag *storage.RestrictByTag
 		headers              map[string]string
 		query                string
 		expectedLimit        int
+		expectedRangeLimit   time.Duration
 		expectedRestrict     *storage.RestrictQueryOptions
 		expectedLookback     *expectedLookback
 		expectedErr          bool
@@ -76,10 +78,33 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			expectedLimit: 4242,
 		},
 		{
-			name:         "bad header",
+			name:         "bad limit header",
 			defaultLimit: 42,
 			headers: map[string]string{
 				headers.LimitMaxSeriesHeader: "not_a_number",
+			},
+			expectedErr: true,
+		},
+		{
+			name:               "default range limit with no headers",
+			defaultRangeLimit:  42 * time.Hour,
+			headers:            map[string]string{},
+			expectedRangeLimit: 42 * time.Hour,
+		},
+		{
+			name:              "range limit with header",
+			defaultRangeLimit: 42 * time.Hour,
+			headers: map[string]string{
+				headers.LimitMaxRangeHeader: "84h",
+			},
+			expectedRangeLimit: 84 * time.Hour,
+		},
+		{
+			name:              "bad range limit header",
+			defaultRangeLimit: 42 * time.Hour,
+			headers: map[string]string{
+				// Not a parseable time range string.
+				headers.LimitMaxRangeHeader: "4242",
 			},
 			expectedErr: true,
 		},

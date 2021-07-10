@@ -73,6 +73,9 @@ func TestOperator(t *testing.T) {
 		_, err = op.MarkAllShardsAvailable()
 		require.NoError(t, err)
 
+		_, err = op.BalanceShards()
+		require.NoError(t, err)
+
 		_, err = store.SetIfNotExist(op.Placement())
 		require.NoError(t, err)
 

@@ -98,29 +98,29 @@ var (
 
 	testDatapoints1 = []ts.Datapoint{
 		{
-			Timestamp: time.Unix(0, 0),
+			Timestamp: xtime.UnixNano(0),
 			Value:     0,
 		},
 		{
-			Timestamp: time.Unix(0, 1),
+			Timestamp: xtime.UnixNano(1),
 			Value:     1,
 		},
 		{
-			Timestamp: time.Unix(0, 2),
+			Timestamp: xtime.UnixNano(2),
 			Value:     2,
 		},
 	}
 	testDatapoints2 = []ts.Datapoint{
 		{
-			Timestamp: time.Unix(0, 3),
+			Timestamp: xtime.UnixNano(3),
 			Value:     3,
 		},
 		{
-			Timestamp: time.Unix(0, 4),
+			Timestamp: xtime.UnixNano(4),
 			Value:     4,
 		},
 		{
-			Timestamp: time.Unix(0, 5),
+			Timestamp: xtime.UnixNano(5),
 			Value:     5,
 		},
 	}
@@ -740,7 +740,7 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 		mockSamplesAppender  = downsample.NewMockSamplesAppender(ctrl)
 		mockMetricsAppender  = downsample.NewMockMetricsAppender(ctrl)
 		overrideMappingRules = []downsample.AutoMappingRule{
-			downsample.AutoMappingRule{
+			{
 				Aggregations: []aggregation.Type{
 					aggregation.Sum,
 				},
@@ -792,12 +792,12 @@ func TestDownsampleAndWriteBatchOverrideStoragePolicies(t *testing.T) {
 
 	testOpts := testDownsamplerAndWriterOptions{
 		aggregatedNamespaces: []m3.AggregatedClusterNamespaceDefinition{
-			m3.AggregatedClusterNamespaceDefinition{
+			{
 				NamespaceID: ident.StringID("namespace_10m_7d"),
 				Resolution:  10 * time.Minute,
 				Retention:   7 * 24 * time.Hour,
 			},
-			m3.AggregatedClusterNamespaceDefinition{
+			{
 				NamespaceID: ident.StringID("namespace_1h_60d"),
 				Resolution:  time.Hour,
 				Retention:   60 * 24 * time.Hour,

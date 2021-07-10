@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -109,9 +110,9 @@ type OpNode interface {
 // and End is exclusive.
 type TimeSpec struct {
 	// Start is the inclusive start bound for the query.
-	Start time.Time
+	Start xtime.UnixNano
 	// End is the exclusive end bound for the query.
-	End time.Time
+	End xtime.UnixNano
 	// Now captures the current time and fixes it throughout the request.
 	Now time.Time
 	// Step is the step size for the query.

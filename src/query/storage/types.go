@@ -118,6 +118,8 @@ type FetchOptions struct {
 	InstanceMultiple float32
 	// DocsLimit is the maximum number of docs to return.
 	DocsLimit int
+	// RangeLimit is the maximum time range to return.
+	RangeLimit time.Duration
 	// ReturnedSeriesLimit is the maximum number of series to return.
 	ReturnedSeriesLimit int
 	// ReturnedDatapointsLimit is the maximum number of datapoints to return.
@@ -237,6 +239,14 @@ type Querier interface {
 		query *CompleteTagsQuery,
 		options *FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
+
+	// QueryStorageMetadataAttributes returns the storage metadata
+	// attributes for a query.
+	QueryStorageMetadataAttributes(
+		ctx context.Context,
+		queryStart, queryEnd time.Time,
+		opts *FetchOptions,
+	) ([]storagemetadata.Attributes, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.
@@ -270,9 +280,9 @@ type CompleteTagsQuery struct {
 	// TagMatchers is the search criteria for the query.
 	TagMatchers models.Matchers
 	// Start is the inclusive start for the query.
-	Start time.Time
+	Start xtime.UnixNano
 	// End is the exclusive end for the query.
-	End time.Time
+	End xtime.UnixNano
 }
 
 // SeriesMatchQuery represents a query that returns a set of series

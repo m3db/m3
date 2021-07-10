@@ -13,6 +13,9 @@ metrics:
   samplingRate: 1.0
   extended: none
 
+http:
+  enableH2C: true
+
 clusters:
   - namespaces:
       - namespace: default

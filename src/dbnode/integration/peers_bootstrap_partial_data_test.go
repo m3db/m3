@@ -89,9 +89,9 @@ func TestPeersBootstrapPartialData(t *testing.T) {
 
 	// Write a subset of blocks to second node, simulating an incomplete peer bootstrap.
 	partialBlockStarts := map[xtime.UnixNano]struct{}{
-		xtime.ToUnixNano(inputData[0].Start): {},
-		xtime.ToUnixNano(inputData[1].Start): {},
-		xtime.ToUnixNano(inputData[2].Start): {},
+		inputData[0].Start: {},
+		inputData[1].Start: {},
+		inputData[2].Start: {},
 	}
 	partialSeriesMaps := make(generate.SeriesBlocksByStart)
 	for blockStart, series := range seriesMaps {

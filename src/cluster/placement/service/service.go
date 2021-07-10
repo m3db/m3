@@ -384,3 +384,25 @@ func (ps *placementServiceImpl) MarkAllShardsAvailable() (placement.Placement, e
 
 	return ps.store.CheckAndSet(tempPlacement, curPlacement.Version())
 }
+
+func (ps *placementServiceImpl) BalanceShards() (placement.Placement, error) {
+	curPlacement, err := ps.store.Placement()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
+	tempPlacement, err := ps.algo.BalanceShards(curPlacement)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := placement.Validate(tempPlacement); err != nil {
+		return nil, err
+	}
+
+	return ps.store.CheckAndSet(tempPlacement, curPlacement.Version())
+}

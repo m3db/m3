@@ -126,59 +126,59 @@ var testMergeCompletedTags = []struct {
 	{
 		"single tag",
 		[]map[string][]string{
-			{"a": []string{"a", "b", "c"}},
+			{"a": {"a", "b", "c"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c"},
+			"a": {"a", "b", "c"},
 		},
 		map[string][]string{
-			"a": []string{},
+			"a": {},
 		},
 	},
 	{
 		"multiple distinct tags",
 		[]map[string][]string{
-			{"b": []string{"d", "e", "f"}},
-			{"a": []string{"a", "b", "c"}},
+			{"b": {"d", "e", "f"}},
+			{"a": {"a", "b", "c"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c"},
-			"b": []string{"d", "e", "f"},
+			"a": {"a", "b", "c"},
+			"b": {"d", "e", "f"},
 		},
 		map[string][]string{
-			"a": []string{},
-			"b": []string{},
+			"a": {},
+			"b": {},
 		},
 	},
 	{
 		"multiple tags with distinct values",
 		[]map[string][]string{
-			{"a": []string{"a", "b", "c"}},
-			{"a": []string{"d", "e", "f"}},
+			{"a": {"a", "b", "c"}},
+			{"a": {"d", "e", "f"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c", "d", "e", "f"},
+			"a": {"a", "b", "c", "d", "e", "f"},
 		},
 		map[string][]string{
-			"a": []string{},
+			"a": {},
 		},
 	},
 	{
 		"multiple tags with same values",
 		[]map[string][]string{
-			{"a": []string{"a", "b", "c"}},
-			{"a": []string{"c", "b", "a"}},
-			{"a": []string{"a", "b", "c"}},
-			{"b": []string{"d", "e", "f"}},
-			{"b": []string{"g", "z", "a"}},
+			{"a": {"a", "b", "c"}},
+			{"a": {"c", "b", "a"}},
+			{"a": {"a", "b", "c"}},
+			{"b": {"d", "e", "f"}},
+			{"b": {"g", "z", "a"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c"},
-			"b": []string{"a", "d", "e", "f", "g", "z"},
+			"a": {"a", "b", "c"},
+			"b": {"a", "d", "e", "f", "g", "z"},
 		},
 		map[string][]string{
-			"a": []string{},
-			"b": []string{},
+			"a": {},
+			"b": {},
 		},
 	},
 }
@@ -297,11 +297,11 @@ func TestCompleteTagFilter(t *testing.T) {
 	sort.Sort(completedTagsByName(res.CompletedTags))
 
 	ex := []CompletedTag{
-		CompletedTag{
+		{
 			Name:   b("foo"),
 			Values: [][]byte{b("foobar"), b("foofoo")},
 		},
-		CompletedTag{
+		{
 			Name:   b("quince"),
 			Values: [][]byte{b("quail"), b("quart")},
 		},

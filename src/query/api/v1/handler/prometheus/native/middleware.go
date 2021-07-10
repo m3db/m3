@@ -23,84 +23,76 @@ package native
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
 
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/headers"
-	xhttp "github.com/m3db/m3/src/x/http"
-	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 )
 
-// QueryResponseOptions are the options to construct the QueryResponse middleware func.
-type QueryResponseOptions struct {
-	Threshold      time.Duration
-	InstrumentOpts instrument.Options
-	Clock          clockwork.Clock
-}
-
-// QueryResponse logs the query response time if the request took longer than the configured threshold.
-func QueryResponse(opts QueryResponseOptions) mux.MiddlewareFunc {
-	if opts.Clock == nil {
-		opts.Clock = clockwork.NewRealClock()
-	}
-	return func(base http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := opts.Clock.Now()
-			statusCodeTracking := &xhttp.StatusCodeTracker{ResponseWriter: w, TrackError: true}
-			w = statusCodeTracking.WrappedResponseWriter()
-			base.ServeHTTP(w, r)
-			d := opts.Clock.Now().Sub(start)
-			if opts.Threshold > 0 && d >= opts.Threshold {
-				logger := logging.WithContext(r.Context(), opts.InstrumentOpts)
-				query := r.FormValue(queryParam)
-				// N.B - instant queries set startParam/endParam to "now" if not set. ParseTime can handle this special
-				// "now" value. Use when this middleware ran as the approximate now value.
-				startTime, err := ParseTime(r, startParam, start)
-				if err != nil {
-					logger.Warn("failed to parse start for response logging",
-						zap.Error(err),
-						zap.String("start", r.FormValue(startParam)))
-				}
-				endTime, err := ParseTime(r, endParam, start)
-				if err != nil {
-					logger.Warn("failed to parse end for response logging",
-						zap.Error(err),
-						zap.String("end", r.FormValue(endParam)))
-				}
-				fields := []zap.Field{
-					zap.Duration("duration", d),
-					zap.String("url", r.URL.RequestURI()),
-					zap.Int("status", statusCodeTracking.Status),
-					zap.String("query", query),
-					zap.Time("start", startTime),
-					zap.Time("end", endTime),
-					zap.Duration("queryRange", endTime.Sub(startTime)),
-				}
-				if statusCodeTracking.ErrMsg != "" {
-					fields = append(fields, zap.String("error", statusCodeTracking.ErrMsg))
-				}
-				fields = appendM3Headers(r.Header, fields)
-				fields = appendM3Headers(w.Header(), fields)
-				logger.Info("finished handling query request", fields...)
-			}
-		})
-	}
-}
-
-func appendM3Headers(h http.Header, fields []zap.Field) []zap.Field {
-	for k, v := range h {
-		if strings.HasPrefix(k, headers.M3HeaderPrefix) {
-			if len(v) == 1 {
-				fields = append(fields, zap.String(k, v[0]))
-			} else {
-				fields = append(fields, zap.Strings(k, v))
-			}
+// WithQueryParams adds the query request parameters to the middleware options.
+var WithQueryParams middleware.OverrideOptions = func(opts middleware.Options) middleware.Options {
+	opts.Logging.Fields = opts.Logging.Fields.Append(func(r *http.Request, start time.Time) []zap.Field {
+		params, err := middlewareParseParams(r, start)
+		if err != nil {
+			opts.InstrumentOpts.Logger().Warn("failed to parse query params for response logging", zap.Error(err))
+			return nil
 		}
+		return []zap.Field{
+			zap.String("query", params.Query),
+			zap.Time("start", params.Start),
+			zap.Time("end", params.End),
+			zap.Duration("queryRange", params.Range()),
+		}
+	})
+	opts.Metrics.ParseQueryParams = middlewareParseParams
+	return opts
+}
+
+// WithRangeQueryParamsAndRangeRewriting adds the range query request parameters to the
+// middleware options and enables range rewriting
+var WithRangeQueryParamsAndRangeRewriting middleware.OverrideOptions = func(
+	opts middleware.Options,
+) middleware.Options {
+	opts = WithQueryParams(opts)
+	opts.PrometheusRangeRewrite.Enabled = true
+
+	return opts
+}
+
+// WithInstantQueryParamsAndRangeRewriting adds the instant query request parameters to the
+// middleware options and enables range rewriting
+var WithInstantQueryParamsAndRangeRewriting middleware.OverrideOptions = func(
+	opts middleware.Options,
+) middleware.Options {
+	opts = WithQueryParams(opts)
+	opts.PrometheusRangeRewrite.Enabled = true
+	opts.PrometheusRangeRewrite.Instant = true
+
+	return opts
+}
+
+var middlewareParseParams middleware.ParseQueryParams = func(r *http.Request, requestStart time.Time) (
+	middleware.QueryParams, error) {
+	query := r.FormValue(QueryParam)
+	if query == "" {
+		return middleware.QueryParams{}, nil
 	}
-	return fields
+	// N.B - instant queries set startParam/endParam to "now" if not set. ParseTime can handle this special
+	// "now" value. Use when this middleware ran as the approximate now value.
+	start, err := prometheus.ParseTime(r, startParam, requestStart)
+	if err != nil {
+		return middleware.QueryParams{}, err
+	}
+
+	end, err := prometheus.ParseTime(r, endParam, requestStart)
+	if err != nil {
+		return middleware.QueryParams{}, err
+	}
+	return middleware.QueryParams{
+		Query: query,
+		Start: start,
+		End:   end,
+	}, nil
 }

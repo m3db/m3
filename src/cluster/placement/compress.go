@@ -21,27 +21,33 @@
 package placement
 
 import (
-	"bytes"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
+const _decoderInitialBufferSize = 131072
+
 func compressPlacementProto(p *placementpb.Placement) ([]byte, error) {
 	if p == nil {
 		return nil, errNilPlacementSnapshotsProto
 	}
 
-	uncompressed, _ := p.Marshal()
-	opts := zstd.WithEncoderLevel(zstd.SpeedBestCompression)
-	w, err := zstd.NewWriter(nil, opts)
+	w, err := zstd.NewWriter(
+		nil,
+		zstd.WithEncoderCRC(true),
+		zstd.WithEncoderConcurrency(1),
+		zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 	if err != nil {
 		return nil, err
 	}
-	defer w.Close() //nolint:errcheck
-	compressed := w.EncodeAll(uncompressed, nil)
+	defer w.Close() // nolint:errcheck
+
+	uncompressed, _ := p.Marshal()
+
+	compressed := make([]byte, 0, len(uncompressed)/2) // prealloc, assuming at least 50% space savings
+	compressed = w.EncodeAll(uncompressed, compressed)
 
 	return compressed, nil
 }
@@ -51,12 +57,18 @@ func decompressPlacementProto(compressed []byte) (*placementpb.Placement, error)
 		return nil, errNilValue
 	}
 
-	r, err := zstd.NewReader(bytes.NewReader(compressed))
+	decompressed := make([]byte, 0, _decoderInitialBufferSize)
+	r, err := zstd.NewReader(
+		nil,
+		zstd.WithDecoderConcurrency(1),
+		zstd.WithDecoderLowmem(false),
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
-	decompressed, err := r.DecodeAll(compressed, nil)
+	defer r.Close() // nolint:errcheck
+
+	decompressed, err = r.DecodeAll(compressed, decompressed)
 	if err != nil {
 		return nil, err
 	}

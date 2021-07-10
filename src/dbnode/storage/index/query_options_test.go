@@ -27,6 +27,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestQueryOptions(t *testing.T) {
@@ -52,7 +54,7 @@ func TestQueryOptions(t *testing.T) {
 
 func TestInvalidWideQueryOptions(t *testing.T) {
 	var (
-		now      = time.Now().Truncate(time.Hour).Add(1)
+		now      = xtime.Now().Truncate(time.Hour).Add(1)
 		iterOpts = IterationOptions{}
 
 		batchSize int
@@ -79,7 +81,7 @@ func TestWideQueryOptions(t *testing.T) {
 	var (
 		batchSize = 100
 		blockSize = time.Hour * 2
-		now       = time.Now().Truncate(blockSize)
+		now       = xtime.Now().Truncate(blockSize)
 		iterOpts  = IterationOptions{}
 		shards    = []uint32{100, 23, 1}
 	)

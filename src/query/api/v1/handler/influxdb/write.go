@@ -231,13 +231,13 @@ func (ii *ingestIterator) Current() ingest.IterValue {
 		field := ii.fields[ii.nextFieldIndex-1]
 		tags := copyTagsWithNewName(ii.tags, field.name)
 
-		t := point.Time()
+		t := xtime.ToUnixNano(point.Time())
 
 		value := ingest.IterValue{
 			Tags:       tags,
-			Datapoints: []ts.Datapoint{ts.Datapoint{Timestamp: t, Value: field.value}},
+			Datapoints: []ts.Datapoint{{Timestamp: t, Value: field.value}},
 			Attributes: ts.DefaultSeriesAttributes(),
-			Unit:       determineTimeUnit(t),
+			Unit:       determineTimeUnit(point.Time()),
 		}
 		if ii.pointIndex < len(ii.metadatas) {
 			value.Metadata = ii.metadatas[ii.pointIndex]

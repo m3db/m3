@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -76,6 +75,7 @@ func setupTest(t *testing.T) testHandlers {
 	hOpts := options.EmptyHandlerOptions().
 		SetFetchOptionsBuilder(fetchOptsBuilder).
 		SetEngine(engine)
+
 	queryable := &mockQueryable{}
 	readHandler, err := newReadHandler(hOpts, opts{
 		promQLEngine: testPromQLEngine,

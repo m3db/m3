@@ -23,6 +23,7 @@ package encoding
 import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -51,6 +52,7 @@ type options struct {
 	byteFieldDictLRUSize    int
 	iStreamReaderSizeM3TSZ  int
 	iStreamReaderSizeProto  int
+	metrics                 Metrics
 }
 
 func newOptions() Options {
@@ -61,6 +63,7 @@ func newOptions() Options {
 		byteFieldDictLRUSize:   defaultByteFieldDictLRUSize,
 		iStreamReaderSizeM3TSZ: defaultIStreamReaderSizeM3TSZ,
 		iStreamReaderSizeProto: defaultIStreamReaderSizeProto,
+		metrics:                NewMetrics(instrument.NewOptions().MetricsScope()),
 	}
 }
 
@@ -177,4 +180,14 @@ func (o *options) SetIStreamReaderSizeProto(value int) Options {
 
 func (o *options) IStreamReaderSizeProto() int {
 	return o.iStreamReaderSizeProto
+}
+
+func (o *options) SetMetrics(value Metrics) Options {
+	opts := *o
+	opts.metrics = value
+	return &opts
+}
+
+func (o *options) Metrics() Metrics {
+	return o.metrics
 }

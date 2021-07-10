@@ -35,6 +35,9 @@ type Message interface {
 
 	// Ack acks the message.
 	Ack()
+
+	// ShardID returns shard ID of the Message.
+	ShardID() uint64
 }
 
 // Consumer receives messages from a connection.

@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	testStart = time.Now()
+	testStart = Now()
 )
 
 type testRanges struct {
@@ -97,6 +97,10 @@ func testInput() []testRanges {
 	}
 }
 
+func timeFromSec(s int64) UnixNano {
+	return ToUnixNano(time.Unix(s, 0))
+}
+
 func TestRangeIsEmpty(t *testing.T) {
 	r := Range{testStart, testStart}
 	require.True(t, r.IsEmpty())
@@ -111,23 +115,26 @@ func TestEqual(t *testing.T) {
 		expected bool
 	}{
 		{
-			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
-			b:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			a:        Range{Start: timeFromSec(12), End: timeFromSec(34)},
+			b:        Range{Start: timeFromSec(12), End: timeFromSec(34)},
 			expected: true,
 		},
 		{
-			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
-			b:        Range{Start: time.Unix(12, 0).UTC(), End: time.Unix(34, 0).UTC()},
+			a: Range{Start: timeFromSec(12), End: timeFromSec(34)},
+			b: Range{
+				Start: ToUnixNano(time.Unix(12, 0).UTC()),
+				End:   ToUnixNano(time.Unix(34, 0).UTC()),
+			},
 			expected: true,
 		},
 		{
-			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
-			b:        Range{Start: time.Unix(13, 0), End: time.Unix(34, 0)},
+			a:        Range{Start: timeFromSec(12), End: timeFromSec(34)},
+			b:        Range{Start: timeFromSec(13), End: timeFromSec(34)},
 			expected: false,
 		},
 		{
-			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
-			b:        Range{Start: time.Unix(12, 0), End: time.Unix(36, 0)},
+			a:        Range{Start: timeFromSec(12), End: timeFromSec(34)},
+			b:        Range{Start: timeFromSec(12), End: timeFromSec(36)},
 			expected: false,
 		},
 	}
@@ -190,11 +197,11 @@ func TestRangeDuration(t *testing.T) {
 		expected time.Duration
 	}{
 		{
-			r:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			r:        Range{Start: timeFromSec(12), End: timeFromSec(34)},
 			expected: 22 * time.Second,
 		},
 		{
-			r:        Range{Start: time.Unix(8, 0), End: time.Unix(8, 0)},
+			r:        Range{Start: timeFromSec(8), End: timeFromSec(8)},
 			expected: 0,
 		},
 	}
@@ -277,8 +284,14 @@ func TestRangeSince(t *testing.T) {
 	r := Range{testStart, testStart.Add(10 * time.Second)}
 	require.Equal(t, r, r.Since(testStart.Add(-time.Second)))
 	require.Equal(t, r, r.Since(testStart))
-	require.Equal(t, Range{Start: testStart.Add(5 * time.Second), End: testStart.Add(10 * time.Second)}, r.Since(testStart.Add(5*time.Second)))
-	require.Equal(t, Range{Start: testStart.Add(10 * time.Second), End: testStart.Add(10 * time.Second)}, r.Since(testStart.Add(10*time.Second)))
+	require.Equal(t, Range{
+		Start: testStart.Add(5 * time.Second),
+		End:   testStart.Add(10 * time.Second),
+	}, r.Since(testStart.Add(5*time.Second)))
+	require.Equal(t, Range{
+		Start: testStart.Add(10 * time.Second),
+		End:   testStart.Add(10 * time.Second),
+	}, r.Since(testStart.Add(10*time.Second)))
 	require.Equal(t, Range{}, r.Since(testStart.Add(20*time.Second)))
 }
 
@@ -343,33 +356,34 @@ func TestRangeIterateForward(t *testing.T) {
 	testCases := []struct {
 		r        Range
 		stepSize time.Duration
-		expected []time.Time
+		expected []UnixNano
 	}{
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}},
+			r:        Range{Start: 0, End: 0},
 			stepSize: time.Second,
 		},
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Millisecond)},
+			r:        Range{Start: 0, End: UnixNano(time.Millisecond)},
 			stepSize: time.Second,
-			expected: []time.Time{time.Time{}},
+			expected: []UnixNano{0},
 		},
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Second)},
+			r:        Range{Start: 0, End: UnixNano(time.Second)},
 			stepSize: time.Second,
-			expected: []time.Time{time.Time{}},
+			expected: []UnixNano{0},
 		},
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}.Add(3 * time.Second)},
+			r:        Range{Start: 0, End: UnixNano(3 * time.Second)},
 			stepSize: time.Second,
-			expected: []time.Time{time.Time{}, time.Time{}.Add(time.Second), time.Time{}.Add(2 * time.Second)},
+			expected: []UnixNano{0, UnixNano(time.Second), UnixNano(2 * time.Second)},
 		},
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%s", tc.r.String()), func(t *testing.T) {
-			var actual []time.Time
-			tc.r.IterateForward(tc.stepSize, func(currStep time.Time) bool {
+			var actual []UnixNano
+			tc.r.IterateForward(tc.stepSize, func(currStep UnixNano) bool {
 				actual = append(actual, currStep)
 				return true
 			})
@@ -382,33 +396,36 @@ func TestRangeIterateBackward(t *testing.T) {
 	testCases := []struct {
 		r        Range
 		stepSize time.Duration
-		expected []time.Time
+		expected []UnixNano
 	}{
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}},
+			r:        Range{Start: 0, End: 0},
 			stepSize: time.Second,
 		},
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Millisecond)},
+			r:        Range{Start: 0, End: UnixNano(time.Millisecond)},
 			stepSize: time.Second,
-			expected: []time.Time{time.Time{}.Add(time.Millisecond)},
+			expected: []UnixNano{UnixNano(time.Millisecond)},
 		},
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Second)},
+			r:        Range{Start: 0, End: UnixNano(time.Second)},
 			stepSize: time.Second,
-			expected: []time.Time{time.Time{}.Add(time.Second)},
+			expected: []UnixNano{UnixNano(time.Second)},
 		},
 		{
-			r:        Range{Start: time.Time{}, End: time.Time{}.Add(3 * time.Second)},
+			r:        Range{Start: 0, End: UnixNano(3 * time.Second)},
 			stepSize: time.Second,
-			expected: []time.Time{time.Time{}.Add(3 * time.Second), time.Time{}.Add(2 * time.Second), time.Time{}.Add(time.Second)},
+			expected: []UnixNano{
+				UnixNano(3 * time.Second), UnixNano(2 * time.Second), UnixNano(time.Second),
+			},
 		},
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%s", tc.r.String()), func(t *testing.T) {
-			var actual []time.Time
-			tc.r.IterateBackward(tc.stepSize, func(currStep time.Time) bool {
+			var actual []UnixNano
+			tc.r.IterateBackward(tc.stepSize, func(currStep UnixNano) bool {
 				actual = append(actual, currStep)
 				return true
 			})
@@ -418,7 +435,7 @@ func TestRangeIterateBackward(t *testing.T) {
 }
 
 func TestRangeString(t *testing.T) {
-	start := time.Unix(1465430400, 0).UTC()
+	start := ToUnixNano(time.Unix(1465430400, 0).UTC())
 	r := Range{Start: start, End: start.Add(2 * time.Hour)}
 	require.Equal(t, "(2016-06-09 00:00:00 +0000 UTC,2016-06-09 02:00:00 +0000 UTC)", r.String())
 }

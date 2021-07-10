@@ -235,21 +235,21 @@ func ConstantSeries(ctx *Context, value float64) (*ts.Series, error) {
 }
 
 // RemoveEmpty removes all series that have NaN data
-func RemoveEmpty(ctx *Context, input ts.SeriesList) (ts.SeriesList, error) {
+func RemoveEmpty(ctx *Context, input ts.SeriesList, xFilesFactor float64) (ts.SeriesList, error) {
 	output := make([]*ts.Series, 0, input.Len())
 	for _, series := range input.Values {
 		if series.AllNaN() {
 			continue
 		}
-		seriesHasData := false
+		nonNulls := 0
 		for i := 0; i < series.Len(); i++ {
 			v := series.ValueAt(i)
 			if !math.IsNaN(v) {
-				seriesHasData = true
-				break
+				nonNulls++
 			}
 		}
-		if seriesHasData {
+
+		if float64(nonNulls)/float64(series.Len()) >= xFilesFactor {
 			output = append(output, series)
 		}
 	}

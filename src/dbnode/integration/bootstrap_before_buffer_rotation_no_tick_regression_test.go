@@ -103,11 +103,11 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	setup.SetNowFn(now)
 	startTime := now
 	commitlogWrite := ts.Datapoint{
-		Timestamp: startTime.Add(time.Second),
-		Value:     1,
+		TimestampNanos: startTime.Add(time.Second),
+		Value:          1,
 	}
 	seriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		xtime.ToUnixNano(startTime): generate.SeriesBlock{
+		startTime: {
 			generate.Series{
 				ID:   testID,
 				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
@@ -209,7 +209,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 	// Verify in-memory data match what we expect - commitlog write should not be lost
 	expectedSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
+		commitlogWrite.TimestampNanos.Truncate(blockSize): {
 			generate.Series{
 				ID:   testID,
 				Data: []generate.TestValue{{Datapoint: commitlogWrite}},

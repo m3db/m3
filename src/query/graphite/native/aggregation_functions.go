@@ -279,7 +279,7 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 
 // aggregate takes a list of series and returns a new series containing the
 // value aggregated across the series at each datapoint using the specified function.
-// This function can be used with aggregation functionsL average (or avg), avg_zero,
+// This function can be used with aggregation functions average (or avg), avg_zero,
 // median, sum (or total), min, max, diff, stddev, count,
 // range (or rangeOf), multiply & last (or current).
 func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.SeriesList, error) {
@@ -680,27 +680,21 @@ func groupByNodes(ctx *common.Context, seriesList singlePathSpec, fname string, 
 }
 
 func applyFnToMetaSeries(ctx *common.Context, series singlePathSpec, metaSeries map[string][]*ts.Series, fname string) (ts.SeriesList, error) {
-	if fname == "" {
-		fname = sumFnName
-	}
-
-	f, fexists := summarizeFuncs[fname]
-	if !fexists {
-		return ts.NewSeriesList(), xerrors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
-	}
-
 	newSeries := make([]*ts.Series, 0, len(metaSeries))
 	for key, metaSeries := range metaSeries {
 		seriesList := ts.SeriesList{
 			Values:   metaSeries,
 			Metadata: series.Metadata,
 		}
-		output, err := combineSeries(ctx, multiplePathSpecs(seriesList), key, f.consolidationFunc)
+		output, err := aggregate(ctx, singlePathSpec(seriesList), fname)
 		if err != nil {
 			return ts.NewSeriesList(), err
 		}
-		output.Values[0].Specification = f.specificationFunc(seriesList)
-		newSeries = append(newSeries, output.Values...)
+
+		if len(output.Values) > 0 {
+			series := output.Values[0].RenamedTo(key)
+			newSeries = append(newSeries, series)
+		}
 	}
 
 	r := ts.SeriesList(series)

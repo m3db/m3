@@ -27,17 +27,18 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func buildMeta(start time.Time) Metadata {
+func buildMeta(start xtime.UnixNano) Metadata {
 	return buildMetaExhaustive(start, false)
 }
 
-func buildMetaExhaustive(start time.Time, exhaustive bool) Metadata {
+func buildMetaExhaustive(start xtime.UnixNano, exhaustive bool) Metadata {
 	return Metadata{
 		Bounds: models.Bounds{
 			Start:    start,
@@ -62,7 +63,7 @@ func buildTestSeriesMeta(name string) []SeriesMeta {
 }
 
 func testLazyOpts(timeOffset time.Duration, valOffset float64) LazyOptions {
-	tt := func(t time.Time) time.Time { return t.Add(timeOffset) }
+	tt := func(t xtime.UnixNano) xtime.UnixNano { return t.Add(timeOffset) }
 	vt := func(val float64) float64 { return val * valOffset }
 	mt := func(meta Metadata) Metadata {
 		meta.Bounds.Start = meta.Bounds.Start.Add(timeOffset)
@@ -88,7 +89,7 @@ func TestLazyOpts(t *testing.T) {
 	off := time.Minute
 	lazyOpts := testLazyOpts(off, 1.0)
 
-	now := time.Now()
+	now := xtime.Now()
 	equalTimes := lazyOpts.TimeTransform()(now).Equal(now.Add(off))
 	assert.True(t, equalTimes)
 
@@ -144,7 +145,7 @@ func TestStepIter(t *testing.T) {
 	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
 	msg := "err"
 	e := errors.New(msg)
-	now := time.Now()
+	now := xtime.Now()
 
 	b.EXPECT().Meta().Return(buildMeta(now))
 	ex := buildMeta(now.Add(offset))
@@ -191,7 +192,7 @@ func TestSeriesIter(t *testing.T) {
 	defer ctrl.Finish()
 	offset := time.Minute
 	offblock := NewLazyBlock(b, testLazyOpts(offset, 1.0))
-	now := time.Now()
+	now := xtime.Now()
 	msg := "err"
 	e := errors.New(msg)
 
@@ -253,7 +254,7 @@ func TestStepIterWithNegativeValueOffset(t *testing.T) {
 	off := NewLazyBlock(b, testLazyOpts(offset, -1.0))
 	msg := "err"
 	e := errors.New(msg)
-	now := time.Now()
+	now := xtime.Now()
 
 	iter := NewMockStepIter(ctrl)
 	b.EXPECT().StepIter().Return(iter, nil)
@@ -295,7 +296,7 @@ func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 	defer ctrl.Finish()
 	offset := time.Duration(0)
 	offblock := NewLazyBlock(b, testLazyOpts(offset, -1.0))
-	now := time.Now()
+	now := xtime.Now()
 	msg := "err"
 	e := errors.New(msg)
 

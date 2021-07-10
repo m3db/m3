@@ -79,6 +79,8 @@ import (
 	prometheuspromql "github.com/prometheus/prometheus/promql"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -175,13 +177,20 @@ type BackendStorageTransform func(
 	instrument.Options,
 ) storage.Storage
 
+// RunResult returns metadata about the process run.
+type RunResult struct {
+	MultiProcessRun               bool
+	MultiProcessIsParentCleanExit bool
+}
+
 // Run runs the server programmatically given a filename for the configuration file.
-func Run(runOpts RunOptions) {
+func Run(runOpts RunOptions) RunResult {
 	rand.Seed(time.Now().UnixNano())
 
 	var (
 		cfg          = runOpts.Config
 		listenerOpts = xnet.NewListenerOptions()
+		runResult    RunResult
 	)
 
 	logger, err := cfg.LoggingOrDefault().BuildLogger()
@@ -198,21 +207,27 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
+	var commonLabels map[string]string
 	if cfg.MultiProcess.Enabled {
-		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
+		// Mark as a multi-process run result.
+		runResult.MultiProcessRun = true
+
+		// Execute multi-process parent spawn or child setup code path.
+		multiProcessRunResult, err := multiProcessRun(cfg, logger, listenerOpts)
 		if err != nil {
 			logger = logger.With(zap.String("processID", multiProcessProcessID()))
 			logger.Fatal("failed to run", zap.Error(err))
 		}
-		if runResult.isParentCleanExit {
+		if multiProcessRunResult.isParentCleanExit {
 			// Parent process clean exit.
-			os.Exit(0)
-			return
+			runResult.MultiProcessIsParentCleanExit = true
+			return runResult
 		}
 
-		cfg = runResult.cfg
-		logger = runResult.logger
-		listenerOpts = runResult.listenerOpts
+		cfg = multiProcessRunResult.cfg
+		logger = multiProcessRunResult.logger
+		listenerOpts = multiProcessRunResult.listenerOpts
+		commonLabels = multiProcessRunResult.commonLabels
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
@@ -229,6 +244,7 @@ func Run(runOpts RunOptions) {
 				// cause a panic.
 				logger.Error("register metric error", zap.Error(err))
 			},
+			CommonLabels: commonLabels,
 		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
@@ -563,7 +579,11 @@ func Run(runOpts RunOptions) {
 	}
 
 	listenAddress := cfg.ListenAddressOrDefault()
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
+	srvHandler := handler.Router()
+	if cfg.HTTP.EnableH2C {
+		srvHandler = h2c.NewHandler(handler.Router(), &http2.Server{})
+	}
+	srv := &http.Server{Addr: listenAddress, Handler: srvHandler}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {
@@ -635,6 +655,8 @@ func Run(runOpts RunOptions) {
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,
 	})
+
+	return runResult
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage

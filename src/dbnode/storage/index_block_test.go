@@ -97,7 +97,7 @@ func testWriteBatch(
 func testWriteBatchEntry(
 	id ident.ID,
 	tags ident.Tags,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	fns index.OnIndexSeries,
 ) (index.WriteBatchEntry, doc.Metadata) {
 	d := doc.Metadata{ID: copyBytes(id.Bytes())}
@@ -136,8 +136,8 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
-	nowFn := func() time.Time { return now }
+	now := xtime.Now().Truncate(blockSize).Add(2 * time.Minute)
+	nowFn := func() time.Time { return now.ToTime() }
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
@@ -145,7 +145,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	mockBlock.EXPECT().Close().Return(nil)
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -167,13 +167,13 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	blocksSlice := index.(*nsIndex).state.blockStartsDescOrder
 
 	require.Equal(t, 1, len(blocksSlice))
-	require.Equal(t, xtime.ToUnixNano(now.Truncate(blockSize)), blocksSlice[0])
+	require.Equal(t, now.Truncate(blockSize), blocksSlice[0])
 
 	require.Equal(t, mockBlock, index.(*nsIndex).state.latestBlock)
 
 	blocksMap := index.(*nsIndex).state.blocksByTime
 	require.Equal(t, 1, len(blocksMap))
-	blk, ok := blocksMap[xtime.ToUnixNano(now.Truncate(blockSize))]
+	blk, ok := blocksMap[now.Truncate(blockSize)]
 	require.True(t, ok)
 	require.Equal(t, mockBlock, blk)
 }
@@ -183,13 +183,13 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
-	nowFn := func() time.Time { return now }
+	now := xtime.Now().Truncate(blockSize).Add(2 * time.Minute)
+	nowFn := func() time.Time { return now.ToTime() }
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -211,8 +211,8 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
-	nowFn := func() time.Time { return now }
+	now := xtime.Now().Truncate(blockSize).Add(2 * time.Minute)
+	nowFn := func() time.Time { return now.ToTime() }
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
@@ -221,7 +221,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	mockBlock.EXPECT().Close().Return(nil)
 	mockBlock.EXPECT().StartTime().Return(now.Truncate(blockSize)).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -271,14 +271,14 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(2 * time.Minute)
 	t0 := now.Truncate(blockSize)
 	t1 := t0.Add(blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -292,7 +292,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	b1.EXPECT().Close().Return(nil)
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -350,17 +350,15 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(2 * time.Minute)
 	t0 := now.Truncate(blockSize)
-	t0Nanos := xtime.ToUnixNano(t0)
 	t1 := t0.Add(1 * blockSize)
-	t1Nanos := xtime.ToUnixNano(t1)
 	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -372,7 +370,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	b1.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -402,12 +400,12 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
 		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: t0Results,
-		t1Nanos: t1Results,
+		t0: t0Results,
+		t1: t1Results,
 	}
 
-	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
-	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 }
 
@@ -417,13 +415,13 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 
 	retentionPeriod := 4 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(2 * time.Minute)
 	t0 := now.Truncate(blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -432,7 +430,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -455,7 +453,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 
 	c := context.NewCancellable()
 	b0.EXPECT().Close().Return(nil)
-	result, err := idx.Tick(c, nowFn())
+	result, err := idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocksEvicted: 1,
@@ -468,13 +466,13 @@ func TestNamespaceIndexTick(t *testing.T) {
 
 	retentionPeriod := 4 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(2 * time.Minute)
 	t0 := now.Truncate(blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -484,7 +482,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 	b0.EXPECT().Close().Return(nil)
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -510,7 +508,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
-	result, err := idx.Tick(c, nowFn())
+	result, err := idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:    1,
@@ -528,7 +526,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 	}, nil)
 	b0.EXPECT().IsSealed().Return(false)
 	b0.EXPECT().Seal().Return(nil)
-	result, err = idx.Tick(c, nowFn())
+	result, err = idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:       1,
@@ -542,7 +540,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumSegments: 2,
 	}, nil)
 	b0.EXPECT().IsSealed().Return(true)
-	result, err = idx.Tick(c, nowFn())
+	result, err = idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:    1,
@@ -557,17 +555,15 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 	retention := 2 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(10 * time.Minute)
 	t0 := now.Truncate(blockSize)
-	t0Nanos := xtime.ToUnixNano(t0)
 	t1 := t0.Add(1 * blockSize)
-	t1Nanos := xtime.ToUnixNano(t1)
 	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -583,7 +579,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	b1.EXPECT().EndTime().Return(t1.Add(blockSize)).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -617,12 +613,12 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
 		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: t0Results,
-		t1Nanos: t1Results,
+		t0: t0Results,
+		t1: t1Results,
 	}
 
-	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
-	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	for _, test := range []struct {
@@ -726,15 +722,14 @@ func TestLimits(t *testing.T) {
 
 	retention := 2 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(10 * time.Minute)
 	t0 := now.Truncate(blockSize)
-	t0Nanos := xtime.ToUnixNano(t0)
 	t1 := t0.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -745,7 +740,7 @@ func TestLimits(t *testing.T) {
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
 	b0.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -771,10 +766,10 @@ func TestLimits(t *testing.T) {
 	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
 		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: t0Results,
+		t0: t0Results,
 	}
 
-	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	for _, test := range []struct {
@@ -910,17 +905,15 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 
 	retention := 2 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(10 * time.Minute)
 	t0 := now.Truncate(blockSize)
-	t0Nanos := xtime.ToUnixNano(t0)
 	t1 := t0.Add(1 * blockSize)
-	t1Nanos := xtime.ToUnixNano(t1)
 	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -936,7 +929,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	b1.EXPECT().EndTime().Return(t1.Add(blockSize)).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -980,12 +973,12 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
 		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: t0Results,
-		t1Nanos: t1Results,
+		t0: t0Results,
+		t1: t1Results,
 	}
 
-	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
-	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	ctx := context.NewBackground()
@@ -1014,17 +1007,15 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	query := idx.NewTermQuery([]byte("a"), []byte("b"))
 	retention := 2 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(10 * time.Minute)
 	t0 := now.Truncate(blockSize)
-	t0Nanos := xtime.ToUnixNano(t0)
 	t1 := t0.Add(1 * blockSize)
-	t1Nanos := xtime.ToUnixNano(t1)
 	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -1040,7 +1031,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	b1.EXPECT().EndTime().Return(t1.Add(blockSize)).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -1074,12 +1065,12 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
 		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: t0Results,
-		t1Nanos: t1Results,
+		t0: t0Results,
+		t1: t1Results,
 	}
 
-	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
-	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	for _, test := range []struct {
@@ -1191,17 +1182,15 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 
 	retention := 2 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(10 * time.Minute)
 	t0 := now.Truncate(blockSize)
-	t0Nanos := xtime.ToUnixNano(t0)
 	t1 := t0.Add(1 * blockSize)
-	t1Nanos := xtime.ToUnixNano(t1)
 	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -1218,7 +1207,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	b1.EXPECT().EndTime().Return(t1.Add(blockSize)).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -1263,12 +1252,12 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
 		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: t0Results,
-		t1Nanos: t1Results,
+		t0: t0Results,
+		t1: t1Results,
 	}
 
-	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
-	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	// only queries as much as is needed (wrt to time)
@@ -1302,17 +1291,15 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	queries := []idx.Query{idx.NewAllQuery(), idx.NewFieldQuery([]byte("field"))}
 	retention := 2 * time.Hour
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	now := xtime.Now().Truncate(blockSize).Add(10 * time.Minute)
 	t0 := now.Truncate(blockSize)
-	t0Nanos := xtime.ToUnixNano(t0)
 	t1 := t0.Add(1 * blockSize)
-	t1Nanos := xtime.ToUnixNano(t1)
 	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -1328,7 +1315,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	b1.EXPECT().EndTime().Return(t2).AnyTimes()
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -1362,12 +1349,12 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
 		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: t0Results,
-		t1Nanos: t1Results,
+		t0: t0Results,
+		t1: t1Results,
 	}
 
-	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
-	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	// only queries as much as is needed (wrt to time)
