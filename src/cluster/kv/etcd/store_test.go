@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/atomic"
 	"io/ioutil"
 	"os"
 	"path"
@@ -1160,8 +1161,16 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
+var insideTestContext = atomic.NewBool(false)
+
 func testCluster(t *testing.T) (*integration.ClusterV3, Options, func()) {
-	integration.BeforeTestExternal(t)
+	if !insideTestContext.Swap(true) {
+		integration.BeforeTestExternal(t)
+		t.Cleanup(func() {
+			insideTestContext.Store(false)
+		})
+	}
+
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	closer := func() {
 		ecluster.Terminate(t)
