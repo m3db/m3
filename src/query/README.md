@@ -4,7 +4,7 @@
 
 M3Coordinator is a service which provides APIs for reading/writing to [M3DB](https://github.com/m3db/m3) at a global and placement specific level.
 It also acts as a bridge between [Prometheus](https://github.com/prometheus/prometheus) and [M3DB](https://github.com/m3db/m3). Using this bridge, [M3DB](https://github.com/m3db/m3) acts as a long term storage for [Prometheus](https://github.com/prometheus/prometheus) using the [remote read/write endpoints](https://github.com/prometheus/prometheus/blob/master/prompb/remote.proto).
-A detailed explanation of setting up long term storage for Prometheus can be found [here](https://schd.ws/hosted_files/cloudnativeeu2017/73/Integrating%20Long-Term%20Storage%20with%20Prometheus%20-%20CloudNativeCon%20Berlin%2C%20March%2030%2C%202017.pdf).
+A detailed explanation of setting up long term storage for Prometheus can be found [here](http://schd.ws/hosted_files/cloudnativeeu2017/73/Integrating%20Long-Term%20Storage%20with%20Prometheus%20-%20CloudNativeCon%20Berlin%2C%20March%2030%2C%202017.pdf).
 
 ### Running in Docker
 
