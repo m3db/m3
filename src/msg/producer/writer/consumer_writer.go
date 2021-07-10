@@ -424,7 +424,7 @@ func (w *consumerWriterImpl) reset(opts resetOptions) {
 			WriteBufferSize: w.connOpts.WriteBufferSize(),
 		}
 
-		rwOpts   = w.opts.DecoderOptions().RWOptions()
+		rwOpts   = w.opts.EncoderOptions().RWOptions()
 		writerFn = rwOpts.ResettableWriterFn()
 	)
 

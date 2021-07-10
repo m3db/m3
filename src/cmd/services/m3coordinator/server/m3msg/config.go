@@ -52,9 +52,9 @@ func (c Configuration) NewServer(
 		iOpts.SetMetricsScope(scope.Tagged(map[string]string{
 			"component": "consumer",
 		})),
+		rwOpts,
 	)
 
-	cOpts = cOpts.SetDecoderOptions(cOpts.DecoderOptions().SetRWOptions(rwOpts))
 	h, err := c.Handler.newHandler(writeFn, cOpts, iOpts.SetMetricsScope(scope))
 	if err != nil {
 		return nil, err
