@@ -2857,9 +2857,7 @@ func (p *writeBatchPooledReqPool) Get(size int) *writeBatchPooledReq {
 	pooledReq := p.pool.Get().(*writeBatchPooledReq)
 	if cappedSize > len(pooledReq.pooledIDs) {
 		newPooledIDs := make([]writeBatchPooledReqID, 0, cappedSize)
-		for _, pooledID := range pooledReq.pooledIDs {
-			newPooledIDs = append(newPooledIDs, pooledID)
-		}
+		newPooledIDs = append(newPooledIDs, pooledReq.pooledIDs...)
 
 		for i := len(pooledReq.pooledIDs); i < len(newPooledIDs); i++ {
 			newPooledIDs[i].bytes = checked.NewBytes(nil, nil)

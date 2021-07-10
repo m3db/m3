@@ -24,23 +24,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/atomic"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/tests/v3/integration"
+	"go.uber.org/atomic"
 	"golang.org/x/net/context"
 )
 
