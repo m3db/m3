@@ -1137,14 +1137,18 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	bootstrapStart := start.Add(-10 * time.Minute)
 
 	engine := NewEngine(&common.MovingFunctionStorage{
-		StepMillis:     60000,
-		BootstrapStart: bootstrapStart,
+		StepMillis: 60000,
 		OriginalValues: []common.SeriesNameAndValues{
 			{Name: "foo.bar", Values: []float64{3, 3, 3}},
 		},
-		BootstrapValues: []common.SeriesNameAndValues{
-			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3}},
-			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+		ExplicitBootstraps: []common.ExplicitBootstrap{
+			{
+				Start: bootstrapStart,
+				Values: []common.SeriesNameAndValues{
+					{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3}},
+					{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+				},
+			},
 		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -1186,11 +1190,15 @@ func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	bootstrapStart := start.Add(-10 * time.Minute)
 
 	engine := NewEngine(&common.MovingFunctionStorage{
-		StepMillis:     60000,
-		BootstrapStart: bootstrapStart,
-		BootstrapValues: []common.SeriesNameAndValues{
-			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
-			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+		StepMillis: 60000,
+		ExplicitBootstraps: []common.ExplicitBootstrap{
+			{
+				Start: bootstrapStart,
+				Values: []common.SeriesNameAndValues{
+					{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+					{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+				},
+			},
 		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -1216,6 +1224,69 @@ func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	}
 	common.CompareOutputsAndExpected(t, 60000, start,
 		expected, res.Values)
+}
+
+// TestMovingSumOriginalIDsDifferentResolutionFromBootstrapIDs tests the case
+// where when a "moving" function fetches the bootstrapped time range but that
+// ends up returning a different resolution of data from a different namespace
+// and as such requires an adjusted context shift.
+func TestMovingSumOriginalIDsDifferentResolutionFromBootstrapIDs(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	end := time.Now().Truncate(time.Minute)
+	start := end.Add(-3 * time.Minute)
+	end = end.Add(time.Second) // Extend so three values are calculated.
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis: int(time.Minute / time.Millisecond),
+		OriginalValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{1, 1, 1}},
+		},
+		ExplicitBootstraps: []common.ExplicitBootstrap{
+			{
+				Start: start.Add(-3 * time.Minute),
+				Values: []common.SeriesNameAndValues{
+					// Two values for a 3min query + 3min bootstrap (6min window) at 5min resolution.
+					{Name: "foo.bar", Values: []float64{2, 2}},
+					{Name: "foo.baz", Values: []float64{4, 4}},
+				},
+				StepMillis: int((5 * time.Minute) / time.Millisecond),
+			},
+			{
+				Start: start.Add(-15 * time.Minute),
+				Values: []common.SeriesNameAndValues{
+					// Four values for a 3min query + 15 bootstrap (18min window) at 5min resolution.
+					{Name: "foo.bar", Values: []float64{3, 3, 3, 3}},
+					{Name: "foo.baz", Values: []float64{6, 6, 6, 6}},
+				},
+				StepMillis: int((5 * time.Minute) / time.Millisecond),
+			},
+		},
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	target := "movingSum(foo.*, 3)"
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "movingSum(foo.bar,3)",
+			Data: []float64{9},
+		},
+		{
+			Name: "movingSum(foo.baz,3)",
+			Data: []float64{18},
+		},
+	}
+	common.CompareOutputsAndExpected(t, int((5*time.Minute)/time.Millisecond),
+		start, expected, res.Values)
 }
 
 func TestMovingMaxSuccess(t *testing.T) {
