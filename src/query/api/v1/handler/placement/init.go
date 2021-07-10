@@ -54,6 +54,9 @@ var (
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost
+
+	// DefaultInstanceWeight is the default weight to apply to an instance
+	DefaultInstanceWeight = 100
 )
 
 // InitHandler is the handler for placement inits.
