@@ -389,6 +389,7 @@ func testOptions() Options {
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {
+	integration.BeforeTestExternal(t)
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 

@@ -1161,6 +1161,7 @@ func genProto(msg string) proto.Message {
 }
 
 func testCluster(t *testing.T) (*integration.ClusterV3, Options, func()) {
+	integration.BeforeTestExternal(t)
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	closer := func() {
 		ecluster.Terminate(t)

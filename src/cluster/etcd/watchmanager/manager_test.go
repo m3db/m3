@@ -170,7 +170,7 @@ func TestWatchNoLeader(t *testing.T) {
 		watchInitAndRetryDelay = 200 * time.Millisecond
 		watchCheckInterval     = 50 * time.Millisecond
 	)
-
+	integration.BeforeTestExternal(t)
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	defer ecluster.Terminate(t)
 
@@ -325,6 +325,7 @@ func testCluster(t *testing.T) (
 	chan struct{},
 	func(),
 ) {
+	integration.BeforeTestExternal(t)
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 
 	closer := func() {

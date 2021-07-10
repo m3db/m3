@@ -438,6 +438,7 @@ func TestWatchNonBlocking(t *testing.T) {
 }
 
 func testStore(t *testing.T, sid services.ServiceID) (*clientv3.Client, Options, func()) {
+	integration.BeforeTestExternal(t)
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 

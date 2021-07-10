@@ -23,12 +23,12 @@ package integration
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cluster/services/leader"
-
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/tests/v3/integration"
+
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader"
 )
 
 var (
@@ -45,6 +45,7 @@ type testCluster struct {
 }
 
 func newTestCluster(t *testing.T) *testCluster {
+	integration.BeforeTestExternal(t)
 	return &testCluster{
 		t: t,
 		cluster: integration.NewClusterV3(t, &integration.ClusterConfig{
@@ -63,7 +64,7 @@ func (tc *testCluster) Close() {
 	tc.cluster.Terminate(tc.t)
 }
 
-func (tc *testCluster) etcdClient() *client.Client {
+func (tc *testCluster) etcdClient() *clientv3.Client {
 	return tc.cluster.RandClient()
 }
 

@@ -38,6 +38,7 @@ type testCluster struct {
 }
 
 func newTestCluster(t *testing.T) *testCluster {
+	integration.BeforeTestExternal(t)
 	return &testCluster{
 		t: t,
 		cluster: integration.NewClusterV3(t, &integration.ClusterConfig{
