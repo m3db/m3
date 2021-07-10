@@ -1598,11 +1598,17 @@ func durationToSeconds(d time.Duration) int {
 
 // hitcount estimates hit counts from a list of time series. This function assumes the values in each time
 // series represent hits per second. It calculates hits per some larger interval such as per day or per hour.
-func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString string, alignToInterval bool) (*unaryContextShifter, error) {
+func hitcount(
+	ctx *common.Context,
+	_ singlePathSpec,
+	intervalString string,
+	alignToInterval bool,
+) (*unaryContextShifter, error) {
 	interval, err := common.ParseInterval(intervalString)
 	if err != nil {
 		return nil, err
 	}
+
 	intervalInSeconds := durationToSeconds(interval)
 	if intervalInSeconds <= 0 {
 		return nil, common.ErrInvalidIntervalFormat
@@ -1619,14 +1625,14 @@ func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString str
 				origStartTime.Month(),
 				origStartTime.Day(), 0, 0, 0, 0, origStartTime.Location())
 			shiftDuration = newStartTime.Sub(origStartTime)
-		} else if interval.Hours() >=1 { // interval is in hrs
+		} else if interval.Hours() >= 1 { // interval is in hrs
 			newStartTime := time.Date(
 				origStartTime.Year(),
 				origStartTime.Month(),
 				origStartTime.Day(),
 				origStartTime.Hour(), 0, 0, 0, origStartTime.Location())
 			shiftDuration = newStartTime.Sub(origStartTime)
-		} else if interval.Minutes() >=1 { // interval is in minutes.
+		} else if interval.Minutes() >= 1 { // interval is in minutes.
 			newStartTime := time.Date(
 				origStartTime.Year(),
 				origStartTime.Month(),
@@ -1636,6 +1642,7 @@ func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString str
 			shiftDuration = newStartTime.Sub(origStartTime)
 		}
 	}
+
 	contextShiftingFn := func(c *common.Context) *common.Context {
 		opts := common.NewChildContextOptions()
 		opts.AdjustTimeRange(shiftDuration, 0, 0, 0)
@@ -1643,11 +1650,10 @@ func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString str
 		return childCtx
 	}
 
-	transformerFn := func(input ts.SeriesList) (ts.SeriesList, error) {
-		r := hitCountImpl(ctx, seriesList, intervalString, interval, intervalInSeconds)
+	transformerFn := func(bootstrappedSeries ts.SeriesList) (ts.SeriesList, error) {
+		r := hitCountImpl(ctx, bootstrappedSeries, intervalString, interval, intervalInSeconds)
 		return r, nil
 	}
-
 
 	return &unaryContextShifter{
 		ContextShiftFunc: contextShiftingFn,
@@ -1657,13 +1663,13 @@ func hitcount(ctx *common.Context, seriesList singlePathSpec, intervalString str
 
 func hitCountImpl(
 	ctx *common.Context,
-	seriesList singlePathSpec,
+	seriesList ts.SeriesList,
 	intervalString string,
 	interval time.Duration,
-	intervalInSeconds int) ts.SeriesList {
-
-	resultSeries := make([]*ts.Series, len(seriesList.Values))
-	for index, series := range seriesList.Values {
+	intervalInSeconds int,
+) ts.SeriesList {
+	resultSeries := make([]*ts.Series, 0, len(seriesList.Values))
+	for _, series := range seriesList.Values {
 		step := time.Duration(series.MillisPerStep()) * time.Millisecond
 		bucketCount := int(math.Ceil(float64(series.EndTime().Sub(series.StartTime())) / float64(interval)))
 		buckets := ts.NewValues(ctx, int(interval/time.Millisecond), bucketCount)
@@ -1697,9 +1703,9 @@ func hitCountImpl(
 				}
 			}
 		}
-		newName := fmt.Sprintf("hitcount(%s, %q)", series.Name(), intervalString)
+		newName := fmt.Sprintf("hitcount(%s,%q)", series.Name(), intervalString)
 		newSeries := ts.NewSeries(ctx, newName, newStart, buckets)
-		resultSeries[index] = newSeries
+		resultSeries = append(resultSeries, newSeries)
 	}
 
 	r := ts.SeriesList(seriesList)
