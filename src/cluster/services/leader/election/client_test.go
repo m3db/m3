@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/clientv3/concurrency"
-	"go.etcd.io/etcd/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/concurrency"
+	"go.etcd.io/etcd/tests/v3/integration"
 )
 
 type testCluster struct {
@@ -38,6 +38,7 @@ type testCluster struct {
 }
 
 func newTestCluster(t *testing.T) *testCluster {
+	integration.BeforeTestExternal(t)
 	return &testCluster{
 		t: t,
 		cluster: integration.NewClusterV3(t, &integration.ClusterConfig{
