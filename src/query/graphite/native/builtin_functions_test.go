@@ -3266,6 +3266,7 @@ func TestHitcount(t *testing.T) {
 	}
 
 	for i, input := range tests {
+		input := input
 		t.Run(fmt.Sprintf("test_%d_%s", i, input.name), func(t *testing.T) {
 			ctrl := xgomock.NewController(t)
 			defer ctrl.Finish()

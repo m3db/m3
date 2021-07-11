@@ -1614,25 +1614,28 @@ func hitcount(
 		return nil, common.ErrInvalidIntervalFormat
 	}
 
-	var shiftDuration = time.Second * 0 // default to no shift.
+	shiftDuration := time.Second * 0 // Default to no shift.
 	if alignToInterval {
-		// follow graphite implementation: only handle minutes, hours and days.
+		// Follow graphite implementation: only handle minutes, hours and days.
 		origStartTime := ctx.StartTime
-		if interval.Hours() >= 24 { // interval is in days
-			// truncate to days.
+		switch {
+		case interval.Hours() >= 24:
+			// Interval in days, truncate to days.
 			newStartTime := time.Date(
 				origStartTime.Year(),
 				origStartTime.Month(),
 				origStartTime.Day(), 0, 0, 0, 0, origStartTime.Location())
 			shiftDuration = newStartTime.Sub(origStartTime)
-		} else if interval.Hours() >= 1 { // interval is in hrs
+		case interval.Hours() >= 1:
+			// Interval is in hrs.
 			newStartTime := time.Date(
 				origStartTime.Year(),
 				origStartTime.Month(),
 				origStartTime.Day(),
 				origStartTime.Hour(), 0, 0, 0, origStartTime.Location())
 			shiftDuration = newStartTime.Sub(origStartTime)
-		} else if interval.Minutes() >= 1 { // interval is in minutes.
+		case interval.Minutes() >= 1:
+			// Interval is in minutes.
 			newStartTime := time.Date(
 				origStartTime.Year(),
 				origStartTime.Month(),
