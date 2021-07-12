@@ -41,7 +41,7 @@ import (
 
 const (
 	// FindURL is the url for finding graphite metrics.
-	FindURL = route.PrefixV1 + "/graphite/metrics/find"
+	FindURL = route.Prefix + "/graphite/metrics/find"
 )
 
 // FindHTTPMethods are the HTTP methods for this handler.

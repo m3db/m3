@@ -46,7 +46,7 @@ import (
 
 const (
 	// InfluxWriteURL is the Influx DB write handler URL
-	InfluxWriteURL = route.PrefixV1 + "/influxdb/write"
+	InfluxWriteURL = route.Prefix + "/influxdb/write"
 
 	// InfluxWriteHTTPMethod is the HTTP method used with this resource
 	InfluxWriteHTTPMethod = http.MethodPost

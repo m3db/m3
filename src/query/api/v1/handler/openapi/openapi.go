@@ -34,7 +34,7 @@ import (
 
 const (
 	// URL is the url for the OpenAPI handler.
-	URL = route.PrefixV1 + "/openapi"
+	URL = route.Prefix + "/openapi"
 
 	// HTTPMethod is the HTTP method used with this resource.
 	HTTPMethod = http.MethodGet

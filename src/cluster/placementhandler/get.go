@@ -48,15 +48,15 @@ const (
 var (
 	// M3DBGetURL is the url for the placement get handler (with the GET method)
 	// for the M3DB service.
-	M3DBGetURL = path.Join(route.PrefixV1, M3DBServicePlacementPathName)
+	M3DBGetURL = path.Join(route.Prefix, M3DBServicePlacementPathName)
 
 	// M3AggGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Agg service.
-	M3AggGetURL = path.Join(route.PrefixV1, M3AggServicePlacementPathName)
+	M3AggGetURL = path.Join(route.Prefix, M3AggServicePlacementPathName)
 
 	// M3CoordinatorGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Coordinator service.
-	M3CoordinatorGetURL = path.Join(route.PrefixV1, M3CoordinatorServicePlacementPathName)
+	M3CoordinatorGetURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
 
 	errPlacementDoesNotExist = xhttp.NewError(errors.New("placement does not exist"), http.StatusNotFound)
 )

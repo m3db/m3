@@ -49,7 +49,7 @@ import (
 
 const (
 	// ReadURL is the url for the graphite query handler.
-	ReadURL = route.PrefixV1 + "/graphite/render"
+	ReadURL = route.Prefix + "/graphite/render"
 )
 
 // ReadHTTPMethods are the HTTP methods used with this resource.

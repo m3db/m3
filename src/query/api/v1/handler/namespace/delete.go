@@ -51,7 +51,7 @@ const (
 var (
 	// M3DBDeleteURL is the url for the M3DB namespace delete handler.
 	M3DBDeleteURL = path.Join(
-		route.PrefixV1,
+		route.Prefix,
 		M3DBServiceNamespacePathName,
 		fmt.Sprintf("{%s}", namespaceIDVar),
 	)

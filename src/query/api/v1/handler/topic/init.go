@@ -38,7 +38,7 @@ import (
 
 const (
 	// InitURL is the url for the topic init handler (with the POST method).
-	InitURL = route.PrefixV1 + "/topic/init"
+	InitURL = route.Prefix + "/topic/init"
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost

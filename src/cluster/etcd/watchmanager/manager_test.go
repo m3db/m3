@@ -30,8 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/integration"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
 
 	"github.com/m3db/m3/src/x/clock"
@@ -170,7 +170,7 @@ func TestWatchNoLeader(t *testing.T) {
 		watchInitAndRetryDelay = 200 * time.Millisecond
 		watchCheckInterval     = 50 * time.Millisecond
 	)
-	integration.BeforeTestExternal(t)
+
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	defer ecluster.Terminate(t)
 
@@ -311,7 +311,7 @@ func TestWatchCompactedRevision(t *testing.T) {
 	}
 
 	errN := ts.Snapshot().Counters()["errors+"].Value()
-	assert.True(t, errN > 0, "expected to encounter watch error")
+	assert.Equal(t, int64(1), errN, "expected to encounter watch error")
 
 	atomic.AddInt32(shouldStop, 1)
 	<-doneCh
@@ -325,7 +325,6 @@ func testCluster(t *testing.T) (
 	chan struct{},
 	func(),
 ) {
-	integration.BeforeTestExternal(t)
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 
 	closer := func() {

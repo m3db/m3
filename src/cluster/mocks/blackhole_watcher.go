@@ -23,7 +23,7 @@ package mocks
 import (
 	"sync"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/clientv3"
 	"golang.org/x/net/context"
 )
 

@@ -48,17 +48,17 @@ const (
 
 var (
 	// M3DBSetURL is the url for the m3db replace handler (method POST).
-	M3DBSetURL = path.Join(route.PrefixV1,
+	M3DBSetURL = path.Join(route.Prefix,
 		M3DBServicePlacementPathName, setPathName)
 
 	// M3AggSetURL is the url for the m3aggregator replace handler (method
 	// POST).
-	M3AggSetURL = path.Join(route.PrefixV1,
+	M3AggSetURL = path.Join(route.Prefix,
 		M3AggServicePlacementPathName, setPathName)
 
 	// M3CoordinatorSetURL is the url for the m3coordinator replace handler
 	// (method POST).
-	M3CoordinatorSetURL = path.Join(route.PrefixV1,
+	M3CoordinatorSetURL = path.Join(route.Prefix,
 		M3CoordinatorServicePlacementPathName, setPathName)
 )
 

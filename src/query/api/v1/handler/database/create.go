@@ -53,10 +53,10 @@ import (
 
 const (
 	// CreateURL is the URL for the database create handler.
-	CreateURL = route.PrefixV1 + "/database/create"
+	CreateURL = route.Prefix + "/database/create"
 
 	// CreateNamespaceURL is the URL for the database namespace create handler.
-	CreateNamespaceURL = route.PrefixV1 + "/database/namespace/create"
+	CreateNamespaceURL = route.Prefix + "/database/namespace/create"
 
 	// CreateHTTPMethod is the HTTP method used with the create database resource.
 	CreateHTTPMethod = http.MethodPost

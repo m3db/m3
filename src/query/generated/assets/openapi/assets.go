@@ -26,8 +26,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -122,24 +120,7 @@ func (f *_escFile) Close() error {
 }
 
 func (f *_escFile) Readdir(count int) ([]os.FileInfo, error) {
-	if !f.isDir {
-		return nil, fmt.Errorf(" escFile.Readdir: '%s' is not directory", f.name)
-	}
-
-	fis, ok := _escDirs[f.local]
-	if !ok {
-		return nil, fmt.Errorf(" escFile.Readdir: '%s' is directory, but we have no info about content of this dir, local=%s", f.name, f.local)
-	}
-	limit := count
-	if count <= 0 || limit > len(fis) {
-		limit = len(fis)
-	}
-
-	if len(fis) == 0 && count > 0 {
-		return nil, io.EOF
-	}
-
-	return fis[0:limit], nil
+	return nil, nil
 }
 
 func (f *_escFile) Stat() (os.FileInfo, error) {
@@ -230,7 +211,6 @@ func FSMustString(useLocal bool, name string) string {
 var _escData = map[string]*_escFile{
 
 	"/asset-gen.sh": {
-		name:    "asset-gen.sh",
 		local:   "asset-gen.sh",
 		size:    238,
 		modtime: 12345,
@@ -243,7 +223,6 @@ KbufAAAA//9BiTev7gAAAA==
 	},
 
 	"/index.html": {
-		name:    "index.html",
 		local:   "openapi/index.html",
 		size:    636,
 		modtime: 12345,
@@ -259,7 +238,6 @@ d8dUBmQZxiF/+uI1I7E8TMF6pCyWxDpY7WPA8pmKZsl6ouawOaOS+Sj+BQAA//8by2IcfAIAAA==
 	},
 
 	"/spec.yml": {
-		name:    "spec.yml",
 		local:   "openapi/spec.yml",
 		size:    26055,
 		modtime: 12345,
@@ -306,27 +284,7 @@ jRjeuCiq+38AAAD//3KwMhXHZQAA
 	},
 
 	"/": {
-		name:  "/",
-		local: `.`,
 		isDir: true,
-	},
-
-	"/openapi": {
-		name:  "openapi",
-		local: `openapi`,
-		isDir: true,
-	},
-}
-
-var _escDirs = map[string][]os.FileInfo{
-
-	".": {
-		_escData["/asset-gen.sh"],
-		_escData["/openapi"],
-	},
-
-	"openapi": {
-		_escData["/index.html"],
-		_escData["/spec.yml"],
+		local: "openapi",
 	},
 }

@@ -44,7 +44,7 @@ import (
 
 const (
 	// WriteJSONURL is the url for the write json handler
-	WriteJSONURL = route.PrefixV1 + "/json/write"
+	WriteJSONURL = route.Prefix + "/json/write"
 
 	// JSONWriteHTTPMethod is the HTTP method used with this resource.
 	JSONWriteHTTPMethod = http.MethodPost
