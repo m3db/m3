@@ -136,6 +136,10 @@ ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'f.bar.*' fbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'g.bar.*' gbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'h.bar*' hbarbaz.json"
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'i.bar*' ibarbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a**.*' a_starstar_dot_star.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.**.*' a_dot_starstar_dot_star.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'qux**.*' qux_starstar_dot_star.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'qux.**.*' qux_dot_starstar_dot_star.json"
 
 # Test find limits from config of matching max docs of 200 with:
 # carbon:

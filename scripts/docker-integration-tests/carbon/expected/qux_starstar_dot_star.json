@@ -1,0 +1,16 @@
+[
+  {
+    "id": "qux.**.pos2-1",
+    "text": "pos2-1",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "qux.**.pos2-0",
+    "text": "pos2-0",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  }
+]
