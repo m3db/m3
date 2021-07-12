@@ -29,9 +29,9 @@ import (
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -44,7 +44,7 @@ import (
 
 var (
 	// M3DBGetURL is the url for the namespace get handler (with the GET method).
-	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
+	M3DBGetURL = path.Join(route.PrefixV1, M3DBServiceNamespacePathName)
 
 	// GetHTTPMethod is the HTTP method used with this resource.
 	GetHTTPMethod = http.MethodGet

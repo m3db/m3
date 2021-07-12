@@ -26,10 +26,10 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
@@ -50,7 +50,7 @@ const (
 	NameReplace = "name"
 
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = handler.RoutePrefixV1 + "/label/{" + NameReplace + "}/values"
+	TagValuesURL = route.PrefixV1 + "/label/{" + NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet

@@ -32,10 +32,10 @@ import (
 	"time"
 
 	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -59,7 +59,7 @@ import (
 
 const (
 	// PromReadURL is the url for remote prom read handler
-	PromReadURL = handler.RoutePrefixV1 + "/prom/remote/read"
+	PromReadURL = route.PrefixV1 + "/prom/remote/read"
 )
 
 // PromReadHTTPMethods are the HTTP methods used with this resource.

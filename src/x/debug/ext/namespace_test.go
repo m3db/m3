@@ -18,22 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package extdebug
 
 import (
 	"bytes"
 	"net/http"
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	debugtest "github.com/m3db/m3/src/x/debug/test"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNamespaceSource(t *testing.T) {
-	_, mockKV, mockClient := newHandlerOptsAndClient(t)
+	_, mockKV, mockClient := debugtest.NewTestHandlerOptsAndClient(t)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 	iOpts := instrument.NewOptions()
 	n, err := NewNamespaceInfoSource(mockClient, []handleroptions.ServiceNameAndDefaults{

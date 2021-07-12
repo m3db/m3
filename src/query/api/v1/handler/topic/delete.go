@@ -26,9 +26,9 @@ import (
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -39,7 +39,7 @@ import (
 
 const (
 	// DeleteURL is the url for the topic delete handler (with the DELETE method).
-	DeleteURL = handler.RoutePrefixV1 + "/topic"
+	DeleteURL = route.PrefixV1 + "/topic"
 
 	// DeleteHTTPMethod is the HTTP method used with this resource.
 	DeleteHTTPMethod = http.MethodDelete
