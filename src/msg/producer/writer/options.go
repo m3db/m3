@@ -291,7 +291,7 @@ type Options interface {
 	// MessageRetryOptions returns the retry options for message retry.
 	MessageRetryOptions() retry.Options
 
-	// MessageRetryOptions returns the retry options for message retry.
+	// SetMessageRetryOptions sets the retry options for message retry.
 	SetMessageRetryOptions(value retry.Options) Options
 
 	// MessageQueueNewWritesScanInterval returns the interval between scanning
@@ -340,10 +340,10 @@ type Options interface {
 	// SetEncoderOptions sets the encoder's options.
 	SetEncoderOptions(value proto.Options) Options
 
-	// EncoderOptions returns the decoder's options.
+	// DecoderOptions returns the decoder's options.
 	DecoderOptions() proto.Options
 
-	// SetEncoderOptions sets the decoder's options.
+	// SetDecoderOptions sets the decoder's options.
 	SetDecoderOptions(value proto.Options) Options
 
 	// ConnectionOptions returns the options for connections.
@@ -357,6 +357,12 @@ type Options interface {
 
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
+
+	// IgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps are ignored.
+	IgnoreCutoffCutover() bool
+
+	// SetIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps are ignored.
+	SetIgnoreCutoffCutover(value bool) Options
 }
 
 type writerOptions struct {
@@ -378,6 +384,7 @@ type writerOptions struct {
 	decOpts                           proto.Options
 	cOpts                             ConnectionOptions
 	iOpts                             instrument.Options
+	ignoreCutoffCutover               bool
 }
 
 // NewOptions creates Options.
@@ -577,5 +584,15 @@ func (opts *writerOptions) InstrumentOptions() instrument.Options {
 func (opts *writerOptions) SetInstrumentOptions(value instrument.Options) Options {
 	o := *opts
 	o.iOpts = value
+	return &o
+}
+
+func (opts *writerOptions) IgnoreCutoffCutover() bool {
+	return opts.ignoreCutoffCutover
+}
+
+func (opts *writerOptions) SetIgnoreCutoffCutover(value bool) Options {
+	o := *opts
+	o.ignoreCutoffCutover = value
 	return &o
 }

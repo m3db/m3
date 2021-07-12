@@ -286,6 +286,10 @@ func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 }
 
 func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
+	if w.opts.IgnoreCutoffCutover() {
+		return true
+	}
+
 	if w.cutOffNanos > 0 && nowNanos >= w.cutOffNanos {
 		w.m.writeAfterCutoff.Inc(1)
 		return false
@@ -294,6 +298,7 @@ func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
 		w.m.writeBeforeCutover.Inc(1)
 		return false
 	}
+
 	return true
 }
 
