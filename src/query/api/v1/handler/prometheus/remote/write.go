@@ -60,7 +60,7 @@ import (
 
 const (
 	// PromWriteURL is the url for the prom write handler
-	PromWriteURL = route.PrefixV1 + "/prom/remote/write"
+	PromWriteURL = route.Prefix + "/prom/remote/write"
 
 	// PromWriteHTTPMethod is the HTTP method used with this resource.
 	PromWriteHTTPMethod = http.MethodPost

@@ -44,7 +44,7 @@ import (
 
 const (
 	// CompleteTagsURL is the url for searching tags.
-	CompleteTagsURL = route.PrefixV1 + "/search"
+	CompleteTagsURL = route.Prefix + "/search"
 
 	// CompleteTagsHTTPMethod is the HTTP method used with this resource.
 	CompleteTagsHTTPMethod = http.MethodGet

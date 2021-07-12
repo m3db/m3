@@ -44,13 +44,13 @@ const (
 
 var (
 	// M3DBInitURL is the url for the placement init handler, (with the POST method).
-	M3DBInitURL = path.Join(route.PrefixV1, M3DBServicePlacementPathName, initPathName)
+	M3DBInitURL = path.Join(route.Prefix, M3DBServicePlacementPathName, initPathName)
 
 	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3AggInitURL = path.Join(route.PrefixV1, M3AggServicePlacementPathName, initPathName)
+	M3AggInitURL = path.Join(route.Prefix, M3AggServicePlacementPathName, initPathName)
 
 	// M3CoordinatorInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3CoordinatorInitURL = path.Join(route.PrefixV1, M3CoordinatorServicePlacementPathName, initPathName)
+	M3CoordinatorInitURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName, initPathName)
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost

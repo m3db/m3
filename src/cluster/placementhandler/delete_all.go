@@ -43,15 +43,15 @@ const (
 var (
 	// M3DBDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3DB service.
-	M3DBDeleteAllURL = path.Join(route.PrefixV1, M3DBServicePlacementPathName)
+	M3DBDeleteAllURL = path.Join(route.Prefix, M3DBServicePlacementPathName)
 
 	// M3AggDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3Agg service.
-	M3AggDeleteAllURL = path.Join(route.PrefixV1, M3AggServicePlacementPathName)
+	M3AggDeleteAllURL = path.Join(route.Prefix, M3AggServicePlacementPathName)
 
 	// M3CoordinatorDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3Coordinator service.
-	M3CoordinatorDeleteAllURL = path.Join(route.PrefixV1, M3CoordinatorServicePlacementPathName)
+	M3CoordinatorDeleteAllURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
 )
 
 // DeleteAllHandler is the handler to delete all placements.

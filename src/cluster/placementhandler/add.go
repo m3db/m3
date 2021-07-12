@@ -45,15 +45,15 @@ const (
 var (
 	// M3DBAddURL is the url for the placement add handler (with the POST method)
 	// for the M3DB service.
-	M3DBAddURL = path.Join(route.PrefixV1, M3DBServicePlacementPathName)
+	M3DBAddURL = path.Join(route.Prefix, M3DBServicePlacementPathName)
 
 	// M3AggAddURL is the url for the placement add handler (with the POST method)
 	// for the M3Agg service.
-	M3AggAddURL = path.Join(route.PrefixV1, M3AggServicePlacementPathName)
+	M3AggAddURL = path.Join(route.Prefix, M3AggServicePlacementPathName)
 
 	// M3CoordinatorAddURL is the url for the placement add handler (with the POST method)
 	// for the M3Coordinator service.
-	M3CoordinatorAddURL = path.Join(route.PrefixV1, M3CoordinatorServicePlacementPathName)
+	M3CoordinatorAddURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
 )
 
 // AddHandler is the handler for placement adds.

@@ -39,7 +39,7 @@ import (
 
 const (
 	// DeleteURL is the url for the topic delete handler (with the DELETE method).
-	DeleteURL = route.PrefixV1 + "/topic"
+	DeleteURL = route.Prefix + "/topic"
 
 	// DeleteHTTPMethod is the HTTP method used with this resource.
 	DeleteHTTPMethod = http.MethodDelete

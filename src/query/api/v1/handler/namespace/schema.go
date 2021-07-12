@@ -42,7 +42,7 @@ import (
 
 var (
 	// M3DBSchemaURL is the url for the M3DB schema handler.
-	M3DBSchemaURL = path.Join(route.PrefixV1, M3DBServiceSchemaPathName)
+	M3DBSchemaURL = path.Join(route.Prefix, M3DBServiceSchemaPathName)
 
 	// SchemaDeployHTTPMethod is the HTTP method used to append to this resource.
 	SchemaDeployHTTPMethod = http.MethodPost

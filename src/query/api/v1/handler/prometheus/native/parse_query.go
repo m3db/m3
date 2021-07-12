@@ -41,7 +41,7 @@ import (
 const (
 	// PromParseURL is the url for native prom parse handler, this parses out the
 	// query and returns a JSON representation of the execution DAG.
-	PromParseURL = route.PrefixV1 + "/parse"
+	PromParseURL = route.Prefix + "/parse"
 
 	// PromParseHTTPMethod is the HTTP method used with this resource.
 	PromParseHTTPMethod = http.MethodGet

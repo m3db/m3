@@ -53,7 +53,7 @@ const (
 
 var (
 	// M3DBReadyURL is the url for the M3DB namespace mark_ready handler.
-	M3DBReadyURL = path.Join(route.PrefixV1, M3DBServiceNamespacePathName, "ready")
+	M3DBReadyURL = path.Join(route.Prefix, M3DBServiceNamespacePathName, "ready")
 
 	// ReadyHTTPMethod is the HTTP method used with this resource.
 	ReadyHTTPMethod = http.MethodPost

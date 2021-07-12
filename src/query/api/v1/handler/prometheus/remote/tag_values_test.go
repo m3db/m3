@@ -141,14 +141,14 @@ func testTagValuesWithMatch(
 	valueHandler http.Handler,
 	withMatchOverride bool,
 ) {
-	path := fmt.Sprintf("%s/label/%s/values?start=100", route.PrefixV1, name)
+	path := fmt.Sprintf("%s/label/%s/values?start=100", route.Prefix, name)
 	nameMatcher := models.Matcher{
 		Type: models.MatchField,
 		Name: []byte(name),
 	}
 	matchers := models.Matchers{nameMatcher}
 	if withMatchOverride {
-		path = fmt.Sprintf("%s/label/%s/values?start=100&match[]=testing", route.PrefixV1, name)
+		path = fmt.Sprintf("%s/label/%s/values?start=100&match[]=testing", route.Prefix, name)
 		matchers = models.Matchers{
 			nameMatcher,
 			{
@@ -257,7 +257,7 @@ func TestTagValueTimeout(t *testing.T) {
 	h := NewTagValuesHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
 	router := mux.NewRouter()
 	router.HandleFunc(
-		fmt.Sprintf("%s/label/{%s}/values", route.PrefixV1, NameReplace),
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
 		h.ServeHTTP,
 	)
 	router.ServeHTTP(w, req)
@@ -278,7 +278,7 @@ func TestTagValueUseRequestContext(t *testing.T) {
 	h := NewTagValuesHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
 	router := mux.NewRouter()
 	router.HandleFunc(
-		fmt.Sprintf("%s/label/{%s}/values", route.PrefixV1, NameReplace),
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
 		h.ServeHTTP,
 	)
 	router.ServeHTTP(w, req)

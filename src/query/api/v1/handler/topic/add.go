@@ -38,7 +38,7 @@ import (
 
 const (
 	// AddURL is the url for the topic add handler (with the POST method).
-	AddURL = route.PrefixV1 + "/topic"
+	AddURL = route.Prefix + "/topic"
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost

@@ -36,7 +36,7 @@ import (
 const (
 	// PromThresholdURL is the url for native prom threshold handler, this  parses
 	// out the  query and returns a JSON representation of the execution DAG.
-	PromThresholdURL = route.PrefixV1 + "/threshold"
+	PromThresholdURL = route.Prefix + "/threshold"
 
 	// PromThresholdHTTPMethod is the HTTP method used with this resource.
 	PromThresholdHTTPMethod = http.MethodGet

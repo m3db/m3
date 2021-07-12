@@ -51,13 +51,13 @@ var (
 	placementIDPath = fmt.Sprintf("{%s}", placementIDVar)
 
 	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
-	M3DBDeleteURL = path.Join(route.PrefixV1, M3DBServicePlacementPathName, placementIDPath)
+	M3DBDeleteURL = path.Join(route.Prefix, M3DBServicePlacementPathName, placementIDPath)
 
 	// M3AggDeleteURL is the url for the placement delete handler for the M3Agg service.
-	M3AggDeleteURL = path.Join(route.PrefixV1, M3AggServicePlacementPathName, placementIDPath)
+	M3AggDeleteURL = path.Join(route.Prefix, M3AggServicePlacementPathName, placementIDPath)
 
 	// M3CoordinatorDeleteURL is the url for the placement delete handler for the M3Coordinator service.
-	M3CoordinatorDeleteURL = path.Join(route.PrefixV1, M3CoordinatorServicePlacementPathName, placementIDPath)
+	M3CoordinatorDeleteURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName, placementIDPath)
 
 	errEmptyID = xerrors.NewInvalidParamsError(errors.New("must specify placement ID to delete"))
 )
