@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package election
+package remote
 
-import "go.etcd.io/etcd/clientv3/concurrency"
+import (
+	"google.golang.org/grpc/naming"
+)
 
-type clientOpts struct {
-	sessionOpts []concurrency.SessionOption
+type staticResolver struct {
+	updates []*naming.Update
 }
 
-// ClientOption provides a means of configuring optional parameters for a
-// client.
-type ClientOption func(*clientOpts)
-
-// WithSessionOptions sets the options passed to all underlying
-// concurrency.Session instances associated with elections. If the user wishes
-// to override the TTL of sessions, concurrency.WithTTL(ttl) should be passed
-// here.
-func WithSessionOptions(opts ...concurrency.SessionOption) ClientOption {
-	return func(o *clientOpts) {
-		o.sessionOpts = opts
+func newStaticResolver(addresses []string) naming.Resolver {
+	var updates []*naming.Update
+	for _, address := range addresses {
+		updates = append(updates, &naming.Update{
+			Op:       naming.Add,
+			Addr:     address,
+			Metadata: nil,
+		})
 	}
+	return &staticResolver{
+		updates: updates,
+	}
+}
+
+// Resolve creates a Watcher for target.
+func (r *staticResolver) Resolve(target string) (naming.Watcher, error) {
+	ch := make(chan []*naming.Update, 1)
+	ch <- r.updates
+	return &staticWatcher{
+		updates: ch,
+	}, nil
+}
+
+type staticWatcher struct {
+	updates chan []*naming.Update
+}
+
+// Next returns the static address set
+func (w *staticWatcher) Next() ([]*naming.Update, error) {
+	return <-w.updates, nil
+}
+
+// Close closes the watcher
+func (w *staticWatcher) Close() {
+	close(w.updates)
 }
