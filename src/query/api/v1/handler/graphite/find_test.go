@@ -32,6 +32,9 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -43,8 +46,6 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // dates is a tuple of a date with a valid string representation
@@ -373,13 +374,15 @@ func testFind(t *testing.T, opts testFindOptions) {
 		},
 	} {
 		// Set which limit tests should be performed for this query.
-		limitTests := test.limitTests
+		testCaseLimitTests := test.limitTests
 		if len(limitTests) == 0 {
 			// Just test case where both are complete.
-			limitTests = []limitTest{bothCompleteLimitTest}
+			testCaseLimitTests = []limitTest{bothCompleteLimitTest}
 		}
 
-		for _, limitTest := range limitTests {
+		for _, limitTest := range testCaseLimitTests {
+			// nolint: govet
+			limitTest := limitTest
 			t.Run(fmt.Sprintf("%s-%s", test.query, limitTest.name), func(t *testing.T) {
 				ctrl := xtest.NewController(t)
 				defer ctrl.Finish()
