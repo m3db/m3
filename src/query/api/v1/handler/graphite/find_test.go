@@ -32,10 +32,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	xtest "github.com/m3db/m3/src/x/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -45,7 +41,10 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // dates is a tuple of a date with a valid string representation
@@ -226,12 +225,18 @@ var (
 	bothCompleteLimitTest = limitTest{"both complete", true, true, ""}
 	limitTests            = []limitTest{
 		bothCompleteLimitTest,
-		{"both incomplete", false, false,
-			fmt.Sprintf("%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")},
-		{"with terminator incomplete", true, false,
-			"foo_bar"},
-		{"with children incomplete", false, true,
-			headers.LimitHeaderSeriesLimitApplied},
+		{
+			"both incomplete", false, false,
+			fmt.Sprintf("%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar"),
+		},
+		{
+			"with terminator incomplete", true, false,
+			"foo_bar",
+		},
+		{
+			"with children incomplete", false, true,
+			headers.LimitHeaderSeriesLimitApplied,
+		},
 	}
 )
 
@@ -375,9 +380,7 @@ func testFind(t *testing.T, opts testFindOptions) {
 		}
 
 		for _, limitTest := range limitTests {
-			limitTest := limitTest
-			name := fmt.Sprintf("%s-%s", test.query, limitTest.name)
-			t.Run(name, func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s-%s", test.query, limitTest.name), func(t *testing.T) {
 				ctrl := xtest.NewController(t)
 				defer ctrl.Finish()
 
