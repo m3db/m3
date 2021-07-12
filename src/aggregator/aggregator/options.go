@@ -340,6 +340,14 @@ type Options interface {
 
 	// SetFeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
 	SetFeatureFlagBundlesParsed([]FeatureFlagBundleParsed) Options
+
+	// WritesIgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
+	WritesIgnoreCutoffCutover() bool
+
+	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
+	SetWritesIgnoreCutoffCutover(value bool) Options
 }
 
 type options struct {
@@ -384,6 +392,7 @@ type options struct {
 	addToReset                       bool
 	timedMetricsFlushOffsetEnabled   bool
 	featureFlagBundlesParsed         []FeatureFlagBundleParsed
+	writesIgnoreCutoffCutover        bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -910,6 +919,16 @@ func (o *options) SetFeatureFlagBundlesParsed(value []FeatureFlagBundleParsed) O
 
 func (o *options) FeatureFlagBundlesParsed() []FeatureFlagBundleParsed {
 	return o.featureFlagBundlesParsed
+}
+
+func (o *options) WritesIgnoreCutoffCutover() bool {
+	return o.writesIgnoreCutoffCutover
+}
+
+func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
+	opts := *o
+	opts.writesIgnoreCutoffCutover = value
+	return &opts
 }
 
 func defaultMaxAllowedForwardingDelayFn(

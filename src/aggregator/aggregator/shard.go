@@ -110,6 +110,7 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 		bufferDurationAfterShardCutoff:   opts.BufferDurationAfterShardCutoff(),
 		metricMap:                        newMetricMap(shard, opts),
 		metrics:                          newAggregatorShardMetrics(scope),
+		latestWriteableNanos:             int64(math.MaxInt64),
 	}
 	s.addUntimedFn = s.metricMap.AddUntimed
 	s.addTimedFn = s.metricMap.AddTimed

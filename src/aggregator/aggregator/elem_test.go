@@ -1920,7 +1920,7 @@ func testTimerElem(
 	for i, aligned := range alignedstartAtNanos {
 		newTimer := raggregation.NewTimer(opts.AggregationTypesOptions().Quantiles(), opts.StreamOptions(), e.aggOpts)
 		timer := &lockedTimerAggregation{aggregation: newTimerAggregation(newTimer)}
-		timer.aggregation.AddBatch(time.Now(), timerBatches[i], nil)
+		timer.aggregation.AddBatch(time.Now(), timerBatches[i])
 		e.values = append(e.values, timedTimer{
 			startAtNanos: aligned,
 			lockedAgg:    timer,

@@ -505,6 +505,30 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	require.Equal(t, 0, w.queue.Len())
 }
 
+func TestMessageWriterIgnoreCutoverCutoff(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := NewOptions().SetIgnoreCutoffCutover(true)
+
+	w := newMessageWriter(200, testMessagePool(testOptions()), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	now := time.Now()
+	w.nowFn = func() time.Time { return now }
+
+	w.SetCutoffNanos(now.UnixNano() + 200)
+	w.SetCutoverNanos(now.UnixNano() + 100)
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	require.Equal(t, 0, w.queue.Len())
+
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("foo"))
+	mm.EXPECT().Size().Return(3)
+	w.Write(producer.NewRefCountedMessage(mm, nil))
+	require.Equal(t, 1, w.queue.Len())
+}
+
 func TestMessageWriterKeepNewWritesInOrderInFrontOfTheQueue(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
