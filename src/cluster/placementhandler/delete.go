@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"errors"
@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -51,13 +51,13 @@ var (
 	placementIDPath = fmt.Sprintf("{%s}", placementIDVar)
 
 	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
-	M3DBDeleteURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, placementIDPath)
+	M3DBDeleteURL = path.Join(route.PrefixV1, M3DBServicePlacementPathName, placementIDPath)
 
 	// M3AggDeleteURL is the url for the placement delete handler for the M3Agg service.
-	M3AggDeleteURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, placementIDPath)
+	M3AggDeleteURL = path.Join(route.PrefixV1, M3AggServicePlacementPathName, placementIDPath)
 
 	// M3CoordinatorDeleteURL is the url for the placement delete handler for the M3Coordinator service.
-	M3CoordinatorDeleteURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName, placementIDPath)
+	M3CoordinatorDeleteURL = path.Join(route.PrefixV1, M3CoordinatorServicePlacementPathName, placementIDPath)
 
 	errEmptyID = xerrors.NewInvalidParamsError(errors.New("must specify placement ID to delete"))
 )
@@ -94,7 +94,7 @@ func (h *DeleteHandler) ServeHTTP(
 	service, algo, err := ServiceWithAlgo(
 		h.clusterClient,
 		opts,
-		h.config.ClusterManagement.Placement,
+		h.placement,
 		h.nowFn(),
 		nil,
 	)

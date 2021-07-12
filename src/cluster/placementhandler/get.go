@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"errors"
@@ -30,8 +30,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -48,15 +48,15 @@ const (
 var (
 	// M3DBGetURL is the url for the placement get handler (with the GET method)
 	// for the M3DB service.
-	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
+	M3DBGetURL = path.Join(route.PrefixV1, M3DBServicePlacementPathName)
 
 	// M3AggGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Agg service.
-	M3AggGetURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
+	M3AggGetURL = path.Join(route.PrefixV1, M3AggServicePlacementPathName)
 
 	// M3CoordinatorGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Coordinator service.
-	M3CoordinatorGetURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
+	M3CoordinatorGetURL = path.Join(route.PrefixV1, M3CoordinatorServicePlacementPathName)
 
 	errPlacementDoesNotExist = xhttp.NewError(errors.New("placement does not exist"), http.StatusNotFound)
 )
@@ -116,7 +116,7 @@ func (h *GetHandler) Get(
 
 	opts := handleroptions.NewServiceOptions(svc, headers, h.m3AggServiceOptions)
 	service, err := Service(h.clusterClient, opts,
-		h.config.ClusterManagement.Placement, h.nowFn(), nil)
+		h.placement, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

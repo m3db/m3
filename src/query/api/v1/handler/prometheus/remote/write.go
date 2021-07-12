@@ -34,10 +34,10 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -60,7 +60,7 @@ import (
 
 const (
 	// PromWriteURL is the url for the prom write handler
-	PromWriteURL = handler.RoutePrefixV1 + "/prom/remote/write"
+	PromWriteURL = route.PrefixV1 + "/prom/remote/write"
 
 	// PromWriteHTTPMethod is the HTTP method used with this resource.
 	PromWriteHTTPMethod = http.MethodPost

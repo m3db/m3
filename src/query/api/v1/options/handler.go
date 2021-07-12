@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/runtime/protoiface"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	placementhandleroptions "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -172,9 +173,9 @@ type HandlerOptions interface {
 	SetPlacementServiceNames(n []string) HandlerOptions
 
 	// ServiceOptionDefaults returns the service option defaults.
-	ServiceOptionDefaults() []handleroptions.ServiceOptionsDefault
+	ServiceOptionDefaults() []placementhandleroptions.ServiceOptionsDefault
 	// SetServiceOptionDefaults sets the service option defaults.
-	SetServiceOptionDefaults(s []handleroptions.ServiceOptionsDefault) HandlerOptions
+	SetServiceOptionDefaults(s []placementhandleroptions.ServiceOptionsDefault) HandlerOptions
 
 	// NowFn returns the now function.
 	NowFn() clock.NowFn
@@ -262,7 +263,7 @@ type handlerOptions struct {
 	instrumentOpts                    instrument.Options
 	cpuProfileDuration                time.Duration
 	placementServiceNames             []string
-	serviceOptionDefaults             []handleroptions.ServiceOptionsDefault
+	serviceOptionDefaults             []placementhandleroptions.ServiceOptionsDefault
 	nowFn                             clock.NowFn
 	queryRouter                       QueryRouter
 	instantQueryRouter                QueryRouter
@@ -302,7 +303,7 @@ func NewHandlerOptions(
 	instrumentOpts instrument.Options,
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
-	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
+	serviceOptionDefaults []placementhandleroptions.ServiceOptionsDefault,
 	queryRouter QueryRouter,
 	instantQueryRouter QueryRouter,
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
@@ -484,12 +485,12 @@ func (o *handlerOptions) SetPlacementServiceNames(
 	return &opts
 }
 
-func (o *handlerOptions) ServiceOptionDefaults() []handleroptions.ServiceOptionsDefault {
+func (o *handlerOptions) ServiceOptionDefaults() []placementhandleroptions.ServiceOptionsDefault {
 	return o.serviceOptionDefaults
 }
 
 func (o *handlerOptions) SetServiceOptionDefaults(
-	s []handleroptions.ServiceOptionsDefault) HandlerOptions {
+	s []placementhandleroptions.ServiceOptionsDefault) HandlerOptions {
 	opts := *o
 	opts.serviceOptionDefaults = s
 	return &opts

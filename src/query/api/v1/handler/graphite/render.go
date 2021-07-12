@@ -30,9 +30,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	queryerrors "github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/common"
@@ -49,7 +49,7 @@ import (
 
 const (
 	// ReadURL is the url for the graphite query handler.
-	ReadURL = handler.RoutePrefixV1 + "/graphite/render"
+	ReadURL = route.PrefixV1 + "/graphite/render"
 )
 
 // ReadHTTPMethods are the HTTP methods used with this resource.

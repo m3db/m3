@@ -23,7 +23,7 @@ package openapi
 import (
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	assets "github.com/m3db/m3/src/query/generated/assets/openapi"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -34,7 +34,7 @@ import (
 
 const (
 	// URL is the url for the OpenAPI handler.
-	URL = handler.RoutePrefixV1 + "/openapi"
+	URL = route.PrefixV1 + "/openapi"
 
 	// HTTPMethod is the HTTP method used with this resource.
 	HTTPMethod = http.MethodGet

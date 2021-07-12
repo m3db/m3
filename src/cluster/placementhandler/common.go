@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+// Package placementhandler provides debug/admin placement operations via HTTP
+package placementhandler
 
 import (
 	"errors"
@@ -34,11 +35,9 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placement/algo"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/queryhttp"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -74,16 +73,23 @@ type HandlerOptions struct {
 	// This is used by other placement Handlers
 	// nolint: structcheck
 	clusterClient clusterclient.Client
-	config        config.Configuration
+	placement     placement.Configuration
 
 	m3AggServiceOptions *handleroptions.M3AggServiceOptions
 	instrumentOptions   instrument.Options
 }
 
+// Route stores paths from this handler that can be registered by clients.
+type Route struct {
+	Paths   []string
+	Methods []string
+	Handler http.Handler
+}
+
 // NewHandlerOptions is the constructor function for HandlerOptions.
 func NewHandlerOptions(
 	client clusterclient.Client,
-	cfg config.Configuration,
+	placement placement.Configuration,
 	m3AggOpts *handleroptions.M3AggServiceOptions,
 	instrumentOpts instrument.Options,
 ) (HandlerOptions, error) {
@@ -92,7 +98,7 @@ func NewHandlerOptions(
 	}
 	return HandlerOptions{
 		clusterClient:       client,
-		config:              cfg,
+		placement:           placement,
 		m3AggServiceOptions: m3AggOpts,
 		instrumentOptions:   instrumentOpts,
 	}, nil
@@ -220,125 +226,118 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 	return res, nil
 }
 
-// RegisterRoutes registers the placement routes
-func RegisterRoutes(
-	r *queryhttp.EndpointRegistry,
+// MakeRoutes creates routes for registration in http handlers
+func MakeRoutes(
 	defaults []handleroptions.ServiceOptionsDefault,
 	opts HandlerOptions,
-) error {
+) []Route {
 	// Init
 	var (
 		initHandler = NewInitHandler(opts)
 		initFn      = applyMiddleware(initHandler.ServeHTTP, defaults)
+		routes      []Route
 	)
-	if err := r.RegisterPaths([]string{
-		M3DBInitURL,
-		M3AggInitURL,
-		M3CoordinatorInitURL,
-	}, queryhttp.RegisterPathsOptions{
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBInitURL,
+			M3AggInitURL,
+			M3CoordinatorInitURL,
+		},
 		Handler: initFn,
 		Methods: []string{InitHTTPMethod},
-	}); err != nil {
-		return err
-	}
+	})
 
 	// Get
 	var (
 		getHandler = NewGetHandler(opts)
 		getFn      = applyMiddleware(getHandler.ServeHTTP, defaults)
 	)
-	if err := r.RegisterPaths([]string{
-		M3DBGetURL,
-		M3AggGetURL,
-		M3CoordinatorGetURL,
-	}, queryhttp.RegisterPathsOptions{
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBGetURL,
+			M3AggGetURL,
+			M3CoordinatorGetURL,
+		},
 		Handler: getFn,
 		Methods: []string{GetHTTPMethod},
-	}); err != nil {
-		return err
-	}
+	})
 
 	// Delete all
 	var (
 		deleteAllHandler = NewDeleteAllHandler(opts)
 		deleteAllFn      = applyMiddleware(deleteAllHandler.ServeHTTP, defaults)
 	)
-	if err := r.RegisterPaths([]string{
-		M3DBDeleteAllURL,
-		M3AggDeleteAllURL,
-		M3CoordinatorDeleteAllURL,
-	}, queryhttp.RegisterPathsOptions{
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBDeleteAllURL,
+			M3AggDeleteAllURL,
+			M3CoordinatorDeleteAllURL,
+		},
 		Handler: deleteAllFn,
 		Methods: []string{DeleteAllHTTPMethod},
-	}); err != nil {
-		return err
-	}
+	})
 
 	// Add
 	var (
 		addHandler = NewAddHandler(opts)
 		addFn      = applyMiddleware(addHandler.ServeHTTP, defaults)
 	)
-	if err := r.RegisterPaths([]string{
-		M3DBAddURL,
-		M3AggAddURL,
-		M3CoordinatorAddURL,
-	}, queryhttp.RegisterPathsOptions{
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBAddURL,
+			M3AggAddURL,
+			M3CoordinatorAddURL,
+		},
 		Handler: addFn,
 		Methods: []string{AddHTTPMethod},
-	}); err != nil {
-		return err
-	}
+	})
 
 	// Delete
 	var (
 		deleteHandler = NewDeleteHandler(opts)
 		deleteFn      = applyMiddleware(deleteHandler.ServeHTTP, defaults)
 	)
-	if err := r.RegisterPaths([]string{
-		M3DBDeleteURL,
-		M3AggDeleteURL,
-		M3CoordinatorDeleteURL,
-	}, queryhttp.RegisterPathsOptions{
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBDeleteURL,
+			M3AggDeleteURL,
+			M3CoordinatorDeleteURL,
+		},
 		Handler: deleteFn,
 		Methods: []string{DeleteHTTPMethod},
-	}); err != nil {
-		return err
-	}
+	})
 
 	// Replace
 	var (
 		replaceHandler = NewReplaceHandler(opts)
 		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, defaults)
 	)
-	if err := r.RegisterPaths([]string{
-		M3DBReplaceURL,
-		M3AggReplaceURL,
-		M3CoordinatorReplaceURL,
-	}, queryhttp.RegisterPathsOptions{
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBReplaceURL,
+			M3AggReplaceURL,
+			M3CoordinatorReplaceURL,
+		},
 		Handler: replaceFn,
 		Methods: []string{ReplaceHTTPMethod},
-	}); err != nil {
-		return err
-	}
+	})
 
 	// Set
 	var (
 		setHandler = NewSetHandler(opts)
 		setFn      = applyMiddleware(setHandler.ServeHTTP, defaults)
 	)
-	if err := r.RegisterPaths([]string{
-		M3DBSetURL,
-		M3AggSetURL,
-		M3CoordinatorSetURL,
-	}, queryhttp.RegisterPathsOptions{
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBSetURL,
+			M3AggSetURL,
+			M3CoordinatorSetURL,
+		},
 		Handler: setFn,
 		Methods: []string{SetHTTPMethod},
-	}); err != nil {
-		return err
-	}
+	})
 
-	return nil
+	return routes
 }
 
 func newPlacementCutoverNanosFn(

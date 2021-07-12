@@ -30,22 +30,23 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	imodels "github.com/influxdata/influxdb/models"
+	"go.uber.org/zap"
+
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
-	"go.uber.org/zap"
 )
 
 const (
 	// InfluxWriteURL is the Influx DB write handler URL
-	InfluxWriteURL = handler.RoutePrefixV1 + "/influxdb/write"
+	InfluxWriteURL = route.PrefixV1 + "/influxdb/write"
 
 	// InfluxWriteHTTPMethod is the HTTP method used with this resource
 	InfluxWriteHTTPMethod = http.MethodPost

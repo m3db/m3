@@ -34,6 +34,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
+	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -477,7 +478,7 @@ func Run(runOpts RunOptions) RunResult {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
 	}
 
-	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
+	var serviceOptionDefaults []handleroptions3.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
 		hostID, err := dbCfg.HostIDOrDefault().Resolve()
 		if err != nil {
@@ -499,9 +500,9 @@ func Run(runOpts RunOptions) RunResult {
 		}
 		if svcCfg := cluster.Service; svcCfg != nil {
 			serviceOptionDefaults = append(serviceOptionDefaults,
-				handleroptions.WithDefaultServiceEnvironment(svcCfg.Env))
+				handleroptions3.WithDefaultServiceEnvironment(svcCfg.Env))
 			serviceOptionDefaults = append(serviceOptionDefaults,
-				handleroptions.WithDefaultServiceZone(svcCfg.Zone))
+				handleroptions3.WithDefaultServiceZone(svcCfg.Zone))
 		}
 	}
 
@@ -561,7 +562,7 @@ func Run(runOpts RunOptions) RunResult {
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
-		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
+		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)
 	if err != nil {

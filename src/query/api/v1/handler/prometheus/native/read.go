@@ -23,9 +23,9 @@ package native
 import (
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -40,12 +40,12 @@ import (
 const (
 	// PromReadURL is the URL for native prom read handler, this matches the
 	// default URL for the query range endpoint found on a Prometheus server.
-	PromReadURL = handler.RoutePrefixV1 + "/query_range"
+	PromReadURL = route.PrefixV1 + "/query_range"
 
 	// PromReadInstantURL is the URL for native instantaneous prom read
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server.
-	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
+	PromReadInstantURL = route.PrefixV1 + "/query"
 
 	// PrometheusReadURL is the URL for native prom read handler.
 	PrometheusReadURL = "/prometheus" + PromReadURL
