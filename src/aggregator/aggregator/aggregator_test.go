@@ -50,6 +50,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -1232,6 +1233,48 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 	}
 }
 
+func TestAggregatorUpdateShardsIgnoreCutoffCutover(t *testing.T) {
+	testAggregatorUpdateShards(t, true)
+}
+
+func TestAggregatorUpdateShardsRespectCutoffCutover(t *testing.T) {
+	testAggregatorUpdateShards(t, false)
+}
+
+func testAggregatorUpdateShards(t *testing.T, ignoreCutoffCutover bool) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		now     = time.Now().Truncate(time.Hour)
+		cutover = now.Add(-time.Hour)
+		cutoff  = now.Add(time.Hour)
+	)
+
+	shard := shard.NewShard(0).
+		SetState(shard.Initializing).
+		SetCutoverNanos(cutover.UnixNano()).
+		SetCutoffNanos(cutoff.UnixNano())
+
+	placement, shards := testPlacementWithCustomShards(testInstanceID, 1, shard)
+
+	agg, _ := testAggregator(t, ctrl)
+	opts := agg.opts
+
+	agg.opts = opts.SetWritesIgnoreCutoffCutover(ignoreCutoffCutover)
+	agg.updateShardsWithLock(placement, shards)
+
+	expectedEarliest, expectedLatest := int64(0), int64(math.MaxInt64)
+	if !ignoreCutoffCutover {
+		expectedEarliest = cutover.Add(-opts.BufferDurationBeforeShardCutover()).UnixNano()
+		expectedLatest = cutoff.Add(opts.BufferDurationAfterShardCutoff()).UnixNano()
+	}
+
+	aggShard := agg.shards[0]
+	assert.Equal(t, expectedEarliest, aggShard.earliestWritableNanos)
+	assert.Equal(t, expectedLatest, aggShard.latestWriteableNanos)
+}
+
 func testAddWithShardRedirect(t *testing.T, addFn func(*aggregator) error) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1321,7 +1364,23 @@ func testStagedPlacementProtoWithNumShards(
 	return testStagedPlacementProtoWithCustomShards(t, instanceID, shardSetID, shardSet, testPlacementCutover)
 }
 
-// nolint: unparam
+func testPlacementWithCustomShards(
+	instanceID string,
+	shardSetID uint32,
+	customShards ...shard.Shard,
+) (placement.Placement, shard.Shards) {
+	shards := shard.NewShards(customShards)
+	instance := placement.NewInstance().
+		SetID(instanceID).
+		SetShards(shards).
+		SetShardSetID(shardSetID)
+	placement := placement.NewPlacement().
+		SetInstances([]placement.Instance{instance}).
+		SetShards(shards.AllIDs())
+
+	return placement, shards
+}
+
 func testStagedPlacementProtoWithCustomShards(
 	t *testing.T,
 	instanceID string,
@@ -1329,15 +1388,8 @@ func testStagedPlacementProtoWithCustomShards(
 	shardSet []shard.Shard,
 	placementCutoverNanos int64,
 ) *placementpb.PlacementSnapshots {
-	shards := shard.NewShards(shardSet)
-	instance := placement.NewInstance().
-		SetID(instanceID).
-		SetShards(shards).
-		SetShardSetID(shardSetID)
-	testPlacement := placement.NewPlacement().
-		SetInstances([]placement.Instance{instance}).
-		SetShards(shards.AllIDs()).
-		SetCutoverNanos(placementCutoverNanos)
+	testPlacement, _ := testPlacementWithCustomShards(instanceID, shardSetID, shardSet...)
+	testPlacement.SetCutoverNanos(placementCutoverNanos)
 	testStagedPlacement, err := placement.NewPlacementsFromLatest(testPlacement)
 	require.NoError(t, err)
 	stagedPlacementProto, err := testStagedPlacement.Proto()
