@@ -74,7 +74,16 @@ func (c *Counter) Update(timestamp time.Time, value int64, annotation []byte) {
 		c.sumSq += value * value
 	}
 
-	c.annotation = maybeReplaceAnnotation(c.annotation, annotation)
+	// Keep the last annotation which was set.
+	if len(annotation) > 0 {
+		if cap(c.annotation) < len(annotation) {
+			// Twice as long in case another one comes in
+			// and we could avoid realloc as long as less than this first alloc.
+			c.annotation = make([]byte, 0, 2*len(annotation))
+		}
+		// Reuse any previous allocation while taking a copy.
+		c.annotation = append(c.annotation[:0], annotation...)
+	}
 }
 
 // LastAt returns the time of the last value received.
