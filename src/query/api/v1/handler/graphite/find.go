@@ -137,9 +137,6 @@ func (h *grahiteFindHandler) ServeHTTP(
 		return
 	}
 
-	logger.Info("terminated query", zap.Stringer("query", terminatedQuery))
-	logger.Info("child query", zap.Stringer("query", childQuery))
-
 	var (
 		terminatedResult *consolidators.CompleteTagsResult
 		tErr             error
