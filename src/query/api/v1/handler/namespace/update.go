@@ -45,7 +45,7 @@ import (
 
 var (
 	// M3DBUpdateURL is the url for the M3DB namespace update handler.
-	M3DBUpdateURL = path.Join(route.PrefixV1, M3DBServiceNamespacePathName)
+	M3DBUpdateURL = path.Join(route.Prefix, M3DBServiceNamespacePathName)
 
 	// UpdateHTTPMethod is the HTTP method used with this resource.
 	UpdateHTTPMethod = http.MethodPut

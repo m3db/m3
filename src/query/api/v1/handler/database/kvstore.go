@@ -48,7 +48,7 @@ import (
 
 const (
 	// KeyValueStoreURL is the url to edit key/value configuration values.
-	KeyValueStoreURL = route.PrefixV1 + "/kvstore"
+	KeyValueStoreURL = route.Prefix + "/kvstore"
 	// KeyValueStoreHTTPMethod is the HTTP method used with this resource.
 	KeyValueStoreHTTPMethod = http.MethodPost
 )

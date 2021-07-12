@@ -45,7 +45,7 @@ import (
 
 var (
 	// M3DBAddURL is the url for the M3DB namespace add handler.
-	M3DBAddURL = path.Join(route.PrefixV1, M3DBServiceNamespacePathName)
+	M3DBAddURL = path.Join(route.Prefix, M3DBServiceNamespacePathName)
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost

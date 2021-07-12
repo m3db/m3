@@ -22,8 +22,8 @@
 package route
 
 const (
-	// PrefixV1 is the v1 prefix for all coordinator routes.
-	PrefixV1 = "/api/v1"
+	// Prefix is the v1 prefix for all coordinator routes.
+	Prefix = "/api/v1"
 
 	// PrefixExperimental is the experimental prefix for all coordinator routes.
 	PrefixExperimental = "/api/experimental"

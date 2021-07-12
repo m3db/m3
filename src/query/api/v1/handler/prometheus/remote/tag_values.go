@@ -50,7 +50,7 @@ const (
 	NameReplace = "name"
 
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = route.PrefixV1 + "/label/{" + NameReplace + "}/values"
+	TagValuesURL = route.Prefix + "/label/{" + NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet

@@ -40,7 +40,7 @@ import (
 
 const (
 	// ReportURL is the url for the report json handler
-	ReportURL = route.PrefixV1 + "/json/report"
+	ReportURL = route.Prefix + "/json/report"
 
 	// ReportHTTPMethod is the HTTP method used with this resource.
 	ReportHTTPMethod = http.MethodPost

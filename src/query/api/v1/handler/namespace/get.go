@@ -44,7 +44,7 @@ import (
 
 var (
 	// M3DBGetURL is the url for the namespace get handler (with the GET method).
-	M3DBGetURL = path.Join(route.PrefixV1, M3DBServiceNamespacePathName)
+	M3DBGetURL = path.Join(route.Prefix, M3DBServiceNamespacePathName)
 
 	// GetHTTPMethod is the HTTP method used with this resource.
 	GetHTTPMethod = http.MethodGet

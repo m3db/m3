@@ -41,7 +41,7 @@ import (
 
 const (
 	// PromSeriesMatchURL is the url for remote prom series matcher handler.
-	PromSeriesMatchURL = route.PrefixV1 + "/series"
+	PromSeriesMatchURL = route.Prefix + "/series"
 )
 
 // PromSeriesMatchHTTPMethods are the HTTP methods for this handler.

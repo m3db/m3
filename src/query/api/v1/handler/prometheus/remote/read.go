@@ -59,7 +59,7 @@ import (
 
 const (
 	// PromReadURL is the url for remote prom read handler
-	PromReadURL = route.PrefixV1 + "/prom/remote/read"
+	PromReadURL = route.Prefix + "/prom/remote/read"
 )
 
 // PromReadHTTPMethods are the HTTP methods used with this resource.
