@@ -28,19 +28,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/x/instrument"
+
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 	jaegerzap "github.com/uber/jaeger-client-go/log/zap"
 	jaegertally "github.com/uber/jaeger-lib/metrics/tally"
-	"go.opentelemetry.io/otel/attribute"
-	otelopentracing "go.opentelemetry.io/otel/bridge/opentracing"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
-
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/opentelemetry"
 )
 
 const (
@@ -53,15 +49,12 @@ const (
 )
 
 var (
-	// TracingBackendOpenTelemetry indicates the OpenTelemetry backend should be used.
-	TracingBackendOpenTelemetry = "opentelemetry"
 	// TracingBackendJaeger indicates the Jaeger backend should be used.
 	TracingBackendJaeger = "jaeger"
-	// TracingBackendLightstep indicates the LightStep backend should be used.
+	// TracingBackendLightstep indices the LightStep backend should be used.
 	TracingBackendLightstep = "lightstep"
 
 	supportedBackends = []string{
-		TracingBackendOpenTelemetry,
 		TracingBackendJaeger,
 		TracingBackendLightstep,
 	}
@@ -79,28 +72,19 @@ var (
 // TracingConfiguration configures an opentracing backend for m3query to use. Currently only jaeger is supported.
 // Tracing is disabled if no backend is specified.
 type TracingConfiguration struct {
-	ServiceName   string                      `yaml:"serviceName"`
-	Backend       string                      `yaml:"backend"`
-	OpenTelemetry opentelemetry.Configuration `yaml:"opentelemetry"`
-	Jaeger        jaegercfg.Configuration     `yaml:"jaeger"`
-	Lightstep     lightstep.Options           `yaml:"lightstep"`
+	ServiceName string                  `yaml:"serviceName"`
+	Backend     string                  `yaml:"backend"`
+	Jaeger      jaegercfg.Configuration `yaml:"jaeger"`
+	Lightstep   lightstep.Options       `yaml:"lightstep"`
 }
 
 // NewTracer returns a tracer configured with the configuration provided by this struct. The tracer's concrete
 // type is determined by cfg.Backend. Currently only `"jaeger"` is supported. `""` implies
 // disabled (NoopTracer).
-func (cfg *TracingConfiguration) NewTracer(
-	defaultServiceName string,
-	scope tally.Scope,
-	logger *zap.Logger,
-) (opentracing.Tracer, io.Closer, error) {
+func (cfg *TracingConfiguration) NewTracer(defaultServiceName string, scope tally.Scope, logger *zap.Logger) (opentracing.Tracer, io.Closer, error) {
 	switch cfg.Backend {
 	case "":
 		return opentracing.NoopTracer{}, noopCloser{}, nil
-
-	case TracingBackendOpenTelemetry:
-		logger.Info("initializing OpenTelemetry tracer")
-		return cfg.newOpenTelemetryTracer(defaultServiceName, scope)
 
 	case TracingBackendJaeger:
 		logger.Info("initializing Jaeger tracer")
@@ -117,55 +101,7 @@ func (cfg *TracingConfiguration) NewTracer(
 	}
 }
 
-func (cfg *TracingConfiguration) newOpenTelemetryTracer(
-	defaultServiceName string,
-	scope tally.Scope,
-) (opentracing.Tracer, io.Closer, error) {
-	if cfg.OpenTelemetry.ServiceName == "" {
-		cfg.OpenTelemetry.ServiceName = defaultServiceName
-	}
-
-	ctx := context.Background()
-	attrs := make([]attribute.KeyValue, 0, len(tracerSpanTags))
-	for k, v := range tracerSpanTags {
-		attrs = append(attrs, attribute.String(k, v))
-	}
-	opts := opentelemetry.TracerProviderOptions{Attributes: attrs}
-	tracerProvider, err := cfg.OpenTelemetry.NewTracerProvider(ctx, scope, opts)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	tracer := tracerProvider.Tracer("")
-	ctx, openTracingBridgeTracer, _ := otelopentracing.NewTracerPairWithContext(ctx, tracer)
-	closer := newTraceProviderCloser(ctx, tracerProvider)
-	return openTracingBridgeTracer, closer, err
-}
-
-type traceProviderCloser struct {
-	ctx            context.Context
-	tracerProvider *sdktrace.TracerProvider
-}
-
-func newTraceProviderCloser(
-	ctx context.Context,
-	tracerProvider *sdktrace.TracerProvider,
-) io.Closer {
-	return &traceProviderCloser{
-		ctx:            ctx,
-		tracerProvider: tracerProvider,
-	}
-}
-
-func (c *traceProviderCloser) Close() error {
-	return c.tracerProvider.Shutdown(c.ctx)
-}
-
-func (cfg *TracingConfiguration) newJaegerTracer(
-	defaultServiceName string,
-	scope tally.Scope,
-	logger *zap.Logger,
-) (opentracing.Tracer, io.Closer, error) {
+func (cfg *TracingConfiguration) newJaegerTracer(defaultServiceName string, scope tally.Scope, logger *zap.Logger) (opentracing.Tracer, io.Closer, error) {
 	if cfg.Jaeger.ServiceName == "" {
 		cfg.Jaeger.ServiceName = defaultServiceName
 	}
@@ -180,6 +116,7 @@ func (cfg *TracingConfiguration) newJaegerTracer(
 	tracer, jaegerCloser, err := cfg.Jaeger.NewTracer(
 		jaegercfg.Logger(jaegerzap.NewLogger(logger)),
 		jaegercfg.Metrics(jaegertally.Wrap(scope)))
+
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize jaeger: %s", err.Error())
 	}
@@ -187,9 +124,7 @@ func (cfg *TracingConfiguration) newJaegerTracer(
 	return tracer, jaegerCloser, nil
 }
 
-func (cfg *TracingConfiguration) newLightstepTracer(
-	serviceName string,
-) (opentracing.Tracer, io.Closer, error) {
+func (cfg *TracingConfiguration) newLightstepTracer(serviceName string) (opentracing.Tracer, io.Closer, error) {
 	if cfg.Lightstep.Tags == nil {
 		cfg.Lightstep.Tags = opentracing.Tags{}
 	}

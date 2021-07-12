@@ -35,7 +35,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
-	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/clientv3"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
