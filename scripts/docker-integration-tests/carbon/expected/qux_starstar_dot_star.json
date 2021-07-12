@@ -1,13 +1,34 @@
 [
   {
-    "id": "qux.**.pos2-1",
+    "id": "qux**.pos2-1",
     "text": "pos2-1",
     "leaf": 0,
     "expandable": 1,
     "allowChildren": 1
   },
   {
-    "id": "qux.**.pos2-0",
+    "id": "qux**.pos1-a",
+    "text": "pos1-a",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "qux**.pos1-b",
+    "text": "pos1-b",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "qux**.pos1-c",
+    "text": "pos1-c",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "qux**.pos2-0",
     "text": "pos2-0",
     "leaf": 0,
     "expandable": 1,
