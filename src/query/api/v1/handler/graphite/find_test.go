@@ -31,18 +31,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3/src/x/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // dates is a tuple of a date with a valid string representation
@@ -63,10 +66,18 @@ var (
 )
 
 type completeTagQueryMatcher struct {
-	matchers []models.Matcher
+	matchers                 []models.Matcher
+	filterNameTagsIndexStart int
+	filterNameTagsIndexEnd   int
 }
 
-func (m *completeTagQueryMatcher) String() string { return "complete tag query" }
+func (m *completeTagQueryMatcher) String() string {
+	q := storage.CompleteTagsQuery{
+		TagMatchers: m.matchers,
+	}
+	return q.String()
+}
+
 func (m *completeTagQueryMatcher) Matches(x interface{}) bool {
 	q, ok := x.(*storage.CompleteTagsQuery)
 	if !ok {
@@ -85,13 +96,33 @@ func (m *completeTagQueryMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if len(q.FilterNameTags) != 1 {
-		return false
-	}
+	if m.filterNameTagsIndexStart == 0 && m.filterNameTagsIndexEnd == 0 {
+		// Default query completing single graphite path index value.
+		if len(q.FilterNameTags) != 1 {
+			return false
+		}
 
-	// both queries should filter on __g1__
-	if !bytes.Equal(q.FilterNameTags[0], []byte("__g1__")) {
-		return false
+		// Both queries should filter on __g1__.
+		if !bytes.Equal(q.FilterNameTags[0], []byte("__g1__")) {
+			return false
+		}
+	} else {
+		// Unterminated query completing many grapth path index values.
+		n := m.filterNameTagsIndexEnd
+		expected := make([][]byte, 0, n)
+		for i := m.filterNameTagsIndexStart; i < m.filterNameTagsIndexEnd; i++ {
+			expected = append(expected, graphite.TagName(i))
+		}
+
+		if len(q.FilterNameTags) != len(expected) {
+			return false
+		}
+
+		for i := range expected {
+			if !bytes.Equal(q.FilterNameTags[i], expected[i]) {
+				return false
+			}
+		}
 	}
 
 	if len(q.TagMatchers) != len(m.matchers) {
@@ -121,63 +152,7 @@ func bs(ss ...string) [][]byte {
 	for i, s := range ss {
 		bb[i] = b(s)
 	}
-
 	return bb
-}
-
-func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
-	store := storage.NewMockStorage(ctrl)
-	// set up no children case
-	noChildrenMatcher := &completeTagQueryMatcher{
-		matchers: []models.Matcher{
-			{Type: models.MatchEqual, Name: b("__g0__"), Value: b("foo")},
-			{Type: models.MatchRegexp, Name: b("__g1__"), Value: b(`b[^\.]*`)},
-			{Type: models.MatchNotField, Name: b("__g2__")},
-		},
-	}
-
-	noChildrenResult := &consolidators.CompleteTagsResult{
-		CompleteNameOnly: false,
-		CompletedTags: []consolidators.CompletedTag{
-			{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
-		},
-		Metadata: block.ResultMetadata{
-			LocalOnly:  true,
-			Exhaustive: ex,
-		},
-	}
-
-	store.EXPECT().CompleteTags(gomock.Any(), noChildrenMatcher, gomock.Any()).
-		Return(noChildrenResult, nil)
-
-	// set up children case
-	childrenMatcher := &completeTagQueryMatcher{
-		matchers: []models.Matcher{
-			{Type: models.MatchEqual, Name: b("__g0__"), Value: b("foo")},
-			{Type: models.MatchRegexp, Name: b("__g1__"), Value: b(`b[^\.]*`)},
-			{Type: models.MatchField, Name: b("__g2__")},
-		},
-	}
-
-	childrenResult := &consolidators.CompleteTagsResult{
-		CompleteNameOnly: false,
-		CompletedTags: []consolidators.CompletedTag{
-			{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
-		},
-		Metadata: block.ResultMetadata{
-			LocalOnly:  false,
-			Exhaustive: true,
-		},
-	}
-
-	if !ex2 {
-		childrenResult.Metadata.AddWarning("foo", "bar")
-	}
-
-	store.EXPECT().CompleteTags(gomock.Any(), childrenMatcher, gomock.Any()).
-		Return(childrenResult, nil)
-
-	return store
 }
 
 type writer struct {
@@ -221,94 +196,248 @@ func (r results) Less(i, j int) bool {
 	return strings.Compare(r[i].ID, r[j].ID) == -1
 }
 
-func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// setup storage and handler
-	store := setupStorage(ctrl, ex, ex2)
-
-	builder, err := handleroptions.NewFetchOptionsBuilder(
-		handleroptions.FetchOptionsBuilderOptions{
-			Timeout: 15 * time.Second,
-		})
-	require.NoError(t, err)
-	opts := options.EmptyHandlerOptions().
-		SetGraphiteFindFetchOptionsBuilder(builder).
-		SetStorage(store)
-	h := NewFindHandler(opts)
-
-	// execute the query
-	params := make(url.Values)
-	params.Set("query", "foo.b*")
-	params.Set("from", from.s)
-	params.Set("until", until.s)
-
-	w := &writer{}
-	req := &http.Request{
-		Method: httpMethod,
+func makeNoChildrenResult(id, text string) result {
+	return result{
+		ID:            id,
+		Text:          text,
+		Leaf:          1,
+		Expandable:    0,
+		AllowChildren: 0,
 	}
-	switch httpMethod {
-	case http.MethodGet:
-		req.URL = &url.URL{
-			RawQuery: params.Encode(),
-		}
-	case http.MethodPost:
-		req.Form = params
-	}
-
-	h.ServeHTTP(w, req)
-
-	// convert results to comparable format
-	require.Equal(t, 1, len(w.results))
-	r := make(results, 0)
-	decoder := json.NewDecoder(bytes.NewBufferString((w.results[0])))
-	require.NoError(t, decoder.Decode(&r))
-	sort.Sort(r)
-
-	makeNoChildrenResult := func(t string) result {
-		return result{ID: fmt.Sprintf("foo.%s", t), Text: t, Leaf: 1,
-			Expandable: 0, AllowChildren: 0}
-	}
-
-	makeWithChildrenResult := func(t string) result {
-		return result{ID: fmt.Sprintf("foo.%s", t), Text: t, Leaf: 0,
-			Expandable: 1, AllowChildren: 1}
-	}
-
-	expected := results{
-		makeNoChildrenResult("bar"),
-		makeNoChildrenResult("baz"),
-		makeWithChildrenResult("baz"),
-		makeWithChildrenResult("bix"),
-		makeNoChildrenResult("bug"),
-		makeWithChildrenResult("bug"),
-	}
-
-	require.Equal(t, expected, r)
-	actual := w.Header().Get(headers.LimitHeader)
-	assert.Equal(t, header, actual)
 }
 
-var limitTests = []struct {
+func makeWithChildrenResult(id, text string) result {
+	return result{
+		ID:            id,
+		Text:          text,
+		Leaf:          0,
+		Expandable:    1,
+		AllowChildren: 1,
+	}
+}
+
+type limitTest struct {
 	name    string
 	ex, ex2 bool
 	header  string
-}{
-	{"both incomplete", false, false, fmt.Sprintf(
-		"%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")},
-	{"with terminator incomplete", true, false, "foo_bar"},
-	{"with children incomplete", false, true,
-		headers.LimitHeaderSeriesLimitApplied},
-	{"both complete", true, true, ""},
 }
 
+var (
+	bothCompleteLimitTest = limitTest{"both complete", true, true, ""}
+	limitTests            = []limitTest{
+		bothCompleteLimitTest,
+		{"both incomplete", false, false,
+			fmt.Sprintf("%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")},
+		{"with terminator incomplete", true, false,
+			"foo_bar"},
+		{"with children incomplete", false, true,
+			headers.LimitHeaderSeriesLimitApplied},
+	}
+)
+
 func TestFind(t *testing.T) {
-	for _, tt := range limitTests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, httpMethod := range FindHTTPMethods {
-				testFind(t, httpMethod, tt.ex, tt.ex2, tt.header)
-			}
+	for _, httpMethod := range FindHTTPMethods {
+		testFind(t, testFindOptions{
+			httpMethod: httpMethod,
 		})
+	}
+}
+
+type testFindOptions struct {
+	httpMethod string
+}
+
+type testFindQuery struct {
+	expectMatchers *completeTagQueryMatcher
+	mockResult     func(lt limitTest) *consolidators.CompleteTagsResult
+}
+
+func testFind(t *testing.T, opts testFindOptions) {
+	warningsFooBar := block.Warnings{
+		block.Warning{
+			Name:    "foo",
+			Message: "bar",
+		},
+	}
+
+	for _, test := range []struct {
+		query           string
+		limitTests      []limitTest
+		terminatedQuery *testFindQuery
+		childQuery      *testFindQuery
+		expectedResults results
+	}{
+		{
+			query:      "foo.b*",
+			limitTests: limitTests,
+			terminatedQuery: &testFindQuery{
+				expectMatchers: &completeTagQueryMatcher{
+					matchers: []models.Matcher{
+						{Type: models.MatchEqual, Name: b("__g0__"), Value: b("foo")},
+						{Type: models.MatchRegexp, Name: b("__g1__"), Value: b(`b[^\.]*`)},
+						{Type: models.MatchNotField, Name: b("__g2__")},
+					},
+				},
+				mockResult: func(lt limitTest) *consolidators.CompleteTagsResult {
+					return &consolidators.CompleteTagsResult{
+						CompleteNameOnly: false,
+						CompletedTags: []consolidators.CompletedTag{
+							{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
+						},
+						Metadata: block.ResultMetadata{
+							LocalOnly:  true,
+							Exhaustive: lt.ex,
+						},
+					}
+				},
+			},
+			childQuery: &testFindQuery{
+				expectMatchers: &completeTagQueryMatcher{
+					matchers: []models.Matcher{
+						{Type: models.MatchEqual, Name: b("__g0__"), Value: b("foo")},
+						{Type: models.MatchRegexp, Name: b("__g1__"), Value: b(`b[^\.]*`)},
+						{Type: models.MatchField, Name: b("__g2__")},
+					},
+				},
+				mockResult: func(lt limitTest) *consolidators.CompleteTagsResult {
+					var warnings block.Warnings
+					if !lt.ex2 {
+						warnings = warningsFooBar
+					}
+					return &consolidators.CompleteTagsResult{
+						CompleteNameOnly: false,
+						CompletedTags: []consolidators.CompletedTag{
+							{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
+						},
+						Metadata: block.ResultMetadata{
+							LocalOnly:  false,
+							Exhaustive: true,
+							Warnings:   warnings,
+						},
+					}
+				},
+			},
+			expectedResults: results{
+				makeNoChildrenResult("foo.bar", "bar"),
+				makeNoChildrenResult("foo.baz", "baz"),
+				makeWithChildrenResult("foo.baz", "baz"),
+				makeWithChildrenResult("foo.bix", "bix"),
+				makeNoChildrenResult("foo.bug", "bug"),
+				makeWithChildrenResult("foo.bug", "bug"),
+			},
+		},
+		{
+			query: "foo.**.*",
+			childQuery: &testFindQuery{
+				expectMatchers: &completeTagQueryMatcher{
+					matchers: []models.Matcher{
+						{
+							Type: models.MatchRegexp,
+							Name: b("__g0__"), Value: b(".*"),
+						},
+						{
+							Type:  models.MatchRegexp,
+							Name:  doc.IDReservedFieldName,
+							Value: b(`foo\.+.*[^\.]*`),
+						},
+					},
+					filterNameTagsIndexStart: 2,
+					filterNameTagsIndexEnd:   102,
+				},
+				mockResult: func(_ limitTest) *consolidators.CompleteTagsResult {
+					return &consolidators.CompleteTagsResult{
+						CompleteNameOnly: false,
+						CompletedTags: []consolidators.CompletedTag{
+							{Name: b("__g2__"), Values: bs("bar0", "bar1")},
+							{Name: b("__g3__"), Values: bs("baz0", "baz1", "baz2")},
+						},
+						Metadata: block.ResultMetadata{
+							LocalOnly:  true,
+							Exhaustive: true,
+						},
+					}
+				},
+			},
+			expectedResults: results{
+				makeWithChildrenResult("foo.**.bar0", "bar0"),
+				makeWithChildrenResult("foo.**.bar1", "bar1"),
+				makeWithChildrenResult("foo.**.baz0", "baz0"),
+				makeWithChildrenResult("foo.**.baz1", "baz1"),
+				makeWithChildrenResult("foo.**.baz2", "baz2"),
+			},
+		},
+	} {
+		// Set which limit tests should be performed for this query.
+		limitTests := test.limitTests
+		if len(limitTests) == 0 {
+			// Just test case where both are complete.
+			limitTests = []limitTest{bothCompleteLimitTest}
+		}
+
+		for _, limitTest := range limitTests {
+			limitTest := limitTest
+			name := fmt.Sprintf("%s-%s", test.query, limitTest.name)
+			t.Run(name, func(t *testing.T) {
+				ctrl := xtest.NewController(t)
+				defer ctrl.Finish()
+
+				store := storage.NewMockStorage(ctrl)
+
+				if q := test.terminatedQuery; q != nil {
+					// Set up no children case.
+					store.EXPECT().
+						CompleteTags(gomock.Any(), q.expectMatchers, gomock.Any()).
+						Return(q.mockResult(limitTest), nil)
+				}
+
+				if q := test.childQuery; q != nil {
+					// Set up children case.
+					store.EXPECT().
+						CompleteTags(gomock.Any(), q.expectMatchers, gomock.Any()).
+						Return(q.mockResult(limitTest), nil)
+				}
+
+				builder, err := handleroptions.NewFetchOptionsBuilder(
+					handleroptions.FetchOptionsBuilderOptions{
+						Timeout: 15 * time.Second,
+					})
+				require.NoError(t, err)
+
+				handlerOpts := options.EmptyHandlerOptions().
+					SetGraphiteFindFetchOptionsBuilder(builder).
+					SetStorage(store)
+				h := NewFindHandler(handlerOpts)
+
+				// Execute the query.
+				params := make(url.Values)
+				params.Set("query", test.query)
+				params.Set("from", from.s)
+				params.Set("until", until.s)
+
+				w := &writer{}
+				req := &http.Request{Method: opts.httpMethod}
+				switch opts.httpMethod {
+				case http.MethodGet:
+					req.URL = &url.URL{
+						RawQuery: params.Encode(),
+					}
+				case http.MethodPost:
+					req.Form = params
+				}
+
+				h.ServeHTTP(w, req)
+
+				// Convert results to comparable format.
+				require.Equal(t, 1, len(w.results))
+				r := make(results, 0)
+				decoder := json.NewDecoder(bytes.NewBufferString((w.results[0])))
+				require.NoError(t, decoder.Decode(&r))
+				sort.Sort(r)
+
+				require.Equal(t, test.expectedResults, r)
+				actual := w.Header().Get(headers.LimitHeader)
+				assert.Equal(t, limitTest.header, actual)
+			})
+		}
 	}
 }

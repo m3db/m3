@@ -110,13 +110,11 @@ const (
 func TranslateQueryToMatchersWithTerminator(
 	query string,
 ) (models.Matchers, TranslatedQueryType, error) {
-	translatedQueryType := TerminatedTranslatedQuery
 	if strings.Contains(query, "**") {
-		translatedQueryType = StarStarUnterminatedTranslatedQuery
 		// First add matcher to ensure it's a graphite metric with __g0__ tag.
 		hasFirstPathMatcher, err := convertMetricPartToMatcher(0, wildcard)
 		if err != nil {
-			return nil, translatedQueryType, err
+			return nil, 0, err
 		}
 		// Need to regexp on the entire ID since ** matches over different
 		// graphite path dimensions.
@@ -125,7 +123,7 @@ func TranslateQueryToMatchersWithTerminator(
 		}
 		idRegexp, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
 		if err != nil {
-			return nil, translatedQueryType, err
+			return nil, 0, err
 		}
 		return models.Matchers{
 			hasFirstPathMatcher,
@@ -134,7 +132,7 @@ func TranslateQueryToMatchersWithTerminator(
 				Name:  doc.IDReservedFieldName,
 				Value: idRegexp,
 			},
-		}, translatedQueryType, nil
+		}, StarStarUnterminatedTranslatedQuery, nil
 	}
 
 	metricLength := graphite.CountMetricParts(query)
@@ -146,20 +144,20 @@ func TranslateQueryToMatchersWithTerminator(
 		if len(metric) > 0 {
 			m, err := convertMetricPartToMatcher(i, metric)
 			if err != nil {
-				return nil, translatedQueryType, err
+				return nil, 0, err
 			}
 
 			matchers[i] = m
 		} else {
 			err := fmt.Errorf("invalid matcher format: %s", query)
-			return nil, translatedQueryType, err
+			return nil, 0, err
 		}
 	}
 
 	// Add a terminator matcher at the end to ensure expansion is terminated at
 	// the last given metric part.
 	matchers[metricLength] = matcherTerminator(metricLength)
-	return matchers, translatedQueryType, nil
+	return matchers, TerminatedTranslatedQuery, nil
 }
 
 // GetQueryTerminatorTagName will return the name for the terminator matcher in

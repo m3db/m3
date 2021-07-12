@@ -78,7 +78,7 @@ func mergeTags(
 		childResultTags      = 0
 	)
 
-	// Sanity check the queries.
+	// Sanity check the queries aren't complete name only queries.
 	if terminatedResult != nil {
 		terminatedResultTags = len(terminatedResult.CompletedTags)
 		if terminatedResult.CompleteNameOnly {
@@ -86,9 +86,11 @@ func mergeTags(
 		}
 	}
 
-	if childResult.CompleteNameOnly {
+	if childResult != nil {
 		childResultTags = len(childResult.CompletedTags)
-		return nil, errors.New("child result is completing name only")
+		if childResult.CompleteNameOnly {
+			return nil, errors.New("child result is completing name only")
+		}
 	}
 
 	size := terminatedResultTags + childResultTags
@@ -103,11 +105,13 @@ func mergeTags(
 		}
 	}
 
-	for _, tag := range childResult.CompletedTags {
-		for _, value := range tag.Values {
-			descriptor := tagMap[string(value)]
-			descriptor.hasChildren = true
-			tagMap[string(value)] = descriptor
+	if childResult != nil {
+		for _, tag := range childResult.CompletedTags {
+			for _, value := range tag.Values {
+				descriptor := tagMap[string(value)]
+				descriptor.hasChildren = true
+				tagMap[string(value)] = descriptor
+			}
 		}
 	}
 

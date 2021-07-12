@@ -109,7 +109,7 @@ func parseFindParamsToQueries(r *http.Request) (
 		// terms, we are only going to do a single search and assume all
 		// results that come back have also children in the graphite path
 		// tree (since it's very expensive to check if each result that comes
-		// back is a child or leaf node and "**"" in a find query is typically
+		// back is a child or leaf node and "**" in a find query is typically
 		// only used for template variables rather than searching for metric
 		// results, which is the only use case isLeaf/hasChildren is useful).
 		// Note: Filter to all graphite tags that appears at the last node
