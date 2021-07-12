@@ -171,9 +171,11 @@ func (s *fanoutStorage) FetchProm(
 				}
 			}
 
-			for _, r := range storeResult.Results() {
-				r.Metadata.Warnings = append(r.Metadata.Warnings, warnings...)
-				accumulator.Add(r)
+			if storeResult != nil {
+				for _, r := range storeResult.Results() {
+					r.Metadata.Warnings = append(r.Metadata.Warnings, warnings...)
+					accumulator.Add(r)
+				}
 			}
 		}()
 	}
