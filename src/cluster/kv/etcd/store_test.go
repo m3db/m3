@@ -30,17 +30,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/tests/v3/integration"
+	"go.uber.org/atomic"
+	"golang.org/x/net/context"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
-	"golang.org/x/net/context"
 )
 
 func TestValue(t *testing.T) {
@@ -1160,7 +1161,16 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
+var insideTestContext = atomic.NewBool(false)
+
 func testCluster(t *testing.T) (*integration.ClusterV3, Options, func()) {
+	if !insideTestContext.Swap(true) {
+		integration.BeforeTestExternal(t)
+		t.Cleanup(func() {
+			insideTestContext.Store(false)
+		})
+	}
+
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	closer := func() {
 		ecluster.Terminate(t)

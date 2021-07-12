@@ -1,5 +1,5 @@
 app:
-  image: golang:1.13-stretch
+  image: golang:1.16-stretch
   volumes:
     - .:/go/src/github.com/m3db/m3
     - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent

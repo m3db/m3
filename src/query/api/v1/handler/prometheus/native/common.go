@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -35,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -53,19 +53,7 @@ const (
 	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
-	nowTimeValue = "now"
 )
-
-// ParseTime parses a time out of a request key, with a default value.
-func ParseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
-	if t := r.FormValue(key); t != "" {
-		if t == nowTimeValue {
-			return now, nil
-		}
-		return util.ParseTimeString(t)
-	}
-	return time.Time{}, errors.ErrNotFound
-}
 
 // parseParams parses all params from the GET request
 func parseParams(
@@ -80,33 +68,14 @@ func parseParams(
 		return params, xerrors.NewInvalidParamsError(err)
 	}
 
-	params.Now = time.Now()
-	if v := r.FormValue(timeParam); v != "" {
-		var err error
-		params.Now, err = ParseTime(r, timeParam, params.Now)
-		if err != nil {
-			err = fmt.Errorf(formatErrStr, timeParam, err)
-			return params, xerrors.NewInvalidParamsError(err)
-		}
+	timeParams, err := prometheus.ParseTimeParams(r)
+	if err != nil {
+		return params, err
 	}
 
-	start, err := ParseTime(r, startParam, params.Now)
-	if err != nil {
-		err = fmt.Errorf(formatErrStr, startParam, err)
-		return params, xerrors.NewInvalidParamsError(err)
-	}
-
-	params.Start = xtime.ToUnixNano(start)
-	end, err := ParseTime(r, endParam, params.Now)
-	if err != nil {
-		err = fmt.Errorf(formatErrStr, endParam, err)
-		return params, xerrors.NewInvalidParamsError(err)
-	}
-	if start.After(end) {
-		err = fmt.Errorf("start (%s) must be before end (%s)", start, end)
-		return params, xerrors.NewInvalidParamsError(err)
-	}
-	params.End = xtime.ToUnixNano(end)
+	params.Now = timeParams.Now
+	params.Start = xtime.ToUnixNano(timeParams.Start)
+	params.End = xtime.ToUnixNano(timeParams.End)
 
 	timeout := fetchOpts.Timeout
 	if timeout <= 0 {
@@ -193,8 +162,7 @@ func parseInstantaneousParams(
 		fetchOpts.Step = time.Second
 	}
 
-	r.Form.Set(startParam, nowTimeValue)
-	r.Form.Set(endParam, nowTimeValue)
+	prometheus.SetDefaultStartEndParamsForInstant(r)
 	params, err := parseParams(r, engineOpts, fetchOpts)
 	if err != nil {
 		return params, err
