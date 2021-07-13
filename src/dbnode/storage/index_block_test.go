@@ -837,6 +837,11 @@ func TestLimits(t *testing.T) {
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
+	bActive := index.NewMockBlock(ctrl)
+	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	bActive.EXPECT().Close().Return(nil).AnyTimes()
+	bActive.EXPECT().StartTime().Return(t0).AnyTimes()
+	bActive.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
 	b0 := index.NewMockBlock(ctrl)
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().Close().Return(nil).AnyTimes()
@@ -845,10 +850,13 @@ func TestLimits(t *testing.T) {
 	newBlockFn := func(
 		ts xtime.UnixNano,
 		md namespace.Metadata,
-		_ index.BlockOptions,
+		opts index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
+		if opts.ActiveBlock {
+			return bActive, nil
+		}
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -917,7 +925,7 @@ func TestLimits(t *testing.T) {
 			docsLimit:         0,
 			requireExhaustive: true,
 			expectedErr: "query exceeded limit: require_exhaustive=true, " +
-				"series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
+				"series_limit=1, series_matched=1, docs_limit=0, docs_matched=4",
 			expectedQueryLimitExceededError: true,
 		},
 		{
@@ -926,7 +934,7 @@ func TestLimits(t *testing.T) {
 			docsLimit:         1,
 			requireExhaustive: true,
 			expectedErr: "query exceeded limit: require_exhaustive=true, " +
-				"series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+				"series_limit=0, series_matched=1, docs_limit=1, docs_matched=4",
 			expectedQueryLimitExceededError: true,
 		},
 		{
@@ -935,7 +943,7 @@ func TestLimits(t *testing.T) {
 			docsLimit:         1,
 			requireExhaustive: true,
 			expectedErr: "query exceeded limit: require_exhaustive=true, " +
-				"series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
+				"series_limit=1, series_matched=1, docs_limit=1, docs_matched=4",
 			expectedQueryLimitExceededError: true,
 		},
 	} {
@@ -956,6 +964,13 @@ func TestLimits(t *testing.T) {
 			sp := mtr.StartSpan("root")
 			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
+			mockIterActive := index.NewMockQueryIterator(ctrl)
+			bActive.EXPECT().QueryIter(gomock.Any(), q).Return(mockIterActive, nil)
+			gomock.InOrder(
+				mockIterActive.EXPECT().Done().Return(false),
+				mockIterActive.EXPECT().Done().Return(true),
+				mockIterActive.EXPECT().Close().Return(err),
+			)
 			mockIter := index.NewMockQueryIterator(ctrl)
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter, nil)
 			gomock.InOrder(
@@ -964,6 +979,24 @@ func TestLimits(t *testing.T) {
 				mockIter.EXPECT().Close().Return(err),
 			)
 
+			bActive.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter, gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context,
+					opts interface{},
+					iter interface{},
+					results index.DocumentResults,
+					deadline interface{},
+					logFields interface{}) error {
+					_, _, err = results.AddDocuments([]doc.Document{
+						// Results in size=1 and docs=2.
+						// Byte array represents ID encoded as bytes.
+						// 1 represents the ID length in bytes, 49 is the ID itself which is
+						// the ASCII value for A
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+					})
+					require.NoError(t, err)
+					return nil
+				})
 			b0.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter, gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(ctx context.Context,
 					opts interface{},
