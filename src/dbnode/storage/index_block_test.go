@@ -1168,6 +1168,11 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
+	bActive := index.NewMockBlock(ctrl)
+	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	bActive.EXPECT().Close().Return(nil)
+	bActive.EXPECT().StartTime().Return(t0).AnyTimes()
+	bActive.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
 	b0 := index.NewMockBlock(ctrl)
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().Close().Return(nil)
@@ -1181,10 +1186,13 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	newBlockFn := func(
 		ts xtime.UnixNano,
 		md namespace.Metadata,
-		_ index.BlockOptions,
+		opts index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
+		if opts.ActiveBlock {
+			return bActive, nil
+		}
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -1247,6 +1255,10 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 			}
 			aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
+			mockIterActive := index.NewMockAggregateIterator(ctrl)
+			bActive.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIterActive, nil)
+			mockIterActive.EXPECT().Done().Return(true)
+			mockIterActive.EXPECT().Close().Return(nil)
 			mockIter0 := index.NewMockAggregateIterator(ctrl)
 			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
@@ -1262,6 +1274,9 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 				RequireExhaustive: test.requireExhaustive,
 			}
 			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+			bActive.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIterActive, nil)
+			mockIterActive.EXPECT().Done().Return(true)
+			mockIterActive.EXPECT().Close().Return(nil)
 			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
 			mockIter0.EXPECT().Close().Return(nil)
@@ -1281,6 +1296,32 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 				RequireExhaustive: test.requireExhaustive,
 				DocsLimit:         1,
 			}
+			bActive.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIterActive, nil)
+			//nolint: dupl
+			bActive.EXPECT().
+				AggregateWithIter(gomock.Any(), mockIter0, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(
+					ctx context.Context,
+					iter index.AggregateIterator,
+					opts index.QueryOptions,
+					results index.AggregateResults,
+					deadline time.Time,
+					logFields []opentracinglog.Field,
+				) error {
+					_, _ = results.AddFields([]index.AggregateResultsEntry{{
+						Field: ident.StringID("A"),
+						Terms: []ident.ID{ident.StringID("foo")},
+					}, {
+						Field: ident.StringID("B"),
+						Terms: []ident.ID{ident.StringID("bar")},
+					}})
+					return nil
+				})
+			gomock.InOrder(
+				mockIterActive.EXPECT().Done().Return(false),
+				mockIterActive.EXPECT().Done().Return(true),
+				mockIterActive.EXPECT().Close().Return(nil),
+			)
 			b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
 			//nolint: dupl
 			b0.EXPECT().
@@ -1344,6 +1385,11 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	query := idx.NewTermQuery([]byte("a"), []byte("b"))
+	bActive := index.NewMockBlock(ctrl)
+	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	bActive.EXPECT().Close().Return(nil)
+	bActive.EXPECT().StartTime().Return(t0).AnyTimes()
+	bActive.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
 	b0 := index.NewMockBlock(ctrl)
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().Close().Return(nil)
@@ -1357,10 +1403,13 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	newBlockFn := func(
 		ts xtime.UnixNano,
 		md namespace.Metadata,
-		_ index.BlockOptions,
+		opts index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
+		if opts.ActiveBlock {
+			return bActive, nil
+		}
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -1419,12 +1468,16 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	}
 	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
+	mockIterActive := index.NewMockAggregateIterator(ctrl)
 	mockIter := index.NewMockAggregateIterator(ctrl)
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
+		bActive.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIterActive, nil),
 		b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter, nil),
 		mockIter.EXPECT().Done().Return(true),
 		mockIter.EXPECT().Close().Return(nil),
+		mockIterActive.EXPECT().Done().Return(true),
+		mockIterActive.EXPECT().Close().Return(nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
@@ -1452,6 +1505,11 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
+	bActive := index.NewMockBlock(ctrl)
+	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	bActive.EXPECT().Close().Return(nil)
+	bActive.EXPECT().StartTime().Return(t0).AnyTimes()
+	bActive.EXPECT().EndTime().Return(t1).AnyTimes()
 	b0 := index.NewMockBlock(ctrl)
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().Close().Return(nil)
@@ -1465,10 +1523,13 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	newBlockFn := func(
 		ts xtime.UnixNano,
 		md namespace.Metadata,
-		_ index.BlockOptions,
+		opts index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
+		if opts.ActiveBlock {
+			return bActive, nil
+		}
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -1526,6 +1587,10 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 				q := index.Query{
 					Query: query,
 				}
+				mockIterActive := index.NewMockAggregateIterator(ctrl)
+				mockIterActive.EXPECT().Done().Return(true)
+				mockIterActive.EXPECT().Close().Return(nil)
+				bActive.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIterActive, nil)
 				mockIter0 := index.NewMockAggregateIterator(ctrl)
 				mockIter0.EXPECT().Done().Return(true)
 				mockIter0.EXPECT().Close().Return(nil)
@@ -1541,6 +1606,10 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 					RequireExhaustive: test.requireExhaustive,
 				}
 				aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+
+				mockIterActive.EXPECT().Done().Return(true)
+				mockIterActive.EXPECT().Close().Return(nil)
+				bActive.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIterActive, nil)
 
 				mockIter0.EXPECT().Done().Return(true)
 				mockIter0.EXPECT().Close().Return(nil)
@@ -1561,6 +1630,32 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 					RequireExhaustive: test.requireExhaustive,
 					DocsLimit:         1,
 				}
+				bActive.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIterActive, nil)
+				//nolint: dupl
+				bActive.EXPECT().
+					AggregateWithIter(gomock.Any(), mockIter0, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						ctx context.Context,
+						iter index.AggregateIterator,
+						opts index.QueryOptions,
+						results index.AggregateResults,
+						deadline time.Time,
+						logFields []opentracinglog.Field,
+					) error {
+						_, _ = results.AddFields([]index.AggregateResultsEntry{{
+							Field: ident.StringID("A"),
+							Terms: []ident.ID{ident.StringID("foo")},
+						}, {
+							Field: ident.StringID("B"),
+							Terms: []ident.ID{ident.StringID("bar")},
+						}})
+						return nil
+					})
+				gomock.InOrder(
+					mockIterActive.EXPECT().Done().Return(false),
+					mockIterActive.EXPECT().Done().Return(true),
+					mockIterActive.EXPECT().Close().Return(nil),
+				)
 				b0.EXPECT().AggregateIter(gomock.Any(), gomock.Any()).Return(mockIter0, nil)
 				//nolint: dupl
 				b0.EXPECT().

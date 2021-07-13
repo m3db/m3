@@ -99,25 +99,31 @@ func setupForwardIndex(
 	require.NoError(t, err)
 
 	var (
-		ts     = idx.(*nsIndex).state.latestBlock.StartTime()
-		nextTs = ts.Add(blockSize)
-		next   = ts.Truncate(blockSize).Add(blockSize)
-		id     = ident.StringID("foo")
-		tags   = ident.NewTags(
+		ts      = idx.(*nsIndex).state.latestBlock.StartTime()
+		nextTs  = ts.Add(blockSize)
+		current = ts.Truncate(blockSize)
+		next    = current.Add(blockSize)
+		id      = ident.StringID("foo")
+		tags    = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
 		lifecycle = index.NewMockOnIndexSeries(ctrl)
 	)
 
 	gomock.InOrder(
+		lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false),
+
 		lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true),
-		lifecycle.EXPECT().OnIndexPrepare(ts),
+		lifecycle.EXPECT().OnIndexPrepare(next),
 
 		lifecycle.EXPECT().OnIndexSuccess(ts),
 		lifecycle.EXPECT().OnIndexFinalize(ts),
 
 		lifecycle.EXPECT().OnIndexSuccess(nextTs),
 		lifecycle.EXPECT().OnIndexFinalize(nextTs),
+
+		lifecycle.EXPECT().IndexedForBlockStart(ts).Return(true),
+		lifecycle.EXPECT().IndexedForBlockStart(next).Return(true),
 	)
 
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycle)
