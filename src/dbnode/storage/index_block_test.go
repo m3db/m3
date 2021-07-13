@@ -1151,8 +1151,8 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		mockPool.EXPECT().Get().Return(stubResult),
 		bActive.EXPECT().QueryIter(ctx, q).Return(mockIterActive, nil),
 		b0.EXPECT().QueryIter(ctx, q).Return(mockIter, nil),
-		mockIterActive.EXPECT().Done().Return(true),
 		mockIter.EXPECT().Done().Return(true),
+		mockIterActive.EXPECT().Done().Return(true),
 		mockPool.EXPECT().Put(stubResult),
 	)
 
@@ -1491,11 +1491,11 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 		bActive.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIterActive, nil),
 		b0.EXPECT().AggregateIter(ctx, gomock.Any()).Return(mockIter, nil),
 		mockIter.EXPECT().Done().Return(true),
-		mockIter.EXPECT().Close().Return(nil),
 		mockIterActive.EXPECT().Done().Return(true),
-		mockIterActive.EXPECT().Close().Return(nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
+	mockIter.EXPECT().Close().Return(nil)
+	mockIterActive.EXPECT().Close().Return(nil)
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
 	require.NoError(t, err)
 	ctx.BlockingClose()
