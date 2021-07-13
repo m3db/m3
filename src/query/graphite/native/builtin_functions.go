@@ -1248,6 +1248,25 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 	return r, nil
 }
 
+// invert takes one metric or a wildcard seriesList, and inverts each datapoint
+// nolint: gocritic
+func invert(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
+	results := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		vals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+		newName := fmt.Sprintf("invert(%s)", series.Name())
+		if series.AllNaN() {
+			results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
+			continue
+		}
+
+		for i := 0; i < series.Len(); i++ {
+			n := series.ValueAt(i)
+			if !math.IsNaN(n) && n > 0 {
+				vals.SetValueAt(i, math.Pow(n, -1))
+			}
+		}
+    
 // pow takes one metric or a wildcard seriesList followed by a constant,
 // and raises the datapoint by the power of the constant provided at each point
 // nolint: gocritic
@@ -1262,6 +1281,7 @@ func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesLi
 			vals.SetValueAt(i, math.Pow(series.ValueAt(i), factor))
 		}
 		newName := fmt.Sprintf("pow(%s, %f)", series.Name(), factor)
+    
 		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
 	}
 
@@ -2832,6 +2852,7 @@ func init() {
 	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
 	})
+	MustRegisterFunction(invert)
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
