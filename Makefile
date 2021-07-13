@@ -38,8 +38,8 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.13
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
+# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.16
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.173.2 
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 

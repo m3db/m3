@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
@@ -58,8 +59,8 @@ var (
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}
-	svcDefaultOptions         = []handleroptions.ServiceOptionsDefault{
-		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
+	svcDefaultOptions         = []handleroptions3.ServiceOptionsDefault{
+		func(o handleroptions3.ServiceOptions) handleroptions3.ServiceOptions {
 			return o
 		},
 	}

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"net/http"
@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -46,17 +46,17 @@ const (
 
 var (
 	// M3DBReplaceURL is the url for the m3db replace handler (method POST).
-	M3DBReplaceURL = path.Join(handler.RoutePrefixV1,
+	M3DBReplaceURL = path.Join(route.Prefix,
 		M3DBServicePlacementPathName, replacePathName)
 
 	// M3AggReplaceURL is the url for the m3aggregator replace handler (method
 	// POST).
-	M3AggReplaceURL = path.Join(handler.RoutePrefixV1,
+	M3AggReplaceURL = path.Join(route.Prefix,
 		M3AggServicePlacementPathName, replacePathName)
 
 	// M3CoordinatorReplaceURL is the url for the m3coordinator replace handler
 	// (method POST).
-	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1,
+	M3CoordinatorReplaceURL = path.Join(route.Prefix,
 		M3CoordinatorServicePlacementPathName, replacePathName)
 )
 
@@ -129,7 +129,7 @@ func (h *ReplaceHandler) Replace(
 	serviceOpts := handleroptions.NewServiceOptions(svc,
 		httpReq.Header, h.m3AggServiceOptions)
 	service, algo, err := ServiceWithAlgo(h.clusterClient,
-		serviceOpts, h.config.ClusterManagement.Placement, h.nowFn(), nil)
+		serviceOpts, h.placement, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

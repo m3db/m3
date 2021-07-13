@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package extdebug
 
 import (
 	"bytes"
@@ -28,9 +28,10 @@ import (
 	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -47,7 +48,7 @@ func NewNamespaceInfoSource(
 	clusterClient clusterclient.Client,
 	allDefaults []handleroptions.ServiceNameAndDefaults,
 	instrumentOpts instrument.Options,
-) (Source, error) {
+) (debug.Source, error) {
 	var (
 		m3dbDefault handleroptions.ServiceNameAndDefaults
 		found       bool
