@@ -38,8 +38,8 @@ const (
 	GaugeType
 )
 
-// validTypes is a list of valid types.
-var validTypes = []Type{
+// ValidTypes is a list of valid metric types.
+var ValidTypes = []Type{
 	CounterType,
 	TimerType,
 	GaugeType,
@@ -122,8 +122,8 @@ func (t *Type) FromProto(pb metricpb.MetricType) error {
 
 // ParseType parses a type string and returns the type.
 func ParseType(typeStr string) (Type, error) {
-	validTypeStrs := make([]string, 0, len(validTypes))
-	for _, valid := range validTypes {
+	validTypeStrs := make([]string, 0, len(ValidTypes))
+	for _, valid := range ValidTypes {
 		if typeStr == valid.String() {
 			return valid, nil
 		}
