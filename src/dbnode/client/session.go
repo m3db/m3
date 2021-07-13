@@ -3652,7 +3652,7 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 		checksum = uint32(*seg.Checksum)
 	}
 
-	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
+	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead|ts.FinalizeTail)
 }
 
 func (b *baseBlocksResult) mergeReaders(

@@ -184,5 +184,5 @@ func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
 
 	// NB: new segment is always finalizeable.
 	return NewSegment(checkedHead, checkedTail,
-		s.CalculateChecksum(), FinalizeHead&FinalizeTail)
+		s.CalculateChecksum(), FinalizeHead|FinalizeTail)
 }
