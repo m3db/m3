@@ -114,6 +114,11 @@ func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 	now := xtime.Now()
 	nextWriteTime := now.Truncate(blockSize)
 	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
+		DoAndReturn(func(t xtime.UnixNano) xtime.UnixNano {
+			return t.Truncate(blockSize)
+		}).
+		AnyTimes()
 	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
