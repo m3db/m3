@@ -134,7 +134,7 @@ func (i *Ingester) Ingest(
 	op.id = id
 	op.metricNanos = metricNanos
 	op.value = value
-	op.annotation = annotation
+	op.annotation = append(op.annotation[:0], annotation...)
 	op.sp = sp
 	op.callback = callback
 	i.workers.Go(op.ingestFn)
