@@ -59,14 +59,14 @@ func (c Counter) ToUnion() MetricUnion {
 func (c Counter) ToProto(pb *metricpb.Counter) {
 	pb.Id = c.ID
 	pb.Value = c.Value
-	pb.Annotation = c.Annotation
+	pb.Annotation = append(pb.Annotation[:0], c.Annotation...)
 }
 
 // FromProto converts the protobuf message to a counter in place.
 func (c *Counter) FromProto(pb metricpb.Counter) {
 	c.ID = pb.Id
 	c.Value = pb.Value
-	c.Annotation = pb.Annotation
+	c.Annotation = append(c.Annotation[:0], pb.Annotation...)
 }
 
 // BatchTimer is a timer containing the timer ID and a list of timer values.
@@ -90,14 +90,14 @@ func (t BatchTimer) ToUnion() MetricUnion {
 func (t BatchTimer) ToProto(pb *metricpb.BatchTimer) {
 	pb.Id = t.ID
 	pb.Values = t.Values
-	pb.Annotation = t.Annotation
+	pb.Annotation = append(pb.Annotation[:0], t.Annotation...)
 }
 
 // FromProto converts the protobuf message to a batch timer in place.
 func (t *BatchTimer) FromProto(pb metricpb.BatchTimer) {
 	t.ID = pb.Id
 	t.Values = pb.Values
-	t.Annotation = pb.Annotation
+	t.Annotation = append(t.Annotation[:0], pb.Annotation...)
 }
 
 // Gauge is a gauge containing the gauge ID and the value at certain time.
@@ -121,14 +121,14 @@ func (g Gauge) ToUnion() MetricUnion {
 func (g Gauge) ToProto(pb *metricpb.Gauge) {
 	pb.Id = g.ID
 	pb.Value = g.Value
-	pb.Annotation = g.Annotation
+	pb.Annotation = append(pb.Annotation[:0], g.Annotation...)
 }
 
 // FromProto converts the protobuf message to a gauge in place.
 func (g *Gauge) FromProto(pb metricpb.Gauge) {
 	g.ID = pb.Id
 	g.Value = pb.Value
-	g.Annotation = pb.Annotation
+	g.Annotation = append(g.Annotation[:0], pb.Annotation...)
 }
 
 // CounterWithPoliciesList is a counter with applicable policies list.
