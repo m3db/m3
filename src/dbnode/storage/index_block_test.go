@@ -709,6 +709,9 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 				EndExclusive:   now.Add(time.Minute),
 			}
 
+			// Lock to prevent race given these blocks are processed concurrently.
+			var resultLock sync.Mutex
+
 			// create initial span from a mock tracer and get ctx
 			mtr := mocktracer.New()
 			sp := mtr.StartSpan("root")
@@ -767,6 +770,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 					deadline time.Time,
 					logFields []opentracinglog.Field,
 				) error {
+					resultLock.Lock()
+					defer resultLock.Unlock()
 					_, _, err = r.AddDocuments([]doc.Document{
 						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
 						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("B")}),
@@ -790,6 +795,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 					deadline time.Time,
 					logFields []opentracinglog.Field,
 				) error {
+					resultLock.Lock()
+					defer resultLock.Unlock()
 					_, _, err = r.AddDocuments([]doc.Document{
 						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
 						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("B")}),
@@ -959,6 +966,9 @@ func TestLimits(t *testing.T) {
 				RequireExhaustive: test.requireExhaustive,
 			}
 
+			// Lock to prevent race given these blocks are processed concurrently.
+			var resultLock sync.Mutex
+
 			// create initial span from a mock tracer and get ctx
 			mtr := mocktracer.New()
 			sp := mtr.StartSpan("root")
@@ -986,6 +996,8 @@ func TestLimits(t *testing.T) {
 					results index.DocumentResults,
 					deadline interface{},
 					logFields interface{}) error {
+					resultLock.Lock()
+					defer resultLock.Unlock()
 					_, _, err = results.AddDocuments([]doc.Document{
 						// Results in size=1 and docs=2.
 						// Byte array represents ID encoded as bytes.
@@ -1004,6 +1016,8 @@ func TestLimits(t *testing.T) {
 					results index.DocumentResults,
 					deadline interface{},
 					logFields interface{}) error {
+					resultLock.Lock()
+					defer resultLock.Unlock()
 					_, _, err = results.AddDocuments([]doc.Document{
 						// Results in size=1 and docs=2.
 						// Byte array represents ID encoded as bytes.
@@ -1137,12 +1151,14 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		mockPool.EXPECT().Get().Return(stubResult),
 		bActive.EXPECT().QueryIter(ctx, q).Return(mockIterActive, nil),
 		b0.EXPECT().QueryIter(ctx, q).Return(mockIter, nil),
-		mockIter.EXPECT().Done().Return(true),
-		mockIter.EXPECT().Close().Return(nil),
 		mockIterActive.EXPECT().Done().Return(true),
-		mockIterActive.EXPECT().Close().Return(nil),
+		mockIter.EXPECT().Done().Return(true),
 		mockPool.EXPECT().Put(stubResult),
 	)
+
+	mockIter.EXPECT().Close().Return(nil)
+	mockIterActive.EXPECT().Close().Return(nil)
+
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 	ctx.BlockingClose()
