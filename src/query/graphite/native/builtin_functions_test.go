@@ -4077,41 +4077,77 @@ func TestCactiStyle(t *testing.T) {
 }
 
 func TestConsolidateBy(t *testing.T) {
-	ctx := common.NewTestContext()
-	defer func() { _ = ctx.Close() }()
-
+	start := common.NewTestContext().StartTime
 	stepSize := 10000
-	input := struct {
-		name        string
-		startTime   time.Time
-		stepInMilli int
-		values      []float64
+	for i, test := range []struct {
+		name               string
+		fn                 string
+		startTime          time.Time
+		stepMillis         int
+		maxDataPoints      int64
+		values             []float64
+		expectedValues     []float64
+		expectedStepMillis int
+		expectedErr        bool
 	}{
-		"foo",
-		ctx.StartTime,
-		stepSize,
-		[]float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+		{
+			name:               "foo",
+			fn:                 "min",
+			startTime:          start,
+			stepMillis:         stepSize,
+			values:             []float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+			expectedStepMillis: stepSize,
+			expectedValues:     []float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+		},
+		{
+			name:               "foo",
+			fn:                 "min",
+			startTime:          start,
+			stepMillis:         stepSize,
+			maxDataPoints:      2,
+			values:             []float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+			expectedStepMillis: 3 * stepSize,
+			expectedValues:     []float64{1.0, 4.0},
+		},
+		{
+			name:        "foo",
+			fn:          "nonexistent",
+			startTime:   start,
+			stepMillis:  stepSize,
+			values:      []float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+			expectedErr: true,
+		},
+	} {
+		input := test
+		t.Run(fmt.Sprintf("%d-%s", i, input.name), func(t *testing.T) {
+			ctx := common.NewTestContext()
+			ctx.MaxDataPoints = input.maxDataPoints
+			defer func() { _ = ctx.Close() }()
+
+			series := ts.NewSeries(
+				ctx,
+				input.name,
+				input.startTime,
+				common.NewTestSeriesValues(ctx, input.stepMillis, input.values),
+			)
+
+			results, err := consolidateBy(ctx, singlePathSpec{
+				Values: []*ts.Series{series},
+			}, input.fn)
+			if input.expectedErr {
+				require.Error(t, err)
+				return
+			}
+
+			expected := common.TestSeries{
+				Name: fmt.Sprintf(`consolidateBy(%s,"%s")`, input.name, input.fn),
+				Data: input.expectedValues,
+			}
+			require.NoError(t, err)
+			common.CompareOutputsAndExpected(t, input.expectedStepMillis, input.startTime,
+				[]common.TestSeries{expected}, results.Values)
+		})
 	}
-
-	series := ts.NewSeries(
-		ctx,
-		input.name,
-		input.startTime,
-		common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
-	)
-
-	results, err := consolidateBy(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, "min")
-	expected := common.TestSeries{Name: `consolidateBy(foo,"min")`, Data: input.values}
-	require.Nil(t, err)
-	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
-		[]common.TestSeries{expected}, results.Values)
-
-	results, err = consolidateBy(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, "nonexistent")
-	require.NotNil(t, err)
 }
 
 func TestPow(t *testing.T) {
