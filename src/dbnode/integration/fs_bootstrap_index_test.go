@@ -168,8 +168,18 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 
 	// Stop the server
 	defer func() {
+		require.NoError(t, setup.DB().Close())
+		setup.Close()
 		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
+
+		openFilesNs1, errNs1 := listOpenFiles(ns1.ID())
+		require.NoError(t, errNs1)
+		require.Zero(t, len(openFilesNs1))
+
+		openFilesNs2, errNs2 := listOpenFiles(ns2.ID())
+		require.NoError(t, errNs2)
+		require.Zero(t, len(openFilesNs2))
 	}()
 
 	// Verify data matches what we expect

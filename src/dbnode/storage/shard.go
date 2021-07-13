@@ -619,11 +619,13 @@ func (s *dbShard) Close() error {
 	s.state = dbShardStateClosing
 	s.Unlock()
 
-	s.insertQueue.Stop()
+	s.insertQueue.Stop() // nolint
 
 	for _, closer := range s.runtimeOptsListenClosers {
 		closer.Close()
 	}
+
+	s.DatabaseBlockRetriever.Close() // nolint
 
 	s.metrics.closeStart.Inc(1)
 	stopwatch := s.metrics.closeLatency.Start()
