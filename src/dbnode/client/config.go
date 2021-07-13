@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -418,6 +419,9 @@ func (c Configuration) NewAdminClient(
 	v = v.SetReaderIteratorAllocate(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	if c.Proto != nil && c.Proto.Enabled {
+		v = v.SetReaderIteratorAllocate(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+			return proto.NewIterator(r, descr, encodingOpts)
+		})
 		v = v.SetEncodingProto(encodingOpts)
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
 		// Load schema registry from file.
