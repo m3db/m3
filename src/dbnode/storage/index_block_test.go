@@ -603,7 +603,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumSegments: 2,
 	}, nil)
 	b0.EXPECT().IsSealed().Return(true).Times(2)
-	b0.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
+	b0.EXPECT().NeedsMutableSegmentsEvicted().Return(true).Times(2)
 	result, err = idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
@@ -632,6 +632,11 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
+	bActive := index.NewMockBlock(ctrl)
+	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	bActive.EXPECT().Close().Return(nil)
+	bActive.EXPECT().StartTime().Return(t0).AnyTimes()
+	bActive.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
 	b0 := index.NewMockBlock(ctrl)
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().Close().Return(nil)
@@ -645,10 +650,13 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	newBlockFn := func(
 		ts xtime.UnixNano,
 		md namespace.Metadata,
-		_ index.BlockOptions,
+		opts index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
+		if opts.ActiveBlock {
+			return bActive, nil
+		}
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -706,7 +714,11 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			sp := mtr.StartSpan("root")
 			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
+			mockIterActive := index.NewMockQueryIterator(ctrl)
 			mockIter0 := index.NewMockQueryIterator(ctrl)
+			bActive.EXPECT().QueryIter(gomock.Any(), q).Return(mockIterActive, nil)
+			mockIterActive.EXPECT().Done().Return(true)
+			mockIterActive.EXPECT().Close().Return(nil)
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
 			mockIter0.EXPECT().Close().Return(nil)
@@ -721,6 +733,9 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 				EndExclusive:      t2.Add(time.Minute),
 				RequireExhaustive: test.requireExhaustive,
 			}
+			bActive.EXPECT().QueryIter(gomock.Any(), q).Return(mockIterActive, nil)
+			mockIterActive.EXPECT().Done().Return(true)
+			mockIterActive.EXPECT().Close().Return(nil)
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
 			mockIter0.EXPECT().Done().Return(true)
 			mockIter0.EXPECT().Close().Return(nil)
@@ -741,6 +756,30 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 				RequireExhaustive: test.requireExhaustive,
 				SeriesLimit:       1,
 			}
+
+			bActive.EXPECT().QueryIter(gomock.Any(), q).Return(mockIterActive, nil)
+			bActive.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIterActive, gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(
+					ctx context.Context,
+					opts index.QueryOptions,
+					iter index.QueryIterator,
+					r index.QueryResults,
+					deadline time.Time,
+					logFields []opentracinglog.Field,
+				) error {
+					_, _, err = r.AddDocuments([]doc.Document{
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("B")}),
+					})
+					require.NoError(t, err)
+					return nil
+				})
+			gomock.InOrder(
+				mockIterActive.EXPECT().Done().Return(false),
+				mockIterActive.EXPECT().Done().Return(true),
+				mockIterActive.EXPECT().Close().Return(nil),
+			)
+
 			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
 			b0.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter0, gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(
@@ -775,7 +814,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 8)
+			require.Len(t, spans, 9)
 		})
 	}
 }
@@ -982,6 +1021,11 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
+	bActive := index.NewMockBlock(ctrl)
+	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	bActive.EXPECT().Close().Return(nil)
+	bActive.EXPECT().StartTime().Return(t0).AnyTimes()
+	bActive.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
 	b0 := index.NewMockBlock(ctrl)
 	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	b0.EXPECT().Close().Return(nil)
@@ -995,10 +1039,13 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	newBlockFn := func(
 		ts xtime.UnixNano,
 		md namespace.Metadata,
-		_ index.BlockOptions,
+		opts index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
+		if opts.ActiveBlock {
+			return bActive, nil
+		}
 		if ts.Equal(t0) {
 			return b0, nil
 		}
@@ -1051,12 +1098,16 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
+	mockIterActive := index.NewMockQueryIterator(ctrl)
 	mockIter := index.NewMockQueryIterator(ctrl)
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
+		bActive.EXPECT().QueryIter(ctx, q).Return(mockIterActive, nil),
 		b0.EXPECT().QueryIter(ctx, q).Return(mockIter, nil),
 		mockIter.EXPECT().Done().Return(true),
 		mockIter.EXPECT().Close().Return(nil),
+		mockIterActive.EXPECT().Done().Return(true),
+		mockIterActive.EXPECT().Close().Return(nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
 	_, err = idx.Query(ctx, q, qOpts)
@@ -1235,7 +1286,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 
 			sp.Finish()
 			spans := mtr.FinishedSpans()
-			require.Len(t, spans, 8)
+			require.Len(t, spans, 9)
 		})
 	}
 }
