@@ -136,19 +136,34 @@ func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *go
 }
 
 // FetchCompressed mocks base method.
-func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.SeriesFetchResult, Cleanup, error) {
+func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].(consolidators.SeriesFetchResult)
-	ret1, _ := ret[1].(Cleanup)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(consolidators.MultiFetchResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // FetchCompressed indicates an expected call of FetchCompressed.
 func (mr *MockStorageMockRecorder) FetchCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressed", reflect.TypeOf((*MockStorage)(nil).FetchCompressed), arg0, arg1, arg2)
+}
+
+// FetchCompressedResult mocks base method.
+func (m *MockStorage) FetchCompressedResult(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.SeriesFetchResult, Cleanup, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchCompressedResult", arg0, arg1, arg2)
+	ret0, _ := ret[0].(consolidators.SeriesFetchResult)
+	ret1, _ := ret[1].(Cleanup)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FetchCompressedResult indicates an expected call of FetchCompressedResult.
+func (mr *MockStorageMockRecorder) FetchCompressedResult(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressedResult", reflect.TypeOf((*MockStorage)(nil).FetchCompressedResult), arg0, arg1, arg2)
 }
 
 // FetchProm mocks base method.

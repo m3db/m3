@@ -134,7 +134,7 @@ func (s *grpcServer) Fetch(
 		fetchOpts.DocsLimit = s.queryContextOpts.LimitMaxDocs
 	}
 
-	result, cleanup, err := s.querier.FetchCompressed(ctx, storeQuery, fetchOpts)
+	result, cleanup, err := s.querier.FetchCompressedResult(ctx, storeQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))

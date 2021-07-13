@@ -61,6 +61,14 @@ func (noopStorage) FetchBlocks(ctx context.Context, query *FetchQuery, options *
 	return block.Result{}, errNoopClient
 }
 
+func (noopStorage) FetchCompressed(
+	ctx context.Context,
+	query *FetchQuery,
+	options *FetchOptions,
+) (consolidators.MultiFetchResult, error) {
+	return nil, errNoopClient
+}
+
 // SearchSeries returns series IDs matching the current query.
 func (noopStorage) SearchSeries(ctx context.Context, query *FetchQuery, options *FetchOptions) (*SearchResults, error) {
 	return nil, errNoopClient

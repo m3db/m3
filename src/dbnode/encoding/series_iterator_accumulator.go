@@ -56,11 +56,15 @@ func NewSeriesIteratorAccumulator(
 	iter SeriesIterator,
 	opts SeriesAccumulatorOptions,
 ) (SeriesIteratorAccumulator, error) {
+	nsID := ""
+	if iter.Namespace() != nil {
+		nsID = iter.Namespace().String()
+	}
 	it := &seriesIteratorAccumulator{
 		// NB: clone id and nsID so that they will be accessbile after underlying
 		// iterators are closed.
 		id:              ident.StringID(iter.ID().String()),
-		nsID:            ident.StringID(iter.Namespace().String()),
+		nsID:            ident.StringID(nsID),
 		seriesIterators: make([]SeriesIterator, 0, 2),
 	}
 
@@ -79,11 +83,6 @@ func NewSeriesIteratorAccumulator(
 func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
 	if it.err != nil {
 		return it.err
-	}
-
-	if newNs := iter.Namespace(); !newNs.Equal(it.nsID) {
-		return fmt.Errorf("cannot add iterator with namespace %s to accumulator %s",
-			newNs.String(), it.nsID.String())
 	}
 
 	if !iter.Next() || !it.iters.push(iter) {

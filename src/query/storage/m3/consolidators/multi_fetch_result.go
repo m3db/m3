@@ -55,6 +55,8 @@ type multiResult struct {
 	tagOpts         models.TagOptions
 	limitOpts       LimitOptions
 
+	all []MultiFetchResults
+
 	pools encoding.IteratorPools
 }
 
@@ -186,16 +188,23 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	return NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
 }
 
-func (r *multiResult) Add(
-	newIterators encoding.SeriesIterators,
-	metadata block.ResultMetadata,
-	attrs storagemetadata.Attributes,
-	err error,
-) {
+func (r *multiResult) Results() []MultiFetchResults {
+	r.Lock()
+	defer r.Unlock()
+	return r.all
+}
+
+func (r *multiResult) Add(add MultiFetchResults) {
+	newIterators := add.SeriesIterators
+	metadata := add.Metadata
+	attrs := add.Attrs
+
 	r.Lock()
 	defer r.Unlock()
 
-	if err != nil {
+	r.all = append(r.all, add)
+
+	if err := add.Err; err != nil {
 		r.err = r.err.Add(err)
 		return
 	}
@@ -204,7 +213,10 @@ func (r *multiResult) Add(
 		return
 	}
 
-	nsID := newIterators.Iters()[0].Namespace().String()
+	nsID := ""
+	if newIterators.Iters()[0].Namespace() != nil {
+		nsID = newIterators.Iters()[0].Namespace().String() // sometimes the namespace ID is empty
+	}
 
 	// the series limit was reached within this namespace.
 	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
