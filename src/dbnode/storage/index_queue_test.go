@@ -291,6 +291,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 func setupIndex(t *testing.T,
 	ctrl *gomock.Controller,
 	now xtime.UnixNano,
+	expectAggregateQuery bool,
 ) NamespaceIndex {
 	newFn := func(
 		fn nsIndexInsertBatchFn,
@@ -323,10 +324,11 @@ func setupIndex(t *testing.T,
 
 	lifecycleFns.EXPECT().OnIndexFinalize(ts)
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
-	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
-		Return(false).
-		AnyTimes()
-	lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
+	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
+
+	if !expectAggregateQuery {
+		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
+	}
 
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycleFns)
 	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
@@ -344,7 +346,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer ctx.Close()
 
 	now := xtime.Now()
-	idx := setupIndex(t, ctrl, now)
+	idx := setupIndex(t, ctrl, now, false)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
@@ -380,7 +382,7 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	defer ctx.Close()
 
 	now := xtime.Now()
-	idx := setupIndex(t, ctrl, now)
+	idx := setupIndex(t, ctrl, now, true)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
@@ -418,7 +420,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	defer ctx.Close()
 
 	now := xtime.Now()
-	idx := setupIndex(t, ctrl, now)
+	idx := setupIndex(t, ctrl, now, false)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
@@ -465,7 +467,7 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	defer ctx.Close()
 
 	now := xtime.Now()
-	idx := setupIndex(t, ctrl, now)
+	idx := setupIndex(t, ctrl, now, false)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
