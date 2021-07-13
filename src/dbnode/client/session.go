@@ -1292,6 +1292,7 @@ func (s *session) writeAttemptWithRLock(
 	// and consistency level checks.
 	nsID := s.cloneFinalizable(namespace)
 	tsID := s.cloneFinalizable(id)
+	clonedAnnotation := append(make([]byte, 0, len(annotation)), annotation...)
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
@@ -1311,7 +1312,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = annotation
+		wop.request.Datapoint.Annotation = clonedAnnotation
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
@@ -1328,7 +1329,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = annotation
+		wop.request.Datapoint.Annotation = clonedAnnotation
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.EncodedTags = wop.request.EncodedTags
 		wop.requestV2.Datapoint = wop.request.Datapoint
