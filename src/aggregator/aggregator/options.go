@@ -268,6 +268,14 @@ type Options interface {
 	// BufferForFutureTimedMetric returns the size of the buffer for timed metrics in the future.
 	BufferForFutureTimedMetric() time.Duration
 
+	// SetResendBufferForPastTimedMetric sets the resend buffer for timed metrics in the past.
+	// It not set then past timed metrics cannot be resent if they arrive late.
+	SetResendBufferForPastTimedMetric(value time.Duration) Options
+
+	// ResendBufferForPastTimedMetric returns the resend buffer for timed metrics in the past.
+	// It not set then past timed metrics cannot be resent if they arrive late.
+	ResendBufferForPastTimedMetric() time.Duration
+
 	// SetMaxNumCachedSourceSets sets the maximum number of cached source sets.
 	SetMaxNumCachedSourceSets(value int) Options
 
@@ -336,10 +344,10 @@ type Options interface {
 	SetTimedMetricsFlushOffsetEnabled(bool) Options
 
 	// FeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
-	FeatureFlagBundlesParsed() []FeatureFlagBundleParsed
+	FeatureFlagBundlesParsed() FeatureFlagBundlesParsed
 
 	// SetFeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
-	SetFeatureFlagBundlesParsed([]FeatureFlagBundleParsed) Options
+	SetFeatureFlagBundlesParsed(FeatureFlagBundlesParsed) Options
 
 	// WritesIgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps
 	// are ignored for incoming writes.
@@ -382,6 +390,7 @@ type options struct {
 	bufferForPastTimedMetric         time.Duration
 	bufferForPastTimedMetricFn       BufferForPastTimedMetricFn
 	bufferForFutureTimedMetric       time.Duration
+	resendBufferForPastTimedMetric   time.Duration
 	maxNumCachedSourceSets           int
 	discardNaNAggregatedValues       bool
 	entryPool                        EntryPool
@@ -750,6 +759,16 @@ func (o *options) BufferForFutureTimedMetric() time.Duration {
 	return o.bufferForFutureTimedMetric
 }
 
+func (o *options) SetResendBufferForPastTimedMetric(value time.Duration) Options {
+	opts := *o
+	opts.resendBufferForPastTimedMetric = value
+	return &opts
+}
+
+func (o *options) ResendBufferForPastTimedMetric() time.Duration {
+	return o.resendBufferForPastTimedMetric
+}
+
 func (o *options) SetMaxNumCachedSourceSets(value int) Options {
 	opts := *o
 	opts.maxNumCachedSourceSets = value
@@ -911,13 +930,13 @@ func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
 	return &opts
 }
 
-func (o *options) SetFeatureFlagBundlesParsed(value []FeatureFlagBundleParsed) Options {
+func (o *options) SetFeatureFlagBundlesParsed(value FeatureFlagBundlesParsed) Options {
 	opts := *o
 	opts.featureFlagBundlesParsed = value
 	return &opts
 }
 
-func (o *options) FeatureFlagBundlesParsed() []FeatureFlagBundleParsed {
+func (o *options) FeatureFlagBundlesParsed() FeatureFlagBundlesParsed {
 	return o.featureFlagBundlesParsed
 }
 

@@ -43,17 +43,21 @@ import (
 type lockedGaugeAggregation struct {
 	sync.Mutex
 
+	dirty       bool
+	flushed     bool
 	closed      bool
 	sourcesSeen *bitset.BitSet
 	aggregation gaugeAggregation
 }
 
 type timedGauge struct {
-	startAtNanos int64 // start time of an aggregation window
-	lockedAgg    *lockedGaugeAggregation
+	startAtNanos            int64 // start time of an aggregation window
+	lockedAgg               *lockedGaugeAggregation
+	onConsumeTimeNeedsFlush bool
+	onConsumeExpired        bool
 }
 
-func (ta *timedGauge) Reset() {
+func (ta *timedGauge) Release() {
 	ta.startAtNanos = 0
 	ta.lockedAgg = nil
 }
@@ -154,6 +158,7 @@ func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 		return errAggregationClosed
 	}
 	lockedAgg.aggregation.AddUnion(timestamp, mu)
+	lockedAgg.dirty = true
 	lockedAgg.Unlock()
 	return nil
 }
@@ -171,6 +176,7 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []by
 		return errAggregationClosed
 	}
 	lockedAgg.aggregation.Add(timestamp, value, annotation)
+	lockedAgg.dirty = true
 	lockedAgg.Unlock()
 	return nil
 }
@@ -179,7 +185,12 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []by
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
 //nolint: dupl
-func (e *GaugeElem) AddUnique(timestamp time.Time, values []float64, annotation []byte, sourceID uint32) error {
+func (e *GaugeElem) AddUnique(
+	timestamp time.Time,
+	values []float64,
+	annotation []byte,
+	sourceID uint32,
+) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
@@ -199,6 +210,7 @@ func (e *GaugeElem) AddUnique(timestamp time.Time, values []float64, annotation 
 	for _, v := range values {
 		lockedAgg.aggregation.Add(timestamp, v, annotation)
 	}
+	lockedAgg.dirty = true
 	lockedAgg.Unlock()
 	return nil
 }
@@ -217,60 +229,94 @@ func (e *GaugeElem) Consume(
 	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
 	resolution := e.sp.Resolution().Window
+	resendBufferDuration := e.opts.ResendBufferForPastTimedMetric()
+
 	e.Lock()
 	if e.closed {
 		e.Unlock()
 		return false
 	}
-	idx := 0
-	for range e.values {
-		// Bail as soon as the timestamp is no later than the target time.
-		if !isEarlierThanFn(e.values[idx].startAtNanos, resolution, targetNanos) {
-			break
-		}
-		idx++
-	}
+
 	e.toConsume = e.toConsume[:0]
-	if idx > 0 {
-		// Shift remaining values to the left and shrink the values slice.
-		e.toConsume = append(e.toConsume, e.values[:idx]...)
-		n := copy(e.values[0:], e.values[idx:])
-		// Clear out the invalid items to avoid holding references to objects
-		// for reduced GC overhead..
-		for i := n; i < len(e.values); i++ {
-			e.values[i].Reset()
+
+	// Evaluate and GC expired items.
+	valuesForConsideration := e.values[:]
+	e.values = e.values[:0]
+	for _, value := range valuesForConsideration {
+		timeNeedsFlush := isEarlierThanFn(value.startAtNanos, resolution, targetNanos)
+		expired := !timeNeedsFlush
+		if resendBufferDuration > 0 {
+			// If resend buffer is set then we only expire if older than
+			// the target timestamp to flush plus the resend buffer.
+			expiredNanos := targetNanos + int64(resendBufferDuration)
+			expired = !isEarlierThanFn(value.startAtNanos, resolution, expiredNanos)
 		}
-		e.values = e.values[:n]
+
+		// Modify the by value copy with whether needs time flush and accumulate.
+		copiedValue := value
+		copiedValue.onConsumeTimeNeedsFlush = timeNeedsFlush
+		copiedValue.onConsumeExpired = expired
+		e.toConsume = append(e.toConsume, copiedValue)
+
+		if expired {
+			// GC expired item.
+			value.Release()
+		} else {
+			// Keep item.
+			e.values = append(e.values, value)
+		}
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
 
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
+		timeNeedsFlush := e.toConsume[i].onConsumeTimeNeedsFlush
+		expired := e.toConsume[i].onConsumeExpired
 		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
+
 		e.toConsume[i].lockedAgg.Lock()
-		e.processValueWithAggregationLock(
-			timeNanos,
-			e.toConsume[i].lockedAgg,
-			flushLocalFn,
-			flushForwardedFn,
-			resolution,
-		)
-		// Closes the aggregation object after it's processed.
-		e.toConsume[i].lockedAgg.closed = true
-		e.toConsume[i].lockedAgg.aggregation.Close()
-		if e.toConsume[i].lockedAgg.sourcesSeen != nil {
-			e.cachedSourceSetsLock.Lock()
-			// This is to make sure there aren't too many cached source sets taking up
-			// too much space.
-			if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
-				e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.sourcesSeen)
-			}
-			e.cachedSourceSetsLock.Unlock()
-			e.toConsume[i].lockedAgg.sourcesSeen = nil
+
+		// See if should flush based on time and has not been flushed before.
+		shouldFirstFlush := timeNeedsFlush &&
+			!e.toConsume[i].lockedAgg.flushed
+		// Otherwise check if should flush because it is dirty.
+		shouldDirtyFlush := !timeNeedsFlush &&
+			e.toConsume[i].lockedAgg.flushed &&
+			e.toConsume[i].lockedAgg.dirty
+		flush := shouldFirstFlush || shouldDirtyFlush
+		if flush {
+			// Flush value if should first flush or was dirty and needed flush.
+			e.processValueWithAggregationLock(
+				timeNanos,
+				e.toConsume[i].lockedAgg,
+				flushLocalFn,
+				flushForwardedFn,
+				resolution,
+			)
+			e.toConsume[i].lockedAgg.flushed = true
+			e.toConsume[i].lockedAgg.dirty = false
 		}
+
+		// Closes the aggregation object after it's processed.
+		if expired {
+			// Cleanup expired item.
+			e.toConsume[i].lockedAgg.closed = true
+			e.toConsume[i].lockedAgg.aggregation.Close()
+			if e.toConsume[i].lockedAgg.sourcesSeen != nil {
+				e.cachedSourceSetsLock.Lock()
+				// This is to make sure there aren't too many cached source sets taking up
+				// too much space.
+				if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
+					e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.sourcesSeen)
+				}
+				e.cachedSourceSetsLock.Unlock()
+				e.toConsume[i].lockedAgg.sourcesSeen = nil
+			}
+		}
+
 		e.toConsume[i].lockedAgg.Unlock()
-		e.toConsume[i].Reset()
+		e.toConsume[i].Release()
 	}
 
 	if e.parsedPipeline.HasRollup {
@@ -301,7 +347,7 @@ func (e *GaugeElem) Close() {
 		// Close the underlying aggregation objects.
 		e.values[idx].lockedAgg.sourcesSeen = nil
 		e.values[idx].lockedAgg.aggregation.Close()
-		e.values[idx].Reset()
+		e.values[idx].Release()
 	}
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
@@ -451,14 +497,8 @@ func (e *GaugeElem) processValueWithAggregationLock(
 
 				var useIncreaseWithPrevNaN bool
 
-				for _, flags := range e.opts.FeatureFlagBundlesParsed() {
-					flagsBundle, ok := flags.Match(e.id)
-					if !ok {
-						continue
-					}
-					// Always let the config override on first match.
-					useIncreaseWithPrevNaN = flagsBundle.IncreaseWithPrevNaNTranslatesToCurrValueIncrease
-					break
+				if flags, ok := e.opts.FeatureFlagBundlesParsed().FirstMatch(e.id); ok {
+					useIncreaseWithPrevNaN = flags.IncreaseWithPrevNaNTranslatesToCurrValueIncrease
 				}
 
 				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{
