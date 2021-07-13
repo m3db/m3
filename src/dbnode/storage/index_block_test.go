@@ -603,7 +603,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumSegments: 2,
 	}, nil)
 	b0.EXPECT().IsSealed().Return(true).Times(2)
-	b0.EXPECT().NeedsMutableSegmentsEvicted().Return(true).Times(2)
+	b0.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
 	result, err = idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
