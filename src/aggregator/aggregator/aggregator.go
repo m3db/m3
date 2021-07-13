@@ -601,12 +601,16 @@ func (agg *aggregator) updateShardsWithLock(
 			incoming[shardID] = newAggregatorShard(shardID, agg.opts)
 			agg.metrics.shards.add.Inc(1)
 		}
-		shardTimeRange := timeRange{
-			cutoverNanos: shard.CutoverNanos(),
-			cutoffNanos:  shard.CutoffNanos(),
-		}
-		incoming[shardID].SetWriteableRange(shardTimeRange)
+
 		incoming[shardID].SetRedirectToShardID(shard.RedirectToShardID())
+
+		if !agg.opts.WritesIgnoreCutoffCutover() {
+			shardTimeRange := timeRange{
+				cutoverNanos: shard.CutoverNanos(),
+				cutoffNanos:  shard.CutoffNanos(),
+			}
+			incoming[shardID].SetWriteableRange(shardTimeRange)
+		}
 	}
 
 	agg.shardIDs = newShardIDs

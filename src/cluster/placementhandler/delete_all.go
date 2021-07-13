@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"encoding/json"
@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -43,15 +43,15 @@ const (
 var (
 	// M3DBDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3DB service.
-	M3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
+	M3DBDeleteAllURL = path.Join(route.Prefix, M3DBServicePlacementPathName)
 
 	// M3AggDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3Agg service.
-	M3AggDeleteAllURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
+	M3AggDeleteAllURL = path.Join(route.Prefix, M3AggServicePlacementPathName)
 
 	// M3CoordinatorDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3Coordinator service.
-	M3CoordinatorDeleteAllURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
+	M3CoordinatorDeleteAllURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
 )
 
 // DeleteAllHandler is the handler to delete all placements.
@@ -74,7 +74,7 @@ func (h *DeleteAllHandler) ServeHTTP(
 	)
 
 	service, err := Service(h.clusterClient, opts,
-		h.config.ClusterManagement.Placement, h.nowFn(), nil)
+		h.placement, h.nowFn(), nil)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return

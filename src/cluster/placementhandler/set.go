@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"fmt"
@@ -28,8 +28,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -48,17 +48,17 @@ const (
 
 var (
 	// M3DBSetURL is the url for the m3db replace handler (method POST).
-	M3DBSetURL = path.Join(handler.RoutePrefixV1,
+	M3DBSetURL = path.Join(route.Prefix,
 		M3DBServicePlacementPathName, setPathName)
 
 	// M3AggSetURL is the url for the m3aggregator replace handler (method
 	// POST).
-	M3AggSetURL = path.Join(handler.RoutePrefixV1,
+	M3AggSetURL = path.Join(route.Prefix,
 		M3AggServicePlacementPathName, setPathName)
 
 	// M3CoordinatorSetURL is the url for the m3coordinator replace handler
 	// (method POST).
-	M3CoordinatorSetURL = path.Join(handler.RoutePrefixV1,
+	M3CoordinatorSetURL = path.Join(route.Prefix,
 		M3CoordinatorServicePlacementPathName, setPathName)
 )
 
@@ -90,7 +90,7 @@ func (h *SetHandler) ServeHTTP(
 	serviceOpts := handleroptions.NewServiceOptions(svc,
 		r.Header, h.m3AggServiceOptions)
 	service, _, err := ServiceWithAlgo(h.clusterClient,
-		serviceOpts, h.config.ClusterManagement.Placement, h.nowFn(), nil)
+		serviceOpts, h.placement, h.nowFn(), nil)
 	if err != nil {
 		logger.Error("unable to create placement service", zap.Error(err))
 		xhttp.WriteError(w, err)

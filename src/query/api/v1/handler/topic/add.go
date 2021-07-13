@@ -24,10 +24,10 @@ import (
 	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -38,7 +38,7 @@ import (
 
 const (
 	// AddURL is the url for the topic add handler (with the POST method).
-	AddURL = handler.RoutePrefixV1 + "/topic"
+	AddURL = route.Prefix + "/topic"
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
