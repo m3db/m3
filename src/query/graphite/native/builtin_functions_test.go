@@ -4110,6 +4110,16 @@ func TestConsolidateBy(t *testing.T) {
 			expectedValues:     []float64{1.0, 4.0},
 		},
 		{
+			name:               "foo",
+			fn:                 "last",
+			startTime:          start,
+			stepMillis:         stepSize,
+			maxDataPoints:      2,
+			values:             []float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+			expectedStepMillis: 3 * stepSize,
+			expectedValues:     []float64{3.0, 4.0},
+		},
+		{
 			name:        "foo",
 			fn:          "nonexistent",
 			startTime:   start,
