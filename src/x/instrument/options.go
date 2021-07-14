@@ -63,6 +63,14 @@ func NewOptions() Options {
 	}
 }
 
+// NewTaggedOptions returns a new Options with the metric and logging client
+// tagged with the provided key value.
+func NewTaggedOptions(iOpts Options, k, v string) Options {
+	scope := iOpts.MetricsScope().Tagged(map[string]string{k: v})
+	logger := iOpts.Logger().With(zap.String(k, v))
+	return iOpts.SetMetricsScope(scope).SetLogger(logger)
+}
+
 func (o *options) SetLogger(value *zap.Logger) Options {
 	opts := *o
 	opts.zap = value
