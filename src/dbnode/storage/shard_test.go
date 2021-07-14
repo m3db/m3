@@ -1657,6 +1657,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retriever.EXPECT().
 		StreamWideEntry(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			start, gomock.Any(), gomock.Any()).Return(wideEntry, nil).Times(2)
+	retriever.EXPECT().CloseShard(shard.shard).Return(nil)
 
 	// First call to RetrieveWideEntry is expected to error on retrieval
 	wideEntry.EXPECT().RetrieveWideEntry().
