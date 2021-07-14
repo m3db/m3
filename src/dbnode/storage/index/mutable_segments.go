@@ -630,9 +630,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 }
 
 func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) *ReadThroughSegment {
-	var (
-		readThroughOpts = m.opts.ReadThroughSegmentOptions()
-	)
+	readThroughOpts := m.opts.ReadThroughSegmentOptions()
 	return NewReadThroughSegment(seg, m.opts.PostingsListCache(), readThroughOpts)
 }
 

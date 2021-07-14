@@ -133,6 +133,7 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	return isIndexed
 }
 
+// IndexedOrAttemptedAny returns true if the entry has, or has been attempted to be, indexed.
 func (entry *Entry) IndexedOrAttemptedAny() bool {
 	entry.reverseIndex.RLock()
 	isIndexed := entry.reverseIndex.indexedOrAttemptedAnyWithRLock()

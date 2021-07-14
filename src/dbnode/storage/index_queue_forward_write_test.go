@@ -104,7 +104,6 @@ func setupForwardIndex(
 		nextTS  = ts.Add(blockSize)
 		current = ts.Truncate(blockSize)
 		next    = current.Add(blockSize)
-		id      = ident.StringID("foo")
 		tags    = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
