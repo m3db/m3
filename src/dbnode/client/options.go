@@ -109,6 +109,9 @@ const (
 	// defaultFetchBatchSize is the default fetch batch size
 	defaultFetchBatchSize = 128
 
+	// defaultCheckedBytesPoolSize is the default checkedBytesPool size
+	defaultCheckedBytesPoolSize = 65536
+
 	// defaultCheckedBytesWrapperPoolSize is the default checkedBytesWrapperPoolSize
 	defaultCheckedBytesWrapperPoolSize = 65536
 
@@ -278,6 +281,7 @@ type options struct {
 	hostQueueEmitsHealthStatus              bool
 	seriesIteratorPoolSize                  int
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
+	checkedBytesPoolSize                    int
 	checkedBytesWrapperPoolSize             int
 	contextPool                             context.Pool
 	origin                                  topology.Host
@@ -426,6 +430,7 @@ func newOptions() *options {
 		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
+		checkedBytesPoolSize:                    defaultCheckedBytesPoolSize,
 		checkedBytesWrapperPoolSize:             defaultCheckedBytesWrapperPoolSize,
 		contextPool:                             contextPool,
 		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
@@ -897,6 +902,16 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
+}
+
+func (o *options) SetCheckedBytesPoolSize(value int) Options {
+	opts := *o
+	opts.checkedBytesPoolSize = value
+	return &opts
+}
+
+func (o *options) CheckedBytesPoolSize() int {
+	return o.checkedBytesPoolSize
 }
 
 func (o *options) SetCheckedBytesWrapperPoolSize(value int) Options {

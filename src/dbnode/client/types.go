@@ -590,6 +590,12 @@ type Options interface {
 	FetchBatchOpPoolSize() int
 
 	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize.
+	SetCheckedBytesPoolSize(value int) Options
+
+	// CheckedBytesWrapperPoolSize returns the checkedBytesWrapperPoolSize.
+	CheckedBytesPoolSize() int
+
+	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize.
 	SetCheckedBytesWrapperPoolSize(value int) Options
 
 	// CheckedBytesWrapperPoolSize returns the checkedBytesWrapperPoolSize.

@@ -347,6 +347,16 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.tagDecoder = serialize.NewTagDecoderPool(opts.TagDecoderOptions(), tagDecoderPoolOpts)
 	s.pools.tagDecoder.Init()
 
+	checkedBytesPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.CheckedBytesPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("client-checked-bytes-pool")))
+	s.pools.checkedBytes = pool.NewCheckedBytesPool(nil, checkedBytesPoolOpts,
+		func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		})
+	s.pools.checkedBytes.Init()
+
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.CheckedBytesWrapperPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
@@ -1243,11 +1253,16 @@ func (s *session) writeAttempt(
 		return errSessionStatusNotOpen
 	}
 
+	clonedAnnotation := s.pools.checkedBytes.Get(len(annotation))
+	clonedAnnotation.IncRef()
+	clonedAnnotation.AppendAll(annotation)
 	state, majority, enqueued, err := s.writeAttemptWithRLock(
-		wType, nsID, id, inputTags, timestamp, value, timeType, annotation)
+		wType, nsID, id, inputTags, timestamp, value, timeType, clonedAnnotation)
 	s.state.RUnlock()
 
 	if err != nil {
+		clonedAnnotation.DecRef()
+		clonedAnnotation.Finalize()
 		return err
 	}
 
@@ -1264,6 +1279,8 @@ func (s *session) writeAttempt(
 	// pool if ref count == 0.
 	state.Unlock()
 	state.decRef()
+	clonedAnnotation.DecRef()
+	clonedAnnotation.Finalize()
 
 	return err
 }
@@ -1278,7 +1295,7 @@ func (s *session) writeAttemptWithRLock(
 	timestamp int64,
 	value float64,
 	timeType rpc.TimeType,
-	annotation []byte,
+	annotation checked.Bytes,
 ) (*writeState, int32, int32, error) {
 	var (
 		majority = int32(s.state.majority)
@@ -1292,7 +1309,6 @@ func (s *session) writeAttemptWithRLock(
 	// and consistency level checks.
 	nsID := s.cloneFinalizable(namespace)
 	tsID := s.cloneFinalizable(id)
-	clonedAnnotation := append(make([]byte, 0, len(annotation)), annotation...)
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
@@ -1312,7 +1328,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = clonedAnnotation
+		wop.request.Datapoint.Annotation = annotation.Bytes()
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
@@ -1329,7 +1345,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = clonedAnnotation
+		wop.request.Datapoint.Annotation = annotation.Bytes()
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.EncodedTags = wop.request.EncodedTags
 		wop.requestV2.Datapoint = wop.request.Datapoint

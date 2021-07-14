@@ -1281,6 +1281,20 @@ func (mr *MockOptionsMockRecorder) ChannelOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChannelOptions", reflect.TypeOf((*MockOptions)(nil).ChannelOptions))
 }
 
+// CheckedBytesPoolSize mocks base method.
+func (m *MockOptions) CheckedBytesPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckedBytesPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesPoolSize indicates an expected call of CheckedBytesPoolSize.
+func (mr *MockOptionsMockRecorder) CheckedBytesPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesPoolSize", reflect.TypeOf((*MockOptions)(nil).CheckedBytesPoolSize))
+}
+
 // CheckedBytesWrapperPoolSize mocks base method.
 func (m *MockOptions) CheckedBytesWrapperPoolSize() int {
 	m.ctrl.T.Helper()
@@ -1839,6 +1853,20 @@ func (m *MockOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Optio
 func (mr *MockOptionsMockRecorder) SetChannelOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChannelOptions", reflect.TypeOf((*MockOptions)(nil).SetChannelOptions), value)
+}
+
+// SetCheckedBytesPoolSize mocks base method.
+func (m *MockOptions) SetCheckedBytesPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesPoolSize indicates an expected call of SetCheckedBytesPoolSize.
+func (mr *MockOptionsMockRecorder) SetCheckedBytesPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesPoolSize", reflect.TypeOf((*MockOptions)(nil).SetCheckedBytesPoolSize), value)
 }
 
 // SetCheckedBytesWrapperPoolSize mocks base method.
@@ -2942,6 +2970,20 @@ func (mr *MockAdminOptionsMockRecorder) ChannelOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).ChannelOptions))
 }
 
+// CheckedBytesPoolSize mocks base method.
+func (m *MockAdminOptions) CheckedBytesPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckedBytesPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesPoolSize indicates an expected call of CheckedBytesPoolSize.
+func (mr *MockAdminOptionsMockRecorder) CheckedBytesPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).CheckedBytesPoolSize))
+}
+
 // CheckedBytesWrapperPoolSize mocks base method.
 func (m *MockAdminOptions) CheckedBytesWrapperPoolSize() int {
 	m.ctrl.T.Helper()
@@ -3598,6 +3640,20 @@ func (m *MockAdminOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) 
 func (mr *MockAdminOptionsMockRecorder) SetChannelOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetChannelOptions), value)
+}
+
+// SetCheckedBytesPoolSize mocks base method.
+func (m *MockAdminOptions) SetCheckedBytesPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesPoolSize indicates an expected call of SetCheckedBytesPoolSize.
+func (mr *MockAdminOptionsMockRecorder) SetCheckedBytesPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetCheckedBytesPoolSize), value)
 }
 
 // SetCheckedBytesWrapperPoolSize mocks base method.
