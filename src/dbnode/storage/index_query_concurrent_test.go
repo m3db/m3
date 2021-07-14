@@ -153,6 +153,7 @@ func testNamespaceIndexHighConcurrentQueries(
 		blockIdx        = -1
 	)
 	for st := min; !st.After(max); st = st.Add(test.indexBlockSize) {
+		st := st
 		blockIdx++
 		blockStarts = append(blockStarts, st)
 
@@ -174,6 +175,15 @@ func testNamespaceIndexHighConcurrentQueries(
 		onIndexSeries.EXPECT().
 			IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 			Times(idsPerBlock)
+		onIndexSeries.EXPECT().
+			IndexedForBlockStart(gomock.Any()).
+			DoAndReturn(func(ts xtime.UnixNano) bool {
+				if ts.Equal(st) {
+					return true
+				}
+				return false
+			}).
+			AnyTimes()
 
 		batch := index.NewWriteBatch(index.WriteBatchOptions{
 			InitialCapacity: idsPerBlock,
