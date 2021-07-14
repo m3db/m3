@@ -339,6 +339,7 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
+	mockRetriever.EXPECT().CloseShard(s.ID()).Return(nil)
 	s.setBlockRetriever(mockRetriever)
 
 	ctx := context.NewBackground()
