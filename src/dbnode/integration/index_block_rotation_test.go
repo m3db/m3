@@ -134,12 +134,20 @@ func TestIndexBlockRotation(t *testing.T) {
 	log.Info("querying period0 results after expiry")
 	// await for results to be empty.
 	// in practice we've seen it take 11s, so make it 30s to be safe.
+	time.Sleep(time.Second * 4)
 	timeout := time.Second * 30
-	empty := xclock.WaitUntil(func() bool {
+	noData := xclock.WaitUntil(func() bool {
 		period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
 			md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 		require.NoError(t, err)
-		return period0Results.Len() == 0
+		require.True(t, period0Results.Len() == 50, "results still indexed")
+
+		for _, i := range period0Results.Iters() {
+			if i.Next() {
+				return false
+			}
+		}
+		return true
 	}, timeout)
-	require.True(t, empty, "results not empty after %s", timeout)
+	require.True(t, noData, "data still present after %s", timeout)
 }

@@ -383,7 +383,7 @@ type OnIndexSeries interface {
 	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
 	// the callback executed on the entry once the indexing is completed releases this
 	// reference.
-	OnIndexPrepare()
+	OnIndexPrepare(blockStart xtime.UnixNano)
 
 	// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
 	// for the provided blockStart. It only allows a single index attempt at a time
@@ -395,6 +395,27 @@ type OnIndexSeries interface {
 	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
 	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
 	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
+
+	IfAlreadyIndexedMarkIndexSuccessAndFinalize(
+		blockStart xtime.UnixNano,
+	) bool
+
+	RemoveIndexedForBlockStarts(
+		blockStarts map[xtime.UnixNano]struct{},
+	) RemoveIndexedForBlockStartsResult
+
+	RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool)
+
+	DecrementReaderWriterCount()
+
+	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
+}
+
+// RemoveIndexedForBlockStartsResult is the result from calling
+// RemoveIndexedForBlockStarts.
+type RemoveIndexedForBlockStartsResult struct {
+	IndexedBlockStartsRemoved   int
+	IndexedBlockStartsRemaining int
 }
 
 // Block represents a collection of segments. Each `Block` is a complete reverse
@@ -438,11 +459,18 @@ type Block interface {
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
 
+	// ActiveBlockNotifyFlushedBlocks notifies an active in-memory block of
+	// sealed blocks.
+	ActiveBlockNotifyFlushedBlocks(sealed []xtime.UnixNano) error
+
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)
 
 	// Stats returns block stats.
 	Stats(reporter BlockStatsReporter) error
+
+	// IsOpen returns true if open and not sealed yet.
+	IsOpen() bool
 
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().
@@ -473,7 +501,7 @@ type Block interface {
 
 	// RotateColdMutableSegments rotates the currently active cold mutable segment out for a
 	// new cold mutable segment to write to.
-	RotateColdMutableSegments()
+	RotateColdMutableSegments() error
 
 	// MemorySegmentsData returns all in memory segments data.
 	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
@@ -553,8 +581,29 @@ const (
 
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
-	NumSuccess int64
-	NumError   int64
+	NumSuccess           int64
+	NumError             int64
+	MutableSegmentsStats MutableSegmentsStats
+}
+
+// MutableSegmentsStats contains metadata about
+// an insertion into mutable segments.
+type MutableSegmentsStats struct {
+	Foreground MutableSegmentsSegmentStats
+	Background MutableSegmentsSegmentStats
+}
+
+// MutableSegmentsSegmentStats contains metadata about
+// a set of mutable segments segment type.
+type MutableSegmentsSegmentStats struct {
+	NumSegments int64
+	NumDocs     int64
+}
+
+// Empty returns whether stats is empty or not.
+func (s MutableSegmentsStats) Empty() bool {
+	return s.Foreground == MutableSegmentsSegmentStats{} &&
+		s.Background == MutableSegmentsSegmentStats{}
 }
 
 // BlockTickResult returns statistics about tick.
@@ -728,6 +777,11 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	}
 }
 
+// PendingAny returns whether there are any pending documents to be inserted.
+func (b *WriteBatch) PendingAny() bool {
+	return len(b.PendingDocs()) > 0
+}
+
 func (b *WriteBatch) numPending() int {
 	numUnmarked := 0
 	for i := range b.entries {
@@ -794,12 +848,31 @@ func (b *WriteBatch) SortByEnqueued() {
 // MarkUnmarkedEntriesSuccess marks all unmarked entries as success.
 func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 	for idx := range b.entries {
+		b.MarkEntrySuccess(idx)
+	}
+}
+
+// MarkEntrySuccess marks an entry as success.
+func (b *WriteBatch) MarkEntrySuccess(idx int) {
+	if !b.entries[idx].result.Done {
+		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
+		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		b.entries[idx].result.Done = true
+		b.entries[idx].result.Err = nil
+	}
+}
+
+// MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize marks an entry as success.
+func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
+	for idx := range b.entries {
 		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-			b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
-			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-			b.entries[idx].result.Done = true
-			b.entries[idx].result.Err = nil
+			r := b.entries[idx].OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
+			if r {
+				b.entries[idx].result.Done = true
+				b.entries[idx].result.Err = nil
+			}
 		}
 	}
 }

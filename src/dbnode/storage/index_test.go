@@ -789,7 +789,7 @@ func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
 	mockBlock.EXPECT().NeedsColdMutableSegmentsEvicted().Return(true).AnyTimes()
-	mockBlock.EXPECT().RotateColdMutableSegments().Return().AnyTimes()
+	mockBlock.EXPECT().RotateColdMutableSegments().Return(nil).AnyTimes()
 	mockBlock.EXPECT().EvictColdMutableSegments().Return(nil).AnyTimes()
 	idx.state.blocksByTime[blockTime] = mockBlock
 

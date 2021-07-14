@@ -94,12 +94,12 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	}, mmap.ReporterOptions{})
+	}, nil, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
@@ -120,12 +120,12 @@ func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	}, mmap.ReporterOptions{})
+	}, nil, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
@@ -147,13 +147,13 @@ func TestCompactorManySegments(t *testing.T) {
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	}, mmap.ReporterOptions{})
+	}, nil, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
@@ -178,13 +178,13 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	}, mmap.ReporterOptions{})
+	}, nil, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
