@@ -224,66 +224,12 @@ func testNamespaceIndexHighConcurrentQueries(
 		restoreNow()
 
 		nsIdx.state.Lock()
+
 		for start, block := range nsIdx.state.blocksByTime {
-			block := block // Capture for lambda
-			mockBlock := index.NewMockBlock(ctrl)
-
-			mockBlock.EXPECT().
-				StartTime().
-				DoAndReturn(func() xtime.UnixNano { return block.StartTime() }).
-				AnyTimes()
-			mockBlock.EXPECT().
-				EndTime().
-				DoAndReturn(func() xtime.UnixNano { return block.EndTime() }).
-				AnyTimes()
-			mockBlock.EXPECT().QueryIter(gomock.Any(), gomock.Any()).DoAndReturn(func(
-				ctx context.Context, query index.Query) (index.QueryIterator, error) {
-				return block.QueryIter(ctx, query)
-			},
-			).AnyTimes()
-
-			if opts.blockErrors {
-				mockBlock.EXPECT().
-					QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(
-						_ context.Context,
-						_ index.QueryOptions,
-						_ index.QueryIterator,
-						_ index.QueryResults,
-						_ time.Time,
-						_ []opentracinglog.Field,
-					) error {
-						return errors.New("some-error")
-					}).
-					AnyTimes()
-			} else {
-				mockBlock.EXPECT().
-					QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(
-						ctx context.Context,
-						opts index.QueryOptions,
-						iter index.QueryIterator,
-						r index.QueryResults,
-						deadline time.Time,
-						logFields []opentracinglog.Field,
-					) error {
-						time.Sleep(timeoutValue + time.Second)
-						return block.QueryWithIter(ctx, opts, iter, r, deadline, logFields)
-					}).
-					AnyTimes()
-			}
-
-			mockBlock.EXPECT().
-				Stats(gomock.Any()).
-				Return(nil).
-				AnyTimes()
-			mockBlock.EXPECT().
-				Close().
-				DoAndReturn(func() error {
-					return block.Close()
-				})
-			nsIdx.state.blocksByTime[start] = mockBlock
+			nsIdx.state.blocksByTime[start] = newMockBlock(ctrl, opts, timeoutValue, block)
 		}
+		nsIdx.activeBlock = newMockBlock(ctrl, opts, timeoutValue, nsIdx.activeBlock)
+
 		nsIdx.state.Unlock()
 	}
 
@@ -426,4 +372,67 @@ func testNamespaceIndexHighConcurrentQueries(
 
 		logger.Info("finished with timeouts")
 	}
+}
+
+func newMockBlock(ctrl *gomock.Controller,
+	opts testNamespaceIndexHighConcurrentQueriesOptions,
+	timeout time.Duration,
+	block index.Block,
+) *index.MockBlock {
+	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().
+		StartTime().
+		DoAndReturn(func() xtime.UnixNano { return block.StartTime() }).
+		AnyTimes()
+	mockBlock.EXPECT().
+		EndTime().
+		DoAndReturn(func() xtime.UnixNano { return block.EndTime() }).
+		AnyTimes()
+	mockBlock.EXPECT().QueryIter(gomock.Any(), gomock.Any()).DoAndReturn(func(
+		ctx context.Context, query index.Query) (index.QueryIterator, error) {
+		return block.QueryIter(ctx, query)
+	},
+	).AnyTimes()
+
+	if opts.blockErrors {
+		mockBlock.EXPECT().
+			QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(
+				_ context.Context,
+				_ index.QueryOptions,
+				_ index.QueryIterator,
+				_ index.QueryResults,
+				_ time.Time,
+				_ []opentracinglog.Field,
+			) error {
+				return errors.New("some-error")
+			}).
+			AnyTimes()
+	} else {
+		mockBlock.EXPECT().
+			QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(
+				ctx context.Context,
+				opts index.QueryOptions,
+				iter index.QueryIterator,
+				r index.QueryResults,
+				deadline time.Time,
+				logFields []opentracinglog.Field,
+			) error {
+				time.Sleep(timeout + time.Second)
+				return block.QueryWithIter(ctx, opts, iter, r, deadline, logFields)
+			}).
+			AnyTimes()
+	}
+
+	mockBlock.EXPECT().
+		Stats(gomock.Any()).
+		Return(nil).
+		AnyTimes()
+	mockBlock.EXPECT().
+		Close().
+		DoAndReturn(func() error {
+			return block.Close()
+		})
+	return mockBlock
 }
