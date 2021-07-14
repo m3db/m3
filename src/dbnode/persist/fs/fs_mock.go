@@ -1159,6 +1159,20 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) Return(arg0, arg1, arg2 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Return", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Return), arg0, arg1, arg2)
 }
 
+// ReturnShard mocks base method.
+func (m *MockDataFileSetSeekerManager) ReturnShard(arg0 uint32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReturnShard", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReturnShard indicates an expected call of ReturnShard.
+func (mr *MockDataFileSetSeekerManagerMockRecorder) ReturnShard(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReturnShard", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).ReturnShard), arg0)
+}
+
 // Test mocks base method.
 func (m *MockDataFileSetSeekerManager) Test(arg0 ident.ID, arg1 uint32, arg2 time.UnixNano) (bool, error) {
 	m.ctrl.T.Helper()

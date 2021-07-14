@@ -625,13 +625,12 @@ func (s *dbShard) Close() error {
 		closer.Close()
 	}
 
-	s.DatabaseBlockRetriever.Close() // nolint
-
 	s.metrics.closeStart.Inc(1)
 	stopwatch := s.metrics.closeLatency.Start()
 	defer func() {
 		s.metrics.close.Inc(1)
 		stopwatch.Stop()
+		_ = s.DatabaseBlockRetriever.CloseShard(s.ID())
 	}()
 
 	// NB(prateek): wait till any existing ticks are finished. In the usual
