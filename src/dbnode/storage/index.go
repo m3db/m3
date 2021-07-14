@@ -1706,8 +1706,8 @@ func (i *nsIndex) queryWithSpan(
 	}
 
 	var blockIters []*blockIter
-	for blocks, ok := blocks.Next(); ok; blocks, ok = blocks.Next() {
-		block := blocks.Current()
+	for b, ok := blocks.Next(); ok; b, ok = b.Next() {
+		block := b.Current()
 		iter, err := newBlockIterFn(ctx, block, query, results)
 		if err != nil {
 			return queryResult{}, err

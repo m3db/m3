@@ -235,7 +235,7 @@ func NewBlock(
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
 
-	segs, err := newMutableSegments(
+	segs := newMutableSegments(
 		md,
 		blockStart,
 		opts,
@@ -243,11 +243,8 @@ func NewBlock(
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	coldSegs, err := newMutableSegments(
+	coldSegs := newMutableSegments(
 		md,
 		blockStart,
 		opts,
@@ -255,9 +252,6 @@ func NewBlock(
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldMutableSegments := []*mutableSegments{coldSegs}
@@ -1232,7 +1226,7 @@ func (b *block) EvictColdMutableSegments() error {
 func (b *block) RotateColdMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
-	coldSegs, err := newMutableSegments(
+	coldSegs := newMutableSegments(
 		b.nsMD,
 		b.blockStart,
 		b.opts,
@@ -1240,9 +1234,6 @@ func (b *block) RotateColdMutableSegments() error {
 		b.namespaceRuntimeOptsMgr,
 		b.iopts,
 	)
-	if err != nil {
-		return err
-	}
 	b.coldMutableSegments = append(b.coldMutableSegments, coldSegs)
 	return nil
 }

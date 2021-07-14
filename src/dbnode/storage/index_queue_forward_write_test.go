@@ -101,7 +101,7 @@ func setupForwardIndex(
 
 	var (
 		ts      = idx.(*nsIndex).state.latestBlock.StartTime()
-		nextTs  = ts.Add(blockSize)
+		nextTS  = ts.Add(blockSize)
 		current = ts.Truncate(blockSize)
 		next    = current.Add(blockSize)
 		id      = ident.StringID("foo")
@@ -120,8 +120,8 @@ func setupForwardIndex(
 		lifecycle.EXPECT().OnIndexSuccess(ts),
 		lifecycle.EXPECT().OnIndexFinalize(ts),
 
-		lifecycle.EXPECT().OnIndexSuccess(nextTs),
-		lifecycle.EXPECT().OnIndexFinalize(nextTs),
+		lifecycle.EXPECT().OnIndexSuccess(nextTS),
+		lifecycle.EXPECT().OnIndexFinalize(nextTS),
 	)
 
 	if !expectAggregateQuery {

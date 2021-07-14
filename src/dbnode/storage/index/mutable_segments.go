@@ -128,7 +128,7 @@ func newMutableSegments(
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	iopts instrument.Options,
-) (*mutableSegments, error) {
+) *mutableSegments {
 	m := &mutableSegments{
 		blockStart:         blockStart,
 		blockSize:          md.Options().IndexOptions().BlockSize(),
@@ -141,7 +141,7 @@ func newMutableSegments(
 		logger:             iopts.Logger(),
 	}
 	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
-	return m, nil
+	return m
 }
 
 func (m *mutableSegments) NotifyFlushedBlocks(
@@ -711,7 +711,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	}
 
 	// Check if result would have resulted in an empty segment.
-	empty := err == compaction.ErrCompactorBuilderEmpty
+	empty := errors.Is(err, compaction.ErrCompactorBuilderEmpty)
 	if empty {
 		// Don't return the error since we need to remove the old segments
 		// by calling addCompactedSegmentFromSegmentsWithLock.

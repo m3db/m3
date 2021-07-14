@@ -178,10 +178,7 @@ func testNamespaceIndexHighConcurrentQueries(
 		onIndexSeries.EXPECT().
 			IndexedForBlockStart(gomock.Any()).
 			DoAndReturn(func(ts xtime.UnixNano) bool {
-				if ts.Equal(st) {
-					return true
-				}
-				return false
+				return ts.Equal(st)
 			}).
 			AnyTimes()
 
