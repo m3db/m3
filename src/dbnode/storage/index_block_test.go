@@ -1151,11 +1151,11 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		mockPool.EXPECT().Get().Return(stubResult),
 		bActive.EXPECT().QueryIter(ctx, q).Return(mockIterActive, nil),
 		b0.EXPECT().QueryIter(ctx, q).Return(mockIter, nil),
-		mockIter.EXPECT().Done().Return(true),
-		mockIterActive.EXPECT().Done().Return(true),
 		mockPool.EXPECT().Put(stubResult),
 	)
 
+	mockIter.EXPECT().Done().Return(true)
+	mockIterActive.EXPECT().Done().Return(true)
 	mockIter.EXPECT().Close().Return(nil)
 	mockIterActive.EXPECT().Close().Return(nil)
 
