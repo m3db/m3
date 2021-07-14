@@ -628,6 +628,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 
 	wg.Wait()
 }
+
 func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) *ReadThroughSegment {
 	var (
 		readThroughOpts = m.opts.ReadThroughSegmentOptions()

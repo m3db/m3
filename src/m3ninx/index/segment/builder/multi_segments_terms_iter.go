@@ -149,6 +149,7 @@ func (i *termsIterFromSegments) Next() bool {
 		var (
 			iter            = list.Iterator()
 			negativeOffsets = termsKeyIter.segment.negativeOffsets
+			multiErr        = xerrors.NewMultiError()
 		)
 		for iter.Next() {
 			curr := iter.Current()
@@ -160,16 +161,17 @@ func (i *termsIterFromSegments) Next() bool {
 			}
 			value := curr + termsKeyIter.segment.offset - postings.ID(negativeOffset)
 			if err := i.currPostingsList.Insert(value); err != nil {
-				iter.Close()
-				i.err = err
+				multiErr = multiErr.Add(err)
+				multiErr = multiErr.Add(iter.Close())
+				i.err = multiErr.FinalError()
 				return false
 			}
 		}
 
-		err := iter.Err()
-		iter.Close()
-		if err != nil {
-			i.err = err
+		multiErr = multiErr.Add(iter.Err())
+		multiErr = multiErr.Add(iter.Close())
+		i.err = multiErr.FinalError()
+		if i.err != nil {
 			return false
 		}
 	}

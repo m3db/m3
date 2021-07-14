@@ -967,7 +967,6 @@ func (i *nsIndex) Tick(
 
 type tickingBlocksResult struct {
 	totalBlocks   int
-	evictedBlocks int
 	activeBlock   index.Block
 	tickingBlocks []index.Block
 	flushedBlocks []xtime.UnixNano
@@ -979,7 +978,6 @@ func (i *nsIndex) tickingBlocks(
 	multiErr := xerrors.NewMultiError()
 	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(
 		i.retentionPeriod, i.blockSize, startTime)
-	evictedBlocks := 0
 
 	i.state.Lock()
 	activeBlock := i.activeBlock
@@ -995,7 +993,6 @@ func (i *nsIndex) tickingBlocks(
 		if blockStart.Before(earliestBlockStartToRetain) {
 			multiErr = multiErr.Add(block.Close())
 			delete(i.state.blocksByTime, blockStart)
-			evictedBlocks++
 			continue
 		}
 

@@ -117,23 +117,19 @@ type mockOnIndexSeries struct{}
 
 var _ OnIndexSeries = mockOnIndexSeries{}
 
-func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano)  {}
-func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {}
-func (m mockOnIndexSeries) OnIndexPrepare(blockStart xtime.UnixNano)  {}
-func (m mockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
+func (m mockOnIndexSeries) OnIndexSuccess(_ xtime.UnixNano)  {}
+func (m mockOnIndexSeries) OnIndexFinalize(_ xtime.UnixNano) {}
+func (m mockOnIndexSeries) OnIndexPrepare(_ xtime.UnixNano)  {}
+func (m mockOnIndexSeries) NeedsIndexUpdate(_ xtime.UnixNano) bool {
 	return false
 }
 func (m mockOnIndexSeries) DecrementReaderWriterCount() {}
-func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
-	blockStart xtime.UnixNano,
-) bool {
+func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.UnixNano) bool {
 	return false
 }
-func (m mockOnIndexSeries) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
-	return false
-}
+func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
 func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
-	blockStarts map[xtime.UnixNano]struct{},
+	_ map[xtime.UnixNano]struct{},
 ) RemoveIndexedForBlockStartsResult {
 	return RemoveIndexedForBlockStartsResult{}
 }

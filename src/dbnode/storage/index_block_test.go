@@ -257,21 +257,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	mockBlock.EXPECT().
-		WriteBatch(gomock.Any()).
-		Return(index.WriteBatchResult{}, nil).
-		Do(func(batch *index.WriteBatch) {
-			docs := batch.PendingDocs()
-			require.Equal(t, 1, len(docs))
-			require.Equal(t, doc.Metadata{
-				ID:     id.Bytes(),
-				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
-			}, docs[0])
-			entries := batch.PendingEntries()
-			require.Equal(t, 1, len(entries))
-			require.True(t, entries[0].Timestamp.Equal(now))
-			require.True(t, entries[0].OnIndexSeries == lifecycle) // Just ptr equality
-		})
+	mockWriteBatch(t, &now, lifecycle, mockBlock, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -307,7 +293,6 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	b0.EXPECT().StartTime().Return(t0).AnyTimes()
 	b1 := index.NewMockBlock(ctrl)
 	b1.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
-	//b1.EXPECT().Close().Return(nil)
 	b1.EXPECT().StartTime().Return(t1).AnyTimes()
 	newBlockFn := func(
 		ts xtime.UnixNano,
@@ -341,21 +326,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	bActive.EXPECT().
-		WriteBatch(gomock.Any()).
-		Return(index.WriteBatchResult{}, nil).
-		Do(func(batch *index.WriteBatch) {
-			docs := batch.PendingDocs()
-			require.Equal(t, 1, len(docs))
-			require.Equal(t, doc.Metadata{
-				ID:     id.Bytes(),
-				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
-			}, docs[0])
-			entries := batch.PendingEntries()
-			require.Equal(t, 1, len(entries))
-			require.True(t, entries[0].Timestamp.Equal(now))
-			require.True(t, entries[0].OnIndexSeries == lifecycle) // Just ptr equality
-		})
+	mockWriteBatch(t, &now, lifecycle, bActive, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
 		AnyTimes()
@@ -760,55 +731,12 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 				SeriesLimit:       1,
 			}
 
-			bActive.EXPECT().QueryIter(gomock.Any(), q).Return(mockIterActive, nil)
-			bActive.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIterActive, gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(
-					ctx context.Context,
-					opts index.QueryOptions,
-					iter index.QueryIterator,
-					r index.QueryResults,
-					deadline time.Time,
-					logFields []opentracinglog.Field,
-				) error {
-					resultLock.Lock()
-					defer resultLock.Unlock()
-					_, _, err = r.AddDocuments([]doc.Document{
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("B")}),
-					})
-					require.NoError(t, err)
-					return nil
-				})
-			gomock.InOrder(
-				mockIterActive.EXPECT().Done().Return(false),
-				mockIterActive.EXPECT().Done().Return(true),
-				mockIterActive.EXPECT().Close().Return(nil),
-			)
-
-			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter0, nil)
-			b0.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter0, gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(
-					ctx context.Context,
-					opts index.QueryOptions,
-					iter index.QueryIterator,
-					r index.QueryResults,
-					deadline time.Time,
-					logFields []opentracinglog.Field,
-				) error {
-					resultLock.Lock()
-					defer resultLock.Unlock()
-					_, _, err = r.AddDocuments([]doc.Document{
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("B")}),
-					})
-					require.NoError(t, err)
-					return nil
-				})
-			gomock.InOrder(
-				mockIter0.EXPECT().Done().Return(false),
-				mockIter0.EXPECT().Done().Return(true),
-				mockIter0.EXPECT().Close().Return(nil),
-			)
+			docs := []doc.Document{
+				doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+				doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("B")}),
+			}
+			mockQueryWithIter(t, mockIterActive, bActive, q, qOpts, &resultLock, docs)
+			mockQueryWithIter(t, mockIter0, b0, q, qOpts, &resultLock, docs)
 
 			result, err = idx.Query(ctx, q, qOpts)
 			if test.requireExhaustive {
@@ -975,60 +903,18 @@ func TestLimits(t *testing.T) {
 			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 			mockIterActive := index.NewMockQueryIterator(ctrl)
-			bActive.EXPECT().QueryIter(gomock.Any(), q).Return(mockIterActive, nil)
-			gomock.InOrder(
-				mockIterActive.EXPECT().Done().Return(false),
-				mockIterActive.EXPECT().Done().Return(true),
-				mockIterActive.EXPECT().Close().Return(err),
-			)
 			mockIter := index.NewMockQueryIterator(ctrl)
-			b0.EXPECT().QueryIter(gomock.Any(), q).Return(mockIter, nil)
-			gomock.InOrder(
-				mockIter.EXPECT().Done().Return(false),
-				mockIter.EXPECT().Done().Return(true),
-				mockIter.EXPECT().Close().Return(err),
-			)
 
-			bActive.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter, gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context,
-					opts interface{},
-					iter interface{},
-					results index.DocumentResults,
-					deadline interface{},
-					logFields interface{}) error {
-					resultLock.Lock()
-					defer resultLock.Unlock()
-					_, _, err = results.AddDocuments([]doc.Document{
-						// Results in size=1 and docs=2.
-						// Byte array represents ID encoded as bytes.
-						// 1 represents the ID length in bytes, 49 is the ID itself which is
-						// the ASCII value for A
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
-					})
-					require.NoError(t, err)
-					return nil
-				})
-			b0.EXPECT().QueryWithIter(gomock.Any(), qOpts, mockIter, gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context,
-					opts interface{},
-					iter interface{},
-					results index.DocumentResults,
-					deadline interface{},
-					logFields interface{}) error {
-					resultLock.Lock()
-					defer resultLock.Unlock()
-					_, _, err = results.AddDocuments([]doc.Document{
-						// Results in size=1 and docs=2.
-						// Byte array represents ID encoded as bytes.
-						// 1 represents the ID length in bytes, 49 is the ID itself which is
-						// the ASCII value for A
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
-						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
-					})
-					require.NoError(t, err)
-					return nil
-				})
+			docs := []doc.Document{
+				// Results in size=1 and docs=2.
+				// Byte array represents ID encoded as bytes.
+				// 1 represents the ID length in bytes, 49 is the ID itself which is
+				// the ASCII value for A
+				doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+				doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+			}
+			mockQueryWithIter(t, mockIterActive, bActive, q, qOpts, &resultLock, docs)
+			mockQueryWithIter(t, mockIter, b0, q, qOpts, &resultLock, docs)
 
 			result, err := idx.Query(ctx, q, qOpts)
 			if test.seriesLimit == 0 && test.docsLimit == 0 {
@@ -1711,4 +1597,58 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mockWriteBatch(t *testing.T,
+	now *xtime.UnixNano,
+	lifecycle *index.MockOnIndexSeries,
+	block *index.MockBlock,
+	tag *ident.Tag,
+) {
+	block.EXPECT().
+		WriteBatch(gomock.Any()).
+		Return(index.WriteBatchResult{}, nil).
+		Do(func(batch *index.WriteBatch) {
+			docs := batch.PendingDocs()
+			require.Equal(t, 1, len(docs))
+			require.Equal(t, doc.Metadata{
+				ID:     id.Bytes(),
+				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
+			}, docs[0])
+			entries := batch.PendingEntries()
+			require.Equal(t, 1, len(entries))
+			require.True(t, entries[0].Timestamp.Equal(*now))
+			require.True(t, entries[0].OnIndexSeries == lifecycle) // Just ptr equality
+		})
+}
+
+func mockQueryWithIter(t *testing.T,
+	iter *index.MockQueryIterator,
+	block *index.MockBlock,
+	q index.Query,
+	qOpts index.QueryOptions,
+	resultLock *sync.Mutex,
+	docsToAdd []doc.Document,
+) {
+	block.EXPECT().QueryIter(gomock.Any(), q).Return(iter, nil)
+	block.EXPECT().QueryWithIter(gomock.Any(), qOpts, iter, gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			opts index.QueryOptions,
+			iter index.QueryIterator,
+			r index.QueryResults,
+			deadline time.Time,
+			logFields []opentracinglog.Field,
+		) error {
+			resultLock.Lock()
+			defer resultLock.Unlock()
+			_, _, err := r.AddDocuments(docsToAdd)
+			require.NoError(t, err)
+			return nil
+		})
+	gomock.InOrder(
+		iter.EXPECT().Done().Return(false),
+		iter.EXPECT().Done().Return(true),
+		iter.EXPECT().Close().Return(nil),
+	)
 }

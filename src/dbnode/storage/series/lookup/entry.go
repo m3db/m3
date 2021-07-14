@@ -205,6 +205,8 @@ func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 	entry.DecrementReaderWriterCount()
 }
 
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize marks the entry as successfully
+// indexed if already indexed and returns true. Otherwise returns false.
 func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	blockStart xtime.UnixNano,
 ) bool {
@@ -228,6 +230,7 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	return successAlready
 }
 
+// RemoveIndexedForBlockStarts removes the entry for the index for all blockStarts.
 func (entry *Entry) RemoveIndexedForBlockStarts(
 	blockStarts map[xtime.UnixNano]struct{},
 ) index.RemoveIndexedForBlockStartsResult {

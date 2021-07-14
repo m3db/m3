@@ -25,13 +25,13 @@ import (
 	"io"
 	"sort"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/uber-go/tally"
 )
 
 type builderFromSegments struct {
