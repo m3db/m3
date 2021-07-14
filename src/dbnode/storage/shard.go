@@ -620,6 +620,9 @@ func (s *dbShard) Close() error {
 	s.Unlock()
 
 	s.insertQueue.Stop() // nolint
+	if retriever := s.DatabaseBlockRetriever; retriever != nil {
+		_ = retriever.CloseShard(s.ID())
+	}
 
 	for _, closer := range s.runtimeOptsListenClosers {
 		closer.Close()
@@ -630,7 +633,6 @@ func (s *dbShard) Close() error {
 	defer func() {
 		s.metrics.close.Inc(1)
 		stopwatch.Stop()
-		_ = s.DatabaseBlockRetriever.CloseShard(s.ID())
 	}()
 
 	// NB(prateek): wait till any existing ticks are finished. In the usual
