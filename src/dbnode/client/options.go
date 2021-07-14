@@ -904,16 +904,6 @@ func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }
 
-func (o *options) SetCheckedBytesPoolSize(value int) Options {
-	opts := *o
-	opts.checkedBytesPoolSize = value
-	return &opts
-}
-
-func (o *options) CheckedBytesPoolSize() int {
-	return o.checkedBytesPoolSize
-}
-
 func (o *options) SetCheckedBytesWrapperPoolSize(value int) Options {
 	opts := *o
 	opts.checkedBytesWrapperPoolSize = value
