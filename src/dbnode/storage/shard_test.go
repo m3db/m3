@@ -1757,6 +1757,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 			go onRetrieve.OnRetrieveBlock(id, ident.EmptyTagIterator, at, segments[1], nsCtx)
 		}).
 		Return(blockReaders[1], nil)
+	retriever.EXPECT().CloseShard(shard.shard).Return(nil)
 
 	// Check reads as expected
 	iter, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end, namespace.Context{})
