@@ -58,7 +58,7 @@ func (a *timerAggregation) Add(timestamp time.Time, value float64, annotation []
 }
 
 func (a *timerAggregation) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) {
-	a.Timer.AddBatch(timestamp, mu.BatchTimerVal)
+	a.Timer.AddBatch(timestamp, mu.BatchTimerVal, mu.Annotation)
 }
 
 // gaugeAggregation is a gauge aggregation.

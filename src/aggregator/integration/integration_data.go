@@ -45,6 +45,8 @@ import (
 )
 
 var (
+	testAnnotation = []byte("test-annotation")
+
 	testPoliciesList = policy.PoliciesList{
 		policy.NewStagedPolicies(
 			0,
@@ -242,18 +244,21 @@ func generateTestUntimedMetric(
 			Type:       metricType,
 			ID:         metricid.RawID(id),
 			CounterVal: valueGenOpts.counterValueGenFn(intervalIdx, idIdx),
+			Annotation: testAnnotation,
 		}
 	case metric.TimerType:
 		mu.untimed = unaggregated.MetricUnion{
 			Type:          metricType,
 			ID:            metricid.RawID(id),
 			BatchTimerVal: valueGenOpts.timerValueGenFn(intervalIdx, idIdx),
+			Annotation:    testAnnotation,
 		}
 	case metric.GaugeType:
 		mu.untimed = unaggregated.MetricUnion{
-			Type:     metricType,
-			ID:       metricid.RawID(id),
-			GaugeVal: valueGenOpts.gaugeValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			GaugeVal:   valueGenOpts.gaugeValueGenFn(intervalIdx, idIdx),
+			Annotation: testAnnotation,
 		}
 	default:
 		return metricUnion{}, fmt.Errorf("unrecognized untimed metric type: %v", metricType)
@@ -271,10 +276,11 @@ func generateTestTimedMetric(
 	return metricUnion{
 		category: timedMetric,
 		timed: aggregated.Metric{
-			Type:      metricType,
-			ID:        metricid.RawID(id),
-			TimeNanos: timeNanos,
-			Value:     valueGenOpts.timedValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			TimeNanos:  timeNanos,
+			Value:      valueGenOpts.timedValueGenFn(intervalIdx, idIdx),
+			Annotation: testAnnotation,
 		},
 	}
 }
@@ -289,10 +295,11 @@ func generateTestPassthroughMetric(
 	return metricUnion{
 		category: passthroughMetric,
 		passthrough: aggregated.Metric{
-			Type:      metricType,
-			ID:        metricid.RawID(id),
-			TimeNanos: timeNanos,
-			Value:     valueGenOpts.passthroughValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			TimeNanos:  timeNanos,
+			Value:      valueGenOpts.passthroughValueGenFn(intervalIdx, idIdx),
+			Annotation: testAnnotation,
 		},
 	}
 }
@@ -307,10 +314,11 @@ func generateTestForwardedMetric(
 	return metricUnion{
 		category: forwardedMetric,
 		forwarded: aggregated.ForwardedMetric{
-			Type:      metricType,
-			ID:        metricid.RawID(id),
-			TimeNanos: timeNanos,
-			Values:    valueGenOpts.forwardedValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			TimeNanos:  timeNanos,
+			Values:     valueGenOpts.forwardedValueGenFn(intervalIdx, idIdx),
+			Annotation: testAnnotation,
 		},
 	}
 }
@@ -446,15 +454,15 @@ func addUntimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(time.Now(), mu.CounterVal, nil)
+		v.Update(time.Now(), mu.CounterVal, v.Annotation())
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(time.Now(), mu.BatchTimerVal)
+		v.AddBatch(time.Now(), mu.BatchTimerVal, v.Annotation())
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(time.Now(), mu.GaugeVal, nil)
+		v.Update(time.Now(), mu.GaugeVal, v.Annotation())
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized untimed metric type %v", mu.Type)
@@ -468,15 +476,15 @@ func addTimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(time.Now(), int64(mu.Value), nil)
+		v.Update(time.Now(), int64(mu.Value), v.Annotation())
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(time.Now(), []float64{mu.Value})
+		v.AddBatch(time.Now(), []float64{mu.Value}, v.Annotation())
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(time.Now(), mu.Value, nil)
+		v.Update(time.Now(), mu.Value, v.Annotation())
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized timed metric type %v", mu.Type)
@@ -491,17 +499,17 @@ func addForwardedMetricToAggregation(
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
 		for _, val := range mu.Values {
-			v.Update(time.Now(), int64(val), nil)
+			v.Update(time.Now(), int64(val), v.Annotation())
 		}
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(time.Now(), mu.Values)
+		v.AddBatch(time.Now(), mu.Values, v.Annotation())
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
 		for _, val := range mu.Values {
-			v.Update(time.Now(), val, nil)
+			v.Update(time.Now(), val, v.Annotation())
 		}
 		return v, nil
 	default:
@@ -576,9 +584,10 @@ func computeExpectedAggregatedMetrics(
 	) {
 		results = append(results, aggregated.MetricWithStoragePolicy{
 			Metric: aggregated.Metric{
-				ID:        metricid.RawID(string(prefix) + id + string(suffix)),
-				TimeNanos: timeNanos,
-				Value:     value,
+				ID:         metricid.RawID(string(prefix) + id + string(suffix)),
+				TimeNanos:  timeNanos,
+				Value:      value,
+				Annotation: testAnnotation,
 			},
 			StoragePolicy: sp,
 		})
