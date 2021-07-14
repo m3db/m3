@@ -166,7 +166,7 @@ func benchAddBatch(
 				if end >= len(samples) {
 					end = len(samples) - 1
 				}
-				timer.AddBatch(_now, samples[i:end], nil)
+				timer.AddBatch(_now, samples[i:end])
 			}
 
 			for i := range quantiles {

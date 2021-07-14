@@ -27,11 +27,11 @@ import (
 	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -45,7 +45,7 @@ import (
 
 var (
 	// M3DBAddURL is the url for the M3DB namespace add handler.
-	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
+	M3DBAddURL = path.Join(route.Prefix, M3DBServiceNamespacePathName)
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost

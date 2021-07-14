@@ -1137,14 +1137,18 @@ func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	bootstrapStart := start.Add(-10 * time.Minute)
 
 	engine := NewEngine(&common.MovingFunctionStorage{
-		StepMillis:     60000,
-		BootstrapStart: bootstrapStart,
+		StepMillis: 60000,
 		OriginalValues: []common.SeriesNameAndValues{
 			{Name: "foo.bar", Values: []float64{3, 3, 3}},
 		},
-		BootstrapValues: []common.SeriesNameAndValues{
-			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3}},
-			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+		ExplicitBootstraps: []common.ExplicitBootstrap{
+			{
+				Start: bootstrapStart,
+				Values: []common.SeriesNameAndValues{
+					{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3}},
+					{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+				},
+			},
 		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -1186,11 +1190,15 @@ func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	bootstrapStart := start.Add(-10 * time.Minute)
 
 	engine := NewEngine(&common.MovingFunctionStorage{
-		StepMillis:     60000,
-		BootstrapStart: bootstrapStart,
-		BootstrapValues: []common.SeriesNameAndValues{
-			{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
-			{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+		StepMillis: 60000,
+		ExplicitBootstraps: []common.ExplicitBootstrap{
+			{
+				Start: bootstrapStart,
+				Values: []common.SeriesNameAndValues{
+					{Name: "foo.bar", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+					{Name: "foo.baz", Values: []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2, math.NaN(), math.NaN(), math.NaN()}},
+				},
+			},
 		},
 	}, CompileOptions{})
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -1216,6 +1224,69 @@ func TestMovingSumAllOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
 	}
 	common.CompareOutputsAndExpected(t, 60000, start,
 		expected, res.Values)
+}
+
+// TestMovingSumOriginalIDsDifferentResolutionFromBootstrapIDs tests the case
+// where when a "moving" function fetches the bootstrapped time range but that
+// ends up returning a different resolution of data from a different namespace
+// and as such requires an adjusted context shift.
+func TestMovingSumOriginalIDsDifferentResolutionFromBootstrapIDs(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	end := time.Now().Truncate(time.Minute)
+	start := end.Add(-3 * time.Minute)
+	end = end.Add(time.Second) // Extend so three values are calculated.
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis: int(time.Minute / time.Millisecond),
+		OriginalValues: []common.SeriesNameAndValues{
+			{Name: "foo.bar", Values: []float64{1, 1, 1}},
+		},
+		ExplicitBootstraps: []common.ExplicitBootstrap{
+			{
+				Start: start.Add(-3 * time.Minute),
+				Values: []common.SeriesNameAndValues{
+					// Two values for a 3min query + 3min bootstrap (6min window) at 5min resolution.
+					{Name: "foo.bar", Values: []float64{2, 2}},
+					{Name: "foo.baz", Values: []float64{4, 4}},
+				},
+				StepMillis: int((5 * time.Minute) / time.Millisecond),
+			},
+			{
+				Start: start.Add(-15 * time.Minute),
+				Values: []common.SeriesNameAndValues{
+					// Four values for a 3min query + 15 bootstrap (18min window) at 5min resolution.
+					{Name: "foo.bar", Values: []float64{3, 3, 3, 3}},
+					{Name: "foo.baz", Values: []float64{6, 6, 6, 6}},
+				},
+				StepMillis: int((5 * time.Minute) / time.Millisecond),
+			},
+		},
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	target := "movingSum(foo.*, 3)"
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "movingSum(foo.bar,3)",
+			Data: []float64{9},
+		},
+		{
+			Name: "movingSum(foo.baz,3)",
+			Data: []float64{18},
+		},
+	}
+	common.CompareOutputsAndExpected(t, int((5*time.Minute)/time.Millisecond),
+		start, expected, res.Values)
 }
 
 func TestMovingMaxSuccess(t *testing.T) {
@@ -3160,10 +3231,7 @@ func TestLimitSortStable(t *testing.T) {
 
 }
 
-func TestHitCount(t *testing.T) {
-	ctx := common.NewTestContext()
-	defer func() { _ = ctx.Close() }()
-
+func TestHitcount(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name           string
@@ -3197,23 +3265,50 @@ func TestHitCount(t *testing.T) {
 		},
 	}
 
-	for _, input := range tests {
-		series := ts.NewSeries(
-			ctx,
-			input.name,
-			input.startTime,
-			common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
-		)
-		results, err := hitcount(ctx, singlePathSpec{
-			Values: []*ts.Series{series},
-		}, input.intervalString)
-		expected := common.TestSeries{
-			Name: fmt.Sprintf(`hitcount(%s, %q)`, input.name, input.intervalString),
-			Data: input.output,
-		}
-		require.Nil(t, err)
-		common.CompareOutputsAndExpected(t, input.newStep, input.newStartTime,
-			[]common.TestSeries{expected}, results.Values)
+	for i, input := range tests {
+		input := input
+		t.Run(fmt.Sprintf("test_%d_%s", i, input.name), func(t *testing.T) {
+			ctrl := xgomock.NewController(t)
+			defer ctrl.Finish()
+
+			store := storage.NewMockStorage(ctrl)
+			engine := NewEngine(store, CompileOptions{})
+
+			ctx := common.NewContext(common.ContextOptions{
+				Start:  input.startTime,
+				End:    input.startTime.Add(time.Second * 10),
+				Engine: engine,
+			})
+			defer func() { _ = ctx.Close() }()
+
+			series := ts.NewSeries(ctx, input.name, input.startTime,
+				common.NewTestSeriesValues(ctx, input.stepInMilli, input.values))
+
+			target := fmt.Sprintf("hitcount(%s,%q,false)", input.name, input.intervalString)
+			testSeriesFn := func(
+				*common.Context,
+				string,
+				storage.FetchOptions,
+			) (*storage.FetchResult, error) {
+				return &storage.FetchResult{SeriesList: []*ts.Series{series}}, nil
+			}
+
+			store.EXPECT().
+				FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(testSeriesFn).
+				AnyTimes()
+			expr, err := engine.Compile(target)
+			require.NoError(t, err)
+			res, err := expr.Execute(ctx)
+			require.NoError(t, err)
+			expected := common.TestSeries{
+				Name: fmt.Sprintf("hitcount(%s,%q)", input.name, input.intervalString),
+				Data: input.output,
+			}
+			require.NoError(t, err)
+			common.CompareOutputsAndExpected(t, input.newStep, input.newStartTime,
+				[]common.TestSeries{expected}, res.Values)
+		})
 	}
 }
 
@@ -3982,41 +4077,87 @@ func TestCactiStyle(t *testing.T) {
 }
 
 func TestConsolidateBy(t *testing.T) {
-	ctx := common.NewTestContext()
-	defer func() { _ = ctx.Close() }()
-
+	start := common.NewTestContext().StartTime
 	stepSize := 10000
-	input := struct {
-		name        string
-		startTime   time.Time
-		stepInMilli int
-		values      []float64
+	for i, test := range []struct {
+		name               string
+		fn                 string
+		startTime          time.Time
+		stepMillis         int
+		maxDataPoints      int64
+		values             []float64
+		expectedValues     []float64
+		expectedStepMillis int
+		expectedErr        bool
 	}{
-		"foo",
-		ctx.StartTime,
-		stepSize,
-		[]float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+		{
+			name:               "foo",
+			fn:                 "min",
+			startTime:          start,
+			stepMillis:         stepSize,
+			values:             []float64{1.0, 2.0, 3.0, 4.0, 5.0, math.NaN()},
+			expectedStepMillis: stepSize,
+			expectedValues:     []float64{1.0, 2.0, 3.0, 4.0, 5.0, math.NaN()},
+		},
+		{
+			name:               "foo",
+			fn:                 "min",
+			startTime:          start,
+			stepMillis:         stepSize,
+			maxDataPoints:      2,
+			values:             []float64{1.0, 2.0, 3.0, 4.0, 5.0, math.NaN()},
+			expectedStepMillis: 3 * stepSize,
+			expectedValues:     []float64{1.0, 4.0},
+		},
+		{
+			name:               "foo",
+			fn:                 "last",
+			startTime:          start,
+			stepMillis:         stepSize,
+			maxDataPoints:      2,
+			values:             []float64{1.0, 2.0, 3.0, 4.0, 5.0, math.NaN()},
+			expectedStepMillis: 3 * stepSize,
+			expectedValues:     []float64{3.0, 5.0},
+		},
+		{
+			name:        "foo",
+			fn:          "nonexistent",
+			startTime:   start,
+			stepMillis:  stepSize,
+			values:      []float64{1.0, 2.0, 3.0, 4.0, math.NaN(), 5.0},
+			expectedErr: true,
+		},
+	} {
+		input := test
+		t.Run(fmt.Sprintf("%d-%s", i, input.name), func(t *testing.T) {
+			ctx := common.NewTestContext()
+			ctx.MaxDataPoints = input.maxDataPoints
+			defer func() { _ = ctx.Close() }()
+
+			series := ts.NewSeries(
+				ctx,
+				input.name,
+				input.startTime,
+				common.NewTestSeriesValues(ctx, input.stepMillis, input.values),
+			)
+
+			results, err := consolidateBy(ctx, singlePathSpec{
+				Values: []*ts.Series{series},
+			}, input.fn)
+			if input.expectedErr {
+				require.Error(t, err)
+				return
+			}
+
+			expected := common.TestSeries{
+				Name: fmt.Sprintf(`consolidateBy(%s,"%s")`, input.name, input.fn),
+				Data: input.expectedValues,
+			}
+			require.NoError(t, err)
+			common.CompareOutputsAndExpected(t, input.expectedStepMillis, input.startTime,
+				[]common.TestSeries{expected}, results.Values)
+		})
 	}
-
-	series := ts.NewSeries(
-		ctx,
-		input.name,
-		input.startTime,
-		common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
-	)
-
-	results, err := consolidateBy(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, "min")
-	expected := common.TestSeries{Name: `consolidateBy(foo,"min")`, Data: input.values}
-	require.Nil(t, err)
-	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
-		[]common.TestSeries{expected}, results.Values)
-
-	results, err = consolidateBy(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, "nonexistent")
-	require.NotNil(t, err)
 }
 
 func TestPow(t *testing.T) {

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "a.**.daz",
+    "text": "daz",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "a.**.cake",
+    "text": "cake",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "a.**.caw",
+    "text": "caw",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  }
+]

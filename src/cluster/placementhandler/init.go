@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"net/http"
@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -44,13 +44,13 @@ const (
 
 var (
 	// M3DBInitURL is the url for the placement init handler, (with the POST method).
-	M3DBInitURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, initPathName)
+	M3DBInitURL = path.Join(route.Prefix, M3DBServicePlacementPathName, initPathName)
 
 	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3AggInitURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, initPathName)
+	M3AggInitURL = path.Join(route.Prefix, M3AggServicePlacementPathName, initPathName)
 
 	// M3CoordinatorInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3CoordinatorInitURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName, initPathName)
+	M3CoordinatorInitURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName, initPathName)
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost
@@ -129,7 +129,7 @@ func (h *InitHandler) Init(
 	serviceOpts := handleroptions.NewServiceOptions(svc, httpReq.Header,
 		h.m3AggServiceOptions)
 	service, err := Service(h.clusterClient, serviceOpts,
-		h.config.ClusterManagement.Placement, h.nowFn(), nil)
+		h.placement, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

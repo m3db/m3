@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"errors"
@@ -30,9 +30,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -74,7 +73,7 @@ func testPlacementReplaceHandlerForce(t *testing.T, serviceName string) {
 	defer ctrl.Finish()
 
 	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
-	handlerOpts, err := NewHandlerOptions(mockClient, config.Configuration{}, nil, instrument.NewOptions())
+	handlerOpts, err := NewHandlerOptions(mockClient, placement.Configuration{}, nil, instrument.NewOptions())
 	require.NoError(t, err)
 	handler := NewReplaceHandler(handlerOpts)
 	handler.nowFn = func() time.Time { return time.Unix(0, 0) }
@@ -109,7 +108,7 @@ func testPlacementReplaceHandlerSafeErr(t *testing.T, serviceName string) {
 	defer ctrl.Finish()
 
 	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
-	handlerOpts, err := NewHandlerOptions(mockClient, config.Configuration{}, nil, instrument.NewOptions())
+	handlerOpts, err := NewHandlerOptions(mockClient, placement.Configuration{}, nil, instrument.NewOptions())
 	require.NoError(t, err)
 	handler := NewReplaceHandler(handlerOpts)
 	handler.nowFn = func() time.Time { return time.Unix(0, 0) }
@@ -174,7 +173,7 @@ func testPlacementReplaceHandlerSafeOk(t *testing.T, serviceName string) {
 	defer ctrl.Finish()
 
 	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
-	handlerOpts, err := NewHandlerOptions(mockClient, config.Configuration{}, nil, instrument.NewOptions())
+	handlerOpts, err := NewHandlerOptions(mockClient, placement.Configuration{}, nil, instrument.NewOptions())
 	require.NoError(t, err)
 	handler := NewReplaceHandler(handlerOpts)
 	handler.nowFn = func() time.Time { return time.Unix(0, 0) }

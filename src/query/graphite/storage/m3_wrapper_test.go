@@ -126,7 +126,7 @@ func TestTranslateQueryTrailingDot(t *testing.T) {
 	assert.Nil(t, translated)
 	assert.Error(t, err)
 
-	matchers, err := TranslateQueryToMatchersWithTerminator(query)
+	matchers, _, err := TranslateQueryToMatchersWithTerminator(query)
 	assert.Nil(t, matchers)
 	assert.Error(t, err)
 }
@@ -216,7 +216,7 @@ func TestFetchByQuery(t *testing.T) {
 	res.Metadata = block.ResultMetadata{
 		Exhaustive:  false,
 		LocalOnly:   true,
-		Warnings:    []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		Warnings:    []block.Warning{{Name: "foo", Message: "bar"}},
 		Resolutions: []time.Duration{resolution},
 	}
 
