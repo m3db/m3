@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -383,18 +384,21 @@ func assertRetryMetric(t *testing.T, testScope tally.TestScope, expectedReason s
 func listOpenFiles(namespace ident.ID) ([]string, error) {
 	out, err := exec.Command( // nolint:gosec
 		"/bin/sh", "-c",
-		fmt.Sprintf("lsof -p %v | (grep '/data/%s/[0-%d]/' || true)",
-			os.Getpid(), namespace, defaultNumShards)).Output()
+		fmt.Sprintf("lsof -p %v", os.Getpid())).Output()
 	if err != nil {
 		return nil, err
 	}
 	if len(out) == 0 {
 		return []string{}, nil
 	}
-	result := strings.Split(string(out), "\n")
-	if len(result) > 0 && result[len(result)-1] == "" {
-		// remove last empty value if result slice is not empty
-		result = result[:len(result)-1]
+	re := regexp.MustCompile(fmt.Sprintf("/data/%s/[0-%d]/", namespace, defaultNumShards))
+
+	lines := strings.Split(string(out), "\n")
+	result := make([]string, 0)
+	for _, line := range lines {
+		if re.MatchString(line) {
+			result = append(result, line)
+		}
 	}
 	return result, nil
 }

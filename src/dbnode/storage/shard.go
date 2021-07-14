@@ -2159,7 +2159,7 @@ func (s *dbShard) cacheShardIndices() error {
 		return err
 	}
 
-	s.logger.Debug("caching shard indices completed successfully",
+	s.logger.Info("caching shard indices completed successfully",
 		zap.Uint32("shard", s.ID()))
 	return nil
 }
