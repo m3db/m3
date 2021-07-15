@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -55,6 +56,7 @@ type writeState struct {
 	nsID                                 ident.ID
 	tsID                                 ident.ID
 	tagEncoder                           serialize.TagEncoder
+	annotation                           checked.Bytes
 	majority, pending                    int32
 	success                              int32
 	errors                               []error
@@ -83,12 +85,17 @@ func (w *writeState) close() {
 	w.nsID.Finalize()
 	w.tsID.Finalize()
 
+	if w.annotation != nil {
+		w.annotation.DecRef()
+		w.annotation.Finalize()
+	}
+
 	if enc := w.tagEncoder; enc != nil {
 		enc.Finalize()
 	}
 
 	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
-	w.nsID, w.tsID, w.tagEncoder = nil, nil, nil
+	w.nsID, w.tsID, w.tagEncoder, w.annotation = nil, nil, nil, nil
 
 	for i := range w.errors {
 		w.errors[i] = nil
