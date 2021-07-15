@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -168,19 +169,14 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 
 	// Stop the server
 	defer func() {
-		openFilesNs1 := listOpenFiles(setup.FilePathPrefix(), ns1.ID())
-		require.NotZero(t, len(openFilesNs1))
-
-		openFilesNs2 := listOpenFiles(setup.FilePathPrefix(), ns2.ID())
-		require.NotZero(t, len(openFilesNs2))
+		parentDir := fmt.Sprintf("%s/data/", setup.FilePathPrefix())
+		openFilesBefore := countOpenDataFiles(parentDir)
+		require.NotZero(t, openFilesBefore)
 
 		require.NoError(t, setup.DB().Close())
 
-		openFilesNs1 = listOpenFiles(setup.FilePathPrefix(), ns1.ID())
-		require.Zero(t, len(openFilesNs1))
-
-		openFilesNs2 = listOpenFiles(setup.FilePathPrefix(), ns2.ID())
-		require.Zero(t, len(openFilesNs2))
+		openFilesAfter := countOpenDataFiles(parentDir)
+		require.Zero(t, openFilesAfter)
 
 		setup.Close()
 		require.NoError(t, setup.StopServer())

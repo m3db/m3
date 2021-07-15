@@ -25,7 +25,6 @@ package integration
 import (
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -107,7 +106,7 @@ func TestBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		return bs.Bootstrap(ctx, namespaces, cache)
 	})
 
-	go bootstrapRetry(t, setup, signalCh)
+	go assertBootstrapRetry(t, setup, signalCh)
 
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 	defer func() {
@@ -135,7 +134,7 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		return bs.Bootstrap(ctx, namespaces, cache)
 	})
 
-	go bootstrapRetry(t, setup, signalCh)
+	go assertBootstrapRetry(t, setup, signalCh)
 
 	// Write test data
 	now := setup.NowFn()()
@@ -204,13 +203,16 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 	defer func() {
-		openFilesBefore := listOpenFiles(setup.FilePathPrefix(), ns1.ID())
-		require.NotZero(t, len(openFilesBefore))
+		parentDir := fmt.Sprintf("%s/data/%s", setup.FilePathPrefix(), ns1.ID())
+		// Should get some open file descriptors when db is opened.
+		openFilesBefore := countOpenDataFiles(parentDir)
+		require.NotZero(t, openFilesBefore)
 
 		require.NoError(t, setup.DB().Close())
 
-		openFilesAfter := listOpenFiles(setup.FilePathPrefix(), ns1.ID())
-		require.Zero(t, len(openFilesAfter))
+		// Shouldn't list any file descriptors when db is closed.
+		openFilesAfter := countOpenDataFiles(parentDir)
+		require.Zero(t, openFilesAfter)
 
 		setup.Close()
 		require.NoError(t, setup.StopServer())
@@ -218,28 +220,6 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
 	assertRetryMetric(t, testScope, "obsolete-ranges")
-}
-
-func bootstrapRetry(t *testing.T, setup TestSetup, signalCh chan struct{}) {
-	// Wait for server to get started by the main test method.
-	require.NoError(t, setup.WaitUntilServerIsUp())
-
-	// First bootstrap pass, persist ranges. Check if DB is not marked bootstrapped and advance clock.
-	signalCh <- struct{}{}
-	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
-	setup.SetNowFn(setup.NowFn()().Add(2 * time.Hour))
-	signalCh <- struct{}{}
-
-	// Still first bootstrap pass, in-memory ranges. Due to advanced clock previously calculated
-	// ranges are obsolete. Check if DB is not marked bootstrapped.
-	signalCh <- struct{}{}
-	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
-	signalCh <- struct{}{}
-
-	// Bootstrap retry, persist ranges. Check if DB isn't marked as bootstrapped on the second pass.
-	signalCh <- struct{}{}
-	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
-	signalCh <- struct{}{}
 }
 
 func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
@@ -294,6 +274,28 @@ func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
 
 	assertRetryMetric(t, testScope, "other")
+}
+
+func assertBootstrapRetry(t *testing.T, setup TestSetup, signalCh chan struct{}) {
+	// Wait for server to get started by the main test method.
+	require.NoError(t, setup.WaitUntilServerIsUp())
+
+	// First bootstrap pass, persist ranges. Check if DB is not marked bootstrapped and advance clock.
+	signalCh <- struct{}{}
+	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+	setup.SetNowFn(setup.NowFn()().Add(2 * time.Hour))
+	signalCh <- struct{}{}
+
+	// Still first bootstrap pass, in-memory ranges. Due to advanced clock previously calculated
+	// ranges are obsolete. Check if DB is not marked bootstrapped.
+	signalCh <- struct{}{}
+	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+	signalCh <- struct{}{}
+
+	// Bootstrap retry, persist ranges. Check if DB isn't marked as bootstrapped on the second pass.
+	signalCh <- struct{}{}
+	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
+	signalCh <- struct{}{}
 }
 
 type bootstrapFn = func(
@@ -371,16 +373,4 @@ func assertRetryMetric(t *testing.T, testScope tally.TestScope, expectedReason s
 			assert.Equal(t, 0, val)
 		}
 	}
-}
-
-func listOpenFiles(filePathPrefix string, namespace ident.ID) []string {
-	parentDir := fmt.Sprintf("%s/data/%s", filePathPrefix, namespace)
-	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
-
-	out, _ := cmd.Output()
-	if len(out) == 0 {
-		return nil
-	}
-
-	return strings.Split(string(out), "\n")
 }

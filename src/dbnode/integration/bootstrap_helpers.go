@@ -23,6 +23,8 @@
 package integration
 
 import (
+	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -31,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/x/context"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -148,4 +149,16 @@ func setupCommitLogBootstrapperWithFSInspection(
 		CommitLogOptions: commitLogOpts,
 		WithCommitLog:    true,
 	}))
+}
+
+// counts open/locked files inside parent dir.
+func countOpenDataFiles(parentDir string) int {
+	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
+
+	out, _ := cmd.Output()
+	if len(out) == 0 {
+		return 0
+	}
+
+	return len(strings.Split(string(out), "\n"))
 }
