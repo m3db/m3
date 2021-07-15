@@ -48,7 +48,8 @@ import (
 )
 
 func init() {
-	_ = exec.Command("yum install lsof -y").Run()
+	_ = exec.Command("apt-get update").Run()
+	_ = exec.Command("apt-get install lsof").Run()
 }
 
 func TestBootstrapRetriesDueToError(t *testing.T) {
@@ -400,7 +401,7 @@ func listOpenFiles(filePathPrefix string, namespace ident.ID) []string {
 	out, err := cmd.Output()
 	if len(out) == 0 {
 		if err != nil {
-			fmt.Printf("lsof error: %s/n", err.Error())
+			fmt.Printf("lsof error: %s\n", err.Error())
 		}
 		files := listFiles(parentDir)
 		fmt.Printf("found %d files in %s\n", len(files), parentDir)
