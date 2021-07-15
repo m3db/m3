@@ -62,8 +62,7 @@ func (d AggregatedDecoder) Value() float64 {
 	return d.pb.Metric.TimedMetric.Value
 }
 
-// Annotation returns the decoded annotation. Note that it might get invalidated when
-// decoders are pooled and thus should be copied on access.
+// Annotation returns the decoded annotation.
 func (d *AggregatedDecoder) Annotation() []byte {
 	return d.pb.Metric.TimedMetric.Annotation
 }
