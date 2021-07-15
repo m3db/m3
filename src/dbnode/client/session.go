@@ -116,6 +116,7 @@ var (
 	errEnqueueChIsClosed = errors.New("error enqueueCh is cosed")
 
 	defaultCheckedBytesPoolBucketSizes = []pool.Bucket{
+		{Capacity: 16, Count: 4096},
 		{Capacity: 128, Count: 4096},
 	}
 )
