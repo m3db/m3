@@ -680,3 +680,34 @@ func TestSeekerManagerCacheShardIndicesSkipNotFound(t *testing.T) {
 
 	require.NoError(t, m.Close())
 }
+
+func TestSeekerManagerReturnShard(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	shards := []uint32{2, 5}
+	metadata := testNs1Metadata(t)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	require.NoError(t, m.Open(metadata, shardSet))
+	defer require.NoError(t, m.Close())
+
+	byTimes := make(map[uint32]*seekersByTime)
+	var mu sync.Mutex
+	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
+		mu.Lock()
+		byTime.seekers[xtime.FromSeconds(time.Now().Unix())] = rotatableSeekers{}
+		byTimes[byTime.shard] = byTime
+		mu.Unlock()
+		return nil
+	}
+
+	require.NoError(t, m.CacheShardIndices(shards))
+	require.NoError(t, m.ReturnShard(2))
+
+	require.Zero(t, len(byTimes[2].seekers))
+	require.Equal(t, 1, len(byTimes[5].seekers))
+}

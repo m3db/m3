@@ -437,6 +437,32 @@ func (m *seekerManager) Return(
 	return nil
 }
 
+func (m *seekerManager) ReturnShard(shard uint32) error {
+	if int(shard) >= len(m.seekersByShardIdx) {
+		return errShardNotExists
+	}
+	byTime := m.seekersByShardIdx[shard]
+	if byTime == nil {
+		return errShardNotExists
+	}
+
+	byTime.Lock()
+	defer byTime.Unlock()
+	var errs xerrors.MultiError
+	for start, seekers := range byTime.seekers {
+		for _, inactiveSeeker := range seekers.inactive.seekers {
+			errs = errs.Add(inactiveSeeker.seeker.Close())
+		}
+		for _, activeSeeker := range seekers.active.seekers {
+			errs = errs.Add(activeSeeker.seeker.Close())
+		}
+
+		delete(byTime.seekers, start)
+	}
+
+	return errs.FinalError()
+}
+
 // returnSeekerWithLock encapsulates all the logic for returning a seeker,
 // including distinguishing between active and inactive seekers. For more
 // details on this read the comment above the UpdateOpenLease() method.

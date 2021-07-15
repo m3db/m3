@@ -297,6 +297,9 @@ var EmptyStreamedWideEntry StreamedWideEntry = emptyWideEntry{}
 
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
+	// CloseShard closes all seekers for a given shard.
+	CloseShard(shard uint32) error
+
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when streaming a block.
 	CacheShardIndices(shards []uint32) error

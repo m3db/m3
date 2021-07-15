@@ -619,7 +619,10 @@ func (s *dbShard) Close() error {
 	s.state = dbShardStateClosing
 	s.Unlock()
 
-	s.insertQueue.Stop()
+	s.insertQueue.Stop() // nolint
+	if retriever := s.DatabaseBlockRetriever; retriever != nil {
+		_ = retriever.CloseShard(s.ID())
+	}
 
 	for _, closer := range s.runtimeOptsListenClosers {
 		closer.Close()
