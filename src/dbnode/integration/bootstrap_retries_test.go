@@ -207,12 +207,13 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		openFilesBefore := listOpenFiles(setup.FilePathPrefix(), ns1.ID())
 		require.NotZero(t, len(openFilesBefore))
 
-		_ = setup.DB().Close()
-		setup.Close()
-		require.NoError(t, setup.StopServer())
+		require.NoError(t, setup.DB().Close())
 
 		openFilesAfter := listOpenFiles(setup.FilePathPrefix(), ns1.ID())
 		require.Zero(t, len(openFilesAfter))
+
+		setup.Close()
+		require.NoError(t, setup.StopServer())
 	}()
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")
