@@ -48,8 +48,12 @@ import (
 )
 
 func init() {
-	_ = exec.Command("apt-get update").Run()
-	_ = exec.Command("apt-get install lsof").Run()
+	if err := exec.Command("apt-get", "update").Run(); err != nil {
+		fmt.Printf("ept-get update error: %s\n", err.Error())
+	}
+	if err := exec.Command("apt-get", "-y", "install", "lsof").Run(); err != nil {
+		fmt.Printf("ept-get install error: %s\n", err.Error())
+	}
 }
 
 func TestBootstrapRetriesDueToError(t *testing.T) {
