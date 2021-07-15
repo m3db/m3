@@ -47,6 +47,10 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
+func init() {
+	_ = exec.Command("yum install lsof -y").Run()
+}
+
 func TestBootstrapRetriesDueToError(t *testing.T) {
 	// Setup the test bootstrapper to only proceed when a signal is sent.
 	signalCh := make(chan bool)
@@ -392,8 +396,12 @@ func listFiles(parentDir string) []string {
 func listOpenFiles(filePathPrefix string, namespace ident.ID) []string {
 	parentDir := fmt.Sprintf("%s/data/%s", filePathPrefix, namespace)
 	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
-	out, _ := cmd.CombinedOutput()
+	fmt.Println(cmd.String())
+	out, err := cmd.Output()
 	if len(out) == 0 {
+		if err != nil {
+			fmt.Printf("lsof error: %s/n", err.Error())
+		}
 		files := listFiles(parentDir)
 		fmt.Printf("found %d files in %s\n", len(files), parentDir)
 		return nil
