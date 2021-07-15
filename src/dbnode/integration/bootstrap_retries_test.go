@@ -25,7 +25,9 @@ package integration
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -240,11 +242,6 @@ func bootstrapRetry(t *testing.T, setup TestSetup, signalCh chan struct{}) {
 	signalCh <- struct{}{}
 	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
 	signalCh <- struct{}{}
-
-	// Still bootstrap retry, in-memory ranges. DB finishes bootstrapping.
-	signalCh <- struct{}{}
-	assert.False(t, setup.DB().IsBootstrapped(), "database should not yet be bootstrapped")
-	signalCh <- struct{}{}
 }
 
 func TestBootstrapRetriesDueToUnfulfilledRanges(t *testing.T) {
@@ -378,11 +375,27 @@ func assertRetryMetric(t *testing.T, testScope tally.TestScope, expectedReason s
 	}
 }
 
+func listFiles(parentDir string) []string {
+	var files []string
+	_ = filepath.Walk(parentDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files
+}
+
 func listOpenFiles(filePathPrefix string, namespace ident.ID) []string {
 	parentDir := fmt.Sprintf("%s/data/%s", filePathPrefix, namespace)
 	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
 	out, _ := cmd.Output()
 	if len(out) == 0 {
+		files := listFiles(parentDir)
+		fmt.Printf("found %d files in %s", len(files), parentDir)
 		return nil
 	}
 
