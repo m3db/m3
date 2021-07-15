@@ -25,9 +25,7 @@ package integration
 import (
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -375,31 +373,12 @@ func assertRetryMetric(t *testing.T, testScope tally.TestScope, expectedReason s
 	}
 }
 
-func listFiles(parentDir string) []string {
-	var files []string
-	_ = filepath.Walk(parentDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files
-}
-
 func listOpenFiles(filePathPrefix string, namespace ident.ID) []string {
 	parentDir := fmt.Sprintf("%s/data/%s", filePathPrefix, namespace)
 	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
-	fmt.Println(cmd.String())
-	out, err := cmd.Output()
+
+	out, _ := cmd.Output()
 	if len(out) == 0 {
-		if err != nil {
-			fmt.Printf("lsof error: %s\n", err.Error())
-		}
-		files := listFiles(parentDir)
-		fmt.Printf("found %d files in %s\n", len(files), parentDir)
 		return nil
 	}
 
