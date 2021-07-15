@@ -22,4 +22,5 @@ IgnoreURLs:
 - "meetup.com"
 - "github.com/m3db/m3/tree/docs-test/site/content/docs"
 - "github.com/m3db/m3/tree/master/site/content/docs"
+- "github.com/m3db/m3/blob/master/site/content"
 - "vldb.org"
