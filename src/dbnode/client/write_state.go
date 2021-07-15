@@ -85,8 +85,10 @@ func (w *writeState) close() {
 	w.nsID.Finalize()
 	w.tsID.Finalize()
 
-	w.annotation.DecRef()
-	w.annotation.Finalize()
+	if w.annotation != nil {
+		w.annotation.DecRef()
+		w.annotation.Finalize()
+	}
 
 	if enc := w.tagEncoder; enc != nil {
 		enc.Finalize()

@@ -1313,9 +1313,17 @@ func (s *session) writeAttemptWithRLock(
 	}
 	nsID := s.cloneFinalizable(namespace)
 	tsID := s.cloneFinalizable(id)
-	clonedAnnotation := s.pools.checkedBytes.Get(len(annotation))
-	clonedAnnotation.IncRef()
-	clonedAnnotation.AppendAll(annotation)
+
+	var (
+		clonedAnnotation      checked.Bytes
+		clonedAnnotationBytes []byte
+	)
+	if len(annotation) > 0 {
+		clonedAnnotation = s.pools.checkedBytes.Get(len(annotation))
+		clonedAnnotation.IncRef()
+		clonedAnnotation.AppendAll(annotation)
+		clonedAnnotationBytes = clonedAnnotation.Bytes()
+	}
 
 	var op writeOp
 	switch wType {
@@ -1327,7 +1335,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = clonedAnnotation.Bytes()
+		wop.request.Datapoint.Annotation = clonedAnnotationBytes
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
@@ -1344,7 +1352,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = clonedAnnotation.Bytes()
+		wop.request.Datapoint.Annotation = clonedAnnotationBytes
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.EncodedTags = wop.request.EncodedTags
 		wop.requestV2.Datapoint = wop.request.Datapoint

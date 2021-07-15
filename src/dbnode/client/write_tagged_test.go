@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -136,9 +137,12 @@ func getWriteTaggedState(ctrl *gomock.Controller, s *session, w writeTaggedStub)
 	wState.nsID = w.ns
 	wState.tsID = w.id
 	wState.tagEncoder = s.pools.tagEncoder.Get()
-	clonedAnnotation := s.pools.checkedBytes.Get(len(w.annotation))
-	clonedAnnotation.IncRef()
-	clonedAnnotation.AppendAll(w.annotation)
+	var clonedAnnotation checked.Bytes
+	if len(w.annotation) > 0 {
+		clonedAnnotation = s.pools.checkedBytes.Get(len(w.annotation))
+		clonedAnnotation.IncRef()
+		clonedAnnotation.AppendAll(w.annotation)
+	}
 	wState.annotation = clonedAnnotation
 	return wState
 }
