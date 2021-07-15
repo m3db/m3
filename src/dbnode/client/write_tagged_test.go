@@ -136,6 +136,10 @@ func getWriteTaggedState(ctrl *gomock.Controller, s *session, w writeTaggedStub)
 	wState.nsID = w.ns
 	wState.tsID = w.id
 	wState.tagEncoder = s.pools.tagEncoder.Get()
+	clonedAnnotation := s.pools.checkedBytes.Get(len(w.annotation))
+	clonedAnnotation.IncRef()
+	clonedAnnotation.AppendAll(w.annotation)
+	wState.annotation = clonedAnnotation
 	return wState
 }
 

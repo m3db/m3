@@ -147,6 +147,10 @@ func getWriteState(s *session, w writeStub) *writeState {
 	wState.op = o
 	wState.nsID = w.ns
 	wState.tsID = w.id
+	clonedAnnotation := s.pools.checkedBytes.Get(len(w.annotation))
+	clonedAnnotation.IncRef()
+	clonedAnnotation.AppendAll(w.annotation)
+	wState.annotation = clonedAnnotation
 	return wState
 }
 
