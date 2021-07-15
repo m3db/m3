@@ -25,9 +25,7 @@ package integration
 import (
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -206,16 +204,14 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 	defer func() {
-		openFilesBefore, err := listOpenFiles(ns1.ID())
-		require.NoError(t, err)
+		openFilesBefore := listOpenFiles(setup.FilePathPrefix(), ns1.ID())
 		require.NotZero(t, len(openFilesBefore))
 
 		_ = setup.DB().Close()
 		setup.Close()
 		require.NoError(t, setup.StopServer())
 
-		openFilesAfter, errAfter := listOpenFiles(ns1.ID())
-		require.NoError(t, errAfter)
+		openFilesAfter := listOpenFiles(setup.FilePathPrefix(), ns1.ID())
 		require.Zero(t, len(openFilesAfter))
 	}()
 
@@ -381,24 +377,13 @@ func assertRetryMetric(t *testing.T, testScope tally.TestScope, expectedReason s
 	}
 }
 
-func listOpenFiles(namespace ident.ID) ([]string, error) {
-	out, err := exec.Command( // nolint:gosec
-		"/bin/sh", "-c",
-		fmt.Sprintf("lsof -p %v", os.Getpid())).Output()
-	if err != nil {
-		return nil, err
-	}
+func listOpenFiles(filePathPrefix string, namespace ident.ID) []string {
+	parentDir := fmt.Sprintf("%s/data/%s", filePathPrefix, namespace)
+	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
+	out, _ := cmd.Output()
 	if len(out) == 0 {
-		return []string{}, nil
+		return nil
 	}
-	re := regexp.MustCompile(fmt.Sprintf("/data/%s/[0-%d]/", namespace, defaultNumShards))
 
-	lines := strings.Split(string(out), "\n")
-	result := make([]string, 0)
-	for _, line := range lines {
-		if re.MatchString(line) {
-			result = append(result, line)
-		}
-	}
-	return result, nil
+	return strings.Split(string(out), "\n")
 }
