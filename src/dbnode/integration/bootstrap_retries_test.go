@@ -392,10 +392,10 @@ func listFiles(parentDir string) []string {
 func listOpenFiles(filePathPrefix string, namespace ident.ID) []string {
 	parentDir := fmt.Sprintf("%s/data/%s", filePathPrefix, namespace)
 	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
-	out, _ := cmd.Output()
+	out, _ := cmd.CombinedOutput()
 	if len(out) == 0 {
 		files := listFiles(parentDir)
-		fmt.Printf("found %d files in %s", len(files), parentDir)
+		fmt.Printf("found %d files in %s\n", len(files), parentDir)
 		return nil
 	}
 
