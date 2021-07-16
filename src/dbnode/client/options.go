@@ -348,15 +348,22 @@ func defaultNewConnectionFn(
 }
 
 func newOptions() *options {
-	buckets := defaultIdentifierPoolBytesPoolSizes
+	buckets := defaultCheckedBytesPoolBucketSizes
 	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
 		func(sizes []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(sizes, nil)
 		})
 	bytesPool.Init()
 
+	idPoolSize := 0
+	for _, bucket := range buckets {
+		if v := int(bucket.Count); v > idPoolSize {
+			idPoolSize = v
+		}
+	}
+
 	poolOpts := pool.NewObjectPoolOptions().
-		SetSize(defaultIdentifierPoolSize)
+		SetSize(idPoolSize)
 
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions:           poolOpts,
