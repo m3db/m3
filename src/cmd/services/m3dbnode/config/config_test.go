@@ -694,10 +694,16 @@ func TestConfiguration(t *testing.T) {
   tracing:
     serviceName: ""
     backend: jaeger
+    opentelemetry:
+      serviceName: ""
+      endpoint: ""
+      insecure: false
+      attributes: {}
     jaeger:
       serviceName: ""
       disabled: false
       rpc_metrics: false
+      traceid_128bit: false
       tags: []
       sampler: null
       reporter: null
