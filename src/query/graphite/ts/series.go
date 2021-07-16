@@ -376,8 +376,11 @@ func (v *resized) appender(timestamp time.Time, value float64) {
 
 // IntersectAndResize returns a new time series with a different millisPerStep that spans the
 // intersection of the underlying timeseries and the provided start and end time parameters
-func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
-	stepAggregator ConsolidationFunc) (*Series, error) {
+func (b *Series) IntersectAndResize(
+	start, end time.Time,
+	millisPerStep int,
+	stepAggregator ConsolidationFunc,
+) (*Series, error) {
 	intersects, start, end := b.intersection(start, end)
 	if !intersects {
 		ts := NewSeries(b.ctx, b.name, start, &float64Values{
@@ -391,7 +394,14 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 	if b.MillisPerStep() == millisPerStep {
 		return b.Slice(b.StepAtTime(start), b.StepAtTime(end))
 	}
+	return b.resized(start, end, millisPerStep, stepAggregator), nil
+}
 
+func (b *Series) resized(
+	start, end time.Time,
+	millisPerStep int,
+	stepAggregator ConsolidationFunc,
+) *Series {
 	// TODO: This append based model completely screws pooling; need to rewrite to allow for pooling.
 	v := &resized{}
 	b.resizeStep(start, end, millisPerStep, stepAggregator, v.appender)
@@ -401,7 +411,42 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 		numSteps:      len(v.values),
 	})
 	ts.Specification = b.Specification
-	return ts, nil
+	return ts
+}
+
+// NeedsResizeToMaxDataPoints returns whether the series needs resizing to max datapoints.
+func (b *Series) NeedsResizeToMaxDataPoints(maxDataPoints int64) bool {
+	if maxDataPoints <= 0 {
+		// No max datapoints specified.
+		return false
+	}
+	return int64(b.Len()) > maxDataPoints
+}
+
+// ResizeToMaxDataPointsMillisPerStep returns the new milliseconds per second
+// required if a series needs resizing and true, or if does not need resize
+// for max datapoints then it returns 0 and false.
+func (b *Series) ResizeToMaxDataPointsMillisPerStep(
+	maxDataPoints int64,
+) (int, bool) {
+	if !b.NeedsResizeToMaxDataPoints(maxDataPoints) {
+		return 0, false
+	}
+	samplingMultiplier := math.Ceil(float64(b.Len()) / float64(maxDataPoints))
+	return int(samplingMultiplier * float64(b.MillisPerStep())), true
+}
+
+// ResizeToMaxDataPoints resizes the series to fit max datapoints and returns
+// true if a series was resized or false if it did not need to be resized.
+func (b *Series) ResizeToMaxDataPoints(
+	maxDataPoints int64,
+	stepAggregator ConsolidationFunc,
+) (*Series, bool) {
+	resizeMillisPerStep, needsResize := b.ResizeToMaxDataPointsMillisPerStep(maxDataPoints)
+	if !needsResize {
+		return nil, false
+	}
+	return b.resized(b.StartTime(), b.EndTime(), resizeMillisPerStep, stepAggregator), true
 }
 
 // A MutableSeries is a Series that allows updates
