@@ -40,6 +40,9 @@ aggregator:
     maxBufferSize: 5m
 ```
 
+When a follower gets promoted to a leader, it initially flushes time windows it has buffered,
+following the last flush timestamp reported by the previous leader via etcd. 
+
 ## Shard cutover/cutoff
 
 [Cutoff/cutover](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/cluster/generated/proto/placementpb/placement.proto#L71-L72) 
