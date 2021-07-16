@@ -114,11 +114,6 @@ var (
 	errUnableToEncodeTags = errors.New("unable to include tags")
 	// errEnqueueChIsClosed is returned when attempting to use a closed enqueuCh.
 	errEnqueueChIsClosed = errors.New("error enqueueCh is cosed")
-
-	defaultCheckedBytesPoolBucketSizes = []pool.Bucket{
-		{Capacity: 16, Count: 4096},
-		{Capacity: 128, Count: 4096},
-	}
 )
 
 // sessionState is volatile state that is protected by a
@@ -295,8 +290,9 @@ func newSession(opts Options) (clientSession, error) {
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{
-			context: opts.ContextPool(),
-			id:      opts.IdentifierPool(),
+			context:      opts.ContextPool(),
+			checkedBytes: opts.CheckedBytesPool(),
+			id:           opts.IdentifierPool(),
 		},
 		writeShardsInitializing:              opts.WriteShardsInitializing(),
 		shardsLeavingCountTowardsConsistency: opts.ShardsLeavingCountTowardsConsistency(),
@@ -351,15 +347,6 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.pools.tagDecoder = serialize.NewTagDecoderPool(opts.TagDecoderOptions(), tagDecoderPoolOpts)
 	s.pools.tagDecoder.Init()
-
-	checkedBytesPoolOpts := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
-			scope.SubScope("client-checked-bytes-pool")))
-	s.pools.checkedBytes = pool.NewCheckedBytesPool(defaultCheckedBytesPoolBucketSizes, checkedBytesPoolOpts,
-		func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, checkedBytesPoolOpts)
-		})
-	s.pools.checkedBytes.Init()
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.CheckedBytesWrapperPoolSize()).

@@ -94,9 +94,6 @@ const (
 	// defaultShardsLeavingCountTowardsConsistency is the default shards leaving count towards consistency
 	defaultShardsLeavingCountTowardsConsistency = false
 
-	// defaultIdentifierPoolSize is the default identifier pool size
-	defaultIdentifierPoolSize = 8192
-
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 65536
 
@@ -181,9 +178,13 @@ const (
 )
 
 var (
-	// defaultIdentifierPoolBytesPoolSizes is the default bytes pool sizes for the identifier pool
-	defaultIdentifierPoolBytesPoolSizes = []pool.Bucket{
-		{Capacity: 256, Count: defaultIdentifierPoolSize},
+	// defaultCheckedBytesPoolBucketSizes is the default bytes pool sizes
+	// used for both regular bytes pool as well as backs the identifier pool.
+	defaultCheckedBytesPoolBucketSizes = []pool.Bucket{
+		// Capacity 32 bucket mainly used for allocating for annotations.
+		{Capacity: 32, Count: 8192},
+		// Capacity 256 bucket mainly used for allocating IDs.
+		{Capacity: 256, Count: 8192},
 	}
 
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
@@ -270,6 +271,7 @@ type options struct {
 	fetchBatchOpPoolSize                    int
 	writeBatchSize                          int
 	fetchBatchSize                          int
+	checkedBytesPool                        pool.CheckedBytesPool
 	identifierPool                          ident.Pool
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
@@ -418,6 +420,7 @@ func newOptions() *options {
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          DefaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
+		checkedBytesPool:                        bytesPool,
 		identifierPool:                          idPool,
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
@@ -887,6 +890,16 @@ func (o *options) SetFetchBatchSize(value int) Options {
 
 func (o *options) FetchBatchSize() int {
 	return o.fetchBatchSize
+}
+
+func (o *options) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
+	opts := *o
+	opts.checkedBytesPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesPool() pool.CheckedBytesPool {
+	return o.checkedBytesPool
 }
 
 func (o *options) SetIdentifierPool(value ident.Pool) Options {

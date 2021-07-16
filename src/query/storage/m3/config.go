@@ -227,7 +227,7 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 			"must be specified: specified %d", numUnaggregatedClusterNamespaces)
 	}
 
-	// Connect to all clusters in parallel
+	// Connect to all clusters in parallel.
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -260,7 +260,7 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 		}()
 	}
 
-	// Wait
+	// Wait for connections.
 	wg.Wait()
 
 	if unaggregatedClusterNamespaceCfg.result.err != nil {
