@@ -8,8 +8,8 @@ series data before persisting it in m3db. The goal is to reduce the volume of
 time series data stored (especially for longer retentions), which is achieved by reducing its 
 cardinality and/or datapoint resolution.
 
-`m3aggregator` is sharded (for horizontal scalability) and replicated (leader/
-follower modes).
+`m3aggregator` is sharded for horizontal scalability and replicated (leader/
+follower modes) for high availability.
 
 The data processed is mapped to a predefined number of shards, depending on
 [hash of time series id](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/sharding/hash.go#L89). 
