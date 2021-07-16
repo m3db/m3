@@ -683,31 +683,53 @@ func TestSeekerManagerCacheShardIndicesSkipNotFound(t *testing.T) {
 
 func TestSeekerManagerReturnShard(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
-
-	shards := []uint32{2, 5}
-	metadata := testNs1Metadata(t)
-	shardSet, err := sharding.NewShardSet(
-		sharding.NewShards(shards, shard.Available),
-		sharding.DefaultHashFn(1),
+	var (
+		ctrl          = xtest.NewController(t)
+		shards        = []uint32{2, 5}
+		metadata      = testNs1Metadata(t)
+		shardSet, err = sharding.NewShardSet(
+			sharding.NewShards(shards, shard.Available),
+			sharding.DefaultHashFn(1),
+		)
 	)
+
 	require.NoError(t, err)
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	require.NoError(t, m.Open(metadata, shardSet))
-	defer require.NoError(t, m.Close())
+	defer func() {
+		require.NoError(t, m.Close())
+	}()
 
 	byTimes := make(map[uint32]*seekersByTime)
 	var mu sync.Mutex
+	m.newOpenSeekerFn = func(shard uint32, blockStart xtime.UnixNano, volume int) (DataFileSetSeeker, error) {
+		mockSeeker := NewMockDataFileSetSeeker(ctrl)
+		mockConcurrentDataFileSetSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
+		mockConcurrentDataFileSetSeeker.EXPECT().Close().Return(nil)
+		mockSeeker.EXPECT().ConcurrentClone().Return(mockConcurrentDataFileSetSeeker, nil)
+		mockSeeker.EXPECT().ConcurrentIDBloomFilter().Return(nil)
+		mockSeeker.EXPECT().Close().Return(nil)
+		return mockSeeker, nil
+	}
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
 		mu.Lock()
-		byTime.seekers[xtime.FromSeconds(time.Now().Unix())] = rotatableSeekers{}
 		byTimes[byTime.shard] = byTime
 		mu.Unlock()
-		return nil
+		return m.openAnyUnopenSeekers(byTime)
 	}
 
 	require.NoError(t, m.CacheShardIndices(shards))
+	require.NotEmpty(t, byTimes[2].seekers)
+	require.NotEmpty(t, byTimes[5].seekers)
+
+	// close shard 2
 	require.NoError(t, m.ReturnShard(2))
 
-	require.Zero(t, len(byTimes[2].seekers))
-	require.Equal(t, 1, len(byTimes[5].seekers))
+	require.Empty(t, byTimes[2].seekers)
+	require.NotEmpty(t, byTimes[5].seekers)
+
+	// re-cache shards again
+	require.NoError(t, m.CacheShardIndices(shards))
+	require.NotEmpty(t, byTimes[2].seekers)
+	require.NotEmpty(t, byTimes[5].seekers)
 }
