@@ -44,7 +44,7 @@ aggregator:
 
 [Cutoff/cutover](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/cluster/generated/proto/placementpb/placement.proto#L71-L72) 
 are timestamps that can be used to control flushing from the given shard.
-They are shard fields in the placement structure.
+They are fields that are defined for each shard in the placement structure.
 
 If the shard has its cutover field set to some timestamp value, the shard will only
 [start flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L313) 
@@ -55,4 +55,4 @@ Similarly, if the shard has its cutoff field set to some value, the shard will
 [stop flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L323-L330) 
 once the wall clock will go past the given cutoff timestamp.
 
-If the shard does not have cutover/cutoff fields set, it is flushing.
+If the shard does not have cutover/cutoff fields it will flush indefinitely.
