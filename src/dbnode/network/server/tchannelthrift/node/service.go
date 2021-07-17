@@ -2640,11 +2640,7 @@ func finalizeAnnotationFn(b []byte) {
 func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
 	ctx := tchannelthrift.Context(tctx)
 	if len(source) > 0 {
-		if base, ok := ctx.GoContext(); ok {
-			ctx.SetGoContext(goctx.WithValue(base, limits.SourceContextKey, source))
-		} else {
-			ctx.SetGoContext(goctx.WithValue(goctx.Background(), limits.SourceContextKey, source))
-		}
+		ctx.SetGoContext(goctx.WithValue(ctx.GoContext(), limits.SourceContextKey, source))
 	}
 
 	return ctx

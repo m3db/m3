@@ -22,22 +22,27 @@ package context
 
 import (
 	stdctx "context"
+	"fmt"
 	"sync"
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xresource "github.com/m3db/m3/src/x/resource"
-	xsync "github.com/m3db/m3/src/x/sync"
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
 )
 
-const finalizeableListSlots = 16
+const (
+	maxDistanceFromRootContext = 100
+)
 
 var (
 	noopTracer opentracing.NoopTracer
+
+	errSpanTooDeep = fmt.Errorf("span created exceeds maximum depth allowed (%d)", maxDistanceFromRootContext)
 )
 
 // NB(r): using golang.org/x/net/context is too GC expensive.
@@ -45,21 +50,14 @@ var (
 type ctx struct {
 	sync.RWMutex
 
-	goCtx stdctx.Context
-	pool  contextPool
-	done  bool
-	wg    sync.WaitGroup
-
-	// Used fixed size allocation.
-	finalizeables [finalizeableListSlots]finalizeableListSlot
-
+	goCtx                stdctx.Context
+	pool                 contextPool
+	done                 bool
+	wg                   sync.WaitGroup
+	finalizeables        *finalizeableList
 	parent               Context
+	distanceFromRoot     uint16
 	checkedAndNotSampled bool
-}
-
-type finalizeableListSlot struct {
-	lock sync.Mutex
-	list *finalizeableList
 }
 
 type finalizeable struct {
@@ -67,9 +65,16 @@ type finalizeable struct {
 	closer    xresource.SimpleCloser
 }
 
-// NewContext creates a new context.
-func NewContext() Context {
-	return newContext()
+// NewWithGoContext creates a new context with the provided go ctx.
+func NewWithGoContext(goCtx stdctx.Context) Context {
+	ctx := newContext()
+	ctx.SetGoContext(goCtx)
+	return ctx
+}
+
+// NewBackground creates a new context with a Background go ctx.
+func NewBackground() Context {
+	return NewWithGoContext(stdctx.Background())
 }
 
 // NewPooledContext returns a new context that is returned to a pool when closed.
@@ -82,12 +87,8 @@ func newContext() *ctx {
 	return &ctx{}
 }
 
-func (c *ctx) GoContext() (stdctx.Context, bool) {
-	if c.goCtx == nil {
-		return nil, false
-	}
-
-	return c.goCtx, true
+func (c *ctx) GoContext() stdctx.Context {
+	return c.goCtx
 }
 
 func (c *ctx) SetGoContext(v stdctx.Context) {
@@ -128,56 +129,45 @@ func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 }
 
 func (c *ctx) registerFinalizeable(f finalizeable) {
-	if c.RLock(); c.done {
-		c.RUnlock()
+	if c.Lock(); c.done {
+		c.Unlock()
 		return
 	}
 
-	slot := xsync.CPUCore() % finalizeableListSlots
-	c.finalizeables[slot].lock.Lock()
-	if c.finalizeables[slot].list == nil {
+	if c.finalizeables == nil {
 		if c.pool != nil {
-			c.finalizeables[slot].list = c.pool.getFinalizeablesList()
+			c.finalizeables = c.pool.getFinalizeablesList()
 		} else {
-			c.finalizeables[slot].list = newFinalizeableList(nil)
+			c.finalizeables = newFinalizeableList(nil)
 		}
 	}
-	c.finalizeables[slot].list.PushBack(f)
-	c.finalizeables[slot].lock.Unlock()
+	c.finalizeables.PushBack(f)
 
-	c.RUnlock()
+	c.Unlock()
 }
 
 func (c *ctx) numFinalizeables() int {
-	var n int
-	for slot := range c.finalizeables {
-		c.finalizeables[slot].lock.Lock()
-		if c.finalizeables[slot].list != nil {
-			n += c.finalizeables[slot].list.Len()
-		}
-		c.finalizeables[slot].lock.Unlock()
+	if c.finalizeables == nil {
+		return 0
 	}
-	return n
+	return c.finalizeables.Len()
 }
 
 func (c *ctx) DependsOn(blocker Context) {
-	c.RLock()
-	parent := c.parentCtxWithRLock()
+	parent := c.parentCtx()
 	if parent != nil {
-		c.RUnlock()
 		parent.DependsOn(blocker)
 		return
 	}
-	done := c.done
-	if !done {
-		c.wg.Add(1)
-	}
-	c.RUnlock()
 
-	if !done {
-		// Register outside of RLock.
+	c.Lock()
+
+	if !c.done {
+		c.wg.Add(1)
 		blocker.RegisterFinalizer(c)
 	}
+
+	c.Unlock()
 }
 
 // Finalize handles a call from another context that was depended upon closing.
@@ -247,47 +237,47 @@ func (c *ctx) close(mode closeMode, returnMode returnToPoolMode) {
 		c.Unlock()
 		return
 	}
+
 	c.done = true
+
+	// Capture finalizeables to avoid concurrent r/w if Reset
+	// is used after a caller waits for the finalizers to finish
+	f := c.finalizeables
+	c.finalizeables = nil
+
 	c.Unlock()
+
+	if f == nil {
+		c.tryReturnToPool(returnMode)
+		return
+	}
 
 	switch mode {
 	case closeAsync:
-		go c.finalize(returnMode)
+		go c.finalize(f, returnMode)
 	case closeBlock:
-		c.finalize(returnMode)
+		c.finalize(f, returnMode)
 	}
 }
 
-func (c *ctx) finalize(returnMode returnToPoolMode) {
+func (c *ctx) finalize(f *finalizeableList, returnMode returnToPoolMode) {
 	// Wait for dependencies.
 	c.wg.Wait()
 
 	// Now call finalizers.
-	for slot := range c.finalizeables {
-		c.finalizeables[slot].lock.Lock()
-		f := c.finalizeables[slot].list
-		c.finalizeables[slot].list = nil
-		c.finalizeables[slot].lock.Unlock()
-
-		if f == nil {
-			// Nothing to callback.
-			continue
+	for elem := f.Front(); elem != nil; elem = elem.Next() {
+		if elem.Value.finalizer != nil {
+			elem.Value.finalizer.Finalize()
 		}
-
-		for elem := f.Front(); elem != nil; elem = elem.Next() {
-			if elem.Value.finalizer != nil {
-				elem.Value.finalizer.Finalize()
-			}
-			if elem.Value.closer != nil {
-				elem.Value.closer.Close()
-			}
+		if elem.Value.closer != nil {
+			elem.Value.closer.Close()
 		}
+	}
 
-		if c.pool != nil {
-			// NB(r): Always return finalizeables, only the
-			// context itself might want to be reused immediately.
-			c.pool.putFinalizeablesList(f)
-		}
+	if c.pool != nil {
+		// NB(r): Always return finalizeables, only the
+		// context itself might want to be reused immediately.
+		c.pool.putFinalizeablesList(f)
 	}
 
 	c.tryReturnToPool(returnMode)
@@ -301,10 +291,8 @@ func (c *ctx) Reset() {
 	}
 
 	c.Lock()
-	c.done, c.goCtx, c.checkedAndNotSampled = false, nil, false
-	for idx := range c.finalizeables {
-		c.finalizeables[idx] = finalizeableListSlot{}
-	}
+	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, stdctx.Background(), false
+	c.distanceFromRoot = 0
 	c.Unlock()
 }
 
@@ -337,26 +325,31 @@ func (c *ctx) newChildContext() Context {
 func (c *ctx) setParentCtx(parentCtx Context) {
 	c.Lock()
 	c.parent = parentCtx
+	c.distanceFromRoot = parentCtx.DistanceFromRootContext() + 1
 	c.Unlock()
 }
 
 func (c *ctx) parentCtx() Context {
 	c.RLock()
-	parent := c.parentCtxWithRLock()
+	parent := c.parent
 	c.RUnlock()
 
 	return parent
 }
 
-func (c *ctx) parentCtxWithRLock() Context {
-	return c.parent
+func (c *ctx) DistanceFromRootContext() uint16 {
+	c.RLock()
+	distanceFromRootContext := c.distanceFromRoot
+	c.RUnlock()
+
+	return distanceFromRootContext
 }
 
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	goCtx, exists := c.GoContext()
-	if !exists || c.checkedAndNotSampled {
+	if c.checkedAndNotSampled || c.DistanceFromRootContext() >= maxDistanceFromRootContext {
 		return c, noopTracer.StartSpan(name), false
 	}
+	goCtx := c.GoContext()
 
 	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
 	if !sampled {
@@ -366,6 +359,9 @@ func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, boo
 
 	child := c.newChildContext()
 	child.SetGoContext(childGoCtx)
+	if child.DistanceFromRootContext() == maxDistanceFromRootContext {
+		ext.LogError(span, errSpanTooDeep)
+	}
 	return child, span, true
 }
 

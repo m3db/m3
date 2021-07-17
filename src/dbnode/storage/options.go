@@ -24,8 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
-	"runtime"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -41,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -52,7 +51,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -159,7 +157,6 @@ type options struct {
 	identifierPool                  ident.Pool
 	fetchBlockMetadataResultsPool   block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool  block.FetchBlocksMetadataResultsPool
-	queryIDsWorkerPool              xsync.WorkerPool
 	writeBatchPool                  *writes.WriteBatchPool
 	bufferBucketPool                *series.BufferBucketPool
 	bufferBucketVersionsPool        *series.BufferBucketVersionsPool
@@ -181,6 +178,7 @@ type options struct {
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 	tileAggregator                  TileAggregator
+	permitsOptions                  permits.Options
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -195,10 +193,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
-
-	// Default to using half of the available cores for querying IDs
-	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
-	queryIDsWorkerPool.Init()
 
 	writeBatchPool := writes.NewWriteBatchPool(poolOpts, nil, nil)
 	writeBatchPool.Init()
@@ -244,7 +238,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		}),
 		fetchBlockMetadataResultsPool:   block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool:  block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
-		queryIDsWorkerPool:              queryIDsWorkerPool,
 		writeBatchPool:                  writeBatchPool,
 		bufferBucketVersionsPool:        series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:                series.NewBufferBucketPool(poolOpts),
@@ -258,6 +251,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
+		permitsOptions:                  permits.NewOptions(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -910,6 +904,17 @@ func (o *options) NamespaceHooks() NamespaceHooks {
 func (o *options) SetTileAggregator(value TileAggregator) Options {
 	opts := *o
 	opts.tileAggregator = value
+
+	return &opts
+}
+
+func (o *options) PermitsOptions() permits.Options {
+	return o.permitsOptions
+}
+
+func (o *options) SetPermitsOptions(value permits.Options) Options {
+	opts := *o
+	opts.permitsOptions = value
 
 	return &opts
 }

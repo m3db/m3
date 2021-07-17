@@ -25,6 +25,8 @@ import (
 	"sort"
 	"time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -41,11 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xresource "github.com/m3db/m3/src/x/resource"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
 var (
@@ -403,26 +401,31 @@ type Block interface {
 	// WriteBatch writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
-	// Query resolves the given query into known IDs.
-	Query(
+	// QueryWithIter processes n docs from the iterator into known IDs.
+	QueryWithIter(
 		ctx context.Context,
-		cancellable *xresource.CancellableLifetime,
-		query Query,
 		opts QueryOptions,
+		iter QueryIterator,
 		results DocumentResults,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
-	) (bool, error)
+	) error
 
-	// Aggregate aggregates known tag names/values.
-	// NB(prateek): different from aggregating by means of Query, as we can
-	// avoid going to documents, relying purely on the indexed FSTs.
-	Aggregate(
+	// QueryIter returns a new QueryIterator for the query.
+	QueryIter(ctx context.Context, query Query) (QueryIterator, error)
+
+	// AggregateWithIter aggregates N known tag names/values from the iterator.
+	AggregateWithIter(
 		ctx context.Context,
-		cancellable *xresource.CancellableLifetime,
+		iter AggregateIterator,
 		opts QueryOptions,
 		results AggregateResults,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
-	) (bool, error)
+	) error
+
+	// AggregateIter returns a new AggregatorIterator.
+	AggregateIter(ctx context.Context, aggOpts AggregateResultsOptions) (AggregateIterator, error)
 
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
@@ -432,9 +435,6 @@ type Block interface {
 
 	// Stats returns block stats.
 	Stats(reporter BlockStatsReporter) error
-
-	// IsOpen returns true if open and not sealed yet.
-	IsOpen() bool
 
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().
@@ -941,6 +941,48 @@ func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return *e.result
 }
 
+// QueryIterator iterates through the documents for a block.
+type QueryIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() doc.Document
+}
+
+// AggregateIterator iterates through the (field,term)s for a block.
+type AggregateIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() (field, term []byte)
+
+	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+}
+
+// ResultIterator is a common interface for query and aggregate result iterators.
+type ResultIterator interface {
+	// Done returns true if there are no more elements in the iterator. Allows checking if the query should acquire
+	// a permit, which might block, before calling Next().
+	Done() bool
+
+	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
+	// Callers need to check Err after this returns false to check if an error occurred while iterating.
+	Next(ctx context.Context) bool
+
+	// Err returns an non-nil error if an error occurred calling Next.
+	Err() error
+
+	// Close the iterator.
+	Close() error
+
+	AddSeries(count int)
+
+	AddDocs(count int)
+
+	// Counts returns the number of series and documents processed by the iterator.
+	Counts() (series, docs int)
+}
+
 // fieldsAndTermsIterator iterates over all known fields and terms for a segment.
 type fieldsAndTermsIterator interface {
 	// Next returns a bool indicating if there are any more elements.
@@ -1103,16 +1145,4 @@ type Options interface {
 
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
-
-	// SetQueryBlockWorkerPool sets the query block worker pool.
-	SetQueryBlockWorkerPool(value xsync.WorkerPool) Options
-
-	// QueryBlockWorkerPool returns the query block worker pool.
-	QueryBlockWorkerPool() xsync.WorkerPool
-
-	// SetQueryBlockSegmentWorkerPool sets the query block segment worker pool.
-	SetQueryBlockSegmentWorkerPool(value xsync.WorkerPool) Options
-
-	// QueryBlockSegmentWorkerPool returns the query block segment worker pool.
-	QueryBlockSegmentWorkerPool() xsync.WorkerPool
 }

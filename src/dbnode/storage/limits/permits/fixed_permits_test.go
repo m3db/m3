@@ -17,32 +17,53 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-syntax = "proto3";
 
-package kvpb;
+package permits
 
-message KeyValueUpdate {
-	string key   = 1;
-	string value = 2;
-	bool commit  = 3;
+import (
+	stdctx "context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/context"
+)
+
+func TestFixedPermits(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(3).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+	require.NoError(t, fp.Acquire(ctx))
+
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
+
+	fp.Release(0)
+	require.NoError(t, fp.Acquire(ctx))
 }
 
-message KeyValueUpdateResult {
-	string key = 1;
-	string old = 2;
-	string new = 3;
-}
+func TestFixedPermitsTimeouts(t *testing.T) {
+	ctx := context.NewBackground()
+	fp, err := NewFixedPermitsManager(1).NewPermits(ctx)
+	require.NoError(t, err)
+	require.NoError(t, fp.Acquire(ctx))
 
-message QueryLimits {
-	QueryLimit maxRecentlyQueriedSeriesBlocks        = 1;
-	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
-	QueryLimit maxRecentlyQueriedSeriesDiskRead      = 3;
-	QueryLimit maxRecentlyQueriedMetadataRead        = 4;
-}
+	acq, err := fp.TryAcquire(ctx)
+	require.NoError(t, err)
+	require.False(t, acq)
 
-message QueryLimit {
-	int64 limit           = 1;
-	int64 lookbackSeconds = 2;
-	bool forceExceeded    = 3;
-	bool forceWaited   = 4;
+	stdCtx, cancel := stdctx.WithCancel(stdctx.Background())
+	cancel()
+	ctx = context.NewWithGoContext(stdCtx)
+
+	fp.Release(0)
+
+	err = fp.Acquire(ctx)
+	require.Error(t, err)
+
+	_, err = fp.TryAcquire(ctx)
+	require.Error(t, err)
 }

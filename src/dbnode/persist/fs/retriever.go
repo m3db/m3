@@ -435,7 +435,7 @@ func (r *blockRetriever) fetchBatch(
 		retrieverResources)
 
 	var limitErr error
-	if err := r.queryLimits.AnyExceeded(); err != nil {
+	if err := r.queryLimits.AnyFetchExceeded(); err != nil {
 		for _, req := range reqs {
 			req.err = err
 		}
@@ -597,9 +597,6 @@ func (r *blockRetriever) streamRequest(
 	startTime time.Time,
 ) error {
 	req.resultWg.Add(1)
-	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
-		return err
-	}
 	req.shard = shard
 
 	// NB(r): If the ID is a ident.BytesID then we can just hold
@@ -664,11 +661,9 @@ func (r *blockRetriever) Stream(
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
 
-	goCtx, found := ctx.GoContext()
-	if found {
-		if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
-			req.source = source
-		}
+	goCtx := ctx.GoContext()
+	if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
+		req.source = source
 	}
 
 	err = r.streamRequest(ctx, req, shard, id, startTime)

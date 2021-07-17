@@ -873,7 +873,7 @@ func (d *db) QueryIDs(
 
 	// Check if exceeding query limits at very beginning of
 	// query path to abandon as early as possible.
-	if err := d.queryLimits.AnyExceeded(); err != nil {
+	if err := d.queryLimits.AnyFetchExceeded(); err != nil {
 		return index.QueryResult{}, err
 	}
 
