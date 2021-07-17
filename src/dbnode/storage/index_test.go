@@ -378,6 +378,67 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNamespaceIndexQueryTimeout(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	test := newTestIndex(t, ctrl)
+
+	now := time.Now().Truncate(test.indexBlockSize)
+	query := index.Query{Query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
+	idx := test.index.(*nsIndex)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
+
+	stdCtx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Second)
+	defer cancel()
+	ctx := context.NewWithGoContext(stdCtx)
+	defer ctx.Close()
+
+	mockIter := index.NewMockQueryIterator(ctrl)
+	mockIter.EXPECT().Done().Return(false).Times(2)
+	mockIter.EXPECT().SearchDuration().Return(time.Minute * 1)
+	mockIter.EXPECT().Close().Return(nil)
+
+	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	blockTime := now.Add(-1 * test.indexBlockSize)
+	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
+	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
+	mockBlock.EXPECT().QueryIter(gomock.Any(), gomock.Any()).Return(mockIter, nil)
+	mockBlock.EXPECT().
+		QueryWithIter(gomock.Any(), gomock.Any(), mockIter, gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			opts index.QueryOptions,
+			iter index.QueryIterator,
+			r index.QueryResults,
+			deadline time.Time,
+			logFields []opentracinglog.Field,
+		) error {
+			<-ctx.GoContext().Done()
+			return ctx.GoContext().Err()
+		})
+	mockBlock.EXPECT().Close().Return(nil)
+	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.updateBlockStartsWithLock()
+
+	start := blockTime
+	end := blockTime.Add(test.indexBlockSize)
+
+	// Query non-overlapping range
+	_, err := idx.Query(ctx, query, index.QueryOptions{
+		StartInclusive: start,
+		EndExclusive:   end,
+	})
+	require.Error(t, err)
+	var multiErr xerrors.MultiError
+	require.True(t, errors.As(err, &multiErr))
+	require.True(t, multiErr.Contains(stdctx.DeadlineExceeded))
+}
+
 func verifyFlushForShards(
 	t *testing.T,
 	ctrl *gomock.Controller,
@@ -464,11 +525,11 @@ func verifyFlushForShards(
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
 			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
 			resultsInShard := []block.FetchBlocksMetadataResult{
-				block.FetchBlocksMetadataResult{
+				{
 					ID:   resultsID1,
 					Tags: resultsTags1,
 				},
-				block.FetchBlocksMetadataResult{
+				{
 					ID:   resultsID2,
 					Tags: resultsTags2,
 				},

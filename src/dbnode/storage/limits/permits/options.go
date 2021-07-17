@@ -17,32 +17,53 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-syntax = "proto3";
 
-package kvpb;
+package permits
 
-message KeyValueUpdate {
-	string key   = 1;
-	string value = 2;
-	bool commit  = 3;
+import (
+	"time"
+
+	"github.com/m3db/m3/src/x/instrument"
+)
+
+type options struct {
+	seriesReadManager Manager
+	indexQueryManager Manager
 }
 
-message KeyValueUpdateResult {
-	string key = 1;
-	string old = 2;
-	string new = 3;
+// NewOptions return a new set of default permit managers.
+func NewOptions() Options {
+	// provide some defaults to exercise parallel processing in tests.
+	return &options{
+		seriesReadManager: NewFixedPermitsManager(
+			100000,
+			100,
+			instrument.NewOptions()),
+		indexQueryManager: NewFixedPermitsManager(
+			8,
+			int64(time.Millisecond*10),
+			instrument.NewOptions()),
+	}
 }
 
-message QueryLimits {
-	QueryLimit maxRecentlyQueriedSeriesBlocks        = 1;
-	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
-	QueryLimit maxRecentlyQueriedSeriesDiskRead      = 3;
-	QueryLimit maxRecentlyQueriedMetadataRead        = 4;
+// SetSeriesReadPermitsManager sets the series read permits manager.
+func (o *options) SetSeriesReadPermitsManager(value Manager) Options {
+	opts := *o
+	opts.seriesReadManager = value
+	return &opts
 }
 
-message QueryLimit {
-	int64 limit           = 1;
-	int64 lookbackSeconds = 2;
-	bool forceExceeded    = 3;
-	bool forceWaited   = 4;
+// SeriesReadPermitsManager returns the series read permits manager.
+func (o *options) SeriesReadPermitsManager() Manager {
+	return o.seriesReadManager
+}
+
+func (o *options) IndexQueryPermitsManager() Manager {
+	return o.indexQueryManager
+}
+
+func (o *options) SetIndexQueryPermitsManager(value Manager) Options {
+	opts := *o
+	opts.indexQueryManager = value
+	return &opts
 }

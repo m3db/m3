@@ -139,8 +139,6 @@ type opts struct {
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
-	queryBlockWorkerPool            xsync.WorkerPool
-	queryBlockSegmentWorkerPool     xsync.WorkerPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -212,8 +210,6 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryLimits:                     limits.NoOpQueryLimits(),
-		queryBlockWorkerPool:            queryBlockWorkerPool,
-		queryBlockSegmentWorkerPool:     queryBlockSegmentWorkerPool,
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -488,24 +484,4 @@ func (o *opts) SetQueryLimits(value limits.QueryLimits) Options {
 
 func (o *opts) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
-}
-
-func (o *opts) SetQueryBlockWorkerPool(value xsync.WorkerPool) Options {
-	opts := *o
-	opts.queryBlockWorkerPool = value
-	return &opts
-}
-
-func (o *opts) QueryBlockWorkerPool() xsync.WorkerPool {
-	return o.queryBlockWorkerPool
-}
-
-func (o *opts) SetQueryBlockSegmentWorkerPool(value xsync.WorkerPool) Options {
-	opts := *o
-	opts.queryBlockSegmentWorkerPool = value
-	return &opts
-}
-
-func (o *opts) QueryBlockSegmentWorkerPool() xsync.WorkerPool {
-	return o.queryBlockSegmentWorkerPool
 }

@@ -195,7 +195,7 @@ func (m *bootstrapManager) Report() {
 }
 
 func (m *bootstrapManager) bootstrap() error {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// NB(r): construct new instance of the bootstrap process to avoid
