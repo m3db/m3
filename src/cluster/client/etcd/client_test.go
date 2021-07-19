@@ -24,14 +24,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/integration"
-
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/x/retry"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 )
 
 func TestETCDClientGen(t *testing.T) {
@@ -381,7 +380,6 @@ func testOptions() Options {
 			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem").SetCACrtPath("foo_ca.pem")),
 	}
 	return NewOptions().
-		SetRetryOptions(retry.NewOptions().SetMaxRetries(0)).
 		SetClusters(clusters).
 		SetService("test_app").
 		SetZone("zone1").
@@ -389,7 +387,6 @@ func testOptions() Options {
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {
-	integration.BeforeTestExternal(t)
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 

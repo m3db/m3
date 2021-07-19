@@ -25,10 +25,10 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
@@ -44,7 +44,7 @@ import (
 
 const (
 	// CompleteTagsURL is the url for searching tags.
-	CompleteTagsURL = handler.RoutePrefixV1 + "/search"
+	CompleteTagsURL = route.Prefix + "/search"
 
 	// CompleteTagsHTTPMethod is the HTTP method used with this resource.
 	CompleteTagsHTTPMethod = http.MethodGet

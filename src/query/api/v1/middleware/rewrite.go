@@ -101,6 +101,10 @@ func rewriteRangeDuration(
 			r.Form.Del(endParam)
 		}
 
+		if r.Method == "GET" {
+			return
+		}
+
 		body := r.Form.Encode()
 		r.Body = ioutil.NopCloser(bytes.NewBufferString(body))
 	}()

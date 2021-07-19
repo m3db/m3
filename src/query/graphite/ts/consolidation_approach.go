@@ -34,6 +34,7 @@ const (
 	ConsolidationMax     ConsolidationApproach = "max"
 	ConsolidationSum     ConsolidationApproach = "sum"
 	ConsolidationAverage ConsolidationApproach = "average" // just an alias to avg but for backward-compatibility
+	ConsolidationLast    ConsolidationApproach = "last"
 )
 
 // SafeFunc returns a boolean indicating whether this is a valid consolidation approach,
@@ -60,5 +61,6 @@ var (
 		ConsolidationMin:     Min,
 		ConsolidationMax:     Max,
 		ConsolidationSum:     Sum,
+		ConsolidationLast:    Last,
 	}
 )

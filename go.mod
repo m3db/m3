@@ -36,7 +36,7 @@ require (
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.9.2
 	github.com/jhump/protoreflect v1.6.1
-	github.com/jonboulle/clockwork v0.2.2
+	github.com/jonboulle/clockwork v0.1.0
 	github.com/json-iterator/go v1.1.11
 	github.com/klauspost/compress v1.13.1
 	github.com/leanovate/gopter v0.2.8
@@ -88,11 +88,12 @@ require (
 	github.com/willf/bitset v1.1.10
 	github.com/wjdp/htmltest v0.13.0
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
-	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
-	go.etcd.io/etcd/client/pkg/v3 v3.5.0
-	go.etcd.io/etcd/client/v3 v3.5.0
-	go.etcd.io/etcd/server/v3 v3.5.0
-	go.etcd.io/etcd/tests/v3 v3.5.0
+
+	// This is 3.4.13. Note: we need to specify the version this way due to the issue
+	// described in https://github.com/etcd-io/etcd/issues/11154 .
+	// Version string was obtained by the method described in
+	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
+	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
 	go.opentelemetry.io/collector v0.29.0
 	go.opentelemetry.io/otel v0.20.0
 	go.opentelemetry.io/otel/bridge/opentracing v0.20.0
@@ -134,8 +135,18 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.2016
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
+replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
+
+replace go.opentelemetry.io/proto/otlp => github.com/m3dbx/opentelemetry-proto-go/otlp v0.7.1-0.20210715190017-fe8722e59006
+
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
+
+// Pull in https://github.com/etcd-io/bbolt/pull/220, required for go 1.14 compatibility
+//
+// etcd 3.14.13 depends on v1.3.3, but everything before v1.3.5 has unsafe misuses, and fails hard on go 1.14
+// TODO: remove after etcd pulls in the change to a new release on 3.4 branch
+replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 
 // Force golangci-lint to v1.37.0 and compatible honnef.co/go/tools regardless
 // of other dependencies which was forcing incompatible versions of

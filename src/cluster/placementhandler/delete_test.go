@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"errors"
@@ -32,9 +32,8 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -51,7 +50,7 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 
 		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
 		handlerOpts, err := NewHandlerOptions(mockClient,
-			config.Configuration{}, nil, instrument.NewOptions())
+			placement.Configuration{}, nil, instrument.NewOptions())
 		handler := NewDeleteHandler(handlerOpts)
 
 		svcDefaults := handleroptions.ServiceNameAndDefaults{
@@ -153,7 +152,7 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
 	handlerOpts, err := NewHandlerOptions(
 		mockClient,
-		config.Configuration{},
+		placement.Configuration{},
 		&handleroptions.M3AggServiceOptions{
 			WarmupDuration:           time.Minute,
 			MaxAggregationWindowSize: 5 * time.Minute,

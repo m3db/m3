@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -41,7 +41,7 @@ import (
 const (
 	// PromParseURL is the url for native prom parse handler, this parses out the
 	// query and returns a JSON representation of the execution DAG.
-	PromParseURL = handler.RoutePrefixV1 + "/parse"
+	PromParseURL = route.Prefix + "/parse"
 
 	// PromParseHTTPMethod is the HTTP method used with this resource.
 	PromParseHTTPMethod = http.MethodGet

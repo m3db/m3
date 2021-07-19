@@ -36,7 +36,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/errors"
 
-	"go.etcd.io/etcd/server/v3/embed"
+	"go.etcd.io/etcd/embed"
 )
 
 type embeddedKV struct {

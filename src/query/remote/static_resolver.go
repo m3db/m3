@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package remote
 
 import (
-	"bytes"
-	"net/http"
-	"testing"
-
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/naming"
 )
 
-func TestNamespaceSource(t *testing.T) {
-	_, mockKV, mockClient := newHandlerOptsAndClient(t)
-	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
-	iOpts := instrument.NewOptions()
-	n, err := NewNamespaceInfoSource(mockClient, []handleroptions.ServiceNameAndDefaults{
-		{
-			ServiceName: handleroptions.M3DBServiceName,
-		},
-	}, iOpts)
-	require.NoError(t, err)
+type staticResolver struct {
+	updates []*naming.Update
+}
 
-	buff := bytes.NewBuffer([]byte{})
-	n.Write(buff, &http.Request{})
-	require.NotZero(t, buff.Len())
+func newStaticResolver(addresses []string) naming.Resolver {
+	var updates []*naming.Update
+	for _, address := range addresses {
+		updates = append(updates, &naming.Update{
+			Op:       naming.Add,
+			Addr:     address,
+			Metadata: nil,
+		})
+	}
+	return &staticResolver{
+		updates: updates,
+	}
+}
+
+// Resolve creates a Watcher for target.
+func (r *staticResolver) Resolve(target string) (naming.Watcher, error) {
+	ch := make(chan []*naming.Update, 1)
+	ch <- r.updates
+	return &staticWatcher{
+		updates: ch,
+	}, nil
+}
+
+type staticWatcher struct {
+	updates chan []*naming.Update
+}
+
+// Next returns the static address set
+func (w *staticWatcher) Next() ([]*naming.Update, error) {
+	return <-w.updates, nil
+}
+
+// Close closes the watcher
+func (w *staticWatcher) Close() {
+	close(w.updates)
 }

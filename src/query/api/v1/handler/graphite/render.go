@@ -22,7 +22,6 @@ package graphite
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"sort"
 	"sync"
@@ -30,9 +29,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	queryerrors "github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/common"
@@ -49,7 +48,7 @@ import (
 
 const (
 	// ReadURL is the url for the graphite query handler.
-	ReadURL = handler.RoutePrefixV1 + "/graphite/render"
+	ReadURL = route.Prefix + "/graphite/render"
 )
 
 // ReadHTTPMethods are the HTTP methods used with this resource.
@@ -126,11 +125,12 @@ func (h *renderHandler) serveHTTP(
 	)
 
 	ctx := common.NewContext(common.ContextOptions{
-		Engine:  h.engine,
-		Start:   p.From,
-		End:     p.Until,
-		Timeout: p.Timeout,
-		Limit:   limit,
+		Engine:        h.engine,
+		Start:         p.From,
+		End:           p.Until,
+		Timeout:       p.Timeout,
+		Limit:         limit,
+		MaxDataPoints: p.MaxDataPoints,
 	})
 
 	// Set the request context.
@@ -178,16 +178,15 @@ func (h *renderHandler) serveHTTP(
 				return
 			}
 
+			// Apply LTTB downsampling to any series that hasn't been resized
+			// to fit max datapoints explicitly using "consolidateBy" function.
 			for i, s := range targetSeries.Values {
-				if s.Len() <= int(p.MaxDataPoints) {
+				resizeMillisPerStep, needResize := s.ResizeToMaxDataPointsMillisPerStep(p.MaxDataPoints)
+				if !needResize {
 					continue
 				}
 
-				var (
-					samplingMultiplier = math.Ceil(float64(s.Len()) / float64(p.MaxDataPoints))
-					newMillisPerStep   = int(samplingMultiplier * float64(s.MillisPerStep()))
-				)
-				targetSeries.Values[i] = ts.LTTB(s, s.StartTime(), s.EndTime(), newMillisPerStep)
+				targetSeries.Values[i] = ts.LTTB(s, s.StartTime(), s.EndTime(), resizeMillisPerStep)
 			}
 
 			mu.Lock()

@@ -60,6 +60,9 @@ type contextBase struct {
 	// Source is the query source.
 	Source []byte
 
+	// MaxDataPoints is the max datapoints for the query.
+	MaxDataPoints int64
+
 	parent         *Context
 	reqCtx         ctx.Context
 	storageContext context.Context
@@ -73,11 +76,12 @@ type Context struct {
 
 // ContextOptions provides the options to create the context with
 type ContextOptions struct {
-	Start   time.Time
-	End     time.Time
-	Engine  QueryEngine
-	Timeout time.Duration
-	Limit   int
+	Start         time.Time
+	End           time.Time
+	Engine        QueryEngine
+	Timeout       time.Duration
+	Limit         int
+	MaxDataPoints int64
 }
 
 // TimeRangeAdjustment is an applied time range adjustment.
@@ -100,6 +104,7 @@ func NewContext(options ContextOptions) *Context {
 			storageContext: context.New(),
 			Timeout:        options.Timeout,
 			Limit:          options.Limit,
+			MaxDataPoints:  options.MaxDataPoints,
 		},
 	}
 }

@@ -23,9 +23,10 @@ package client
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 type sessionPools struct {
@@ -50,6 +51,7 @@ type sessionPools struct {
 	fetchAttempt                *fetchAttemptPool
 	fetchTaggedAttempt          fetchTaggedAttemptPool
 	aggregateAttempt            aggregateAttemptPool
+	checkedBytes                pool.CheckedBytesPool
 	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
 }
 

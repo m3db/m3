@@ -41,8 +41,10 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -78,12 +80,11 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -99,7 +100,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
-	"go.etcd.io/etcd/server/v3/embed"
+	"go.etcd.io/etcd/embed"
 	"go.uber.org/zap"
 )
 
@@ -793,8 +794,8 @@ func Run(runOpts RunOptions) {
 	debugListenAddress := cfg.DebugListenAddressOrDefault()
 	if debugListenAddress != "" {
 		var debugWriter xdebug.ZipWriter
-		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
-			queryconfig.Configuration{}, nil, iOpts)
+		handlerOpts, err := placementhandler.NewHandlerOptions(syncCfg.ClusterClient,
+			placement.Configuration{}, nil, iOpts)
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
@@ -804,7 +805,7 @@ func Run(runOpts RunOptions) {
 					zap.Error(err),
 					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
 			} else {
-				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+				debugWriter, err = extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 					cpuProfileDuration,
 					syncCfg.ClusterClient,
 					handlerOpts,
@@ -870,7 +871,8 @@ func Run(runOpts RunOptions) {
 	m3dbClient, err := newAdminClient(
 		cfg.Client, opts.ClockOptions(), iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-		syncCfg.KVStore, logger, runOpts.CustomOptions)
+		syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(), opts.IdentifierPool(),
+		logger, runOpts.CustomOptions)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -907,7 +909,8 @@ func Run(runOpts RunOptions) {
 			clusterClient, err := newAdminClient(
 				clientCfg, opts.ClockOptions(), iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-				syncCfg.KVStore, logger, runOpts.CustomOptions)
+				syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(),
+				opts.IdentifierPool(), logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -1861,6 +1864,9 @@ func newAdminClient(
 	protoEnabled bool,
 	schemaRegistry namespace.SchemaRegistry,
 	kvStore kv.Store,
+	contextPool xcontext.Pool,
+	checkedBytesPool pool.CheckedBytesPool,
+	identifierPool ident.Pool,
 	logger *zap.Logger,
 	custom []client.CustomAdminOption,
 ) (client.AdminClient, error) {
@@ -1879,7 +1885,13 @@ func newAdminClient(
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
+			return opts.SetContextPool(contextPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetCheckedBytesPool(checkedBytesPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetIdentifierPool(identifierPool).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetOrigin(origin).(client.AdminOptions)

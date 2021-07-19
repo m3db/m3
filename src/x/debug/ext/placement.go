@@ -18,33 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package extdebug
 
 import (
 	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gogo/protobuf/jsonpb"
 )
 
 type placementInfoSource struct {
-	getHandler *placement.GetHandler
+	getHandler *placementhandler.GetHandler
 	service    handleroptions.ServiceNameAndDefaults
 }
 
 // NewPlacementInfoSource returns a Source for placement information.
 func NewPlacementInfoSource(
 	service handleroptions.ServiceNameAndDefaults,
-	placementOpts placement.HandlerOptions,
+	placementOpts placementhandler.HandlerOptions,
 	iopts instrument.Options,
-) (Source, error) {
-	handler := placement.NewGetHandler(placementOpts)
+) (debug.Source, error) {
+	handler := placementhandler.NewGetHandler(placementOpts)
 	return &placementInfoSource{
 		getHandler: handler,
 		service:    service,

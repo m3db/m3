@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"net/http"
@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -45,15 +45,15 @@ const (
 var (
 	// M3DBAddURL is the url for the placement add handler (with the POST method)
 	// for the M3DB service.
-	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
+	M3DBAddURL = path.Join(route.Prefix, M3DBServicePlacementPathName)
 
 	// M3AggAddURL is the url for the placement add handler (with the POST method)
 	// for the M3Agg service.
-	M3AggAddURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
+	M3AggAddURL = path.Join(route.Prefix, M3AggServicePlacementPathName)
 
 	// M3CoordinatorAddURL is the url for the placement add handler (with the POST method)
 	// for the M3Coordinator service.
-	M3CoordinatorAddURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
+	M3CoordinatorAddURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
 )
 
 // AddHandler is the handler for placement adds.
@@ -131,7 +131,7 @@ func (h *AddHandler) Add(
 	service, _, err := ServiceWithAlgo(
 		h.clusterClient,
 		serviceOpts,
-		h.config.ClusterManagement.Placement,
+		h.placement,
 		h.nowFn(),
 		validateFn,
 	)
