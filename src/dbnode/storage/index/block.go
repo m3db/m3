@@ -297,24 +297,31 @@ func (b *block) EndTime() xtime.UnixNano {
 	return b.blockEnd
 }
 
-func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
+func (b *block) WriteWarmBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.RLock()
 	if !b.writesAcceptedWithRLock() {
 		b.RUnlock()
 		return b.writeBatchResult(inserts, MutableSegmentsStats{},
 			b.writeBatchErrorInvalidState(b.state))
 	}
-	if b.state == blockStateSealed {
-		coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
-		b.RUnlock()
-		_, err := coldBlock.WriteBatch(inserts)
-		// Don't pass stats back from insertion into a cold block,
-		// we only care about warm mutable segments stats.
-		return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
-	}
 	b.RUnlock()
 	stats, err := b.mutableSegments.WriteBatch(inserts)
 	return b.writeBatchResult(inserts, stats, err)
+}
+
+func (b *block) WriteColdBatch(inserts *WriteBatch) (WriteBatchResult, error) {
+	b.RLock()
+	if !b.writesAcceptedWithRLock() {
+		b.RUnlock()
+		return b.writeBatchResult(inserts, MutableSegmentsStats{},
+			b.writeBatchErrorInvalidState(b.state))
+	}
+	coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
+	b.RUnlock()
+	_, err := coldBlock.WriteBatch(inserts)
+	// Don't pass stats back from insertion into a cold block,
+	// we only care about warm mutable segments stats.
+	return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
 }
 
 func (b *block) writeBatchResult(

@@ -827,6 +827,20 @@ func (i *nsIndex) writeBatches(
 	i.metrics.forwardIndexMisses.Inc(int64(forwardIndexMiss))
 }
 
+/*
+1. block Xpm that you looked up is not sealed (therefore accepting warm writes, so the index thinks should
+be warm indexed)
+2. block Xpm then sealed and the datapoint get's written as a cold index write
+3. based on step (1) you wrote to active block, very soon after gets garbage collected (because block Xpm is now flushed)
+4. it actually ended up being a cold TSDB data write, which means index segment for the Xpm block
+built from data that happened for warm data flush will be missing this series
+5. series now missing since you garbage collected the series thinking you had an on disk
+representation for that block of time (which you do, but it's missing from the warm index 
+segment you built from the warm flushed TSDB data)
+5. series will show up again once the cold TSDB data write completes a cold flush 
+and builds the corresponding cold index segment from the cold flushed TSDB data
+*/
+
 func (i *nsIndex) writeBatchForBlockStart(
 	blockStart xtime.UnixNano, batch *index.WriteBatch,
 ) {
@@ -838,8 +852,32 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
-	// i.e. we have the block and the inserts, perform the writes.
-	result, err := i.activeBlock.WriteBatch(batch)
+	// Might need to split up the batch into coldBatch and warmBatch?
+	warmBatch := index.NewWriteBatch(...)
+	coldBatch := index.NewWriteBatch(...)
+
+	for _, entry := range batch.PendingEntries() {
+		if entry.OnIndexSeries.HasColdBlockStart(blockStart) {
+			// Has cold data for this block start, should be a cold indexing step.
+			coldBatch.Append(...)
+			continue
+		}
+
+		// No cold data for this block start, should be a warm indexing step.
+		warmBatch.Append(...)
+	}
+
+	if !coldBatch.IsEmpty() {
+		// i.e. we have the block and the inserts, perform the writes.
+		blockResult, err := i.ensureBlockPresent(blockStart)
+		result, err := blockResult.block.WriteColdBatch(coldBatch)
+	}
+
+	if !warmBatch.IsEmpty() {
+		// i.e. we have the block and the inserts, perform the writes.
+		result, err := i.activeBlock.WriteBatch(warmBatch)
+	}
+
 
 	// Record the end to end indexing latency.
 	now := i.nowFn()
