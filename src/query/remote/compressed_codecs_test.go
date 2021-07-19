@@ -321,6 +321,8 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 // NB: make sure that SeriesIterator is not closed during conversion, or bytes will be empty
 func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	mockIter := encoding.NewMockSeriesIterator(ctrl)
 	mockIter.EXPECT().Close().Times(0)
 	mockIter.EXPECT().Replicas().Return([]encoding.MultiReaderIterator{}, nil).Times(1)

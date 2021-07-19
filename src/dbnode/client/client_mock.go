@@ -49,7 +49,7 @@ import (
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	tchannel "github.com/uber/tchannel-go"
+	tchannel_go "github.com/uber/tchannel-go"
 )
 
 // MockClient is a mock of Client interface.
@@ -1268,10 +1268,10 @@ func (mr *MockOptionsMockRecorder) BackgroundHealthCheckStutter() *gomock.Call {
 }
 
 // ChannelOptions mocks base method.
-func (m *MockOptions) ChannelOptions() *tchannel.ChannelOptions {
+func (m *MockOptions) ChannelOptions() *tchannel_go.ChannelOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ChannelOptions")
-	ret0, _ := ret[0].(*tchannel.ChannelOptions)
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
 	return ret0
 }
 
@@ -1279,6 +1279,20 @@ func (m *MockOptions) ChannelOptions() *tchannel.ChannelOptions {
 func (mr *MockOptionsMockRecorder) ChannelOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChannelOptions", reflect.TypeOf((*MockOptions)(nil).ChannelOptions))
+}
+
+// CheckedBytesPool mocks base method.
+func (m *MockOptions) CheckedBytesPool() pool.CheckedBytesPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckedBytesPool")
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
+	return ret0
+}
+
+// CheckedBytesPool indicates an expected call of CheckedBytesPool.
+func (mr *MockOptionsMockRecorder) CheckedBytesPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesPool", reflect.TypeOf((*MockOptions)(nil).CheckedBytesPool))
 }
 
 // CheckedBytesWrapperPoolSize mocks base method.
@@ -1828,7 +1842,7 @@ func (mr *MockOptionsMockRecorder) SetBackgroundHealthCheckStutter(value interfa
 }
 
 // SetChannelOptions mocks base method.
-func (m *MockOptions) SetChannelOptions(value *tchannel.ChannelOptions) Options {
+func (m *MockOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetChannelOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -1839,6 +1853,20 @@ func (m *MockOptions) SetChannelOptions(value *tchannel.ChannelOptions) Options 
 func (mr *MockOptionsMockRecorder) SetChannelOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChannelOptions", reflect.TypeOf((*MockOptions)(nil).SetChannelOptions), value)
+}
+
+// SetCheckedBytesPool mocks base method.
+func (m *MockOptions) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesPool indicates an expected call of SetCheckedBytesPool.
+func (mr *MockOptionsMockRecorder) SetCheckedBytesPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesPool", reflect.TypeOf((*MockOptions)(nil).SetCheckedBytesPool), value)
 }
 
 // SetCheckedBytesWrapperPoolSize mocks base method.
@@ -2929,10 +2957,10 @@ func (mr *MockAdminOptionsMockRecorder) BootstrapConsistencyLevel() *gomock.Call
 }
 
 // ChannelOptions mocks base method.
-func (m *MockAdminOptions) ChannelOptions() *tchannel.ChannelOptions {
+func (m *MockAdminOptions) ChannelOptions() *tchannel_go.ChannelOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ChannelOptions")
-	ret0, _ := ret[0].(*tchannel.ChannelOptions)
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
 	return ret0
 }
 
@@ -2940,6 +2968,20 @@ func (m *MockAdminOptions) ChannelOptions() *tchannel.ChannelOptions {
 func (mr *MockAdminOptionsMockRecorder) ChannelOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).ChannelOptions))
+}
+
+// CheckedBytesPool mocks base method.
+func (m *MockAdminOptions) CheckedBytesPool() pool.CheckedBytesPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckedBytesPool")
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
+	return ret0
+}
+
+// CheckedBytesPool indicates an expected call of CheckedBytesPool.
+func (mr *MockAdminOptionsMockRecorder) CheckedBytesPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesPool", reflect.TypeOf((*MockAdminOptions)(nil).CheckedBytesPool))
 }
 
 // CheckedBytesWrapperPoolSize mocks base method.
@@ -3587,7 +3629,7 @@ func (mr *MockAdminOptionsMockRecorder) SetBootstrapConsistencyLevel(value inter
 }
 
 // SetChannelOptions mocks base method.
-func (m *MockAdminOptions) SetChannelOptions(value *tchannel.ChannelOptions) Options {
+func (m *MockAdminOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetChannelOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -3598,6 +3640,20 @@ func (m *MockAdminOptions) SetChannelOptions(value *tchannel.ChannelOptions) Opt
 func (mr *MockAdminOptionsMockRecorder) SetChannelOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetChannelOptions), value)
+}
+
+// SetCheckedBytesPool mocks base method.
+func (m *MockAdminOptions) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesPool indicates an expected call of SetCheckedBytesPool.
+func (mr *MockAdminOptionsMockRecorder) SetCheckedBytesPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesPool", reflect.TypeOf((*MockAdminOptions)(nil).SetCheckedBytesPool), value)
 }
 
 // SetCheckedBytesWrapperPoolSize mocks base method.
@@ -5169,14 +5225,14 @@ func (mr *MockChannelMockRecorder) Close() *gomock.Call {
 }
 
 // GetSubChannel mocks base method.
-func (m *MockChannel) GetSubChannel(serviceName string, opts ...tchannel.SubChannelOption) *tchannel.SubChannel {
+func (m *MockChannel) GetSubChannel(serviceName string, opts ...tchannel_go.SubChannelOption) *tchannel_go.SubChannel {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{serviceName}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "GetSubChannel", varargs...)
-	ret0, _ := ret[0].(*tchannel.SubChannel)
+	ret0, _ := ret[0].(*tchannel_go.SubChannel)
 	return ret0
 }
 

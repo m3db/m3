@@ -144,12 +144,21 @@ func CompareOutputsAndExpected(
 
 // MovingFunctionStorage is a special test construct for all moving functions
 type MovingFunctionStorage struct {
-	StepMillis      int
-	Bootstrap       []float64
-	Values          []float64
-	OriginalValues  []SeriesNameAndValues
-	BootstrapValues []SeriesNameAndValues
-	BootstrapStart  time.Time
+	StepMillis         int
+	BootstrapStart     time.Time
+	Bootstrap          []float64
+	Values             []float64
+	OriginalValues     []SeriesNameAndValues
+	ExplicitBootstraps []ExplicitBootstrap
+}
+
+// ExplicitBootstrap is an explicit bootstrap that's expected at a block start.
+type ExplicitBootstrap struct {
+	Start  time.Time
+	Values []SeriesNameAndValues
+	// StepMillis if set will override the step milliseconds for
+	// the bootstrapped values.
+	StepMillis int
 }
 
 // SeriesNameAndValues is a series name and a set of values.
@@ -182,31 +191,39 @@ func (s *MovingFunctionStorage) fetchByIDs(
 	ids []string,
 	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	if s.Bootstrap == nil && s.Values == nil && s.OriginalValues == nil && s.BootstrapValues == nil {
+	if s.Bootstrap == nil && s.Values == nil && s.OriginalValues == nil && len(s.ExplicitBootstraps) == 0 {
 		return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
 	}
 
 	var (
 		seriesList = make([]*ts.Series, 0, len(ids))
 		values     = make([]float64, 0, len(s.Bootstrap)+len(s.Values))
+		step       = s.StepMillis
 	)
-	if opts.StartTime.Equal(s.BootstrapStart) {
-		if s.BootstrapValues != nil {
-			for _, elem := range s.BootstrapValues {
-				series := ts.NewSeries(ctx, elem.Name, opts.StartTime,
-					NewTestSeriesValues(ctx, s.StepMillis, elem.Values))
-				seriesList = append(seriesList, series)
-			}
-			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
+	for _, bootstrap := range s.ExplicitBootstraps {
+		if !opts.StartTime.Equal(bootstrap.Start) {
+			continue
 		}
 
+		if v := bootstrap.StepMillis; v > 0 {
+			step = v
+		}
+		for _, elem := range bootstrap.Values {
+			series := ts.NewSeries(ctx, elem.Name, opts.StartTime,
+				NewTestSeriesValues(ctx, step, elem.Values))
+			seriesList = append(seriesList, series)
+		}
+		return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
+	}
+
+	if opts.StartTime.Equal(s.BootstrapStart) {
 		values = append(values, s.Bootstrap...)
 		values = append(values, s.Values...)
 	} else {
 		if s.OriginalValues != nil {
 			for _, elem := range s.OriginalValues {
 				series := ts.NewSeries(ctx, elem.Name, opts.StartTime,
-					NewTestSeriesValues(ctx, s.StepMillis, elem.Values))
+					NewTestSeriesValues(ctx, step, elem.Values))
 				seriesList = append(seriesList, series)
 			}
 			return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
@@ -217,7 +234,7 @@ func (s *MovingFunctionStorage) fetchByIDs(
 
 	for _, id := range ids {
 		series := ts.NewSeries(ctx, id, opts.StartTime,
-			NewTestSeriesValues(ctx, s.StepMillis, values))
+			NewTestSeriesValues(ctx, step, values))
 		seriesList = append(seriesList, series)
 	}
 

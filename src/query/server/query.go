@@ -34,6 +34,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
+	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -177,13 +178,20 @@ type BackendStorageTransform func(
 	instrument.Options,
 ) storage.Storage
 
+// RunResult returns metadata about the process run.
+type RunResult struct {
+	MultiProcessRun               bool
+	MultiProcessIsParentCleanExit bool
+}
+
 // Run runs the server programmatically given a filename for the configuration file.
-func Run(runOpts RunOptions) {
+func Run(runOpts RunOptions) RunResult {
 	rand.Seed(time.Now().UnixNano())
 
 	var (
 		cfg          = runOpts.Config
 		listenerOpts = xnet.NewListenerOptions()
+		runResult    RunResult
 	)
 
 	logger, err := cfg.LoggingOrDefault().BuildLogger()
@@ -202,21 +210,25 @@ func Run(runOpts RunOptions) {
 
 	var commonLabels map[string]string
 	if cfg.MultiProcess.Enabled {
-		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
+		// Mark as a multi-process run result.
+		runResult.MultiProcessRun = true
+
+		// Execute multi-process parent spawn or child setup code path.
+		multiProcessRunResult, err := multiProcessRun(cfg, logger, listenerOpts)
 		if err != nil {
 			logger = logger.With(zap.String("processID", multiProcessProcessID()))
 			logger.Fatal("failed to run", zap.Error(err))
 		}
-		if runResult.isParentCleanExit {
+		if multiProcessRunResult.isParentCleanExit {
 			// Parent process clean exit.
-			os.Exit(0)
-			return
+			runResult.MultiProcessIsParentCleanExit = true
+			return runResult
 		}
 
-		cfg = runResult.cfg
-		logger = runResult.logger
-		listenerOpts = runResult.listenerOpts
-		commonLabels = runResult.commonLabels
+		cfg = multiProcessRunResult.cfg
+		logger = multiProcessRunResult.logger
+		listenerOpts = multiProcessRunResult.listenerOpts
+		commonLabels = multiProcessRunResult.commonLabels
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
@@ -466,7 +478,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
 	}
 
-	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
+	var serviceOptionDefaults []handleroptions3.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
 		hostID, err := dbCfg.HostIDOrDefault().Resolve()
 		if err != nil {
@@ -488,9 +500,9 @@ func Run(runOpts RunOptions) {
 		}
 		if svcCfg := cluster.Service; svcCfg != nil {
 			serviceOptionDefaults = append(serviceOptionDefaults,
-				handleroptions.WithDefaultServiceEnvironment(svcCfg.Env))
+				handleroptions3.WithDefaultServiceEnvironment(svcCfg.Env))
 			serviceOptionDefaults = append(serviceOptionDefaults,
-				handleroptions.WithDefaultServiceZone(svcCfg.Zone))
+				handleroptions3.WithDefaultServiceZone(svcCfg.Zone))
 		}
 	}
 
@@ -550,7 +562,7 @@ func Run(runOpts RunOptions) {
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
-		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
+		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)
 	if err != nil {
@@ -644,6 +656,8 @@ func Run(runOpts RunOptions) {
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,
 	})
+
+	return runResult
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage

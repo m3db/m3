@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package placementhandler
 
 import (
 	"net/http"
@@ -29,8 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -103,7 +102,7 @@ func TestPlacementSetHandler(t *testing.T) {
 
 		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
 		handlerOpts, err := NewHandlerOptions(
-			mockClient, config.Configuration{}, nil, instrument.NewOptions())
+			mockClient, placement.Configuration{}, nil, instrument.NewOptions())
 		require.NoError(t, err)
 		handler := NewSetHandler(handlerOpts)
 
@@ -172,7 +171,7 @@ func TestPlacementSetHandler_NewPlacement(t *testing.T) {
 
 		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
 		handlerOpts, err := NewHandlerOptions(
-			mockClient, config.Configuration{}, nil, instrument.NewOptions())
+			mockClient, placement.Configuration{}, nil, instrument.NewOptions())
 		require.NoError(t, err)
 		handler := NewSetHandler(handlerOpts)
 
@@ -226,7 +225,7 @@ func TestPlacementSetHandler_ValidatePlacementWithoutForce(t *testing.T) {
 
 	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
 	handlerOpts, err := NewHandlerOptions(
-		mockClient, config.Configuration{}, nil, instrument.NewOptions())
+		mockClient, placement.Configuration{}, nil, instrument.NewOptions())
 	require.NoError(t, err)
 	handler := NewSetHandler(handlerOpts)
 
