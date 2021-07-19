@@ -932,18 +932,18 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) CacheShardIndices(shards inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheShardIndices", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).CacheShardIndices), shards)
 }
 
-// CloseShard mocks base method.
-func (m *MockDatabaseBlockRetriever) CloseShard(shard uint32) error {
+// Close mocks base method.
+func (m *MockDatabaseBlockRetriever) Close() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CloseShard", shard)
+	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CloseShard indicates an expected call of CloseShard.
-func (mr *MockDatabaseBlockRetrieverMockRecorder) CloseShard(shard interface{}) *gomock.Call {
+// Close indicates an expected call of Close.
+func (mr *MockDatabaseBlockRetrieverMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseShard", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).CloseShard), shard)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).Close))
 }
 
 // Stream mocks base method.

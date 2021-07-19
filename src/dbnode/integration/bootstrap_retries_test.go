@@ -24,7 +24,6 @@ package integration
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -153,14 +152,10 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		ID:   ident.StringID("baz"),
 		Tags: ident.NewTags(ident.StringTag("city", "seattle")),
 	}
-	var (
-		blockSize = 2 * time.Hour
-		rOpts     = retention.NewOptions().SetRetentionPeriod(6 * blockSize).SetBlockSize(blockSize)
-		idxOpts   = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(2 * blockSize)
-		nOpts     = namespace.NewOptions().SetRetentionOptions(rOpts).SetIndexOptions(idxOpts)
-	)
-	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
-	require.NoError(t, err)
+
+	blockSize := 2 * time.Hour
+
+	ns1 := setup.Namespaces()[0]
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{
 			IDs:       []string{fooSeries.ID.String()},
@@ -203,19 +198,8 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 	defer func() {
-		parentDir := fmt.Sprintf("%s/data/%s", setup.FilePathPrefix(), ns1.ID())
-		// Should get some open file descriptors when db is opened.
-		openFilesBefore := countOpenDataFiles(parentDir)
-		require.NotZero(t, openFilesBefore)
-
-		require.NoError(t, setup.DB().Close())
-
-		// Shouldn't list any file descriptors when db is closed.
-		openFilesAfter := countOpenDataFiles(parentDir)
-		require.Zero(t, openFilesAfter)
-
+		require.NoError(t, setup.StopServerAndVerifyOpenFilesAreClosed())
 		setup.Close()
-		require.NoError(t, setup.StopServer())
 	}()
 
 	assert.True(t, setup.DB().IsBootstrapped(), "database should be bootstrapped")

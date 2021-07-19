@@ -255,8 +255,8 @@ func (m *seekerManager) Open(
 	m.namespaceMetadata = nsMetadata
 	m.shardSet = shardSet
 	m.status = seekerManagerOpen
-	go m.openCloseLoop()
 	m.Unlock()
+	go m.openCloseLoop()
 
 	// Register for updates to block leases.
 	// NB(rartoul): This should be safe to do within the context of the lock
@@ -435,32 +435,6 @@ func (m *seekerManager) Return(
 	}
 
 	return nil
-}
-
-func (m *seekerManager) ReturnShard(shard uint32) error {
-	if int(shard) >= len(m.seekersByShardIdx) {
-		return errShardNotExists
-	}
-	byTime := m.seekersByShardIdx[shard]
-	if byTime == nil {
-		return errShardNotExists
-	}
-
-	byTime.Lock()
-	defer byTime.Unlock()
-	var errs xerrors.MultiError
-	for start, seekers := range byTime.seekers {
-		for _, inactiveSeeker := range seekers.inactive.seekers {
-			errs = errs.Add(inactiveSeeker.seeker.Close())
-		}
-		for _, activeSeeker := range seekers.active.seekers {
-			errs = errs.Add(activeSeeker.seeker.Close())
-		}
-
-		delete(byTime.seekers, start)
-	}
-
-	return errs.FinalError()
 }
 
 // returnSeekerWithLock encapsulates all the logic for returning a seeker,
@@ -938,37 +912,38 @@ func (m *seekerManager) seekersByTime(shard uint32) (*seekersByTime, bool) {
 }
 
 func (m *seekerManager) Close() error {
-	m.Lock()
+	m.RLock()
 
 	if m.status == seekerManagerClosed {
-		m.Unlock()
+		m.RUnlock()
 		return errSeekerManagerAlreadyClosed
 	}
 
 	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.
 	for _, byTime := range m.seekersByShardIdx {
-		byTime.Lock()
+		byTime.RLock()
 		for _, seekersForBlock := range byTime.seekers {
 			// Ensure active seekers are all returned.
 			if seekersForBlock.active.anyBorrowedWithLock() {
-				byTime.Unlock()
-				m.Unlock()
+				byTime.RUnlock()
+				m.RUnlock()
 				return errCantCloseSeekerManagerWhileSeekersAreBorrowed
 			}
 
 			// Ensure inactive seekers are all returned.
 			if seekersForBlock.inactive.anyBorrowedWithLock() {
-				byTime.Unlock()
-				m.Unlock()
+				byTime.RUnlock()
+				m.RUnlock()
 				return errCantCloseSeekerManagerWhileSeekersAreBorrowed
 			}
 		}
-		byTime.Unlock()
+		byTime.RUnlock()
 	}
+	m.RUnlock()
 
+	m.Lock()
 	m.status = seekerManagerClosed
-
 	m.Unlock()
 
 	// Unregister for lease updates since all the seekers are going to be closed.

@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -169,17 +168,8 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 
 	// Stop the server
 	defer func() {
-		parentDir := fmt.Sprintf("%s/data/", setup.FilePathPrefix())
-		openFilesBefore := countOpenDataFiles(parentDir)
-		require.NotZero(t, openFilesBefore)
-
-		require.NoError(t, setup.DB().Close())
-
-		openFilesAfter := countOpenDataFiles(parentDir)
-		require.Zero(t, openFilesAfter)
-
+		require.NoError(t, setup.StopServerAndVerifyOpenFilesAreClosed())
 		setup.Close()
-		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 

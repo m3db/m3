@@ -800,17 +800,6 @@ func (r *blockRetriever) Close() error {
 	return r.seekerMgr.Close()
 }
 
-func (r *blockRetriever) CloseShard(shard uint32) error {
-	r.Lock()
-	if r.status == blockRetrieverClosed {
-		r.Unlock()
-		return errBlockRetrieverAlreadyClosed
-	}
-	r.Unlock()
-
-	return r.seekerMgr.ReturnShard(shard)
-}
-
 type shardRetrieveRequests struct {
 	sync.Mutex
 	shard  uint32

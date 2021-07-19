@@ -309,9 +309,6 @@ type DataFileSetSeekerManager interface {
 	// time, and volume.
 	Return(shard uint32, start xtime.UnixNano, seeker ConcurrentDataFileSetSeeker) error
 
-	// ReturnShard returns (closes) all seekers for a given shard.
-	ReturnShard(shard uint32) error
-
 	// Test checks if an ID exists in a concurrent ID bloom filter for a
 	// given shard, block, start time and volume.
 	Test(id ident.ID, shard uint32, start xtime.UnixNano) (bool, error)

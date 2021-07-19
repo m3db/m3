@@ -21,6 +21,7 @@
 package block
 
 import (
+	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -297,8 +298,7 @@ var EmptyStreamedWideEntry StreamedWideEntry = emptyWideEntry{}
 
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
-	// CloseShard closes all seekers for a given shard.
-	CloseShard(shard uint32) error
+	io.Closer
 
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when streaming a block.
