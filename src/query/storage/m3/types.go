@@ -160,9 +160,9 @@ type Options interface {
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
 	// TagsTransform returns the transform to apply to tags before storage.
-	TagsTransform() models.TagsTransform
+	TagsTransform() TagsTransform
 	// SetTagsTransform sets the TagsTransform.
-	SetTagsTransform(value models.TagsTransform) Options
+	SetTagsTransform(value TagsTransform) Options
 	// SetIterAlloc sets the iterator allocator.
 	SetIterAlloc(encoding.ReaderIteratorAllocate) Options
 	// IterAlloc returns the reader iterator allocator.
@@ -241,3 +241,6 @@ type peekValue struct {
 	finished bool
 	point    ts.Datapoint
 }
+
+// TagsTransform transforms a set of tags.
+type TagsTransform func(context.Context, ClusterNamespace, []models.Tag) ([]models.Tag, error)

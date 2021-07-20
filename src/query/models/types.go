@@ -22,7 +22,6 @@ package models
 
 import (
 	"bytes"
-	"context"
 	"regexp"
 )
 
@@ -131,9 +130,6 @@ type Tag struct {
 	Name  []byte
 	Value []byte
 }
-
-// TagsTransform transforms a set of tags.
-type TagsTransform func(context.Context, []Tag) ([]Tag, error)
 
 // Equal determiens whether two tags are equal to each other.
 func (t Tag) Equal(other Tag) bool {
