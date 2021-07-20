@@ -46,8 +46,8 @@ type Storage interface {
 
 // Querier handles queries against an M3 instance.
 type Querier interface {
-	// FetchCompressed fetches timeseries data based on a query.
-	FetchCompressed(
+	// FetchCompressedResult fetches timeseries data based on a query.
+	FetchCompressedResult(
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
