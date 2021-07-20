@@ -960,10 +960,7 @@ func (m *seekerManager) earliestSeekableBlockStart() xtime.UnixNano {
 	nowFn := m.opts.ClockOptions().NowFn()
 	now := xtime.ToUnixNano(nowFn())
 	ropts := m.namespaceMetadata.Options().RetentionOptions()
-	blockSize := ropts.BlockSize()
-	earliestReachableBlockStart := retention.FlushTimeStart(ropts, now)
-	earliestSeekableBlockStart := earliestReachableBlockStart.Add(-blockSize)
-	return earliestSeekableBlockStart
+	return retention.FlushTimeStart(ropts, now)
 }
 
 func (m *seekerManager) latestSeekableBlockStart() xtime.UnixNano {
@@ -997,8 +994,7 @@ func (m *seekerManager) openCloseLoop() {
 	}
 
 	for {
-		earliestSeekableBlockStart :=
-			m.earliestSeekableBlockStart()
+		earliestSeekableBlockStart := m.earliestSeekableBlockStart()
 
 		m.RLock()
 		if m.status != seekerManagerOpen {
