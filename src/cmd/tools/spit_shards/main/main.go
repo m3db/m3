@@ -1,0 +1,113 @@
+// Copyright (c) 2021 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"time"
+
+	"github.com/m3db/m3/src/cmd/tools"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
+)
+
+func main() {
+	var (
+		optSrcPathPrefix = getopt.StringLong("src-path", 's', "", "Source path prefix [e.g. /temp/lib/m3db]")
+		optDstPathPrefix = getopt.StringLong("dst-path", 'd', "", "Destination path prefix [e.g. /var/lib/m3db]")
+		optBlockUntil    = getopt.Int64Long("block-until", 'b', 0, "Block Until Time [in nsec]")
+	)
+	getopt.Parse()
+
+	rawLogger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatalf("unable to create logger: %+v", err)
+	}
+	logger := rawLogger.Sugar()
+
+	if *optSrcPathPrefix == "" ||
+		*optDstPathPrefix == "" ||
+		*optBlockUntil <= 0 {
+		getopt.Usage()
+		os.Exit(1)
+	}
+
+	const fileSetType = persist.FileSetFlushType
+
+	bytesPool := tools.NewCheckedBytesPool()
+	bytesPool.Init()
+
+	fsOpts := fs.NewOptions().SetFilePathPrefix(*optSrcPathPrefix)
+
+	var (
+		seriesCount         = 0
+		start               = time.Now()
+	)
+
+	reader, err := fs.NewReader(bytesPool, fsOpts)
+	if err != nil {
+		logger.Fatalf("could not create new reader: %v", err)
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   ident.StringID(*optNamespace),
+			Shard:       *optShard,
+			BlockStart:  xtime.UnixNano(*optBlockUntil),
+			VolumeIndex: int(*volume),
+		},
+		FileSetType:      fileSetType,
+		StreamingEnabled: true,
+	}
+
+	err = reader.Open(openOpts)
+	if err != nil {
+		logger.Fatalf("unable to open reader: %v", err)
+	}
+
+	for {
+		_, err := reader.StreamingRead()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			logger.Fatalf("err reading metadata: %v", err)
+		}
+
+		seriesCount++
+	}
+
+	runTime := time.Since(start)
+	fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
+	fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
+
+	if err := reader.Close(); err != nil {
+		logger.Fatalf("unable to close reader: %v", err)
+	}
+}
