@@ -18,19 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package m3
 
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	tsconsolidators "github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type consolidationSettings struct {
-	consolidationFn tsconsolidators.ConsolidationFunc
+	consolidationFn consolidators.ConsolidationFunc
 	currentTime     xtime.UnixNano
 	bounds          models.Bounds
 }
@@ -58,7 +57,7 @@ func NewEncodedBlock(
 	}
 
 	consolidation := consolidationSettings{
-		consolidationFn: tsconsolidators.TakeLast,
+		consolidationFn: consolidators.TakeLast,
 		currentTime:     bounds.Start,
 		bounds:          bounds,
 	}

@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
@@ -98,7 +97,7 @@ type grpcClient struct {
 	once        sync.Once
 	pools       encoding.IteratorPools
 	poolErr     error
-	opts        m3db.Options
+	opts        m3.Options
 	logger      *zap.Logger
 	metrics     grpcClientMetrics
 }
@@ -131,7 +130,7 @@ func NewGRPCClient(
 	name string,
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
-	opts m3db.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {

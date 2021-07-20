@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/require"
@@ -81,7 +82,7 @@ func TestRoundWithArgs(t *testing.T) {
 			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 			require.NoError(t, err)
 			require.Len(t, sink.Values, 1)
-			test.EqualsWithNans(t, tt.expected, sink.Values[0])
+			compare.EqualsWithNans(t, tt.expected, sink.Values[0])
 		})
 	}
 }

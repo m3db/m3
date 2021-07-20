@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/query/test"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/query/test/compare"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestConsolidator(t *testing.T) {
@@ -66,7 +66,7 @@ func TestConsolidator(t *testing.T) {
 	consolidator.BufferStep()
 
 	actual := consolidator.ConsolidateAndMoveToNext()
-	test.EqualsWithNans(t, nan, actual)
+	compare.EqualsWithNans(t, nan, actual)
 
 	// NB: lookback limit: start
 	actual = consolidator.ConsolidateAndMoveToNext()

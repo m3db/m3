@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -62,7 +61,7 @@ var (
 
 type m3storage struct {
 	clusters Clusters
-	opts     m3db.Options
+	opts     Options
 	nowFn    func() time.Time
 	logger   *zap.Logger
 }
@@ -70,7 +69,7 @@ type m3storage struct {
 // NewStorage creates a new local m3storage instance.
 func NewStorage(
 	clusters Clusters,
-	opts m3db.Options,
+	opts Options,
 	instrumentOpts instrument.Options,
 ) (Storage, error) {
 	if err := opts.Validate(); err != nil {
@@ -162,7 +161,7 @@ func FetchResultToBlockResult(
 	result consolidators.SeriesFetchResult,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-	opts m3db.Options,
+	opts Options,
 ) (block.Result, error) {
 	// If using multiblock, update options to reflect this.
 	if options.BlockType == models.TypeMultiBlock {
@@ -177,7 +176,7 @@ func FetchResultToBlockResult(
 		StepSize: query.Interval,
 	}
 
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
+	blocks, err := ConvertM3DBSeriesIterators(
 		result,
 		bounds,
 		opts,

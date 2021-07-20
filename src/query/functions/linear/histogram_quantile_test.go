@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -359,7 +360,7 @@ func TestQuantileFunctionForInvalidQValues(t *testing.T) {
 	assert.Equal(t, [][]float64{{inf, inf, inf, inf, inf}}, actual)
 
 	actual = testQuantileFunctionWithQ(t, 0.8)
-	test.EqualsWithNansWithDelta(t, [][]float64{{15.6, 20, math.NaN(), 2, math.NaN()}}, actual, 0.00001)
+	compare.EqualsWithNansWithDelta(t, [][]float64{{15.6, 20, math.NaN(), 2, math.NaN()}}, actual, 0.00001)
 }
 
 func testWithMultipleBuckets(t *testing.T, q float64) [][]float64 {
@@ -438,6 +439,6 @@ func TestQuantileFunctionForMultipleBuckets(t *testing.T) {
 			{8.99459, 9.00363, math.NaN(), 1.78089, math.NaN()},
 		}
 
-		test.EqualsWithNansWithDelta(t, expected, actual, 0.00001)
+		compare.EqualsWithNansWithDelta(t, expected, actual, 0.00001)
 	}
 }

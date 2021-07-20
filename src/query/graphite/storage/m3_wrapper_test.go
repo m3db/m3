@@ -32,9 +32,9 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -46,7 +46,7 @@ import (
 
 var (
 	// alloc once so default pools are created just once
-	testM3DBOpts = m3db.NewOptions()
+	testM3DBOpts = m3.NewOptions()
 )
 
 func TestTranslateQuery(t *testing.T) {

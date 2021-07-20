@@ -21,8 +21,11 @@
 package consolidators
 
 import (
+	"math"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
@@ -170,3 +173,40 @@ type MultiTagResult struct {
 	// Iter is the tag iterator for the series.
 	Iter ident.TagIterator
 }
+
+const (
+	// BufferSteps is the default number of steps to buffer.
+	BufferSteps = 32
+)
+
+// StepCollector is implemented by any accumulators or consolidators working on
+// stepwise iteration.
+type StepCollector interface {
+	// AddPoint adds a datapoint to the current step it's within the valid time
+	// period; otherwise drops it silently, which is fine for consolidation.
+	AddPoint(ts.Datapoint)
+	// BufferStep computes the currently collected step values.
+	BufferStep()
+	// BufferStepCount gives the number of remaining buffer steps.
+	BufferStepCount() int
+}
+
+// ConsolidationFunc consolidates a bunch of datapoints into a single float value.
+type ConsolidationFunc func(datapoints []ts.Datapoint) float64
+
+// TakeLast is a consolidation function which takes the last datapoint.
+func TakeLast(values []ts.Datapoint) float64 {
+	for i := len(values) - 1; i >= 0; i-- {
+		value := values[i].Value
+		if !math.IsNaN(value) {
+			return value
+		}
+	}
+
+	return math.NaN()
+}
+
+const initLength = BufferSteps
+
+// Set NaN to a variable makes tests easier.
+var nan = math.NaN()
