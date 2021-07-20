@@ -52,6 +52,12 @@ const (
 	cacheFileSuffix    = ".json"
 	// TODO deprecate this once all keys are migrated to per service namespace
 	kvPrefix = "_kv"
+
+	// Set GRPC response limits to 32 MiB, should be sufficient for most use cases.
+	// The default 2 MiB limit usually comes as an unpleasant surprise - etcd itself will reject
+	// requests that are too large anyway, and there are many other ways to tank etcd,
+	// like creating too many watchers.
+	_grpcMaxSendRecvBufferSize = 32 * 1024 * 1024
 )
 
 var errInvalidNamespace = errors.New("invalid namespace")
@@ -324,10 +330,12 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 		return nil, err
 	}
 	cfg := clientv3.Config{
-		AutoSyncInterval: cluster.AutoSyncInterval(),
-		DialTimeout:      cluster.DialTimeout(),
-		Endpoints:        cluster.Endpoints(),
-		TLS:              tls,
+		AutoSyncInterval:   cluster.AutoSyncInterval(),
+		DialTimeout:        cluster.DialTimeout(),
+		Endpoints:          cluster.Endpoints(),
+		TLS:                tls,
+		MaxCallSendMsgSize: _grpcMaxSendRecvBufferSize,
+		MaxCallRecvMsgSize: _grpcMaxSendRecvBufferSize,
 	}
 
 	if opts := cluster.KeepAliveOptions(); opts.KeepAliveEnabled() {

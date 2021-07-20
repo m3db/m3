@@ -148,7 +148,13 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	meta.FetchedSeriesCount = 4
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
-		r.Add(iters, meta, ns.attrs, nil)
+		res := MultiFetchResults{
+			SeriesIterators: iters,
+			Metadata:        meta,
+			Attrs:           ns.attrs,
+			Err:             nil,
+		}
+		r.Add(res)
 	}
 
 	result, err := r.FinalResult()
@@ -189,10 +195,22 @@ func TestLimit(t *testing.T) {
 	meta := block.NewResultMetadata()
 	for _, ns := range namespaces[0:2] {
 		iters := generateSeriesIterators(ctrl, ns.ns)
-		r.Add(iters, meta, ns.attrs, nil)
+		res := MultiFetchResults{
+			SeriesIterators: iters,
+			Metadata:        meta,
+			Attrs:           ns.attrs,
+			Err:             nil,
+		}
+		r.Add(res)
 	}
 	longNs := namespaces[2]
-	r.Add(generateUnreadSeriesIterators(ctrl, longNs.ns), meta, longNs.attrs, nil)
+	res := MultiFetchResults{
+		SeriesIterators: generateUnreadSeriesIterators(ctrl, longNs.ns),
+		Metadata:        meta,
+		Attrs:           longNs.attrs,
+		Err:             nil,
+	}
+	r.Add(res)
 
 	result, err := r.FinalResult()
 	assert.NoError(t, err)
@@ -228,10 +246,22 @@ func TestLimitRequireExhaustive(t *testing.T) {
 	meta := block.NewResultMetadata()
 	for _, ns := range namespaces[0:2] {
 		iters := generateSeriesIterators(ctrl, ns.ns)
-		r.Add(iters, meta, ns.attrs, nil)
+		res := MultiFetchResults{
+			SeriesIterators: iters,
+			Metadata:        meta,
+			Attrs:           ns.attrs,
+			Err:             nil,
+		}
+		r.Add(res)
 	}
 	longNs := namespaces[2]
-	r.Add(generateUnreadSeriesIterators(ctrl, longNs.ns), meta, longNs.attrs, nil)
+	res := MultiFetchResults{
+		SeriesIterators: generateUnreadSeriesIterators(ctrl, longNs.ns),
+		Metadata:        meta,
+		Attrs:           longNs.attrs,
+		Err:             nil,
+	}
+	r.Add(res)
 
 	_, err := r.FinalResult()
 	require.Error(t, err)
@@ -256,21 +286,27 @@ func TestExhaustiveMerge(t *testing.T) {
 	defer ctrl.Finish()
 
 	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
-		defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
+			r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
+				defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 			for i, ex := range tt.exhaustives {
 				iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
 					encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
-						ID: ident.StringID(fmt.Sprint(i)),
+						ID:        ident.StringID(fmt.Sprint(i)),
 						Namespace: ident.StringID("ns"),
 					}, nil),
 				}, nil)
 
 				meta := block.NewResultMetadata()
 				meta.Exhaustive = ex
-				r.Add(iters, meta, storagemetadata.Attributes{}, nil)
+				res := MultiFetchResults{
+					SeriesIterators: iters,
+					Metadata:        meta,
+					Attrs:           storagemetadata.Attributes{},
+					Err:             nil,
+				}
+				r.Add(res)
 			}
 
 			result, err := r.FinalResult()
@@ -279,4 +315,51 @@ func TestExhaustiveMerge(t *testing.T) {
 			assert.NoError(t, r.Close())
 		})
 	}
+}
+
+func TestAddWarningsPreservedFollowedByAdd(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	pools := generateIteratorPools(ctrl)
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+		defaultTestOpts, models.NewTagOptions(), LimitOptions{
+			Limit:             100,
+			RequireExhaustive: true,
+		})
+
+	r.AddWarnings(block.Warning{
+		Name:    "foo",
+		Message: "bar",
+	})
+	r.AddWarnings(block.Warning{
+		Name:    "baz",
+		Message: "qux",
+	})
+
+	for i := 0; i < 3; i++ {
+		iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
+			encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+				ID:        ident.StringID(fmt.Sprintf("series-%d", i)),
+				Namespace: ident.StringID(fmt.Sprintf("ns-%d", i)),
+			}, nil),
+		}, nil)
+
+		meta := block.NewResultMetadata()
+		meta.Exhaustive = true
+		res := MultiFetchResults{
+			SeriesIterators: iters,
+			Metadata:        meta,
+			Attrs:           storagemetadata.Attributes{},
+			Err:             nil,
+		}
+		r.Add(res)
+	}
+
+	finalResult, err := r.FinalResult()
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, len(finalResult.Metadata.Warnings))
+
+	assert.NoError(t, r.Close())
 }

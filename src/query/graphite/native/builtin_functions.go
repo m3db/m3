@@ -2640,7 +2640,11 @@ func cactiStyle(_ *common.Context, seriesList singlePathSpec) (ts.SeriesList, er
 // the number of data points to be graphed, m3 consolidates the values to
 // to prevent line overlap. The consolidateBy() function changes the consolidation
 // function from the default of "average" to one of "sum", "max", or "min".
-func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationApproach string) (ts.SeriesList, error) {
+func consolidateBy(
+	ctx *common.Context,
+	seriesList singlePathSpec,
+	consolidationApproach string,
+) (ts.SeriesList, error) {
 	ca := ts.ConsolidationApproach(consolidationApproach)
 	cf, ok := ca.SafeFunc()
 	if !ok {
@@ -2651,9 +2655,19 @@ func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationAp
 	results := make([]*ts.Series, 0, len(seriesList.Values))
 	for _, series := range seriesList.Values {
 		newName := fmt.Sprintf("consolidateBy(%s,%q)", series.Name(), consolidationApproach)
-		renamed := series.RenamedTo(newName)
-		renamed.SetConsolidationFunc(cf)
-		results = append(results, renamed)
+
+		newSeries := series.RenamedTo(newName)
+		newSeries.SetConsolidationFunc(cf)
+
+		// Check if needs to resized datapoints to fit max data points so that
+		// default LTTB downsampling is not applied if downsampling needs to
+		// occur when series is rendered.
+		resizedSeries, resized := newSeries.ResizeToMaxDataPoints(ctx.MaxDataPoints, cf)
+		if resized {
+			newSeries = resizedSeries
+		}
+
+		results = append(results, newSeries)
 	}
 
 	r := ts.SeriesList(seriesList)

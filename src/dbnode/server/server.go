@@ -871,7 +871,8 @@ func Run(runOpts RunOptions) {
 	m3dbClient, err := newAdminClient(
 		cfg.Client, opts.ClockOptions(), iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-		syncCfg.KVStore, logger, runOpts.CustomOptions)
+		syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(), opts.IdentifierPool(),
+		logger, runOpts.CustomOptions)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -908,7 +909,8 @@ func Run(runOpts RunOptions) {
 			clusterClient, err := newAdminClient(
 				clientCfg, opts.ClockOptions(), iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-				syncCfg.KVStore, logger, runOpts.CustomOptions)
+				syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(),
+				opts.IdentifierPool(), logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -1862,6 +1864,9 @@ func newAdminClient(
 	protoEnabled bool,
 	schemaRegistry namespace.SchemaRegistry,
 	kvStore kv.Store,
+	contextPool xcontext.Pool,
+	checkedBytesPool pool.CheckedBytesPool,
+	identifierPool ident.Pool,
 	logger *zap.Logger,
 	custom []client.CustomAdminOption,
 ) (client.AdminClient, error) {
@@ -1880,7 +1885,13 @@ func newAdminClient(
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
+			return opts.SetContextPool(contextPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetCheckedBytesPool(checkedBytesPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetIdentifierPool(identifierPool).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetOrigin(origin).(client.AdminOptions)

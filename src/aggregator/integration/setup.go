@@ -376,10 +376,13 @@ func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) er
 	fullID = append(fullID, mp.ChunkedID.Prefix...)
 	fullID = append(fullID, mp.ChunkedID.Data...)
 	fullID = append(fullID, mp.ChunkedID.Suffix...)
+	var clonedAnnotation []byte
+	clonedAnnotation = append(clonedAnnotation, mp.Annotation...)
 	metric := aggregated.Metric{
-		ID:        fullID,
-		TimeNanos: mp.TimeNanos,
-		Value:     mp.Value,
+		ID:         fullID,
+		TimeNanos:  mp.TimeNanos,
+		Value:      mp.Value,
+		Annotation: clonedAnnotation,
 	}
 	*w.results = append(*w.results, aggregated.MetricWithStoragePolicy{
 		Metric:        metric,

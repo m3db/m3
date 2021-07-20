@@ -14,8 +14,13 @@ docker-compose -f ${COMPOSE_FILE} up -d dbnode01
 docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
 # Think of this as a defer func() in golang
+METRIC_EMIT_PID="-1"
 function defer {
   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  if [ "$METRIC_EMIT_PID" != "-1" ]; then
+    echo "Kill metric emit process"
+    kill $METRIC_EMIT_PID
+  fi
 }
 trap defer EXIT
 
@@ -26,15 +31,51 @@ function read_carbon {
   expected_val=$2
   end=$(date +%s)
   start=$(($end-1000))
-  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/render?target=$target&from=$start&until=$end")
-  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | jq -s last)" = "$expected_val"
+  if [ "$3" != "" ]; then
+    start=$3
+  fi
+  if [ "$4" != "" ]; then
+    end=$4
+  fi
+  params=$5
+  if [ "$params" != "" ]; then
+    params="&${params}"
+  fi
+
+  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/render?target=${target}&from=${start}&until=${end}${params}")
+
+  expr="last_non_null"
+  if [ "$6" != "" ]; then
+    expr="$6"
+  fi
+
+  if [ "$expr" = "last_non_null" ]; then
+    test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | jq -s last)" = "$expected_val"
+    return $?
+  fi
+
+  if [ "$expr" = "max_non_null" ]; then
+    test "$(echo "$RESPONSE" | jq "[ .[0].datapoints | .[] | select(.[0] != null) | .[0] ] | max")" = "$expected_val"
+    return $?
+  fi
+
+  return 1
+}
+
+function wait_carbon_values_accumulated {
+  target=$1
+  expected_val=$2
+  end=$(date +%s)
+  start=$(($end-1000))
+  RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/render?target=${target}&from=${start}&until=${end}")
+  test "$(echo "$RESPONSE" | jq "[ .[0].datapoints | .[][0] | select(. != null) ] | length")" -gt "$expected_val"
   return $?
 }
 
 function find_carbon {
   query=$1
   expected_file=$2
-  RESPONSE=$(curl -sSg "http://localhost:7201/api/v1/graphite/metrics/find?query=$query")
+  RESPONSE=$(curl -sSg "http://localhost:7201/api/v1/graphite/metrics/find?query=${query}")
   ACTUAL=$(echo $RESPONSE | jq '. | sort')
   EXPECTED=$(cat $EXPECTED_PATH/$expected_file | jq '. | sort')
   if [ "$ACTUAL" == "$EXPECTED" ]
@@ -98,7 +139,28 @@ ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos1-a
 ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1**)' 3"
 ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1)' 3"
 
-# Test basic cases
+# Test consolidateBy function correctly changes behavior of downsampling
+# Send metric values 42 every 5 seconds
+echo "Sending unaggregated carbon metrics to m3coordinator"
+bash -c 'while true; do t=$(date +%s); echo "stat.already-aggregated.foo 42 $t" | nc 0.0.0.0 7204; sleep 5; done' &
+
+# Track PID to kill on exit
+METRIC_EMIT_PID="$!"
+
+# Wait until there's at least four values accumulated
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "wait_carbon_values_accumulated 'stat.already-aggregated.foo' 4"
+
+# Now test the max datapoints behavior using max of four datapoints (4x 5s resolution = 20s)
+end=$(date +%s)
+start=$(($end-20)) 
+# 1. no max datapoints set, should not adjust number of datapoints coming back
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'stat.already-aggregated.foo' 42 $start $end"
+# 2. max datapoints with LTTB, should be an existing value (i.e. 42)
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'stat.already-aggregated.foo' 42 $start $end 'maxDataPoints=2' 'max_non_null'"
+# 3. max datapoints with consolidateBy(.., aggFunction), should be resized according to function
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'consolidateBy(stat.already-aggregated.foo,\"sum\")' 84 $start $end 'maxDataPoints=2' 'max_non_null'"
+
+# Test basic find cases
 t=$(date +%s)
 echo "a 0 $t"             | nc 0.0.0.0 7204
 echo "a.bar 0 $t"         | nc 0.0.0.0 7204
