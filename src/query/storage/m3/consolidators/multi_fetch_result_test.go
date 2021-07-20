@@ -286,10 +286,10 @@ func TestExhaustiveMerge(t *testing.T) {
 	defer ctrl.Finish()
 
 	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
-		defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
+			r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
+				defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 			for i, ex := range tt.exhaustives {
 				iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
 					encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
@@ -315,4 +315,51 @@ func TestExhaustiveMerge(t *testing.T) {
 			assert.NoError(t, r.Close())
 		})
 	}
+}
+
+func TestAddWarningsPreservedFollowedByAdd(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	pools := generateIteratorPools(ctrl)
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+		defaultTestOpts, models.NewTagOptions(), LimitOptions{
+			Limit:             100,
+			RequireExhaustive: true,
+		})
+
+	r.AddWarnings(block.Warning{
+		Name:    "foo",
+		Message: "bar",
+	})
+	r.AddWarnings(block.Warning{
+		Name:    "baz",
+		Message: "qux",
+	})
+
+	for i := 0; i < 3; i++ {
+		iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
+			encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+				ID:        ident.StringID(fmt.Sprintf("series-%d", i)),
+				Namespace: ident.StringID(fmt.Sprintf("ns-%d", i)),
+			}, nil),
+		}, nil)
+
+		meta := block.NewResultMetadata()
+		meta.Exhaustive = true
+		res := MultiFetchResults{
+			SeriesIterators: iters,
+			Metadata:        meta,
+			Attrs:           storagemetadata.Attributes{},
+			Err:             nil,
+		}
+		r.Add(res)
+	}
+
+	finalResult, err := r.FinalResult()
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, len(finalResult.Metadata.Warnings))
+
+	assert.NoError(t, r.Close())
 }

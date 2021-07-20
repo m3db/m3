@@ -85,6 +85,9 @@ type MultiFetchResult interface {
 	// Add appends series fetch results to the accumulator.
 	Add(r MultiFetchResults)
 
+	// AddWarnings appends warnings to the accumulator.
+	AddWarnings(warnings ...block.Warning)
+
 	Results() []MultiFetchResults
 
 	// FinalResult returns a series fetch result containing deduplicated series

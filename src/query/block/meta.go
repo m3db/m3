@@ -214,6 +214,11 @@ func (m *ResultMetadata) AddWarning(name string, message string) {
 	})
 }
 
+// AddWarnings adds several warnings to the result metadata.
+func (m *ResultMetadata) AddWarnings(warnings ...Warning) {
+	m.Warnings = m.Warnings.addWarnings(warnings...)
+}
+
 // NB: this is not a very efficient merge but this is extremely unlikely to be
 // merging more than 5 or 6 total warnings.
 func (w Warnings) addWarnings(warnings ...Warning) Warnings {

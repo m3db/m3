@@ -143,14 +143,15 @@ func (s *fanoutStorage) FetchProm(
 		store := store
 		go func() {
 			defer wg.Done()
+
 			storeResult, err := store.FetchCompressed(ctx, query, options)
+
 			mu.Lock()
 			defer mu.Unlock()
 
-			var warnings []block.Warning
 			if err != nil {
 				if warning, err := storage.IsWarning(store, err); warning {
-					warnings = append(warnings, block.Warning{
+					accumulator.AddWarnings(block.Warning{
 						Name:    store.Name(),
 						Message: fetchDataWarningError,
 					})
@@ -160,22 +161,20 @@ func (s *fanoutStorage) FetchProm(
 						zap.Error(err),
 						zap.String("store", store.Name()),
 						zap.String("function", "FetchProm"))
-				} else {
-					multiErr = multiErr.Add(err)
-					s.instrumentOpts.Logger().Error(
-						"fanout to store returned error",
-						zap.Error(err),
-						zap.String("store", store.Name()),
-						zap.String("function", "FetchProm"))
 					return
 				}
+
+				multiErr = multiErr.Add(err)
+				s.instrumentOpts.Logger().Error(
+					"fanout to store returned error",
+					zap.Error(err),
+					zap.String("store", store.Name()),
+					zap.String("function", "FetchProm"))
+				return
 			}
 
-			if storeResult != nil {
-				for _, r := range storeResult.Results() {
-					r.Metadata.Warnings = append(r.Metadata.Warnings, warnings...)
-					accumulator.Add(r)
-				}
+			for _, r := range storeResult.Results() {
+				accumulator.Add(r)
 			}
 		}()
 	}
@@ -298,7 +297,9 @@ func (s *fanoutStorage) FetchBlocks(
 		store := store
 		go func() {
 			defer wg.Done()
+
 			result, err := store.FetchBlocks(ctx, query, options)
+
 			mu.Lock()
 			defer mu.Unlock()
 

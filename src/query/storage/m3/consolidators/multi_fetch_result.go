@@ -227,17 +227,18 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
-		r.metadata = metadata
-	} else {
+	} else if !r.metadata.Exhaustive {
 		// a previous namespace result already hit the limit, so bail. this handles the case of RequireExhaustive=false
 		// and there is no error to short circuit.
-		if !r.metadata.Exhaustive {
-			return
-		}
-		// NB: any non-exhaustive result set added makes the entire
-		// result non-exhaustive
-		r.metadata = r.metadata.CombineMetadata(metadata)
+		return
 	}
+
+	// NB: any non-exhaustive result set added makes the entire
+	// result non-exhaustive
+	// Note: must never override metadata and always use CombineMetadata
+	// in case warnings were first set with call to AddWarnings(..) and
+	// then must be combined before first result is ever set.
+	r.metadata = r.metadata.CombineMetadata(metadata)
 
 	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
@@ -277,6 +278,12 @@ func (r *multiResult) Add(add MultiFetchResults) {
 				NewLimitError(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
 		}
 	}
+}
+
+func (r *multiResult) AddWarnings(warnings ...block.Warning) {
+	r.Lock()
+	defer r.Unlock()
+	r.metadata.AddWarnings(warnings...)
 }
 
 // NewLimitError returns a limit error so that it's the same type as the query
