@@ -46,7 +46,8 @@ var (
 	defaultIteratorBatchingFn   = iteratorBatchingFn
 	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
 	defaultInstrumented         = true
-	defaultTagsTransform        = func(ctx context.Context, tags []models.Tag) ([]models.Tag, error) {
+	defaultTagsTransform        = func(ctx context.Context, ns ClusterNamespace, tags []models.Tag) (
+		[]models.Tag, error) {
 		return tags, nil
 	}
 )
@@ -131,7 +132,7 @@ type encodedBlockOptions struct {
 	lookbackDuration              time.Duration
 	consolidationFn               consolidators.ConsolidationFunc
 	tagOptions                    models.TagOptions
-	tagsTransform                 models.TagsTransform
+	tagsTransform                 TagsTransform
 	iterAlloc                     encoding.ReaderIteratorAllocate
 	pools                         encoding.IteratorPools
 	checkedPools                  pool.CheckedBytesPool
@@ -206,13 +207,13 @@ func (o *encodedBlockOptions) TagOptions() models.TagOptions {
 	return o.tagOptions
 }
 
-func (o *encodedBlockOptions) SetTagsTransform(value models.TagsTransform) Options {
+func (o *encodedBlockOptions) SetTagsTransform(value TagsTransform) Options {
 	opts := *o
 	opts.tagsTransform = value
 	return &opts
 }
 
-func (o *encodedBlockOptions) TagsTransform() models.TagsTransform {
+func (o *encodedBlockOptions) TagsTransform() TagsTransform {
 	return o.tagsTransform
 }
 

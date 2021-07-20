@@ -725,79 +725,8 @@ func (s *m3storage) Write(
 		idBuf      = tags.ID()
 		id         = ident.BytesID(idBuf)
 		err        error
-	)
-	// Set id to NoFinalize to avoid cloning it in write operations
-	id.NoFinalize()
-	tags.Tags, err = s.opts.TagsTransform()(ctx, tags.Tags)
-	if err != nil {
-		return err
-	}
-	tagIterator := storage.TagsToIdentTagIterator(tags)
-
-	if len(datapoints) == 1 {
-		// Special case single datapoint because it is common and we
-		// can avoid the overhead of a waitgroup, goroutine, multierr,
-		// iterator duplication etc.
-		return s.writeSingle(ctx, query, datapoints[0], id, tagIterator)
-	}
-
-	var (
-		wg       sync.WaitGroup
-		multiErr syncMultiErrs
-	)
-
-	for _, datapoint := range datapoints {
-		tagIter := tagIterator.Duplicate()
-		// capture var
-		datapoint := datapoint
-		wg.Add(1)
-
-		var (
-			now                      = time.Now()
-			deadline, deadlineExists = ctx.Deadline()
-			timeout                  = minWriteWaitTimeout
-		)
-		if deadlineExists {
-			if remain := deadline.Sub(now); remain >= timeout {
-				timeout = remain
-			}
-		}
-		spawned := s.opts.WriteWorkerPool().GoWithTimeout(func() {
-			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
-				multiErr.add(err)
-			}
-
-			tagIter.Close()
-			wg.Done()
-		}, timeout)
-		if !spawned {
-			multiErr.add(fmt.Errorf("timeout exceeded waiting: %v", timeout))
-		}
-	}
-
-	wg.Wait()
-	return multiErr.lastError()
-}
-
-func (s *m3storage) Type() storage.Type {
-	return storage.TypeLocalDC
-}
-
-func (s *m3storage) Close() error {
-	return nil
-}
-
-func (s *m3storage) writeSingle(
-	ctx context.Context,
-	query *storage.WriteQuery,
-	datapoint ts.Datapoint,
-	identID ident.ID,
-	iterator ident.TagIterator,
-) error {
-	var (
-		namespace ClusterNamespace
-		err       error
-		exists    bool
+		namespace  ClusterNamespace
+		exists     bool
 	)
 
 	attributes := query.Attributes()
@@ -826,6 +755,74 @@ func (s *m3storage) writeSingle(
 		return err
 	}
 
+	// Set id to NoFinalize to avoid cloning it in write operations
+	id.NoFinalize()
+	tags.Tags, err = s.opts.TagsTransform()(ctx, namespace, tags.Tags)
+	if err != nil {
+		return err
+	}
+	tagIterator := storage.TagsToIdentTagIterator(tags)
+
+	if len(datapoints) == 1 {
+		// Special case single datapoint because it is common and we
+		// can avoid the overhead of a waitgroup, goroutine, multierr,
+		// iterator duplication etc.
+		return s.writeSingle(query, datapoints[0], id, tagIterator, namespace)
+	}
+
+	var (
+		wg       sync.WaitGroup
+		multiErr syncMultiErrs
+	)
+
+	for _, datapoint := range datapoints {
+		tagIter := tagIterator.Duplicate()
+		// capture var
+		datapoint := datapoint
+		wg.Add(1)
+
+		var (
+			now                      = time.Now()
+			deadline, deadlineExists = ctx.Deadline()
+			timeout                  = minWriteWaitTimeout
+		)
+		if deadlineExists {
+			if remain := deadline.Sub(now); remain >= timeout {
+				timeout = remain
+			}
+		}
+		spawned := s.opts.WriteWorkerPool().GoWithTimeout(func() {
+			if err := s.writeSingle(query, datapoint, id, tagIter, namespace); err != nil {
+				multiErr.add(err)
+			}
+
+			tagIter.Close()
+			wg.Done()
+		}, timeout)
+		if !spawned {
+			multiErr.add(fmt.Errorf("timeout exceeded waiting: %v", timeout))
+		}
+	}
+
+	wg.Wait()
+	return multiErr.lastError()
+}
+
+func (s *m3storage) Type() storage.Type {
+	return storage.TypeLocalDC
+}
+
+func (s *m3storage) Close() error {
+	return nil
+}
+
+func (s *m3storage) writeSingle(
+	query *storage.WriteQuery,
+	datapoint ts.Datapoint,
+	identID ident.ID,
+	iterator ident.TagIterator,
+	namespace ClusterNamespace,
+) error {
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
 	return session.WriteTagged(namespaceID, identID, iterator,
