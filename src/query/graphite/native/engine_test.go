@@ -21,6 +21,8 @@
 package native
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -241,4 +243,142 @@ func TestNilContextShifter(t *testing.T) {
 
 	_, err = expr.Execute(ctx)
 	require.NoError(t, err)
+}
+
+func TestRollingMovingSumAndAggregateWithWildcardsAndTransformNull(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	seriesData := []struct {
+		id         string
+		datapoints []ts.Datapoint
+		seed       []ts.Datapoint
+	}{
+		{
+			id: "foo.a.path.count",
+			seed: []ts.Datapoint{
+				{Timestamp: time.Unix(1625659800, 0), Value: 1.0},
+				{Timestamp: time.Unix(1625746260, 0), Value: 1.0},
+				{Timestamp: time.Unix(1625832600, 0), Value: 1.0},
+				{Timestamp: time.Unix(1625919120, 0), Value: 1.0},
+				{Timestamp: time.Unix(1626005640, 0), Value: 1.0},
+			},
+		},
+		{
+			id: "foo.b.path.count",
+			seed: []ts.Datapoint{
+				{Timestamp: time.Unix(1626091740, 0), Value: 1.0},
+				{Timestamp: time.Unix(1626184320, 0), Value: 1.0},
+			},
+		},
+	}
+
+	for i := 0; i < 2; i++ {
+		for timestamp := 1625605740; timestamp <= 1626210480; timestamp += 60 {
+			dp := ts.Datapoint{
+				Timestamp: time.Unix(int64(timestamp), 0),
+				Value:     math.NaN(),
+			}
+			for _, seed := range seriesData[i].seed {
+				if dp.Timestamp.Equal(seed.Timestamp) {
+					dp = seed
+					break
+				}
+			}
+			seriesData[i].datapoints = append(seriesData[i].datapoints, dp)
+		}
+	}
+
+	var (
+		min          time.Time
+		max          time.Time
+		minWithValue time.Time
+		step         time.Duration
+	)
+	for i, v := range seriesData[0].datapoints {
+		if i > 0 {
+			prev := step
+			step = v.Timestamp.Sub(seriesData[0].datapoints[i-1].Timestamp)
+			if i > 1 && prev != step {
+				require.FailNow(t, fmt.Sprintf("misaligned step: prev=%s, curr=%s", prev, step))
+			}
+		}
+
+		if max.IsZero() || v.Timestamp.After(max) {
+			max = v.Timestamp
+		}
+		if min.IsZero() || v.Timestamp.Before(min) {
+			min = v.Timestamp
+		}
+
+		if !math.IsNaN(v.Value) {
+			// Record the min timestamp with a value.
+			if minWithValue.IsZero() || v.Timestamp.Before(minWithValue) {
+				minWithValue = v.Timestamp
+			}
+		}
+	}
+
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().
+		FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ string, opts storage.FetchOptions) (*storage.FetchResult, error) {
+			series := make([]*ts.Series, 0, len(seriesData))
+			millisPerStep := int(step / time.Millisecond)
+			numSteps := int(opts.EndTime.Sub(opts.StartTime) / step)
+			for _, data := range seriesData {
+				vals := ts.NewValues(ctx, millisPerStep, numSteps)
+				idx := 0
+				for _, v := range data.datapoints {
+					if v.Timestamp.Before(opts.StartTime) {
+						continue
+					}
+					if !v.Timestamp.Before(opts.EndTime) {
+						continue
+					}
+					vals.SetValueAt(idx, v.Value)
+					idx++
+				}
+				newSeries := ts.NewSeries(ctx, data.id, opts.StartTime, vals)
+				series = append(series, newSeries)
+			}
+
+			return &storage.FetchResult{SeriesList: series}, nil
+		}).
+		AnyTimes()
+
+	engine := NewEngine(store, CompileOptions{})
+	queryRange := 3 * time.Minute
+	for end := max; !end.Add(-queryRange).Before(min); end = end.Add(-time.Minute) {
+		if !end.After(minWithValue) {
+			// Successful test, no ranges were evaluated with a zero value.
+			break
+		}
+
+		start := end.Add(-queryRange)
+		ctx := common.NewContext(common.ContextOptions{
+			Start:  start,
+			End:    end,
+			Engine: engine,
+		})
+
+		expr, err := engine.Compile(
+			"movingSum(aggregateWithWildcards(transformNull(foo.*.path.count, 0), 'sum', 1), '26h')")
+		require.NoError(t, err)
+
+		result, err := expr.Execute(ctx)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, result.Len())
+
+		for _, out := range result.Values {
+			for _, v := range out.SafeValues() {
+				if v < 1 {
+					msg := fmt.Sprintf("failed: name=%s, start=%v, end=%v, values=%+v",
+						out.Name(), start.Unix(), end.Unix(), out.SafeValues())
+					require.FailNow(t, msg)
+				}
+			}
+		}
+	}
 }
