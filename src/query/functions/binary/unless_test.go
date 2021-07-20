@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -246,7 +247,7 @@ func TestUnless(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			test.EqualsWithNans(t, tt.expected, sink.Values)
+			compare.EqualsWithNans(t, tt.expected, sink.Values)
 			meta := sink.Meta
 			assert.Equal(t, 0, meta.Tags.Len())
 			assert.True(t, meta.Bounds.Equals(bounds))

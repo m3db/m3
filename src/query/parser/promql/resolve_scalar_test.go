@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,7 +82,7 @@ func TestScalarResolver(t *testing.T) {
 			actual, err := resolveScalarArgument(expr)
 
 			require.NoError(t, err)
-			test.EqualsWithNans(t, tt.expected, actual)
+			compare.EqualsWithNans(t, tt.expected, actual)
 		})
 	}
 }

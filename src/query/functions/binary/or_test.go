@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -94,7 +95,7 @@ func TestOrWithSomeValues(t *testing.T) {
 	// NAN values should be filled
 	expected := values1
 
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func generateMetaDataWithTagsInRange(
@@ -296,7 +297,7 @@ func TestOrs(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			test.EqualsWithNans(t, tt.expected, sink.Values)
+			compare.EqualsWithNans(t, tt.expected, sink.Values)
 			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})
 	}
@@ -406,7 +407,7 @@ func TestOrCombinedMetadata(t *testing.T) {
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 	require.NoError(t, err)
 
-	test.EqualsWithNans(t, [][]float64{
+	compare.EqualsWithNans(t, [][]float64{
 		{1, 2}, {10, 20}, {3, 4}, {30, 40},
 	}, sink.Values)
 

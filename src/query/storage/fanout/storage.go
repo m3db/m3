@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/execution"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -53,7 +53,7 @@ type fanoutStorage struct {
 	writeFilter        filter.Storage
 	completeTagsFilter filter.StorageCompleteTags
 	tagOptions         models.TagOptions
-	opts               m3db.Options
+	opts               m3.Options
 	instrumentOpts     instrument.Options
 }
 
@@ -64,7 +64,7 @@ func NewStorage(
 	writeFilter filter.Storage,
 	completeTagsFilter filter.StorageCompleteTags,
 	tagOptions models.TagOptions,
-	opts m3db.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) storage.Storage {
 	return &fanoutStorage{
