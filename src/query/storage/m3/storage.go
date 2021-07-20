@@ -203,7 +203,7 @@ func (s *m3storage) FetchBlocks(
 	opts := s.opts.SetLookbackDuration(
 		options.LookbackDurationOrDefault(s.opts.LookbackDuration()))
 
-	result, _, err := s.FetchCompressed(ctx, query, options)
+	result, _, err := s.FetchCompressedResult(ctx, query, options)
 	if err != nil {
 		return block.Result{
 			Metadata: block.NewResultMetadata(),
@@ -214,6 +214,16 @@ func (s *m3storage) FetchBlocks(
 }
 
 func (s *m3storage) FetchCompressed(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (consolidators.MultiFetchResult, error) {
+	queryOptions, _ := storage.FetchOptionsToM3Options(options, query)
+	accumulator, _, err := s.fetchCompressed(ctx, query, options, queryOptions)
+	return accumulator, err
+}
+
+func (s *m3storage) FetchCompressedResult(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -383,7 +393,12 @@ func (s *m3storage) fetchCompressed(
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			result.Add(iters, blockMeta, namespace.Options().Attributes(), err)
+			result.Add(consolidators.MultiFetchResults{
+				SeriesIterators: iters,
+				Metadata:        blockMeta,
+				Attrs:           namespace.Options().Attributes(),
+				Err:             err,
+			})
 		}()
 	}
 

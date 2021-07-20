@@ -55,6 +55,8 @@ type multiResult struct {
 	tagOpts         models.TagOptions
 	limitOpts       LimitOptions
 
+	all []MultiFetchResults
+
 	pools encoding.IteratorPools
 }
 
@@ -186,16 +188,23 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	return NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
 }
 
-func (r *multiResult) Add(
-	newIterators encoding.SeriesIterators,
-	metadata block.ResultMetadata,
-	attrs storagemetadata.Attributes,
-	err error,
-) {
+func (r *multiResult) Results() []MultiFetchResults {
+	r.Lock()
+	defer r.Unlock()
+	return r.all
+}
+
+func (r *multiResult) Add(add MultiFetchResults) {
+	newIterators := add.SeriesIterators
+	metadata := add.Metadata
+	attrs := add.Attrs
+
 	r.Lock()
 	defer r.Unlock()
 
-	if err != nil {
+	r.all = append(r.all, add)
+
+	if err := add.Err; err != nil {
 		r.err = r.err.Add(err)
 		return
 	}
@@ -204,7 +213,10 @@ func (r *multiResult) Add(
 		return
 	}
 
-	nsID := newIterators.Iters()[0].Namespace().String()
+	nsID := ""
+	if newIterators.Iters()[0].Namespace() != nil {
+		nsID = newIterators.Iters()[0].Namespace().String() // sometimes the namespace ID is empty
+	}
 
 	// the series limit was reached within this namespace.
 	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
@@ -215,17 +227,18 @@ func (r *multiResult) Add(
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
-		r.metadata = metadata
-	} else {
+	} else if !r.metadata.Exhaustive {
 		// a previous namespace result already hit the limit, so bail. this handles the case of RequireExhaustive=false
 		// and there is no error to short circuit.
-		if !r.metadata.Exhaustive {
-			return
-		}
-		// NB: any non-exhaustive result set added makes the entire
-		// result non-exhaustive
-		r.metadata = r.metadata.CombineMetadata(metadata)
+		return
 	}
+
+	// NB: any non-exhaustive result set added makes the entire
+	// result non-exhaustive
+	// Note: must never override metadata and always use CombineMetadata
+	// in case warnings were first set with call to AddWarnings(..) and
+	// then must be combined before first result is ever set.
+	r.metadata = r.metadata.CombineMetadata(metadata)
 
 	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
@@ -265,6 +278,12 @@ func (r *multiResult) Add(
 				NewLimitError(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
 		}
 	}
+}
+
+func (r *multiResult) AddWarnings(warnings ...block.Warning) {
+	r.Lock()
+	defer r.Unlock()
+	r.metadata.AddWarnings(warnings...)
 }
 
 // NewLimitError returns a limit error so that it's the same type as the query
