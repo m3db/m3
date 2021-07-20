@@ -150,26 +150,31 @@ func (s *fanoutStorage) FetchProm(
 			defer mu.Unlock()
 
 			if err != nil {
-				if warning, err := storage.IsWarning(store, err); warning {
-					accumulator.AddWarnings(block.Warning{
-						Name:    store.Name(),
-						Message: fetchDataWarningError,
-					})
-					numWarning++
-					s.instrumentOpts.Logger().Warn(
-						"partial results: fanout to store returned warning",
+				warning, err := storage.IsWarning(store, err)
+				if !warning {
+					multiErr = multiErr.Add(err)
+					s.instrumentOpts.Logger().Error(
+						"fanout to store returned error",
 						zap.Error(err),
 						zap.String("store", store.Name()),
 						zap.String("function", "FetchProm"))
 					return
 				}
 
-				multiErr = multiErr.Add(err)
-				s.instrumentOpts.Logger().Error(
-					"fanout to store returned error",
+				// Is warning, add to accumulator but also process any results.
+				accumulator.AddWarnings(block.Warning{
+					Name:    store.Name(),
+					Message: fetchDataWarningError,
+				})
+				numWarning++
+				s.instrumentOpts.Logger().Warn(
+					"partial results: fanout to store returned warning",
 					zap.Error(err),
 					zap.String("store", store.Name()),
 					zap.String("function", "FetchProm"))
+			}
+
+			if storeResult == nil {
 				return
 			}
 
