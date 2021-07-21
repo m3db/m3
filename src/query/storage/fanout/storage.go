@@ -31,10 +31,10 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/util/execution"
@@ -53,6 +53,7 @@ type fanoutStorage struct {
 	writeFilter        filter.Storage
 	completeTagsFilter filter.StorageCompleteTags
 	tagOptions         models.TagOptions
+	opts               m3.Options
 	instrumentOpts     instrument.Options
 }
 
@@ -63,6 +64,7 @@ func NewStorage(
 	writeFilter filter.Storage,
 	completeTagsFilter filter.StorageCompleteTags,
 	tagOptions models.TagOptions,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) storage.Storage {
 	return &fanoutStorage{
@@ -71,6 +73,7 @@ func NewStorage(
 		writeFilter:        writeFilter,
 		completeTagsFilter: completeTagsFilter,
 		tagOptions:         tagOptions,
+		opts:               opts,
 		instrumentOpts:     instrumentOpts,
 	}
 }
@@ -120,47 +123,64 @@ func (s *fanoutStorage) FetchProm(
 		wg         sync.WaitGroup
 		multiErr   xerrors.MultiError
 		numWarning int
-		series     []*prompb.TimeSeries
 	)
 
 	wg.Add(len(stores))
-	resultMeta := block.NewResultMetadata()
+
+	fanout := consolidators.NamespaceCoversAllQueryRange
+	pools := s.opts.IteratorPools()
+	matchOpts := s.opts.SeriesConsolidationMatchOptions()
+	tagOpts := s.opts.TagOptions()
+	limitOpts := consolidators.LimitOptions{
+		Limit:             options.SeriesLimit,
+		RequireExhaustive: options.RequireExhaustive,
+	}
+	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
+	defer func() {
+		_ = accumulator.Close()
+	}()
 	for _, store := range stores {
 		store := store
 		go func() {
 			defer wg.Done()
-			result, err := store.FetchProm(ctx, query, options)
+
+			storeResult, err := store.FetchCompressed(ctx, query, options)
+
 			mu.Lock()
 			defer mu.Unlock()
 
 			if err != nil {
-				if warning, err := storage.IsWarning(store, err); warning {
-					resultMeta.AddWarning(store.Name(), fetchDataWarningError)
-					numWarning++
-					s.instrumentOpts.Logger().Warn(
-						"partial results: fanout to store returned warning",
+				warning, err := storage.IsWarning(store, err)
+				if !warning {
+					multiErr = multiErr.Add(err)
+					s.instrumentOpts.Logger().Error(
+						"fanout to store returned error",
 						zap.Error(err),
 						zap.String("store", store.Name()),
 						zap.String("function", "FetchProm"))
 					return
 				}
 
-				multiErr = multiErr.Add(err)
-				s.instrumentOpts.Logger().Error(
-					"fanout to store returned error",
+				// Is warning, add to accumulator but also process any results.
+				accumulator.AddWarnings(block.Warning{
+					Name:    store.Name(),
+					Message: fetchDataWarningError,
+				})
+				numWarning++
+				s.instrumentOpts.Logger().Warn(
+					"partial results: fanout to store returned warning",
 					zap.Error(err),
 					zap.String("store", store.Name()),
 					zap.String("function", "FetchProm"))
+			}
+
+			if storeResult == nil {
 				return
 			}
 
-			if series == nil {
-				series = result.PromResult.GetTimeseries()
-			} else {
-				series = append(series, result.PromResult.GetTimeseries()...)
+			for _, r := range storeResult.Results() {
+				accumulator.Add(r)
 			}
-
-			resultMeta = resultMeta.CombineMetadata(result.Metadata)
 		}()
 	}
 
@@ -176,12 +196,84 @@ func (s *fanoutStorage) FetchProm(
 		return storage.PromResult{}, errors.ErrNoValidResults
 	}
 
-	return storage.PromResult{
-		Metadata: resultMeta,
-		PromResult: &prompb.QueryResult{
-			Timeseries: series,
-		},
-	}, nil
+	result, attrs, err := accumulator.FinalResultWithAttrs()
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
+	resolutions := make([]time.Duration, 0, len(attrs))
+	for _, attr := range attrs {
+		resolutions = append(resolutions, attr.Resolution)
+	}
+
+	result.Metadata.Resolutions = resolutions
+	return storage.SeriesIteratorsToPromResult(ctx, result,
+		s.opts.ReadWorkerPool(), s.opts.TagOptions())
+}
+
+func (s *fanoutStorage) FetchCompressed(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (consolidators.MultiFetchResult, error) {
+	stores := filterStores(s.stores, s.fetchFilter, query)
+	// Optimization for the single store case
+	if len(stores) == 1 {
+		return stores[0].FetchCompressed(ctx, query, options)
+	}
+
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+	)
+
+	wg.Add(len(stores))
+
+	fanout := consolidators.NamespaceCoversAllQueryRange
+	pools := s.opts.IteratorPools()
+	matchOpts := s.opts.SeriesConsolidationMatchOptions()
+	tagOpts := s.opts.TagOptions()
+	limitOpts := consolidators.LimitOptions{
+		Limit:             options.SeriesLimit,
+		RequireExhaustive: options.RequireExhaustive,
+	}
+	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
+	defer func() {
+		_ = accumulator.Close()
+	}()
+	for _, store := range stores {
+		store := store
+		go func() {
+			defer wg.Done()
+			storeResult, err := store.FetchCompressed(ctx, query, options)
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				s.instrumentOpts.Logger().Error(
+					"fanout to store returned error",
+					zap.Error(err),
+					zap.String("store", store.Name()),
+					zap.String("function", "FetchProm"))
+				return
+			}
+
+			for _, r := range storeResult.Results() {
+				accumulator.Add(r)
+			}
+		}()
+	}
+
+	wg.Wait()
+	// NB: Check multiError first; if any hard error storages errored, the entire
+	// query must be errored.
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return accumulator, nil
 }
 
 func (s *fanoutStorage) FetchBlocks(
@@ -210,7 +302,9 @@ func (s *fanoutStorage) FetchBlocks(
 		store := store
 		go func() {
 			defer wg.Done()
+
 			result, err := store.FetchBlocks(ctx, query, options)
+
 			mu.Lock()
 			defer mu.Unlock()
 

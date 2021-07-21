@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
 	"github.com/m3db/m3/src/query/ts"
@@ -134,7 +135,7 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 				err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 				require.NoError(t, err)
 
-				test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
+				compare.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
 				metaOne := block.SeriesMeta{
 					Name: []byte("{t1=\"v1\"}"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{

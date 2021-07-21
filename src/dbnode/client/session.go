@@ -290,8 +290,9 @@ func newSession(opts Options) (clientSession, error) {
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{
-			context: opts.ContextPool(),
-			id:      opts.IdentifierPool(),
+			context:      opts.ContextPool(),
+			checkedBytes: opts.CheckedBytesPool(),
+			id:           opts.IdentifierPool(),
 		},
 		writeShardsInitializing:              opts.WriteShardsInitializing(),
 		shardsLeavingCountTowardsConsistency: opts.ShardsLeavingCountTowardsConsistency(),
@@ -1290,8 +1291,6 @@ func (s *session) writeAttemptWithRLock(
 	// use in the various queues. Tracking per writeAttempt isn't sufficient as
 	// we may enqueue multiple writeStates concurrently depending on retries
 	// and consistency level checks.
-	nsID := s.cloneFinalizable(namespace)
-	tsID := s.cloneFinalizable(id)
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
@@ -1299,6 +1298,19 @@ func (s *session) writeAttemptWithRLock(
 			tagEncoder.Finalize()
 			return nil, 0, 0, err
 		}
+	}
+	nsID := s.cloneFinalizable(namespace)
+	tsID := s.cloneFinalizable(id)
+
+	var (
+		clonedAnnotation      checked.Bytes
+		clonedAnnotationBytes []byte
+	)
+	if len(annotation) > 0 {
+		clonedAnnotation = s.pools.checkedBytes.Get(len(annotation))
+		clonedAnnotation.IncRef()
+		clonedAnnotation.AppendAll(annotation)
+		clonedAnnotationBytes = clonedAnnotation.Bytes()
 	}
 
 	var op writeOp
@@ -1311,7 +1323,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = annotation
+		wop.request.Datapoint.Annotation = clonedAnnotationBytes
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
@@ -1328,7 +1340,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = annotation
+		wop.request.Datapoint.Annotation = clonedAnnotationBytes
 		wop.requestV2.ID = wop.request.ID
 		wop.requestV2.EncodedTags = wop.request.EncodedTags
 		wop.requestV2.Datapoint = wop.request.Datapoint
@@ -1346,7 +1358,7 @@ func (s *session) writeAttemptWithRLock(
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
-	state.nsID, state.tsID, state.tagEncoder = nsID, tsID, tagEncoder
+	state.nsID, state.tsID, state.tagEncoder, state.annotation = nsID, tsID, tagEncoder, clonedAnnotation
 	op.SetCompletionFn(state.completionFn)
 
 	if err := s.state.topoMap.RouteForEach(tsID, func(

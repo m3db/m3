@@ -18,19 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package m3
 
 import (
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/ts"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/test/compare"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
@@ -68,7 +68,7 @@ func TestSeriesIterator(t *testing.T) {
 				actual = append(actual, v.Value)
 			}
 
-			test.EqualsWithNans(t, expected[j], actual)
+			compare.EqualsWithNans(t, expected[j], actual)
 			j++
 		}
 
@@ -129,7 +129,7 @@ func TestSeriesIteratorBatch(t *testing.T) {
 					actual = append(actual, v.Value)
 				}
 
-				test.EqualsWithNans(t, expected[i], actual)
+				compare.EqualsWithNans(t, expected[i], actual)
 				count++
 			}
 
