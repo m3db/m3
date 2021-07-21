@@ -1751,6 +1751,12 @@ func (n *dbNamespace) Close() error {
 	n.Unlock()
 	n.namespaceReaderMgr.close()
 	n.closeShards(shards, true)
+	if retriever := n.blockRetriever; retriever != nil {
+		if err := retriever.Close(); err != nil {
+			n.log.Error("error when closing blockRetriever",
+				zap.Error(err), zap.Stringer("namespace", n.id))
+		}
+	}
 	close(n.shutdownCh)
 	if n.reverseIndex != nil {
 		return n.reverseIndex.Close()
