@@ -24,8 +24,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/query/test"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/query/test/compare"
 )
 
 type funcTest struct {
@@ -156,7 +157,7 @@ func TestAggFns(t *testing.T) {
 				for i, bucket := range tt.buckets {
 					actual := function.fn(tt.values, bucket)
 					expected := function.expected[i]
-					test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
+					compare.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
 				}
 			})
 		}

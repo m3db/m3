@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,7 @@ func TestClampMin(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Max)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestClampMax(t *testing.T) {
@@ -86,7 +87,7 @@ func TestClampMax(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Min)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestClampFailsParse(t *testing.T) {
@@ -126,8 +127,8 @@ func TestClampWithArgs(t *testing.T) {
 	)
 
 	max := runClamp(t, toArgs(2), ClampMaxType, v)
-	test.EqualsWithNans(t, exMax, max)
+	compare.EqualsWithNans(t, exMax, max)
 
 	min := runClamp(t, toArgs(2), ClampMinType, v)
-	test.EqualsWithNans(t, exMin, min)
+	compare.EqualsWithNans(t, exMin, min)
 }

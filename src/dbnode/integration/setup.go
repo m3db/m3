@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -164,6 +165,7 @@ type TestSetup interface {
 	Origin() topology.Host
 	ServerIsBootstrapped() bool
 	StopServer() error
+	StopServerAndVerifyOpenFilesAreClosed() error
 	StartServer() error
 	StartServerDontWaitBootstrap() error
 	NowFn() xNowFn
@@ -812,6 +814,29 @@ func (ts *testSetup) StopServer() error {
 	// Wait for graceful server close
 	<-ts.closedCh
 	return nil
+}
+
+func (ts *testSetup) StopServerAndVerifyOpenFilesAreClosed() error {
+	if err := ts.DB().Close(); err != nil {
+		return err
+	}
+
+	openDataFiles := openFiles(ts.filePathPrefix + "/data/")
+	require.Empty(ts.t, openDataFiles)
+
+	return ts.StopServer()
+}
+
+// counts open/locked files inside parent dir.
+func openFiles(parentDir string) []string {
+	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
+
+	out, _ := cmd.Output()
+	if len(out) == 0 {
+		return nil
+	}
+
+	return strings.Split(string(out), "\n")
 }
 
 func (ts *testSetup) TChannelClient() *TestTChannelClient {

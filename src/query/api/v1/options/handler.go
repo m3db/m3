@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -220,9 +219,9 @@ type HandlerOptions interface {
 	SetGraphiteRenderFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions
 
 	// SetM3DBOptions sets the M3DB options.
-	SetM3DBOptions(value m3db.Options) HandlerOptions
+	SetM3DBOptions(value m3.Options) HandlerOptions
 	// M3DBOptions returns the M3DB options.
-	M3DBOptions() m3db.Options
+	M3DBOptions() m3.Options
 
 	// SetStoreMetricsType enables/disables storing of metrics type.
 	SetStoreMetricsType(value bool) HandlerOptions
@@ -270,7 +269,7 @@ type handlerOptions struct {
 	graphiteStorageOpts               graphite.M3WrappedStorageOptions
 	graphiteFindFetchOptionsBuilder   handleroptions.FetchOptionsBuilder
 	graphiteRenderFetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	m3dbOpts                          m3db.Options
+	m3dbOpts                          m3.Options
 	namespaceValidator                NamespaceValidator
 	storeMetricsType                  bool
 	kvStoreProtoParser                KVStoreProtoParser
@@ -282,7 +281,7 @@ func EmptyHandlerOptions() HandlerOptions {
 	return &handlerOptions{
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
-		m3dbOpts:       m3db.NewOptions(),
+		m3dbOpts:       m3.NewOptions(),
 	}
 }
 
@@ -307,7 +306,7 @@ func NewHandlerOptions(
 	queryRouter QueryRouter,
 	instantQueryRouter QueryRouter,
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
-	m3dbOpts m3db.Options,
+	m3dbOpts m3.Options,
 ) (HandlerOptions, error) {
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
@@ -593,13 +592,13 @@ func (o *handlerOptions) SetGraphiteRenderFetchOptionsBuilder(value handleroptio
 	return &opts
 }
 
-func (o *handlerOptions) SetM3DBOptions(value m3db.Options) HandlerOptions {
+func (o *handlerOptions) SetM3DBOptions(value m3.Options) HandlerOptions {
 	opts := *o
 	opts.m3dbOpts = value
 	return &opts
 }
 
-func (o *handlerOptions) M3DBOptions() m3db.Options {
+func (o *handlerOptions) M3DBOptions() m3.Options {
 	return o.m3dbOpts
 }
 

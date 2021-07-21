@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -61,7 +62,7 @@ func TestSortAscInstant(t *testing.T) {
 	}
 
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 }
 
 func TestSortDescInstant(t *testing.T) {
@@ -83,7 +84,7 @@ func TestSortDescInstant(t *testing.T) {
 	}
 
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 }
 
 func TestSortNop(t *testing.T) {
@@ -95,7 +96,7 @@ func TestSortNop(t *testing.T) {
 	expected := v
 
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 }
 
 var (

@@ -45,8 +45,6 @@ import (
 )
 
 var (
-	testAnnotations = make(map[metric.Type][]byte)
-
 	testStagedMetadatas = metadata.StagedMetadatas{
 		{
 			CutoverNanos: 0,
@@ -134,12 +132,6 @@ var (
 	}
 )
 
-func init() {
-	for _, t := range metric.ValidTypes {
-		testAnnotations[t] = []byte(fmt.Sprintf("%v annotation", t))
-	}
-}
-
 func generateTestIDs(prefix string, numIDs int) []string {
 	ids := make([]string, numIDs)
 	for i := 0; i < numIDs; i++ {
@@ -203,7 +195,7 @@ func generateTestUntimedMetric(
 	valueGenOpts untimedValueGenOpts,
 ) (metricUnion, error) {
 	mu := metricUnion{category: untimedMetric}
-	annotation := testAnnotations[metricType]
+	annotation := generateAnnotation(metricType, idIdx)
 	switch metricType {
 	case metric.CounterType:
 		mu.untimed = unaggregated.MetricUnion{
@@ -246,7 +238,7 @@ func generateTestTimedMetric(
 			ID:         metricid.RawID(id),
 			TimeNanos:  timeNanos,
 			Value:      valueGenOpts.timedValueGenFn(intervalIdx, idIdx),
-			Annotation: testAnnotations[metricType],
+			Annotation: generateAnnotation(metricType, idIdx),
 		},
 	}
 }
@@ -265,7 +257,7 @@ func generateTestPassthroughMetric(
 			ID:         metricid.RawID(id),
 			TimeNanos:  timeNanos,
 			Value:      valueGenOpts.passthroughValueGenFn(intervalIdx, idIdx),
-			Annotation: testAnnotations[metricType],
+			Annotation: generateAnnotation(metricType, idIdx),
 		},
 	}
 }
@@ -284,9 +276,13 @@ func generateTestForwardedMetric(
 			ID:         metricid.RawID(id),
 			TimeNanos:  timeNanos,
 			Values:     valueGenOpts.forwardedValueGenFn(intervalIdx, idIdx),
-			Annotation: testAnnotations[metricType],
+			Annotation: generateAnnotation(metricType, idIdx),
 		},
 	}
+}
+
+func generateAnnotation(typ metric.Type, idx int) []byte {
+	return []byte(fmt.Sprintf("%v annotation, idx=%v", typ.String(), idx))
 }
 
 func mustComputeExpectedResults(

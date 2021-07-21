@@ -37,8 +37,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	querystorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -50,7 +50,7 @@ var errSeriesNoResolution = errors.New("series has no resolution set")
 
 type m3WrappedStore struct {
 	m3             storage.Storage
-	m3dbOpts       m3db.Options
+	m3dbOpts       m3.Options
 	instrumentOpts instrument.Options
 	opts           M3WrappedStorageOptions
 }
@@ -80,7 +80,7 @@ type seriesMetadata struct {
 // storage instance.
 func NewM3WrappedStorage(
 	m3storage storage.Storage,
-	m3dbOpts m3db.Options,
+	m3dbOpts m3.Options,
 	instrumentOpts instrument.Options,
 	opts M3WrappedStorageOptions,
 ) Storage {
@@ -293,7 +293,7 @@ func translateTimeseries(
 	ctx xctx.Context,
 	result block.Result,
 	start, end time.Time,
-	m3dbOpts m3db.Options,
+	m3dbOpts m3.Options,
 	truncateOpts truncateBoundsToResolutionOptions,
 ) ([]*ts.Series, error) {
 	if len(result.Blocks) == 0 {
@@ -333,7 +333,7 @@ func translateTimeseries(
 		resultsLock sync.Mutex
 	)
 	processor := m3dbOpts.BlockSeriesProcessor()
-	err = processor.Process(bl, m3dbOpts, m3db.BlockSeriesProcessorFn(func(
+	err = processor.Process(bl, m3dbOpts, m3.BlockSeriesProcessorFn(func(
 		iter block.SeriesIter,
 	) error {
 		series, err := translateTimeseriesFromIter(ctx, iter,
