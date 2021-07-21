@@ -76,11 +76,13 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	multiServerSetup := []struct {
 		rawTCPAddr     string
 		httpAddr       string
+		m3MsgAddr      string
 		instanceConfig placementInstanceConfig
 	}{
 		{
-			rawTCPAddr: "localhost:6000",
-			httpAddr:   "localhost:16000",
+			m3MsgAddr:  "localhost:6000",
+			rawTCPAddr: "localhost:16000",
+			httpAddr:   "localhost:26000",
 			instanceConfig: placementInstanceConfig{
 				instanceID:          "localhost:6000",
 				shardSetID:          1,
@@ -89,8 +91,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			},
 		},
 		{
-			rawTCPAddr: "localhost:6001",
-			httpAddr:   "localhost:16001",
+			m3MsgAddr:  "localhost:6001",
+			rawTCPAddr: "localhost:16001",
+			httpAddr:   "localhost:26001",
 			instanceConfig: placementInstanceConfig{
 				instanceID:          "localhost:6001",
 				shardSetID:          1,
@@ -99,8 +102,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			},
 		},
 		{
-			rawTCPAddr: "localhost:6002",
-			httpAddr:   "localhost:16002",
+			m3MsgAddr:  "localhost:6002",
+			rawTCPAddr: "localhost:16002",
+			httpAddr:   "localhost:26002",
 			instanceConfig: placementInstanceConfig{
 				instanceID:          "localhost:6002",
 				shardSetID:          2,
@@ -109,8 +113,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			},
 		},
 		{
-			rawTCPAddr: "localhost:6003",
-			httpAddr:   "localhost:16003",
+			m3MsgAddr:  "localhost:6003",
+			rawTCPAddr: "localhost:16003",
+			httpAddr:   "localhost:26003",
 			instanceConfig: placementInstanceConfig{
 				instanceID:          "localhost:6003",
 				shardSetID:          2,
@@ -159,10 +164,12 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
+			SetRawTCPAddr(mss.rawTCPAddr).
 			SetHTTPAddr(mss.httpAddr).
+			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(mss.instanceConfig.instanceID).
 			SetKVStore(kvStore).
-			SetRawTCPAddr(mss.rawTCPAddr).
+			SetPlacement(initPlacement).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
 			SetClientConnectionOptions(connectionOpts).
@@ -321,15 +328,15 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		time.Sleep(time.Second)
 	}
 
+	// Stop the clients.
+	for _, client := range clients {
+		client.close()
+	}
+
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
-	}
-
-	// Stop the clients.
-	for _, client := range clients {
-		client.close()
 	}
 
 	// Validate results.

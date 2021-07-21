@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
@@ -36,6 +37,7 @@ import (
 const (
 	defaultRawTCPAddr                 = "localhost:6000"
 	defaultHTTPAddr                   = "localhost:6001"
+	defaultM3MsgAddr                  = "localhost:6002"
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
 	defaultWorkerPoolSize             = 4
@@ -81,6 +83,12 @@ type testServerOptions interface {
 	// HTTPAddr returns the http server address.
 	HTTPAddr() string
 
+	// SetM3MsgAddr sets the M3msg server address.
+	SetM3MsgAddr(value string) testServerOptions
+
+	// M3MsgAddr returns the M3msg server address.
+	M3MsgAddr() string
+
 	// SetInstanceID sets the instance id.
 	SetInstanceID(value string) testServerOptions
 
@@ -110,6 +118,12 @@ type testServerOptions interface {
 
 	// ShardFn returns the sharding function.
 	ShardFn() sharding.ShardFn
+
+	// SetPlacement sets the placement.
+	SetPlacement(value placement.Placement) testServerOptions
+
+	// Placement returns the placement.
+	Placement() placement.Placement
 
 	// SetPlacementKVKey sets the placement kv key.
 	SetPlacementKVKey(value string) testServerOptions
@@ -197,11 +211,13 @@ type serverOptions struct {
 	aggTypesOpts                aggregation.TypesOptions
 	rawTCPAddr                  string
 	httpAddr                    string
+	m3MsgAddr                   string
 	instanceID                  string
 	electionKeyFmt              string
 	electionCluster             *testCluster
 	shardSetID                  uint32
 	shardFn                     sharding.ShardFn
+	placement                   placement.Placement
 	placementKVKey              string
 	flushTimesKeyFmt            string
 	kvStore                     kv.Store
@@ -225,6 +241,7 @@ func newTestServerOptions() testServerOptions {
 	return &serverOptions{
 		rawTCPAddr:                  defaultRawTCPAddr,
 		httpAddr:                    defaultHTTPAddr,
+		m3MsgAddr:                   defaultM3MsgAddr,
 		clockOpts:                   clock.NewOptions(),
 		instrumentOpts:              instrument.NewOptions(),
 		aggTypesOpts:                aggTypesOpts,
@@ -232,6 +249,7 @@ func newTestServerOptions() testServerOptions {
 		electionKeyFmt:              defaultElectionKeyFmt,
 		shardSetID:                  defaultShardSetID,
 		shardFn:                     sharding.Murmur32Hash.MustShardFn(),
+		placement:                   nil,
 		placementKVKey:              defaultPlacementKVKey,
 		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
 		kvStore:                     mem.NewStore(),
@@ -294,6 +312,16 @@ func (o *serverOptions) SetHTTPAddr(value string) testServerOptions {
 	return &opts
 }
 
+func (o *serverOptions) M3MsgAddr() string {
+	return o.m3MsgAddr
+}
+
+func (o *serverOptions) SetM3MsgAddr(value string) testServerOptions {
+	opts := *o
+	opts.m3MsgAddr = value
+	return &opts
+}
+
 func (o *serverOptions) HTTPAddr() string {
 	return o.httpAddr
 }
@@ -346,6 +374,16 @@ func (o *serverOptions) SetShardFn(value sharding.ShardFn) testServerOptions {
 
 func (o *serverOptions) ShardFn() sharding.ShardFn {
 	return o.shardFn
+}
+
+func (o *serverOptions) SetPlacement(value placement.Placement) testServerOptions {
+	opts := *o
+	opts.placement = value
+	return &opts
+}
+
+func (o *serverOptions) Placement() placement.Placement {
+	return o.placement
 }
 
 func (o *serverOptions) SetPlacementKVKey(value string) testServerOptions {
