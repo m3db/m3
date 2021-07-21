@@ -409,6 +409,8 @@ type OnIndexSeries interface {
 	DecrementReaderWriterCount()
 
 	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
+
+	RequiresColdFlushForBlockStart(blockStart xtime.UnixNano) bool
 }
 
 // RemoveIndexedForBlockStartsResult is the result from calling

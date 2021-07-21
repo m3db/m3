@@ -1223,10 +1223,11 @@ func (s *dbShard) newShardEntry(
 			}
 			return e, true
 		},
-		Series:      newSeries,
-		Index:       uniqueIndex,
-		IndexWriter: s.reverseIndex,
-		NowFn:       s.nowFn,
+		Series:                  newSeries,
+		Index:                   uniqueIndex,
+		IndexWriter:             s.reverseIndex,
+		QueryableBlockRetriever: s,
+		NowFn:                   s.nowFn,
 	}), nil
 }
 
@@ -1559,6 +1560,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.DecrementReaderWriterCount()
 		}
 	}
+
+	// MAYBE CALL HERE
+	// s.BlockStatesSnapshot
 
 	var err error
 	// index all requested entries in batch.

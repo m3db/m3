@@ -59,6 +59,7 @@ type IndexWriter interface {
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
 	relookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
+	queryableBlockRetriever               series.QueryableBlockRetriever
 	Series                                series.DatabaseSeries
 	Index                                 uint64
 	indexWriter                           IndexWriter
@@ -83,6 +84,7 @@ type NewEntryOptions struct {
 	Series                                series.DatabaseSeries
 	Index                                 uint64
 	IndexWriter                           IndexWriter
+	QueryableBlockRetriever               series.QueryableBlockRetriever
 	NowFn                                 clock.NowFn
 }
 
@@ -97,6 +99,7 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		Series:                                opts.Series,
 		Index:                                 opts.Index,
 		indexWriter:                           opts.IndexWriter,
+		queryableBlockRetriever:               opts.QueryableBlockRetriever,
 		nowFn:                                 nowFn,
 		pendingIndexBatchSizeOne:              make([]writes.PendingIndexInsert, 1),
 		reverseIndex:                          newEntryIndexState(),
@@ -131,6 +134,17 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	isIndexed := entry.reverseIndex.indexedWithRLock(indexBlockStart)
 	entry.reverseIndex.RUnlock()
 	return isIndexed
+}
+
+// IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
+// indexed for the given index blockstart.
+func (entry *Entry) RequiresColdFlushForBlockStart(blockStart xtime.UnixNano) bool {
+	v, ok := entry.queryableBlockRetriever.BlockStatesSnapshot().UnwrapValue()
+	if !ok {
+		return false
+	}
+	coldBlocks := entry.Series.ColdFlushBlockStarts(v)
+	return coldBlocks.Contains(blockStart)
 }
 
 // IndexedOrAttemptedAny returns true if the entry has, or has been attempted to be, indexed.
