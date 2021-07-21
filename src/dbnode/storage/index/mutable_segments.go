@@ -115,7 +115,7 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		}).Counter("index-result"),
 		activeBlockGarbageCollectSegment:      activeBlockScope.Counter("gc-segment"),
 		activeBlockGarbageCollectSeries:       activeBlockScope.Counter("gc-series"),
-		activeBlockGarbageCollectEmptySegment: backgroundScope.Counter("gc-empty-segment"),
+		activeBlockGarbageCollectEmptySegment: activeBlockScope.Counter("gc-empty-segment"),
 	}
 }
 
@@ -727,6 +727,8 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	if empty {
 		m.metrics.activeBlockGarbageCollectEmptySegment.Inc(1)
 	} else {
+		m.metrics.activeBlockGarbageCollectSegment.Inc(1)
+
 		// Add a read through cache for repeated expensive queries against
 		// background compacted segments since they can live for quite some
 		// time and accrue a large set of documents.
