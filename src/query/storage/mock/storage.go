@@ -93,6 +93,11 @@ func NewMockStorage() Storage {
 	return &mockStorage{}
 }
 
+func (s *mockStorage) FetchCompressed(ctx context.Context,
+	query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
+	panic("implement me")
+}
+
 func (s *mockStorage) SetTypeResult(result storage.Type) {
 	s.Lock()
 	defer s.Unlock()

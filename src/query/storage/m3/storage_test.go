@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/sync"
@@ -130,7 +129,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	tagOpts := models.NewTagOptions().SetMetricName([]byte("name"))
-	opts := m3db.NewOptions().
+	opts := NewOptions().
 		SetWriteWorkerPool(writePool).
 		SetLookbackDuration(time.Minute).
 		SetTagOptions(tagOpts)
@@ -883,7 +882,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 }
 
 func TestInvalidBlockTypes(t *testing.T) {
-	opts := m3db.NewOptions()
+	opts := NewOptions()
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
 	require.NoError(t, err)
 

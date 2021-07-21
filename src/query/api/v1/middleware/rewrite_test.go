@@ -215,6 +215,10 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					// query, potentially.
 					require.Equal(t, params.Encode(), string(body))
 				}
+
+				if r.Method == "GET" {
+					require.Equal(t, http.NoBody, r.Body)
+				}
 			}))
 			path := "/query_range"
 			if tt.instant {

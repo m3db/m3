@@ -41,8 +41,8 @@ import (
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	m3storage "github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -55,7 +55,7 @@ import (
 var (
 	// Created by init().
 	testWorkerPool            xsync.PooledWorkerPool
-	testM3DBOpts              = m3db.NewOptions()
+	testM3DBOpts              = m3storage.NewOptions()
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}

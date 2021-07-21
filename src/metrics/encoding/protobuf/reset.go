@@ -124,6 +124,7 @@ func resetCounter(pb *metricpb.Counter) {
 	}
 	pb.Id = pb.Id[:0]
 	pb.Value = 0
+	pb.Annotation = pb.Annotation[:0]
 }
 
 func resetBatchTimer(pb *metricpb.BatchTimer) {
@@ -132,6 +133,7 @@ func resetBatchTimer(pb *metricpb.BatchTimer) {
 	}
 	pb.Id = pb.Id[:0]
 	pb.Values = pb.Values[:0]
+	pb.Annotation = pb.Annotation[:0]
 }
 
 func resetGauge(pb *metricpb.Gauge) {
@@ -140,6 +142,7 @@ func resetGauge(pb *metricpb.Gauge) {
 	}
 	pb.Id = pb.Id[:0]
 	pb.Value = 0.0
+	pb.Annotation = pb.Annotation[:0]
 }
 
 func resetForwardedMetric(pb *metricpb.ForwardedMetric) {
