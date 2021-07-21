@@ -841,6 +841,31 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// i.e. we have the block and the inserts, perform the writes.
 	result, err := i.activeBlock.WriteBatch(batch)
 
+	// warmBatch := index.NewWriteBatch(...)
+	// coldBatch := index.NewWriteBatch(...)
+
+	// for _, entry := range batch.PendingEntries() {
+	// 	if entry.OnIndexSeries.HasColdBlockStart(blockStart) {
+	// 		// Has cold data for this block start, should be a cold indexing step.
+	// 		coldBatch.Append(...)
+	// 		continue
+	// 	}
+
+	// 	// No cold data for this block start, should be a warm indexing step.
+	// 	warmBatch.Append(...)
+	// }
+
+	// if !coldBatch.IsEmpty() {
+	// 	// i.e. we have the block and the inserts, perform the writes.
+	// 	blockResult, err := i.ensureBlockPresent(blockStart)
+	// 	result, err := blockResult.block.WriteColdBatch(coldBatch)
+	// }
+
+	// if !warmBatch.IsEmpty() {
+	// 	// i.e. we have the block and the inserts, perform the writes.
+	// 	result, err := i.activeBlock.WriteBatch(warmBatch)
+	// }
+
 	// Record the end to end indexing latency.
 	now := i.nowFn()
 	for idx := range pending {
