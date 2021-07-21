@@ -19,6 +19,60 @@ Once a namespace has finished bootstrapping, you must mark it as ready before re
 {{% /tab %}}
 {{< /tabs >}}
 
+### View Details of a Namespace
+
+You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}services/m3db/namespace_ endpoint
+
+{{< tabs name="check_namespaces" >}}
+{{% tab name="Command" %}}
+
+```shell
+curl {{% apiendpoint %}}services/m3db/namespace | jq .
+```
+
+{{% notice tip %}}
+Add `?debug=1` to the request to convert nano units in the output into standard units.
+{{% /notice %}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "registry": {
+    "namespaces": {
+      "default": {
+        "bootstrapEnabled": true,
+        "flushEnabled": true,
+        "writesToCommitLog": true,
+        "cleanupEnabled": true,
+        "repairEnabled": false,
+        "retentionOptions": {
+          "retentionPeriodNanos": "43200000000000",
+          "blockSizeNanos": "1800000000000",
+          "bufferFutureNanos": "120000000000",
+          "bufferPastNanos": "600000000000",
+          "blockDataExpiry": true,
+          "blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+          "futureRetentionPeriodNanos": "0"
+        },
+        "snapshotEnabled": true,
+        "indexOptions": {
+          "enabled": true,
+          "blockSizeNanos": "1800000000000"
+        },
+        "schemaOptions": null,
+        "coldWritesEnabled": false,
+        "runtimeOptions": null
+      }
+    }
+  }
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
 ### Replication factor
 
 We recommend a replication factor of **3**, with each replica spread across failure domains such as a physical server rack, data center or availability zone. Read our [replication factor recommendations](/docs/operational_guide/replication_and_deployment_in_zones) for more details.
