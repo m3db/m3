@@ -101,7 +101,7 @@ func main() {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), "-checkpoint.db") {
 			return err
 		}
-		logger.Info(path)
+		fmt.Printf("%s - %s\n", time.Now().Local(), path)
 		pathParts := checkpointPattern.FindStringSubmatch(path)
 		if len(pathParts) != 5 {
 			return fmt.Errorf("failed to parse path %s", path)
