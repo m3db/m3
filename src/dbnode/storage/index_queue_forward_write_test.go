@@ -122,7 +122,7 @@ func setupForwardIndex(
 		lifecycle.EXPECT().OnIndexSuccess(nextTS),
 		lifecycle.EXPECT().OnIndexFinalize(nextTS),
 	)
-	lifecycle.EXPECT().RequiresColdFlushForBlockStart(gomock.Any()).Return(false).AnyTimes()
+	lifecycle.EXPECT().ColdWritesAtBlockStartExist(gomock.Any()).Return(false).AnyTimes()
 
 	if !expectAggregateQuery {
 		lifecycle.EXPECT().IndexedForBlockStart(ts).Return(true)
@@ -388,7 +388,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
 	lifecycle.EXPECT().OnIndexPrepare(next)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
-	lifecycle.EXPECT().RequiresColdFlushForBlockStart(gomock.Any()).Return(false).AnyTimes()
+	lifecycle.EXPECT().ColdWritesAtBlockStartExist(gomock.Any()).Return(false).AnyTimes()
 
 	setupMockBlock(t, activeBlock, now, id, tag, lifecycle)
 	setupMockBlock(t, activeBlock, futureStart, id, tag, lifecycle)
@@ -432,7 +432,7 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
 	lifecycle.EXPECT().OnIndexPrepare(next)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
-	lifecycle.EXPECT().RequiresColdFlushForBlockStart(gomock.Any()).Return(false).AnyTimes()
+	lifecycle.EXPECT().ColdWritesAtBlockStartExist(gomock.Any()).Return(false).AnyTimes()
 
 	setupMockBlock(t, activeBlock, now, id, tag, lifecycle)
 	setupMockBlock(t, activeBlock, futureStart, id, tag, lifecycle)

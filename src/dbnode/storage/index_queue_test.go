@@ -325,7 +325,7 @@ func setupIndex(t *testing.T,
 	lifecycleFns.EXPECT().OnIndexFinalize(ts)
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
 	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
-	lifecycleFns.EXPECT().RequiresColdFlushForBlockStart(gomock.Any()).Return(false)
+	lifecycleFns.EXPECT().ColdWritesAtBlockStartExist(gomock.Any()).Return(false)
 
 	if !expectAggregateQuery {
 		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)

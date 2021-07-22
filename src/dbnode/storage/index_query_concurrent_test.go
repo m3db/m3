@@ -176,7 +176,7 @@ func testNamespaceIndexHighConcurrentQueries(
 			IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 			Times(idsPerBlock)
 		onIndexSeries.EXPECT().
-			RequiresColdFlushForBlockStart(gomock.Any()).
+			ColdWritesAtBlockStartExist(gomock.Any()).
 			Times(idsPerBlock)
 		onIndexSeries.EXPECT().
 			IndexedForBlockStart(gomock.Any()).

@@ -75,6 +75,20 @@ func (mr *MockdatabaseBufferMockRecorder) ColdFlushBlockStarts(blockStates inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushBlockStarts", reflect.TypeOf((*MockdatabaseBuffer)(nil).ColdFlushBlockStarts), blockStates)
 }
 
+// ColdWritesAtBlockStartExist mocks base method.
+func (m *MockdatabaseBuffer) ColdWritesAtBlockStartExist(blockStart time.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdWritesAtBlockStartExist", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ColdWritesAtBlockStartExist indicates an expected call of ColdWritesAtBlockStartExist.
+func (mr *MockdatabaseBufferMockRecorder) ColdWritesAtBlockStartExist(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdWritesAtBlockStartExist", reflect.TypeOf((*MockdatabaseBuffer)(nil).ColdWritesAtBlockStartExist), blockStart)
+}
+
 // FetchBlocks mocks base method.
 func (m *MockdatabaseBuffer) FetchBlocks(ctx context.Context, starts []time.UnixNano, nsCtx namespace.Context) []block.FetchBlockResult {
 	m.ctrl.T.Helper()

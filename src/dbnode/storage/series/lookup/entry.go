@@ -59,7 +59,6 @@ type IndexWriter interface {
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
 	relookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
-	queryableBlockRetriever               series.QueryableBlockRetriever
 	Series                                series.DatabaseSeries
 	Index                                 uint64
 	indexWriter                           IndexWriter
@@ -84,7 +83,6 @@ type NewEntryOptions struct {
 	Series                                series.DatabaseSeries
 	Index                                 uint64
 	IndexWriter                           IndexWriter
-	QueryableBlockRetriever               series.QueryableBlockRetriever
 	NowFn                                 clock.NowFn
 }
 
@@ -99,7 +97,6 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		Series:                                opts.Series,
 		Index:                                 opts.Index,
 		indexWriter:                           opts.IndexWriter,
-		queryableBlockRetriever:               opts.QueryableBlockRetriever,
 		nowFn:                                 nowFn,
 		pendingIndexBatchSizeOne:              make([]writes.PendingIndexInsert, 1),
 		reverseIndex:                          newEntryIndexState(),
@@ -136,15 +133,10 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	return isIndexed
 }
 
-// RequiresColdFlushForBlockStart returns a bool to indicate
+// ColdWritesAtBlockStartExist returns a bool to indicate
 // if the Entry was written as a cold write or not.
-func (entry *Entry) RequiresColdFlushForBlockStart(blockStart xtime.UnixNano) bool {
-	v, ok := entry.queryableBlockRetriever.BlockStatesSnapshot().UnwrapValue()
-	if !ok {
-		return false
-	}
-	coldBlocks := entry.Series.ColdFlushBlockStarts(v)
-	return coldBlocks.Contains(blockStart)
+func (entry *Entry) ColdWritesAtBlockStartExist(blockStart xtime.UnixNano) bool {
+	return entry.Series.ColdWritesAtBlockStartExist(blockStart)
 }
 
 // IndexedOrAttemptedAny returns true if the entry has, or has been attempted to be, indexed.

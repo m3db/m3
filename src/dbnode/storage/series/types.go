@@ -154,6 +154,9 @@ type DatabaseSeries interface {
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
 	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
 
+	// ColdWritesAtBlockStartExist returns true if a block start has a cold bucket that's not empty.
+	ColdWritesAtBlockStartExist(blockStart xtime.UnixNano) bool
+
 	// Bootstrap will moved any bootstrapped data to buffer so series
 	// is ready for reading.
 	Bootstrap(nsCtx namespace.Context) error

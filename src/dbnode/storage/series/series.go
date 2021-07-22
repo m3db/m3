@@ -651,6 +651,13 @@ func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapsh
 	return s.buffer.ColdFlushBlockStarts(blockStates.Snapshot)
 }
 
+func (s *dbSeries) ColdWritesAtBlockStartExist(blockStart xtime.UnixNano) bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.buffer.ColdWritesAtBlockStartExist(blockStart)
+}
+
 func (s *dbSeries) Bootstrap(nsCtx namespace.Context) error {
 	// NB(r): Need to hold the lock the whole time since
 	// this needs to be consistent view for a tick to see.

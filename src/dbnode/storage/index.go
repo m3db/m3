@@ -851,7 +851,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 		doc doc.Metadata,
 		_ index.WriteBatchEntryResult,
 	) {
-		if entry.OnIndexSeries.RequiresColdFlushForBlockStart(blockStart) {
+		if entry.OnIndexSeries.ColdWritesAtBlockStartExist(blockStart) {
 			coldBatch.Append(entry, doc)
 		} else {
 			warmBatch.Append(entry, doc)

@@ -813,6 +813,20 @@ func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
 	return m.recorder
 }
 
+// ColdWritesAtBlockStartExist mocks base method.
+func (m *MockOnIndexSeries) ColdWritesAtBlockStartExist(blockStart time0.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdWritesAtBlockStartExist", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ColdWritesAtBlockStartExist indicates an expected call of ColdWritesAtBlockStartExist.
+func (mr *MockOnIndexSeriesMockRecorder) ColdWritesAtBlockStartExist(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdWritesAtBlockStartExist", reflect.TypeOf((*MockOnIndexSeries)(nil).ColdWritesAtBlockStartExist), blockStart)
+}
+
 // DecrementReaderWriterCount mocks base method.
 func (m *MockOnIndexSeries) DecrementReaderWriterCount() {
 	m.ctrl.T.Helper()
@@ -930,20 +944,6 @@ func (m *MockOnIndexSeries) RemoveIndexedForBlockStarts(blockStarts map[time0.Un
 func (mr *MockOnIndexSeriesMockRecorder) RemoveIndexedForBlockStarts(blockStarts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveIndexedForBlockStarts", reflect.TypeOf((*MockOnIndexSeries)(nil).RemoveIndexedForBlockStarts), blockStarts)
-}
-
-// RequiresColdFlushForBlockStart mocks base method.
-func (m *MockOnIndexSeries) RequiresColdFlushForBlockStart(blockStart time0.UnixNano) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RequiresColdFlushForBlockStart", blockStart)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// RequiresColdFlushForBlockStart indicates an expected call of RequiresColdFlushForBlockStart.
-func (mr *MockOnIndexSeriesMockRecorder) RequiresColdFlushForBlockStart(blockStart interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequiresColdFlushForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).RequiresColdFlushForBlockStart), blockStart)
 }
 
 // MockBlock is a mock of Block interface.

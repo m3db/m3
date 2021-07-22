@@ -1223,11 +1223,10 @@ func (s *dbShard) newShardEntry(
 			}
 			return e, true
 		},
-		Series:                  newSeries,
-		Index:                   uniqueIndex,
-		IndexWriter:             s.reverseIndex,
-		QueryableBlockRetriever: s,
-		NowFn:                   s.nowFn,
+		Series:      newSeries,
+		Index:       uniqueIndex,
+		IndexWriter: s.reverseIndex,
+		NowFn:       s.nowFn,
 	}), nil
 }
 
