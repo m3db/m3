@@ -941,6 +941,7 @@ func (b *WriteBatch) Less(i, j int) bool {
 	return blockStartI.Before(blockStartJ)
 }
 
+// Combine combines the current and new result into one.
 func (r WriteBatchResult) Combine(new WriteBatchResult) WriteBatchResult {
 	return WriteBatchResult{
 		NumSuccess:           r.NumSuccess + new.NumSuccess,
@@ -949,6 +950,7 @@ func (r WriteBatchResult) Combine(new WriteBatchResult) WriteBatchResult {
 	}
 }
 
+// Combine combines the current and new stats into one.
 func (s MutableSegmentsStats) Combine(new MutableSegmentsStats) MutableSegmentsStats {
 	return MutableSegmentsStats{
 		Foreground: s.Foreground.Combine(new.Foreground),
@@ -956,6 +958,7 @@ func (s MutableSegmentsStats) Combine(new MutableSegmentsStats) MutableSegmentsS
 	}
 }
 
+// Combine combines the current and new stats into one.
 func (s MutableSegmentsSegmentStats) Combine(new MutableSegmentsSegmentStats) MutableSegmentsSegmentStats {
 	return MutableSegmentsSegmentStats{
 		NumSegments: s.NumSegments + new.NumSegments,

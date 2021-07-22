@@ -136,8 +136,8 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	return isIndexed
 }
 
-// IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
-// indexed for the given index blockstart.
+// RequiresColdFlushForBlockStart returns a bool to indicate
+// if the Entry was written as a cold write or not.
 func (entry *Entry) RequiresColdFlushForBlockStart(blockStart xtime.UnixNano) bool {
 	v, ok := entry.queryableBlockRetriever.BlockStatesSnapshot().UnwrapValue()
 	if !ok {
