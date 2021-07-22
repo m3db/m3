@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 )
@@ -152,6 +153,11 @@ func splitFileSet(
 		logger.Fatalf("unable to open reader: %v", err)
 	}
 
+	plannedRecordsCount := uint(reader.Entries() / factor)
+	if plannedRecordsCount == 0 {
+		plannedRecordsCount = 1
+	}
+
 	for i := range writers {
 		writeOpts := fs.StreamingWriterOpenOptions{
 			NamespaceID:         ident.StringID(namespace),
@@ -159,7 +165,7 @@ func splitFileSet(
 			BlockStart:          blockStart,
 			BlockSize:           reader.Status().BlockSize,
 			VolumeIndex:         volume,
-			PlannedRecordsCount: uint(reader.Entries() / factor),
+			PlannedRecordsCount: plannedRecordsCount,
 		}
 		if err := writers[i].Open(writeOpts); err != nil {
 			return 0, err
