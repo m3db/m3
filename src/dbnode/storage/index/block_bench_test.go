@@ -137,3 +137,6 @@ func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool { return false }
 func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
 	return m, false
 }
+func (m mockOnIndexSeries) RequiresColdFlushForBlockStart(_ xtime.UnixNano) bool {
+	return false
+}

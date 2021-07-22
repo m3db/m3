@@ -932,6 +932,20 @@ func (mr *MockOnIndexSeriesMockRecorder) RemoveIndexedForBlockStarts(blockStarts
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveIndexedForBlockStarts", reflect.TypeOf((*MockOnIndexSeries)(nil).RemoveIndexedForBlockStarts), blockStarts)
 }
 
+// RequiresColdFlushForBlockStart mocks base method.
+func (m *MockOnIndexSeries) RequiresColdFlushForBlockStart(blockStart time0.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RequiresColdFlushForBlockStart", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// RequiresColdFlushForBlockStart indicates an expected call of RequiresColdFlushForBlockStart.
+func (mr *MockOnIndexSeriesMockRecorder) RequiresColdFlushForBlockStart(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequiresColdFlushForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).RequiresColdFlushForBlockStart), blockStart)
+}
+
 // MockBlock is a mock of Block interface.
 type MockBlock struct {
 	ctrl     *gomock.Controller
@@ -1252,6 +1266,21 @@ func (m *MockBlock) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 func (mr *MockBlockMockRecorder) WriteBatch(inserts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockBlock)(nil).WriteBatch), inserts)
+}
+
+// WriteColdBatch mocks base method.
+func (m *MockBlock) WriteColdBatch(inserts *WriteBatch) (WriteBatchResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteColdBatch", inserts)
+	ret0, _ := ret[0].(WriteBatchResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WriteColdBatch indicates an expected call of WriteColdBatch.
+func (mr *MockBlockMockRecorder) WriteColdBatch(inserts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteColdBatch", reflect.TypeOf((*MockBlock)(nil).WriteColdBatch), inserts)
 }
 
 // MockBlockStatsReporter is a mock of BlockStatsReporter interface.

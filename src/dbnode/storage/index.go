@@ -838,6 +838,11 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
+	// Split the batch into warm and cold so that warm can go to the active block
+	// while cold can go to the associated cold time block. This is important to prevent
+	// a case where cold index data has not been flushed to disk yet, but gets cleaned up from
+	// the active block. We ensure that can't happen by always writing the cold index in-mem data
+	// directly.
 	warmBatch := index.NewWriteBatch(batch.Options())
 	coldBatch := index.NewWriteBatch(batch.Options())
 	batch.ForEach(func(
