@@ -429,8 +429,11 @@ type Block interface {
 	// EndTime returns the end time of the period this Block indexes.
 	EndTime() xtime.UnixNano
 
-	// WriteBatch writes a batch of provided entries.
+	// WriteBatch warm writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
+
+	// WriteColdBatch cold writes a batch of provided entries.
+	WriteColdBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
 	// QueryWithIter processes n docs from the iterator into known IDs.
 	QueryWithIter(
@@ -938,6 +941,28 @@ func (b *WriteBatch) Less(i, j int) bool {
 	blockStartI := b.entries[i].indexBlockStart(b.opts.IndexBlockSize)
 	blockStartJ := b.entries[j].indexBlockStart(b.opts.IndexBlockSize)
 	return blockStartI.Before(blockStartJ)
+}
+
+func (r WriteBatchResult) Combine(new WriteBatchResult) WriteBatchResult {
+	return WriteBatchResult{
+		NumSuccess:           r.NumSuccess + new.NumSuccess,
+		NumError:             r.NumError + new.NumError,
+		MutableSegmentsStats: r.MutableSegmentsStats.Combine(new.MutableSegmentsStats),
+	}
+}
+
+func (s MutableSegmentsStats) Combine(new MutableSegmentsStats) MutableSegmentsStats {
+	return MutableSegmentsStats{
+		Foreground: s.Foreground.Combine(new.Foreground),
+		Background: s.Background.Combine(new.Background),
+	}
+}
+
+func (s MutableSegmentsSegmentStats) Combine(new MutableSegmentsSegmentStats) MutableSegmentsSegmentStats {
+	return MutableSegmentsSegmentStats{
+		NumSegments: s.NumSegments + new.NumSegments,
+		NumDocs:     s.NumDocs + new.NumDocs,
+	}
 }
 
 // WriteBatchEntry represents the metadata accompanying the document that is

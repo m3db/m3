@@ -838,33 +838,40 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
-	// i.e. we have the block and the inserts, perform the writes.
-	result, err := i.activeBlock.WriteBatch(batch)
+	warmBatch := index.NewWriteBatch(batch.Options())
+	coldBatch := index.NewWriteBatch(batch.Options())
+	batch.ForEach(func(
+		_ int,
+		entry index.WriteBatchEntry,
+		doc doc.Metadata,
+		_ index.WriteBatchEntryResult,
+	) {
+		if entry.OnIndexSeries.RequiresColdFlushForBlockStart(blockStart) {
+			coldBatch.Append(entry, doc)
+		} else {
+			warmBatch.Append(entry, doc)
+		}
+	})
 
-	// warmBatch := index.NewWriteBatch(...)
-	// coldBatch := index.NewWriteBatch(...)
-
-	// for _, entry := range batch.PendingEntries() {
-	// 	if entry.OnIndexSeries.HasColdBlockStart(blockStart) {
-	// 		// Has cold data for this block start, should be a cold indexing step.
-	// 		coldBatch.Append(...)
-	// 		continue
-	// 	}
-
-	// 	// No cold data for this block start, should be a warm indexing step.
-	// 	warmBatch.Append(...)
-	// }
-
-	// if !coldBatch.IsEmpty() {
-	// 	// i.e. we have the block and the inserts, perform the writes.
-	// 	blockResult, err := i.ensureBlockPresent(blockStart)
-	// 	result, err := blockResult.block.WriteColdBatch(coldBatch)
-	// }
-
-	// if !warmBatch.IsEmpty() {
-	// 	// i.e. we have the block and the inserts, perform the writes.
-	// 	result, err := i.activeBlock.WriteBatch(warmBatch)
-	// }
+	var (
+		result   index.WriteBatchResult
+		writeErr = xerrors.NewMultiError()
+	)
+	if coldBatch.Len() > 0 {
+		// i.e. we have the block and the inserts, perform the writes.
+		blockResult, err := i.ensureBlockPresent(blockStart)
+		if err == nil {
+			result, err = blockResult.block.WriteColdBatch(coldBatch)
+		}
+		writeErr = writeErr.Add(err)
+	}
+	if warmBatch.Len() > 0 {
+		// i.e. we have the block and the inserts, perform the writes.
+		warmResult, err := i.activeBlock.WriteBatch(warmBatch)
+		result.Combine(warmResult)
+		writeErr = writeErr.Add(err)
+	}
+	err := writeErr.FinalError()
 
 	// Record the end to end indexing latency.
 	now := i.nowFn()
