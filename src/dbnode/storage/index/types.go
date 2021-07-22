@@ -624,8 +624,6 @@ type BlockTickResult struct {
 // with metadata in a separate slice, this allows the documents slice to be
 // passed to the segment to batch insert without having to copy into a buffer
 // again.
-// TODO: make this splittable, so we can move a subset out of this into a new copy
-// and have warm vs cold.
 type WriteBatch struct {
 	opts   WriteBatchOptions
 	sortBy writeBatchSortBy

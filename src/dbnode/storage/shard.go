@@ -1561,9 +1561,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		}
 	}
 
-	// MAYBE CALL HERE
-	// s.BlockStatesSnapshot
-
 	var err error
 	// index all requested entries in batch.
 	if n := indexBatch.Len(); n > 0 {
