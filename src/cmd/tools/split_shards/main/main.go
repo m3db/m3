@@ -114,6 +114,10 @@ func main() {
 			volume, _     = strconv.Atoi(pathParts[4])
 		)
 
+		if blockStart >= int(*optBlockUntil) {
+			return nil
+		}
+
 		_, err = splitFileSet(reader, writers, hashFn, *optShards, *optFactor, logger, namespace, uint32(shard), xtime.UnixNano(blockStart), volume)
 		return err
 	}); err != nil {
