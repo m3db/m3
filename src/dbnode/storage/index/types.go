@@ -941,28 +941,28 @@ func (b *WriteBatch) Less(i, j int) bool {
 	return blockStartI.Before(blockStartJ)
 }
 
-// Combine combines the current and new result into one.
-func (r WriteBatchResult) Combine(new WriteBatchResult) WriteBatchResult {
+// Combine combines the current and other result into one.
+func (r WriteBatchResult) Combine(other WriteBatchResult) WriteBatchResult {
 	return WriteBatchResult{
-		NumSuccess:           r.NumSuccess + new.NumSuccess,
-		NumError:             r.NumError + new.NumError,
-		MutableSegmentsStats: r.MutableSegmentsStats.Combine(new.MutableSegmentsStats),
+		NumSuccess:           r.NumSuccess + other.NumSuccess,
+		NumError:             r.NumError + other.NumError,
+		MutableSegmentsStats: r.MutableSegmentsStats.Combine(other.MutableSegmentsStats),
 	}
 }
 
-// Combine combines the current and new stats into one.
-func (s MutableSegmentsStats) Combine(new MutableSegmentsStats) MutableSegmentsStats {
+// Combine combines the current and other stats into one.
+func (s MutableSegmentsStats) Combine(other MutableSegmentsStats) MutableSegmentsStats {
 	return MutableSegmentsStats{
-		Foreground: s.Foreground.Combine(new.Foreground),
-		Background: s.Background.Combine(new.Background),
+		Foreground: s.Foreground.Combine(other.Foreground),
+		Background: s.Background.Combine(other.Background),
 	}
 }
 
-// Combine combines the current and new stats into one.
-func (s MutableSegmentsSegmentStats) Combine(new MutableSegmentsSegmentStats) MutableSegmentsSegmentStats {
+// Combine combines the current and other stats into one.
+func (s MutableSegmentsSegmentStats) Combine(other MutableSegmentsSegmentStats) MutableSegmentsSegmentStats {
 	return MutableSegmentsSegmentStats{
-		NumSegments: s.NumSegments + new.NumSegments,
-		NumDocs:     s.NumDocs + new.NumDocs,
+		NumSegments: s.NumSegments + other.NumSegments,
+		NumDocs:     s.NumDocs + other.NumDocs,
 	}
 }
 
