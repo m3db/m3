@@ -43,6 +43,10 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	checkpointPattern = regexp.MustCompile(`(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db`)
+)
+
 func main() {
 	var (
 		optSrcPathPrefix = getopt.StringLong("src-path", 's', "", "Source path prefix [e.g. /temp/lib/m3db]")
@@ -92,13 +96,13 @@ func main() {
 
 	start := time.Now()
 
-	if err := filepath.WalkDir(*optSrcPathPrefix, func(path string, d iofs.DirEntry, err error) error {
+	srcDataPath := *optSrcPathPrefix + "/data"
+	if err := filepath.WalkDir(srcDataPath, func(path string, d iofs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), "-checkpoint.db") {
 			return err
 		}
 		logger.Info(path)
-		r := regexp.MustCompile(`(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db`)
-		pathParts := r.FindStringSubmatch(path)
+		pathParts := checkpointPattern.FindStringSubmatch(path)
 		if len(pathParts) != 5 {
 			return fmt.Errorf("failed to parse path %s", path)
 		}
