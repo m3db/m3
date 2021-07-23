@@ -28,15 +28,16 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/getopt"
@@ -73,11 +74,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	bytesPool := tools.NewCheckedBytesPool()
-	bytesPool.Init()
-
 	srcFsOpts := fs.NewOptions().SetFilePathPrefix(*optSrcPathPrefix)
 	dstFsOpts := fs.NewOptions().SetFilePathPrefix(*optDstPathPrefix)
+
+	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
+	var bytesPool pool.CheckedBytesPool
+	//bytesPool := tools.NewCheckedBytesPool()
+	//bytesPool.Init()
 
 	reader, err := fs.NewReader(bytesPool, srcFsOpts)
 	if err != nil {
@@ -102,6 +105,9 @@ func main() {
 			return err
 		}
 		fmt.Printf("%s - %s\n", time.Now().Local(), path)
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		fmt.Printf("HeapAlloc: %d, HeapInuse: %d, HeapSys: %d\n", ms.HeapAlloc, ms.HeapInuse, ms.HeapSys)
 		pathParts := checkpointPattern.FindStringSubmatch(path)
 		if len(pathParts) != 5 {
 			return fmt.Errorf("failed to parse path %s", path)
