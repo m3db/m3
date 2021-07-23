@@ -44,9 +44,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const snapshotType = "snapshot"
-const flushType = "flush"
-
 func main() {
 	var (
 		optPathPrefix          = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]")
