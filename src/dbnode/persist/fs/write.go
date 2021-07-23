@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
