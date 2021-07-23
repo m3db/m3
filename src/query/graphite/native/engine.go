@@ -27,15 +27,17 @@ import (
 
 // The Engine for running queries.
 type Engine struct {
-	storage storage.Storage
+	storage     storage.Storage
+	compileOpts CompileOptions
 }
 
 // NewEngine creates a new query engine.
-func NewEngine(store storage.Storage) *Engine {
+func NewEngine(store storage.Storage, compileOpts CompileOptions) *Engine {
 	// TODO: take pooling details from config
 	// (https://github.com/m3db/m3/issues/2092)
 	return &Engine{
-		storage: store,
+		storage:     store,
+		compileOpts: compileOpts,
 	}
 }
 
@@ -50,7 +52,7 @@ func (e *Engine) FetchByQuery(
 
 // Compile compiles an expression from an expression string
 func (e *Engine) Compile(s string) (Expression, error) {
-	return Compile(s)
+	return Compile(s, e.compileOpts)
 }
 
 // Storage returns the engine's storage object

@@ -21,8 +21,13 @@
 package client
 
 import (
+	gocontext "context"
 	"time"
 
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -41,8 +46,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	tchannel "github.com/uber/tchannel-go"
 )
 
 // Client can create sessions to write and read to a cluster.
@@ -62,26 +65,72 @@ type Client interface {
 
 // Session can write and read to a cluster.
 type Session interface {
+	// WriteClusterAvailability returns whether cluster is available for writes.
+	WriteClusterAvailability() (bool, error)
+
+	// ReadClusterAvailability returns whether cluster is available for reads.
+	ReadClusterAvailability() (bool, error)
+
 	// Write value to the database for an ID.
-	Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Write(
+		namespace,
+		id ident.ID,
+		t xtime.UnixNano,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
 
 	// WriteTagged value to the database for an ID and given tags.
-	WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	WriteTagged(
+		namespace,
+		id ident.ID,
+		tags ident.TagIterator,
+		t xtime.UnixNano,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
 
 	// Fetch values from the database for an ID.
-	Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
+	Fetch(
+		namespace,
+		id ident.ID,
+		startInclusive,
+		endExclusive xtime.UnixNano,
+	) (encoding.SeriesIterator, error)
 
 	// FetchIDs values from the database for a set of IDs.
-	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+	FetchIDs(
+		namespace ident.ID,
+		ids ident.Iterator,
+		startInclusive,
+		endExclusive xtime.UnixNano,
+	) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error)
+	FetchTagged(
+		ctx gocontext.Context,
+		namespace ident.ID,
+		q index.Query,
+		opts index.QueryOptions,
+	) (encoding.SeriesIterators, FetchResponseMetadata, error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error)
+	FetchTaggedIDs(
+		ctx gocontext.Context,
+		namespace ident.ID,
+		q index.Query,
+		opts index.QueryOptions,
+	) (TaggedIDsIterator, FetchResponseMetadata, error)
 
 	// Aggregate aggregates values from the database for the given set of constraints.
-	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (AggregatedTagsIterator, FetchResponseMetadata, error)
+	Aggregate(
+		ctx gocontext.Context,
+		namespace ident.ID,
+		q index.Query,
+		opts index.AggregationOptions,
+	) (AggregatedTagsIterator, FetchResponseMetadata, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -104,6 +153,10 @@ type FetchResponseMetadata struct {
 	Responses int
 	// EstimateTotalBytes is an approximation of the total byte size of the response.
 	EstimateTotalBytes int
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int
 }
 
 // AggregatedTagsIterator iterates over a collection of tag names with optionally
@@ -177,7 +230,7 @@ type PeerBlocksIter interface {
 
 	// Current returns the metadata, and block data for a single block replica.
 	// These remain valid until Next() is called again.
-	Current() (topology.Host, ident.ID, block.DatabaseBlock)
+	Current() (topology.Host, ident.ID, ident.Tags, block.DatabaseBlock)
 
 	// Err returns any error encountered.
 	Err() error
@@ -207,7 +260,7 @@ type AdminSession interface {
 	FetchBootstrapBlocksFromPeers(
 		namespace namespace.Metadata,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		opts result.Options,
 	) (result.ShardResult, error)
 
@@ -216,7 +269,7 @@ type AdminSession interface {
 	FetchBootstrapBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		result result.Options,
 	) (PeerBlockMetadataIter, error)
 
@@ -225,7 +278,7 @@ type AdminSession interface {
 	FetchBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		consistencyLevel topology.ReadConsistencyLevel,
 		result result.Options,
 	) (PeerBlockMetadataIter, error)
@@ -239,6 +292,55 @@ type AdminSession interface {
 		metadatas []block.ReplicaMetadata,
 		opts result.Options,
 	) (PeerBlocksIter, error)
+
+	// BorrowConnections will borrow connection for hosts belonging to a shard.
+	BorrowConnections(
+		shardID uint32,
+		fn WithBorrowConnectionFn,
+		opts BorrowConnectionOptions,
+	) (BorrowConnectionsResult, error)
+
+	// DedicatedConnection will open and health check a new connection to one of the
+	// hosts belonging to a shard. The connection should be used for long running requests.
+	// For normal requests consider using BorrowConnections.
+	DedicatedConnection(
+		shardID uint32,
+		opts DedicatedConnectionOptions,
+	) (rpc.TChanNode, Channel, error)
+}
+
+// BorrowConnectionOptions are options to use when borrowing a connection
+type BorrowConnectionOptions struct {
+	// ContinueOnBorrowError allows skipping hosts that cannot borrow
+	// a connection for.
+	ContinueOnBorrowError bool
+	// ExcludeOrigin will exclude attempting to borrow a connection for
+	// the origin host (i.e. the local host).
+	ExcludeOrigin bool
+}
+
+// BorrowConnectionsResult is a result used when borrowing connections.
+type BorrowConnectionsResult struct {
+	Borrowed int
+}
+
+// WithBorrowConnectionFn is used to do work with a borrowed connection.
+type WithBorrowConnectionFn func(
+	shard shard.Shard,
+	host topology.Host,
+	client rpc.TChanNode,
+	channel Channel,
+) (WithBorrowConnectionResult, error)
+
+// WithBorrowConnectionResult is returned from a borrow connection function.
+type WithBorrowConnectionResult struct {
+	// Break will break the iteration.
+	Break bool
+}
+
+// DedicatedConnectionOptions are options used for getting a dedicated connection.
+type DedicatedConnectionOptions struct {
+	ShardStateFilter shard.State
 }
 
 // Options is a set of client options.
@@ -511,6 +613,12 @@ type Options interface {
 	// ContextPool returns the contextPool.
 	ContextPool() context.Pool
 
+	// SetCheckedBytesPool sets the checked bytes pool.
+	SetCheckedBytesPool(value pool.CheckedBytesPool) Options
+
+	// CheckedBytesPool returns the checked bytes pool.
+	CheckedBytesPool() pool.CheckedBytesPool
+
 	// SetIdentifierPool sets the identifier pool.
 	SetIdentifierPool(value ident.Pool) Options
 
@@ -522,6 +630,12 @@ type Options interface {
 
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
 	HostQueueOpsArrayPoolSize() int
+
+	// SetHostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
+	SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options
+
+	// HostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
+	HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn
 
 	// SetHostQueueEmitsHealthStatus sets the hostQueueEmitHealthStatus.
 	SetHostQueueEmitsHealthStatus(value bool) Options
@@ -601,7 +715,16 @@ type Options interface {
 
 	// NamespaceInitializer returns the NamespaceInitializer.
 	NamespaceInitializer() namespace.Initializer
+
+	// SetThriftContextFn sets the retrier for streaming blocks.
+	SetThriftContextFn(value ThriftContextFn) Options
+
+	// ThriftContextFn returns the retrier for streaming blocks.
+	ThriftContextFn() ThriftContextFn
 }
+
+// ThriftContextFn turns a context into a thrift context for a thrift call.
+type ThriftContextFn func(gocontext.Context) thrift.Context
 
 // AdminOptions is a set of administration client options.
 type AdminOptions interface {
@@ -688,13 +811,20 @@ type hostQueue interface {
 	ConnectionPool() connectionPool
 
 	// BorrowConnection will borrow a connection and execute a user function.
-	BorrowConnection(fn withConnectionFn) error
+	BorrowConnection(fn WithConnectionFn) error
 
 	// Close the host queue, will flush any operations still pending.
 	Close()
 }
 
-type withConnectionFn func(c rpc.TChanNode)
+// WithConnectionFn is a callback for a connection to a host.
+type WithConnectionFn func(client rpc.TChanNode, ch Channel)
+
+// Channel is an interface for tchannel.Channel struct.
+type Channel interface {
+	GetSubChannel(serviceName string, opts ...tchannel.SubChannelOption) *tchannel.SubChannel
+	Close()
+}
 
 type connectionPool interface {
 	// Open starts the connection pool connecting and health checking.
@@ -704,7 +834,7 @@ type connectionPool interface {
 	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool.
-	NextClient() (rpc.TChanNode, error)
+	NextClient() (rpc.TChanNode, Channel, error)
 
 	// Close the connection pool.
 	Close()
@@ -712,7 +842,7 @@ type connectionPool interface {
 
 type peerSource interface {
 	// BorrowConnection will borrow a connection and execute a user function.
-	BorrowConnection(hostID string, fn withConnectionFn) error
+	BorrowConnection(hostID string, fn WithConnectionFn) error
 }
 
 type peer interface {
@@ -720,7 +850,7 @@ type peer interface {
 	Host() topology.Host
 
 	// BorrowConnection will borrow a connection and execute a user function.
-	BorrowConnection(fn withConnectionFn) error
+	BorrowConnection(fn WithConnectionFn) error
 }
 
 type status int

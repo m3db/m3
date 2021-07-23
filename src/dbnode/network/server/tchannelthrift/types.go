@@ -21,6 +21,8 @@
 package tchannelthrift
 
 import (
+	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/clock"
@@ -73,12 +75,6 @@ type Options interface {
 	// TagEncoderPool returns the tag encoder pool.
 	TagEncoderPool() serialize.TagEncoderPool
 
-	// SetTagDecoderPool sets the tag encoder pool.
-	SetTagDecoderPool(value serialize.TagDecoderPool) Options
-
-	// TagDecoderPool returns the tag encoder pool.
-	TagDecoderPool() serialize.TagDecoderPool
-
 	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
 	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
 
@@ -100,4 +96,20 @@ type Options interface {
 	// MaxOutstandingReadRequests returns the maxinum number of allowed
 	// outstanding read requests.
 	MaxOutstandingReadRequests() int
+
+	// QueryLimits returns the QueryLimits.
+	QueryLimits() limits.QueryLimits
+
+	// SetQueryLimits sets the QueryLimits.
+	SetQueryLimits(value limits.QueryLimits) Options
+
+	// PermitsOptions returns the permits options.
+	PermitsOptions() permits.Options
+
+	// SetPermitsOptions sets the permits options.
+	SetPermitsOptions(value permits.Options) Options
+
+	// SetFetchTaggedSeriesBlocksPerBatch sets the series blocks allowed to be read
+	// per permit acquired.
+	SetFetchTaggedSeriesBlocksPerBatch(value int) Options
 }

@@ -22,6 +22,8 @@ package schema
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // MajorVersion is the major schema version for a set of fileset files,
@@ -75,21 +77,30 @@ type IndexEntry struct {
 	IndexChecksum int64
 }
 
-// IndexChecksum extends IndexEntry for use with queries, by providing
+// WideEntry extends IndexEntry for use with queries, by providing
 // an additional metadata checksum field.
-type IndexChecksum struct {
-	// IndexChecksum embeds IndexEntry.
+type WideEntry struct {
+	// WideEntry embeds IndexEntry.
 	IndexEntry
 	// MetadataChecksum is the computed index metadata checksum.
 	// NB: built from ID, DataChecksum, and tags.
 	MetadataChecksum int64
 }
 
+// WideEntryFilter provides a filter for wide entries.
+type WideEntryFilter func(entry WideEntry) (bool, error)
+
 // IndexEntryHasher hashes an index entry.
 type IndexEntryHasher interface {
-	// HashIndexEntry computes a hash value for this IndexEntry using its ID, tags,
+	// HashIndexEntry computes a hash value for this index entry using its ID, tags,
 	// and the computed data checksum.
-	HashIndexEntry(e IndexEntry) int64
+	// NB: not passing the whole IndexEntry because of linter message:
+	// "hugeParam: e is heavy (88 bytes); consider passing it by pointer".
+	HashIndexEntry(
+		id ident.BytesID,
+		encodedTags ts.EncodedTags,
+		dataChecksum int64,
+	) int64
 }
 
 // IndexSummary stores a summary of an index entry to lookup.

@@ -22,19 +22,27 @@ package context
 
 import (
 	stdctx "context"
+	"fmt"
 	"sync"
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
 )
 
+const (
+	maxDistanceFromRootContext = 100
+)
+
 var (
 	noopTracer opentracing.NoopTracer
+
+	errSpanTooDeep = fmt.Errorf("span created exceeds maximum depth allowed (%d)", maxDistanceFromRootContext)
 )
 
 // NB(r): using golang.org/x/net/context is too GC expensive.
@@ -48,17 +56,25 @@ type ctx struct {
 	wg                   sync.WaitGroup
 	finalizeables        *finalizeableList
 	parent               Context
+	distanceFromRoot     uint16
 	checkedAndNotSampled bool
 }
 
 type finalizeable struct {
-	finalizer resource.Finalizer
-	closer    resource.Closer
+	finalizer xresource.Finalizer
+	closer    xresource.SimpleCloser
 }
 
-// NewContext creates a new context.
-func NewContext() Context {
-	return newContext()
+// NewWithGoContext creates a new context with the provided go ctx.
+func NewWithGoContext(goCtx stdctx.Context) Context {
+	ctx := newContext()
+	ctx.SetGoContext(goCtx)
+	return ctx
+}
+
+// NewBackground creates a new context with a Background go ctx.
+func NewBackground() Context {
+	return NewWithGoContext(stdctx.Background())
 }
 
 // NewPooledContext returns a new context that is returned to a pool when closed.
@@ -71,12 +87,8 @@ func newContext() *ctx {
 	return &ctx{}
 }
 
-func (c *ctx) GoContext() (stdctx.Context, bool) {
-	if c.goCtx == nil {
-		return nil, false
-	}
-
-	return c.goCtx, true
+func (c *ctx) GoContext() stdctx.Context {
+	return c.goCtx
 }
 
 func (c *ctx) SetGoContext(v stdctx.Context) {
@@ -96,7 +108,7 @@ func (c *ctx) IsClosed() bool {
 	return done
 }
 
-func (c *ctx) RegisterFinalizer(f resource.Finalizer) {
+func (c *ctx) RegisterFinalizer(f xresource.Finalizer) {
 	parent := c.parentCtx()
 	if parent != nil {
 		parent.RegisterFinalizer(f)
@@ -106,7 +118,7 @@ func (c *ctx) RegisterFinalizer(f resource.Finalizer) {
 	c.registerFinalizeable(finalizeable{finalizer: f})
 }
 
-func (c *ctx) RegisterCloser(f resource.Closer) {
+func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 	parent := c.parentCtx()
 	if parent != nil {
 		parent.RegisterCloser(f)
@@ -279,7 +291,8 @@ func (c *ctx) Reset() {
 	}
 
 	c.Lock()
-	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, nil, false
+	c.done, c.finalizeables, c.goCtx, c.checkedAndNotSampled = false, nil, stdctx.Background(), false
+	c.distanceFromRoot = 0
 	c.Unlock()
 }
 
@@ -312,6 +325,7 @@ func (c *ctx) newChildContext() Context {
 func (c *ctx) setParentCtx(parentCtx Context) {
 	c.Lock()
 	c.parent = parentCtx
+	c.distanceFromRoot = parentCtx.DistanceFromRootContext() + 1
 	c.Unlock()
 }
 
@@ -323,11 +337,19 @@ func (c *ctx) parentCtx() Context {
 	return parent
 }
 
+func (c *ctx) DistanceFromRootContext() uint16 {
+	c.RLock()
+	distanceFromRootContext := c.distanceFromRoot
+	c.RUnlock()
+
+	return distanceFromRootContext
+}
+
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	goCtx, exists := c.GoContext()
-	if !exists || c.checkedAndNotSampled {
+	if c.checkedAndNotSampled || c.DistanceFromRootContext() >= maxDistanceFromRootContext {
 		return c, noopTracer.StartSpan(name), false
 	}
+	goCtx := c.GoContext()
 
 	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
 	if !sampled {
@@ -337,6 +359,9 @@ func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, boo
 
 	child := c.newChildContext()
 	child.SetGoContext(childGoCtx)
+	if child.DistanceFromRootContext() == maxDistanceFromRootContext {
+		ext.LogError(span, errSpanTooDeep)
+	}
 	return child, span, true
 }
 

@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +30,6 @@ import (
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -45,21 +43,8 @@ func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -90,7 +75,7 @@ func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
 	var (
 		idPrefix = "full.id"
 		numIDs   = 100
-		start    = getNowFn()
+		start    = clock.Now()
 		stop     = start.Add(10 * time.Second)
 		interval = 2 * time.Second
 	)
@@ -121,7 +106,7 @@ func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		clock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			require.NoError(t, client.writeTimedMetricWithMetadata(mm.metric.timed, mm.metadata.timedMetadata))
 		}
@@ -133,7 +118,7 @@ func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
 
 	// Move time forward and wait for flushing to happen.
 	finalTime := stop.Add(time.Minute + 2*time.Second)
-	setNowFn(finalTime)
+	clock.SetNow(finalTime)
 	time.Sleep(2 * time.Second)
 
 	// Stop the server.

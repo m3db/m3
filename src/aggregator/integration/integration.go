@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package integration contains integration tests for aggregator.
 package integration
 
 import (
@@ -32,7 +33,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 		if fn() {
 			return true
 		}
-		time.Sleep(time.Second)
+		time.Sleep(10 * time.Millisecond)
 	}
 	return false
 }

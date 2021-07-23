@@ -24,28 +24,30 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Bounds are the time bounds, start time is inclusive but end is exclusive.
 type Bounds struct {
-	Start    time.Time
+	Start    xtime.UnixNano
 	Duration time.Duration
 	StepSize time.Duration
 }
 
 // TimeForIndex returns the start time for a given index assuming
 // a uniform step size.
-func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
+func (b Bounds) TimeForIndex(idx int) (xtime.UnixNano, error) {
 	duration := time.Duration(idx) * b.StepSize
 	if b.Steps() == 0 || duration >= b.Duration {
-		return time.Time{}, fmt.Errorf("out of bounds, %d", idx)
+		return 0, fmt.Errorf("out of bounds, %d", idx)
 	}
 
 	return b.Start.Add(duration), nil
 }
 
 // End calculates the end time for the block and is exclusive.
-func (b Bounds) End() time.Time {
+func (b Bounds) End() xtime.UnixNano {
 	return b.Start.Add(b.Duration)
 }
 
@@ -59,7 +61,7 @@ func (b Bounds) Steps() int {
 }
 
 // Contains returns whether the time lies between the bounds.
-func (b Bounds) Contains(t time.Time) bool {
+func (b Bounds) Contains(t xtime.UnixNano) bool {
 	diff := b.Start.Sub(t)
 	return diff >= 0 && diff < b.Duration
 }
@@ -90,7 +92,7 @@ func (b Bounds) nth(n int, forward bool) Bounds {
 }
 
 // Blocks returns the number of blocks until time t.
-func (b Bounds) Blocks(t time.Time) int {
+func (b Bounds) Blocks(t xtime.UnixNano) int {
 	return int(b.Start.Sub(t) / b.Duration)
 }
 
@@ -101,7 +103,7 @@ func (b Bounds) String() string {
 }
 
 // Nearest returns the nearest bound before the given time.
-func (b Bounds) Nearest(t time.Time) Bounds {
+func (b Bounds) Nearest(t xtime.UnixNano) Bounds {
 	startTime := b.Start
 	duration := b.Duration
 	endTime := startTime.Add(duration)

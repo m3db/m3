@@ -18,19 +18,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package database contains API endpoints for managing the database.
 package database
 
 import (
-	"net/http"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/gorilla/mux"
 )
 
 // Handler represents a generic handler for namespace endpoints.
@@ -43,31 +41,46 @@ type Handler struct {
 
 // RegisterRoutes registers the namespace routes
 func RegisterRoutes(
-	r *mux.Router,
+	r *queryhttp.EndpointRegistry,
 	client clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
+	namespaceValidator options.NamespaceValidator,
+	kvStoreProtoParser options.KVStoreProtoParser,
 ) error {
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
-	}
-
-	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
-		defaults, instrumentOpts)
+	createHandler, err := NewCreateHandler(client, cfg, embeddedDBCfg,
+		defaults, instrumentOpts, namespaceValidator)
 	if err != nil {
 		return err
 	}
 
-	r.HandleFunc(CreateURL,
-		wrapped(createHandler).ServeHTTP).
-		Methods(CreateHTTPMethod)
+	kvStoreHandler := NewKeyValueStoreHandler(client, instrumentOpts, kvStoreProtoParser)
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
-	r.HandleFunc(CreateURL, wrapped(createHandler).ServeHTTP).Methods(CreateHTTPMethod)
-	r.HandleFunc(CreateNamespaceURL, wrapped(createHandler).ServeHTTP).Methods(CreateNamespaceHTTPMethod)
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    CreateURL,
+		Handler: createHandler,
+		Methods: []string{CreateHTTPMethod},
+	}); err != nil {
+		return err
+	}
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    CreateNamespaceURL,
+		Handler: createHandler,
+		Methods: []string{CreateNamespaceHTTPMethod},
+	}); err != nil {
+		return err
+	}
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    KeyValueStoreURL,
+		Handler: kvStoreHandler,
+		Methods: []string{KeyValueStoreHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }

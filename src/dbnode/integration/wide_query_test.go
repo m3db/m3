@@ -1,4 +1,4 @@
-// +build integration
+// +build big
 //
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"runtime"
@@ -32,10 +31,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
@@ -60,9 +57,9 @@ const (
 	wideTagValFmt = "val-%05d"
 )
 
-type shardedIndexChecksum struct {
-	shard     uint32
-	checksums []schema.IndexChecksum
+type shardedWideEntry struct {
+	shard   uint32
+	entries []schema.WideEntry
 }
 
 // buildExpectedChecksumsByShard sorts the given IDs into ascending shard order,
@@ -72,10 +69,10 @@ func buildExpectedChecksumsByShard(
 	allowedShards []uint32,
 	shardSet sharding.ShardSet,
 	batchSize int,
-) []schema.IndexChecksum {
-	shardedChecksums := make([]shardedIndexChecksum, 0, len(ids))
+) []schema.WideEntry {
+	shardedEntries := make([]shardedWideEntry, 0, len(ids))
 	for i, id := range ids {
-		checksum := schema.IndexChecksum{
+		entry := schema.WideEntry{
 			IndexEntry: schema.IndexEntry{
 				ID: []byte(id),
 			},
@@ -98,13 +95,13 @@ func buildExpectedChecksumsByShard(
 		}
 
 		found := false
-		for idx, sharded := range shardedChecksums {
+		for idx, sharded := range shardedEntries {
 			if shard != sharded.shard {
 				continue
 			}
 
 			found = true
-			shardedChecksums[idx].checksums = append(sharded.checksums, checksum)
+			shardedEntries[idx].entries = append(sharded.entries, entry)
 			break
 		}
 
@@ -112,36 +109,22 @@ func buildExpectedChecksumsByShard(
 			continue
 		}
 
-		shardedChecksums = append(shardedChecksums, shardedIndexChecksum{
-			shard:     shard,
-			checksums: []schema.IndexChecksum{checksum},
+		shardedEntries = append(shardedEntries, shardedWideEntry{
+			shard:   shard,
+			entries: []schema.WideEntry{entry},
 		})
 	}
 
-	sort.Slice(shardedChecksums, func(i, j int) bool {
-		return shardedChecksums[i].shard < shardedChecksums[j].shard
+	sort.Slice(shardedEntries, func(i, j int) bool {
+		return shardedEntries[i].shard < shardedEntries[j].shard
 	})
 
-	var checksums []schema.IndexChecksum
-	for _, sharded := range shardedChecksums {
-		checksums = append(checksums, sharded.checksums...)
+	var entries []schema.WideEntry
+	for _, sharded := range shardedEntries {
+		entries = append(entries, sharded.entries...)
 	}
 
-	// NB: IDs should only be included for documents that conclude a batch.
-	l := len(checksums)
-	if l == 0 {
-		return checksums
-	}
-
-	// NB: only look at the last `l-1` elements, as the last element should
-	// always have its ID.
-	for i, checksum := range checksums[:l-1] {
-		if (i+1)%batchSize != 0 {
-			checksums[i].ID = checksum.ID[:0]
-		}
-	}
-
-	return checksums
+	return entries
 }
 
 func assertTags(
@@ -164,28 +147,6 @@ func assertTags(
 	require.NoError(t, decoder.Err())
 }
 
-func assertData(
-	t *testing.T,
-	ex int64,
-	exTime time.Time,
-	mismatch wide.ReadMismatch,
-) {
-	mismatch.Data.IncRef()
-	mismatchData := mismatch.Data.Bytes()
-	mismatch.Data.DecRef()
-
-	decoder := m3tsz.NewDecoder(true, nil)
-	dataReader := bytes.NewBuffer(mismatchData)
-	it := decoder.Decode(dataReader)
-	assert.NoError(t, it.Err())
-	assert.True(t, it.Next())
-	ts, _, _ := it.Current()
-	assert.True(t, ts.Timestamp.Equal(exTime))
-	assert.Equal(t, float64(ex), ts.Value)
-	assert.False(t, it.Next())
-	assert.NoError(t, it.Err())
-}
-
 func TestWideFetch(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
@@ -205,7 +166,7 @@ func TestWideFetch(t *testing.T) {
 	nsOpts := namespace.NewOptions().
 		SetIndexOptions(idxOpts).
 		SetRepairEnabled(false).
-		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
+		SetRetentionOptions(DefaultIntegrationTestRetentionOpts)
 
 	nsID := testNamespaces[0]
 	nsMetadata, err := namespace.NewMetadata(nsID, nsOpts)
@@ -251,11 +212,11 @@ func TestWideFetch(t *testing.T) {
 	for i := 0; i < seriesCount; i++ {
 		id := fmt.Sprintf("id-%05d", i)
 		ids = append(ids, id)
-		indexWrites = append(indexWrites, testIndexWrite{
-			id:    ident.StringID(id),
-			tags:  ident.MustNewTagStringsIterator(wideTagName, fmt.Sprintf(wideTagValFmt, i)),
-			ts:    now,
-			value: float64(i),
+		indexWrites = append(indexWrites, TestIndexWrite{
+			ID:        ident.StringID(id),
+			Tags:      ident.MustNewTagStringsIterator(wideTagName, fmt.Sprintf(wideTagValFmt, i)),
+			Timestamp: now,
+			Value:     float64(i),
 		})
 	}
 
@@ -315,13 +276,9 @@ func TestWideFetch(t *testing.T) {
 	decoder := tagDecoderPool.Get()
 	defer decoder.Close()
 
-	wideOpts := wide.NewOptions().
-		SetDecodingOptions(decOpts).
-		SetBatchSize(batchSize)
-
 	for _, tt := range shardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
@@ -333,32 +290,6 @@ func TestWideFetch(t *testing.T) {
 				assert.Equal(t, expected[i].MetadataChecksum, checksum.MetadataChecksum)
 				require.Equal(t, string(expected[i].ID), checksum.ID.String())
 				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
-				checksum.Finalize()
-			}
-
-			ctx.Close()
-		})
-
-		t.Run(fmt.Sprintf("%s_checksum_mismatch", tt.name), func(t *testing.T) {
-			ctx := context.NewContext()
-			// NB: empty index checksum blocks.
-			inCh := make(chan wide.IndexChecksumBlockBatch)
-			batchReader := wide.NewIndexChecksumBlockBatchReader(inCh)
-			close(inCh)
-
-			checker := wide.NewEntryChecksumMismatchChecker(batchReader, wideOpts)
-			mismatches, err := testSetup.DB().ReadMismatches(ctx, nsMetadata.ID(), query,
-				checker, now, tt.shards, iterOpts)
-			require.NoError(t, err)
-
-			expected := buildExpectedChecksumsByShard(ids, tt.shards,
-				testSetup.ShardSet(), batchSize)
-			require.Equal(t, len(expected), len(mismatches))
-			for i, mismatch := range mismatches {
-				assert.Equal(t, expected[i].MetadataChecksum, mismatch.MetadataChecksum)
-				assertTags(t, mismatch.EncodedTags, decoder, mismatch.MetadataChecksum)
-				assertData(t, expected[i].MetadataChecksum, now, mismatch)
-				mismatch.Finalize()
 			}
 
 			ctx.Close()
@@ -389,20 +320,19 @@ func TestWideFetch(t *testing.T) {
 
 	for _, tt := range exactShardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.NewContext()
+			ctx := context.NewBackground()
 			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
 
-			if !tt.expected {
-				assert.Equal(t, 0, len(chk))
-			} else {
+			if tt.expected {
 				require.Equal(t, 1, len(chk))
 				checksum := chk[0]
 				assert.Equal(t, int64(1), checksum.MetadataChecksum)
 				assert.Equal(t, exactID, checksum.ID.String())
 				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
-				checksum.Finalize()
+			} else {
+				assert.Equal(t, 0, len(chk))
 			}
 
 			ctx.Close()
@@ -422,7 +352,7 @@ func TestWideFetch(t *testing.T) {
 		go func() {
 			var runError error
 			for j := 0; j < runs; j++ {
-				ctx := context.NewContext()
+				ctx := context.NewBackground()
 				chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), q,
 					now, nil, iterOpts)
 
@@ -443,8 +373,6 @@ func TestWideFetch(t *testing.T) {
 							expected[i].MetadataChecksum, checksum.MetadataChecksum)
 						break
 					}
-
-					checksum.Finalize()
 				}
 
 				ctx.Close()

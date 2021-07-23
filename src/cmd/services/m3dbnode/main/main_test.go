@@ -103,7 +103,11 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	discoveryCfg := cfg.DB.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -185,7 +189,7 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -203,10 +207,10 @@ func TestConfig(t *testing.T) {
 	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
 	session := adminSession.(client.Session)
 
-	start := time.Now().Add(-time.Minute)
+	start := xtime.Now().Add(-time.Minute)
 	values := []struct {
 		value float64
-		at    time.Time
+		at    xtime.UnixNano
 		unit  xtime.Unit
 	}{
 		{value: 1.0, at: start, unit: xtime.Second},
@@ -235,7 +239,7 @@ func TestConfig(t *testing.T) {
 		assert.Equal(t, v.value, dp.Value)
 		// Account for xtime.Second precision on values going in
 		expectAt := v.at.Truncate(time.Second)
-		assert.Equal(t, expectAt, dp.Timestamp)
+		assert.Equal(t, expectAt, dp.TimestampNanos)
 		assert.Equal(t, v.unit, unit)
 	}
 
@@ -334,7 +338,11 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	discoveryCfg := cfg.DB.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -395,7 +403,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -413,10 +421,10 @@ func TestEmbeddedConfig(t *testing.T) {
 	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
 	session := adminSession.(client.Session)
 
-	start := time.Now().Add(-time.Minute)
+	start := xtime.Now().Add(-time.Minute)
 	values := []struct {
 		value float64
-		at    time.Time
+		at    xtime.UnixNano
 		unit  xtime.Unit
 	}{
 		{value: 1.0, at: start, unit: xtime.Second},
@@ -445,7 +453,7 @@ func TestEmbeddedConfig(t *testing.T) {
 		assert.Equal(t, v.value, dp.Value)
 		// Account for xtime.Second precision on values going in
 		expectAt := v.at.Truncate(time.Second)
-		assert.Equal(t, expectAt, dp.Timestamp)
+		assert.Equal(t, expectAt, dp.TimestampNanos)
 		assert.Equal(t, v.unit, unit)
 	}
 
@@ -613,40 +621,42 @@ db:
 `
 
 	kvConfigPortion = `
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints: {{.EtcdEndpoints}}
+    discovery:
+        config:
+            service:
+                env: {{.ServiceEnv}}
+                zone: {{.ServiceZone}}
+                service: {{.ServiceName}}
+                cacheDir: {{.ConfigServiceCacheDir}}
+                etcdClusters:
+                    - zone: {{.ServiceZone}}
+                      endpoints: {{.EtcdEndpoints}}
 `
 
 	embeddedKVConfigPortion = `
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints:
-                      - {{.EtcdEndpoint}}
-        seedNodes:
-            rootDir: {{.EmbeddedKVDir}}
-            listenPeerUrls:
-                - {{.LPURL}}
-            listenClientUrls:
-                - {{.LCURL}}
-            initialAdvertisePeerUrls:
-                - {{.APURL}}
-            advertiseClientUrls:
-                - {{.ACURL}}
-            initialCluster:
-                - hostID: {{.InitialClusterHostID}}
-                  endpoint: {{.InitialClusterEndpoint}}
+    discovery:
+        config:
+            service:
+                env: {{.ServiceEnv}}
+                zone: {{.ServiceZone}}
+                service: {{.ServiceName}}
+                cacheDir: {{.ConfigServiceCacheDir}}
+                etcdClusters:
+                    - zone: {{.ServiceZone}}
+                      endpoints:
+                          - {{.EtcdEndpoint}}
+            seedNodes:
+                rootDir: {{.EmbeddedKVDir}}
+                listenPeerUrls:
+                    - {{.LPURL}}
+                listenClientUrls:
+                    - {{.LCURL}}
+                initialAdvertisePeerUrls:
+                    - {{.APURL}}
+                advertiseClientUrls:
+                    - {{.ACURL}}
+                initialCluster:
+                    - hostID: {{.InitialClusterHostID}}
+                      endpoint: {{.InitialClusterEndpoint}}
 `
 )

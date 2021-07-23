@@ -21,6 +21,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -60,8 +61,14 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 	}
 
 	workChs := make([]chan Work, numShards)
+	bufSize := int64(size) / numShards
+	if opts.GrowOnDemand() {
+		// Do not use buffered channels if the pool can grow on demand. This ensures a new worker is spawned if all
+		// workers are currently busy.
+		bufSize = 0
+	}
 	for i := range workChs {
-		workChs[i] = make(chan Work, int64(size)/numShards)
+		workChs[i] = make(chan Work, bufSize)
 	}
 
 	return &pooledWorkerPool{
@@ -87,14 +94,33 @@ func (p *pooledWorkerPool) Init() {
 }
 
 func (p *pooledWorkerPool) Go(work Work) {
-	p.goWithTimeout(work, 0)
+	p.work(maybeContext{}, work, 0)
 }
 
 func (p *pooledWorkerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
-	return p.goWithTimeout(work, timeout)
+	return p.work(maybeContext{}, work, timeout)
 }
 
-func (p *pooledWorkerPool) goWithTimeout(work Work, timeout time.Duration) bool {
+func (p *pooledWorkerPool) GoWithContext(ctx context.Context, work Work) bool {
+	return p.work(maybeContext{ctx: ctx}, work, 0)
+}
+
+func (p *pooledWorkerPool) FastContextCheck(batchSize int) PooledWorkerPool {
+	return &fastPooledWorkerPool{workerPool: p, batchSize: batchSize}
+}
+
+// maybeContext works around the linter about optionally
+// passing the context for scenarios where we don't want to use
+// context in the APIs.
+type maybeContext struct {
+	ctx context.Context
+}
+
+func (p *pooledWorkerPool) work(
+	ctx maybeContext,
+	work Work,
+	timeout time.Duration,
+) bool {
 	var (
 		// Use time.Now() to avoid excessive synchronization
 		currTime  = p.nowFn().UnixNano()
@@ -108,9 +134,26 @@ func (p *pooledWorkerPool) goWithTimeout(work Work, timeout time.Duration) bool 
 	}
 
 	if !p.growOnDemand {
-		if timeout <= 0 {
+		if ctx.ctx == nil && timeout <= 0 {
 			workCh <- work
 			return true
+		}
+
+		if ctx.ctx != nil {
+			// See if canceled first.
+			select {
+			case <-ctx.ctx.Done():
+				return false
+			default:
+			}
+
+			// Using context for cancellation not timer.
+			select {
+			case workCh <- work:
+				return true
+			case <-ctx.ctx.Done():
+				return false
+			}
 		}
 
 		// Attempt to try writing without allocating a ticker.
@@ -120,7 +163,7 @@ func (p *pooledWorkerPool) goWithTimeout(work Work, timeout time.Duration) bool 
 		default:
 		}
 
-		// Now allocate a ticker and attempt a write.
+		// Using timeout so allocate a ticker and attempt a write.
 		ticker := time.NewTicker(timeout)
 		defer ticker.Stop()
 

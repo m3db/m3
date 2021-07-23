@@ -64,8 +64,10 @@ const (
 				]
 			},
 			"extendedOptions": {
-				"@type": "testm3db.io/m3.test.PingResponse",
-				"Value": "bar"
+				"type": "testExtendedOptions",
+				"options": {
+					"value": "bar"
+				}
 			}
 		}
 }
@@ -107,7 +109,9 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"unable to validate update request: update options cannot be empty\"}\n", string(body))
+	assert.JSONEq(t,
+		`{"status":"error","error":"unable to validate update request: update options cannot be empty"}`,
+		string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.
@@ -116,8 +120,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	req = httptest.NewRequest("PUT", "/namespace", strings.NewReader(testUpdateJSON))
 	require.NotNil(t, req)
 
-	extendedOpts, err := xtest.NewExtendedOptionsProto("foo")
-	require.NoError(t, err)
+	extendedOpts := xtest.NewTestExtendedOptionsProto("foo")
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -199,7 +202,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
-						"extendedOptions":   xtest.NewExtendedOptionsJson("bar"),
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("bar"),
 					},
 				},
 			},
@@ -257,7 +260,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
-						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("foo"),
 					},
 				},
 			},

@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"sort"
 	"sync"
@@ -58,17 +57,19 @@ import (
 )
 
 var (
-	blockSize       = 2 * time.Hour
-	nsID            = ident.StringID("testNs1")
-	nsRetentionOpts = retention.NewOptions().
-			SetBlockSize(blockSize).
-			SetRetentionPeriod(48 * blockSize)
+	blockSize = 2 * time.Hour
+	nsID      = ident.StringID("testNs1")
+
+	nsRetentionOpts = retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
+
 	testTagDecodingPool = serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testTagEncodingPool = serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testIDPool     = newSessionTestOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")
 	fooTags        checked.Bytes
@@ -101,9 +102,7 @@ func testsNsMetadata(t *testing.T) namespace.Metadata {
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
-	p.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	p.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 	return p
 }
 
@@ -145,7 +144,7 @@ func newRoundRobinPickBestPeerFn() pickBestPeerFn {
 	}
 }
 
-func newTestBlocks(start time.Time) []testBlocks {
+func newTestBlocks(start xtime.UnixNano) []testBlocks {
 	return []testBlocks{
 		{
 			id: fooID,
@@ -221,8 +220,9 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 
 	var (
 		batchSize = opts.FetchSeriesBlocksBatchSize()
-		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-		blocks    = newTestBlocks(start)
+		//nolint: durationcheck
+		start  = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks = newTestBlocks(start)
 	)
 
 	// Expect the fetch metadata calls
@@ -311,7 +311,7 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 		// expected calls and responses significantly easier since which batch call a
 		// given block will fall into is non-deterministic (depends on the result of
 		// concurrent execution).
-		SetFetchSeriesBlocksBatchSize(len(newTestBlocks(time.Now())))
+		SetFetchSeriesBlocksBatchSize(len(newTestBlocks(xtime.Now())))
 	s, err := newSession(opts)
 	require.NoError(t, err)
 	session := s.(*session)
@@ -339,7 +339,7 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	connectionPool := NewMockconnectionPool(ctrl)
 	connectionPool.EXPECT().
 		NextClient().
-		Return(nil, errConnectionPoolHasNoConnections).
+		Return(nil, nil, errConnectionPoolHasNoConnections).
 		AnyTimes()
 	hostQueue := NewMockhostQueue(ctrl)
 	hostQueue.EXPECT().Open()
@@ -384,8 +384,9 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 
 	var (
 		batchSize = opts.FetchSeriesBlocksBatchSize()
-		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-		blocks    = newTestBlocks(start)
+		//nolint: durationcheck
+		start  = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks = newTestBlocks(start)
 
 		// Expect the fetch metadata calls.
 		metadataResult = resultMetadataFromBlocks(blocks)
@@ -454,7 +455,7 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 type fetchBlocksFromPeersTestScenarioGenerator func(
 	peerIdx int,
 	numPeers int,
-	start time.Time,
+	start xtime.UnixNano,
 ) []testBlocks
 
 func fetchBlocksFromPeersTestsHelper(
@@ -495,7 +496,8 @@ func fetchBlocksFromPeersTestsHelper(
 	require.NoError(t, session.Open())
 
 	batchSize := opts.FetchSeriesBlocksBatchSize()
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+	//nolint: durationcheck
+	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	allBlocks := make([][]testBlocks, 0, len(mockHostQueues))
 	peerBlocks := make([][]testBlocks, 0, len(mockHostQueues))
@@ -554,7 +556,11 @@ func fetchBlocksFromPeersTestsHelper(
 }
 
 func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
-	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+	peerScenarioGeneratorFn := func(
+		peerIdx int,
+		numPeers int,
+		start xtime.UnixNano,
+	) []testBlocks {
 		if peerIdx == 0 {
 			return []testBlocks{}
 		}
@@ -577,7 +583,11 @@ func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
 }
 
 func TestFetchRepairBlocksMultipleDifferentBlocks(t *testing.T) {
-	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+	peerScenarioGeneratorFn := func(
+		peerIdx int,
+		numPeers int,
+		start xtime.UnixNano,
+	) []testBlocks {
 		return []testBlocks{
 			{
 				id: fooID,
@@ -621,7 +631,11 @@ func TestFetchRepairBlocksMultipleDifferentBlocks(t *testing.T) {
 }
 
 func TestFetchRepairBlocksMultipleBlocksSameIDAndPeer(t *testing.T) {
-	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+	peerScenarioGeneratorFn := func(
+		peerIdx int,
+		numPeers int,
+		start xtime.UnixNano,
+	) []testBlocks {
 		return []testBlocks{
 			{
 				id: fooID,
@@ -689,7 +703,7 @@ func assertFetchBlocksFromPeersResult(
 	}
 	extraBlocks := []peerBlocksDatapoint{}
 	for observedBlocksIter.Next() {
-		observedHost, observedID, observedBlock := observedBlocksIter.Current()
+		observedHost, observedID, _, observedBlock := observedBlocksIter.Current()
 
 		// find which peer the current datapoint is for
 		peerIdx := -1
@@ -744,7 +758,7 @@ func assertFetchBlocksFromPeersResult(
 
 		expectedBlock := expectedBlocks[peerIdx][blockIdx].blocks[subBlockIdx]
 		expectedData := append(expectedBlock.segments.merged.head, expectedBlock.segments.merged.tail...)
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		defer ctx.Close()
 		stream, err := observedBlock.Stream(ctx)
 		require.NoError(t, err)
@@ -1370,7 +1384,8 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	var (
-		start   = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		//nolint: durationcheck
+		start   = xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 		retrier = xretry.NewRetrier(xretry.NewOptions().
 			SetMaxRetries(1).
 			SetInitialBackoff(time.Millisecond))
@@ -1441,24 +1456,24 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
 	require.NoError(t, session.Open())
 
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+	//nolint: durationcheck
+	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
 	require.NoError(t, enc.Encode(ts.Datapoint{
-		Timestamp: start.Add(10 * time.Second),
-		Value:     42,
+		TimestampNanos: start.Add(10 * time.Second),
+		Value:          42,
 	}, xtime.Second, nil))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
-	rawBlockData := make([]byte, segment.Len())
-	n, err := reader.Read(rawBlockData)
-	require.NoError(t, err)
-	require.Equal(t, len(rawBlockData), n)
+	rawBlockData, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, len(rawBlockData), segment.Len())
 	rawBlockLen := int64(len(rawBlockData))
 
 	var (
@@ -1510,8 +1525,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Return(&rpc.FetchBlocksRawResult_{
 			Elements: []*rpc.Blocks{
 				// First foo block intact
-				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+				{ID: []byte("foo"), Blocks: []*rpc.Block{
+					{Start: int64(start), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: rawBlockData[:len(rawBlockData)-1],
 							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
@@ -1519,16 +1534,16 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 					}},
 				}},
 				// First bar block intact, second with error
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
+					{Start: int64(start), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: rawBlockData[:len(rawBlockData)-1],
 							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Err: &rpc.Error{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
+					{Start: int64(start.Add(blockSize)), Err: &rpc.Error{
 						Type:    rpc.ErrorType_INTERNAL_ERROR,
 						Message: "an error",
 					}},
@@ -1591,25 +1606,25 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	require.NoError(t, session.Open())
 
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+	//nolint: durationcheck
+	start := xtime.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
 	require.NoError(t, enc.Encode(ts.Datapoint{
-		Timestamp: start.Add(10 * time.Second),
-		Value:     42,
+		TimestampNanos: start.Add(10 * time.Second),
+		Value:          42,
 	}, xtime.Second, nil))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
-	rawBlockData := make([]byte, segment.Len())
-	n, err := reader.Read(rawBlockData)
-	require.NoError(t, err)
-	require.Equal(t, len(rawBlockData), n)
+	rawBlockData, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, len(rawBlockData), segment.Len())
 	rawBlockLen := int64(len(rawBlockData))
 
 	var (
@@ -1666,26 +1681,26 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Return(&rpc.FetchBlocksRawResult_{
 			Elements: []*rpc.Blocks{
 				// valid foo block
-				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
-					&rpc.Block{Start: start.UnixNano(), Checksum: &validChecksum, Segments: &rpc.Segments{
+				{ID: []byte("foo"), Blocks: []*rpc.Block{
+					{Start: int64(start), Checksum: &validChecksum, Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
 					// invalid bar block
-					&rpc.Block{Start: start.UnixNano(), Checksum: &invalidChecksum, Segments: &rpc.Segments{
+					{Start: int64(start), Checksum: &invalidChecksum, Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
 						},
 					}},
 				}},
-				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+				{ID: []byte("bar"), Blocks: []*rpc.Block{
 					// valid bar block, no checksum
-					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Segments: &rpc.Segments{
+					{Start: int64(start.Add(blockSize)), Segments: &rpc.Segments{
 						Merged: &rpc.Segment{
 							Head: head,
 							Tail: tail,
@@ -1725,14 +1740,14 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := newResultTestOptions()
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 
 	blockSize := time.Minute
 	bs := int64(blockSize)
 	rpcBlockSize := &bs
 
 	bl := &rpc.Block{
-		Start: start.UnixNano(),
+		Start: int64(start),
 		Segments: &rpc.Segments{Merged: &rpc.Segment{
 			Head:      []byte{1, 2},
 			Tail:      []byte{3},
@@ -1754,7 +1769,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	stream, err := result.Stream(ctx)
@@ -1769,8 +1784,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert block has data
-	data, err := ioutil.ReadAll(xio.NewSegmentReader(seg))
-	require.NoError(t, err)
+	data, err := xio.ToBytes(xio.NewSegmentReader(seg))
+	require.Equal(t, io.EOF, err)
 	assert.Equal(t, []byte{1, 2, 3}, data)
 }
 
@@ -1781,7 +1796,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 
 	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
-		enc := m3tsz.NewEncoder(time.Time{}, nil, intopt, eops)
+		enc := m3tsz.NewEncoder(0, nil, intopt, eops)
 		if wrapEncoderFn != nil {
 			enc = wrapEncoderFn(enc)
 		}
@@ -1794,7 +1809,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		SetEncoderPool(encoderPool).
 		SetMultiReaderIteratorPool(newSessionTestMultiReaderIteratorPool()))
 
-	start := time.Now()
+	start := xtime.Now()
 
 	vals0 := []testValue{
 		{1.0, start, xtime.Second, []byte{1, 2, 3}},
@@ -1811,7 +1826,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 
 	var all []testValue
 	bl := &rpc.Block{
-		Start:    start.UnixNano(),
+		Start:    int64(start),
 		Segments: &rpc.Segments{},
 	}
 	for _, vals := range [][]testValue{vals0, vals1, vals2} {
@@ -1819,7 +1834,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		encoder := encoderPool.Get()
 		encoder.Reset(start, 0, nsCtx.Schema)
 		for _, val := range vals {
-			dp := ts.Datapoint{Timestamp: val.t, Value: val.value}
+			dp := ts.Datapoint{TimestampNanos: val.t, Value: val.value}
 			assert.NoError(t, encoder.Encode(dp, val.unit, val.annotation))
 			all = append(all, val)
 		}
@@ -1841,7 +1856,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	stream, err := result.Stream(ctx)
@@ -1858,7 +1873,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		idx := asserted
 		dp, unit, annotation := iter.Current()
 		assert.Equal(t, all[idx].value, dp.Value)
-		assert.True(t, all[idx].t.Equal(dp.Timestamp))
+		assert.Equal(t, all[idx].t, dp.TimestampNanos)
 		assert.Equal(t, all[idx].unit, unit)
 		assert.Equal(t, all[idx].annotation, []byte(annotation))
 		asserted++
@@ -2008,15 +2023,15 @@ func defaultHostAndClientWithExpect(
 ) (*MockhostQueue, *rpc.MockTChanNode) {
 	client := rpc.NewMockTChanNode(ctrl)
 	connectionPool := NewMockconnectionPool(ctrl)
-	connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
+	connectionPool.EXPECT().NextClient().Return(client, &noopPooledChannel{}, nil).AnyTimes()
 
 	hostQueue := NewMockhostQueue(ctrl)
 	hostQueue.EXPECT().Open()
 	hostQueue.EXPECT().Host().Return(host).AnyTimes()
 	hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
 	hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
-	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
-		fn(client)
+	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn WithConnectionFn) {
+		fn(client, &noopPooledChannel{})
 	}).Return(nil).AnyTimes()
 	hostQueue.EXPECT().Close()
 
@@ -2068,7 +2083,7 @@ func expectedRepairFetchRequestsAndResponses(
 	}
 	response := []testBlocks{}
 	for idx := 0; idx < len(blocks); idx++ {
-		starts := make([]time.Time, 0, len(blocks[idx].blocks))
+		starts := make([]xtime.UnixNano, 0, len(blocks[idx].blocks))
 		for j := 0; j < len(blocks[idx].blocks); j++ {
 			starts = append(starts, blocks[idx].blocks[j].start)
 		}
@@ -2138,7 +2153,7 @@ func expectedReqsAndResultFromBlocks(
 
 		req := &expectReqs[len(expectReqs)-1]
 
-		starts := []time.Time{}
+		starts := []xtime.UnixNano{}
 		for i := 0; i < len(currBlock.blocks); i++ {
 			starts = append(starts, currBlock.blocks[i].start)
 		}
@@ -2178,7 +2193,7 @@ func expectFetchMetadataAndReturn(
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadataV2{}
 				bl.ID = id
-				bl.Start = result[j].blocks[k].start.UnixNano()
+				bl.Start = int64(result[j].blocks[k].start)
 				bl.Size = result[j].blocks[k].size
 				if result[j].blocks[k].checksum != nil {
 					checksum := int64(*result[j].blocks[k].checksum)
@@ -2277,7 +2292,7 @@ func expectFetchBlocksAndReturn(
 			blocks.ID = res.id.Bytes()
 			for j := range res.blocks {
 				bl := &rpc.Block{}
-				bl.Start = res.blocks[j].start.UnixNano()
+				bl.Start = int64(res.blocks[j].start)
 				if res.blocks[j].segments != nil {
 					segs := &rpc.Segments{}
 					if res.blocks[j].segments.merged != nil {
@@ -2304,33 +2319,35 @@ func expectFetchBlocksAndReturn(
 			ret.Elements = append(ret.Elements, blocks)
 		}
 
-		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Do(func(_ interface{}, req *rpc.FetchBlocksRawRequest) {
-			// The order of the elements in the request is non-deterministic (due to concurrency) so inspect the request
-			// and re-order the response to match by trying to match up values (their may be duplicate entries for a
-			// given series ID so comparing IDs is not sufficient).
-			retElements := make([]*rpc.Blocks, 0, len(ret.Elements))
-			for _, elem := range req.Elements {
-			inner:
-				for _, retElem := range ret.Elements {
-					if !bytes.Equal(elem.ID, retElem.ID) {
-						continue
-					}
-					if len(elem.Starts) != len(retElem.Blocks) {
-						continue
-					}
-
-					for i, start := range elem.Starts {
-						block := retElem.Blocks[i]
-						if start != block.Start {
-							continue inner
+		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).
+			Do(func(_ interface{}, req *rpc.FetchBlocksRawRequest) {
+				// The order of the elements in the request is non-deterministic (due to
+				// concurrency) so inspect the request and re-order the response to
+				// match by trying to match up values (their may be duplicate entries
+				// for a given series ID so comparing IDs is not sufficient).
+				retElements := make([]*rpc.Blocks, 0, len(ret.Elements))
+				for _, elem := range req.Elements {
+				inner:
+					for _, retElem := range ret.Elements {
+						if !bytes.Equal(elem.ID, retElem.ID) {
+							continue
 						}
-					}
+						if len(elem.Starts) != len(retElem.Blocks) {
+							continue
+						}
 
-					retElements = append(retElements, retElem)
+						for i, start := range elem.Starts {
+							block := retElem.Blocks[i]
+							if start != block.Start {
+								continue inner
+							}
+						}
+
+						retElements = append(retElements, retElem)
+					}
 				}
-			}
-			ret.Elements = retElements
-		}).Return(ret, nil)
+				ret.Elements = retElements
+			}).Return(ret, nil)
 	}
 }
 
@@ -2364,7 +2381,7 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 				continue
 			}
 			for j := range params[i].starts {
-				if params[i].starts[j].UnixNano() != req.Elements[reqIdx].Starts[j] {
+				if int64(params[i].starts[j]) != req.Elements[reqIdx].Starts[j] {
 					continue inner
 				}
 			}
@@ -2390,7 +2407,7 @@ type fetchBlocksReq struct {
 
 type fetchBlocksReqParam struct {
 	id     ident.ID
-	starts []time.Time
+	starts []xtime.UnixNano
 }
 
 type testBlocksMetadata struct {
@@ -2399,7 +2416,7 @@ type testBlocksMetadata struct {
 }
 
 type testBlockMetadata struct {
-	start    time.Time
+	start    xtime.UnixNano
 	size     *int64
 	checksum *uint32
 }
@@ -2410,7 +2427,7 @@ type testBlocks struct {
 }
 
 type testBlock struct {
-	start    time.Time
+	start    xtime.UnixNano
 	segments *testBlockSegments
 	err      *testBlockError
 }
@@ -2435,7 +2452,7 @@ func assertFetchBootstrapBlocksResult(
 	expected []testBlocks,
 	actual result.ShardResult,
 ) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	series := actual.AllSeries()

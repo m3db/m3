@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskCleansupInactiveDirectories(t *testing.T) {
+func TestDiskCleanupInactiveDirectories(t *testing.T) {
 	var resetSetup TestSetup
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run

@@ -66,13 +66,13 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	now := time.Now()
 	blockStart := newTime(0)
 	mockIndexWriter := NewMockIndexWriter(ctrl)
-	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart.ToTime()).Return(blockStart)
+	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart).Return(blockStart)
 
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
-	mockSeries.EXPECT().Metadata().Return(doc.Document{})
+	mockSeries.EXPECT().Metadata().Return(doc.Metadata{})
 	mockSeries.EXPECT().Write(
-		context.NewContext(),
-		blockStart.ToTime(),
+		context.NewBackground(),
+		blockStart,
 		1.0,
 		xtime.Second,
 		nil,
@@ -90,17 +90,17 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	mockIndexWriter.EXPECT().WritePending([]writes.PendingIndexInsert{
 		{
 			Entry: index.WriteBatchEntry{
-				Timestamp:     blockStart.ToTime(),
+				Timestamp:     blockStart,
 				OnIndexSeries: e,
 				EnqueuedAt:    now,
 			},
-			Document: doc.Document{},
+			Document: doc.Metadata{},
 		},
 	}).Return(nil)
 
 	ok, _, err := e.Write(
-		context.NewContext(),
-		blockStart.ToTime(),
+		context.NewBackground(),
+		blockStart,
 		1.0,
 		xtime.Second,
 		nil,

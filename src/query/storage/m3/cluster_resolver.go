@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type unaggregatedNamespaceType uint8
@@ -47,7 +49,7 @@ type unaggregatedNamespaceDetails struct {
 // resolveUnaggregatedNamespaceForQuery determines if the unaggregated namespace
 // should be used, and if so, determines if it fully satisfies the query range.
 func resolveUnaggregatedNamespaceForQuery(
-	now, start time.Time,
+	now, start xtime.UnixNano,
 	unaggregated ClusterNamespace,
 	opts *storage.FanoutOptions,
 ) unaggregatedNamespaceDetails {
@@ -75,7 +77,47 @@ func resolveUnaggregatedNamespaceForQuery(
 // resolveClusterNamespacesForQuery returns the namespaces that need to be
 // fanned out to depending on the query time and the namespaces configured.
 func resolveClusterNamespacesForQuery(
-	now, start, end time.Time,
+	now, start, end xtime.UnixNano,
+	clusters Clusters,
+	opts *storage.FanoutOptions,
+	restrict *storage.RestrictQueryOptions,
+) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
+	// 1. First resolve the logical plan.
+	fanout, namespaces, err := resolveClusterNamespacesForQueryLogicalPlan(now,
+		start, end, clusters, opts, restrict)
+	if err != nil {
+		return fanout, namespaces, err
+	}
+
+	// 2. Create physical plan.
+	// Now de-duplicate any namespaces that might be fetched twice due to
+	// the fact some of the same namespaces are reused once for unaggregated
+	// and another for aggregated rollups (which don't collide with timeseries).
+	filtered := namespaces[:0]
+	for _, ns := range namespaces {
+		keep := true
+		// Small enough that we can do n^2 here instead of creating a map,
+		// usually less than 4 namespaces resolved.
+		for _, existing := range filtered {
+			if ns.NamespaceID().Equal(existing.NamespaceID()) {
+				keep = false
+				break
+			}
+		}
+		if !keep {
+			continue
+		}
+		filtered = append(filtered, ns)
+	}
+
+	return fanout, filtered, nil
+}
+
+// resolveClusterNamespacesForQueryLogicalPlan resolves the logical plan
+// for namespaces to query.
+// nolint: unparam
+func resolveClusterNamespacesForQueryLogicalPlan(
+	now, start, end xtime.UnixNano,
 	clusters Clusters,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
@@ -89,8 +131,12 @@ func resolveClusterNamespacesForQuery(
 	// First check if the unaggregated cluster can fully satisfy the query range.
 	// If so, return it and shortcircuit, as unaggregated will necessarily have
 	// every metric.
-	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start,
-		clusters.UnaggregatedClusterNamespace(), opts)
+	ns, initialized := clusters.UnaggregatedClusterNamespace()
+	if !initialized {
+		return consolidators.NamespaceInvalid, nil, errUnaggregatedNamespaceUninitialized
+	}
+
+	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start, ns, opts)
 	if unaggregated.satisfies == fullySatisfiesRange {
 		return consolidators.NamespaceCoversAllQueryRange,
 			ClusterNamespaces{unaggregated.clusterNamespace},
@@ -301,7 +347,7 @@ func aggregatedNamespaces(
 // namespace referred to by the restrict fetch options or an error if it
 // cannot be found.
 func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
-	now, start time.Time,
+	now, start xtime.UnixNano,
 	clusters Clusters,
 	restrict storage.RestrictByType,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
@@ -329,28 +375,36 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 
 	switch restrict.MetricsType {
 	case storagemetadata.UnaggregatedMetricsType:
-		return result(clusters.UnaggregatedClusterNamespace(), nil)
+		ns, ok := clusters.UnaggregatedClusterNamespace()
+		if !ok {
+			return result(nil,
+				fmt.Errorf("could not find unaggregated namespace for storage policy: %v",
+					restrict.StoragePolicy.String()))
+		}
+		return result(ns, nil)
 	case storagemetadata.AggregatedMetricsType:
 		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
 			Retention:  restrict.StoragePolicy.Retention().Duration(),
 			Resolution: restrict.StoragePolicy.Resolution().Window,
 		})
 		if !ok {
-			return result(nil,
+			err := xerrors.NewInvalidParamsError(
 				fmt.Errorf("could not find namespace for storage policy: %v",
 					restrict.StoragePolicy.String()))
+			return result(nil, err)
 		}
 
 		return result(ns, nil)
 	default:
-		return result(nil,
+		err := xerrors.NewInvalidParamsError(
 			fmt.Errorf("unrecognized metrics type: %v", restrict.MetricsType))
+		return result(nil, err)
 	}
 }
 
 type coversRangeFilterOptions struct {
-	now        time.Time
-	queryStart time.Time
+	now        xtime.UnixNano
+	queryStart xtime.UnixNano
 }
 
 func newCoversRangeFilter(opts coversRangeFilterOptions) func(namespace ClusterNamespace) bool {

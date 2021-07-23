@@ -22,14 +22,14 @@ package block
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // NewDatabaseBlockRetrieverFn is a method for constructing
@@ -105,7 +105,7 @@ func NewDatabaseShardBlockRetriever(
 func (r *shardBlockRetriever) Stream(
 	ctx context.Context,
 	id ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	onRetrieve OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
@@ -113,25 +113,15 @@ func (r *shardBlockRetriever) Stream(
 		blockStart, onRetrieve, nsCtx)
 }
 
-func (r *shardBlockRetriever) StreamIndexChecksum(
+func (r *shardBlockRetriever) StreamWideEntry(
 	ctx context.Context,
 	id ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
-) (StreamedChecksum, error) {
-	return r.DatabaseBlockRetriever.StreamIndexChecksum(ctx, r.shard, id,
-		blockStart, nsCtx)
-}
-
-func (r *shardBlockRetriever) StreamReadMismatches(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	return r.DatabaseBlockRetriever.StreamReadMismatches(ctx, r.shard,
-		mismatchChecker, id, blockStart, nsCtx)
+) (StreamedWideEntry, error) {
+	return r.DatabaseBlockRetriever.StreamWideEntry(ctx, r.shard, id,
+		blockStart, filter, nsCtx)
 }
 
 type shardBlockRetrieverManager struct {

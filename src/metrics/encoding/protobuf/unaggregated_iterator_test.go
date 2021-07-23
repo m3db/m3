@@ -22,6 +22,7 @@ package protobuf
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"strings"
 	"testing"
@@ -103,7 +104,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithMetadatas(t *testing.T) {
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for _, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.BatchTimerWithMetadatasType,
+			Type:                    encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: input,
 		}))
 	}
@@ -195,7 +196,7 @@ func TestUnaggregatedIteratorDecodeForwardedMetricWithMetadata(t *testing.T) {
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for _, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.ForwardedMetricWithMetadataType,
+			Type:                        encoding.ForwardedMetricWithMetadataType,
 			ForwardedMetricWithMetadata: input,
 		}))
 	}
@@ -286,7 +287,7 @@ func TestUnaggregatedIteratorDecodeTimedMetricWithMetadata(t *testing.T) {
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for _, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithMetadataType,
+			Type:                    encoding.TimedMetricWithMetadataType,
 			TimedMetricWithMetadata: input,
 		}))
 	}
@@ -406,7 +407,7 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 				}
 			case unaggregated.BatchTimerWithMetadatas:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.BatchTimerWithMetadatasType,
+					Type:                    encoding.BatchTimerWithMetadatasType,
 					BatchTimerWithMetadatas: input,
 				}
 			case unaggregated.GaugeWithMetadatas:
@@ -416,17 +417,17 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 				}
 			case aggregated.ForwardedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.ForwardedMetricWithMetadataType,
+					Type:                        encoding.ForwardedMetricWithMetadataType,
 					ForwardedMetricWithMetadata: input,
 				}
 			case aggregated.TimedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.TimedMetricWithMetadataType,
+					Type:                    encoding.TimedMetricWithMetadataType,
 					TimedMetricWithMetadata: input,
 				}
 			case aggregated.PassthroughMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.PassthroughMetricWithMetadataType,
+					Type:                          encoding.PassthroughMetricWithMetadataType,
 					PassthroughMetricWithMetadata: input,
 				}
 			default:
@@ -537,20 +538,36 @@ func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 
 	stream := bytes.NewReader(dataBuf.Bytes())
 	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
-	iterator := it.(*unaggregatedIterator)
-	require.False(t, iterator.closed)
-	require.NotNil(t, iterator.buf)
+	require.False(t, it.closed)
+	require.NotNil(t, it.buf)
 	require.Nil(t, it.Err())
 
 	// Verify that closing the iterator cleans up the state.
 	it.Close()
 	require.False(t, it.Next())
 	require.False(t, it.Next())
-	require.True(t, iterator.closed)
-	require.Nil(t, iterator.bytesPool)
-	require.Nil(t, iterator.buf)
+	require.True(t, it.closed)
+	require.Nil(t, it.bytesPool)
+	require.Nil(t, it.buf)
 	require.Nil(t, it.Err())
 
 	// Verify that closing a second time is a no op.
 	it.Close()
+}
+
+func TestUnaggregatedIteratorNextOnInvalid(t *testing.T) {
+	buf := make([]byte, 32)
+	binary.PutVarint(buf, 0)
+	stream := bytes.NewReader(buf)
+
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	require.False(t, it.Next())
+	require.False(t, it.Next())
+
+	buf = make([]byte, 32)
+	binary.PutVarint(buf, -1234)
+	stream = bytes.NewReader(buf)
+	it = NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	require.False(t, it.Next())
+	require.False(t, it.Next())
 }

@@ -22,7 +22,6 @@ package writes
 
 import (
 	"errors"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -31,6 +30,13 @@ import (
 
 var (
 	errTagsAndEncodedTagsRequired = errors.New("tags iterator and encoded tags must be provided")
+)
+
+const (
+	// preallocateBatchCoeff is used for allocating write batches of slightly bigger
+	// capacity than needed for the current request, in order to reduce allocations on
+	// subsequent reuse of pooled write batch (effective when writeBatch.adaptiveSize == true).
+	preallocateBatchCoeff = 1.2
 )
 
 type writeBatch struct {
@@ -46,32 +52,51 @@ type writeBatch struct {
 	// writeBatch itself gets finalized.
 	finalizeAnnotationFn FinalizeAnnotationFn
 	finalizeFn           func(WriteBatch)
+
+	// adaptiveSize means that we create writeBatch with nil slices originally,
+	// and then allocate/expand them based on the actual batch size (this provides
+	// more resilience when dealing with small batch sizes).
+	adaptiveSize bool
 }
 
 // NewWriteBatch creates a new WriteBatch.
 func NewWriteBatch(
-	batchSize int,
+	initialBatchSize int,
 	ns ident.ID,
 	finalizeFn func(WriteBatch),
 ) WriteBatch {
+	var (
+		adaptiveSize = initialBatchSize == 0
+		writes       []BatchWrite
+		pendingIndex []PendingIndexInsert
+	)
+
+	if !adaptiveSize {
+		writes = make([]BatchWrite, 0, initialBatchSize)
+		pendingIndex = make([]PendingIndexInsert, 0, initialBatchSize)
+		// Leaving nil slices if initialBatchSize == 0,
+		// they will be allocated when needed, based on the actual batch size.
+	}
+
 	return &writeBatch{
-		writes:       make([]BatchWrite, 0, batchSize),
-		pendingIndex: make([]PendingIndexInsert, 0, batchSize),
+		writes:       writes,
+		pendingIndex: pendingIndex,
 		ns:           ns,
 		finalizeFn:   finalizeFn,
+		adaptiveSize: adaptiveSize,
 	}
 }
 
 func (b *writeBatch) Add(
 	originalIndex int,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
 	write, err := newBatchWriterWrite(
-		originalIndex, b.ns, id, nil, nil, timestamp, value, unit, annotation)
+		originalIndex, b.ns, id, nil, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -82,15 +107,14 @@ func (b *writeBatch) Add(
 func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
-	tagIter ident.TagIterator,
 	encodedTags ts.EncodedTags,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
 	write, err := newBatchWriterWrite(
-		originalIndex, b.ns, id, tagIter, encodedTags, timestamp, value, unit, annotation)
+		originalIndex, b.ns, id, encodedTags, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -102,14 +126,29 @@ func (b *writeBatch) Reset(
 	batchSize int,
 	ns ident.ID,
 ) {
-	var writes []BatchWrite
+	// Preallocate slightly more when not using initialBatchSize.
+	adaptiveBatchCap := int(float32(batchSize) * preallocateBatchCoeff)
+
 	if batchSize > cap(b.writes) {
-		writes = make([]BatchWrite, 0, batchSize)
+		batchCap := batchSize
+		if b.adaptiveSize {
+			batchCap = adaptiveBatchCap
+		}
+		b.writes = make([]BatchWrite, 0, batchCap)
 	} else {
-		writes = b.writes[:0]
+		b.writes = b.writes[:0]
 	}
 
-	b.writes = writes
+	if batchSize > cap(b.pendingIndex) {
+		batchCap := batchSize
+		if b.adaptiveSize {
+			batchCap = adaptiveBatchCap
+		}
+		b.pendingIndex = make([]PendingIndexInsert, 0, batchCap)
+	} else {
+		b.pendingIndex = b.pendingIndex[:0]
+	}
+
 	b.ns = ns
 	b.finalizeEncodedTagsFn = nil
 	b.finalizeAnnotationFn = nil
@@ -144,14 +183,14 @@ func (b *writeBatch) PendingIndex() []PendingIndexInsert {
 	return b.pendingIndex
 }
 
-// Set the function that will be called to finalize annotations when a WriteBatch
-// is finalized, allowing the caller to pool them.
+// SetFinalizeEncodedTagsFn sets the function that will be called to finalize encodedTags
+// when a WriteBatch is finalized, allowing the caller to pool them.
 func (b *writeBatch) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
 	b.finalizeEncodedTagsFn = f
 }
 
-// Set the function that will be called to finalize annotations when a WriteBatch
-// is finalized, allowing the caller to pool them.
+// SetFinalizeAnnotationFn sets the function that will be called to finalize annotations
+// when a WriteBatch is finalized, allowing the caller to pool them.
 func (b *writeBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
 	b.finalizeAnnotationFn = f
 }
@@ -208,15 +247,14 @@ func newBatchWriterWrite(
 	originalIndex int,
 	namespace ident.ID,
 	id ident.ID,
-	tagIter ident.TagIterator,
 	encodedTags ts.EncodedTags,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (BatchWrite, error) {
-	write := tagIter == nil && encodedTags == nil
-	writeTagged := tagIter != nil && encodedTags != nil
+	write := encodedTags == nil
+	writeTagged := encodedTags != nil
 	if !write && !writeTagged {
 		return BatchWrite{}, errTagsAndEncodedTagsRequired
 	}
@@ -228,14 +266,12 @@ func newBatchWriterWrite(
 				Namespace:   namespace,
 			},
 			Datapoint: ts.Datapoint{
-				Timestamp:      timestamp,
-				TimestampNanos: xtime.ToUnixNano(timestamp),
+				TimestampNanos: timestamp,
 				Value:          value,
 			},
 			Unit:       unit,
 			Annotation: annotation,
 		},
-		TagIter:       tagIter,
 		EncodedTags:   encodedTags,
 		OriginalIndex: originalIndex,
 	}, nil

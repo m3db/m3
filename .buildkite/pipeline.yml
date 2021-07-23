@@ -9,18 +9,22 @@ common: &common
     # Allow manual retries.
     manual: true
 
+# Temporarily disable codecov while we investigate issues with uploading.
+env:
+  SKIP_CODECOV: "true"
+
 steps:
   - name: "Codegen"
     command: make clean install-vendor-m3 test-all-gen
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.16.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
   - name: "Unit %n"
-    command: make clean install-vendor-m3 test-ci-unit
+    command: make clean install-vendor-m3 test-base
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
@@ -28,7 +32,7 @@ steps:
         workdir: /go/src/github.com/m3db/m3
     <<: *common
   - name: "Big Unit %n"
-    command: make clean install-vendor-m3 test-ci-big-unit
+    command: make clean install-vendor-m3 test-big-base
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
@@ -56,7 +60,7 @@ steps:
     parallelism: 2
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.16.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -66,7 +70,7 @@ steps:
     parallelism: 1
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.16.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -99,7 +103,7 @@ steps:
     command: make clean install-vendor-m3 docs-test
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.14.x
+      GIMME_GO_VERSION: 1.16.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3

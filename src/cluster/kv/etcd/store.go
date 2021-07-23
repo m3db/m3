@@ -33,9 +33,9 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/retry"
 
-	"go.etcd.io/etcd/clientv3"
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
+	"go.etcd.io/etcd/clientv3"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
@@ -51,13 +51,12 @@ var (
 )
 
 // NewStore creates a kv store based on etcd
-func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (kv.TxnStore, error) {
+func NewStore(etcdKV *clientv3.Client, opts Options) (kv.TxnStore, error) {
 	scope := opts.InstrumentsOptions().MetricsScope()
 
 	store := &client{
 		opts:           opts,
 		kv:             etcdKV,
-		watcher:        etcdWatcher,
 		watchables:     map[string]kv.ValueWatchable{},
 		retrier:        retry.NewRetrier(opts.RetryOptions()),
 		logger:         opts.InstrumentsOptions().Logger(),
@@ -86,7 +85,7 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 	}
 
 	wOpts := watchmanager.NewOptions().
-		SetWatcher(etcdWatcher).
+		SetClient(etcdKV).
 		SetUpdateFn(store.update).
 		SetTickAndStopFn(store.tickAndStop).
 		SetWatchOptions(clientWatchOpts).
@@ -124,8 +123,7 @@ type client struct {
 	sync.RWMutex
 
 	opts           Options
-	kv             clientv3.KV
-	watcher        clientv3.Watcher
+	kv             *clientv3.Client
 	watchables     map[string]kv.ValueWatchable
 	retrier        retry.Retrier
 	logger         *zap.Logger
@@ -155,7 +153,11 @@ func (c *client) get(key string) (kv.Value, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
-	r, err := c.kv.Get(ctx, key)
+	var opts []clientv3.OpOption
+	if c.opts.EnableFastGets() {
+		opts = append(opts, clientv3.WithSerializable())
+	}
+	r, err := c.kv.Get(ctx, key, opts...)
 	if err != nil {
 		c.m.etcdGetError.Inc(1)
 		cachedV, ok := c.getCache(key)

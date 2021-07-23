@@ -50,7 +50,7 @@ func newTestStreamingWriter(
 	t *testing.T,
 	filePathPrefix string,
 	shard uint32,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	nextVersion int,
 	plannedEntries uint,
 ) StreamingWriter {
@@ -60,14 +60,14 @@ func newTestStreamingWriter(
 	require.NoError(t, err)
 
 	writerOpenOpts := StreamingWriterOpenOptions{
-			NamespaceID: testNs1ID,
-			ShardID:     shard,
-			BlockStart:  timestamp,
-			BlockSize:   testBlockSize,
+		NamespaceID: testNs1ID,
+		ShardID:     shard,
+		BlockStart:  timestamp,
+		BlockSize:   testBlockSize,
 
-			VolumeIndex:         nextVersion,
-			PlannedRecordsCount: plannedEntries,
-		}
+		VolumeIndex:         nextVersion,
+		PlannedRecordsCount: plannedEntries,
+	}
 	err = writer.Open(writerOpenOpts)
 	require.NoError(t, err)
 
@@ -164,7 +164,7 @@ func TestInfoReadStreamingWrite(t *testing.T) {
 	require.NoError(t, readInfoFileResults[0].Err.Error())
 
 	infoFile := readInfoFileResults[0].Info
-	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
+	require.Equal(t, int64(testWriterStart), infoFile.BlockStart)
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
@@ -174,7 +174,7 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Close()
@@ -184,12 +184,31 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, nil)
 }
 
+func TestReadStreamingWriteReject0PlannedRecordsCount(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir) // nolint: errcheck
+
+	writer, err := NewStreamingWriter(testDefaultOpts.
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize))
+	require.NoError(t, err)
+
+	writerOpenOpts := StreamingWriterOpenOptions{
+		NamespaceID:         testNs1ID,
+		BlockSize:           testBlockSize,
+		PlannedRecordsCount: 0,
+	}
+	err = writer.Open(writerOpenOpts)
+	require.EqualError(t, err, "PlannedRecordsCount must be positive, got 0")
+}
+
 func TestStreamingWriterAbort(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Abort()
@@ -210,7 +229,7 @@ func TestStreamingWriterAbort(t *testing.T) {
 func streamingWriteTestData(
 	t *testing.T,
 	w StreamingWriter,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	entries []testStreamingEntry,
 ) error {
 	return streamingWriteWithVolume(t, w, blockStart, entries)
@@ -219,10 +238,10 @@ func streamingWriteTestData(
 func streamingWriteWithVolume(
 	t *testing.T,
 	w StreamingWriter,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	entries []testStreamingEntry,
 ) error {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 
 	encoder := m3tsz.NewEncoder(blockStart, nil, true, encoding.NewOptions())
 	defer encoder.Close()
@@ -236,7 +255,7 @@ func streamingWriteWithVolume(
 
 	for i := range entries {
 		encoder.Reset(blockStart, 0, schema)
-		dp.Timestamp = blockStart
+		dp.TimestampNanos = blockStart
 
 		for _, v := range entries[i].values {
 			dp.Value = v
@@ -244,7 +263,7 @@ func streamingWriteWithVolume(
 				return err
 			}
 
-			dp.Timestamp = dp.Timestamp.Add(10 * time.Minute)
+			dp.TimestampNanos = dp.TimestampNanos.Add(10 * time.Minute)
 		}
 
 		stream, ok := encoder.Stream(ctx)

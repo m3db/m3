@@ -45,6 +45,7 @@ yarn-error.log*
 
 # Site ignores
 site/public
+site/v1.0
 tmp
 # Automatically copied over from generated assets
 site/static/openapi

@@ -213,7 +213,7 @@ func (w *writer) Write(
 		logEntry.Metadata = w.metadataEncoderBuff
 	}
 
-	logEntry.Timestamp = datapoint.Timestamp.UnixNano()
+	logEntry.Timestamp = int64(datapoint.TimestampNanos)
 	logEntry.Value = datapoint.Value
 	logEntry.Unit = uint32(unit)
 	logEntry.Annotation = annotation

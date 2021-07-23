@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en-US">
+    <head>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        
+
+        <!-- Icons -->
+        <link rel="apple-touch-icon-precomposed" sizes="57x57" href="../images/favicon/apple-touch-icon-57x57.png" />
+        <link rel="apple-touch-icon-precomposed" sizes="114x114" href="../images/favicon/apple-touch-icon-114x114.png" />
+        <link rel="apple-touch-icon-precomposed" sizes="72x72" href="../images/favicon/apple-touch-icon-72x72.png" />
+        <link rel="apple-touch-icon-precomposed" sizes="144x144" href="../images/favicon/apple-touch-icon-144x144.png" />
+        <link rel="apple-touch-icon-precomposed" sizes="60x60" href="../images/favicon/apple-touch-icon-60x60.png" />
+        <link rel="apple-touch-icon-precomposed" sizes="120x120" href="../images/favicon/apple-touch-icon-120x120.png" />
+        <link rel="apple-touch-icon-precomposed" sizes="76x76" href="../images/favicon/apple-touch-icon-76x76.png" />
+        <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../images/favicon/apple-touch-icon-152x152.png" />
+        <link rel="icon" type="image/png" href="../images/favicon/favicon-196x196.png" sizes="196x196" />
+        <link rel="icon" type="image/png" href="../images/favicon/favicon-96x96.png" sizes="96x96" />
+        <link rel="icon" type="image/png" href="../images/favicon/favicon-32x32.png" sizes="32x32" />
+        <link rel="icon" type="image/png" href="../images/favicon/favicon-16x16.png" sizes="16x16" />
+        <link rel="icon" type="image/png" href="../images/favicon/favicon-128.png" sizes="128x128" />
+        <meta name="application-name" content="&nbsp;"/>
+        <meta name="msapplication-TileColor" content="#FFFFFF" />
+        <meta name="msapplication-TileImage" content="mstile-144x144.png" />
+        <meta name="msapplication-square70x70logo" content="mstile-70x70.png" />
+        <meta name="msapplication-square150x150logo" content="mstile-150x150.png" />
+        <meta name="msapplication-wide310x150logo" content="mstile-310x150.png" />
+        <meta name="msapplication-square310x310logo" content="mstile-310x310.png" />
+
+
+        <link rel="manifest" href="manifest.json">
+        
+            <link rel="canonical" href="#">
+        
+
+        <link rel="stylesheet" href="../css/about.css">
+        <meta name="msapplication-config" content="browserconfig.xml"/>
+        <meta name="msapplication-TileColor" content="%23ffffff">
+        <meta name="msapplication-TileImage" content="../images/favicon/ms-icon-144x144.png">
+        <meta name="theme-color" content="%23ffffff">
+
+        <!-- Title -->
+        <title>M3: Open Source Metrics Engine</title>
+        <meta property="og:title" content="M3: Open Source Metrics Engine"/>
+        <meta property="og:site_name" content="M3"/>
+        
+            <meta property="og:url" content="/about"/>
+        
+        <meta property="og:type" content="website"/>
+        <meta name="twitter:title" content="M3: Open Source Metrics Engine"/>
+        <meta name="twitter:site" content="@m3"/>
+        <meta name="twitter:card" content="summary_large_image"/>
+
+        <!-- Image -->
+        
+        <meta property="og:image" content="/images/logo-square.png"/>
+        <meta name="twitter:image" content="/images/logo-square.png"/>
+
+        <!-- Description -->
+        
+            <meta name="description" content="M3 is a Prometheus compatible, easy to adopt metrics engine that powers/provides visibility for some of the world's largest brands."/>
+            <meta name="twitter:description" content="M3 is a Prometheus compatible, easy to adopt metrics engine that powers/provides visibility for some of the world's largest brands."/>
+            <meta property="og:description" content="M3 is a Prometheus compatible, easy to adopt metrics engine that powers/provides visibility for some of the world's largest brands.">
+        
+
+        <base href="/">
+
+    </head>
+
+    <body>
+        
+
+<header id="screen-reader-shortcut-header" class="main-header js-main-header fixed-top w-100">
+
+    
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <div class="container c-mx-0">
+        <div class="row align-items-center justify-content-between no-gutters w-100">
+            <a class="navbar-brand d-flex align-items-center" href="">
+                <img src="../images/logo.svg" class="navbar-brand__logo" alt="logo-m3">
+            </a>
+
+            <div class="collapse navbar-collapse justify-content-between order-3 order-lg-2 pb-4 pb-lg-0" id="navbarNav">
+                <ul class="navbar-nav mt-auto ml-auto c-mr-lg-8">
+                    <li class="nav-item ">
+                        <a class="nav-link" href="/community/">Community <span class="sr-only">(current)</span></a>
+                    </li>
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/about/">About M3</a>
+                    </li>
+                    <li class="nav-item ">
+                        <a class="nav-link" href="/docs/">Documentation</a>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="navbar-socials order-lg-3">
+                <a href="https://bit.ly/m3slack" target="_blank" class="navbar-socials__logo-box bg-primary c-mr-2">
+                    <img src="../images/slack_logo-light.svg" class="navbar-socials__logo" alt="logo-slack-light" />
+                </a>
+                <a href="https://github.com/m3db/m3" target="_blank" class="navbar-socials__logo-box bg-primary c-ml-2">
+                    <img src="../images/github_logo-light.svg" class="navbar-socials__logo" alt="logo-github-light" />
+                </a>
+            </div>
+
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </div>
+</nav>
+    
+
+</header>
+
+<div class="main-content page-about">
+
+        
+
+    <section class="hero-about">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8 col-xl-6 mr-auto">
+                <h1 class="line-height-1-2 font-weight-semibold c-mt-8 c-mt-md-6">
+                    <span class="text-blue-light">M3</span>
+                    Components
+                </h1>
+                <p class="line-height-1-8 font-size-18 c-mt-8 c-mt-md-5">M3 consists of 3 simple components, all purposefully designed for scale, reliability and efficiency.</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+
+                <div class="hero-about__components c-mt-10 c-mt-md-8">
+    <ul class="hero-about__components-list d-flex flex-wrap justify-content-lg-between c-mb-6 c-p-5">
+
+        
+
+        <li class="hero-about__components-item c-px-3">
+            <div class="inner mx-auto">
+                <div class="image-wrapper d-flex align-items-center justify-content-center">
+
+                    
+
+                    <div class="arrow">
+                        <img class="lazyload" src="../images/about/arrow.png" loading="lazy" alt="arrow-pic" />
+                    </div>
+
+                    
+
+                    <img src="../images/about/component_ingestion.svg" class="d-block mx-auto lazyload" loading="lazy" alt="" />
+                </div>
+                <h2 class="title test c-mt-5 font-size-16 font-weight-bold mx-auto text-center">Ingestion &amp; streaming aggregation</h2>
+                <p class="description line-height-1-3 c-mt-4 font-size-14 font-weight-medium text-center">Ingest and aggregate a stream of metrics with dynamic configuration</p>
+            </div>
+        </li>
+
+        
+
+        <li class="hero-about__components-item c-px-3">
+            <div class="inner mx-auto">
+                <div class="image-wrapper d-flex align-items-center justify-content-center">
+
+                    
+
+                    <img src="../images/about/component_database.svg" class="d-block mx-auto lazyload" loading="lazy" alt="" />
+                </div>
+                <h2 class="title test c-mt-5 font-size-16 font-weight-bold mx-auto text-center">Timeseries Database</h2>
+                <p class="description line-height-1-3 c-mt-4 font-size-14 font-weight-medium text-center">Purpose built time series database (M3DB) for better performance, reliability and consistent results</p>
+            </div>
+        </li>
+
+        
+
+        <li class="hero-about__components-item c-px-3">
+            <div class="inner mx-auto">
+                <div class="image-wrapper d-flex align-items-center justify-content-center">
+
+                    
+
+                    <div class="arrow">
+                        <img class="lazyload" src="../images/about/arrow.png" loading="lazy" alt="arrow-pic" />
+                    </div>
+
+                    
+
+                    <img src="../images/about/component_engine.svg" class="d-block mx-auto lazyload" loading="lazy" alt="" />
+                </div>
+                <h2 class="title test c-mt-5 font-size-16 font-weight-bold mx-auto text-center">Real time query engine</h2>
+                <p class="description line-height-1-3 c-mt-4 font-size-14 font-weight-medium text-center">Real time, highly performant and optimized query engine</p>
+            </div>
+        </li>
+
+        
+
+    </ul>
+    <div class="hero-about__components-footer d-flex justify-content-center c-p-6">
+        <a
+            target="_self"
+            rel="noopener"
+            href="/docs/quickstart/docker"
+            class="crunch-button crunch-button__full-background crunch-button__full-background--gradient-color crunch-button__full-background--arrow-right crunch-button__full-background--large text-white">
+
+            Getting Started
+
+        </a>
+    </div>
+</div>
+
+            </div>
+        </div>
+    </div>
+</section>
+    <div class="about-content c-pt-5 c-mt-7">
+
+    
+    <div class="container-fluid" data-aos="fade-in">
+        <div class="row justify-content-center">
+            <div class="heading-wrapper d-flex justify-content-center align-items-center w-100">
+                <h2 class="about-content__section-title font-size-48 font-weight-semibold text-center">History</h2>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="container" data-aos="fade-in">
+        <div class="row">
+            <div class="col d-flex flex-column align-items-center px-lg-0">
+                <div class="about-content__brands d-flex flex-wrap justify-content-between">
+
+                    
+
+                    <div class="brand-box c-py-6 c-px-5 d-flex align-items-flex justify-content-center">
+                        <div class="decoration">
+                            <img src="../images/about/decor-brands--single.svg" loading="lazy" alt="brand-decor" class="lazyload" />
+                        </div>
+
+                        <img src="../images/about/logo.svg" loading="lazy" alt="M3" class="lazyload" />
+                    </div>
+
+                    
+
+                    <div class="brand-box c-py-6 c-px-5 d-flex align-items-flex justify-content-center">
+                        <div class="decoration">
+                            <img src="../images/about/decor-brands--double.svg" loading="lazy" alt="brand-decor" class="lazyload" />
+                        </div>
+
+                        <img src="../images/home/uber_logo.png" loading="lazy" alt="Uber" class="lazyload" />
+                    </div>
+
+                    
+
+                </div>
+
+                <div class="about-content__history-subsections c-mb-8 d-md-flex flex-column align-items-center">
+
+    
+
+    <div class="about-content__history-subsection d-flex flex-column align-items-center c-mt-8" data-aos="fade-in">
+        
+        <div class="decoration">
+            <img src="../images/about/decor-line-dot.png" class="d-block mx-auto lazyload" loading="lazy" alt="decor-line-dot" />
+        </div>
+
+        
+
+        <div class="decoration--left">
+            <img src="../images/about/decor-history--triple.svg" class="lazyload" loading="lazy" alt="decor-subsection-left" />
+        </div>      
+
+        
+
+        
+
+        
+
+        <h3 class="title text-center font-size-36 font-weight-semibold c-mt-4">
+            Intro
+
+            
+            <span class="heading-tooltip heading-tooltip--visible d-flex align-items-center justify-content-center font-size-18 font-weight-bold" role="tooltip" aria-hidden="false" aria-live="polite">&nbsp;2014</span>
+            
+        </h3>
+
+        <p class="description line-height-1-8 font-weight-medium text-justify">In 2014, following several years of battling a legacy metrics platform based on Graphite and WhisperDB, the Observability team at Uber began developing an open source metrics platform that would become known as M3. The goal of the project was to provide teams with a highly available and centralized metrics platform that could be easily integrated with existing tooling.</p>
+
+        
+
+    </div>
+
+    
+
+    <div class="about-content__history-subsection d-flex flex-column align-items-center c-mt-8" data-aos="fade-in">
+        
+        <div class="decoration">
+            <img src="../images/about/decor-line-dot.png" class="d-block mx-auto lazyload" loading="lazy" alt="decor-line-dot" />
+        </div>
+
+        
+
+        <div class="decoration--left">
+            <img src="../images/about/decor-history--double.svg" class="lazyload" loading="lazy" alt="decor-subsection-left" />
+        </div>      
+
+        
+
+        
+
+        <div class="decoration--right">
+            <img src="../images/about/decor-history--single.svg" class="lazyload" loading="lazy" alt="decor-subsection-right" />
+        </div>    
+
+        
+
+        
+
+        <div class="icon-wrapper c-mt-4">
+            <img src="../images/about/storage.svg" class="d-block mx-auto lazyload" loading="lazy" alt="subsection-icon" />
+        </div>
+
+        
+
+        <h3 class="title text-center font-size-36 font-weight-semibold c-mt-4">
+            Storage
+
+            
+        </h3>
+
+        <p class="description line-height-1-8 font-weight-medium text-justify">The first iteration of the storage layer featured Cassandra and ElasticSearch; however, as the ride-hailing business entered its hyper growth phase, the firefighting that had once plagued the team during the Graphite and WhisperDB years had resurfaced. The team then decided to build M3DB, a custom timeseries database with an embedded inverted index, from scratch which became the foundation of the platform. Over the course of about a year and a half, M3DB was developed and rolled out across Uber.</p>
+
+        
+
+        <a
+            target="_self"
+            rel="noopener" 
+            target="_blank" 
+            href="/docs/architecture/m3db//engine/"
+            class="crunch-button crunch-button__full-background crunch-button__full-background--primary-color crunch-button__outline--border-radius crunch-button__full-background--large font-size-18 font-weight-semibold mx-auto">
+            Learn more
+        </a>
+
+        
+
+    </div>
+
+    
+
+    <div class="about-content__history-subsection d-flex flex-column align-items-center c-mt-8" data-aos="fade-in">
+        
+        <div class="decoration">
+            <img src="../images/about/decor-line-dot.png" class="d-block mx-auto lazyload" loading="lazy" alt="decor-line-dot" />
+        </div>
+
+        
+
+        
+
+        
+
+        <div class="icon-wrapper c-mt-4">
+            <img src="../images/about/binoculars.svg" class="d-block mx-auto lazyload" loading="lazy" alt="subsection-icon" />
+        </div>
+
+        
+
+        <h3 class="title text-center font-size-36 font-weight-semibold c-mt-4">
+            Query
+
+            
+        </h3>
+
+        <p class="description line-height-1-8 font-weight-medium text-justify">OOMs and slow queries became a regular occurrence, which prevented teams from effectively monitoring their services. The new query engine, dubbed M3Query, takes advantage of the fact that M3DB stores data in highly compressed blocks, and decompresses the data client side one datapoint at a time while functions are lazily applied. These optimizations minimize network, compute and memory resources. The new query engine, which supports PromQL and the legacy Graphite language, gave teams an extremely fast and powerful way to gain insights into their metrics.</p>
+
+        
+
+        <a
+            target="_self"
+            rel="noopener" 
+            target="_blank" 
+            href="/docs/architecture/m3query/"
+            class="crunch-button crunch-button__full-background crunch-button__full-background--primary-color crunch-button__outline--border-radius crunch-button__full-background--large font-size-18 font-weight-semibold mx-auto">
+            Learn more
+        </a>
+
+        
+
+    </div>
+
+    
+
+    <div class="about-content__history-subsection d-flex flex-column align-items-center c-mt-8" data-aos="fade-in">
+        
+        <div class="decoration">
+            <img src="../images/about/decor-line-dot.png" class="d-block mx-auto lazyload" loading="lazy" alt="decor-line-dot" />
+        </div>
+
+        
+
+        
+
+        
+
+        <div class="icon-wrapper c-mt-4">
+            <img src="../images/about/envelope.svg" class="d-block mx-auto lazyload" loading="lazy" alt="subsection-icon" />
+        </div>
+
+        
+
+        <h3 class="title text-center font-size-36 font-weight-semibold c-mt-4">
+            Ingestion
+
+            
+        </h3>
+
+        <p class="description line-height-1-8 font-weight-medium text-justify">As the number of metrics being ingested skyrocketed, it became clear that there wasn’t a one-size-fits-all methodology when it came to data storage policies. Different teams wanted their metrics stored at different resolutions and retention periods. For example, infrastructure teams needed metrics stored at very high resolutions, but not for too long. Conversely, business teams didn’t need fine granularities, but wanted to retain data for much longer. The solution was a combination of two components, M3Coordinator and M3Aggregator, which work in tandem to ingest metrics and aggregate them in a highly customizable way all while providing high availability and efficiency.</p>
+
+        
+
+        <a
+            target="_self"
+            rel="noopener" 
+            target="_blank" 
+            href="/docs/architecture/m3coordinator/"
+            class="crunch-button crunch-button__full-background crunch-button__full-background--primary-color crunch-button__outline--border-radius crunch-button__full-background--large font-size-18 font-weight-semibold mx-auto">
+            Learn more
+        </a>
+
+        
+
+    </div>
+
+    
+
+    <div class="about-content__history-subsection d-flex flex-column align-items-center c-mt-8" data-aos="fade-in">
+        
+        <div class="decoration">
+            <img src="../images/about/decor-line-dot.png" class="d-block mx-auto lazyload" loading="lazy" alt="decor-line-dot" />
+        </div>
+
+        
+
+        
+
+        
+
+        <div class="icon-wrapper c-mt-4">
+            <img src="../images/about/people-group.svg" class="d-block mx-auto lazyload" loading="lazy" alt="subsection-icon" />
+        </div>
+
+        
+
+        <h3 class="title text-center font-size-36 font-weight-semibold c-mt-4">
+            Today
+
+            
+        </h3>
+
+        <p class="description line-height-1-8 font-weight-medium text-justify">Today, the M3 project is maintained by open source contributors around the globe, and is currently used by some of the largest enterprises in the world.</p>
+
+        
+
+    </div>
+
+    
+
+</div>
+
+                <a
+                    target="_self"
+                    rel="noopener" 
+                    target="_blank" 
+                    href="/docs/quickstart/docker"
+                    class="crunch-button crunch-button__full-background crunch-button__full-background--gradient-color crunch-button__full-background--arrow-right crunch-button__full-background--large text-white">
+                    Getting Started
+                </a>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="container-fluid" data-aos="fade-in">
+        <div class="row justify-content-center">
+            <div class="heading-wrapper c-mt-10 d-flex justify-content-center align-items-center w-100">
+                <h2 class="about-content__section-title px-2 mb-3 font-size-48 font-weight-semibold text-center">Governance &amp; Proposals</h2>
+            </div>
+        </div>
+    </div>
+    <div class="container" data-aos="fade-in">
+        <div class="row">
+            <div class="col d-flex flex-column align-items-center">
+                <p class="about-content__section-subtitle font-size-30 font-weight-medium text-center">The M3 Technical Steering Committee</p>
+                <ul class="about-content__committee c-mt-9 c-mb-8 c-px-md-6 c-px-lg-0 d-md-flex flex-wrap justify-content-md-around justify-content-lg-center">
+
+                    
+
+                    <li class="about-content__committee-member d-flex align-items-center c-mb-5 c-mb-lg-7 d-flex justify-content-md-center" 
+                    onclick="window.open('https://github.com/jimjag', '_blank')" tabindex="-1">
+                        <div class="avatar d-flex justify-content-center align-items-center">
+                            <div class="avatar__background">
+                                <img src="../images/about/border-dashed.png" alt="border-dashed" class="lazyload" loading="lazy"/>
+                            </div>
+                            <img class="avatar__photo lazyload" src="../images/about/jimjag.jpg" loading="lazy" alt="jimjag" />
+                        </div>
+                        <div class="d-flex flex-column c-ml-4">
+                            <h3 class="nickname c-mb-2 font-weight-bold font-size-20">@jimjag</h3>
+                            <p class="description font-weight-medium font-size-14">Uber</p>
+                        </div>
+                    </li>
+
+                    
+
+                    <li class="about-content__committee-member d-flex align-items-center c-mb-5 c-mb-lg-7 d-flex justify-content-md-center" 
+                    onclick="window.open('https://github.com/martin-mao', '_blank')" tabindex="-1">
+                        <div class="avatar d-flex justify-content-center align-items-center">
+                            <div class="avatar__background">
+                                <img src="../images/about/border-dashed.png" alt="border-dashed" class="lazyload" loading="lazy"/>
+                            </div>
+                            <img class="avatar__photo lazyload" src="../images/about/martin-mao.jpg" loading="lazy" alt="martin-mao" />
+                        </div>
+                        <div class="d-flex flex-column c-ml-4">
+                            <h3 class="nickname c-mb-2 font-weight-bold font-size-20">@martin-mao</h3>
+                            <p class="description font-weight-medium font-size-14">Chronosphere</p>
+                        </div>
+                    </li>
+
+                    
+
+                    <li class="about-content__committee-member d-flex align-items-center c-mb-5 c-mb-lg-7 d-flex justify-content-md-center" 
+                    onclick="window.open('https://github.com/mway', '_blank')" tabindex="-1">
+                        <div class="avatar d-flex justify-content-center align-items-center">
+                            <div class="avatar__background">
+                                <img src="../images/about/border-dashed.png" alt="border-dashed" class="lazyload" loading="lazy"/>
+                            </div>
+                            <img class="avatar__photo lazyload" src="../images/about/mway.jpg" loading="lazy" alt="mway" />
+                        </div>
+                        <div class="d-flex flex-column c-ml-4">
+                            <h3 class="nickname c-mb-2 font-weight-bold font-size-20">@mway</h3>
+                            <p class="description font-weight-medium font-size-14">Uber</p>
+                        </div>
+                    </li>
+
+                    
+
+                    <li class="about-content__committee-member d-flex align-items-center c-mb-5 c-mb-lg-7 d-flex justify-content-md-center" 
+                    onclick="window.open('https://github.com/prateek', '_blank')" tabindex="-1">
+                        <div class="avatar d-flex justify-content-center align-items-center">
+                            <div class="avatar__background">
+                                <img src="../images/about/border-dashed.png" alt="border-dashed" class="lazyload" loading="lazy"/>
+                            </div>
+                            <img class="avatar__photo lazyload" src="../images/about/prateek.jpg" loading="lazy" alt="prateek" />
+                        </div>
+                        <div class="d-flex flex-column c-ml-4">
+                            <h3 class="nickname c-mb-2 font-weight-bold font-size-20">@prateek</h3>
+                            <p class="description font-weight-medium font-size-14">Uber</p>
+                        </div>
+                    </li>
+
+                    
+
+                    <li class="about-content__committee-member d-flex align-items-center c-mb-5 c-mb-lg-7 d-flex justify-content-md-center" 
+                    onclick="window.open('https://github.com/robskillington', '_blank')" tabindex="-1">
+                        <div class="avatar d-flex justify-content-center align-items-center">
+                            <div class="avatar__background">
+                                <img src="../images/about/border-dashed.png" alt="border-dashed" class="lazyload" loading="lazy"/>
+                            </div>
+                            <img class="avatar__photo lazyload" src="../images/about/robskillington.jpg" loading="lazy" alt="robskillington" />
+                        </div>
+                        <div class="d-flex flex-column c-ml-4">
+                            <h3 class="nickname c-mb-2 font-weight-bold font-size-20">@robskillington</h3>
+                            <p class="description font-weight-medium font-size-14">Chronosphere</p>
+                        </div>
+                    </li>
+
+                    
+
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="container-fluid about-content__feature c-pt-7 c-pb-8" data-aos="fade-in">
+        <div class="about-content__feature-background">
+            <img class="object-fit-cover lazyload" src="../images/about/feature-background.svg" loading="lazy" alt="feature-background" />
+        </div>
+        
+        <div class="container px-0">
+            <div class="row justify-content-center">
+                <h3 class="about-content__section-title font-size-36 font-weight-semibold w-100 text-center">How to Propose a Feature</h3>
+                <div class="about-content__feature-box c-mt-6 c-py-6 c-py-md-9 c-px-5 d-flex align-items-center flex-column flex-md-row justify-content-md-between">
+                    <p class="description font-size-24 font-weight-medium c-mb-5 c-mb-md-0">If you are interested in proposing a feature for M3, click the link and follow the steps provided.</p>
+                    <a
+                        target="_self"
+                        rel="noopener"
+                        href="https://github.com/m3db/proposal"
+                        class="crunch-button crunch-button__full-background crunch-button__full-background--gradient-color  crunch-button__full-background--large text-white">
+                        Propose Feature
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+        
+            </div>
+    
+        
+<div class="js-main-footer-wrapper">
+    <footer class="main-footer c-py-10">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="main-footer__logo-wrapper">
+                        <a class="navbar-brand" href="">
+                            <img src="../images/logo.svg" class="main-footer__logo lazyload" alt="logo-m3" loading="lazy">
+                        </a>    
+                    </div>
+                </div>
+
+                <div class="col-6 col-md-3 c-mt-6 c-mt-md-0">
+                    <h4 class="main-footer__title font-size-16 font-weight-bold text-primary">Sitemap</h4>
+                    <ul class="main-footer__menu main-footer__menu-sitemap list-unstyled c-mt-3">
+                        <li class="main-footer__menu-item"><a href="/community">Community</a></li>
+                        <li class="main-footer__menu-item"><a href="/about">About M3</a></li>
+                        <li class="main-footer__menu-item"><a href="/docs/" target="_blank">Documentation</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-6 col-md-3 c-mt-6 c-mt-md-0">
+                    <h4 class="main-footer__title font-size-16 font-weight-bold text-primary">Join our Community</h4>
+                    <ul class="main-footer__menu main-footer__menu-community list-unstyled c-mt-3">
+                        <li class="main-footer__menu-item">
+                            <p class="text-center">
+                                <img src="../images/slack_logo-color.svg" class="main-footer__menu-community--slack lazyload" 
+                                loading="lazy" alt="logo-slack-color" />
+                            </p>
+                            <span><a href="https://bit.ly/m3slack" target="_blank">Slack</a></span>
+                        </li>
+                        <li class="main-footer__menu-item">
+                            <p class="text-center">
+                                <img src="../images/github_logo-color.svg" class="main-footer__menu-community--github lazyload" loading="lazy" alt="logo-github-color" />
+                            </p>
+                            <span><a href="https://github.com/m3db/m3" target="_blank">Github</a></span>
+                        </li>
+                        <li class="main-footer__menu-item">
+                            <p class="text-center">
+                                <img src="../images/meetup_logo-color.svg" class="main-footer__menu-community--meetup lazyload" loading="lazy" alt="logo-meetup-color" />
+                            </p>
+                            <span><a href="https://www.meetup.com/M3-Community/" target="_blank">Meetup</a></span>
+                        </li>
+                        <li class="main-footer__menu-item">
+                            <p class="text-center">
+                                <img src="../images/community/calendly-logo.svg" class="main-footer__menu-community--office lazyload" loading="lazy" alt="logo-office-color"/>
+                            </p>
+                            <span><a href="https://calendly.com/chronosphere-intro/m3-community-office-hours" target="_blank">Office Hours</a></span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="col-md-3 c-mt-8 c-mt-md-0">
+                    <p class="main-footer__copy font-size-14 text-primary">Copyright © 2021. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+</div>
+    
+
+    <script src="../js/about.js" defer></script>
+<script>
+    WebFontConfig = {
+        custom: {
+            families: ['Cabin:400,500,600,700', 'Poppins:400,500']
+        }
+    };
+
+    (function(d) {
+        var wf = d.createElement('script'), s = d.scripts[0];
+        wf.src = 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js';
+        wf.async = true;
+        s.parentNode.insertBefore(wf, s);
+    })(document);
+
+</script>
+
+
+    </body>
+</html>

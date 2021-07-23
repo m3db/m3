@@ -138,9 +138,9 @@ m3sd:
 	require.True(t, exists)
 	keepAliveOpts = cluster2.KeepAliveOptions()
 	require.Equal(t, true, keepAliveOpts.KeepAliveEnabled())
-	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriod())
-	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriodMaxJitter())
-	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAliveTimeout())
+	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAlivePeriod())
+	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAliveTimeout())
 
 	t.Run("TestOptionsNewDirectoryMode", func(t *testing.T) {
 		opts := cfg.NewOptions()

@@ -22,6 +22,7 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -30,6 +31,7 @@ import (
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -63,10 +65,7 @@ func Run(opts RunOptions) {
 	// Create logger and metrics scope.
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
-		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
-		// sending stdlib "log" to black hole. Don't remove unless with good reason.
-		fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("error creating logger: %v", err)
 	}
 	defer logger.Sync()
 
@@ -151,7 +150,7 @@ func Run(opts RunOptions) {
 	// Create the aggregator.
 	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(
 		serverOptions.RawTCPAddr(),
-		client, serverOptions, runtimeOptsManager,
+		client, serverOptions, runtimeOptsManager, clock.NewOptions(),
 		instrumentOpts.SetMetricsScope(scope.SubScope("aggregator")))
 	if err != nil {
 		logger.Fatal("error creating aggregator options", zap.Error(err))

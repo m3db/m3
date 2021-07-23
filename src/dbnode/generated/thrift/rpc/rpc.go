@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -162,6 +162,69 @@ func (p *ErrorType) Value() (driver.Value, error) {
 	return int64(*p), nil
 }
 
+type ErrorFlags int64
+
+const (
+	ErrorFlags_NONE               ErrorFlags = 0
+	ErrorFlags_RESOURCE_EXHAUSTED ErrorFlags = 1
+	ErrorFlags_SERVER_TIMEOUT     ErrorFlags = 2
+)
+
+func (p ErrorFlags) String() string {
+	switch p {
+	case ErrorFlags_NONE:
+		return "NONE"
+	case ErrorFlags_RESOURCE_EXHAUSTED:
+		return "RESOURCE_EXHAUSTED"
+	case ErrorFlags_SERVER_TIMEOUT:
+		return "SERVER_TIMEOUT"
+	}
+	return "<UNSET>"
+}
+
+func ErrorFlagsFromString(s string) (ErrorFlags, error) {
+	switch s {
+	case "NONE":
+		return ErrorFlags_NONE, nil
+	case "RESOURCE_EXHAUSTED":
+		return ErrorFlags_RESOURCE_EXHAUSTED, nil
+	case "SERVER_TIMEOUT":
+		return ErrorFlags_SERVER_TIMEOUT, nil
+	}
+	return ErrorFlags(0), fmt.Errorf("not a valid ErrorFlags string")
+}
+
+func ErrorFlagsPtr(v ErrorFlags) *ErrorFlags { return &v }
+
+func (p ErrorFlags) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *ErrorFlags) UnmarshalText(text []byte) error {
+	q, err := ErrorFlagsFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
+func (p *ErrorFlags) Scan(value interface{}) error {
+	v, ok := value.(int64)
+	if !ok {
+		return errors.New("Scan value is not int64")
+	}
+	*p = ErrorFlags(v)
+	return nil
+}
+
+func (p *ErrorFlags) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return int64(*p), nil
+}
+
 type AggregateQueryType int64
 
 const (
@@ -223,9 +286,11 @@ func (p *AggregateQueryType) Value() (driver.Value, error) {
 // Attributes:
 //  - Type
 //  - Message
+//  - Flags
 type Error struct {
 	Type    ErrorType `thrift:"type,1,required" db:"type" json:"type"`
 	Message string    `thrift:"message,2,required" db:"message" json:"message"`
+	Flags   int64     `thrift:"flags,3" db:"flags" json:"flags,omitempty"`
 }
 
 func NewError() *Error {
@@ -241,6 +306,16 @@ func (p *Error) GetType() ErrorType {
 func (p *Error) GetMessage() string {
 	return p.Message
 }
+
+var Error_Flags_DEFAULT int64 = 0
+
+func (p *Error) GetFlags() int64 {
+	return p.Flags
+}
+func (p *Error) IsSetFlags() bool {
+	return p.Flags != Error_Flags_DEFAULT
+}
+
 func (p *Error) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -268,6 +343,10 @@ func (p *Error) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetMessage = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -308,6 +387,15 @@ func (p *Error) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Error) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		p.Flags = v
+	}
+	return nil
+}
+
 func (p *Error) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Error"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -317,6 +405,9 @@ func (p *Error) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -351,6 +442,21 @@ func (p *Error) writeField2(oprot thrift.TProtocol) (err error) {
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:message: ", p), err)
+	}
+	return err
+}
+
+func (p *Error) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetFlags() {
+		if err := oprot.WriteFieldBegin("flags", thrift.I64, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:flags: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(p.Flags)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.flags (3) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:flags: ", p), err)
+		}
 	}
 	return err
 }
@@ -495,6 +601,7 @@ func (p *WriteBatchRawErrors) Error() string {
 //  - ID
 //  - RangeType
 //  - ResultTimeType
+//  - Source
 type FetchRequest struct {
 	RangeStart     int64    `thrift:"rangeStart,1,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd       int64    `thrift:"rangeEnd,2,required" db:"rangeEnd" json:"rangeEnd"`
@@ -502,6 +609,7 @@ type FetchRequest struct {
 	ID             string   `thrift:"id,4,required" db:"id" json:"id"`
 	RangeType      TimeType `thrift:"rangeType,5" db:"rangeType" json:"rangeType,omitempty"`
 	ResultTimeType TimeType `thrift:"resultTimeType,6" db:"resultTimeType" json:"resultTimeType,omitempty"`
+	Source         []byte   `thrift:"source,7" db:"source" json:"source,omitempty"`
 }
 
 func NewFetchRequest() *FetchRequest {
@@ -539,12 +647,22 @@ var FetchRequest_ResultTimeType_DEFAULT TimeType = 0
 func (p *FetchRequest) GetResultTimeType() TimeType {
 	return p.ResultTimeType
 }
+
+var FetchRequest_Source_DEFAULT []byte
+
+func (p *FetchRequest) GetSource() []byte {
+	return p.Source
+}
 func (p *FetchRequest) IsSetRangeType() bool {
 	return p.RangeType != FetchRequest_RangeType_DEFAULT
 }
 
 func (p *FetchRequest) IsSetResultTimeType() bool {
 	return p.ResultTimeType != FetchRequest_ResultTimeType_DEFAULT
+}
+
+func (p *FetchRequest) IsSetSource() bool {
+	return p.Source != nil
 }
 
 func (p *FetchRequest) Read(iprot thrift.TProtocol) error {
@@ -592,6 +710,10 @@ func (p *FetchRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 6:
 			if err := p.ReadField6(iprot); err != nil {
+				return err
+			}
+		case 7:
+			if err := p.ReadField7(iprot); err != nil {
 				return err
 			}
 		default:
@@ -677,6 +799,15 @@ func (p *FetchRequest) ReadField6(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchRequest) ReadField7(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 7: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
 func (p *FetchRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -698,6 +829,9 @@ func (p *FetchRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField6(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField7(oprot); err != nil {
 			return err
 		}
 	}
@@ -787,6 +921,21 @@ func (p *FetchRequest) writeField6(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:resultTimeType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 7); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (7) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:source: ", p), err)
 		}
 	}
 	return err
@@ -1590,12 +1739,14 @@ func (p *WriteTaggedRequest) String() string {
 //  - NameSpace
 //  - Ids
 //  - RangeTimeType
+//  - Source
 type FetchBatchRawRequest struct {
 	RangeStart    int64    `thrift:"rangeStart,1,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd      int64    `thrift:"rangeEnd,2,required" db:"rangeEnd" json:"rangeEnd"`
 	NameSpace     []byte   `thrift:"nameSpace,3,required" db:"nameSpace" json:"nameSpace"`
 	Ids           [][]byte `thrift:"ids,4,required" db:"ids" json:"ids"`
 	RangeTimeType TimeType `thrift:"rangeTimeType,5" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
+	Source        []byte   `thrift:"source,6" db:"source" json:"source,omitempty"`
 }
 
 func NewFetchBatchRawRequest() *FetchBatchRawRequest {
@@ -1625,8 +1776,18 @@ var FetchBatchRawRequest_RangeTimeType_DEFAULT TimeType = 0
 func (p *FetchBatchRawRequest) GetRangeTimeType() TimeType {
 	return p.RangeTimeType
 }
+
+var FetchBatchRawRequest_Source_DEFAULT []byte
+
+func (p *FetchBatchRawRequest) GetSource() []byte {
+	return p.Source
+}
 func (p *FetchBatchRawRequest) IsSetRangeTimeType() bool {
 	return p.RangeTimeType != FetchBatchRawRequest_RangeTimeType_DEFAULT
+}
+
+func (p *FetchBatchRawRequest) IsSetSource() bool {
+	return p.Source != nil
 }
 
 func (p *FetchBatchRawRequest) Read(iprot thrift.TProtocol) error {
@@ -1670,6 +1831,10 @@ func (p *FetchBatchRawRequest) Read(iprot thrift.TProtocol) error {
 			issetIds = true
 		case 5:
 			if err := p.ReadField5(iprot); err != nil {
+				return err
+			}
+		case 6:
+			if err := p.ReadField6(iprot); err != nil {
 				return err
 			}
 		default:
@@ -1758,6 +1923,15 @@ func (p *FetchBatchRawRequest) ReadField5(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchBatchRawRequest) ReadField6(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 6: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
 func (p *FetchBatchRawRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchBatchRawRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -1776,6 +1950,9 @@ func (p *FetchBatchRawRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField5(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField6(oprot); err != nil {
 			return err
 		}
 	}
@@ -1863,6 +2040,21 @@ func (p *FetchBatchRawRequest) writeField5(oprot thrift.TProtocol) (err error) {
 	return err
 }
 
+func (p *FetchBatchRawRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 6); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (6) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:source: ", p), err)
+		}
+	}
+	return err
+}
+
 func (p *FetchBatchRawRequest) String() string {
 	if p == nil {
 		return "<nil>"
@@ -1873,9 +2065,11 @@ func (p *FetchBatchRawRequest) String() string {
 // Attributes:
 //  - NameSpaces
 //  - Elements
+//  - Source
 type FetchBatchRawV2Request struct {
 	NameSpaces [][]byte                         `thrift:"nameSpaces,1,required" db:"nameSpaces" json:"nameSpaces"`
 	Elements   []*FetchBatchRawV2RequestElement `thrift:"elements,2,required" db:"elements" json:"elements"`
+	Source     []byte                           `thrift:"source,3" db:"source" json:"source,omitempty"`
 }
 
 func NewFetchBatchRawV2Request() *FetchBatchRawV2Request {
@@ -1889,6 +2083,16 @@ func (p *FetchBatchRawV2Request) GetNameSpaces() [][]byte {
 func (p *FetchBatchRawV2Request) GetElements() []*FetchBatchRawV2RequestElement {
 	return p.Elements
 }
+
+var FetchBatchRawV2Request_Source_DEFAULT []byte
+
+func (p *FetchBatchRawV2Request) GetSource() []byte {
+	return p.Source
+}
+func (p *FetchBatchRawV2Request) IsSetSource() bool {
+	return p.Source != nil
+}
+
 func (p *FetchBatchRawV2Request) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -1916,6 +2120,10 @@ func (p *FetchBatchRawV2Request) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetElements = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -1981,6 +2189,15 @@ func (p *FetchBatchRawV2Request) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchBatchRawV2Request) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
 func (p *FetchBatchRawV2Request) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchBatchRawV2Request"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -1990,6 +2207,9 @@ func (p *FetchBatchRawV2Request) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -2040,6 +2260,21 @@ func (p *FetchBatchRawV2Request) writeField2(oprot thrift.TProtocol) (err error)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:elements: ", p), err)
+	}
+	return err
+}
+
+func (p *FetchBatchRawV2Request) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (3) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:source: ", p), err)
+		}
 	}
 	return err
 }
@@ -3047,20 +3282,24 @@ func (p *Segment) String() string {
 //  - RangeStart
 //  - RangeEnd
 //  - FetchData
-//  - Limit
+//  - SeriesLimit
 //  - RangeTimeType
 //  - RequireExhaustive
 //  - DocsLimit
+//  - Source
+//  - RequireNoWait
 type FetchTaggedRequest struct {
 	NameSpace         []byte   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Query             []byte   `thrift:"query,2,required" db:"query" json:"query"`
 	RangeStart        int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd          int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
 	FetchData         bool     `thrift:"fetchData,5,required" db:"fetchData" json:"fetchData"`
-	Limit             *int64   `thrift:"limit,6" db:"limit" json:"limit,omitempty"`
+	SeriesLimit       *int64   `thrift:"seriesLimit,6" db:"seriesLimit" json:"seriesLimit,omitempty"`
 	RangeTimeType     TimeType `thrift:"rangeTimeType,7" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
 	RequireExhaustive bool     `thrift:"requireExhaustive,8" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 	DocsLimit         *int64   `thrift:"docsLimit,9" db:"docsLimit" json:"docsLimit,omitempty"`
+	Source            []byte   `thrift:"source,10" db:"source" json:"source,omitempty"`
+	RequireNoWait     bool     `thrift:"requireNoWait,11" db:"requireNoWait" json:"requireNoWait,omitempty"`
 }
 
 func NewFetchTaggedRequest() *FetchTaggedRequest {
@@ -3091,13 +3330,13 @@ func (p *FetchTaggedRequest) GetFetchData() bool {
 	return p.FetchData
 }
 
-var FetchTaggedRequest_Limit_DEFAULT int64
+var FetchTaggedRequest_SeriesLimit_DEFAULT int64
 
-func (p *FetchTaggedRequest) GetLimit() int64 {
-	if !p.IsSetLimit() {
-		return FetchTaggedRequest_Limit_DEFAULT
+func (p *FetchTaggedRequest) GetSeriesLimit() int64 {
+	if !p.IsSetSeriesLimit() {
+		return FetchTaggedRequest_SeriesLimit_DEFAULT
 	}
-	return *p.Limit
+	return *p.SeriesLimit
 }
 
 var FetchTaggedRequest_RangeTimeType_DEFAULT TimeType = 0
@@ -3120,8 +3359,20 @@ func (p *FetchTaggedRequest) GetDocsLimit() int64 {
 	}
 	return *p.DocsLimit
 }
-func (p *FetchTaggedRequest) IsSetLimit() bool {
-	return p.Limit != nil
+
+var FetchTaggedRequest_Source_DEFAULT []byte
+
+func (p *FetchTaggedRequest) GetSource() []byte {
+	return p.Source
+}
+
+var FetchTaggedRequest_RequireNoWait_DEFAULT bool = false
+
+func (p *FetchTaggedRequest) GetRequireNoWait() bool {
+	return p.RequireNoWait
+}
+func (p *FetchTaggedRequest) IsSetSeriesLimit() bool {
+	return p.SeriesLimit != nil
 }
 
 func (p *FetchTaggedRequest) IsSetRangeTimeType() bool {
@@ -3134,6 +3385,14 @@ func (p *FetchTaggedRequest) IsSetRequireExhaustive() bool {
 
 func (p *FetchTaggedRequest) IsSetDocsLimit() bool {
 	return p.DocsLimit != nil
+}
+
+func (p *FetchTaggedRequest) IsSetSource() bool {
+	return p.Source != nil
+}
+
+func (p *FetchTaggedRequest) IsSetRequireNoWait() bool {
+	return p.RequireNoWait != FetchTaggedRequest_RequireNoWait_DEFAULT
 }
 
 func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
@@ -3195,6 +3454,14 @@ func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 9:
 			if err := p.ReadField9(iprot); err != nil {
+				return err
+			}
+		case 10:
+			if err := p.ReadField10(iprot); err != nil {
+				return err
+			}
+		case 11:
+			if err := p.ReadField11(iprot); err != nil {
 				return err
 			}
 		default:
@@ -3276,7 +3543,7 @@ func (p *FetchTaggedRequest) ReadField6(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 6: ", err)
 	} else {
-		p.Limit = &v
+		p.SeriesLimit = &v
 	}
 	return nil
 }
@@ -3305,6 +3572,24 @@ func (p *FetchTaggedRequest) ReadField9(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field 9: ", err)
 	} else {
 		p.DocsLimit = &v
+	}
+	return nil
+}
+
+func (p *FetchTaggedRequest) ReadField10(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 10: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
+func (p *FetchTaggedRequest) ReadField11(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 11: ", err)
+	} else {
+		p.RequireNoWait = v
 	}
 	return nil
 }
@@ -3339,6 +3624,12 @@ func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField9(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField10(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField11(oprot); err != nil {
 			return err
 		}
 	}
@@ -3417,15 +3708,15 @@ func (p *FetchTaggedRequest) writeField5(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *FetchTaggedRequest) writeField6(oprot thrift.TProtocol) (err error) {
-	if p.IsSetLimit() {
-		if err := oprot.WriteFieldBegin("limit", thrift.I64, 6); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:limit: ", p), err)
+	if p.IsSetSeriesLimit() {
+		if err := oprot.WriteFieldBegin("seriesLimit", thrift.I64, 6); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:seriesLimit: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.Limit)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.limit (6) field write error: ", p), err)
+		if err := oprot.WriteI64(int64(*p.SeriesLimit)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.seriesLimit (6) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:limit: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:seriesLimit: ", p), err)
 		}
 	}
 	return err
@@ -3476,6 +3767,36 @@ func (p *FetchTaggedRequest) writeField9(oprot thrift.TProtocol) (err error) {
 	return err
 }
 
+func (p *FetchTaggedRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 10); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 10:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (10) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 10:source: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchTaggedRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireNoWait() {
+		if err := oprot.WriteFieldBegin("requireNoWait", thrift.BOOL, 11); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 11:requireNoWait: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(p.RequireNoWait)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireNoWait (11) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 11:requireNoWait: ", p), err)
+		}
+	}
+	return err
+}
+
 func (p *FetchTaggedRequest) String() string {
 	if p == nil {
 		return "<nil>"
@@ -3486,9 +3807,13 @@ func (p *FetchTaggedRequest) String() string {
 // Attributes:
 //  - Elements
 //  - Exhaustive
+//  - WaitedIndex
+//  - WaitedSeriesRead
 type FetchTaggedResult_ struct {
-	Elements   []*FetchTaggedIDResult_ `thrift:"elements,1,required" db:"elements" json:"elements"`
-	Exhaustive bool                    `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
+	Elements         []*FetchTaggedIDResult_ `thrift:"elements,1,required" db:"elements" json:"elements"`
+	Exhaustive       bool                    `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
+	WaitedIndex      *int64                  `thrift:"waitedIndex,3" db:"waitedIndex" json:"waitedIndex,omitempty"`
+	WaitedSeriesRead *int64                  `thrift:"waitedSeriesRead,4" db:"waitedSeriesRead" json:"waitedSeriesRead,omitempty"`
 }
 
 func NewFetchTaggedResult_() *FetchTaggedResult_ {
@@ -3502,6 +3827,32 @@ func (p *FetchTaggedResult_) GetElements() []*FetchTaggedIDResult_ {
 func (p *FetchTaggedResult_) GetExhaustive() bool {
 	return p.Exhaustive
 }
+
+var FetchTaggedResult__WaitedIndex_DEFAULT int64
+
+func (p *FetchTaggedResult_) GetWaitedIndex() int64 {
+	if !p.IsSetWaitedIndex() {
+		return FetchTaggedResult__WaitedIndex_DEFAULT
+	}
+	return *p.WaitedIndex
+}
+
+var FetchTaggedResult__WaitedSeriesRead_DEFAULT int64
+
+func (p *FetchTaggedResult_) GetWaitedSeriesRead() int64 {
+	if !p.IsSetWaitedSeriesRead() {
+		return FetchTaggedResult__WaitedSeriesRead_DEFAULT
+	}
+	return *p.WaitedSeriesRead
+}
+func (p *FetchTaggedResult_) IsSetWaitedIndex() bool {
+	return p.WaitedIndex != nil
+}
+
+func (p *FetchTaggedResult_) IsSetWaitedSeriesRead() bool {
+	return p.WaitedSeriesRead != nil
+}
+
 func (p *FetchTaggedResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -3529,6 +3880,14 @@ func (p *FetchTaggedResult_) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetExhaustive = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
+		case 4:
+			if err := p.ReadField4(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -3579,6 +3938,24 @@ func (p *FetchTaggedResult_) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchTaggedResult_) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		p.WaitedIndex = &v
+	}
+	return nil
+}
+
+func (p *FetchTaggedResult_) ReadField4(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 4: ", err)
+	} else {
+		p.WaitedSeriesRead = &v
+	}
+	return nil
+}
+
 func (p *FetchTaggedResult_) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchTaggedResult"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -3588,6 +3965,12 @@ func (p *FetchTaggedResult_) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField4(oprot); err != nil {
 			return err
 		}
 	}
@@ -3630,6 +4013,36 @@ func (p *FetchTaggedResult_) writeField2(oprot thrift.TProtocol) (err error) {
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:exhaustive: ", p), err)
+	}
+	return err
+}
+
+func (p *FetchTaggedResult_) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetWaitedIndex() {
+		if err := oprot.WriteFieldBegin("waitedIndex", thrift.I64, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:waitedIndex: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.WaitedIndex)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.waitedIndex (3) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:waitedIndex: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchTaggedResult_) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetWaitedSeriesRead() {
+		if err := oprot.WriteFieldBegin("waitedSeriesRead", thrift.I64, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:waitedSeriesRead: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.WaitedSeriesRead)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.waitedSeriesRead (4) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:waitedSeriesRead: ", p), err)
+		}
 	}
 	return err
 }
@@ -3933,10 +4346,12 @@ func (p *FetchTaggedIDResult_) String() string {
 //  - NameSpace
 //  - Shard
 //  - Elements
+//  - Source
 type FetchBlocksRawRequest struct {
 	NameSpace []byte                          `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Shard     int32                           `thrift:"shard,2,required" db:"shard" json:"shard"`
 	Elements  []*FetchBlocksRawRequestElement `thrift:"elements,3,required" db:"elements" json:"elements"`
+	Source    []byte                          `thrift:"source,4" db:"source" json:"source,omitempty"`
 }
 
 func NewFetchBlocksRawRequest() *FetchBlocksRawRequest {
@@ -3954,6 +4369,16 @@ func (p *FetchBlocksRawRequest) GetShard() int32 {
 func (p *FetchBlocksRawRequest) GetElements() []*FetchBlocksRawRequestElement {
 	return p.Elements
 }
+
+var FetchBlocksRawRequest_Source_DEFAULT []byte
+
+func (p *FetchBlocksRawRequest) GetSource() []byte {
+	return p.Source
+}
+func (p *FetchBlocksRawRequest) IsSetSource() bool {
+	return p.Source != nil
+}
+
 func (p *FetchBlocksRawRequest) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -3987,6 +4412,10 @@ func (p *FetchBlocksRawRequest) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetElements = true
+		case 4:
+			if err := p.ReadField4(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -4049,6 +4478,15 @@ func (p *FetchBlocksRawRequest) ReadField3(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchBlocksRawRequest) ReadField4(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 4: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
 func (p *FetchBlocksRawRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchBlocksRawRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -4061,6 +4499,9 @@ func (p *FetchBlocksRawRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField3(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField4(oprot); err != nil {
 			return err
 		}
 	}
@@ -4116,6 +4557,21 @@ func (p *FetchBlocksRawRequest) writeField3(oprot thrift.TProtocol) (err error) 
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:elements: ", p), err)
+	}
+	return err
+}
+
+func (p *FetchBlocksRawRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (4) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:source: ", p), err)
+		}
 	}
 	return err
 }
@@ -9294,19 +9750,27 @@ func (p *HealthResult_) String() string {
 //  - RangeStart
 //  - RangeEnd
 //  - NameSpace
-//  - Limit
+//  - SeriesLimit
 //  - TagNameFilter
 //  - AggregateQueryType
 //  - RangeType
+//  - Source
+//  - DocsLimit
+//  - RequireExhaustive
+//  - RequireNoWait
 type AggregateQueryRawRequest struct {
 	Query              []byte             `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd           int64              `thrift:"rangeEnd,3,required" db:"rangeEnd" json:"rangeEnd"`
 	NameSpace          []byte             `thrift:"nameSpace,4,required" db:"nameSpace" json:"nameSpace"`
-	Limit              *int64             `thrift:"limit,5" db:"limit" json:"limit,omitempty"`
+	SeriesLimit        *int64             `thrift:"seriesLimit,5" db:"seriesLimit" json:"seriesLimit,omitempty"`
 	TagNameFilter      [][]byte           `thrift:"tagNameFilter,6" db:"tagNameFilter" json:"tagNameFilter,omitempty"`
 	AggregateQueryType AggregateQueryType `thrift:"aggregateQueryType,7" db:"aggregateQueryType" json:"aggregateQueryType,omitempty"`
 	RangeType          TimeType           `thrift:"rangeType,8" db:"rangeType" json:"rangeType,omitempty"`
+	Source             []byte             `thrift:"source,9" db:"source" json:"source,omitempty"`
+	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
+	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
+	RequireNoWait      *bool              `thrift:"requireNoWait,12" db:"requireNoWait" json:"requireNoWait,omitempty"`
 }
 
 func NewAggregateQueryRawRequest() *AggregateQueryRawRequest {
@@ -9333,13 +9797,13 @@ func (p *AggregateQueryRawRequest) GetNameSpace() []byte {
 	return p.NameSpace
 }
 
-var AggregateQueryRawRequest_Limit_DEFAULT int64
+var AggregateQueryRawRequest_SeriesLimit_DEFAULT int64
 
-func (p *AggregateQueryRawRequest) GetLimit() int64 {
-	if !p.IsSetLimit() {
-		return AggregateQueryRawRequest_Limit_DEFAULT
+func (p *AggregateQueryRawRequest) GetSeriesLimit() int64 {
+	if !p.IsSetSeriesLimit() {
+		return AggregateQueryRawRequest_SeriesLimit_DEFAULT
 	}
-	return *p.Limit
+	return *p.SeriesLimit
 }
 
 var AggregateQueryRawRequest_TagNameFilter_DEFAULT [][]byte
@@ -9359,8 +9823,41 @@ var AggregateQueryRawRequest_RangeType_DEFAULT TimeType = 0
 func (p *AggregateQueryRawRequest) GetRangeType() TimeType {
 	return p.RangeType
 }
-func (p *AggregateQueryRawRequest) IsSetLimit() bool {
-	return p.Limit != nil
+
+var AggregateQueryRawRequest_Source_DEFAULT []byte
+
+func (p *AggregateQueryRawRequest) GetSource() []byte {
+	return p.Source
+}
+
+var AggregateQueryRawRequest_DocsLimit_DEFAULT int64
+
+func (p *AggregateQueryRawRequest) GetDocsLimit() int64 {
+	if !p.IsSetDocsLimit() {
+		return AggregateQueryRawRequest_DocsLimit_DEFAULT
+	}
+	return *p.DocsLimit
+}
+
+var AggregateQueryRawRequest_RequireExhaustive_DEFAULT bool
+
+func (p *AggregateQueryRawRequest) GetRequireExhaustive() bool {
+	if !p.IsSetRequireExhaustive() {
+		return AggregateQueryRawRequest_RequireExhaustive_DEFAULT
+	}
+	return *p.RequireExhaustive
+}
+
+var AggregateQueryRawRequest_RequireNoWait_DEFAULT bool
+
+func (p *AggregateQueryRawRequest) GetRequireNoWait() bool {
+	if !p.IsSetRequireNoWait() {
+		return AggregateQueryRawRequest_RequireNoWait_DEFAULT
+	}
+	return *p.RequireNoWait
+}
+func (p *AggregateQueryRawRequest) IsSetSeriesLimit() bool {
+	return p.SeriesLimit != nil
 }
 
 func (p *AggregateQueryRawRequest) IsSetTagNameFilter() bool {
@@ -9373,6 +9870,22 @@ func (p *AggregateQueryRawRequest) IsSetAggregateQueryType() bool {
 
 func (p *AggregateQueryRawRequest) IsSetRangeType() bool {
 	return p.RangeType != AggregateQueryRawRequest_RangeType_DEFAULT
+}
+
+func (p *AggregateQueryRawRequest) IsSetSource() bool {
+	return p.Source != nil
+}
+
+func (p *AggregateQueryRawRequest) IsSetDocsLimit() bool {
+	return p.DocsLimit != nil
+}
+
+func (p *AggregateQueryRawRequest) IsSetRequireExhaustive() bool {
+	return p.RequireExhaustive != nil
+}
+
+func (p *AggregateQueryRawRequest) IsSetRequireNoWait() bool {
+	return p.RequireNoWait != nil
 }
 
 func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
@@ -9428,6 +9941,22 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 8:
 			if err := p.ReadField8(iprot); err != nil {
+				return err
+			}
+		case 9:
+			if err := p.ReadField9(iprot); err != nil {
+				return err
+			}
+		case 10:
+			if err := p.ReadField10(iprot); err != nil {
+				return err
+			}
+		case 11:
+			if err := p.ReadField11(iprot); err != nil {
+				return err
+			}
+		case 12:
+			if err := p.ReadField12(iprot); err != nil {
 				return err
 			}
 		default:
@@ -9497,7 +10026,7 @@ func (p *AggregateQueryRawRequest) ReadField5(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 5: ", err)
 	} else {
-		p.Limit = &v
+		p.SeriesLimit = &v
 	}
 	return nil
 }
@@ -9544,6 +10073,42 @@ func (p *AggregateQueryRawRequest) ReadField8(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateQueryRawRequest) ReadField9(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 9: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRawRequest) ReadField10(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 10: ", err)
+	} else {
+		p.DocsLimit = &v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRawRequest) ReadField11(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 11: ", err)
+	} else {
+		p.RequireExhaustive = &v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRawRequest) ReadField12(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 12: ", err)
+	} else {
+		p.RequireNoWait = &v
+	}
+	return nil
+}
+
 func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRawRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -9571,6 +10136,18 @@ func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField8(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField9(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField10(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField11(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField12(oprot); err != nil {
 			return err
 		}
 	}
@@ -9636,15 +10213,15 @@ func (p *AggregateQueryRawRequest) writeField4(oprot thrift.TProtocol) (err erro
 }
 
 func (p *AggregateQueryRawRequest) writeField5(oprot thrift.TProtocol) (err error) {
-	if p.IsSetLimit() {
-		if err := oprot.WriteFieldBegin("limit", thrift.I64, 5); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:limit: ", p), err)
+	if p.IsSetSeriesLimit() {
+		if err := oprot.WriteFieldBegin("seriesLimit", thrift.I64, 5); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:seriesLimit: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.Limit)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.limit (5) field write error: ", p), err)
+		if err := oprot.WriteI64(int64(*p.SeriesLimit)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.seriesLimit (5) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:limit: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:seriesLimit: ", p), err)
 		}
 	}
 	return err
@@ -9703,6 +10280,66 @@ func (p *AggregateQueryRawRequest) writeField8(oprot thrift.TProtocol) (err erro
 	return err
 }
 
+func (p *AggregateQueryRawRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 9); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (9) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 9:source: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRawRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDocsLimit() {
+		if err := oprot.WriteFieldBegin("docsLimit", thrift.I64, 10); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 10:docsLimit: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.DocsLimit)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.docsLimit (10) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 10:docsLimit: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRawRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireExhaustive() {
+		if err := oprot.WriteFieldBegin("requireExhaustive", thrift.BOOL, 11); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 11:requireExhaustive: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.RequireExhaustive)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireExhaustive (11) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 11:requireExhaustive: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRawRequest) writeField12(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireNoWait() {
+		if err := oprot.WriteFieldBegin("requireNoWait", thrift.BOOL, 12); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 12:requireNoWait: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.RequireNoWait)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireNoWait (12) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:requireNoWait: ", p), err)
+		}
+	}
+	return err
+}
+
 func (p *AggregateQueryRawRequest) String() string {
 	if p == nil {
 		return "<nil>"
@@ -9713,9 +10350,11 @@ func (p *AggregateQueryRawRequest) String() string {
 // Attributes:
 //  - Results
 //  - Exhaustive
+//  - WaitedIndex
 type AggregateQueryRawResult_ struct {
-	Results    []*AggregateQueryRawResultTagNameElement `thrift:"results,1,required" db:"results" json:"results"`
-	Exhaustive bool                                     `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
+	Results     []*AggregateQueryRawResultTagNameElement `thrift:"results,1,required" db:"results" json:"results"`
+	Exhaustive  bool                                     `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
+	WaitedIndex *int64                                   `thrift:"waitedIndex,3" db:"waitedIndex" json:"waitedIndex,omitempty"`
 }
 
 func NewAggregateQueryRawResult_() *AggregateQueryRawResult_ {
@@ -9729,6 +10368,19 @@ func (p *AggregateQueryRawResult_) GetResults() []*AggregateQueryRawResultTagNam
 func (p *AggregateQueryRawResult_) GetExhaustive() bool {
 	return p.Exhaustive
 }
+
+var AggregateQueryRawResult__WaitedIndex_DEFAULT int64
+
+func (p *AggregateQueryRawResult_) GetWaitedIndex() int64 {
+	if !p.IsSetWaitedIndex() {
+		return AggregateQueryRawResult__WaitedIndex_DEFAULT
+	}
+	return *p.WaitedIndex
+}
+func (p *AggregateQueryRawResult_) IsSetWaitedIndex() bool {
+	return p.WaitedIndex != nil
+}
+
 func (p *AggregateQueryRawResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -9756,6 +10408,10 @@ func (p *AggregateQueryRawResult_) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetExhaustive = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -9806,6 +10462,15 @@ func (p *AggregateQueryRawResult_) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateQueryRawResult_) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		p.WaitedIndex = &v
+	}
+	return nil
+}
+
 func (p *AggregateQueryRawResult_) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRawResult"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -9815,6 +10480,9 @@ func (p *AggregateQueryRawResult_) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -9857,6 +10525,21 @@ func (p *AggregateQueryRawResult_) writeField2(oprot thrift.TProtocol) (err erro
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:exhaustive: ", p), err)
+	}
+	return err
+}
+
+func (p *AggregateQueryRawResult_) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetWaitedIndex() {
+		if err := oprot.WriteFieldBegin("waitedIndex", thrift.I64, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:waitedIndex: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.WaitedIndex)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.waitedIndex (3) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:waitedIndex: ", p), err)
+		}
 	}
 	return err
 }
@@ -10133,19 +10816,27 @@ func (p *AggregateQueryRawResultTagValueElement) String() string {
 //  - RangeStart
 //  - RangeEnd
 //  - NameSpace
-//  - Limit
+//  - SeriesLimit
 //  - TagNameFilter
 //  - AggregateQueryType
 //  - RangeType
+//  - Source
+//  - DocsLimit
+//  - RequireExhaustive
+//  - RequireNoWait
 type AggregateQueryRequest struct {
 	Query              *Query             `thrift:"query,1" db:"query" json:"query,omitempty"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd           int64              `thrift:"rangeEnd,3,required" db:"rangeEnd" json:"rangeEnd"`
 	NameSpace          string             `thrift:"nameSpace,4,required" db:"nameSpace" json:"nameSpace"`
-	Limit              *int64             `thrift:"limit,5" db:"limit" json:"limit,omitempty"`
+	SeriesLimit        *int64             `thrift:"seriesLimit,5" db:"seriesLimit" json:"seriesLimit,omitempty"`
 	TagNameFilter      []string           `thrift:"tagNameFilter,6" db:"tagNameFilter" json:"tagNameFilter,omitempty"`
 	AggregateQueryType AggregateQueryType `thrift:"aggregateQueryType,7" db:"aggregateQueryType" json:"aggregateQueryType,omitempty"`
 	RangeType          TimeType           `thrift:"rangeType,8" db:"rangeType" json:"rangeType,omitempty"`
+	Source             []byte             `thrift:"source,9" db:"source" json:"source,omitempty"`
+	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
+	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
+	RequireNoWait      *bool              `thrift:"requireNoWait,12" db:"requireNoWait" json:"requireNoWait,omitempty"`
 }
 
 func NewAggregateQueryRequest() *AggregateQueryRequest {
@@ -10177,13 +10868,13 @@ func (p *AggregateQueryRequest) GetNameSpace() string {
 	return p.NameSpace
 }
 
-var AggregateQueryRequest_Limit_DEFAULT int64
+var AggregateQueryRequest_SeriesLimit_DEFAULT int64
 
-func (p *AggregateQueryRequest) GetLimit() int64 {
-	if !p.IsSetLimit() {
-		return AggregateQueryRequest_Limit_DEFAULT
+func (p *AggregateQueryRequest) GetSeriesLimit() int64 {
+	if !p.IsSetSeriesLimit() {
+		return AggregateQueryRequest_SeriesLimit_DEFAULT
 	}
-	return *p.Limit
+	return *p.SeriesLimit
 }
 
 var AggregateQueryRequest_TagNameFilter_DEFAULT []string
@@ -10203,12 +10894,45 @@ var AggregateQueryRequest_RangeType_DEFAULT TimeType = 0
 func (p *AggregateQueryRequest) GetRangeType() TimeType {
 	return p.RangeType
 }
+
+var AggregateQueryRequest_Source_DEFAULT []byte
+
+func (p *AggregateQueryRequest) GetSource() []byte {
+	return p.Source
+}
+
+var AggregateQueryRequest_DocsLimit_DEFAULT int64
+
+func (p *AggregateQueryRequest) GetDocsLimit() int64 {
+	if !p.IsSetDocsLimit() {
+		return AggregateQueryRequest_DocsLimit_DEFAULT
+	}
+	return *p.DocsLimit
+}
+
+var AggregateQueryRequest_RequireExhaustive_DEFAULT bool
+
+func (p *AggregateQueryRequest) GetRequireExhaustive() bool {
+	if !p.IsSetRequireExhaustive() {
+		return AggregateQueryRequest_RequireExhaustive_DEFAULT
+	}
+	return *p.RequireExhaustive
+}
+
+var AggregateQueryRequest_RequireNoWait_DEFAULT bool
+
+func (p *AggregateQueryRequest) GetRequireNoWait() bool {
+	if !p.IsSetRequireNoWait() {
+		return AggregateQueryRequest_RequireNoWait_DEFAULT
+	}
+	return *p.RequireNoWait
+}
 func (p *AggregateQueryRequest) IsSetQuery() bool {
 	return p.Query != nil
 }
 
-func (p *AggregateQueryRequest) IsSetLimit() bool {
-	return p.Limit != nil
+func (p *AggregateQueryRequest) IsSetSeriesLimit() bool {
+	return p.SeriesLimit != nil
 }
 
 func (p *AggregateQueryRequest) IsSetTagNameFilter() bool {
@@ -10221,6 +10945,22 @@ func (p *AggregateQueryRequest) IsSetAggregateQueryType() bool {
 
 func (p *AggregateQueryRequest) IsSetRangeType() bool {
 	return p.RangeType != AggregateQueryRequest_RangeType_DEFAULT
+}
+
+func (p *AggregateQueryRequest) IsSetSource() bool {
+	return p.Source != nil
+}
+
+func (p *AggregateQueryRequest) IsSetDocsLimit() bool {
+	return p.DocsLimit != nil
+}
+
+func (p *AggregateQueryRequest) IsSetRequireExhaustive() bool {
+	return p.RequireExhaustive != nil
+}
+
+func (p *AggregateQueryRequest) IsSetRequireNoWait() bool {
+	return p.RequireNoWait != nil
 }
 
 func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
@@ -10274,6 +11014,22 @@ func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 8:
 			if err := p.ReadField8(iprot); err != nil {
+				return err
+			}
+		case 9:
+			if err := p.ReadField9(iprot); err != nil {
+				return err
+			}
+		case 10:
+			if err := p.ReadField10(iprot); err != nil {
+				return err
+			}
+		case 11:
+			if err := p.ReadField11(iprot); err != nil {
+				return err
+			}
+		case 12:
+			if err := p.ReadField12(iprot); err != nil {
 				return err
 			}
 		default:
@@ -10339,7 +11095,7 @@ func (p *AggregateQueryRequest) ReadField5(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 5: ", err)
 	} else {
-		p.Limit = &v
+		p.SeriesLimit = &v
 	}
 	return nil
 }
@@ -10386,6 +11142,42 @@ func (p *AggregateQueryRequest) ReadField8(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateQueryRequest) ReadField9(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 9: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRequest) ReadField10(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 10: ", err)
+	} else {
+		p.DocsLimit = &v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRequest) ReadField11(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 11: ", err)
+	} else {
+		p.RequireExhaustive = &v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRequest) ReadField12(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 12: ", err)
+	} else {
+		p.RequireNoWait = &v
+	}
+	return nil
+}
+
 func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -10413,6 +11205,18 @@ func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField8(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField9(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField10(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField11(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField12(oprot); err != nil {
 			return err
 		}
 	}
@@ -10480,15 +11284,15 @@ func (p *AggregateQueryRequest) writeField4(oprot thrift.TProtocol) (err error) 
 }
 
 func (p *AggregateQueryRequest) writeField5(oprot thrift.TProtocol) (err error) {
-	if p.IsSetLimit() {
-		if err := oprot.WriteFieldBegin("limit", thrift.I64, 5); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:limit: ", p), err)
+	if p.IsSetSeriesLimit() {
+		if err := oprot.WriteFieldBegin("seriesLimit", thrift.I64, 5); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:seriesLimit: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.Limit)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.limit (5) field write error: ", p), err)
+		if err := oprot.WriteI64(int64(*p.SeriesLimit)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.seriesLimit (5) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:limit: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:seriesLimit: ", p), err)
 		}
 	}
 	return err
@@ -10542,6 +11346,66 @@ func (p *AggregateQueryRequest) writeField8(oprot thrift.TProtocol) (err error) 
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:rangeType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 9); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (9) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 9:source: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDocsLimit() {
+		if err := oprot.WriteFieldBegin("docsLimit", thrift.I64, 10); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 10:docsLimit: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.DocsLimit)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.docsLimit (10) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 10:docsLimit: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireExhaustive() {
+		if err := oprot.WriteFieldBegin("requireExhaustive", thrift.BOOL, 11); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 11:requireExhaustive: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.RequireExhaustive)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireExhaustive (11) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 11:requireExhaustive: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRequest) writeField12(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireNoWait() {
+		if err := oprot.WriteFieldBegin("requireNoWait", thrift.BOOL, 12); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 12:requireNoWait: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.RequireNoWait)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireNoWait (12) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:requireNoWait: ", p), err)
 		}
 	}
 	return err
@@ -10981,6 +11845,7 @@ func (p *AggregateQueryResultTagValueElement) String() string {
 //  - NoData
 //  - RangeType
 //  - ResultTimeType
+//  - Source
 type QueryRequest struct {
 	Query          *Query   `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart     int64    `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -10990,6 +11855,7 @@ type QueryRequest struct {
 	NoData         *bool    `thrift:"noData,6" db:"noData" json:"noData,omitempty"`
 	RangeType      TimeType `thrift:"rangeType,7" db:"rangeType" json:"rangeType,omitempty"`
 	ResultTimeType TimeType `thrift:"resultTimeType,8" db:"resultTimeType" json:"resultTimeType,omitempty"`
+	Source         []byte   `thrift:"source,9" db:"source" json:"source,omitempty"`
 }
 
 func NewQueryRequest() *QueryRequest {
@@ -11050,6 +11916,12 @@ var QueryRequest_ResultTimeType_DEFAULT TimeType = 0
 func (p *QueryRequest) GetResultTimeType() TimeType {
 	return p.ResultTimeType
 }
+
+var QueryRequest_Source_DEFAULT []byte
+
+func (p *QueryRequest) GetSource() []byte {
+	return p.Source
+}
 func (p *QueryRequest) IsSetQuery() bool {
 	return p.Query != nil
 }
@@ -11068,6 +11940,10 @@ func (p *QueryRequest) IsSetRangeType() bool {
 
 func (p *QueryRequest) IsSetResultTimeType() bool {
 	return p.ResultTimeType != QueryRequest_ResultTimeType_DEFAULT
+}
+
+func (p *QueryRequest) IsSetSource() bool {
+	return p.Source != nil
 }
 
 func (p *QueryRequest) Read(iprot thrift.TProtocol) error {
@@ -11123,6 +11999,10 @@ func (p *QueryRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 8:
 			if err := p.ReadField8(iprot); err != nil {
+				return err
+			}
+		case 9:
+			if err := p.ReadField9(iprot); err != nil {
 				return err
 			}
 		default:
@@ -11225,6 +12105,15 @@ func (p *QueryRequest) ReadField8(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *QueryRequest) ReadField9(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 9: ", err)
+	} else {
+		p.Source = v
+	}
+	return nil
+}
+
 func (p *QueryRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("QueryRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -11252,6 +12141,9 @@ func (p *QueryRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField8(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField9(oprot); err != nil {
 			return err
 		}
 	}
@@ -11371,6 +12263,21 @@ func (p *QueryRequest) writeField8(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:resultTimeType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *QueryRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSource() {
+		if err := oprot.WriteFieldBegin("source", thrift.STRING, 9); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:source: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.Source); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.source (9) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 9:source: ", p), err)
 		}
 	}
 	return err

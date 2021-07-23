@@ -73,15 +73,16 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 		// Enable useTchannelClientForWriting because this test relies upon being
 		// able to write data to a single node, and the M3DB client does not support
 		// that, but we can accomplish it by using an individual nodes TChannel endpoints.
-		setupOpts = []bootstrappableTestSetupOptions{
+		setupOpts = []BootstrappableTestSetupOptions{
 			{
-				disablePeersBootstrapper:    true,
-				useTChannelClientForWriting: true,
+				DisablePeersBootstrapper:    true,
+				UseTChannelClientForWriting: true,
 			},
 			{
-				disablePeersBootstrapper:    false,
-				useTChannelClientForWriting: true,
-				testStatsReporter:           reporter,
+				DisableCommitLogBootstrapper: true,
+				DisablePeersBootstrapper:     false,
+				UseTChannelClientForWriting:  true,
+				TestStatsReporter:            reporter,
 			},
 		}
 	)
@@ -91,7 +92,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 		namesp = opts.Namespaces()[0]
 	}
 
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node, ensure to overflow past
@@ -111,7 +112,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	directWritesSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
 	for start, s := range seriesMaps {
 		for i := range s {
-			isPartialSeries := start.ToTime().Equal(now)
+			isPartialSeries := start.Equal(now)
 			if !isPartialSeries {
 				// Normal series should just be straight up copied from first node
 				firstNodeSeriesMaps[start] = append(firstNodeSeriesMaps[start], s[i])
@@ -121,7 +122,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 			firstNodeSeries := generate.Series{ID: s[i].ID}
 			directWritesSeries := generate.Series{ID: s[i].ID}
 			for j := range s[i].Data {
-				if s[i].Data[j].Timestamp.Before(cutoverAt) {
+				if s[i].Data[j].TimestampNanos.Before(cutoverAt) {
 					// If partial series and before cutover then splice between first node and second node
 					if j%2 == 0 {
 						firstNodeSeries.Data = append(firstNodeSeries.Data, s[i].Data[j])
@@ -142,26 +143,26 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	// Assert test data for first node is correct
 	require.Equal(t, 2, len(firstNodeSeriesMaps))
 
-	require.Equal(t, 2, firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))].Len())
-	require.Equal(t, "foo", firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][0].ID.String())
-	require.Equal(t, 180, len(firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][0].Data))
-	require.Equal(t, "bar", firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][1].ID.String())
-	require.Equal(t, 180, len(firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][1].Data))
+	require.Equal(t, 2, firstNodeSeriesMaps[now.Add(-blockSize)].Len())
+	require.Equal(t, "foo", firstNodeSeriesMaps[now.Add(-blockSize)][0].ID.String())
+	require.Equal(t, 180, len(firstNodeSeriesMaps[now.Add(-blockSize)][0].Data))
+	require.Equal(t, "bar", firstNodeSeriesMaps[now.Add(-blockSize)][1].ID.String())
+	require.Equal(t, 180, len(firstNodeSeriesMaps[now.Add(-blockSize)][1].Data))
 
-	require.Equal(t, 2, firstNodeSeriesMaps[xtime.ToUnixNano(now)].Len())
-	require.Equal(t, "foo", firstNodeSeriesMaps[xtime.ToUnixNano(now)][0].ID.String())
-	require.Equal(t, 60, len(firstNodeSeriesMaps[xtime.ToUnixNano(now)][0].Data))
-	require.Equal(t, "baz", firstNodeSeriesMaps[xtime.ToUnixNano(now)][1].ID.String())
-	require.Equal(t, 60, len(firstNodeSeriesMaps[xtime.ToUnixNano(now)][1].Data))
+	require.Equal(t, 2, firstNodeSeriesMaps[now].Len())
+	require.Equal(t, "foo", firstNodeSeriesMaps[now][0].ID.String())
+	require.Equal(t, 60, len(firstNodeSeriesMaps[now][0].Data))
+	require.Equal(t, "baz", firstNodeSeriesMaps[now][1].ID.String())
+	require.Equal(t, 60, len(firstNodeSeriesMaps[now][1].Data))
 
 	// Assert test data for direct writes is correct
 	require.Equal(t, 1, len(directWritesSeriesMaps))
 
-	require.Equal(t, 2, directWritesSeriesMaps[xtime.ToUnixNano(now)].Len())
-	require.Equal(t, "foo", directWritesSeriesMaps[xtime.ToUnixNano(now)][0].ID.String())
-	require.Equal(t, 120, len(directWritesSeriesMaps[xtime.ToUnixNano(now)][0].Data))
-	require.Equal(t, "baz", directWritesSeriesMaps[xtime.ToUnixNano(now)][1].ID.String())
-	require.Equal(t, 120, len(directWritesSeriesMaps[xtime.ToUnixNano(now)][1].Data))
+	require.Equal(t, 2, directWritesSeriesMaps[now].Len())
+	require.Equal(t, "foo", directWritesSeriesMaps[now][0].ID.String())
+	require.Equal(t, 120, len(directWritesSeriesMaps[now][0].Data))
+	require.Equal(t, "baz", directWritesSeriesMaps[now][1].ID.String())
+	require.Equal(t, 120, len(directWritesSeriesMaps[now][1].Data))
 
 	// Write data to first node
 	err = writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps, 0)
@@ -185,7 +186,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 
 		// Write data that "arrives" at the second node directly
 		err := setups[1].WriteBatch(namesp.ID(),
-			directWritesSeriesMaps[xtime.ToUnixNano(now)])
+			directWritesSeriesMaps[now])
 		if err != nil {
 			panic(err)
 		}

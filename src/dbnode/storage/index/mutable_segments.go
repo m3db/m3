@@ -35,10 +35,11 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
+	xresource "github.com/m3db/m3/src/x/resource"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -69,11 +70,11 @@ type mutableSegments struct {
 	backgroundSegments []*readableSeg
 
 	compact                  mutableSegmentsCompact
-	blockStart               time.Time
+	blockStart               xtime.UnixNano
 	blockOpts                BlockOptions
 	opts                     Options
 	iopts                    instrument.Options
-	optsListener             xclose.SimpleCloser
+	optsListener             xresource.SimpleCloser
 	writeIndexingConcurrency int
 
 	metrics mutableSegmentsMetrics
@@ -101,7 +102,7 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func newMutableSegments(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	opts Options,
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
@@ -417,7 +418,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 	m.compact.numBackground++
 
 	logger := m.logger.With(
-		zap.Time("blockStart", m.blockStart),
+		zap.Time("blockStart", m.blockStart.ToTime()),
 		zap.Int("numBackgroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
@@ -582,7 +583,7 @@ func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.Documents
 	m.compact.numForeground++
 
 	logger := m.logger.With(
-		zap.Time("blockStart", m.blockStart),
+		zap.Time("blockStart", m.blockStart.ToTime()),
 		zap.Int("numForegroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
@@ -781,8 +782,8 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	opts Options,
 ) error {
 	var (
-		err      error
-		docsPool = opts.DocumentArrayPool()
+		err          error
+		metadataPool = opts.MetadataArrayPool()
 	)
 	if m.segmentBuilder == nil {
 		builderOpts := opts.SegmentBuilderOptions().
@@ -795,8 +796,8 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	}
 
 	if m.foregroundCompactor == nil {
-		m.foregroundCompactor, err = compaction.NewCompactor(docsPool,
-			DocumentArrayPoolCapacity,
+		m.foregroundCompactor, err = compaction.NewCompactor(metadataPool,
+			MetadataArrayPoolCapacity,
 			opts.SegmentBuilderOptions(),
 			opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
@@ -814,8 +815,8 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	}
 
 	if m.backgroundCompactor == nil {
-		m.backgroundCompactor, err = compaction.NewCompactor(docsPool,
-			DocumentArrayPoolCapacity,
+		m.backgroundCompactor, err = compaction.NewCompactor(metadataPool,
+			MetadataArrayPoolCapacity,
 			opts.SegmentBuilderOptions(),
 			opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{

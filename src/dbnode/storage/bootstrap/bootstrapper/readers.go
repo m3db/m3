@@ -64,19 +64,19 @@ func newTimeWindowReaders(
 
 // EnqueueReadersOptions supplies options to enqueue readers.
 type EnqueueReadersOptions struct {
-	NsMD                      namespace.Metadata
-	RunOpts                   bootstrap.RunOptions
-	RuntimeOpts               runtime.Options
-	FsOpts                    fs.Options
-	ShardTimeRanges           result.ShardTimeRanges
-	ReaderPool                *ReaderPool
-	ReadersCh                 chan<- TimeWindowReaders
-	BlockSize                 time.Duration
-	OptimizedReadMetadataOnly bool
-	Logger                    *zap.Logger
-	Span                      opentracing.Span
-	NowFn                     clock.NowFn
-	Cache                     bootstrap.Cache
+	NsMD             namespace.Metadata
+	RunOpts          bootstrap.RunOptions
+	RuntimeOpts      runtime.Options
+	FsOpts           fs.Options
+	ShardTimeRanges  result.ShardTimeRanges
+	ReaderPool       *ReaderPool
+	ReadersCh        chan<- TimeWindowReaders
+	BlockSize        time.Duration
+	ReadMetadataOnly bool
+	Logger           *zap.Logger
+	Span             opentracing.Span
+	NowFn            clock.NowFn
+	Cache            bootstrap.Cache
 }
 
 // EnqueueReaders into a readers channel grouped by data block.
@@ -87,12 +87,11 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 	// Normal run, open readers
 	enqueueReadersGroupedByBlockSize(
 		opts.NsMD,
-		opts.FsOpts,
 		opts.ShardTimeRanges,
 		opts.ReaderPool,
 		opts.ReadersCh,
 		opts.BlockSize,
-		opts.OptimizedReadMetadataOnly,
+		opts.ReadMetadataOnly,
 		opts.Logger,
 		opts.Span,
 		opts.NowFn,
@@ -102,12 +101,11 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 
 func enqueueReadersGroupedByBlockSize(
 	ns namespace.Metadata,
-	fsOpts fs.Options,
 	shardTimeRanges result.ShardTimeRanges,
 	readerPool *ReaderPool,
 	readersCh chan<- TimeWindowReaders,
 	blockSize time.Duration,
-	optimizedReadMetadataOnly bool,
+	readMetadataOnly bool,
 	logger *zap.Logger,
 	span opentracing.Span,
 	nowFn clock.NowFn,
@@ -131,8 +129,8 @@ func enqueueReadersGroupedByBlockSize(
 				)
 				continue
 			}
-			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
-				optimizedReadMetadataOnly, logger, span, nowFn, readInfoFilesResults)
+			shardReaders := newShardReaders(ns, readerPool, shard, tr,
+				readMetadataOnly, logger, span, nowFn, readInfoFilesResults)
 			readers[ShardID(shard)] = shardReaders
 		}
 		readersCh <- newTimeWindowReaders(group.Ranges, readers)
@@ -141,11 +139,10 @@ func enqueueReadersGroupedByBlockSize(
 
 func newShardReaders(
 	ns namespace.Metadata,
-	fsOpts fs.Options,
 	readerPool *ReaderPool,
 	shard uint32,
 	tr xtime.Ranges,
-	optimizedReadMetadataOnly bool,
+	readMetadataOnly bool,
 	logger *zap.Logger,
 	span opentracing.Span,
 	nowFn clock.NowFn,
@@ -187,7 +184,7 @@ func newShardReaders(
 		}
 
 		info := result.Info
-		blockStart := xtime.FromNanoseconds(info.BlockStart)
+		blockStart := xtime.UnixNano(info.BlockStart)
 		if !tr.Overlaps(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(ns.Options().RetentionOptions().BlockSize()),
@@ -206,13 +203,13 @@ func newShardReaders(
 		}
 
 		openOpts := fs.DataReaderOpenOptions{
-			Identifier:                fs.NewFileSetFileIdentifier(ns.ID(), blockStart, shard, info.VolumeIndex),
-			OptimizedReadMetadataOnly: optimizedReadMetadataOnly,
+			Identifier:       fs.NewFileSetFileIdentifier(ns.ID(), blockStart, shard, info.VolumeIndex),
+			StreamingEnabled: readMetadataOnly,
 		}
 		if err := r.Open(openOpts); err != nil {
 			logger.Error("unable to open fileset files",
 				zap.Uint32("shard", shard),
-				zap.Time("blockStart", blockStart),
+				zap.Time("blockStart", blockStart.ToTime()),
 				zap.Error(err),
 			)
 			readerPool.Put(r)

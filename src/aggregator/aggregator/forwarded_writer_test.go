@@ -21,7 +21,9 @@
 package aggregator
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -32,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -54,11 +57,43 @@ func TestForwardedWriterRegisterWriterClosed(t *testing.T) {
 		mt     = metric.CounterType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
+		closed = make(chan struct{})
+		wg     sync.WaitGroup
 	)
-	w.Close()
 
-	_, _, err := w.Register(mt, mid, aggKey)
-	require.Equal(t, errForwardedWriterClosed, err)
+	c.EXPECT().Flush().AnyTimes()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			var err error
+
+			assert.NotPanics(t, func() {
+				if err = w.Flush(); err != nil {
+					require.Equal(t, errForwardedWriterClosed, err)
+				}
+			})
+
+			if err != nil {
+				break
+			}
+			time.Sleep(1 * time.Microsecond)
+		}
+
+		assert.NotPanics(t, func() {
+			_, _, err := w.Register(mt, mid, aggKey)
+			require.Equal(t, errForwardedWriterClosed, err)
+
+			err = w.Flush()
+			require.Equal(t, errForwardedWriterClosed, err)
+		})
+	}()
+
+	require.NoError(t, w.Close())
+	close(closed)
+	wg.Wait()
 }
 
 func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
@@ -97,27 +132,30 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 
 	// Validate that writeFn can be used to write data to the aggregation.
-	writeFn(aggKey, 1234, 5.67)
+	writeFn(aggKey, 1234, 5.67, nil)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
 	require.Equal(t, int64(1234), agg.byKey[0].buckets[0].timeNanos)
 	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[0].values)
+	require.Nil(t, agg.byKey[0].buckets[0].annotation)
 
-	writeFn(aggKey, 1234, 1.78)
+	writeFn(aggKey, 1234, 1.78, testAnnot)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
 	require.Equal(t, int64(1234), agg.byKey[0].buckets[0].timeNanos)
 	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[0].values)
+	require.Equal(t, testAnnot, agg.byKey[0].buckets[0].annotation)
 
-	writeFn(aggKey, 1240, -2.95)
+	writeFn(aggKey, 1240, -2.95, nil)
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, int64(1240), agg.byKey[0].buckets[1].timeNanos)
 	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1].values)
 
 	// Validate that onDoneFn can be used to flush data out.
 	expectedMetric1 := aggregated.ForwardedMetric{
-		Type:      mt,
-		ID:        mid,
-		TimeNanos: 1234,
-		Values:    []float64{5.67, 1.78},
+		Type:       mt,
+		ID:         mid,
+		TimeNanos:  1234,
+		Values:     []float64{5.67, 1.78},
+		Annotation: testAnnot,
 	}
 	expectedMetric2 := aggregated.ForwardedMetric{
 		Type:      mt,
@@ -185,7 +223,7 @@ func TestForwardedWriterUnregisterWriterClosed(t *testing.T) {
 		aggKey = testForwardedWriterAggregationKey
 	)
 
-	w.Close()
+	require.NoError(t, w.Close())
 	require.Equal(t, errForwardedWriterClosed, w.Unregister(mt, mid, aggKey))
 }
 
@@ -276,17 +314,17 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some datapoints.
-	writeFn(aggKey, 1234, 3.4)
-	writeFn(aggKey, 1234, 3.5)
-	writeFn(aggKey, 1240, 98.2)
+	writeFn(aggKey, 1234, 3.4, nil)
+	writeFn(aggKey, 1234, 3.5, nil)
+	writeFn(aggKey, 1240, 98.2, nil)
 
 	// Register another aggregation.
 	writeFn2, onDoneFn2, err := w.Register(mt, mid2, aggKey)
 	require.NoError(t, err)
 
 	// Write some more datapoints.
-	writeFn2(aggKey, 1238, 3.4)
-	writeFn2(aggKey, 1239, 3.5)
+	writeFn2(aggKey, 1238, 3.4, nil)
+	writeFn2(aggKey, 1239, 3.5, nil)
 
 	expectedMetric1 := aggregated.ForwardedMetric{
 		Type:      mt,
@@ -358,11 +396,11 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 2, len(agg.byKey[0].cachedValueArrays))
 
 	// Write datapoints again.
-	writeFn(aggKey, 1234, 3.4)
-	writeFn(aggKey, 1234, 3.5)
-	writeFn(aggKey, 1240, 98.2)
-	writeFn2(aggKey, 1238, 3.4)
-	writeFn2(aggKey, 1239, 3.5)
+	writeFn(aggKey, 1234, 3.4, nil)
+	writeFn(aggKey, 1234, 3.5, nil)
+	writeFn(aggKey, 1240, 98.2, nil)
+	writeFn2(aggKey, 1238, 3.4, nil)
+	writeFn2(aggKey, 1239, 3.5, nil)
 	require.NoError(t, onDoneFn(aggKey))
 	require.NoError(t, onDoneFn2(aggKey))
 
@@ -390,12 +428,10 @@ func TestForwardedWriterCloseWriterClosed(t *testing.T) {
 		w = newForwardedWriter(0, c, tally.NoopScope)
 	)
 
-	// Close the writer and validate that the fields are nil'ed out.
+	// Close the writer
 	require.NoError(t, w.Close())
 	fw := w.(*forwardedWriter)
-	require.True(t, fw.closed)
-	require.Nil(t, fw.client)
-	require.Nil(t, fw.aggregations)
+	require.True(t, fw.closed.Load())
 
 	// Closing the writer a second time results in an error.
 	require.Equal(t, errForwardedWriterClosed, w.Close())

@@ -29,14 +29,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3/src/x/close"
 	murmur3 "github.com/m3db/stackmurmur3/v2"
-
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 const (
@@ -68,14 +67,14 @@ type connPool struct {
 }
 
 type conn struct {
-	channel xclose.SimpleCloser
+	channel Channel
 	client  rpc.TChanNode
 }
 
 // NewConnectionFn is a function that creates a connection.
 type NewConnectionFn func(
 	channelName string, addr string, opts Options,
-) (xclose.SimpleCloser, rpc.TChanNode, error)
+) (Channel, rpc.TChanNode, error)
 
 type healthCheckFn func(client rpc.TChanNode, opts Options) error
 
@@ -134,20 +133,20 @@ func (p *connPool) ConnectionCount() int {
 	return int(poolLen)
 }
 
-func (p *connPool) NextClient() (rpc.TChanNode, error) {
+func (p *connPool) NextClient() (rpc.TChanNode, Channel, error) {
 	p.RLock()
 	if p.status != statusOpen {
 		p.RUnlock()
-		return nil, errConnectionPoolClosed
+		return nil, nil, errConnectionPoolClosed
 	}
 	if p.poolLen < 1 {
 		p.RUnlock()
-		return nil, errConnectionPoolHasNoConnections
+		return nil, nil, errConnectionPoolHasNoConnections
 	}
 	n := atomic.AddInt64(&p.used, 1)
 	conn := p.pool[n%p.poolLen]
 	p.RUnlock()
-	return conn.client, nil
+	return conn.client, conn.channel, nil
 }
 
 func (p *connPool) Close() {

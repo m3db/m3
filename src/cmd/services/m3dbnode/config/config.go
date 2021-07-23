@@ -29,19 +29,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3dbx/vellum/regexp"
+	"go.etcd.io/etcd/embed"
+	"go.etcd.io/etcd/pkg/transport"
+	"go.etcd.io/etcd/pkg/types"
+
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
-
-	"go.etcd.io/etcd/embed"
-	"go.etcd.io/etcd/pkg/transport"
-	"go.etcd.io/etcd/pkg/types"
 )
 
 const (
@@ -65,11 +68,16 @@ var (
 		SamplingRate:    1.0,
 		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
 	}
-	defaultListenAddress                 = "0.0.0.0:9000"
-	defaultClusterListenAddress          = "0.0.0.0:9001"
-	defaultHTTPNodeListenAddress         = "0.0.0.0:9002"
-	defaultHTTPClusterListenAddress      = "0.0.0.0:9003"
-	defaultDebugListenAddress            = "0.0.0.0:9004"
+	defaultListenAddress            = "0.0.0.0:9000"
+	defaultClusterListenAddress     = "0.0.0.0:9001"
+	defaultHTTPNodeListenAddress    = "0.0.0.0:9002"
+	defaultHTTPClusterListenAddress = "0.0.0.0:9003"
+	defaultDebugListenAddress       = "0.0.0.0:9004"
+	defaultHostIDValue              = "m3db_local"
+	defaultHostID                   = hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &defaultHostIDValue,
+	}
 	defaultGCPercentage                  = 100
 	defaultWriteNewSeriesAsync           = true
 	defaultWriteNewSeriesBackoffDuration = 2 * time.Millisecond
@@ -80,6 +88,10 @@ var (
 			Size:            2097152,
 			CalculationType: CalculationTypeFixed,
 		},
+	}
+	defaultDiscoveryType = discovery.M3DBSingleNodeType
+	defaultDiscovery     = discovery.Configuration{
+		Type: &defaultDiscoveryType,
 	}
 )
 
@@ -129,7 +141,7 @@ type DBConfiguration struct {
 	DebugListenAddress *string `yaml:"debugListenAddress"`
 
 	// HostID is the local host ID configuration.
-	HostID hostid.Configuration `yaml:"hostID"`
+	HostID *hostid.Configuration `yaml:"hostID"`
 
 	// Client configuration, used for inter-node communication and when used as a coordinator.
 	Client client.Configuration `yaml:"client"`
@@ -164,8 +176,8 @@ type DBConfiguration struct {
 	// The pooling policy.
 	PoolingPolicy *PoolingPolicy `yaml:"pooling"`
 
-	// The environment (static or dynamic) configuration.
-	EnvironmentConfig environment.Configuration `yaml:"config"`
+	// The discovery configuration.
+	Discovery *discovery.Configuration `yaml:"discovery"`
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
@@ -196,6 +208,10 @@ type DBConfiguration struct {
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+
+	// ForceColdWritesEnabled will force enable cold writes for all namespaces
+	// if set.
+	ForceColdWritesEnabled *bool `yaml:"forceColdWritesEnabled"`
 }
 
 // LoggingOrDefault returns the logging configuration or defaults.
@@ -261,6 +277,15 @@ func (c *DBConfiguration) DebugListenAddressOrDefault() string {
 	return *c.DebugListenAddress
 }
 
+// HostIDOrDefault returns the host ID or default.
+func (c *DBConfiguration) HostIDOrDefault() hostid.Configuration {
+	if c.HostID == nil {
+		return defaultHostID
+	}
+
+	return *c.HostID
+}
+
 // CommitLogOrDefault returns the commit log policy or default.
 func (c *DBConfiguration) CommitLogOrDefault() CommitLogPolicy {
 	if c.CommitLog == nil {
@@ -311,6 +336,15 @@ func (c *DBConfiguration) PoolingPolicyOrDefault() (PoolingPolicy, error) {
 	return policy, nil
 }
 
+// DiscoveryOrDefault returns the discovery configuration or defaults.
+func (c *DBConfiguration) DiscoveryOrDefault() discovery.Configuration {
+	if c.Discovery == nil {
+		return defaultDiscovery
+	}
+
+	return *c.Discovery
+}
+
 // Validate validates the Configuration. We use this method to validate fields
 // where the validator package falls short.
 func (c *DBConfiguration) Validate() error {
@@ -351,6 +385,21 @@ type IndexConfiguration struct {
 	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 
+	// MaxWorkerTime is the maximum time a query can hold an index worker at once. If a query does not finish in this
+	// time it yields the worker and must wait again for another worker to resume. The number of workers available to
+	// all queries is defined by MaxQueryIDsConcurrency.
+	// Capping the maximum time per worker ensures a few large queries don't hold all the concurrent workers and lock
+	// out many small queries from running.
+	MaxWorkerTime time.Duration `yaml:"maxWorkerTime"`
+
+	// RegexpDFALimit is the limit on the max number of states used by a
+	// regexp deterministic finite automaton. Default is 10,000 states.
+	RegexpDFALimit *int `yaml:"regexpDFALimit"`
+
+	// RegexpFSALimit is the limit on the max number of bytes used by the
+	// finite state automaton. Default is 10mb (10 million as int).
+	RegexpFSALimit *uint `yaml:"regexpFSALimit"`
+
 	// ForwardIndexProbability determines the likelihood that an incoming write is
 	// written to the next block, when arriving close to the block boundary.
 	//
@@ -366,6 +415,24 @@ type IndexConfiguration struct {
 	// block boundaries by eagerly writing the series to the next block
 	// preemptively.
 	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
+}
+
+// RegexpDFALimitOrDefault returns the deterministic finite automaton states
+// limit or default.
+func (c IndexConfiguration) RegexpDFALimitOrDefault() int {
+	if c.RegexpDFALimit == nil {
+		return regexp.StateLimit()
+	}
+	return *c.RegexpDFALimit
+}
+
+// RegexpFSALimitOrDefault returns the finite state automaton size
+// limit or default.
+func (c IndexConfiguration) RegexpFSALimitOrDefault() uint {
+	if c.RegexpFSALimit == nil {
+		return regexp.DefaultLimit()
+	}
+	return *c.RegexpFSALimit
 }
 
 // TransformConfiguration contains configuration options that can transform
@@ -462,16 +529,31 @@ type CommitLogQueuePolicy struct {
 	Size int `yaml:"size" validate:"nonzero"`
 }
 
+// RepairPolicyMode is the repair policy mode.
+type RepairPolicyMode uint
+
 // RepairPolicy is the repair policy.
 type RepairPolicy struct {
 	// Enabled or disabled.
 	Enabled bool `yaml:"enabled"`
+
+	// Type is the type of repair to run.
+	Type repair.Type `yaml:"type"`
+
+	// Strategy is the type of repair strategy to use.
+	Strategy repair.Strategy `yaml:"strategy"`
+
+	// Force the repair to run regardless of whether namespaces have repair enabled or not.
+	Force bool `yaml:"force"`
 
 	// The repair throttle.
 	Throttle time.Duration `yaml:"throttle"`
 
 	// The repair check interval.
 	CheckInterval time.Duration `yaml:"checkInterval"`
+
+	// Concurrency sets the repair shard concurrency if set.
+	Concurrency int `yaml:"concurrency"`
 
 	// Whether debug shadow comparisons are enabled.
 	DebugShadowComparisonsEnabled bool `yaml:"debugShadowComparisonsEnabled"`
@@ -587,12 +669,19 @@ func (c *ProtoConfiguration) Validate() error {
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
 func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
-	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
-	hostID, err := cfg.HostID.Resolve()
+	hostID, err := cfg.HostIDOrDefault().Resolve()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed resolving hostID %w", err)
 	}
+
+	discoveryCfg := cfg.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting env config from discovery config %w", err)
+	}
+
+	kvCfg := envCfg.SeedNodes
 	newKVCfg.Name = hostID
 
 	dir := kvCfg.RootDir

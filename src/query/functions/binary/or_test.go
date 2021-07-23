@@ -31,7 +31,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,19 +47,19 @@ func TestOrWithExactValues(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block2)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), block2)
 	require.NoError(t, err)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block1)
 	require.NoError(t, err)
 	assert.Equal(t, values, sink.Values)
 }
@@ -76,24 +78,24 @@ func TestOrWithSomeValues(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block2)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), block2)
 	require.NoError(t, err)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block1)
 	require.NoError(t, err)
 	// NAN values should be filled
 	expected := values1
 
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func generateMetaDataWithTagsInRange(
@@ -256,20 +258,20 @@ var orTests = []struct {
 }
 
 func TestOrs(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	for _, tt := range orTests {
 		t.Run(tt.name, func(t *testing.T) {
 			op, err := NewOp(
 				OrType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 			bounds := models.Bounds{
 				Start:    now,
@@ -278,7 +280,7 @@ func TestOrs(t *testing.T) {
 			}
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 			require.NoError(t, err)
 
 			bounds = models.Bounds{
@@ -288,14 +290,14 @@ func TestOrs(t *testing.T) {
 			}
 
 			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 				return
 			}
 
 			require.NoError(t, err)
-			test.EqualsWithNans(t, tt.expected, sink.Values)
+			compare.EqualsWithNans(t, tt.expected, sink.Values)
 			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})
 	}
@@ -304,7 +306,7 @@ func TestOrs(t *testing.T) {
 func TestOrsBoundsError(t *testing.T) {
 	tt := orTests[0]
 	bounds := models.Bounds{
-		Start:    time.Now(),
+		Start:    xtime.Now(),
 		Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 		StepSize: time.Minute,
 	}
@@ -312,18 +314,18 @@ func TestOrsBoundsError(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
+	c, _ := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
 	lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 	require.NoError(t, err)
 
 	differentBounds := models.Bounds{
@@ -333,7 +335,7 @@ func TestOrsBoundsError(t *testing.T) {
 	}
 	rhs := test.NewBlockFromValuesWithSeriesMeta(
 		differentBounds, tt.rhsMeta, tt.rhs)
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 	require.EqualError(t, err, errMismatchedBounds.Error())
 }
 
@@ -352,18 +354,18 @@ func TestOrCombinedMetadata(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
+			LNode:                parser.NodeID(rune(0)),
+			RNode:                parser.NodeID(rune(1)),
 			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
 
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 	node := op.(baseOp).Node(c, transform.Options{})
 
 	bounds := models.Bounds{
-		Start:    time.Now(),
+		Start:    xtime.Now(),
 		Duration: time.Minute * 2,
 		StepSize: time.Minute,
 	}
@@ -382,7 +384,7 @@ func TestOrCombinedMetadata(t *testing.T) {
 		lSeriesMeta,
 		[][]float64{{1, 2}, {10, 20}})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 	require.NoError(t, err)
 
 	strTags = test.StringTags{
@@ -402,10 +404,10 @@ func TestOrCombinedMetadata(t *testing.T) {
 		rSeriesMeta,
 		[][]float64{{3, 4}, {30, 40}})
 
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 	require.NoError(t, err)
 
-	test.EqualsWithNans(t, [][]float64{
+	compare.EqualsWithNans(t, [][]float64{
 		{1, 2}, {10, 20}, {3, 4}, {30, 40},
 	}, sink.Values)
 

@@ -38,10 +38,19 @@ const (
 	// DeprecatedHeader is the M3 deprecated header.
 	DeprecatedHeader = M3HeaderPrefix + "Deprecated"
 
+	// EngineHeaderName defines header name which is used to switch between
+	// prometheus and m3query engines.
+	EngineHeaderName = M3HeaderPrefix + "Engine"
+
 	// MetricsTypeHeader sets the write or read metrics type to restrict
 	// metrics to.
 	// Valid values are "unaggregated" or "aggregated".
 	MetricsTypeHeader = M3HeaderPrefix + "Metrics-Type"
+
+	// PromTypeHeader sets the prometheus metric type. Valid values are
+	// "counter", "gauge", etc. (see src/query/api/v1/handler/prometheus/remote/write.go
+	// field `headerToMetricType`)
+	PromTypeHeader = "Prometheus-Metric-Type"
 
 	// WriteTypeHeader is a header that controls if default
 	// writes should be written to both unaggregated and aggregated
@@ -49,6 +58,9 @@ const (
 	// only aggregated values are written.
 	// Valid values are "default" or "aggregate".
 	WriteTypeHeader = M3HeaderPrefix + "Write-Type"
+
+	// SourceHeader tracks bytes and docs read for the given source, if provided.
+	SourceHeader = M3HeaderPrefix + "Source"
 
 	// DefaultWriteType is the default write type.
 	DefaultWriteType = "default"
@@ -76,13 +88,36 @@ const (
 	// the number of time series returned by each storage node.
 	LimitMaxSeriesHeader = M3HeaderPrefix + "Limit-Max-Series"
 
+	// LimitInstanceMultipleHeader overrides the PerQueryLimitsConfiguration.InstanceMultiple for the request.
+	LimitInstanceMultipleHeader = M3HeaderPrefix + "Limit-Instance-Multiple"
+
 	// LimitMaxDocsHeader is the M3 limit docs header that limits
 	// the number of docs returned by each storage node.
 	LimitMaxDocsHeader = M3HeaderPrefix + "Limit-Max-Docs"
 
+	// LimitMaxRangeHeader is the M3 limit range header that limits
+	// the time range returned by each storage node.
+	LimitMaxRangeHeader = M3HeaderPrefix + "Limit-Max-Range"
+
+	// LimitMaxReturnedDatapointsHeader is the M3 header that limits
+	// the number of datapoints returned in total to the client.
+	LimitMaxReturnedDatapointsHeader = M3HeaderPrefix + "Limit-Max-Returned-Datapoints"
+
+	// LimitMaxReturnedSeriesHeader is the M3 header that limits
+	// the number of series returned in total to the client.
+	LimitMaxReturnedSeriesHeader = M3HeaderPrefix + "Limit-Max-Returned-Series"
+
+	// LimitMaxReturnedSeriesMetadataHeader is the M3 header that limits
+	// the number of series metadata returned in total to the client.
+	LimitMaxReturnedSeriesMetadataHeader = M3HeaderPrefix + "Limit-Max-Returned-SeriesMetadata"
+
 	// LimitRequireExhaustiveHeader is the M3 limit exhaustive header that will
 	// ensure M3 returns an error if the results set is not exhaustive.
 	LimitRequireExhaustiveHeader = M3HeaderPrefix + "Limit-Require-Exhaustive"
+
+	// LimitRequireNoWaitHeader is the M3 header that ensures
+	// M3 returns an error if query execution must wait for permits.
+	LimitRequireNoWaitHeader = M3HeaderPrefix + "Limit-Require-No-Wait"
 
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
@@ -107,9 +142,27 @@ const (
 	// LimitHeader is the header added when returned series are limited.
 	LimitHeader = M3HeaderPrefix + "Results-Limited"
 
+	// ReturnedDataLimitedHeader is the header added when returned
+	// data are limited either by series or datapoints.
+	ReturnedDataLimitedHeader = M3HeaderPrefix + "Returned-Data-Limited"
+
+	// ReturnedMetadataLimitedHeader is the header added when returned
+	// metadata is limited.
+	ReturnedMetadataLimitedHeader = M3HeaderPrefix + "Returned-Metadata-Limited"
+
+	// TimeoutHeader is the header added with the effective timeout.
+	TimeoutHeader = M3HeaderPrefix + "Timeout"
+
 	// LimitHeaderSeriesLimitApplied is the header applied when fetch results
 	// are maxed.
 	LimitHeaderSeriesLimitApplied = "max_fetch_series_limit_applied"
+
+	// WaitedHeader is the header added when permits had to be waited for.
+	WaitedHeader = M3HeaderPrefix + "Waited"
+
+	// FetchedSeriesCount is the header added that tracks the total number of
+	// series that were fetched by the query, before computation.
+	FetchedSeriesCount = M3HeaderPrefix + "Series-Count"
 
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"
@@ -120,4 +173,8 @@ const (
 	// schema to an older instance and still have it respond successfully
 	// using the fields it knows about.
 	JSONDisableDisallowUnknownFields = M3HeaderPrefix + "JSON-Disable-Disallow-Unknown-Fields"
+
+	// CustomResponseMetricsType is a header that, if set, will override the `type` tag
+	// on the request's response metrics.
+	CustomResponseMetricsType = M3HeaderPrefix + "Custom-Response-Metrics-Type"
 )

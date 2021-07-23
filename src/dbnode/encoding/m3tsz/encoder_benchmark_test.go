@@ -21,16 +21,15 @@
 package m3tsz
 
 import (
-	"bytes"
 	"encoding/base64"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -51,14 +50,14 @@ func BenchmarkM3TSZEncode(b *testing.B) {
 	var (
 		encodingOpts = encoding.NewOptions()
 		seriesRun    = prepareSampleSeriesEncRun(b)
-		encoder      = NewEncoder(time.Now(), nil, DefaultIntOptimizationEnabled, encodingOpts)
+		encoder      = NewEncoder(xtime.Now(), nil, DefaultIntOptimizationEnabled, encodingOpts)
 	)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		run := seriesRun[i]
-		encoder.Reset(run[0].Timestamp, len(run), nil)
+		encoder.Reset(run[0].TimestampNanos, len(run), nil)
 
 		for i := range run {
 			// Using index access to avoid copying a 40 byte datapoint.
@@ -75,7 +74,7 @@ func prepareSampleSeriesEncRun(b *testing.B) [][]ts.Datapoint {
 		sampleSeries = make([][]byte, 0, len(sampleSeriesBase64))
 		seriesRun    = make([][]ts.Datapoint, b.N)
 		encodingOpts = encoding.NewOptions()
-		reader       = bytes.NewReader(nil)
+		reader       = xio.NewBytesReader64(nil)
 	)
 
 	for _, b64 := range sampleSeriesBase64 {

@@ -47,8 +47,7 @@ func TestAlias(t *testing.T) {
 	results, err := alias(nil, singlePathSpec{
 		Values: series,
 	}, a)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	for _, s := range results.Values {
 		assert.Equal(t, a, s.Name())
@@ -123,7 +122,7 @@ func TestAliasSubWithBackReferences(t *testing.T) {
 	}, input.pattern, input.replace)
 	require.NoError(t, err)
 	expected := []common.TestSeries{
-		common.TestSeries{Name: input.expected, Data: values},
+		{Name: input.expected, Data: values},
 	}
 	common.CompareOutputsAndExpected(t, 1000, now, expected, results.Values)
 
@@ -145,14 +144,13 @@ func TestAliasByMetric(t *testing.T) {
 		ts.NewSeries(ctx, "foo.bar.baz.foo01-foo.writes.success", now, values),
 		ts.NewSeries(ctx, "foo.bar.baz.foo02-foo.writes.success.P99", now, values),
 		ts.NewSeries(ctx, "foo.bar.baz.foo03-foo.writes.success.P75", now, values),
-		ts.NewSeries(ctx, "scale(stats.foobar.gauges.quazqux.latency_minutes.foo, 60.123))", now, values),
+		ts.NewSeries(ctx, "scale(stats.foobar.gauges.quazqux.latency_minutes.foo, 60.123)", now, values),
 	}
 
 	results, err := aliasByMetric(ctx, singlePathSpec{
 		Values: series,
 	})
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), len(results.Values))
 	assert.Equal(t, "success", results.Values[0].Name())
 	assert.Equal(t, "P99", results.Values[1].Name())
@@ -176,8 +174,7 @@ func TestAliasByNode(t *testing.T) {
 	results, err := aliasByNode(ctx, singlePathSpec{
 		Values: series,
 	}, 3, 5, 6)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "foo01-foo.success", results.Values[0].Name())
 	assert.Equal(t, "foo02-foo.success.P99", results.Values[1].Name())
@@ -186,8 +183,7 @@ func TestAliasByNode(t *testing.T) {
 	results, err = aliasByNode(nil, singlePathSpec{
 		Values: series,
 	}, -1)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "success", results.Values[0].Name())
 	assert.Equal(t, "P99", results.Values[1].Name())
@@ -203,17 +199,54 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	series := []*ts.Series{
 		ts.NewSeries(ctx, "derivative(servers.bob02-foo.cpu.load_5)", now, values),
 		ts.NewSeries(ctx, "derivative(derivative(servers.bob02-foo.cpu.load_5))", now, values),
-		ts.NewSeries(ctx, "~~~", now, values),
+		ts.NewSeries(ctx, "fooble", now, values),
 		ts.NewSeries(ctx, "", now, values),
 	}
 	results, err := aliasByNode(ctx, singlePathSpec{
 		Values: series,
 	}, 0, 1)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
 	assert.Equal(t, "servers.bob02-foo", results.Values[1].Name())
-	assert.Equal(t, "~~~", results.Values[2].Name())
+	assert.Equal(t, "fooble", results.Values[2].Name())
 	assert.Equal(t, "", results.Values[3].Name())
+}
+
+func TestAliasByNodeWithManyPathExpressions(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "sumSeries(servers.bob02-foo.cpu.load_5,servers.bob01-foo.cpu.load_5)", now, values),
+		ts.NewSeries(ctx, "sumSeries(sumSeries(servers.bob04-foo.cpu.load_5,servers.bob03-foo.cpu.load_5))", now, values),
+	}
+	results, err := aliasByNode(ctx, singlePathSpec{
+		Values: series,
+	}, 0, 1)
+	require.NoError(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
+	assert.Equal(t, "servers.bob04-foo", results.Values[1].Name())
+}
+
+func TestAliasByNodeWitCallSubExpressions(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "asPercent(foo01,sumSeries(bar,baz))", now, values),
+		ts.NewSeries(ctx, "asPercent(foo02,sumSeries(bar,baz))", now, values),
+	}
+	results, err := aliasByNode(ctx, singlePathSpec{
+		Values: series,
+	}, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "foo01", results.Values[0].Name())
+	assert.Equal(t, "foo02", results.Values[1].Name())
 }

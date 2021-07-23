@@ -274,37 +274,38 @@ db:
                 lowWatermark: 0.01
                 highWatermark: 0.02
 
-  config:
-      service:
-          env: production
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - 1.1.1.1:2379
-                    - 1.1.1.2:2379
-                    - 1.1.1.3:2379
+  discovery:
+    config:
+        service:
+            env: production
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - 1.1.1.1:2379
+                      - 1.1.1.2:2379
+                      - 1.1.1.3:2379
 
-      seedNodes:
-          listenPeerUrls:
-              - http://0.0.0.0:2380
-          listenClientUrls:
-              - http://0.0.0.0:2379
-          rootDir: /var/lib/etcd
-          initialAdvertisePeerUrls:
-              - http://1.1.1.1:2380
-          advertiseClientUrls:
-              - http://1.1.1.1:2379
-          initialCluster:
-              - hostID: host1
-                endpoint: http://1.1.1.1:2380
-                clusterState: existing
-              - hostID: host2
-                endpoint: http://1.1.1.2:2380
-              - hostID: host3
-                endpoint: http://1.1.1.3:2380
+        seedNodes:
+            listenPeerUrls:
+                - http://0.0.0.0:2380
+            listenClientUrls:
+                - http://0.0.0.0:2379
+            rootDir: /var/lib/etcd
+            initialAdvertisePeerUrls:
+                - http://1.1.1.1:2380
+            advertiseClientUrls:
+                - http://1.1.1.1:2379
+            initialCluster:
+                - hostID: host1
+                  endpoint: http://1.1.1.1:2380
+                  clusterState: existing
+                - hostID: host2
+                  endpoint: http://1.1.1.2:2380
+                - hostID: host3
+                  endpoint: http://1.1.1.3:2380
   hashing:
     seed: 42
   writeNewSeriesAsync: true
@@ -336,6 +337,9 @@ func TestConfiguration(t *testing.T) {
 	expected := `db:
   index:
     maxQueryIDsConcurrency: 0
+    maxWorkerTime: 0s
+    regexpDFALimit: null
+    regexpFSALimit: null
     forwardIndexProbability: 0
     forwardIndexThreshold: 0
   transforms:
@@ -417,6 +421,7 @@ func TestConfiguration(t *testing.T) {
     peers: null
     cacheSeriesMetadata: null
     indexSegmentConcurrency: null
+    verify: null
   blockRetrieve: null
   cache:
     series: null
@@ -448,8 +453,12 @@ func TestConfiguration(t *testing.T) {
     queueChannel: null
   repair:
     enabled: false
+    type: 0
+    strategy: 0
+    force: false
     throttle: 2m0s
     checkInterval: 1m0s
+    concurrency: 0
     debugShadowComparisonsEnabled: false
     debugShadowComparisonsPercentage: 0
   replication: null
@@ -602,65 +611,81 @@ func TestConfiguration(t *testing.T) {
       size: 8
       lowWatermark: 0
       highWatermark: 0
-  config:
-    services:
-    - async: false
-      clientOverrides:
-        hostQueueFlushInterval: null
-        targetHostQueueFlushSize: null
-      service:
-        zone: embedded
-        env: production
-        service: m3db
-        cacheDir: /var/lib/m3kv
-        etcdClusters:
-        - zone: embedded
-          endpoints:
-          - 1.1.1.1:2379
-          - 1.1.1.2:2379
-          - 1.1.1.3:2379
-          keepAlive: null
-          tls: null
-          autoSyncInterval: 0s
-        m3sd:
-          initTimeout: null
-        watchWithRevision: 0
-        newDirectoryMode: null
-    statics: []
-    seedNodes:
-      rootDir: /var/lib/etcd
-      initialAdvertisePeerUrls:
-      - http://1.1.1.1:2380
-      advertiseClientUrls:
-      - http://1.1.1.1:2379
-      listenPeerUrls:
-      - http://0.0.0.0:2380
-      listenClientUrls:
-      - http://0.0.0.0:2379
-      initialCluster:
-      - hostID: host1
-        endpoint: http://1.1.1.1:2380
-        clusterState: existing
-      - hostID: host2
-        endpoint: http://1.1.1.2:2380
-        clusterState: ""
-      - hostID: host3
-        endpoint: http://1.1.1.3:2380
-        clusterState: ""
-      clientTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
-      peerTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
+  discovery:
+    type: null
+    m3dbCluster: null
+    m3AggregatorCluster: null
+    config:
+      services:
+      - async: false
+        clientOverrides:
+          hostQueueFlushInterval: null
+          targetHostQueueFlushSize: null
+        service:
+          zone: embedded
+          env: production
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+          - zone: embedded
+            endpoints:
+            - 1.1.1.1:2379
+            - 1.1.1.2:2379
+            - 1.1.1.3:2379
+            keepAlive: null
+            tls: null
+            autoSyncInterval: 0s
+          m3sd:
+            initTimeout: null
+          watchWithRevision: 0
+          newDirectoryMode: null
+          retry:
+            initialBackoff: 0s
+            backoffFactor: 0
+            maxBackoff: 0s
+            maxRetries: 0
+            forever: null
+            jitter: null
+          requestTimeout: 0s
+          watchChanInitTimeout: 0s
+          watchChanCheckInterval: 0s
+          watchChanResetInterval: 0s
+          enableFastGets: false
+      statics: []
+      seedNodes:
+        rootDir: /var/lib/etcd
+        initialAdvertisePeerUrls:
+        - http://1.1.1.1:2380
+        advertiseClientUrls:
+        - http://1.1.1.1:2379
+        listenPeerUrls:
+        - http://0.0.0.0:2380
+        listenClientUrls:
+        - http://0.0.0.0:2379
+        initialCluster:
+        - hostID: host1
+          endpoint: http://1.1.1.1:2380
+          clusterState: existing
+        - hostID: host2
+          endpoint: http://1.1.1.2:2380
+          clusterState: ""
+        - hostID: host3
+          endpoint: http://1.1.1.3:2380
+          clusterState: ""
+        clientTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
+        peerTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
   hashing:
     seed: 42
   writeNewSeriesAsync: true
@@ -669,10 +694,16 @@ func TestConfiguration(t *testing.T) {
   tracing:
     serviceName: ""
     backend: jaeger
+    opentelemetry:
+      serviceName: ""
+      endpoint: ""
+      insecure: false
+      attributes: {}
     jaeger:
       serviceName: ""
       disabled: false
       rpc_metrics: false
+      traceid_128bit: false
       tags: []
       sampler: null
       reporter: null
@@ -710,7 +741,9 @@ func TestConfiguration(t *testing.T) {
       meta_event_reporting_enabled: false
   limits:
     maxRecentlyQueriedSeriesDiskBytesRead: null
+    maxRecentlyQueriedSeriesDiskRead: null
     maxRecentlyQueriedSeriesBlocks: null
+    maxRecentlyQueriedMetadata: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
@@ -721,6 +754,7 @@ func TestConfiguration(t *testing.T) {
   debug:
     mutexProfileFraction: 0
     blockProfileRate: 0
+  forceColdWritesEnabled: null
 coordinator: null
 `
 
@@ -733,7 +767,7 @@ coordinator: null
 
 func TestInitialClusterEndpoints(t *testing.T) {
 	seedNodes := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
@@ -745,15 +779,15 @@ func TestInitialClusterEndpoints(t *testing.T) {
 	assert.Equal(t, "http://1.1.1.1:2379", endpoints[0])
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host3",
 			Endpoint: "http://1.1.1.3:2380",
 		},
@@ -772,7 +806,7 @@ func TestInitialClusterEndpoints(t *testing.T) {
 	assert.Equal(t, 0, len(endpoints))
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "",
 		},
@@ -783,7 +817,7 @@ func TestInitialClusterEndpoints(t *testing.T) {
 
 func TestIsSeedNode(t *testing.T) {
 	seedNodes := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
@@ -792,15 +826,15 @@ func TestIsSeedNode(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host3",
 			Endpoint: "http://1.1.1.3:2380",
 		},
@@ -809,11 +843,11 @@ func TestIsSeedNode(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
@@ -824,12 +858,12 @@ func TestIsSeedNode(t *testing.T) {
 
 func TestGetHostAndEndpointFromID(t *testing.T) {
 	test2Seeds := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:       "host1",
 			Endpoint:     "http://1.1.1.1:2380",
 			ClusterState: "existing",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},

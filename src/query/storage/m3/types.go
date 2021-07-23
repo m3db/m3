@@ -22,13 +22,21 @@ package m3
 
 import (
 	"context"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xresource "github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/sync"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed.
@@ -46,8 +54,8 @@ type Storage interface {
 
 // Querier handles queries against an M3 instance.
 type Querier interface {
-	// FetchCompressed fetches timeseries data based on a query.
-	FetchCompressed(
+	// FetchCompressedResult fetches timeseries data based on a query.
+	FetchCompressedResult(
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
@@ -116,7 +124,7 @@ type ClusterNamespacesWatcher interface {
 
 	// RegisterListener registers a listener for updates to cluster namespaces.
 	// If a value is currently present, it will synchronously call back the listener.
-	RegisterListener(listener ClusterNamespacesListener) xclose.SimpleCloser
+	RegisterListener(listener ClusterNamespacesListener) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches.
 	Close()
@@ -128,3 +136,111 @@ type ClusterNamespacesListener interface {
 	// OnUpdate is called when updates have occurred passing in the new namespaces.
 	OnUpdate(namespaces ClusterNamespaces)
 }
+
+// Options describes the options for encoded block converters.
+// These options are generally config-backed and don't usually change across
+// queries, unless certain query string parameters are present.
+type Options interface {
+	// SetSplitSeriesByBlock determines if the converter will split the series
+	// by blocks, or if it will instead treat the entire series as a single block.
+	SetSplitSeriesByBlock(bool) Options
+	// SplittingSeriesByBlock returns true iff lookback duration is 0, and the
+	// options has not been forced to return a single block.
+	SplittingSeriesByBlock() bool
+	// SetLookbackDuration sets the lookback duration.
+	SetLookbackDuration(time.Duration) Options
+	// LookbackDuration returns the lookback duration.
+	LookbackDuration() time.Duration
+	// SetLookbackDuration sets the consolidation function for the converter.
+	SetConsolidationFunc(consolidators.ConsolidationFunc) Options
+	// LookbackDuration returns the consolidation function.
+	ConsolidationFunc() consolidators.ConsolidationFunc
+	// SetLookbackDuration sets the tag options for the converter.
+	SetTagOptions(models.TagOptions) Options
+	// TagOptions returns the tag options.
+	TagOptions() models.TagOptions
+	// TagsTransform returns the transform to apply to tags before storage.
+	TagsTransform() TagsTransform
+	// SetTagsTransform sets the TagsTransform.
+	SetTagsTransform(value TagsTransform) Options
+	// SetIterAlloc sets the iterator allocator.
+	SetIterAlloc(encoding.ReaderIteratorAllocate) Options
+	// IterAlloc returns the reader iterator allocator.
+	IterAlloc() encoding.ReaderIteratorAllocate
+	// SetIteratorPools sets the iterator pools for the converter.
+	SetIteratorPools(encoding.IteratorPools) Options
+	// IteratorPools returns the iterator pools for the converter.
+	IteratorPools() encoding.IteratorPools
+	// SetCheckedBytesPool sets the checked bytes pool for the converter.
+	SetCheckedBytesPool(pool.CheckedBytesPool) Options
+	// CheckedBytesPool returns the checked bytes pools for the converter.
+	CheckedBytesPool() pool.CheckedBytesPool
+	// SetReadWorkerPool sets the read worker pool for the converter.
+	SetReadWorkerPool(sync.PooledWorkerPool) Options
+	// ReadWorkerPool returns the read worker pool for the converter.
+	ReadWorkerPool() sync.PooledWorkerPool
+	// SetReadWorkerPool sets the write worker pool for the converter.
+	SetWriteWorkerPool(sync.PooledWorkerPool) Options
+	// ReadWorkerPool returns the write worker pool for the converter.
+	WriteWorkerPool() sync.PooledWorkerPool
+	// SetSeriesConsolidationMatchOptions sets series consolidation options.
+	SetSeriesConsolidationMatchOptions(value consolidators.MatchOptions) Options
+	// SetSeriesConsolidationMatchOptions sets series consolidation options.
+	SeriesConsolidationMatchOptions() consolidators.MatchOptions
+	// SetSeriesIteratorProcessor sets the series iterator processor.
+	SetSeriesIteratorProcessor(SeriesIteratorProcessor) Options
+	// SeriesIteratorProcessor returns the series iterator processor.
+	SeriesIteratorProcessor() SeriesIteratorProcessor
+	// SetIteratorBatchingFn sets the batching function for the converter.
+	SetIteratorBatchingFn(IteratorBatchingFn) Options
+	// IteratorBatchingFn returns the batching function for the converter.
+	IteratorBatchingFn() IteratorBatchingFn
+	// SetBlockSeriesProcessor set the block series processor.
+	SetBlockSeriesProcessor(value BlockSeriesProcessor) Options
+	// BlockSeriesProcessor returns the block series processor.
+	BlockSeriesProcessor() BlockSeriesProcessor
+	// SetCustomAdminOptions sets custom admin options.
+	SetCustomAdminOptions([]client.CustomAdminOption) Options
+	// CustomAdminOptions gets custom admin options.
+	CustomAdminOptions() []client.CustomAdminOption
+	// SetInstrumented marks if the encoding step should have instrumentation enabled.
+	SetInstrumented(bool) Options
+	// Instrumented returns if the encoding step should have instrumentation enabled.
+	Instrumented() bool
+	// Validate ensures that the given block options are valid.
+	Validate() error
+}
+
+// SeriesIteratorProcessor optionally defines methods to process series iterators.
+type SeriesIteratorProcessor interface {
+	// InspectSeries inspects SeriesIterator slices for a given query.
+	InspectSeries(
+		ctx context.Context,
+		query index.Query,
+		queryOpts index.QueryOptions,
+		seriesIterators []encoding.SeriesIterator,
+	) error
+}
+
+// IteratorBatchingFn determines how the iterator is split into batches.
+type IteratorBatchingFn func(
+	concurrency int,
+	seriesBlockIterators []encoding.SeriesIterator,
+	seriesMetas []block.SeriesMeta,
+	meta block.Metadata,
+	opts Options,
+) ([]block.SeriesIterBatch, error)
+
+// GraphiteBlockIteratorsFn returns block iterators for graphite decoding.
+type GraphiteBlockIteratorsFn func(
+	block.Block,
+) ([]block.SeriesIterBatch, error)
+
+type peekValue struct {
+	started  bool
+	finished bool
+	point    ts.Datapoint
+}
+
+// TagsTransform transforms a set of tags.
+type TagsTransform func(context.Context, ClusterNamespace, []models.Tag) ([]models.Tag, error)

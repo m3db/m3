@@ -153,6 +153,34 @@ type BootstrapConfiguration struct {
 	// IndexSegmentConcurrency determines the concurrency for building index
 	// segments.
 	IndexSegmentConcurrency *int `yaml:"indexSegmentConcurrency"`
+
+	// Verify specifies verification checks.
+	Verify *BootstrapVerifyConfiguration `yaml:"verify"`
+}
+
+// VerifyOrDefault returns verify configuration or default.
+func (bsc BootstrapConfiguration) VerifyOrDefault() BootstrapVerifyConfiguration {
+	if bsc.Verify == nil {
+		return BootstrapVerifyConfiguration{}
+	}
+
+	return *bsc.Verify
+}
+
+// BootstrapVerifyConfiguration outlines verification checks to enable
+// during a bootstrap.
+type BootstrapVerifyConfiguration struct {
+	VerifyIndexSegments *bool `yaml:"verifyIndexSegments"`
+}
+
+// VerifyIndexSegmentsOrDefault returns whether to verify index segments
+// or use default value.
+func (c BootstrapVerifyConfiguration) VerifyIndexSegmentsOrDefault() bool {
+	if c.VerifyIndexSegments == nil {
+		return false
+	}
+
+	return *c.VerifyIndexSegments
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
@@ -223,23 +251,15 @@ type BootstrapPeersConfiguration struct {
 	// StreamShardConcurrency controls how many shards in parallel to stream
 	// for in memory data being streamed between peers (most recent block).
 	// Defaults to: numCPU.
-	StreamShardConcurrency int `yaml:"streamShardConcurrency"`
+	StreamShardConcurrency *int `yaml:"streamShardConcurrency"`
 	// StreamPersistShardConcurrency controls how many shards in parallel to stream
 	// for historical data being streamed between peers (historical blocks).
 	// Defaults to: numCPU / 2.
-	StreamPersistShardConcurrency int `yaml:"streamPersistShardConcurrency"`
+	StreamPersistShardConcurrency *int `yaml:"streamPersistShardConcurrency"`
 	// StreamPersistShardFlushConcurrency controls how many shards in parallel to flush
 	// for historical data being streamed between peers (historical blocks).
 	// Defaults to: 1.
-	StreamPersistShardFlushConcurrency int `yaml:"streamPersistShardFlushConcurrency"`
-}
-
-func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
-	return BootstrapPeersConfiguration{
-		StreamShardConcurrency:             peers.DefaultShardConcurrency,
-		StreamPersistShardConcurrency:      peers.DefaultShardPersistenceConcurrency,
-		StreamPersistShardFlushConcurrency: peers.DefaultShardPersistenceFlushConcurrency,
-	}
+	StreamPersistShardFlushConcurrency *int `yaml:"streamPersistShardFlushConcurrency"`
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
@@ -251,8 +271,8 @@ func (bsc BootstrapConfiguration) New(
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
 	idxOpts := opts.IndexOptions()
-	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
-		index.DocumentArrayPoolCapacity,
+	compactor, err := compaction.NewCompactor(idxOpts.MetadataArrayPool(),
+		index.MetadataArrayPoolCapacity,
 		idxOpts.SegmentBuilderOptions(),
 		idxOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
@@ -288,11 +308,13 @@ func (bsc BootstrapConfiguration) New(
 				SetFilesystemOptions(fsOpts).
 				SetIndexOptions(opts.IndexOptions()).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
 				SetMigrationOptions(fsCfg.migration().NewOptions()).
-				SetStorageOptions(opts)
+				SetStorageOptions(opts).
+				SetIndexSegmentsVerify(bsc.VerifyOrDefault().VerifyIndexSegmentsOrDefault())
 			if v := bsc.IndexSegmentConcurrency; v != nil {
 				fsbOpts = fsbOpts.SetIndexSegmentConcurrency(*v)
 			}
@@ -329,12 +351,19 @@ func (bsc BootstrapConfiguration) New(
 				SetIndexOptions(opts.IndexOptions()).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
-				SetContextPool(opts.ContextPool()).
-				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
-				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency).
-				SetShardPersistenceFlushConcurrency(pCfg.StreamPersistShardFlushConcurrency)
+				SetContextPool(opts.ContextPool())
+			if pCfg.StreamShardConcurrency != nil {
+				pOpts = pOpts.SetDefaultShardConcurrency(*pCfg.StreamShardConcurrency)
+			}
+			if pCfg.StreamPersistShardConcurrency != nil {
+				pOpts = pOpts.SetShardPersistenceConcurrency(*pCfg.StreamPersistShardConcurrency)
+			}
+			if pCfg.StreamPersistShardFlushConcurrency != nil {
+				pOpts = pOpts.SetShardPersistenceFlushConcurrency(*pCfg.StreamPersistShardFlushConcurrency)
+			}
 			if v := bsc.IndexSegmentConcurrency; v != nil {
 				pOpts = pOpts.SetIndexSegmentConcurrency(*v)
 			}
@@ -385,7 +414,7 @@ func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
 	if cfg := bsc.Peers; cfg != nil {
 		return *cfg
 	}
-	return newDefaultBootstrapPeersConfiguration()
+	return BootstrapPeersConfiguration{}
 }
 
 func (bsc BootstrapConfiguration) orderedBootstrappers() []string {

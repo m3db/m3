@@ -21,11 +21,12 @@
 package block
 
 import (
+	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -42,10 +44,10 @@ import (
 type Metadata struct {
 	ID       ident.ID
 	Tags     ident.Tags
-	Start    time.Time
+	Start    xtime.UnixNano
 	Size     int64
 	Checksum *uint32
-	LastRead time.Time
+	LastRead xtime.UnixNano
 }
 
 // ReplicaMetadata captures block metadata along with corresponding peer identifier
@@ -71,8 +73,8 @@ type FilteredBlocksMetadataIter interface {
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the
 // corresponding checksum and any errors encountered.
 type FetchBlockResult struct {
-	Start      time.Time
-	FirstWrite time.Time
+	Start      xtime.UnixNano
+	FirstWrite xtime.UnixNano
 	Blocks     []xio.BlockReader
 	Err        error
 }
@@ -87,10 +89,10 @@ type FetchBlocksMetadataOptions struct {
 
 // FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
 type FetchBlockMetadataResult struct {
-	Start    time.Time
+	Start    xtime.UnixNano
 	Size     int64
 	Checksum *uint32
-	LastRead time.Time
+	LastRead xtime.UnixNano
 	Err      error
 }
 
@@ -140,16 +142,16 @@ type NewDatabaseBlockFn func() DatabaseBlock
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
 	// StartTime returns the start time of the block.
-	StartTime() time.Time
+	StartTime() xtime.UnixNano
 
 	// BlockSize returns the duration of the block.
 	BlockSize() time.Duration
 
 	// SetLastReadTime sets the last read time of the block.
-	SetLastReadTime(value time.Time)
+	SetLastReadTime(value xtime.UnixNano)
 
 	// LastReadTime returns the last read time of the block.
-	LastReadTime() time.Time
+	LastReadTime() xtime.UnixNano
 
 	// Len returns the block length.
 	Len() int
@@ -174,11 +176,16 @@ type DatabaseBlock interface {
 	WasRetrievedFromDisk() bool
 
 	// Reset resets the block start time, duration, and the segment.
-	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context)
+	Reset(
+		startTime xtime.UnixNano,
+		blockSize time.Duration,
+		segment ts.Segment,
+		nsCtx namespace.Context,
+	)
 
 	// ResetFromDisk resets the block start time, duration, segment, and id.
 	ResetFromDisk(
-		startTime time.Time,
+		startTime xtime.UnixNano,
 		blockSize time.Duration,
 		segment ts.Segment,
 		id ident.ID,
@@ -221,7 +228,7 @@ type databaseBlock interface {
 // when a block is evicted from the wired list.
 type OnEvictedFromWiredList interface {
 	// OnEvictedFromWiredList is called when a block is evicted from the wired list.
-	OnEvictedFromWiredList(id ident.ID, blockStart time.Time)
+	OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano)
 }
 
 // OnRetrieveBlock is an interface to callback on when a block is retrieved.
@@ -229,7 +236,7 @@ type OnRetrieveBlock interface {
 	OnRetrieveBlock(
 		id ident.ID,
 		tags ident.TagIterator,
-		startTime time.Time,
+		startTime xtime.UnixNano,
 		segment ts.Segment,
 		nsCtx namespace.Context,
 	)
@@ -245,7 +252,7 @@ type OnReadBlock interface {
 type OnRetrieveBlockFn func(
 	id ident.ID,
 	tags ident.TagIterator,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	segment ts.Segment,
 	nsCtx namespace.Context,
 )
@@ -254,7 +261,7 @@ type OnRetrieveBlockFn func(
 func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 	id ident.ID,
 	tags ident.TagIterator,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	segment ts.Segment,
 	nsCtx namespace.Context,
 ) {
@@ -268,24 +275,31 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
-// StreamedChecksum yields a xio.IndexChecksum value asynchronously,
+// StreamedWideEntry yields a xio.WideEntry value asynchronously,
 // and any errors encountered during execution.
-type StreamedChecksum interface {
-	// RetrieveIndexChecksum retrieves the index checksum.
-	RetrieveIndexChecksum() (xio.IndexChecksum, error)
+type StreamedWideEntry interface {
+	resource.Finalizer
+
+	// RetrieveWideEntry retrieves the collected wide entry.
+	RetrieveWideEntry() (xio.WideEntry, error)
 }
 
-type emptyStreamedChecksum struct{}
+type emptyWideEntry struct{}
 
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
-	return xio.IndexChecksum{}, nil
+func (emptyWideEntry) RetrieveWideEntry() (xio.WideEntry, error) {
+	return xio.WideEntry{}, nil
 }
 
-// EmptyStreamedChecksum is an empty streamed checksum.
-var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
+func (emptyWideEntry) Finalize() {
+}
+
+// EmptyStreamedWideEntry is an empty streamed wide entry.
+var EmptyStreamedWideEntry StreamedWideEntry = emptyWideEntry{}
 
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
+	io.Closer
+
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when streaming a block.
 	CacheShardIndices(shards []uint32) error
@@ -295,32 +309,23 @@ type DatabaseBlockRetriever interface {
 		ctx context.Context,
 		shard uint32,
 		id ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream the index checksum for a given id within
-	// a block, yielding an index checksum if it is available in the shard.
-	StreamIndexChecksum(
+	// StreamWideEntry will stream the wide entry for a given ID within
+	// a block, yielding a wide entry if it is available in the shard.
+	StreamWideEntry(
 		ctx context.Context,
 		shard uint32,
 		id ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
-	) (StreamedChecksum, error)
+	) (StreamedWideEntry, error)
 
-	// StreamReadMismatches will stream reader mismatches for a given id within
-	// a block, yielding any streamed checksums within the shard.
-	StreamReadMismatches(
-		ctx context.Context,
-		shard uint32,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
-
+	// AssignShardSet assigns the given shard set to this retriever.
 	AssignShardSet(shardSet sharding.ShardSet)
 }
 
@@ -330,29 +335,20 @@ type DatabaseShardBlockRetriever interface {
 	Stream(
 		ctx context.Context,
 		id ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream the index checksum for a given id within
-	// a block, yielding an index checksum if available.
-	StreamIndexChecksum(
+	// StreamWideEntry will stream the wide entry for a given ID within
+	// a block, yielding a wide entry if available.
+	StreamWideEntry(
 		ctx context.Context,
 		id ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
-	) (StreamedChecksum, error)
-
-	// StreamReadMismatches will stream read index mismatches for a given id
-	// within a block, yielding any read mismatches.
-	StreamReadMismatches(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
+	) (StreamedWideEntry, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers
@@ -384,19 +380,19 @@ type DatabaseSeriesBlocks interface {
 	AddSeries(other DatabaseSeriesBlocks)
 
 	// MinTime returns the min time of the blocks contained.
-	MinTime() time.Time
+	MinTime() xtime.UnixNano
 
 	// MaxTime returns the max time of the blocks contained.
-	MaxTime() time.Time
+	MaxTime() xtime.UnixNano
 
 	// BlockAt returns the block at a given time if any.
-	BlockAt(t time.Time) (DatabaseBlock, bool)
+	BlockAt(t xtime.UnixNano) (DatabaseBlock, bool)
 
 	// AllBlocks returns all the blocks in the series.
 	AllBlocks() map[xtime.UnixNano]DatabaseBlock
 
 	// RemoveBlockAt removes the block at a given time if any.
-	RemoveBlockAt(t time.Time)
+	RemoveBlockAt(t xtime.UnixNano)
 
 	// RemoveAll removes all blocks.
 	RemoveAll()
@@ -478,14 +474,14 @@ type UpdateLeasesResult struct {
 type LeaseDescriptor struct {
 	Namespace  ident.ID
 	Shard      uint32
-	BlockStart time.Time
+	BlockStart xtime.UnixNano
 }
 
 // HashableLeaseDescriptor is a lease descriptor that can be used as a map key.
 type HashableLeaseDescriptor struct {
 	namespace  string
 	shard      uint32
-	blockStart time.Time
+	blockStart xtime.UnixNano
 }
 
 // HashableLeaseDescriptor transforms LeaseDescriptor into a HashableLeaseDescriptor.

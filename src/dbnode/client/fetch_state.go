@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -34,6 +33,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type fetchStateType byte
@@ -108,8 +108,8 @@ func (f *fetchState) close() {
 }
 
 func (f *fetchState) ResetFetchTagged(
-	startTime time.Time,
-	endTime time.Time,
+	startTime xtime.UnixNano,
+	endTime xtime.UnixNano,
 	op *fetchTaggedOp, topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,
@@ -121,8 +121,8 @@ func (f *fetchState) ResetFetchTagged(
 }
 
 func (f *fetchState) ResetAggregate(
-	startTime time.Time,
-	endTime time.Time,
+	startTime xtime.UnixNano,
+	endTime xtime.UnixNano,
 	op *aggregateOp, topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,
@@ -187,6 +187,7 @@ func (f *fetchState) markDoneWithLock(err error) {
 
 func (f *fetchState) asTaggedIDsIterator(
 	pools fetchTaggedPools,
+	limit int,
 ) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
@@ -205,7 +206,9 @@ func (f *fetchState) asTaggedIDsIterator(
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.fetchTaggedOp.requestLimit(maxInt)
+	if limit == 0 {
+		limit = maxInt
+	}
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
@@ -213,6 +216,7 @@ func (f *fetchState) asEncodingSeriesIterators(
 	pools fetchTaggedPools,
 	descr namespace.SchemaDescr,
 	opts index.IterationOptions,
+	limit int,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
@@ -231,11 +235,14 @@ func (f *fetchState) asEncodingSeriesIterators(
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.fetchTaggedOp.requestLimit(maxInt)
+	if limit == 0 {
+		limit = maxInt
+	}
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools, descr, opts)
 }
 
-func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, FetchResponseMetadata, error) {
+func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools, limit int) (
+	AggregatedTagsIterator, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -253,7 +260,9 @@ func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (Aggregate
 		return nil, FetchResponseMetadata{}, err
 	}
 
-	limit := f.aggregateOp.requestLimit(maxInt)
+	if limit == 0 {
+		limit = maxInt
+	}
 	return f.tagResultAccumulator.AsAggregatedTagsIterator(limit, pools)
 }
 

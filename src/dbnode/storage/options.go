@@ -23,9 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
-	"math"
-	"runtime"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -40,6 +37,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -51,7 +50,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -89,8 +87,6 @@ var (
 
 	// defaultPoolOptions are the pool options used by default.
 	defaultPoolOptions pool.ObjectPoolOptions
-
-	timeZero time.Time
 )
 
 var (
@@ -98,8 +94,10 @@ var (
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
 	errIndexOptionsNotSet         = errors.New("index enabled but index options are not set")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
+	errIndexClaimsManagerNotSet   = errors.New("index claims manager is not set")
 	errBlockLeaserNotSet          = errors.New("block leaser is not set")
 	errOnColdFlushNotSet          = errors.New("on cold flush is not set, requires at least a no-op implementation")
+	errLimitsOptionsNotSet        = errors.New("limits options are not set")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -142,6 +140,7 @@ type options struct {
 	newDecoderFn                    encoding.NewDecoderFn
 	bootstrapProcessProvider        bootstrap.ProcessProvider
 	persistManager                  persist.Manager
+	indexClaimsManager              fs.IndexClaimsManager
 	blockRetrieverManager           block.DatabaseBlockRetrieverManager
 	poolOpts                        pool.ObjectPoolOptions
 	contextPool                     context.Pool
@@ -156,7 +155,6 @@ type options struct {
 	identifierPool                  ident.Pool
 	fetchBlockMetadataResultsPool   block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool  block.FetchBlocksMetadataResultsPool
-	queryIDsWorkerPool              xsync.WorkerPool
 	writeBatchPool                  *writes.WriteBatchPool
 	bufferBucketPool                *series.BufferBucketPool
 	bufferBucketVersionsPool        *series.BufferBucketVersionsPool
@@ -165,6 +163,9 @@ type options struct {
 	schemaReg                       namespace.SchemaRegistry
 	blockLeaseManager               block.LeaseManager
 	onColdFlush                     OnColdFlush
+	forceColdWritesEnabled          bool
+	sourceLoggerBuilder             limits.SourceLoggerBuilder
+	iterationOptions                index.IterationOptions
 	memoryTracker                   MemoryTracker
 	mmapReporter                    mmap.Reporter
 	doNotIndexWithFieldsMap         map[string]string
@@ -174,9 +175,13 @@ type options struct {
 	wideBatchSize                   int
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
+	tileAggregator                  TileAggregator
+	permitsOptions                  permits.Options
+	limitsOptions                   limits.Options
 }
 
-// NewOptions creates a new set of storage options with defaults
+// NewOptions creates a new set of storage options with defaults.
+// NB: expensive, in tests use DefaultTestOptions instead.
 func NewOptions() Options {
 	return newOptions(defaultPoolOptions)
 }
@@ -188,11 +193,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
 
-	// Default to using half of the available cores for querying IDs
-	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
-	queryIDsWorkerPool.Init()
-
-	writeBatchPool := writes.NewWriteBatchPool(poolOpts, nil, nil)
+	writeBatchPool := writes.NewWriteBatchPool(poolOpts, 0, nil)
 	writeBatchPool.Init()
 
 	segmentReaderPool := xio.NewSegmentReaderPool(poolOpts)
@@ -204,9 +205,10 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOpts)
 	bytesWrapperPool.Init()
 
+	iOpts := instrument.NewOptions()
 	o := &options{
 		clockOpts:                clock.NewOptions(),
-		instrumentOpts:           instrument.NewOptions(),
+		instrumentOpts:           iOpts,
 		blockOpts:                block.NewOptions(),
 		commitLogOpts:            commitlog.NewOptions(),
 		runtimeOptsMgr:           m3dbruntime.NewOptionsManager(),
@@ -236,7 +238,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		}),
 		fetchBlockMetadataResultsPool:   block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool:  block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
-		queryIDsWorkerPool:              queryIDsWorkerPool,
 		writeBatchPool:                  writeBatchPool,
 		bufferBucketVersionsPool:        series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:                series.NewBufferBucketPool(poolOpts),
@@ -249,6 +250,9 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		mediatorTickInterval:            defaultMediatorTickInterval,
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
+		tileAggregator:                  &noopTileAggregator{},
+		permitsOptions:                  permits.NewOptions(),
+		limitsOptions:                   limits.DefaultLimitsOptions(iOpts),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -293,6 +297,11 @@ func (o *options) Validate() error {
 		return errPersistManagerNotSet
 	}
 
+	// validate that index claims manager is present
+	if o.indexClaimsManager == nil {
+		return errIndexClaimsManagerNotSet
+	}
+
 	// validate series cache policy
 	if err := series.ValidateCachePolicy(o.seriesCachePolicy); err != nil {
 		return err
@@ -306,12 +315,17 @@ func (o *options) Validate() error {
 		return errOnColdFlushNotSet
 	}
 
+	if o.limitsOptions == nil {
+		return errLimitsOptionsNotSet
+	}
+
 	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
+	opts.blockOpts = opts.blockOpts.SetClockOptions(value)
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
 	opts.indexOpts = opts.indexOpts.SetClockOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
@@ -479,25 +493,22 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		SetBytesPool(bytesPool).
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
-		SetSegmentReaderPool(segmentReaderPool)
+		SetSegmentReaderPool(segmentReaderPool).
+		SetMetrics(encoding.NewMetrics(opts.InstrumentOptions().MetricsScope()))
 
 	// initialize encoder pool
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
-	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(opts.poolOpts)
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
 	opts.blockOpts = opts.blockOpts.
@@ -548,6 +559,16 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
+}
+
+func (o *options) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	opts := *o
+	opts.indexClaimsManager = value
+	return &opts
+}
+
+func (o *options) IndexClaimsManager() fs.IndexClaimsManager {
+	return o.indexClaimsManager
 }
 
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
@@ -681,16 +702,6 @@ func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResu
 	return o.fetchBlocksMetadataResultsPool
 }
 
-func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {
-	opts := *o
-	opts.queryIDsWorkerPool = value
-	return &opts
-}
-
-func (o *options) QueryIDsWorkerPool() xsync.WorkerPool {
-	return o.queryIDsWorkerPool
-}
-
 func (o *options) SetWriteBatchPool(value *writes.WriteBatchPool) Options {
 	opts := *o
 	opts.writeBatchPool = value
@@ -769,6 +780,36 @@ func (o *options) SetOnColdFlush(value OnColdFlush) Options {
 
 func (o *options) OnColdFlush() OnColdFlush {
 	return o.onColdFlush
+}
+
+func (o *options) SetForceColdWritesEnabled(value bool) Options {
+	opts := *o
+	opts.forceColdWritesEnabled = value
+	return &opts
+}
+
+func (o *options) ForceColdWritesEnabled() bool {
+	return o.forceColdWritesEnabled
+}
+
+func (o *options) SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options {
+	opts := *o
+	opts.sourceLoggerBuilder = value
+	return &opts
+}
+
+func (o *options) SourceLoggerBuilder() limits.SourceLoggerBuilder {
+	return o.sourceLoggerBuilder
+}
+
+func (o *options) SetIterationOptions(value index.IterationOptions) Options {
+	opts := *o
+	opts.iterationOptions = value
+	return &opts
+}
+
+func (o *options) IterationOptions() index.IterationOptions {
+	return o.iterationOptions
 }
 
 func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {
@@ -863,9 +904,41 @@ func (o *options) NamespaceHooks() NamespaceHooks {
 	return o.namespaceHooks
 }
 
+func (o *options) SetTileAggregator(value TileAggregator) Options {
+	opts := *o
+	opts.tileAggregator = value
+
+	return &opts
+}
+
+func (o *options) PermitsOptions() permits.Options {
+	return o.permitsOptions
+}
+
+func (o *options) SetPermitsOptions(value permits.Options) Options {
+	opts := *o
+	opts.permitsOptions = value
+
+	return &opts
+}
+
+func (o *options) LimitsOptions() limits.Options {
+	return o.limitsOptions
+}
+
+func (o *options) SetLimitsOptions(value limits.Options) Options {
+	opts := *o
+	opts.limitsOptions = value
+	return &opts
+}
+
+func (o *options) TileAggregator() TileAggregator {
+	return o.tileAggregator
+}
+
 type noOpColdFlush struct{}
 
-func (n *noOpColdFlush) ColdFlushNamespace(Namespace) (OnColdFlushNamespace, error) {
+func (n *noOpColdFlush) ColdFlushNamespace(Namespace, ColdFlushNsOpts) (OnColdFlushNamespace, error) {
 	return &persist.NoOpColdFlushNamespace{}, nil
 }
 
@@ -873,4 +946,16 @@ type noopNamespaceHooks struct{}
 
 func (h *noopNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
 	return nil
+}
+
+type noopTileAggregator struct{}
+
+func (a *noopTileAggregator) AggregateTiles(
+	ctx context.Context,
+	sourceNs, targetNs Namespace,
+	shardID uint32,
+	onFlushSeries persist.OnFlushSeries,
+	opts AggregateTilesOptions,
+) (int64, int, error) {
+	return 0, 0, nil
 }

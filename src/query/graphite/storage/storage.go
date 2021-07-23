@@ -21,12 +21,15 @@
 package storage
 
 import (
+	stdcontext "context"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	querystorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 )
 
 // FetchOptions provides context to a fetch expression.
@@ -37,6 +40,8 @@ type FetchOptions struct {
 	EndTime time.Time
 	// DataOptions are the options for the fetch.
 	DataOptions
+	// Source is the query source.
+	Source []byte
 }
 
 // DataOptions provide data context.
@@ -53,8 +58,17 @@ type DataOptions struct {
 type Storage interface {
 	// FetchByQuery fetches timeseries data based on a query.
 	FetchByQuery(
-		ctx context.Context, query string, opts FetchOptions,
+		ctx context.Context,
+		query string,
+		opts FetchOptions,
 	) (*FetchResult, error)
+
+	// CompleteTags fetches tag data based on a request.
+	CompleteTags(
+		ctx stdcontext.Context,
+		query *querystorage.CompleteTagsQuery,
+		opts *querystorage.FetchOptions,
+	) (*consolidators.CompleteTagsResult, error)
 }
 
 // FetchResult provides a fetch result and meta information.

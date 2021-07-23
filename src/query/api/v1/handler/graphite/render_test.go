@@ -23,12 +23,13 @@ package graphite
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
-	"math"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -39,11 +40,25 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func testHandlerOptions(t *testing.T) options.HandlerOptions {
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 15 * time.Second,
+		})
+	require.NoError(t, err)
+
+	return options.EmptyHandlerOptions().
+		SetQueryContextOptions(models.QueryContextOptions{}).
+		SetGraphiteFindFetchOptionsBuilder(fetchOptsBuilder).
+		SetGraphiteRenderFetchOptionsBuilder(fetchOptsBuilder)
+}
 
 func makeBlockResult(
 	ctrl *gomock.Controller,
@@ -78,9 +93,7 @@ func makeBlockResult(
 func TestParseNoQuery(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(mockStorage).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(mockStorage)
 	handler := NewRenderHandler(opts)
 
 	recorder := httptest.NewRecorder()
@@ -99,9 +112,7 @@ func TestParseQueryNoResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -119,7 +130,7 @@ func TestParseQueryNoResults(t *testing.T) {
 
 func TestParseQueryResults(t *testing.T) {
 	resolution := 10 * time.Second
-	truncateStart := time.Now().Add(-30 * time.Minute).Truncate(resolution)
+	truncateStart := xtime.Now().Add(-30 * time.Minute).Truncate(resolution)
 	start := truncateStart.Add(time.Second)
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	tags := models.NewTags(0, nil)
@@ -144,14 +155,12 @@ func TestParseQueryResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
-		start.Unix(), start.Unix()+30)
+		start.Seconds(), start.Seconds()+30)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
@@ -160,7 +169,7 @@ func TestParseQueryResults(t *testing.T) {
 
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
-	exTimestamp := truncateStart.Unix() + 10
+	exTimestamp := truncateStart.Seconds() + 10
 	expected := fmt.Sprintf(
 		`[{"target":"series_name","datapoints":[[3.000000,%d],`+
 			`[3.000000,%d],[null,%d]],"step_size_ms":%d}]`,
@@ -178,7 +187,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	require.NoError(t, err)
 
 	resolution := 10 * time.Second
-	vals := ts.NewFixedStepValues(resolution, 4, 4, start)
+	vals := ts.NewFixedStepValues(resolution, 4, 4, xtime.ToUnixNano(start))
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
@@ -198,9 +207,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -233,7 +240,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 		Add(-1 * time.Duration(minsAgo) * time.Minute).
 		Truncate(resolution)
 
-	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
+	vals := ts.NewFixedStepValues(resolution, 3, 3, xtime.ToUnixNano(start))
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
@@ -254,9 +261,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(makeBlockResult(ctrl, fr), nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -290,7 +295,7 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			minsAgo := 12
 			start := time.Now().Add(-1 * time.Duration(minsAgo) * time.Minute)
 			resolution := 10 * time.Second
-			vals := ts.NewFixedStepValues(resolution, 3, 3, start)
+			vals := ts.NewFixedStepValues(resolution, 3, 3, xtime.ToUnixNano(start))
 			seriesList := ts.SeriesList{
 				ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 			}
@@ -317,9 +322,7 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(makeBlockResult(ctrl, frTwo), nil)
 
-			opts := options.EmptyHandlerOptions().
-				SetStorage(store).
-				SetQueryContextOptions(models.QueryContextOptions{})
+			opts := testHandlerOptions(t).SetStorage(store)
 			handler := NewRenderHandler(opts)
 
 			req := newGraphiteReadHTTPRequest(t)
@@ -340,7 +343,7 @@ func TestParseQueryResultsAllNaN(t *testing.T) {
 	resolution := 10 * time.Second
 	truncateStart := time.Now().Add(-30 * time.Minute).Truncate(resolution)
 	start := truncateStart.Add(time.Second)
-	vals := ts.NewFixedStepValues(resolution, 3, math.NaN(), start)
+	vals := ts.NewFixedStepValues(resolution, 3, math.NaN(), xtime.ToUnixNano(start))
 	tags := models.NewTags(0, nil)
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("series_name"), vals, tags),
@@ -364,9 +367,9 @@ func TestParseQueryResultsAllNaN(t *testing.T) {
 	graphiteStorageOpts := graphiteStorage.M3WrappedStorageOptions{
 		RenderSeriesAllNaNs: true,
 	}
-	opts := options.EmptyHandlerOptions().
+	opts := testHandlerOptions(t).
 		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{}).SetGraphiteStorageOptions(graphiteStorageOpts)
+		SetGraphiteStorageOptions(graphiteStorageOpts)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)

@@ -22,15 +22,15 @@ package prometheus
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/test"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -66,53 +66,6 @@ func TestPromCompressedReadInvalidEncoding(t *testing.T) {
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
-func TestTimeoutParseWithHeader(t *testing.T) {
-	req := httptest.NewRequest("POST", "/dummy", nil)
-	req.Header.Add("timeout", "1ms")
-
-	timeout, err := ParseRequestTimeout(req, time.Second)
-	assert.NoError(t, err)
-	assert.Equal(t, timeout, time.Millisecond)
-
-	req.Header.Del("timeout")
-	timeout, err = ParseRequestTimeout(req, 2*time.Minute)
-	assert.NoError(t, err)
-	assert.Equal(t, timeout, 2*time.Minute)
-
-	req.Header.Add("timeout", "invalid")
-	_, err = ParseRequestTimeout(req, 15*time.Second)
-	assert.Error(t, err)
-	assert.True(t, xerrors.IsInvalidParams(err))
-}
-
-func TestTimeoutParseWithPostRequestParam(t *testing.T) {
-	params := url.Values{}
-	params.Add("timeout", "1ms")
-
-	buff := bytes.NewBuffer(nil)
-	form := multipart.NewWriter(buff)
-	form.WriteField("timeout", "1ms")
-	require.NoError(t, form.Close())
-
-	req := httptest.NewRequest("POST", "/dummy", buff)
-	req.Header.Set(xhttp.HeaderContentType, form.FormDataContentType())
-
-	timeout, err := ParseRequestTimeout(req, time.Second)
-	assert.NoError(t, err)
-	assert.Equal(t, timeout, time.Millisecond)
-}
-
-func TestTimeoutParseWithGetRequestParam(t *testing.T) {
-	params := url.Values{}
-	params.Add("timeout", "1ms")
-
-	req := httptest.NewRequest("GET", "/dummy?"+params.Encode(), nil)
-
-	timeout, err := ParseRequestTimeout(req, time.Second)
-	assert.NoError(t, err)
-	assert.Equal(t, timeout, time.Millisecond)
-}
-
 type writer struct {
 	value string
 }
@@ -137,53 +90,169 @@ func toTags(name string, tags ...tag) models.Metric {
 	return models.Metric{Tags: ts}
 }
 
-func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
-	w := &writer{value: ""}
-	tests := []struct {
-		dropRole   bool
-		additional string
-	}{
-		{
-			dropRole:   true,
-			additional: "",
-		},
-		{
-			dropRole:   false,
-			additional: `,"role":"appears"`,
-		},
-	}
+func TestParseStartAndEnd(t *testing.T) {
+	endTime := time.Now().Truncate(time.Hour)
+	opts := promql.NewParseOptions().SetNowFn(func() time.Time { return endTime })
 
-	seriesMatchResult := []models.Metrics{
-		models.Metrics{
-			toTags("name", tag{name: "a", value: "b"}, tag{name: "role", value: "appears"}),
-			toTags("name2", tag{name: "c", value: "d"}, tag{name: "e", value: "f"}),
-		},
+	tests := []struct {
+		querystring string
+		exStart     time.Time
+		exEnd       time.Time
+		exErr       bool
+	}{
+		{querystring: "", exStart: time.Unix(0, 0), exEnd: endTime},
+		{querystring: "start=100", exStart: time.Unix(100, 0), exEnd: endTime},
+		{querystring: "start=100&end=200", exStart: time.Unix(100, 0), exEnd: time.Unix(200, 0)},
+		{querystring: "start=200&end=100", exErr: true},
+		{querystring: "start=foo&end=100", exErr: true},
+		{querystring: "start=100&end=bar", exErr: true},
 	}
 
 	for _, tt := range tests {
-		expectedWhitespace := fmt.Sprintf(`{
-		"status":"success",
-		"data":[
-			{
-				"__name__":"name",
-				"a":"b"%s
-			},
-			{
-				"__name__":"name2",
-				"c":"d",
-				"e":"f"
+		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+				fmt.Sprintf("/?%s", tt.querystring), nil)
+			require.NoError(t, err)
+
+			start, end, err := ParseStartAndEnd(req, opts)
+			if tt.exErr {
+				require.Error(t, err)
+			} else {
+				assert.Equal(t, tt.exStart, start)
+				assert.Equal(t, tt.exEnd, end)
 			}
-		]
-	}`, tt.additional)
+		})
+	}
 
-		err := RenderSeriesMatchResultsJSON(w, seriesMatchResult, tt.dropRole)
-		assert.NoError(t, err)
-		fields := strings.Fields(expectedWhitespace)
-		expected := ""
-		for _, field := range fields {
-			expected = expected + field
-		}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("POST_%s", tt.querystring), func(t *testing.T) {
+			b := bytes.NewBuffer([]byte(tt.querystring))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", b)
+			require.NoError(t, err)
+			req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
 
-		assert.Equal(t, expected, w.value)
+			start, end, err := ParseStartAndEnd(req, opts)
+			if tt.exErr {
+				require.Error(t, err)
+			} else {
+				assert.Equal(t, tt.exStart, start)
+				assert.Equal(t, tt.exEnd, end)
+			}
+		})
+	}
+}
+
+func TestParseRequireStartEnd(t *testing.T) {
+	opts := promql.NewParseOptions()
+
+	tests := []struct {
+		exStart         time.Time
+		querystring     string
+		requireStartEnd bool
+		exErr           bool
+	}{
+		{querystring: "start=100", requireStartEnd: true, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStartEnd: true, exErr: true},
+		{querystring: "start=100", requireStartEnd: false, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStartEnd: false, exStart: time.Unix(0, 0)},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+				fmt.Sprintf("/?%s", tt.querystring), nil)
+			require.NoError(t, err)
+
+			start, _, err := ParseStartAndEnd(req, opts.SetRequireStartEndTime(tt.requireStartEnd))
+			if tt.exErr {
+				require.Error(t, err)
+			} else {
+				assert.Equal(t, tt.exStart, start)
+			}
+		})
+	}
+}
+
+// TestParseMatch tests the parsing / construction logic around ParseMatch().
+// matcher_test.go has more comprehensive testing on parsing details.
+func TestParseMatch(t *testing.T) {
+	parseOpts := promql.NewParseOptions()
+	tagOpts := models.NewTagOptions()
+
+	tests := []struct {
+		querystring string
+		exMatch     []ParsedMatch
+		exErr       bool
+		exEmpty     bool
+	}{
+		{exEmpty: true},
+		{
+			querystring: "match[]=eq_label",
+			exMatch: []ParsedMatch{
+				{
+					Match: "eq_label",
+					Matchers: models.Matchers{
+						{
+							Type:  models.MatchEqual,
+							Name:  []byte("__name__"),
+							Value: []byte("eq_label"),
+						},
+					},
+				},
+			},
+		},
+		{querystring: "match[]=illegal%match", exErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+				fmt.Sprintf("/?%s", tt.querystring), nil)
+			require.NoError(t, err)
+
+			parsedMatches, ok, err := ParseMatch(req, parseOpts, tagOpts)
+
+			if tt.exErr {
+				require.Error(t, err)
+				require.False(t, ok)
+				require.Empty(t, parsedMatches)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.exEmpty {
+				require.False(t, ok)
+				require.Empty(t, parsedMatches)
+			} else {
+				require.True(t, ok)
+				require.Equal(t, tt.exMatch, parsedMatches)
+			}
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("POST_%s", tt.querystring), func(t *testing.T) {
+			b := bytes.NewBuffer([]byte(tt.querystring))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", b)
+			require.NoError(t, err)
+			req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
+
+			parsedMatches, ok, err := ParseMatch(req, parseOpts, tagOpts)
+
+			if tt.exErr {
+				require.Error(t, err)
+				require.False(t, ok)
+				require.Empty(t, parsedMatches)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.exEmpty {
+				require.False(t, ok)
+				require.Empty(t, parsedMatches)
+			} else {
+				require.True(t, ok)
+				require.Equal(t, tt.exMatch, parsedMatches)
+			}
+		})
 	}
 }

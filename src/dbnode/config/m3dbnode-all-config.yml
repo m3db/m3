@@ -3,17 +3,24 @@ coordinator:
   # Address for M3Coordinator to listen for traffic.
   listenAddress: 0.0.0.0:7201
 
-  # All configured M3DB namespaces must be listed in this config if running an
-  # embedded M3Coordinator instance.
-  local:
-    namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 48h
-
-  # Configuratino for M3Coordinator logging.
+  # Configuration for M3Coordinator logging.
   logging:
     level: info
+    # Configuration for logging encoder.
+    encoderConfig:
+      messageKey: msg
+      levelKey: level
+      timeKey: ts
+      nameKey: logger
+      callerKey: caller
+      functionKey: ""
+      stacktraceKey: stacktrace
+      lineEnding: "\n"
+      levelEncoder: lowercase
+      timeEncoder: epoch
+      durationEncoder: seconds
+      callerEncoder: short
+      nameEncoder: full
 
   # Configuration for emitting M3Coordinator metrics.
   metrics:
@@ -132,7 +139,7 @@ db:
     seekReadBufferSize: 4096
     # Maximum Mib/s that can be written to disk by background operations like flushing
     # and snapshotting to prevent them from interfering with the commitlog. Increasing
-    # this value can make node adds significantly faster if the underlyign disk can
+    # this value can make node adds significantly faster if the underlying disk can
     # support the throughput.
     throughputLimitMbps: 1000.0
     throughputCheckEvery: 128
@@ -144,23 +151,24 @@ db:
     checkInterval: 1m
 
   # etcd configuration.
-  config:
-      service:
-          # KV environment, zone, and service from which to write/read KV data (placement
-          # and configuration). Leave these as the default values unless you know what
-          # you're doing.
-          env: default_env
-          zone: embedded
-          service: m3db
-          # Directory to store cached etcd data in.
-          cacheDir: /var/lib/m3kv
-          # Configuration to identify the etcd hosts this node should connect to.
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - 127.0.0.1:2379
-      # Should only be present if running an M3DB cluster with embedded etcd.
-      seedNodes:
-          initialCluster:
-              - hostID: m3db_local
-                endpoint: http://127.0.0.1:2380
+  discovery:
+    config:
+        service:
+            # KV environment, zone, and service from which to write/read KV data (placement
+            # and configuration). Leave these as the default values unless you know what
+            # you're doing.
+            env: default_env
+            zone: embedded
+            service: m3db
+            # Directory to store cached etcd data in.
+            cacheDir: /var/lib/m3kv
+            # Configuration to identify the etcd hosts this node should connect to.
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - 127.0.0.1:2379
+        # Should only be present if running an M3DB cluster with embedded etcd.
+        seedNodes:
+            initialCluster:
+                - hostID: m3db_local
+                  endpoint: http://127.0.0.1:2380

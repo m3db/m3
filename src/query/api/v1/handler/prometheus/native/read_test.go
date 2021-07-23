@@ -23,14 +23,10 @@ package native
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -40,25 +36,23 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseRequest(t *testing.T) {
-	setup := newTestSetup(&prometheus.TimeoutOpts{
-		FetchTimeout: 10 * time.Second,
-	}, nil)
+	setup := newTestSetup(t, nil)
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	parsed, err := ParseRequest(req.Context(), req, false, setup.options)
+	ctx, parsed, err := ParseRequest(req.Context(), req, false, setup.options)
 	require.NoError(t, err)
-	require.Equal(t, time.Second*10, parsed.Params.Timeout)
-	require.Equal(t, time.Second*0, parsed.FetchOpts.Timeout)
+	require.Equal(t, 15*time.Second, parsed.Params.Timeout)
+	require.Equal(t, 15*time.Second, parsed.FetchOpts.Timeout)
 	require.Equal(t, 0, parsed.FetchOpts.DocsLimit)
 	require.Equal(t, 0, parsed.FetchOpts.SeriesLimit)
 	require.Equal(t, false, parsed.FetchOpts.RequireExhaustive)
@@ -66,13 +60,19 @@ func TestParseRequest(t *testing.T) {
 	require.Equal(t, 0, parsed.QueryOpts.QueryContextOptions.LimitMaxTimeseries)
 	require.Equal(t, false, parsed.QueryOpts.QueryContextOptions.RequireExhaustive)
 	require.Nil(t, parsed.QueryOpts.QueryContextOptions.RestrictFetchType)
+	// Make sure the context has the deadline and http header set.
+	_, ok := ctx.Deadline()
+	require.True(t, ok)
+	header := ctx.Value(handleroptions.RequestHeaderKey)
+	require.NotNil(t, header)
+	_, ok = header.(http.Header)
+	require.True(t, ok)
 }
 
 func TestPromReadHandlerRead(t *testing.T) {
-	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
-	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
-	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
-		headers.LimitHeaderSeriesLimitApplied)
+	testPromReadHandlerRead(t, block.NewResultMetadata())
+	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"))
+	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false})
 }
 
 func TestPromReadHandlerWithTimeout(t *testing.T) {
@@ -95,24 +95,24 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 			return nil, nil
 		})
 
-	setup := newTestSetup(nil, engine)
+	setup := newTestSetup(t, engine)
 	promRead := setup.Handlers.read
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 	ctx := req.Context()
+	var cancel context.CancelFunc
+	// Clients calling into read have the timeout set from the defined fetch params
+	ctx, cancel = context.WithTimeout(ctx, 1*time.Nanosecond)
+	defer cancel()
 
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	r.Timeout = 10 * time.Millisecond
 	parsed := ParsedOptions{
 		QueryOpts: setup.QueryOpts,
 		FetchOpts: setup.FetchOpts,
 		Params:    r,
-		CancelWatcher: &cancelWatcher{
-			delay: r.Timeout * 10,
-		},
 	}
 
 	_, err := read(ctx, parsed, promRead.opts)
@@ -122,14 +122,12 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 		err.Error())
 }
 
-func testPromReadHandlerRead(
-	t *testing.T,
-	resultMeta block.ResultMetadata,
-	ex string,
-) {
+func testPromReadHandlerRead(t *testing.T, resultMeta block.ResultMetadata) {
+	t.Helper()
+
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup(timeoutOpts, nil)
+	setup := newTestSetup(t, nil)
 	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -168,20 +166,12 @@ func testPromReadHandlerRead(
 	}
 }
 
-func newReadRequest(t *testing.T, params url.Values) *http.Request {
-	req, err := http.NewRequest("GET", PromReadURL, nil)
-	require.NoError(t, err)
-	req.URL.RawQuery = params.Encode()
-	return req
-}
-
 type testSetup struct {
-	Storage     mock.Storage
-	Handlers    testSetupHandlers
-	QueryOpts   *executor.QueryOptions
-	FetchOpts   *storage.FetchOptions
-	TimeoutOpts *prometheus.TimeoutOpts
-	options     options.HandlerOptions
+	Storage   mock.Storage
+	Handlers  testSetupHandlers
+	QueryOpts *executor.QueryOptions
+	FetchOpts *storage.FetchOptions
+	options   options.HandlerOptions
 }
 
 type testSetupHandlers struct {
@@ -190,7 +180,7 @@ type testSetupHandlers struct {
 }
 
 func newTestSetup(
-	timeout *prometheus.TimeoutOpts,
+	t *testing.T,
 	mockEngine *executor.MockEngine,
 ) *testSetup {
 	mockStorage := mock.NewMockStorage()
@@ -204,8 +194,11 @@ func newTestSetup(
 	if mockEngine != nil {
 		engine = mockEngine
 	}
-	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{}
-	fetchOptsBuilder := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{
+		Timeout: 15 * time.Second,
+	}
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	require.NoError(t, err)
 	tagOpts := models.NewTagOptions()
 	limitsConfig := config.LimitsConfiguration{}
 	keepNaNs := false
@@ -214,8 +207,8 @@ func newTestSetup(
 		SetEngine(engine).
 		SetFetchOptionsBuilder(fetchOptsBuilder).
 		SetTagOptions(tagOpts).
-		SetTimeoutOpts(timeout).
 		SetInstrumentOpts(instrumentOpts).
+		SetStorage(mockStorage).
 		SetConfig(config.Configuration{
 			Limits: limitsConfig,
 			ResultOptions: config.ResultOptions{
@@ -232,20 +225,8 @@ func newTestSetup(
 			read:        read,
 			instantRead: instantRead,
 		},
-		QueryOpts:   &executor.QueryOptions{},
-		FetchOpts:   storage.NewFetchOptions(),
-		TimeoutOpts: timeoutOpts,
-		options:     opts,
+		QueryOpts: &executor.QueryOptions{},
+		FetchOpts: storage.NewFetchOptions(),
+		options:   opts,
 	}
-}
-
-type cancelWatcher struct {
-	delay time.Duration
-}
-
-var _ handler.CancelWatcher = (*cancelWatcher)(nil)
-
-func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
-	// Simulate longer request to test timeout.
-	time.Sleep(c.delay)
 }

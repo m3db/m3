@@ -22,21 +22,22 @@ package context
 
 import (
 	stdctx "context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/resource"
-
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 func TestRegisterFinalizerWithChild(t *testing.T) {
-	xCtx := NewContext().(*ctx)
+	xCtx := NewBackground().(*ctx)
 	assert.Nil(t, xCtx.parentCtx())
 
 	childCtx := xCtx.newChildContext().(*ctx)
@@ -48,7 +49,7 @@ func TestRegisterFinalizerWithChild(t *testing.T) {
 	)
 
 	wg.Add(1)
-	childCtx.RegisterFinalizer(resource.FinalizerFn(func() {
+	childCtx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		childClosed = true
 		wg.Done()
 	}))
@@ -67,11 +68,11 @@ func TestRegisterFinalizer(t *testing.T) {
 	var (
 		wg     sync.WaitGroup
 		closed = false
-		ctx    = NewContext().(*ctx)
+		ctx    = NewBackground().(*ctx)
 	)
 
 	wg.Add(1)
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		closed = true
 		wg.Done()
 	}))
@@ -85,7 +86,7 @@ func TestRegisterFinalizer(t *testing.T) {
 }
 
 func TestRegisterCloserWithChild(t *testing.T) {
-	xCtx := NewContext().(*ctx)
+	xCtx := NewBackground().(*ctx)
 	assert.Nil(t, xCtx.parentCtx())
 
 	childCtx := xCtx.newChildContext().(*ctx)
@@ -97,7 +98,7 @@ func TestRegisterCloserWithChild(t *testing.T) {
 	)
 
 	wg.Add(1)
-	childCtx.RegisterCloser(resource.CloserFn(func() {
+	childCtx.RegisterCloser(xresource.SimpleCloserFn(func() {
 		childClosed = true
 		wg.Done()
 	}))
@@ -116,11 +117,11 @@ func TestRegisterCloser(t *testing.T) {
 	var (
 		wg     sync.WaitGroup
 		closed = false
-		ctx    = NewContext().(*ctx)
+		ctx    = NewBackground().(*ctx)
 	)
 
 	wg.Add(1)
-	ctx.RegisterCloser(resource.CloserFn(func() {
+	ctx.RegisterCloser(xresource.SimpleCloserFn(func() {
 		closed = true
 		wg.Done()
 	}))
@@ -134,18 +135,18 @@ func TestRegisterCloser(t *testing.T) {
 }
 
 func TestDoesNotRegisterFinalizerWhenClosed(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 	ctx.Close()
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {}))
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {}))
 
 	assert.Equal(t, 0, ctx.numFinalizeables())
 }
 
 func TestDoesNotCloseTwice(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 
 	var closed int32
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 	}))
 
@@ -159,18 +160,18 @@ func TestDoesNotCloseTwice(t *testing.T) {
 }
 
 func TestDependsOnNoCloserAllocation(t *testing.T) {
-	ctx := NewContext().(*ctx)
-	ctx.DependsOn(NewContext())
+	ctx := NewBackground().(*ctx)
+	ctx.DependsOn(NewBackground())
 	assert.Equal(t, 0, ctx.numFinalizeables())
 }
 
 func TestDependsOn(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 	testDependsOn(t, ctx)
 }
 
 func TestDependsOnWithReset(t *testing.T) {
-	ctx := NewContext().(*ctx)
+	ctx := NewBackground().(*ctx)
 
 	testDependsOn(t, ctx)
 
@@ -184,10 +185,10 @@ func testDependsOn(t *testing.T, c *ctx) {
 	var wg sync.WaitGroup
 	var closed int32
 
-	other := NewContext().(*ctx)
+	other := NewBackground().(*ctx)
 
 	wg.Add(1)
-	c.RegisterFinalizer(resource.FinalizerFn(func() {
+	c.RegisterFinalizer(xresource.FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 		wg.Done()
 	}))
@@ -212,16 +213,16 @@ func testDependsOn(t *testing.T, c *ctx) {
 
 func TestDependsOnWithChild(t *testing.T) {
 	var (
-		c     = NewContext().(*ctx)
+		c     = NewBackground().(*ctx)
 		child = c.newChildContext().(*ctx)
-		other = NewContext().(*ctx)
+		other = NewBackground().(*ctx)
 
 		wg     sync.WaitGroup
 		closed int32
 	)
 
 	wg.Add(1)
-	c.RegisterFinalizer(resource.FinalizerFn(func() {
+	c.RegisterFinalizer(xresource.FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 		wg.Done()
 	}))
@@ -247,7 +248,7 @@ func TestDependsOnWithChild(t *testing.T) {
 
 func TestSampledTraceSpan(t *testing.T) {
 	var (
-		xCtx  = NewContext()
+		xCtx  = NewBackground()
 		goCtx = stdctx.Background()
 		sp    opentracing.Span
 		spCtx Context
@@ -275,26 +276,62 @@ func TestSampledTraceSpan(t *testing.T) {
 }
 
 func TestGoContext(t *testing.T) {
-	goCtx := stdctx.Background()
-	xCtx := NewContext()
+	goCtx, cancel := stdctx.WithTimeout(stdctx.Background(), time.Minute)
+	defer cancel()
+	xCtx := NewWithGoContext(goCtx)
 
 	var (
-		exists    bool
 		returnCtx stdctx.Context
 	)
 
-	returnCtx, exists = xCtx.GoContext()
-	assert.False(t, exists)
-	assert.Nil(t, returnCtx)
-
-	xCtx.SetGoContext(goCtx)
-
-	returnCtx, exists = xCtx.GoContext()
-	assert.True(t, exists)
+	returnCtx = xCtx.GoContext()
 	assert.Equal(t, goCtx, returnCtx)
 
 	xCtx.Reset()
-	returnCtx, exists = xCtx.GoContext()
-	assert.False(t, exists)
-	assert.Nil(t, returnCtx)
+	returnCtx = xCtx.GoContext()
+	assert.Equal(t, stdctx.Background(), returnCtx)
+}
+
+// Test that too deep span tree created is prevented
+// Span is marked as error in that case that which is well defined
+func TestTooDeepSpanTreeIsPreventedAndMarked(t *testing.T) {
+	// use a mock tracer to ensure sampling rate is set to 1.
+	tracer := mocktracer.New()
+
+	span := tracer.StartSpan("root-span")
+	defer span.Finish()
+
+	context := NewWithGoContext(opentracing.ContextWithSpan(stdctx.Background(), span))
+
+	var (
+		lastChildSpanCreated    opentracing.Span
+		lastChildContextCreated = context
+	)
+	for i := 1; i <= maxDistanceFromRootContext; i++ {
+		lastChildContextCreated, lastChildSpanCreated, _ =
+			lastChildContextCreated.StartSampledTraceSpan(fmt.Sprintf("test-action-depth-%d", i))
+	}
+
+	mockSpan := lastChildSpanCreated.(*mocktracer.MockSpan)
+
+	errorTagValue := mockSpan.Tag("error")
+	assert.NotNil(t, errorTagValue)
+	assert.Equal(t, true, errorTagValue)
+	spanLogs := mockSpan.Logs()
+	assert.Len(t, spanLogs, 1)
+	spanLog := spanLogs[0]
+	assert.True(t, fieldsContains(spanLog.Fields, "event", "error") &&
+		fieldsContains(spanLog.Fields, "error.object", errSpanTooDeep.Error()))
+
+	childContext, _, _ := lastChildContextCreated.StartSampledTraceSpan("another-span-beyond-max-depth")
+	assert.Equal(t, lastChildContextCreated, childContext)
+}
+
+func fieldsContains(fields []mocktracer.MockKeyValue, key string, value string) bool {
+	for _, field := range fields {
+		if field.Key == key && field.ValueString == value {
+			return true
+		}
+	}
+	return false
 }

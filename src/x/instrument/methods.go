@@ -22,14 +22,16 @@ package instrument
 
 import (
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/unsafe"
 )
 
 var (
-	nullStopWatchStart tally.Stopwatch
+	// no-op stopwatch must contain a valid recorder to prevent panics.
+	nullStopWatchStart = tally.NewStopwatch(time.Time{}, noopStopwatchRecorder{})
 )
 
 // TimerType is a type of timer, standard or histogram timer.
@@ -41,6 +43,8 @@ const (
 	// HistogramTimerType is a histogram timer backed by a histogram.
 	HistogramTimerType
 )
+
+const _samplingPrecision = 1 << 24
 
 // TimerOptions is a set of timer options when creating a timer.
 type TimerOptions struct {
@@ -54,67 +58,95 @@ func (o TimerOptions) NewTimer(scope tally.Scope, name string) tally.Timer {
 	return NewTimer(scope, name, o)
 }
 
+// SparseHistogramTimerHistogramBuckets returns a small spare set of
+// histogram timer histogram buckets, from 1ms up to 8m.
+func SparseHistogramTimerHistogramBuckets() tally.Buckets {
+	return tally.DurationBuckets{
+		time.Millisecond,
+		5 * time.Millisecond,
+		10 * time.Millisecond,
+		25 * time.Millisecond,
+		50 * time.Millisecond,
+		75 * time.Millisecond,
+		100 * time.Millisecond,
+		250 * time.Millisecond,
+		500 * time.Millisecond,
+		750 * time.Millisecond,
+		time.Second,
+		2*time.Second + 500*time.Millisecond,
+		5 * time.Second,
+		7*time.Second + 500*time.Millisecond,
+		10 * time.Second,
+		25 * time.Second,
+		50 * time.Second,
+		75 * time.Second,
+		100 * time.Second,
+		250 * time.Second,
+		500 * time.Second,
+	}
+}
+
 // DefaultHistogramTimerHistogramBuckets returns a set of default
 // histogram timer histogram buckets, from 2ms up to 1hr.
 func DefaultHistogramTimerHistogramBuckets() tally.Buckets {
-	return tally.ValueBuckets{
-		0.002,
-		0.004,
-		0.006,
-		0.008,
-		0.01,
-		0.02,
-		0.04,
-		0.06,
-		0.08,
-		0.1,
-		0.2,
-		0.4,
-		0.6,
-		0.8,
-		1,
-		1.5,
-		2,
-		2.5,
-		3,
-		3.5,
-		4,
-		4.5,
-		5,
-		5.5,
-		6,
-		6.5,
-		7,
-		7.5,
-		8,
-		8.5,
-		9,
-		9.5,
-		10,
-		15,
-		20,
-		25,
-		30,
-		35,
-		40,
-		45,
-		50,
-		55,
-		60,
-		150,
-		300,
-		450,
-		600,
-		900,
-		1200,
-		1500,
-		1800,
-		2100,
-		2400,
-		2700,
-		3000,
-		3300,
-		3600,
+	return tally.DurationBuckets{
+		2 * time.Millisecond,
+		4 * time.Millisecond,
+		6 * time.Millisecond,
+		8 * time.Millisecond,
+		10 * time.Millisecond,
+		20 * time.Millisecond,
+		40 * time.Millisecond,
+		60 * time.Millisecond,
+		80 * time.Millisecond,
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		400 * time.Millisecond,
+		600 * time.Millisecond,
+		800 * time.Millisecond,
+		time.Second,
+		time.Second + 500*time.Millisecond,
+		2 * time.Second,
+		2*time.Second + 500*time.Millisecond,
+		3 * time.Second,
+		3*time.Second + 500*time.Millisecond,
+		4 * time.Second,
+		4*time.Second + 500*time.Millisecond,
+		5 * time.Second,
+		5*time.Second + 500*time.Millisecond,
+		6 * time.Second,
+		6*time.Second + 500*time.Millisecond,
+		7 * time.Second,
+		7*time.Second + 500*time.Millisecond,
+		8 * time.Second,
+		8*time.Second + 500*time.Millisecond,
+		9 * time.Second,
+		9*time.Second + 500*time.Millisecond,
+		10 * time.Second,
+		15 * time.Second,
+		20 * time.Second,
+		25 * time.Second,
+		30 * time.Second,
+		35 * time.Second,
+		40 * time.Second,
+		45 * time.Second,
+		50 * time.Second,
+		55 * time.Second,
+		60 * time.Second,
+		150 * time.Second,
+		300 * time.Second,
+		450 * time.Second,
+		600 * time.Second,
+		900 * time.Second,
+		1200 * time.Second,
+		1500 * time.Second,
+		1800 * time.Second,
+		2100 * time.Second,
+		2400 * time.Second,
+		2700 * time.Second,
+		3000 * time.Second,
+		3300 * time.Second,
+		3600 * time.Second,
 	}
 }
 
@@ -202,8 +234,7 @@ func (t *timer) RecordStopwatch(stopwatchStart time.Time) {
 type sampledTimer struct {
 	tally.Timer
 
-	cnt  uint64
-	rate uint64
+	rate uint32
 }
 
 // NewSampledTimer creates a new sampled timer.
@@ -223,9 +254,15 @@ func newSampledTimer(base tally.Timer, rate float64) tally.Timer {
 		// Avoid the overhead of working out if should sample each time.
 		return base
 	}
+
+	r := uint32(rate * _samplingPrecision)
+	if rate >= 1.0 || r > _samplingPrecision {
+		r = _samplingPrecision // clamp to 100%
+	}
+
 	return &sampledTimer{
 		Timer: base,
-		rate:  uint64(1.0 / rate),
+		rate:  _samplingPrecision - r,
 	}
 }
 
@@ -240,7 +277,7 @@ func MustCreateSampledTimer(base tally.Timer, rate float64) tally.Timer {
 }
 
 func (t *sampledTimer) shouldSample() bool {
-	return atomic.AddUint64(&t.cnt, 1)%t.rate == 0
+	return unsafe.Fastrandn(_samplingPrecision) >= t.rate
 }
 
 func (t *sampledTimer) Start() tally.Stopwatch {
@@ -349,3 +386,7 @@ func (m *BatchMethodMetrics) ReportNonRetryableErrors(n int) {
 func (m *BatchMethodMetrics) ReportLatency(d time.Duration) {
 	m.Latency.Record(d)
 }
+
+type noopStopwatchRecorder struct{}
+
+func (noopStopwatchRecorder) RecordStopwatch(_ time.Time) {}

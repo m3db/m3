@@ -21,16 +21,84 @@
 package handleroptions
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/headers"
 )
 
-// AddWarningHeaders adds any warning headers present in the result's metadata.
-// No-op if no warnings encountered.
-func AddWarningHeaders(w http.ResponseWriter, meta block.ResultMetadata) {
+// ReturnedDataLimited is info about whether data was limited by a query.
+type ReturnedDataLimited struct {
+	Series     int
+	Datapoints int
+
+	// Total series is the total number of series which maybe be >= Series.
+	// Truncation happens at the series-level to avoid presenting partial series
+	// and so this value is useful for indicating how many series would have
+	// been rendered without limiting either series or datapoints.
+	TotalSeries int
+
+	// Limited signals that the results returned were
+	// limited by either series or datapoint limits.
+	Limited bool
+}
+
+// ReturnedMetadataLimited is info about whether data was limited by a query.
+type ReturnedMetadataLimited struct {
+	// Results is the total amount of rendered results.
+	Results int
+	// TotalResults is the total amount of metadata results.
+	TotalResults int
+	// Limited signals that the results returned were limited by a limit.
+	Limited bool
+}
+
+// Waiting is info about an operation waiting for permits.
+type Waiting struct {
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int `json:"waitedIndex"`
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int `json:"waitedSeriesRead"`
+}
+
+// WaitedAny returns whether any waiting occurred.
+func (w Waiting) WaitedAny() bool {
+	return w.WaitedIndex > 0 || w.WaitedSeriesRead > 0
+}
+
+// AddDBResultResponseHeaders adds response headers based on metadata
+// and fetch options related to the database result.
+func AddDBResultResponseHeaders(
+	w http.ResponseWriter,
+	meta block.ResultMetadata,
+	fetchOpts *storage.FetchOptions,
+) error {
+	if fetchOpts != nil {
+		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
+	}
+
+	waiting := Waiting{
+		WaitedIndex:      meta.WaitedIndex,
+		WaitedSeriesRead: meta.WaitedSeriesRead,
+	}
+
+	// NB: only add series count header if there are series present.
+	if meta.FetchedSeriesCount > 0 {
+		w.Header().Add(headers.FetchedSeriesCount, fmt.Sprint(meta.FetchedSeriesCount))
+	}
+
+	if waiting.WaitedAny() {
+		s, err := json.Marshal(waiting)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.WaitedHeader, string(s))
+	}
+
 	ex := meta.Exhaustive
 	warns := len(meta.Warnings)
 	if !ex {
@@ -38,7 +106,7 @@ func AddWarningHeaders(w http.ResponseWriter, meta block.ResultMetadata) {
 	}
 
 	if warns == 0 {
-		return
+		return nil
 	}
 
 	warnings := make([]string, 0, warns)
@@ -51,4 +119,31 @@ func AddWarningHeaders(w http.ResponseWriter, meta block.ResultMetadata) {
 	}
 
 	w.Header().Set(headers.LimitHeader, strings.Join(warnings, ","))
+
+	return nil
+}
+
+// AddReturnedLimitResponseHeaders adds headers related to hitting
+// limits on the allowed amount of data that can be returned to the client.
+func AddReturnedLimitResponseHeaders(
+	w http.ResponseWriter,
+	returnedDataLimited *ReturnedDataLimited,
+	returnedMetadataLimited *ReturnedMetadataLimited,
+) error {
+	if limited := returnedDataLimited; limited != nil {
+		s, err := json.Marshal(limited)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.ReturnedDataLimitedHeader, string(s))
+	}
+	if limited := returnedMetadataLimited; limited != nil {
+		s, err := json.Marshal(limited)
+		if err != nil {
+			return err
+		}
+		w.Header().Add(headers.ReturnedMetadataLimitedHeader, string(s))
+	}
+
+	return nil
 }

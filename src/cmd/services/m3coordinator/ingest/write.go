@@ -150,7 +150,7 @@ func (d *downsamplerAndWriter) Write(
 
 	if d.shouldDownsample(overrides) {
 		var err error
-		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, overrides)
+		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -200,17 +200,16 @@ func (d *downsamplerAndWriter) shouldDownsample(
 	overrides WriteOptions,
 ) bool {
 	var (
-		downsamplerExists = d.downsampler != nil
 		// If they didn't request the mapping rules to be overridden, then assume they want the default
 		// ones.
 		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
 		_, downsampleOverride = d.downsampleOverrideRules(overrides)
 	)
-	// Only downsample if the downsampler exists, and they either want to use the default mapping
+	// Only downsample if the downsampler is enabled, and they either want to use the default mapping
 	// rules, or they're trying to override the mapping rules and they've provided at least one
 	// override to do so.
-	return downsamplerExists && (useDefaultMappingRules || downsampleOverride)
+	return d.downsampler.Enabled() && (useDefaultMappingRules || downsampleOverride)
 }
 
 func (d *downsamplerAndWriter) downsampleOverrideRules(
@@ -227,6 +226,7 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
+	annotation []byte,
 	overrides WriteOptions,
 ) (bool, error) {
 	if err := tags.Validate(); err != nil {
@@ -259,6 +259,8 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 			downsample.GraphiteIDSchemeTagValue)
 	}
 
+	// NB: we don't set series attributes on the sample appender options here.
+	// In practice this isn't needed because only the carbon ingest path comes through here.
 	var appenderOpts downsample.SampleAppenderOptions
 	if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 		appenderOpts = downsample.SampleAppenderOptions{
@@ -275,7 +277,13 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	}
 
 	for _, dp := range datapoints {
-		err := result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		if result.ShouldDropTimestamp {
+			err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Value, annotation)
+		} else {
+			err = result.SamplesAppender.AppendGaugeSample(
+				dp.Timestamp, dp.Value, annotation,
+			)
+		}
 		if err != nil {
 			return result.IsDropPolicyApplied, err
 		}
@@ -474,7 +482,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		opts := downsample.SampleAppenderOptions{
-			MetricType: value.Attributes.M3Type,
+			SeriesAttributes: value.Attributes,
 		}
 		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 			opts = downsample.SampleAppenderOptions{
@@ -498,11 +506,30 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		for _, dp := range value.Datapoints {
 			switch value.Attributes.M3Type {
 			case ts.M3MetricTypeGauge:
-				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+				if result.ShouldDropTimestamp {
+					err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Value, value.Annotation)
+				} else {
+					err = result.SamplesAppender.AppendGaugeSample(
+						dp.Timestamp, dp.Value, value.Annotation,
+					)
+				}
 			case ts.M3MetricTypeCounter:
-				err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+				if result.ShouldDropTimestamp {
+					err = result.SamplesAppender.AppendUntimedCounterSample(
+						int64(dp.Value), value.Annotation)
+				} else {
+					err = result.SamplesAppender.AppendCounterSample(
+						dp.Timestamp, int64(dp.Value), value.Annotation,
+					)
+				}
 			case ts.M3MetricTypeTimer:
-				err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+				if result.ShouldDropTimestamp {
+					err = result.SamplesAppender.AppendUntimedTimerSample(dp.Value, value.Annotation)
+				} else {
+					err = result.SamplesAppender.AppendTimerSample(
+						dp.Timestamp, dp.Value, value.Annotation,
+					)
+				}
 			}
 			if err != nil {
 				// If we see an error break out so we can try processing the

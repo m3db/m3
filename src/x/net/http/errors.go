@@ -21,10 +21,24 @@
 package xhttp
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"sync"
 
+	"github.com/prometheus/prometheus/promql"
+
+	"github.com/m3db/m3/src/dbnode/client"
 	xerrors "github.com/m3db/m3/src/x/errors"
+)
+
+// ErrorRewriteFn is a function for rewriting response error.
+type ErrorRewriteFn func(error) error
+
+var (
+	errorRewriteFn     ErrorRewriteFn = func(err error) error { return err }
+	errorRewriteFnLock sync.RWMutex
 )
 
 // Error is an HTTP JSON error that also sets a return status code.
@@ -66,7 +80,8 @@ func (e errorWithCode) Code() int {
 
 // ErrorResponse is a generic response for an HTTP error.
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Status string `json:"status"`
+	Error  string `json:"error"`
 }
 
 type options struct {
@@ -90,23 +105,54 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 		fn(&o)
 	}
 
+	errorRewriteFnLock.RLock()
+	err = errorRewriteFn(err)
+	errorRewriteFnLock.RUnlock()
+
+	statusCode := getStatusCode(err)
+	if o.response == nil {
+		w.Header().Set(HeaderContentType, ContentTypeJSON)
+		w.WriteHeader(statusCode)
+		json.NewEncoder(w).Encode(ErrorResponse{Status: "error", Error: err.Error()}) //nolint:errcheck
+	} else {
+		w.WriteHeader(statusCode)
+		w.Write(o.response)
+	}
+}
+
+// SetErrorRewriteFn sets error rewrite function.
+func SetErrorRewriteFn(f ErrorRewriteFn) ErrorRewriteFn {
+	errorRewriteFnLock.Lock()
+	defer errorRewriteFnLock.Unlock()
+
+	res := errorRewriteFn
+	errorRewriteFn = f
+	return res
+}
+
+func getStatusCode(err error) int {
 	switch v := err.(type) {
 	case Error:
-		w.WriteHeader(v.Code())
+		return v.Code()
 	case error:
 		if xerrors.IsInvalidParams(v) {
-			w.WriteHeader(http.StatusBadRequest)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+			return http.StatusBadRequest
+		} else if errors.Is(err, context.Canceled) {
+			// This status code was coined by Nginx for exactly the same use case.
+			// https://httpstatuses.com/499
+			return 499
+		} else if errors.Is(err, context.DeadlineExceeded) || client.IsTimeoutError(err) {
+			return http.StatusGatewayTimeout
+			// Also check for prom errors, which can be either a cancellation or a timeout.
+		} else if _, ok := err.(promql.ErrQueryCanceled); ok { // nolint:errorlint
+			return 499
 		}
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
 	}
+	return http.StatusInternalServerError
+}
 
-	if o.response != nil {
-		w.Write(o.response)
-		return
-	}
-
-	json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+// IsClientError returns true if this error would result in 4xx status code.
+func IsClientError(err error) bool {
+	code := getStatusCode(err)
+	return code >= 400 && code < 500
 }

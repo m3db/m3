@@ -104,6 +104,13 @@ type Options interface {
 	// when performing a bootstrap with persistence.
 	PersistManager() persist.Manager
 
+	// SetIndexClaimsManager sets the index claims manager.
+	SetIndexClaimsManager(value fs.IndexClaimsManager) Options
+
+	// IndexClaimsManager returns the index claims manager. It's used to manage
+	// concurrent claims for volume indices per ns and block start.
+	IndexClaimsManager() fs.IndexClaimsManager
+
 	// SetCompactor sets the compactor used to compact segment builders into segments.
 	SetCompactor(value *compaction.Compactor) Options
 

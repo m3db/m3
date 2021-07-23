@@ -24,12 +24,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-
-	"github.com/prometheus/common/model"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // ValueMod can be used to modify provided values for testing.
@@ -71,8 +72,8 @@ func NewUnconsolidatedBlockFromDatapointsWithMeta(
 	}
 
 	return newMultiSeriesBlock(result, &storage.FetchQuery{
-		Start:    bounds.Start,
-		End:      bounds.End(),
+		Start:    bounds.Start.ToTime(),
+		End:      bounds.End().ToTime(),
 		Interval: bounds.StepSize,
 	}, time.Minute, enableBatched)
 }
@@ -197,7 +198,7 @@ func GenerateValuesAndBounds(
 
 	var bounds models.Bounds
 	if b == nil {
-		now := time.Now()
+		now := xtime.Now()
 		bounds = models.Bounds{
 			Start:    now,
 			Duration: time.Minute * 5,

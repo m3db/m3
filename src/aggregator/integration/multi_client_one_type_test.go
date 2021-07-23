@@ -24,26 +24,13 @@ package integration
 
 import (
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/stretchr/testify/require"
 )
-
-func TestMultiClientOneTypeWithPoliciesList(t *testing.T) {
-	metadataFn := func(int) metadataUnion {
-		return metadataUnion{
-			mType:        policiesListType,
-			policiesList: testPoliciesList,
-		}
-	}
-	testMultiClientOneType(t, metadataFn)
-}
 
 func TestMultiClientOneTypeWithStagedMetadatas(t *testing.T) {
 	metadataFn := func(int) metadataUnion {
@@ -63,21 +50,8 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -108,7 +82,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	var (
 		idPrefix   = "foo"
 		numIDs     = 100
-		start      = getNowFn()
+		start      = clock.Now()
 		stop       = start.Add(10 * time.Second)
 		interval   = time.Second
 		numClients = 10
@@ -133,15 +107,11 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		clock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			// Randomly pick one client to write the metric.
 			client := clients[rand.Int63n(int64(numClients))]
-			if mm.metadata.mType == policiesListType {
-				require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
-			} else {
-				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
 		for _, client := range clients {
 			require.NoError(t, client.flush())
@@ -154,7 +124,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := stop.Add(time.Second)
-	setNowFn(finalTime)
+	clock.SetNow(finalTime)
 	time.Sleep(4 * time.Second)
 
 	// Stop the server.

@@ -36,7 +36,7 @@ import (
 )
 
 func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	mockConnPool := NewMockconnectionPool(ctrl)
@@ -62,19 +62,18 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 
 	// Prepare aggregates
 	aggregate := testAggregateOp("testNs", callback)
-	wg.Add(1)
-	assert.NoError(t, queue.Enqueue(aggregate))
-	assert.Equal(t, 1, queue.Len())
-	// Sleep some so that we can ensure flushing is not happening until queue is full
-	time.Sleep(20 * time.Millisecond)
 
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
 		assert.Equal(t, aggregate.request.NameSpace, req.NameSpace)
 	}
 	mockClient.EXPECT().AggregateRaw(gomock.Any(), gomock.Any()).Do(aggregateExec).Return(nil, nil)
-	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
+
+	// Execute aggregate
+	wg.Add(1)
+	assert.NoError(t, queue.Enqueue(aggregate))
 
 	// Close the queue should cause all writes to be flushed
 	queue.Close()
@@ -102,14 +101,14 @@ func TestHostQueueAggregate(t *testing.T) {
 	namespace := "testNs"
 	res := &rpc.AggregateQueryRawResult_{
 		Results: []*rpc.AggregateQueryRawResultTagNameElement{
-			&rpc.AggregateQueryRawResultTagNameElement{
+			{
 				TagName: []byte("tagName"),
 			},
 		},
 		Exhaustive: true,
 	}
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				response: res,
 				host:     h,
@@ -125,7 +124,7 @@ func TestHostQueueAggregateErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				host: h,
 			},
@@ -144,7 +143,7 @@ func TestHostQueueAggregateErrorOnAggregateError(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{host: h},
 			err:    expectedErr,
 		},
@@ -202,7 +201,7 @@ func testHostQueueAggregate(
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	if testOpts != nil && testOpts.nextClientErr != nil {
-		mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
+		mockConnPool.EXPECT().NextClient().Return(nil, nil, testOpts.nextClientErr)
 	} else if testOpts != nil && testOpts.aggregateErr != nil {
 		aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
 			require.NotNil(t, req)
@@ -213,7 +212,7 @@ func testHostQueueAggregate(
 			Do(aggregateExec).
 			Return(nil, testOpts.aggregateErr)
 
-		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	} else {
 		aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
 			require.NotNil(t, req)
@@ -224,7 +223,7 @@ func testHostQueueAggregate(
 			Do(aggregateExec).
 			Return(result, nil)
 
-		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	}
 
 	// Fetch
@@ -252,6 +251,7 @@ func testAggregateOp(
 ) *aggregateOp {
 	f := newAggregateOp(nil)
 	f.incRef()
+	f.context = testContext()
 	f.request = rpc.AggregateQueryRawRequest{
 		NameSpace: []byte(namespace),
 	}

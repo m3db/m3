@@ -120,8 +120,12 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		StartInclusive: start,
 		EndExclusive:   end,
 	}
+
 	if l := req.Limit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	session, err := s.session()
@@ -130,7 +134,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	}
 
 	if req.NoData != nil && *req.NoData {
-		results, metadata, err := session.FetchTaggedIDs(nsID,
+		results, metadata, err := session.FetchTaggedIDs(tctx, nsID,
 			index.Query{Query: q}, opts)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
@@ -162,10 +166,11 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		if err := results.Err(); err != nil {
 			return nil, convert.ToRPCError(err)
 		}
+
 		return result, nil
 	}
 
-	results, metadata, err := session.FetchTagged(nsID,
+	results, metadata, err := session.FetchTagged(tctx, nsID,
 		index.Query{Query: q}, opts)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
@@ -198,7 +203,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		for series.Next() {
 			dp, _, annotation := series.Current()
 
-			timestamp, timestampErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
+			timestamp, timestampErr := convert.ToValue(dp.TimestampNanos, req.ResultTimeType)
 			if timestampErr != nil {
 				return nil, xerrors.NewInvalidParamsError(timestampErr)
 			}
@@ -237,10 +242,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	it, err := session.Fetch(nsID, tsID, start, end)
 	if err != nil {
-		if client.IsBadRequestError(err) {
-			return nil, tterrors.NewBadRequestError(err)
-		}
-		return nil, tterrors.NewInternalError(err)
+		return nil, convert.ToRPCError(err)
 	}
 
 	defer it.Close()
@@ -251,7 +253,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	for it.Next() {
 		dp, _, annotation := it.Current()
-		ts, tsErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
+		ts, tsErr := convert.ToValue(dp.TimestampNanos, req.ResultTimeType)
 		if tsErr != nil {
 			return nil, tterrors.NewBadRequestError(tsErr)
 		}
@@ -280,7 +282,11 @@ func (s *service) Aggregate(ctx thrift.Context, req *rpc.AggregateQueryRequest) 
 		return nil, tterrors.NewBadRequestError(err)
 	}
 
-	iter, metadata, err := session.Aggregate(ns, query, opts)
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
+	}
+
+	iter, metadata, err := session.Aggregate(ctx, ns, query, opts)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
@@ -336,10 +342,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	tsID := s.idPool.GetStringID(ctx, req.ID)
 	err = session.Write(nsID, tsID, ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
-		if client.IsBadRequestError(err) {
-			return tterrors.NewBadRequestError(err)
-		}
-		return tterrors.NewInternalError(err)
+		return convert.ToRPCError(err)
 	}
 	return nil
 }
@@ -373,10 +376,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	err = session.WriteTagged(nsID, tsID, ident.NewTagsIterator(tags),
 		ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
-		if client.IsBadRequestError(err) {
-			return tterrors.NewBadRequestError(err)
-		}
-		return tterrors.NewInternalError(err)
+		return convert.ToRPCError(err)
 	}
 	return nil
 }

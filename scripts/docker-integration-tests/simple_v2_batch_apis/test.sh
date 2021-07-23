@@ -2,11 +2,11 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/docker-compose.yml
+COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/prometheus/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
-PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
+PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.4.3
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 METRIC_NAME_TEST_TOO_OLD=foo
 METRIC_NAME_TEST_RESTRICT_WRITE=bar
@@ -34,7 +34,7 @@ function test_prometheus_remote_read {
   # Ensure Prometheus can proxy a Prometheus query
   echo "Wait until the remote write endpoint generates and allows for data to be queried"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[0].value[1]) -gt 100 ]]'
+    '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_samples_total | jq -r .data.result[0].value[1]) -gt 100 ]]'
 }
 
 function test_prometheus_remote_write_multi_namespaces {

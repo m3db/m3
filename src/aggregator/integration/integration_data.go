@@ -45,46 +45,6 @@ import (
 )
 
 var (
-	testPoliciesList = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			0,
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), maggregation.DefaultID),
-			},
-		),
-	}
-	testUpdatedPoliciesList = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			0,
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), maggregation.DefaultID),
-			},
-		),
-	}
-	testPoliciesListWithCustomAggregation1 = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			0,
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.MustCompressTypes(maggregation.Min)),
-				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), maggregation.MustCompressTypes(maggregation.Min)),
-			},
-		),
-	}
-	testPoliciesListWithCustomAggregation2 = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			0,
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.MustCompressTypes(maggregation.Min, maggregation.Max)),
-				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), maggregation.MustCompressTypes(maggregation.Min, maggregation.Max)),
-			},
-		),
-	}
 	testStagedMetadatas = metadata.StagedMetadatas{
 		{
 			CutoverNanos: 0,
@@ -196,7 +156,6 @@ func generateTestDataset(opts datasetGenOpts) (testDataset, error) {
 		for i := 0; i < len(opts.ids); i++ {
 			var (
 				metricType = opts.typeFn(timestamp, i)
-				metadata   = opts.metadataFn(i)
 				mu         metricUnion
 			)
 			switch opts.category {
@@ -217,7 +176,7 @@ func generateTestDataset(opts datasetGenOpts) (testDataset, error) {
 			}
 			metricWithMetadatas = append(metricWithMetadatas, metricWithMetadataUnion{
 				metric:   mu,
-				metadata: metadata,
+				metadata: opts.metadataFn(i),
 			})
 		}
 		testDataset = append(testDataset, testData{
@@ -236,24 +195,28 @@ func generateTestUntimedMetric(
 	valueGenOpts untimedValueGenOpts,
 ) (metricUnion, error) {
 	mu := metricUnion{category: untimedMetric}
+	annotation := generateAnnotation(metricType, idIdx)
 	switch metricType {
 	case metric.CounterType:
 		mu.untimed = unaggregated.MetricUnion{
 			Type:       metricType,
 			ID:         metricid.RawID(id),
 			CounterVal: valueGenOpts.counterValueGenFn(intervalIdx, idIdx),
+			Annotation: annotation,
 		}
 	case metric.TimerType:
 		mu.untimed = unaggregated.MetricUnion{
 			Type:          metricType,
 			ID:            metricid.RawID(id),
 			BatchTimerVal: valueGenOpts.timerValueGenFn(intervalIdx, idIdx),
+			Annotation:    annotation,
 		}
 	case metric.GaugeType:
 		mu.untimed = unaggregated.MetricUnion{
-			Type:     metricType,
-			ID:       metricid.RawID(id),
-			GaugeVal: valueGenOpts.gaugeValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			GaugeVal:   valueGenOpts.gaugeValueGenFn(intervalIdx, idIdx),
+			Annotation: annotation,
 		}
 	default:
 		return metricUnion{}, fmt.Errorf("unrecognized untimed metric type: %v", metricType)
@@ -271,10 +234,11 @@ func generateTestTimedMetric(
 	return metricUnion{
 		category: timedMetric,
 		timed: aggregated.Metric{
-			Type:      metricType,
-			ID:        metricid.RawID(id),
-			TimeNanos: timeNanos,
-			Value:     valueGenOpts.timedValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			TimeNanos:  timeNanos,
+			Value:      valueGenOpts.timedValueGenFn(intervalIdx, idIdx),
+			Annotation: generateAnnotation(metricType, idIdx),
 		},
 	}
 }
@@ -289,10 +253,11 @@ func generateTestPassthroughMetric(
 	return metricUnion{
 		category: passthroughMetric,
 		passthrough: aggregated.Metric{
-			Type:      metricType,
-			ID:        metricid.RawID(id),
-			TimeNanos: timeNanos,
-			Value:     valueGenOpts.passthroughValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			TimeNanos:  timeNanos,
+			Value:      valueGenOpts.passthroughValueGenFn(intervalIdx, idIdx),
+			Annotation: generateAnnotation(metricType, idIdx),
 		},
 	}
 }
@@ -307,12 +272,17 @@ func generateTestForwardedMetric(
 	return metricUnion{
 		category: forwardedMetric,
 		forwarded: aggregated.ForwardedMetric{
-			Type:      metricType,
-			ID:        metricid.RawID(id),
-			TimeNanos: timeNanos,
-			Values:    valueGenOpts.forwardedValueGenFn(intervalIdx, idIdx),
+			Type:       metricType,
+			ID:         metricid.RawID(id),
+			TimeNanos:  timeNanos,
+			Values:     valueGenOpts.forwardedValueGenFn(intervalIdx, idIdx),
+			Annotation: generateAnnotation(metricType, idIdx),
 		},
 	}
+}
+
+func generateAnnotation(typ metric.Type, idx int) []byte {
+	return []byte(fmt.Sprintf("%v annotation, idx=%v", typ.String(), idx))
 }
 
 func mustComputeExpectedResults(
@@ -446,15 +416,15 @@ func addUntimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(time.Now(), mu.CounterVal)
+		v.Update(time.Now(), mu.CounterVal, mu.Annotation)
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(time.Now(), mu.BatchTimerVal)
+		v.AddBatch(time.Now(), mu.BatchTimerVal, mu.Annotation)
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(time.Now(), mu.GaugeVal)
+		v.Update(time.Now(), mu.GaugeVal, mu.Annotation)
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized untimed metric type %v", mu.Type)
@@ -468,15 +438,15 @@ func addTimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(time.Now(), int64(mu.Value))
+		v.Update(time.Now(), int64(mu.Value), mu.Annotation)
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(time.Now(), []float64{mu.Value})
+		v.AddBatch(time.Now(), []float64{mu.Value}, mu.Annotation)
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(time.Now(), mu.Value)
+		v.Update(time.Now(), mu.Value, mu.Annotation)
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized timed metric type %v", mu.Type)
@@ -491,17 +461,17 @@ func addForwardedMetricToAggregation(
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
 		for _, val := range mu.Values {
-			v.Update(time.Now(), int64(val))
+			v.Update(time.Now(), int64(val), mu.Annotation)
 		}
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(time.Now(), mu.Values)
+		v.AddBatch(time.Now(), mu.Values, mu.Annotation)
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
 		for _, val := range mu.Values {
-			v.Update(time.Now(), val)
+			v.Update(time.Now(), val, mu.Annotation)
 		}
 		return v, nil
 	default:
@@ -572,13 +542,15 @@ func computeExpectedAggregatedMetrics(
 		suffix []byte,
 		timeNanos int64,
 		value float64,
+		annotation []byte,
 		sp policy.StoragePolicy,
 	) {
 		results = append(results, aggregated.MetricWithStoragePolicy{
 			Metric: aggregated.Metric{
-				ID:        metricid.RawID(string(prefix) + id + string(suffix)),
-				TimeNanos: timeNanos,
-				Value:     value,
+				ID:         metricid.RawID(string(prefix) + id + string(suffix)),
+				TimeNanos:  timeNanos,
+				Value:      value,
+				Annotation: annotation,
 			},
 			StoragePolicy: sp,
 		})
@@ -594,10 +566,11 @@ func computeExpectedAggregatedMetrics(
 
 		for _, aggType := range aggTypes {
 			if key.category == timedMetric {
-				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), sp)
+				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), metricAgg.Annotation(), sp)
 				continue
 			}
-			fn(opts.FullCounterPrefix(), id, aggTypeOpts.TypeStringForCounter(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
+			fn(opts.FullCounterPrefix(), id, aggTypeOpts.TypeStringForCounter(aggType), timeNanos,
+				metricAgg.ValueOf(aggType), metricAgg.Annotation(), sp)
 		}
 	case aggregation.Timer:
 		if aggTypes.IsDefault() {
@@ -606,10 +579,11 @@ func computeExpectedAggregatedMetrics(
 
 		for _, aggType := range aggTypes {
 			if key.category == timedMetric {
-				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), sp)
+				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), metricAgg.Annotation(), sp)
 				continue
 			}
-			fn(opts.FullTimerPrefix(), id, aggTypeOpts.TypeStringForTimer(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
+			fn(opts.FullTimerPrefix(), id, aggTypeOpts.TypeStringForTimer(aggType), timeNanos,
+				metricAgg.ValueOf(aggType), metricAgg.Annotation(), sp)
 		}
 	case aggregation.Gauge:
 		if aggTypes.IsDefault() {
@@ -618,10 +592,11 @@ func computeExpectedAggregatedMetrics(
 
 		for _, aggType := range aggTypes {
 			if key.category == timedMetric {
-				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), sp)
+				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), metricAgg.Annotation(), sp)
 				continue
 			}
-			fn(opts.FullGaugePrefix(), id, aggTypeOpts.TypeStringForGauge(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
+			fn(opts.FullGaugePrefix(), id, aggTypeOpts.TypeStringForGauge(aggType), timeNanos,
+				metricAgg.ValueOf(aggType), metricAgg.Annotation(), sp)
 		}
 	default:
 		return nil, fmt.Errorf("unrecognized aggregation type %T", metricAgg)
@@ -781,8 +756,7 @@ func (mu metricUnion) ID() metricid.RawID {
 type metadataType int
 
 const (
-	policiesListType metadataType = iota
-	stagedMetadatasType
+	stagedMetadatasType metadataType = iota
 	forwardMetadataType
 	timedMetadataType
 	passthroughMetadataType
@@ -792,7 +766,6 @@ type metadataFn func(idx int) metadataUnion
 
 type metadataUnion struct {
 	mType               metadataType
-	policiesList        policy.PoliciesList
 	stagedMetadatas     metadata.StagedMetadatas
 	forwardMetadata     metadata.ForwardMetadata
 	timedMetadata       metadata.TimedMetadata
@@ -804,8 +777,6 @@ func (mu metadataUnion) expectedAggregationKeys(
 	defaultStoragePolicies []policy.StoragePolicy,
 ) (aggregationKeys, error) {
 	switch mu.mType {
-	case policiesListType:
-		return computeExpectedAggregationKeysFromPoliciesList(now, mu.policiesList, defaultStoragePolicies)
 	case stagedMetadatasType:
 		return computeExpectedAggregationKeysFromStagedMetadatas(now, mu.stagedMetadatas, defaultStoragePolicies)
 	case forwardMetadataType:
@@ -817,50 +788,6 @@ func (mu metadataUnion) expectedAggregationKeys(
 	default:
 		return nil, fmt.Errorf("unexpected metadata type: %v", mu.mType)
 	}
-}
-
-// computeExpectedAggregationKeysFromPoliciesList computes the expected set of aggregation keys
-// from the given time and the policies list.
-func computeExpectedAggregationKeysFromPoliciesList(
-	now time.Time,
-	policiesList policy.PoliciesList,
-	defaultStoragePolices []policy.StoragePolicy,
-) (aggregationKeys, error) {
-	// Find the staged policy that is currently active.
-	nowNanos := now.UnixNano()
-	i := len(policiesList) - 1
-	for i >= 0 {
-		if policiesList[i].CutoverNanos <= nowNanos {
-			break
-		}
-		i--
-	}
-	if i < 0 {
-		return nil, errors.New("no active staged policy")
-	}
-
-	// If the active policies are the default policies, create the aggregation keys
-	// from them.
-	policies, useDefault := policiesList[i].Policies()
-	if useDefault {
-		res := make(aggregationKeys, 0, len(defaultStoragePolices))
-		for _, sp := range defaultStoragePolices {
-			key := aggregationKey{storagePolicy: sp}
-			res = append(res, key)
-		}
-		return res, nil
-	}
-
-	// Otherwise create the aggregation keys from the staged policies.
-	res := make(aggregationKeys, 0, len(policies))
-	for _, p := range policies {
-		newKey := aggregationKey{
-			aggregationID: p.AggregationID,
-			storagePolicy: p.StoragePolicy,
-		}
-		res.add(newKey)
-	}
-	return res, nil
 }
 
 func computeExpectedAggregationKeysFromStagedMetadatas(

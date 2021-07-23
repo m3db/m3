@@ -21,6 +21,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"io/ioutil"
 	"log"
@@ -31,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -95,7 +97,7 @@ func runTaggedExample(session client.Session) {
 		tagsIter = ident.NewTagsIterator(ident.NewTags(tags...))
 	)
 	// Write a tagged series ID using millisecond precision.
-	timestamp := time.Now()
+	timestamp := xtime.Now()
 	value := 42.0
 	err := session.WriteTagged(namespaceID, seriesID, tagsIter,
 		timestamp, value, xtime.Millisecond, nil)
@@ -105,7 +107,8 @@ func runTaggedExample(session client.Session) {
 
 	// 1. Fetch data for the tagged seriesID using a query (only data written
 	// within the last minute).
-	start, end := time.Now().Add(-time.Minute), time.Now()
+	end := xtime.Now()
+	start := end.Add(-time.Minute)
 
 	// Use regexp to filter on a single tag, use idx.NewConjunctionQuery to
 	// to search on multiple tags, etc.
@@ -114,7 +117,7 @@ func runTaggedExample(session client.Session) {
 		log.Fatalf("error in creating query: %v", err)
 	}
 
-	resultsIter, _, err := session.FetchTagged(namespaceID, index.Query{Query: reQuery},
+	resultsIter, _, err := session.FetchTagged(context.Background(), namespaceID, index.Query{Query: reQuery},
 		index.QueryOptions{StartInclusive: start, EndExclusive: end})
 	if err != nil {
 		log.Fatalf("error fetching data for tagged series: %v", err)
@@ -131,7 +134,7 @@ func runTaggedExample(session client.Session) {
 		}
 		for seriesIter.Next() {
 			dp, _, _ := seriesIter.Current()
-			log.Printf("%s: %v", dp.Timestamp.String(), dp.Value)
+			log.Printf("%s: %v", dp.TimestampNanos.String(), dp.Value)
 		}
 		if err := seriesIter.Err(); err != nil {
 			log.Fatalf("error in series iterator: %v", err)
@@ -145,7 +148,7 @@ func runTaggedExample(session client.Session) {
 	}
 	for seriesIter.Next() {
 		dp, _, _ := seriesIter.Current()
-		log.Printf("%s: %v", dp.Timestamp.String(), dp.Value)
+		log.Printf("%s: %v", dp.TimestampNanos.String(), dp.Value)
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)

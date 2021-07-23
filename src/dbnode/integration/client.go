@@ -67,12 +67,30 @@ func NewTChannelClient(name, address string) (*TestTChannelClient, error) {
 	}, nil
 }
 
+// Address returns the address.
+func (client *TestTChannelClient) Address() string {
+	return client.address
+}
+
+// Channel returns the TChannel channel.
+func (client *TestTChannelClient) Channel() *tchannel.Channel {
+	return client.channel
+}
+
 // TChannelClientWrite writes a datapoint using a tchannel client.
 func (client *TestTChannelClient) TChannelClientWrite(
 	timeout time.Duration, req *rpc.WriteRequest,
 ) error {
 	ctx, _ := thrift.NewContext(timeout)
 	return client.node.Write(ctx, req)
+}
+
+// TChannelClientWriteTagged writes a datapoint using a tchannel client.
+func (client *TestTChannelClient) TChannelClientWriteTagged(
+	timeout time.Duration, req *rpc.WriteTaggedRequest,
+) error {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.WriteTagged(ctx, req)
 }
 
 // TChannelClientWriteBatch writes a data map using a tchannel client.
@@ -85,7 +103,7 @@ func (client *TestTChannelClient) TChannelClientWriteBatch(
 			elem := &rpc.WriteBatchRawRequestElement{
 				ID: series.ID.Bytes(),
 				Datapoint: &rpc.Datapoint{
-					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
+					Timestamp:         dp.TimestampNanos.Seconds(),
 					Value:             dp.Value,
 					Annotation:        dp.Annotation,
 					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
@@ -109,6 +127,22 @@ func (client *TestTChannelClient) TChannelClientFetch(
 ) (*rpc.FetchResult_, error) {
 	ctx, _ := thrift.NewContext(timeout)
 	return client.node.Fetch(ctx, req)
+}
+
+// TChannelClientFetchTagged fulfills a fetch by tag request using a tchannel client.
+func (client *TestTChannelClient) TChannelClientFetchTagged(
+	timeout time.Duration, req *rpc.FetchTaggedRequest,
+) (*rpc.FetchTaggedResult_, error) {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.FetchTagged(ctx, req)
+}
+
+// TChannelClientAggregateTiles runs a request for AggregateTiles.
+func (client *TestTChannelClient) TChannelClientAggregateTiles(
+	timeout time.Duration, req *rpc.AggregateTilesRequest,
+) (*rpc.AggregateTilesResult_, error) {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.AggregateTiles(ctx, req)
 }
 
 // TChannelClientTruncate fulfills a namespace truncation request using a tchannel client.
@@ -155,7 +189,8 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 				defer wg.Done()
 
 				if err := session.Write(
-					namespace, id, d.Timestamp, d.Value, xtime.Second, d.Annotation); err != nil {
+					namespace, id, d.TimestampNanos, d.Value, xtime.Second, d.Annotation,
+				); err != nil {
 					select {
 					case errCh <- err:
 					default:
@@ -187,6 +222,7 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.Te
 	if err != nil {
 		return nil, err
 	}
+
 	defer iter.Close()
 
 	var datapoints []generate.TestValue
@@ -219,7 +255,7 @@ func m3dbClientFetchBlocksMetadata(
 	c client.AdminClient,
 	namespace ident.ID,
 	shards []uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	consistencyLevel topology.ReadConsistencyLevel,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()
@@ -252,10 +288,10 @@ func m3dbClientFetchBlocksMetadata(
 				seenBlocks = make(map[xtime.UnixNano]struct{})
 				seen[idString] = seenBlocks
 			}
-			if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
+			if _, ok := seenBlocks[blockMetadata.Start]; ok {
 				continue // Already seen
 			}
-			seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
+			seenBlocks[blockMetadata.Start] = struct{}{}
 			metadatas = append(metadatas, block.ReplicaMetadata{
 				Metadata: blockMetadata,
 				Host:     host,

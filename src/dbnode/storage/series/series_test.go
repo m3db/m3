@@ -22,13 +22,13 @@ package series
 
 import (
 	"errors"
-	"io"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
@@ -43,7 +43,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,11 +54,9 @@ func newSeriesTestOptions() Options {
 	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	bufferBucketPool := NewBufferBucketPool(nil)
 	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)
@@ -74,8 +71,8 @@ func newSeriesTestOptions() Options {
 		SetRetentionOptions(opts.
 			RetentionOptions().
 			SetBlockSize(2 * time.Minute).
-			SetBufferFuture(10 * time.Second).
-			SetBufferPast(10 * time.Second).
+			SetBufferFuture(90 * time.Second).
+			SetBufferPast(90 * time.Second).
 			SetRetentionPeriod(time.Hour)).
 		SetDatabaseBlockOptions(opts.
 			DatabaseBlockOptions().
@@ -95,7 +92,7 @@ func TestSeriesEmpty(t *testing.T) {
 
 // Writes to series, verifying no error and that further writes should happen.
 func verifyWriteToSeries(t *testing.T, series *dbSeries, v DecodedTestValue) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value,
 		v.Unit, v.Annotation, WriteOptions{})
 	require.NoError(t, err)
@@ -105,10 +102,10 @@ func verifyWriteToSeries(t *testing.T, series *dbSeries, v DecodedTestValue) {
 
 func TestSeriesWriteFlush(t *testing.T) {
 	opts := newSeriesTestOptions()
-	curr := time.Now().Truncate(opts.RetentionOptions().BlockSize())
+	curr := xtime.Now().Truncate(opts.RetentionOptions().BlockSize())
 	start := curr
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	ctrl := gomock.NewController(t)
@@ -142,7 +139,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 		verifyWriteToSeries(t, series, v)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
@@ -156,10 +153,10 @@ func TestSeriesWriteFlush(t *testing.T) {
 func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	opts := newSeriesTestOptions()
 	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	curr := xtime.Now().Truncate(rops.BlockSize())
 	start := curr
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	ctrl := gomock.NewController(t)
@@ -192,7 +189,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 
 	for i, v := range data {
 		curr = v.Timestamp
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
@@ -203,7 +200,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		ctx.Close()
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
@@ -216,10 +213,10 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 
 func TestSeriesWriteFlushRead(t *testing.T) {
 	opts := newSeriesTestOptions()
-	curr := time.Now().Truncate(opts.RetentionOptions().BlockSize())
+	curr := xtime.Now().Truncate(opts.RetentionOptions().BlockSize())
 	start := curr
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	ctrl := gomock.NewController(t)
@@ -257,18 +254,22 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 		verifyWriteToSeries(t, series, v)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	nsCtx := namespace.Context{}
 
 	// Test fine grained range
-	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	iter, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
+	assert.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 
 	// Test wide range
-	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+	iter, err = series.ReadEncoded(ctx, 0, timeDistantFuture, nsCtx)
+	assert.NoError(t, err)
+	results, err = iter.ToSlices(ctx)
 	assert.NoError(t, err)
 
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
@@ -303,11 +304,11 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 			var (
 				opts      = newSeriesTestOptions()
 				blockSize = opts.RetentionOptions().BlockSize()
-				curr      = time.Now().Truncate(blockSize)
+				curr      = xtime.Now().Truncate(blockSize)
 				start     = curr
 			)
 			opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-				return curr
+				return curr.ToTime()
 			}))
 
 			var (
@@ -324,10 +325,10 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blockStates                  = BootstrappedBlockStateSnapshot{
 					Snapshot: map[xtime.UnixNano]BlockState{
 						// Exercise both code paths.
-						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
+						alreadyWarmFlushedBlockStart: {
 							WarmRetrievable: true,
 						},
-						xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
+						notYetWarmFlushedBlockStart: {
 							WarmRetrievable: false,
 						},
 					},
@@ -336,8 +337,8 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 			blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 			blockRetriever.EXPECT().
 				IsBlockRetrievable(gomock.Any()).
-				DoAndReturn(func(at time.Time) (bool, error) {
-					value, exists := blockStates.Snapshot[xtime.ToUnixNano(at)]
+				DoAndReturn(func(at xtime.UnixNano) (bool, error) {
+					value, exists := blockStates.Snapshot[at]
 					if !exists {
 						// No block exists, should be a warm write.
 						return false, nil
@@ -373,7 +374,7 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				enc := opts.EncoderPool().Get()
 				blockStart := v.Timestamp.Truncate(blockSize)
 				enc.Reset(blockStart, 0, nil)
-				dp := ts.Datapoint{Timestamp: v.Timestamp, Value: v.Value}
+				dp := ts.Datapoint{TimestampNanos: v.Timestamp, Value: v.Value}
 				require.NoError(t, enc.Encode(dp, v.Unit, nil))
 
 				dbBlock := block.NewDatabaseBlock(blockStart, blockSize, enc.Discard(), blockOpts, nsCtx)
@@ -390,10 +391,12 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 			}
 
 			t.Run("Data can be read", func(t *testing.T) {
-				ctx := context.NewContext()
+				ctx := context.NewBackground()
 				defer ctx.Close()
 
-				results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				iter, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				require.NoError(t, err)
+				results, err := iter.ToSlices(ctx)
 				require.NoError(t, err)
 
 				var expectedData []DecodedTestValue
@@ -418,14 +421,14 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				if tc.bootstrapping {
 					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
 					// correctly based on the flush state.
-					expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
+					expectedColdFlushBlockStarts := []xtime.UnixNano{alreadyWarmFlushedBlockStart}
 					assert.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
 				} else {
 					// If its just a regular load then everything should be loaded as cold writes for correctness
 					// since flushes and loads can happen concurrently.
 					expectedColdFlushBlockStarts := []xtime.UnixNano{
-						xtime.ToUnixNano(alreadyWarmFlushedBlockStart),
-						xtime.ToUnixNano(notYetWarmFlushedBlockStart),
+						alreadyWarmFlushedBlockStart,
+						notYetWarmFlushedBlockStart,
 					}
 					assert.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
 				}
@@ -441,7 +444,7 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	blockRetriever.EXPECT().
@@ -458,14 +461,15 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 	nsCtx := namespace.Context{}
 
-	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
+	now := xtime.Now()
+	iter, err := series.ReadEncoded(ctx, now, now.Add(-1*time.Second), nsCtx)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
-	assert.Nil(t, results)
+	assert.Nil(t, iter)
 }
 
 func TestSeriesFlushNoBlock(t *testing.T) {
@@ -473,7 +477,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
 	opts := newSeriesTestOptions()
 
@@ -492,7 +496,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	require.NoError(t, err)
 
-	flushTime := time.Unix(7200, 0)
+	flushTime := xtime.FromSeconds(7200)
 	outcome, err := series.WarmFlush(nil, flushTime, nil, namespace.Context{})
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
@@ -503,12 +507,12 @@ func TestSeriesFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
-	curr := time.Unix(7200, 0)
+	curr := xtime.FromSeconds(7200)
 	opts := newSeriesTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
@@ -525,7 +529,7 @@ func TestSeriesFlush(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	series.buffer.Write(ctx, testID, curr, 1234, xtime.Second, nil, WriteOptions{})
 	ctx.BlockingClose()
 
@@ -534,7 +538,7 @@ func TestSeriesFlush(t *testing.T) {
 		persistFn := func(_ persist.Metadata, _ ts.Segment, _ uint32) error {
 			return input
 		}
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		outcome, err := series.WarmFlush(ctx, curr, persistFn, namespace.Context{})
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
@@ -561,7 +565,7 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
 	opts := newSeriesTestOptions()
 
@@ -596,14 +600,14 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
 	opts := newSeriesTestOptions()
 	opts = opts.SetCachePolicy(CacheRecentlyRead)
 	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
+	curr := xtime.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
@@ -638,11 +642,11 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(blockStart): BlockState{
+			blockStart: {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
-			xtime.ToUnixNano(curr): BlockState{
+			curr: {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -655,7 +659,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.Equal(t, 1, r.MadeExpiredBlocks)
 	require.Equal(t, 1, series.cachedBlocks.Len())
 	require.Equal(t, curr, series.cachedBlocks.MinTime())
-	_, exists := series.cachedBlocks.AllBlocks()[xtime.ToUnixNano(curr)]
+	_, exists := series.cachedBlocks.AllBlocks()[curr]
 	require.True(t, exists)
 }
 
@@ -664,16 +668,16 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
 	opts := newSeriesTestOptions()
 	opts = opts.
 		SetCachePolicy(CacheRecentlyRead).
 		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
 	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
+	curr := xtime.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
@@ -701,7 +705,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			curr: {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -734,7 +738,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			curr: {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -752,7 +756,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
 	retentionPeriod := time.Hour
 	opts := newSeriesTestOptions()
@@ -760,9 +764,9 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 		SetCachePolicy(CacheLRU).
 		SetRetentionOptions(opts.RetentionOptions().SetRetentionPeriod(retentionPeriod))
 	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
+	curr := xtime.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
@@ -789,7 +793,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			curr: {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -829,7 +833,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			curr: {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -849,16 +853,16 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).Times(2)
+	bl.EXPECT().StartTime().Return(xtime.Now()).Times(2)
 
 	opts := newSeriesTestOptions()
 	opts = opts.
 		SetCachePolicy(CacheNone).
 		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
 	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
+	curr := xtime.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
@@ -884,7 +888,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			curr: {
 				WarmRetrievable: true,
 				ColdVersion:     1,
 			},
@@ -904,7 +908,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
-			xtime.ToUnixNano(curr): BlockState{
+			curr: {
 				WarmRetrievable: false,
 				ColdVersion:     0,
 			},
@@ -924,7 +928,7 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 	opts := newSeriesTestOptions()
 	opts = opts.SetCachePolicy(CacheAll)
 	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
+	curr := xtime.Now().Truncate(ropts.BlockSize())
 	series := NewDatabaseSeries(DatabaseSeriesOptions{
 		ID:      ident.StringID("foo"),
 		Options: opts,
@@ -960,8 +964,8 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 			evictedBucketTimes: OptimizedTimes{
 				arrIdx: 2,
 				arr: [optimizedTimesArraySize]xtime.UnixNano{
-					xtime.ToUnixNano(curr.Add(-ropts.BlockSize())),
-					xtime.ToUnixNano(curr.Add(-2 * ropts.BlockSize())),
+					curr.Add(-ropts.BlockSize()),
+					curr.Add(-2 * ropts.BlockSize()),
 				},
 			},
 		})
@@ -983,8 +987,8 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	now := time.Now()
-	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	now := xtime.Now()
+	starts := []xtime.UnixNano{now, now.Add(time.Second), now.Add(-time.Second)}
 	blocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 
 	// Set up the blocks
@@ -1028,7 +1032,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	res, err := series.FetchBlocks(ctx, starts, namespace.Context{})
 	require.NoError(t, err)
 
-	expectedTimes := []time.Time{starts[2], starts[0], starts[1]}
+	expectedTimes := []xtime.UnixNano{starts[2], starts[0], starts[1]}
 	require.Equal(t, len(expectedTimes), len(res))
 	for i := 0; i < len(starts); i++ {
 		assert.Equal(t, expectedTimes[i], res[i].Start)
@@ -1054,10 +1058,10 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		now    = time.Now()
+		now    = xtime.Now()
 		start  = now.Add(-time.Hour)
 		end    = now.Add(time.Hour)
-		starts = []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
+		starts = []xtime.UnixNano{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
 	)
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
@@ -1102,13 +1106,13 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 
 	metadata := res.Blocks.Results()
 	expected := []struct {
-		start    time.Time
+		start    xtime.UnixNano
 		size     int64
 		checksum *uint32
-		lastRead time.Time
+		lastRead xtime.UnixNano
 		hasError bool
 	}{
-		{starts[2], 0, nil, time.Time{}, false},
+		{starts[2], 0, nil, 0, false},
 	}
 	require.Equal(t, len(expected), len(metadata))
 	for i := 0; i < len(expected); i++ {
@@ -1129,8 +1133,8 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 }
 
 func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
-	now := time.Unix(1477929600, 0)
-	nowFn := func() time.Time { return now }
+	now := xtime.FromSeconds(1477929600)
+	nowFn := func() time.Time { return now.ToTime() }
 	clockOpts := clock.NewOptions().SetNowFn(nowFn)
 	retentionOpts := retention.NewOptions()
 	opts := newSeriesTestOptions().
@@ -1138,7 +1142,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		SetRetentionOptions(retentionOpts)
 
 	var (
-		ctx        = context.NewContext()
+		ctx        = context.NewBackground()
 		id         = ident.StringID("foo")
 		nsID       = ident.StringID("bar")
 		tags       = ident.NewTags(ident.StringTag("name", "value"))
@@ -1168,7 +1172,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 			wasWritten, _, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
-			expected = append(expected, ts.Datapoint{Timestamp: start, TimestampNanos: xtime.ToUnixNano(start), Value: value})
+			expected = append(expected, ts.Datapoint{TimestampNanos: start, Value: value})
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
 		}
@@ -1187,7 +1191,9 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	iter, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
+	require.NoError(t, err)
+	encoded, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
@@ -1197,8 +1203,8 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		ID:             id,
 		Namespace:      nsID,
 		Tags:           ident.NewTagsIterator(tags),
-		StartInclusive: xtime.ToUnixNano(qStart),
-		EndExclusive:   xtime.ToUnixNano(qEnd),
+		StartInclusive: qStart,
+		EndExclusive:   qEnd,
 		Replicas:       []encoding.MultiReaderIterator{multiIt},
 	}, nil)
 	defer it.Close()
@@ -1218,7 +1224,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(time.Now()).AnyTimes()
+	bl.EXPECT().StartTime().Return(xtime.Now()).AnyTimes()
 	bl.EXPECT().Len().Return(0).AnyTimes()
 
 	opts := newSeriesTestOptions()
@@ -1235,9 +1241,9 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 		SetBlockSize(5 * 24 * time.Hour).
 		SetBufferFuture(10 * time.Minute).
 		SetBufferPast(20 * time.Minute))
-	curr := time.Now()
+	curr := xtime.Now()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
+		return curr.ToTime()
 	}))
 
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
@@ -1255,7 +1261,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	err := series.LoadBlock(bl, WarmWrite)
 	require.NoError(t, err)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	wasWritten, _, err := series.Write(ctx, curr.Add(-3*time.Minute),
@@ -1271,8 +1277,10 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
+	iter, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
 		curr.Add(time.Minute), namespace.Context{})
+	require.NoError(t, err)
+	results, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 	values, err := decodedReaderValues(results, opts, namespace.Context{})
 	require.NoError(t, err)
@@ -1291,7 +1299,7 @@ func TestSeriesCloseNonCacheLRUPolicy(t *testing.T) {
 		Options: opts,
 	}).(*dbSeries)
 
-	start := time.Now()
+	start := xtime.Now()
 	blocks := block.NewDatabaseSeriesBlocks(0)
 	diskBlock := block.NewMockDatabaseBlock(ctrl)
 	diskBlock.EXPECT().StartTime().Return(start).AnyTimes()
@@ -1313,7 +1321,7 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 		Options: opts,
 	}).(*dbSeries)
 
-	start := time.Now()
+	start := xtime.Now()
 	blocks := block.NewDatabaseSeriesBlocks(0)
 	// Add a block that was retrieved from disk
 	diskBlock := block.NewMockDatabaseBlock(ctrl)

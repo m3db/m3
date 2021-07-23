@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -80,11 +80,13 @@ type fileSystemSource struct {
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
 	metrics           fileSystemSourceMetrics
+	instrumentation   *instrumentation
 }
 
 type fileSystemSourceMetrics struct {
-	persistedIndexBlocksRead  tally.Counter
-	persistedIndexBlocksWrite tally.Counter
+	persistedIndexBlocksRead           tally.Counter
+	persistedIndexBlocksWrite          tally.Counter
+	persistedIndexBlocksOutOfRetention tally.Counter
 }
 
 func newFileSystemSource(opts Options) (bootstrap.Source, error) {
@@ -92,9 +94,10 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		return nil, err
 	}
 
-	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("fs-bootstrapper")
-	iopts = iopts.SetMetricsScope(scope)
+	var (
+		scope = opts.InstrumentOptions().MetricsScope().SubScope("fs-bootstrapper")
+		iopts = opts.InstrumentOptions().SetMetricsScope(scope)
+	)
 	opts = opts.SetInstrumentOptions(iopts)
 
 	s := &fileSystemSource{
@@ -105,9 +108,11 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
 		metrics: fileSystemSourceMetrics{
-			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
-			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksRead:           scope.Counter("persist-index-blocks-read"),
+			persistedIndexBlocksWrite:          scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
 		},
+		instrumentation: newInstrumentation(opts, scope, iopts),
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
 
@@ -137,19 +142,12 @@ func (s *fileSystemSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.fsBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
-
-	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
-	segBuilder, err := alloc()
-	if err != nil {
-		return bootstrap.NamespaceResults{}, err
-	}
-	builder := result.NewIndexBuilder(segBuilder)
 
 	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
 	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
@@ -159,20 +157,14 @@ func (s *fileSystemSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	start := s.nowFn()
-	dataLogFields := []zapcore.Field{
-		zap.Stringer("cachePolicy", s.opts.ResultOptions().SeriesCachePolicy()),
-	}
-	s.log.Info("bootstrapping time series data start",
-		dataLogFields...)
-	span.LogEvent("bootstrap_data_start")
+	instrCtx.bootstrapDataStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder, span, cache)
+			namespace.DataRunOptions.RunOptions, instrCtx.span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -183,13 +175,9 @@ func (s *fileSystemSource) Read(
 			DataResult: r.data,
 		})
 	}
-	s.log.Info("bootstrapping time series data success",
-		append(dataLogFields, zap.Duration("took", s.nowFn().Sub(start)))...)
-	span.LogEvent("bootstrap_data_done")
+	instrCtx.bootstrapDataCompleted()
 
-	start = s.nowFn()
-	s.log.Info("bootstrapping index metadata start")
-	span.LogEvent("bootstrap_index_start")
+	instrCtx.bootstrapIndexStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -202,7 +190,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder, span, cache)
+			namespace.IndexRunOptions.RunOptions, instrCtx.span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -217,10 +205,7 @@ func (s *fileSystemSource) Read(
 		result.IndexResult = r.index
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", s.nowFn().Sub(start)))
-	span.LogEvent("bootstrap_index_done")
-
+	instrCtx.bootstrapIndexCompleted()
 	return results, nil
 }
 
@@ -307,7 +292,7 @@ func (s *fileSystemSource) shardAvailabilityWithInfoFiles(
 			continue
 		}
 		info := result.Info
-		t := xtime.FromNanoseconds(info.BlockStart)
+		t := xtime.UnixNano(info.BlockStart)
 		w := time.Duration(info.BlockSize)
 		currRange := xtime.Range{Start: t, End: t.Add(w)}
 		if targetRangesForShard.Overlaps(currRange) {
@@ -329,9 +314,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
 ) {
-	var (
-		resultOpts = s.opts.ResultOptions()
-	)
+	resultOpts := s.opts.ResultOptions()
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
@@ -365,7 +348,7 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 		for i := range timesWithErrors {
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
-		s.log.Info("encounted errors for range",
+		s.log.Info("encountered errors for range",
 			zap.String("requestedRanges", requestedRanges.SummaryString()),
 			zap.Strings("timesWithErrors", timesWithErrorsString))
 	}
@@ -400,16 +383,27 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		seriesCachePolicy    = ropts.SeriesCachePolicy()
 		timesWithErrors      []time.Time
 		nsCtx                = namespace.NewContextFrom(ns)
-		docsPool             = s.opts.IndexOptions().DocumentArrayPool()
-		batch                = docsPool.Get()
+		metadataPool         = s.opts.IndexOptions().MetadataArrayPool()
+		batch                = metadataPool.Get()
 		totalEntries         int
 		totalFulfilledRanges = result.NewShardTimeRanges()
 	)
-	defer docsPool.Put(batch)
+	defer metadataPool.Put(batch)
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
 	shardReaders := timeWindowReaders.Readers
+	defer func() {
+		// Return readers to pool.
+		for _, shardReaders := range shardReaders {
+			for _, r := range shardReaders.Readers {
+				if err := r.Close(); err == nil {
+					readerPool.Put(r)
+				}
+			}
+		}
+	}()
+
 	for shard, shardReaders := range shardReaders {
 		shard := uint32(shard)
 		readers := shardReaders.Readers
@@ -442,7 +436,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					batch, err = s.readNextEntryAndMaybeIndex(r, batch, builder)
 					if err != nil {
 						s.log.Error("readNextEntryAndMaybeIndex failed", zap.Error(err),
-							zap.Time("timeRangeStart", timeRange.Start))
+							zap.Time("timeRangeStart", timeRange.Start.ToTime()))
 					}
 					totalEntries++
 				default:
@@ -455,7 +449,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				batch, err = builder.FlushBatch(batch)
 				if err != nil {
 					s.log.Error("builder FlushBatch failed", zap.Error(err),
-						zap.Time("timeRangeStart", timeRange.Start))
+						zap.Time("timeRangeStart", timeRange.Start.ToTime()))
 				}
 			}
 
@@ -490,7 +484,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				runResult.Unlock()
 				if err != nil {
 					s.log.Error("indexResults MarkFulfilled failed", zap.Error(err),
-						zap.Time("timeRangeStart", timeRange.Start))
+						zap.Time("timeRangeStart", timeRange.Start.ToTime()))
 				}
 			}
 
@@ -500,8 +494,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				remainingRanges.Subtract(fulfilled)
 			} else {
 				s.log.Error("unknown error", zap.Error(err),
-					zap.Time("timeRangeStart", timeRange.Start))
-				timesWithErrors = append(timesWithErrors, timeRange.Start)
+					zap.Time("timeRangeStart", timeRange.Start.ToTime()))
+				timesWithErrors = append(timesWithErrors, timeRange.Start.ToTime())
 			}
 		}
 	}
@@ -518,35 +512,37 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
 			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
 			beginningOfIndexRetention = retention.FlushTimeStartForRetentionPeriod(
-				retentionPeriod, indexBlockSize, s.nowFn())
+				retentionPeriod, indexBlockSize, xtime.ToUnixNano(s.nowFn()))
 			initialIndexRange = xtime.Range{
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
 			}
-			overlapsWithInitalIndexRange = false
-			min, max                     = requestedRanges.MinMax()
-			blockStart                   = min.Truncate(indexBlockSize)
-			blockEnd                     = blockStart.Add(indexBlockSize)
-			iopts                        = s.opts.ResultOptions().InstrumentOptions()
-			indexBlock                   result.IndexBlock
-			err                          error
+			overlapsWithInitialIndexRange = false
+			min, max                      = requestedRanges.MinMax()
+			blockStart                    = min.Truncate(indexBlockSize)
+			blockEnd                      = blockStart.Add(indexBlockSize)
+			iopts                         = s.opts.ResultOptions().InstrumentOptions()
+			indexBlock                    result.IndexBlock
+			err                           error
 		)
 		for _, remainingRange := range remainingRanges.Iter() {
 			if remainingRange.Overlaps(initialIndexRange) {
-				overlapsWithInitalIndexRange = true
+				overlapsWithInitialIndexRange = true
 			}
 		}
 
 		remainingMin, remainingMax := remainingRanges.MinMax()
 		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
 
-		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
+		// NB(bodu): Assume if we're bootstrapping data from disk that it is the
+		// "default" index volume type.
 		runResult.Lock()
-		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
+		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(
+			runResult.index.IndexResults(), blockStart)
 		runResult.Unlock()
 		if !ok {
 			err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
-				blockStart.String(), blockStart.UnixNano())
+				blockStart.String(), blockStart)
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("index bootstrap failed",
 					zap.Error(err),
@@ -561,13 +557,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			persistCfg.FileSetType == persist.FileSetFlushType
 
 		// Determine all requested ranges were fulfilled or at edge of retention
-		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+		satisfiedFlushRanges := noneRemaining || overlapsWithInitialIndexRange
 
 		buildIndexLogFields := []zapcore.Field{
 			zap.Stringer("namespace", ns.ID()),
 			zap.Bool("shouldBuildSegment", shouldBuildSegment),
 			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
+			zap.Bool("overlapsWithInitialIndexRange", overlapsWithInitialIndexRange),
 			zap.Int("totalEntries", totalEntries),
 			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
 			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
@@ -576,22 +572,30 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 			zap.Bool("shouldFlush", shouldFlush),
-			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
+			zap.Bool("satisfiedFlushRanges", satisfiedFlushRanges),
 		}
 
-		if shouldFlush && satisifiedFlushRanges {
+		if shouldFlush && satisfiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
 				builder.Builder(),
 				persistManager,
+				s.opts.IndexClaimsManager(),
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if errors.Is(err, fs.ErrIndexOutOfRetention) {
+				// Bail early if the index segment is already out of retention.
+				// This can happen when the edge of requested ranges at time of data bootstrap
+				// is now out of retention.
+				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+				return
+			} else if err != nil {
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
 						zap.Error(err),
@@ -613,7 +617,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if errors.Is(err, fs.ErrIndexOutOfRetention) {
+				// Bail early if the index segment is already out of retention.
+				// This can happen when the edge of requested ranges at time of data bootstrap
+				// is now out of retention.
+				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+				return
+			} else if err != nil {
 				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("build fs index bootstrap failed",
@@ -634,17 +645,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 		// Replace index block for default index volume type.
 		runResult.Lock()
-		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
+		runResult.index.IndexResults()[blockStart].
+			SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 		runResult.Unlock()
-	}
-
-	// Return readers to pool.
-	for _, shardReaders := range shardReaders {
-		for _, r := range shardReaders.Readers {
-			if err := r.Close(); err == nil {
-				readerPool.Put(r)
-			}
-		}
 	}
 
 	s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
@@ -657,7 +660,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	shardID uint32,
 	r fs.DataFileSetReader,
 	runResult *runResult,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	blockSize time.Duration,
 	blockPool block.DatabaseBlockPool,
 	seriesCachePolicy series.CachePolicy,
@@ -701,7 +704,12 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 	seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 	seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
-	if err := ref.Series.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
+
+	seriesRef, err := ref.Resolver.SeriesRef()
+	if err != nil {
+		return fmt.Errorf("unable to resolve seriesRef: %w", err)
+	}
+	if err := seriesRef.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)
 	}
 
@@ -710,26 +718,23 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
-	batch []doc.Document,
+	batch []doc.Metadata,
 	builder *result.IndexBuilder,
-) ([]doc.Document, error) {
+) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
+	entry, err := r.StreamingReadMetadata()
 	if err != nil {
 		return batch, err
 	}
 
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
+	d, err := convert.FromSeriesIDAndEncodedTags(entry.ID, entry.EncodedTags)
 	if err != nil {
 		return batch, err
 	}
 
 	batch = append(batch, d)
 
-	if len(batch) >= index.DocumentArrayPoolCapacity {
+	if len(batch) >= index.MetadataArrayPoolCapacity {
 		return builder.FlushBatch(batch)
 	}
 
@@ -742,7 +747,6 @@ func (s *fileSystemSource) read(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-	builder *result.IndexBuilder,
 	span opentracing.Span,
 	cache bootstrap.Cache,
 ) (*runResult, error) {
@@ -826,11 +830,11 @@ func (s *fileSystemSource) read(
 		BlockSize:       blockSize,
 		// NB(bodu): We only read metadata when bootstrap index
 		// so we do not need to sort the data fileset reader.
-		OptimizedReadMetadataOnly: run == bootstrapIndexRunType,
-		Logger:                    s.log,
-		Span:                      span,
-		NowFn:                     s.nowFn,
-		Cache:                     cache,
+		ReadMetadataOnly: run == bootstrapIndexRunType,
+		Logger:           s.log,
+		Span:             span,
+		NowFn:            s.nowFn,
+		Cache:            cache,
 	})
 
 	bootstrapFromReadersRunResult := newRunResult()
@@ -846,8 +850,8 @@ func (s *fileSystemSource) read(
 		builder := result.NewIndexBuilder(segBuilder)
 
 		indexOpts := s.opts.IndexOptions()
-		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
-			index.DocumentArrayPoolCapacity,
+		compactor, err := compaction.NewCompactor(indexOpts.MetadataArrayPool(),
+			index.MetadataArrayPoolCapacity,
 			indexOpts.SegmentBuilderOptions(),
 			indexOpts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
@@ -935,8 +939,11 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	}
 
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
-	infoFiles := fs.ReadIndexInfoFiles(s.fsopts.FilePathPrefix(), ns.ID(),
-		s.fsopts.InfoReaderBufferSize())
+	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   s.fsopts.FilePathPrefix(),
+		Namespace:        ns.ID(),
+		ReaderBufferSize: s.fsopts.InfoReaderBufferSize(),
+	})
 
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
@@ -950,7 +957,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 
 		info := infoFile.Info
-		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
+		indexBlockStart := xtime.UnixNano(info.BlockStart)
 		indexBlockRange := xtime.Range{
 			Start: indexBlockStart,
 			End:   indexBlockStart.Add(indexBlockSize),
@@ -982,18 +989,28 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
+		fsOpts := s.fsopts
+		verify := s.opts.IndexSegmentsVerify()
+		if verify {
+			// Make sure for this call to read index segments
+			// to validate the index segment.
+			// If fails validation will rebuild since missing from
+			// fulfilled range.
+			fsOpts = fsOpts.SetIndexReaderAutovalidateIndexSegments(true)
+		}
+
 		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
 				FileSetType: persist.FileSetFlushType,
 			},
-			FilesystemOptions: s.fsopts,
+			FilesystemOptions: fsOpts,
 		})
 		if err != nil {
 			s.log.Error("unable to read segments from index fileset",
 				zap.Stringer("namespace", ns.ID()),
 				zap.Error(err),
-				zap.Time("blockStart", indexBlockStart),
+				zap.Time("blockStart", indexBlockStart.ToTime()),
 				zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
 			)
 			continue
@@ -1042,7 +1059,7 @@ func newRunResult() *runResult {
 }
 
 func (r *runResult) addIndexBlockIfNotExists(
-	start time.Time,
+	start xtime.UnixNano,
 	ns namespace.Metadata,
 ) {
 	// Only called once per shard so ok to acquire write lock immediately.

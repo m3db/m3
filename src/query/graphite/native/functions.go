@@ -22,6 +22,7 @@ package native
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -31,8 +32,8 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -61,6 +62,7 @@ const (
 	minSeriesFnName      = "minSeries"
 	multiplyFnName       = "multiply"
 	multiplySeriesFnName = "multiplySeries"
+	powSeriesFnName      = "powSeries"
 	rangeFnName          = "range"
 	rangeOfFnName        = "rangeOf"
 	rangeOfSeriesFnName  = "rangeOfSeries"
@@ -169,71 +171,65 @@ type contextShiftFunc func(*common.Context) *common.Context
 // unaryTransformer takes in one series and returns a transformed series.
 type unaryTransformer func(ts.SeriesList) (ts.SeriesList, error)
 
-// binaryTransformer takes in two series and returns a transformed series.
-type binaryTransformer func(ts.SeriesList, ts.SeriesList) (ts.SeriesList, error)
+// contextShiftAdjustFunc determines after an initial context shift whether
+// an adjustment is necessary or not
+type contextShiftAdjustFunc func(
+	shiftedContext *common.Context,
+	bootstrappedSeries ts.SeriesList,
+) (*common.Context, bool, error)
 
 // unaryContextShifter contains a contextShiftFunc for generating shift contexts
 // as well as a unaryTransformer for transforming one series to another.
 type unaryContextShifter struct {
-	ContextShiftFunc contextShiftFunc
-	UnaryTransformer unaryTransformer
-}
-
-// binaryContextShifter contains a contextShiftFunc for generating shift contexts
-// as well as a binaryTransformer for transforming one series to another.
-type binaryContextShifter struct {
-	ContextShiftFunc  contextShiftFunc
-	BinaryTransformer binaryTransformer
+	ContextShiftFunc       contextShiftFunc
+	UnaryTransformer       unaryTransformer
+	ContextShiftAdjustFunc contextShiftAdjustFunc
 }
 
 var (
-	contextPtrType              = reflect.TypeOf(&common.Context{})
-	timeSeriesType              = reflect.TypeOf(&ts.Series{})
-	timeSeriesListType          = reflect.SliceOf(timeSeriesType)
-	seriesListType              = reflect.TypeOf(ts.NewSeriesList())
-	unaryContextShifterPtrType  = reflect.TypeOf(&unaryContextShifter{})
-	binaryContextShifterPtrType = reflect.TypeOf(&binaryContextShifter{})
-	singlePathSpecType          = reflect.TypeOf(singlePathSpec{})
-	multiplePathSpecsType       = reflect.TypeOf(multiplePathSpecs{})
-	interfaceType               = reflect.TypeOf([]genericInterface{}).Elem()
-	float64Type                 = reflect.TypeOf(float64(100))
-	float64SliceType            = reflect.SliceOf(float64Type)
-	intType                     = reflect.TypeOf(int(0))
-	intSliceType                = reflect.SliceOf(intType)
-	stringType                  = reflect.TypeOf("")
-	stringSliceType             = reflect.SliceOf(stringType)
-	boolType                    = reflect.TypeOf(false)
-	boolSliceType               = reflect.SliceOf(boolType)
-	errorType                   = reflect.TypeOf((*error)(nil)).Elem()
-	genericInterfaceType        = reflect.TypeOf((*genericInterface)(nil)).Elem()
+	contextPtrType             = reflect.TypeOf(&common.Context{})
+	timeSeriesType             = reflect.TypeOf(&ts.Series{})
+	timeSeriesListType         = reflect.SliceOf(timeSeriesType)
+	seriesListType             = reflect.TypeOf(ts.NewSeriesList())
+	unaryContextShifterPtrType = reflect.TypeOf(&unaryContextShifter{})
+	singlePathSpecType         = reflect.TypeOf(singlePathSpec{})
+	multiplePathSpecsType      = reflect.TypeOf(multiplePathSpecs{})
+	interfaceType              = reflect.TypeOf([]genericInterface{}).Elem()
+	float64Type                = reflect.TypeOf(float64(100))
+	float64SliceType           = reflect.SliceOf(float64Type)
+	intType                    = reflect.TypeOf(int(0))
+	intSliceType               = reflect.SliceOf(intType)
+	stringType                 = reflect.TypeOf("")
+	stringSliceType            = reflect.SliceOf(stringType)
+	boolType                   = reflect.TypeOf(false)
+	boolSliceType              = reflect.SliceOf(boolType)
+	errorType                  = reflect.TypeOf((*error)(nil)).Elem()
+	genericInterfaceType       = reflect.TypeOf((*genericInterface)(nil)).Elem()
 )
 
-var (
-	allowableTypes = reflectTypeSet{
-		// these are for return types
-		timeSeriesListType,
-		unaryContextShifterPtrType,
-		binaryContextShifterPtrType,
-		seriesListType,
-		singlePathSpecType,
-		multiplePathSpecsType,
-		interfaceType, // only for function parameters
-		float64Type,
-		float64SliceType,
-		intType,
-		intSliceType,
-		stringType,
-		stringSliceType,
-		boolType,
-		boolSliceType,
-	}
-)
+var allowableTypes = reflectTypeSet{
+	// these are for return types
+	timeSeriesListType,
+	unaryContextShifterPtrType,
+	seriesListType,
+	singlePathSpecType,
+	multiplePathSpecsType,
+	interfaceType, // only for function parameters
+	float64Type,
+	float64SliceType,
+	intType,
+	intSliceType,
+	stringType,
+	stringSliceType,
+	boolType,
+	boolSliceType,
+}
 
 var (
-	errNonFunction   = errors.NewInvalidParamsError(errors.New("not a function"))
-	errNeedsArgument = errors.NewInvalidParamsError(errors.New("functions must take at least 1 argument"))
-	errNoContext     = errors.NewInvalidParamsError(errors.New("first argument must be a context"))
-	errInvalidReturn = errors.NewInvalidParamsError(errors.New("functions must return a value and an error"))
+	errNonFunction   = xerrors.NewInvalidParamsError(errors.New("not a function"))
+	errNeedsArgument = xerrors.NewInvalidParamsError(errors.New("functions must take at least 1 argument"))
+	errNoContext     = xerrors.NewInvalidParamsError(errors.New("first argument must be a context"))
+	errInvalidReturn = xerrors.NewInvalidParamsError(errors.New("functions must return a value and an error"))
 )
 
 // Function contains a function to invoke along with metadata about
@@ -245,6 +241,8 @@ type Function struct {
 	defaults map[uint8]interface{}
 	out      reflect.Type
 	variadic bool
+
+	disableUnaryContextShiftFetchOptimization bool
 }
 
 // WithDefaultParams provides default parameters for functions
@@ -255,6 +253,23 @@ func (f *Function) WithDefaultParams(defaultParams map[uint8]interface{}) *Funct
 		}
 	}
 	f.defaults = defaultParams
+	return f
+}
+
+// WithoutUnaryContextShifterSkipFetchOptimization allows a function to skip
+// the optimization that avoids fetching data for the first execution phase
+// of a unary context shifted function (where it is called the first time
+// without any series populated as input to the function and relies on
+// execution of the unary context shifter with the shifted series solely).
+// Note: This is useful for the "movingX" family of functions that require
+// that require actually seeing what the step size is sometimes of the series
+// from the first phase of execution to determine how much to look back for the
+// context shift phase.
+func (f *Function) WithoutUnaryContextShifterSkipFetchOptimization() *Function {
+	if f.out != unaryContextShifterPtrType {
+		panic("Skip fetch optimization only available to unary context shifters")
+	}
+	f.disableUnaryContextShiftFetchOptimization = true
 	return f
 }
 
@@ -338,7 +353,7 @@ func buildFunction(f interface{}) (*Function, error) {
 	out := t.Out(0)
 	if !allowableTypes.contains(out) {
 		return nil, fmt.Errorf("invalid return type %s", out.Name())
-	} else if out == unaryContextShifterPtrType || out == binaryContextShifterPtrType {
+	} else if out == unaryContextShifterPtrType {
 		validateContextShiftingFn(in)
 	}
 
@@ -422,7 +437,12 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 	}
 
 	numTypes := len(f.in)
-	if len(in) < numTypes {
+	numRequiredTypes := numTypes
+	if f.variadic {
+		// Variadic can avoid specifying the last arg.
+		numRequiredTypes--
+	}
+	if len(in) < numRequiredTypes {
 		err := fmt.Errorf("call args mismatch: expected at least %d, actual %d",
 			len(f.in), len(in))
 		return reflect.Value{}, err
@@ -430,6 +450,11 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 
 	// Cast to the expected typealias type of ts.SeriesList before calling
 	for i, arg := range in {
+		if !arg.IsValid() {
+			// Zero value arg is a nil.
+			in[i] = reflect.New(genericInterfaceType).Elem()
+			continue
+		}
 		typeArg := arg.Type()
 		if typeArg != seriesListType {
 			continue
@@ -480,7 +505,7 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 
 // A funcArg is an argument to a function that gets resolved at runtime
 type funcArg interface {
-	ArgumentASTNode
+	ASTNode
 	Evaluate(ctx *common.Context) (reflect.Value, error)
 	CompatibleWith(reflectType reflect.Type) bool
 }
@@ -500,7 +525,9 @@ func (c constFuncArg) Evaluate(ctx *common.Context) (reflect.Value, error) { ret
 func (c constFuncArg) CompatibleWith(reflectType reflect.Type) bool {
 	return c.value.Type() == reflectType || reflectType == interfaceType
 }
-func (c constFuncArg) String() string { return fmt.Sprintf("%v", c.value.Interface()) }
+func (c constFuncArg) String() string                      { return fmt.Sprintf("%v", c.value.Interface()) }
+func (c constFuncArg) PathExpression() (string, bool)      { return "", false }
+func (c constFuncArg) CallExpression() (CallASTNode, bool) { return nil, false }
 
 // A functionCall is an actual call to a function, with resolution for arguments
 type functionCall struct {
@@ -512,19 +539,34 @@ func (call *functionCall) Name() string {
 	return call.f.name
 }
 
-func (call *functionCall) Arguments() []ArgumentASTNode {
-	args := make([]ArgumentASTNode, len(call.in))
-	for i, arg := range call.in {
-		args[i] = arg
+func (call *functionCall) Arguments() []ASTNode {
+	args := make([]ASTNode, 0, len(call.in))
+	for _, arg := range call.in {
+		args = append(args, arg)
 	}
 	return args
+}
+
+func (call *functionCall) PathExpression() (string, bool) {
+	return "", false
+}
+
+func (call *functionCall) CallExpression() (CallASTNode, bool) {
+	return call, true
 }
 
 // Evaluate evaluates the function call and returns the result as a reflect.Value
 func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	values := make([]reflect.Value, len(call.in))
 	for i, param := range call.in {
-		if call.f.out == unaryContextShifterPtrType && call.f.in[i] == singlePathSpecType {
+		// Optimization to skip fetching series for a unary context shift
+		// operation since they'll refetch after shifting.
+		// Note: You can call WithoutUnaryContextShifterSkipFetchOptimization()
+		// after registering a function if you need a unary context shift
+		// operation to have series for the initial time window fetched.
+		if call.f.out == unaryContextShifterPtrType &&
+			!call.f.disableUnaryContextShiftFetchOptimization &&
+			(call.f.in[i] == singlePathSpecType || call.f.in[i] == multiplePathSpecsType) {
 			values[i] = reflect.ValueOf(singlePathSpec{}) // fake parameter
 			continue
 		}
@@ -555,15 +597,50 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	if err != nil {
 		return reflect.Value{}, err
 	}
-	transformerFn := contextShifter.Field(1)
-	var ret []reflect.Value
+
+	// Determine if need to adjust the shift based on fetched series
+	// from the context shift.
+MaybeAdjustShiftLoop:
+	for {
+		adjustFn := contextShifter.Field(2)
+		if adjustFn.IsNil() {
+			break MaybeAdjustShiftLoop
+		}
+
+		reflected := adjustFn.Call([]reflect.Value{
+			reflect.ValueOf(shiftedCtx),
+			shiftedSeries,
+		})
+		if reflectedErr := reflected[2]; !reflectedErr.IsNil() {
+			return reflect.Value{}, reflectedErr.Interface().(error)
+		}
+
+		if reflectedAdjust := reflected[1]; !reflectedAdjust.Bool() {
+			// No further adjust.
+			break MaybeAdjustShiftLoop
+		}
+
+		// Adjusted again, need to re-bootstrap from the shifted series.
+		adjustedShiftedCtx := reflected[0].Interface().(*common.Context)
+		adjustedShiftedSeries, err := call.in[0].Evaluate(adjustedShiftedCtx)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+
+		// Override previously shifted context and series fetched and re-eval.
+		shiftedCtx = adjustedShiftedCtx
+		shiftedSeries = adjustedShiftedSeries
+	}
+
+	// Execute the unary transformer function with the shifted series.
+	var (
+		transformerFn = contextShifter.Field(1)
+		ret           []reflect.Value
+	)
 	switch call.f.out {
 	case unaryContextShifterPtrType:
 		// unary function
 		ret = transformerFn.Call([]reflect.Value{shiftedSeries})
-	case binaryContextShifterPtrType:
-		// binary function
-		ret = transformerFn.Call([]reflect.Value{shiftedSeries, values[0]})
 	default:
 		return reflect.Value{}, fmt.Errorf("unknown context shift: %v", call.f.out)
 	}
@@ -578,7 +655,7 @@ func (call *functionCall) CompatibleWith(reflectType reflect.Type) bool {
 	if reflectType == interfaceType {
 		return true
 	}
-	if call.f.out == unaryContextShifterPtrType || call.f.out == binaryContextShifterPtrType {
+	if call.f.out == unaryContextShifterPtrType {
 		return reflectType == singlePathSpecType || reflectType == multiplePathSpecsType
 	}
 	return call.f.out.Kind() == reflectType.Kind()
@@ -602,12 +679,12 @@ func (call *functionCall) String() string {
 // isTimeSeries checks whether the given value contains a timeseries or
 // timeseries list
 func isTimeSeries(v reflect.Value) bool {
-	return v.Type() == seriesListType
+	return v.IsValid() && v.Type() == seriesListType
 }
 
 // getStats gets trace stats for the given timeseries argument
 func getStats(v reflect.Value) common.TraceStats {
-	if v.Type() == timeSeriesType {
+	if v.IsValid() && v.Type() == timeSeriesType {
 		return common.TraceStats{NumSeries: 1}
 	}
 

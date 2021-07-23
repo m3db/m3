@@ -31,13 +31,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type dbMergedBlockReader struct {
 	sync.RWMutex
 	ctx        context.Context
 	opts       Options
-	blockStart time.Time
+	blockStart xtime.UnixNano
 	blockSize  time.Duration
 	streams    [2]mergeableStream
 	readers    [2]xio.SegmentReader
@@ -65,7 +66,7 @@ func (ms mergeableStream) clone(pool pool.CheckedBytesPool) (mergeableStream, er
 
 func newDatabaseMergedBlockReader(
 	nsCtx namespace.Context,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	blockSize time.Duration,
 	streamA, streamB mergeableStream,
 	opts Options,
@@ -169,20 +170,24 @@ func (r *dbMergedBlockReader) Clone(
 	), nil
 }
 
-func (r *dbMergedBlockReader) Start() time.Time {
-	return r.blockStart
-}
-
 func (r *dbMergedBlockReader) BlockSize() time.Duration {
 	return r.blockSize
 }
 
-func (r *dbMergedBlockReader) Read(b []byte) (int, error) {
+func (r *dbMergedBlockReader) Read64() (word uint64, n byte, err error) {
 	reader, err := r.mergedReader()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return reader.Read(b)
+	return reader.Read64()
+}
+
+func (r *dbMergedBlockReader) Peek64() (word uint64, n byte, err error) {
+	reader, err := r.mergedReader()
+	if err != nil {
+		return 0, 0, err
+	}
+	return reader.Peek64()
 }
 
 func (r *dbMergedBlockReader) Segment() (ts.Segment, error) {
@@ -216,8 +221,7 @@ func (r *dbMergedBlockReader) Finalize() {
 	// since it just dec refs on the buffer it created in the encoder.
 	r.ctx.BlockingClose()
 
-	r.blockStart = time.Time{}
-
+	r.blockStart = 0
 	for i := range r.streams {
 		if r.streams[i].stream != nil && r.streams[i].finalize {
 			r.streams[i].stream.Finalize()

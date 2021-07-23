@@ -21,48 +21,90 @@
 package rate
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
-func TestLimiterLimit(t *testing.T) {
-	allowedPerSecond := int64(10)
-	now := time.Now().Truncate(time.Second)
-	nowFn := func() time.Time { return now }
+func xnow() xtime.UnixNano {
+	return xtime.ToUnixNano(time.Now().Truncate(time.Second))
+}
 
-	limiter := NewLimiter(allowedPerSecond, nowFn)
+func BenchmarkLimiter(b *testing.B) {
+	var (
+		allowedPerSecond int64 = 100
+		now                    = xnow()
+		limiter                = NewLimiter(allowedPerSecond)
+	)
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			var allowed bool
+			for i := int64(0); i <= allowedPerSecond+1; i++ {
+				allowed = limiter.IsAllowed(1, now)
+			}
+
+			if allowed {
+				b.Fatalf("expected limit to be hit")
+			}
+		}
+	})
+	require.Equal(b, allowedPerSecond, limiter.Limit())
+}
+
+func TestLimiterLimit(t *testing.T) {
+	var allowedPerSecond int64 = 10
+
+	limiter := NewLimiter(allowedPerSecond)
 	require.Equal(t, allowedPerSecond, limiter.Limit())
 }
 
 func TestLimiterIsAllowed(t *testing.T) {
-	allowedPerSecond := int64(10)
-	now := time.Now().Truncate(time.Second)
-	nowFn := func() time.Time { return now }
+	var (
+		allowedPerSecond int64 = 10
+		now                    = xnow()
+	)
 
-	limiter := NewLimiter(allowedPerSecond, nowFn)
-	require.True(t, limiter.IsAllowed(5))
+	limiter := NewLimiter(allowedPerSecond)
+	require.True(t, limiter.IsAllowed(5, now))
 	for i := 0; i < 5; i++ {
-		now = now.Add(100 * time.Millisecond)
-		require.True(t, limiter.IsAllowed(1))
+		now += xtime.UnixNano(100 * time.Millisecond)
+		require.True(t, limiter.IsAllowed(1, now))
 	}
-	require.False(t, limiter.IsAllowed(1))
+	require.False(t, limiter.IsAllowed(1, now))
 
 	// Advance time to the next second and confirm the quota is reset.
-	now = now.Add(time.Second)
-	require.True(t, limiter.IsAllowed(5))
+	now += xtime.UnixNano(time.Second)
+	require.True(t, limiter.IsAllowed(5, now))
+}
+
+func TestLimiterUnlimited(t *testing.T) {
+	var (
+		unlimitedLimit int64 = 0
+		now                  = xnow()
+	)
+
+	limiter := NewLimiter(unlimitedLimit)
+	require.True(t, limiter.IsAllowed(math.MaxInt64, now))
+
+	limiter.Reset(1)
+	require.False(t, limiter.IsAllowed(2, now))
 }
 
 func TestLimiterReset(t *testing.T) {
-	allowedPerSecond := int64(10)
-	now := time.Now().Truncate(time.Second)
-	nowFn := func() time.Time { return now }
+	var (
+		allowedPerSecond int64 = 10
+		now                    = xnow()
+	)
 
-	limiter := NewLimiter(allowedPerSecond, nowFn)
-	require.False(t, limiter.IsAllowed(20))
+	limiter := NewLimiter(allowedPerSecond)
+	require.False(t, limiter.IsAllowed(20, now))
 
 	// Resetting to a higher limit and confirm all requests are allowed.
 	limiter.Reset(20)
-	require.True(t, limiter.IsAllowed(20))
+	require.True(t, limiter.IsAllowed(20, now))
 }

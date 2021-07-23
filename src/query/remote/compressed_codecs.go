@@ -22,7 +22,6 @@ package remote
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -47,14 +46,12 @@ func initializeVars() {
 			b.Reset(nil)
 		}))
 
-	iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	iterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 }
 
 var (
 	opts       checked.BytesOptions
-	iterAlloc  func(r io.Reader, d namespace.SchemaDescr) encoding.ReaderIterator
+	iterAlloc  func(r xio.Reader64, d namespace.SchemaDescr) encoding.ReaderIterator
 	initialize sync.Once
 )
 
@@ -67,7 +64,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 	return &rpc.M3Segment{
 		Head:      segment.Head.Bytes(),
 		Tail:      segment.Tail.Bytes(),
-		StartTime: xtime.ToNanoseconds(br.Start),
+		StartTime: int64(br.Start),
 		BlockSize: int64(br.BlockSize),
 		Checksum:  segment.CalculateChecksum(),
 	}, nil
@@ -187,8 +184,8 @@ func CompressedSeriesFromSeriesIterator(
 		compressedReplicas = append(compressedReplicas, r)
 	}
 
-	start := xtime.ToNanoseconds(it.Start())
-	end := xtime.ToNanoseconds(it.End())
+	start := int64(it.Start())
+	end := int64(it.End())
 
 	itTags := it.Tags()
 	defer itTags.Rewind()
@@ -259,7 +256,7 @@ func blockReaderFromCompressedSegment(
 
 	return xio.BlockReader{
 		SegmentReader: segmentReader,
-		Start:         xtime.FromNanoseconds(seg.GetStartTime()),
+		Start:         xtime.UnixNano(seg.GetStartTime()),
 		BlockSize:     time.Duration(seg.GetBlockSize()),
 	}
 }

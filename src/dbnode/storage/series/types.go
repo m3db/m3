@@ -26,11 +26,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -44,7 +43,7 @@ import (
 // DatabaseSeriesOptions is a set of options for creating a database series.
 type DatabaseSeriesOptions struct {
 	ID                     ident.ID
-	Metadata               doc.Document
+	Metadata               doc.Metadata
 	UniqueIndex            uint64
 	BlockRetriever         QueryableBlockRetriever
 	OnRetrieveBlock        block.OnRetrieveBlock
@@ -61,7 +60,7 @@ type DatabaseSeries interface {
 	ID() ident.ID
 
 	// Metadata returns the metadata of the series.
-	Metadata() doc.Document
+	Metadata() doc.Metadata
 
 	// UniqueIndex is the unique index for the series (for this current
 	// process, unless the time series expires).
@@ -73,7 +72,7 @@ type DatabaseSeries interface {
 	// Write writes a new value.
 	Write(
 		ctx context.Context,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -83,30 +82,22 @@ type DatabaseSeries interface {
 	// ReadEncoded reads encoded blocks.
 	ReadEncoded(
 		ctx context.Context,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		nsCtx namespace.Context,
-	) ([][]xio.BlockReader, error)
+	) (BlockReaderIter, error)
 
-	// FetchIndexChecksum reads checksums from encoded blocks.
-	FetchIndexChecksum(
+	// FetchWideEntry reads wide entries from encoded blocks.
+	FetchWideEntry(
 		ctx context.Context,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
-	) (block.StreamedChecksum, error)
-
-	// FetchIndexChecksum reads checksum mismatches from encoded blocks and the
-	// incoming batchReader.
-	FetchReadMismatch(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
-		starts []time.Time,
+		starts []xtime.UnixNano,
 		nsCtx namespace.Context,
 	) ([]block.FetchBlockResult, error)
 
@@ -115,7 +106,7 @@ type DatabaseSeries interface {
 	// block start is occurring so that it knows to update bucket versions.
 	FetchBlocksForColdFlush(
 		ctx context.Context,
-		start time.Time,
+		start xtime.UnixNano,
 		version int,
 		nsCtx namespace.Context,
 	) (block.FetchBlockResult, error)
@@ -123,7 +114,7 @@ type DatabaseSeries interface {
 	// FetchBlocksMetadata returns the blocks metadata.
 	FetchBlocksMetadata(
 		ctx context.Context,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		opts FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResult, error)
 
@@ -132,7 +123,7 @@ type DatabaseSeries interface {
 
 	// IsBufferEmptyAtBlockStart returns whether the series buffer is empty at block start
 	// (only checks for in-mem buffer data).
-	IsBufferEmptyAtBlockStart(time.Time) bool
+	IsBufferEmptyAtBlockStart(xtime.UnixNano) bool
 
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
@@ -146,7 +137,7 @@ type DatabaseSeries interface {
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
 		ctx context.Context,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
 	) (FlushOutcome, error)
@@ -155,7 +146,7 @@ type DatabaseSeries interface {
 	// not been rotated into a block yet.
 	Snapshot(
 		ctx context.Context,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
 	) (SnapshotResult, error)
@@ -209,11 +200,11 @@ type QueryableBlockRetriever interface {
 
 	// IsBlockRetrievable returns whether a block is retrievable
 	// for a given block start time.
-	IsBlockRetrievable(blockStart time.Time) (bool, error)
+	IsBlockRetrievable(blockStart xtime.UnixNano) (bool, error)
 
 	// RetrievableBlockColdVersion returns the cold version that was
 	// successfully persisted.
-	RetrievableBlockColdVersion(blockStart time.Time) (int, error)
+	RetrievableBlockColdVersion(blockStart xtime.UnixNano) (int, error)
 
 	// BlockStatesSnapshot returns a snapshot of the whether blocks are
 	// retrievable and their flush versions for each block start. This is used

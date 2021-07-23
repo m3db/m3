@@ -28,14 +28,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -97,62 +96,43 @@ func (s testSeriesMetadata) Tags() ident.Tags {
 	return tags
 }
 
-func writeTSDBFiles(
-	t *testing.T,
-	dir string,
-	namespace ident.ID,
-	shard uint32,
-	start time.Time,
-	series []testSeriesMetadata,
-	blockSize time.Duration,
-	fsOpts fs.Options,
-) {
-	w, err := fs.NewWriter(fsOpts)
-	require.NoError(t, err)
-	writerOpts := fs.DataWriterOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:  namespace,
-			Shard:      shard,
-			BlockStart: start,
-		},
-		BlockSize: blockSize,
-	}
-	require.NoError(t, w.Open(writerOpts))
-
-	for _, v := range series {
-		bytes := checked.NewBytes(v.data, nil)
-		bytes.IncRef()
-		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(v.id),
-			sortedTagsFromTagsMap(v.tags),
-			persist.MetadataOptions{})
-		require.NoError(t, w.Write(metadata, bytes,
-			digest.Checksum(bytes.Bytes())))
-		bytes.DecRef()
-	}
-
-	require.NoError(t, w.Close())
-}
-
-func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
-	var (
-		seriesTags ident.Tags
-		tagNames   []string
-	)
-	for name := range tags {
-		tagNames = append(tagNames, name)
-	}
-	sort.Strings(tagNames)
-	for _, name := range tagNames {
-		seriesTags.Append(ident.StringTag(name, tags[name]))
-	}
-	return seriesTags
+type testOptions struct {
+	name                string
+	indexBlockStart     xtime.UnixNano
+	expectedIndexBlocks int
+	retentionPeriod     time.Duration
 }
 
 func TestBootstrapIndex(t *testing.T) {
+	tests := []testOptions{
+		{
+			name:                "now",
+			indexBlockStart:     xtime.Now(),
+			expectedIndexBlocks: 12,
+			retentionPeriod:     48 * time.Hour,
+		},
+		{
+			name:                "now - 8h (out of retention)",
+			indexBlockStart:     xtime.Now().Add(-8 * time.Hour),
+			expectedIndexBlocks: 0,
+			retentionPeriod:     4 * time.Hour,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testBootstrapIndex(t, test)
+		})
+	}
+}
+
+//nolint
+func testBootstrapIndex(t *testing.T, test testOptions) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestDefaultOpts(t, ctrl)
+	opts = opts.SetResultOptions(result.NewOptions().
+		SetSeriesCachePolicy(series.CacheLRU))
 	pm, err := fs.NewPersistManager(opts.FilesystemOptions())
 	require.NoError(t, err)
 	opts = opts.SetPersistManager(pm)
@@ -162,7 +142,7 @@ func TestBootstrapIndex(t *testing.T) {
 
 	ropts := retention.NewOptions().
 		SetBlockSize(blockSize).
-		SetRetentionPeriod(24 * blockSize)
+		SetRetentionPeriod(test.retentionPeriod)
 
 	nsMetadata := testNamespaceMetadata(t, func(opts namespace.Options) namespace.Options {
 		return opts.
@@ -172,7 +152,7 @@ func TestBootstrapIndex(t *testing.T) {
 				SetBlockSize(indexBlockSize))
 	})
 
-	at := time.Now()
+	at := test.indexBlockStart
 	start := at.Add(-ropts.RetentionPeriod()).Truncate(blockSize)
 	indexStart := start.Truncate(indexBlockSize)
 	for !start.Equal(indexStart) {
@@ -190,7 +170,7 @@ func TestBootstrapIndex(t *testing.T) {
 		map[string]string{"aaa": "bbb", "ccc": "ddd"},
 	}
 	dataBlocks := []struct {
-		blockStart time.Time
+		blockStart xtime.UnixNano
 		series     []testSeriesMetadata
 	}{
 		{
@@ -218,22 +198,10 @@ func TestBootstrapIndex(t *testing.T) {
 			},
 		},
 	}
-	// NB(bodu): Write time series to disk.
+
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 	opts = opts.SetFilesystemOptions(newTestFsOptions(dir))
-	for _, block := range dataBlocks {
-		writeTSDBFiles(
-			t,
-			dir,
-			nsMetadata.ID(),
-			testShard,
-			block.blockStart,
-			block.series,
-			blockSize,
-			opts.FilesystemOptions(),
-		)
-	}
 
 	end := start.Add(ropts.RetentionPeriod())
 
@@ -245,6 +213,8 @@ func TestBootstrapIndex(t *testing.T) {
 		}),
 	)
 
+	// data block start at the edge of retention so return those first.
+	var dataBlocksIdx int
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(gomock.Any(),
@@ -252,16 +222,34 @@ func TestBootstrapIndex(t *testing.T) {
 		func(
 			_ namespace.Metadata,
 			_ uint32,
-			blockStart time.Time,
-			blockEnd time.Time,
+			blockStart xtime.UnixNano,
+			blockEnd xtime.UnixNano,
 			_ result.Options,
 		) (result.ShardResult, error) {
 			goodID := ident.StringID("foo")
 			goodResult := result.NewShardResult(opts.ResultOptions())
 			for ; blockStart.Before(blockEnd); blockStart = blockStart.Add(blockSize) {
+				if dataBlocksIdx < len(dataBlocks) {
+					dataBlock := dataBlocks[dataBlocksIdx]
+					for _, s := range dataBlock.series {
+						head := checked.NewBytes(s.data, nil)
+						head.IncRef()
+						block := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
+							ts.Segment{Head: head}, testBlockOpts, namespace.Context{})
+						goodResult.AddBlock(s.ID(), s.Tags(), block)
+					}
+					dataBlocksIdx++
+					continue
+				}
+
+				head := checked.NewBytes([]byte{0x1}, nil)
+				head.IncRef()
 				fooBlock := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
-					ts.Segment{}, testBlockOpts, namespace.Context{})
-				goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+					ts.Segment{Head: head}, testBlockOpts, namespace.Context{})
+				goodResult.AddBlock(goodID, ident.NewTags(
+					ident.StringTag("aaa", "bbb"),
+					ident.StringTag("ccc", "ddd"),
+				), fooBlock)
 			}
 			return goodResult, nil
 		}).AnyTimes()
@@ -269,10 +257,10 @@ func TestBootstrapIndex(t *testing.T) {
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 	opts = opts.SetAdminClient(mockAdminClient)
-
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
-	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, testDefaultRunOpts, shardTimeRanges,
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t,
+		testRunOptsWithPersist, shardTimeRanges,
 		opts.FilesystemOptions(), nsMetadata)
 	defer tester.Finish()
 	tester.TestReadWith(src)
@@ -280,111 +268,112 @@ func TestBootstrapIndex(t *testing.T) {
 	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
 	results := tester.ResultForNamespace(nsMetadata.ID())
 	indexResults := results.IndexResult.IndexResults()
-	numBlocksWithData := 0
+	numIndexBlocks := 0
 	for _, indexBlockByVolumeType := range indexResults {
 		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		if len(indexBlock.Segments()) != 0 {
-			numBlocksWithData++
+			numIndexBlocks++
 		}
 	}
-	require.Equal(t, 2, numBlocksWithData)
+	require.Equal(t, test.expectedIndexBlocks, numIndexBlocks)
 
-	for _, expected := range []struct {
-		indexBlockStart time.Time
-		series          map[string]testSeriesMetadata
-	}{
-		{
-			indexBlockStart: indexStart,
-			series: map[string]testSeriesMetadata{
-				dataBlocks[0].series[0].id: dataBlocks[0].series[0],
-				dataBlocks[0].series[1].id: dataBlocks[0].series[1],
-				dataBlocks[0].series[2].id: dataBlocks[0].series[2],
-				dataBlocks[1].series[1].id: dataBlocks[1].series[1],
-				dataBlocks[1].series[2].id: dataBlocks[1].series[2],
+	if numIndexBlocks > 0 {
+		for _, expected := range []*struct {
+			indexBlockStart xtime.UnixNano
+			series          map[string]testSeriesMetadata
+		}{
+			{
+				indexBlockStart: indexStart,
+				series: map[string]testSeriesMetadata{
+					dataBlocks[0].series[0].id: dataBlocks[0].series[0],
+					dataBlocks[0].series[1].id: dataBlocks[0].series[1],
+					dataBlocks[0].series[2].id: dataBlocks[0].series[2],
+					dataBlocks[1].series[1].id: dataBlocks[1].series[1],
+					dataBlocks[1].series[2].id: dataBlocks[1].series[2],
+				},
 			},
-		},
-		{
-			indexBlockStart: indexStart.Add(indexBlockSize),
-			series: map[string]testSeriesMetadata{
-				dataBlocks[2].series[0].id: dataBlocks[2].series[0],
-				dataBlocks[2].series[1].id: dataBlocks[2].series[1],
-				dataBlocks[2].series[2].id: dataBlocks[2].series[2],
+			{
+				indexBlockStart: indexStart.Add(indexBlockSize),
+				series: map[string]testSeriesMetadata{
+					dataBlocks[2].series[0].id: dataBlocks[2].series[0],
+					dataBlocks[2].series[1].id: dataBlocks[2].series[1],
+					dataBlocks[2].series[2].id: dataBlocks[2].series[2],
+				},
 			},
-		},
-	} {
-		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
-		indexBlockByVolumeType, ok := indexResults[expectedAt]
-		require.True(t, ok)
-		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
-		require.True(t, ok)
-		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Segment().Reader()
-			require.NoError(t, err)
+		} {
+			expectedAt := expected.indexBlockStart
+			indexBlockByVolumeType, ok := indexResults[expectedAt]
+			require.True(t, ok)
+			indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+			require.True(t, ok)
+			for _, seg := range indexBlock.Segments() {
+				reader, err := seg.Segment().Reader()
+				require.NoError(t, err)
 
-			docs, err := reader.AllDocs()
-			require.NoError(t, err)
+				docs, err := reader.AllDocs()
+				require.NoError(t, err)
 
-			matches := map[string]struct{}{}
-			for docs.Next() {
-				curr := docs.Current()
+				matches := map[string]struct{}{}
+				for docs.Next() {
+					curr := docs.Current()
 
-				_, ok := matches[string(curr.ID)]
-				require.False(t, ok)
-				matches[string(curr.ID)] = struct{}{}
-
-				series, ok := expected.series[string(curr.ID)]
-				require.True(t, ok)
-
-				matchingTags := map[string]struct{}{}
-				for _, tag := range curr.Fields {
-					_, ok := matchingTags[string(tag.Name)]
+					_, ok := matches[string(curr.ID)]
 					require.False(t, ok)
-					matchingTags[string(tag.Name)] = struct{}{}
+					matches[string(curr.ID)] = struct{}{}
 
-					tagValue, ok := series.tags[string(tag.Name)]
+					series, ok := expected.series[string(curr.ID)]
 					require.True(t, ok)
 
-					require.Equal(t, tagValue, string(tag.Value))
+					matchingTags := map[string]struct{}{}
+					for _, tag := range curr.Fields {
+						_, ok := matchingTags[string(tag.Name)]
+						require.False(t, ok)
+						matchingTags[string(tag.Name)] = struct{}{}
+
+						tagValue, ok := series.tags[string(tag.Name)]
+						require.True(t, ok)
+
+						require.Equal(t, tagValue, string(tag.Value))
+					}
+					require.Equal(t, len(series.tags), len(matchingTags))
 				}
-				require.Equal(t, len(series.tags), len(matchingTags))
+				require.NoError(t, docs.Err())
+				require.NoError(t, docs.Close())
+
+				require.Equal(t, len(expected.series), len(matches))
 			}
-			require.NoError(t, docs.Err())
-			require.NoError(t, docs.Close())
-
-			require.Equal(t, len(expected.series), len(matches))
 		}
-	}
 
-	t1 := indexStart
-	t2 := indexStart.Add(indexBlockSize)
-	t3 := t2.Add(indexBlockSize)
+		t1 := indexStart
+		t2 := indexStart.Add(indexBlockSize)
+		t3 := t2.Add(indexBlockSize)
 
-	indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(t1)]
-	require.True(t, ok)
-	blk1, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
-	require.True(t, ok)
-	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t1, t2, 0), blk1.Fulfilled())
-
-	indexBlockByVolumeType, ok = indexResults[xtime.ToUnixNano(t2)]
-	require.True(t, ok)
-	blk2, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
-	require.True(t, ok)
-	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t2, t3, 0), blk2.Fulfilled())
-
-	for _, indexBlockByVolumeType := range indexResults {
-		if indexBlockByVolumeType.BlockStart().Equal(t1) || indexBlockByVolumeType.BlockStart().Equal(t2) {
-			continue // already checked above
-		}
-		// rest should all be marked fulfilled despite no data, because we didn't see
-		// any errors in the response.
-		start := indexBlockByVolumeType.BlockStart()
-		end := start.Add(indexBlockSize)
-		blk, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+		indexBlockByVolumeType, ok := indexResults[t1]
 		require.True(t, ok)
-		assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(start, end, 0), blk.Fulfilled())
-	}
+		blk1, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+		require.True(t, ok)
+		assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t1, t2, 0), blk1.Fulfilled())
 
+		indexBlockByVolumeType, ok = indexResults[t2]
+		require.True(t, ok)
+		blk2, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+		require.True(t, ok)
+		assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t2, t3, 0), blk2.Fulfilled())
+
+		for _, indexBlockByVolumeType := range indexResults {
+			if indexBlockByVolumeType.BlockStart().Equal(t1) || indexBlockByVolumeType.BlockStart().Equal(t2) {
+				continue // already checked above
+			}
+			// rest should all be marked fulfilled despite no data, because we didn't see
+			// any errors in the response.
+			start := indexBlockByVolumeType.BlockStart()
+			end := start.Add(indexBlockSize)
+			blk, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+			require.True(t, ok)
+			assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(start, end, 0), blk.Fulfilled())
+		}
+	}
 	tester.EnsureNoWrites()
 }
 

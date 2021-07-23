@@ -22,6 +22,8 @@ package ts
 
 import (
 	"math"
+	"math/rand"
+	"sort"
 	"testing"
 	"time"
 
@@ -63,11 +65,11 @@ func newTestSeriesList(ctx context.Context, start time.Time, inputs []testSeries
 	return seriesList
 }
 
-func validateOutputs(t *testing.T, step int, start time.Time, expected []testSeries, actual []*Series) {
-	require.Equal(t, len(expected), len(actual))
+func validateOutputs(t *testing.T, step int, start time.Time, expected []testSeries, actual SeriesList) {
+	require.Equal(t, len(expected), len(actual.Values))
 
 	for i := range expected {
-		a, e := actual[i], expected[i].data
+		a, e := actual.Values[i], expected[i].data
 
 		require.Equal(t, len(e), a.Len())
 
@@ -91,7 +93,7 @@ func testSortImpl(ctx context.Context, t *testing.T, tests []testSortData, sr Se
 	for _, test := range tests {
 		series := newTestSeriesList(ctx, startTime, test.inputs, step)
 
-		output, err := SortSeries(series, sr, dir)
+		output, err := SortSeries(NewSeriesListWithSeries(series...), sr, dir)
 
 		require.NoError(t, err)
 		validateOutputs(t, step, startTime, test.output, output)
@@ -100,7 +102,7 @@ func testSortImpl(ctx context.Context, t *testing.T, tests []testSortData, sr Se
 
 func TestSortSeries(t *testing.T) {
 	ctx := context.New()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	testInput := []testSeries{
 		{"foo", []float64{0, 601, 3, 4}},
@@ -130,4 +132,72 @@ func TestSortSeries(t *testing.T) {
 		{testInput, []testSeries{testInput[1], testInput[3], testInput[0], testInput[2], testInput[4]}},
 	}, SeriesReducerAvg.Reducer(), Ascending)
 
+}
+
+func TestSortSeriesStable(t *testing.T) {
+	ctx := context.New()
+	defer func() { _ = ctx.Close() }()
+
+	constValues := newTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
+	series := []*Series{
+		NewSeries(ctx, "foo", time.Now(), constValues),
+		NewSeries(ctx, "bar", time.Now(), constValues),
+		NewSeries(ctx, "baz", time.Now(), constValues),
+		NewSeries(ctx, "qux", time.Now(), constValues),
+	}
+
+	// Check that if input order is random that the same equal "lowest"
+	// series is chosen deterministically each time.
+	var lastOrder []string
+	for i := 0; i < 100; i++ {
+		rand.Shuffle(len(series), func(i, j int) {
+			series[i], series[j] = series[j], series[i]
+		})
+
+		result, err := SortSeries(SeriesList{
+			Values:      series,
+			SortApplied: false,
+		}, SeriesReducerMin.Reducer(), Descending)
+		require.NoError(t, err)
+
+		order := make([]string, 0, len(result.Values))
+		for _, series := range result.Values {
+			order = append(order, series.Name())
+		}
+
+		expectedOrder := lastOrder
+		lastOrder = order
+		if expectedOrder == nil {
+			continue
+		}
+
+		require.Equal(t, expectedOrder, order)
+	}
+}
+
+func TestSortSeriesByNameAndNaturalNumbers(t *testing.T) {
+	ctx := context.New()
+	defer func() { _ = ctx.Close() }()
+
+	constValues := newTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
+	series := []*Series{
+		NewSeries(ctx, "server1", time.Now(), constValues),
+		NewSeries(ctx, "server11", time.Now(), constValues),
+		NewSeries(ctx, "server12", time.Now(), constValues),
+		NewSeries(ctx, "server2", time.Now(), constValues),
+	}
+
+	sort.Sort(SeriesByNameAndNaturalNumbers(series))
+
+	actual := make([]string, 0, len(series))
+	for _, s := range series {
+		actual = append(actual, s.Name())
+	}
+
+	require.Equal(t, []string{
+		"server1",
+		"server2",
+		"server11",
+		"server12",
+	}, actual)
 }

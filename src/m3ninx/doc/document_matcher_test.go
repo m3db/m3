@@ -29,18 +29,18 @@ import (
 func TestDocumentMatcher(t *testing.T) {
 	tests := []struct {
 		name     string
-		l, r     Document
+		l, r     Metadata
 		expected bool
 	}{
 		{
 			name:     "empty documents are equal",
-			l:        Document{},
-			r:        Document{},
+			l:        Metadata{},
+			r:        Metadata{},
 			expected: true,
 		},
 		{
 			name: "documents with the same fields in the same order are equal",
-			l: Document{
+			l: Metadata{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -53,7 +53,7 @@ func TestDocumentMatcher(t *testing.T) {
 					},
 				},
 			},
-			r: Document{
+			r: Metadata{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -70,7 +70,7 @@ func TestDocumentMatcher(t *testing.T) {
 		},
 		{
 			name: "documents with the same fields in different order are unequal",
-			l: Document{
+			l: Metadata{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -83,7 +83,7 @@ func TestDocumentMatcher(t *testing.T) {
 					},
 				},
 			},
-			r: Document{
+			r: Metadata{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -100,7 +100,7 @@ func TestDocumentMatcher(t *testing.T) {
 		},
 		{
 			name: "documents with different fields are unequal",
-			l: Document{
+			l: Metadata{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -113,7 +113,7 @@ func TestDocumentMatcher(t *testing.T) {
 					},
 				},
 			},
-			r: Document{
+			r: Metadata{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -130,7 +130,7 @@ func TestDocumentMatcher(t *testing.T) {
 		},
 		{
 			name: "documents with different IDs are unequal",
-			l: Document{
+			l: Metadata{
 				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
@@ -139,7 +139,7 @@ func TestDocumentMatcher(t *testing.T) {
 					},
 				},
 			},
-			r: Document{
+			r: Metadata{
 				ID: []byte("080292"),
 				Fields: []Field{
 					Field{

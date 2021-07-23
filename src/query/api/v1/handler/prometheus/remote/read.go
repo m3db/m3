@@ -32,10 +32,10 @@ import (
 	"time"
 
 	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
@@ -58,13 +59,11 @@ import (
 
 const (
 	// PromReadURL is the url for remote prom read handler
-	PromReadURL = handler.RoutePrefixV1 + "/prom/remote/read"
+	PromReadURL = route.Prefix + "/prom/remote/read"
 )
 
-var (
-	// PromReadHTTPMethods are the HTTP methods used with this resource.
-	PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
-)
+// PromReadHTTPMethods are the HTTP methods used with this resource.
+var PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
 
 // promReadHandler is a handler for the prometheus remote read endpoint.
 type promReadHandler struct {
@@ -101,15 +100,22 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	}
 }
 
+func (m *promReadMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.fetchErrorsClient.Inc(1)
+	} else {
+		m.fetchErrorsServer.Inc(1)
+	}
+}
+
 func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
 
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
-	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
+	logger := logging.WithContext(r.Context(), h.opts.InstrumentOpts())
+	ctx, req, fetchOpts, rErr := ParseRequest(r.Context(), r, h.opts)
 	if rErr != nil {
-		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		h.promReadMetrics.incError(rErr)
 		logger.Error("remote read query parse error",
 			zap.Error(rErr),
 			zap.Any("req", req),
@@ -118,11 +124,22 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
-	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
+	readResult, err := Read(ctx, req, fetchOpts, h.opts)
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		h.promReadMetrics.incError(err)
 		logger.Error("remote read query error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Any("fetchOpts", fetchOpts))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	// Write headers before response.
+	err = handleroptions.AddDBResultResponseHeaders(w, readResult.Meta, fetchOpts)
+	if err != nil {
+		h.promReadMetrics.incError(err)
+		logger.Error("remote read query write response header error",
 			zap.Error(err),
 			zap.Any("req", req),
 			zap.Any("fetchOpts", fetchOpts))
@@ -174,15 +191,13 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-		handleroptions.AddWarningHeaders(w, readResult.Meta)
-
 		err = json.NewEncoder(w).Encode(result)
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
 	}
 
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		h.promReadMetrics.incError(err)
 	} else {
 		h.promReadMetrics.fetchSuccess.Inc(1)
 	}
@@ -228,7 +243,6 @@ func WriteSnappyCompressed(
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 	w.Header().Set("Content-Encoding", "snappy")
-	handleroptions.AddWarningHeaders(w, readResult.Meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
@@ -306,8 +320,8 @@ func parseExpr(
 	var vectorsInspected []*promql.VectorSelector
 	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
 		var (
-			start         = queryStart
-			end           = queryEnd
+			start         = xtime.ToUnixNano(queryStart)
+			end           = xtime.ToUnixNano(queryEnd)
 			offset        time.Duration
 			labelMatchers []*labels.Matcher
 		)
@@ -329,7 +343,7 @@ func parseExpr(
 
 			vectorsInspected = append(vectorsInspected, vectorSelector)
 
-			offset = vectorSelector.Offset
+			offset = vectorSelector.OriginalOffset
 			labelMatchers = vectorSelector.LabelMatchers
 		} else if n, ok := node.(*promql.VectorSelector); ok {
 			// Check already inspected (matrix can be walked further into
@@ -342,7 +356,7 @@ func parseExpr(
 
 			vectorsInspected = append(vectorsInspected, n)
 
-			offset = n.Offset
+			offset = n.OriginalOffset
 			labelMatchers = n.LabelMatchers
 		} else {
 			return nil
@@ -376,20 +390,20 @@ func ParseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, error) {
-	req, fetchOpts, err := parseRequest(ctx, r, opts)
+) (context.Context, *prompb.ReadRequest, *storage.FetchOptions, error) {
+	ctx, req, fetchOpts, err := parseRequest(ctx, r, opts)
 	if err != nil {
 		// Always invalid request if parsing fails params.
-		return nil, nil, xerrors.NewInvalidParamsError(err)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	return req, fetchOpts, nil
+	return ctx, req, fetchOpts, nil
 }
 
 func parseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, error) {
+) (context.Context, *prompb.ReadRequest, *storage.FetchOptions, error) {
 	var (
 		req *prompb.ReadRequest
 		err error
@@ -401,28 +415,20 @@ func parseRequest(
 		req, err = parseCompressedRequest(r)
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	timeout := opts.TimeoutOpts().FetchTimeout
-	timeout, err = prometheus.ParseRequestTimeout(r, timeout)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	ctx, fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
 	if rErr != nil {
-		return nil, nil, rErr
+		return nil, nil, nil, rErr
 	}
 
-	fetchOpts.Timeout = timeout
-	return req, fetchOpts, nil
+	return ctx, req, fetchOpts, nil
 }
 
 // Read performs a remote read on the given engine.
 func Read(
 	ctx context.Context,
-	cancelWatcher handler.CancelWatcher,
 	r *prompb.ReadRequest,
 	fetchOpts *storage.FetchOptions,
 	opts options.HandlerOptions,
@@ -434,9 +440,13 @@ func Read(
 		meta         = block.NewResultMetadata()
 		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
-				LimitMaxTimeseries: fetchOpts.SeriesLimit,
-				LimitMaxDocs:       fetchOpts.DocsLimit,
-			}}
+				LimitMaxTimeseries:             fetchOpts.SeriesLimit,
+				LimitMaxDocs:                   fetchOpts.DocsLimit,
+				LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
+				LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
+				LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
+			},
+		}
 
 		engine = opts.Engine()
 
@@ -462,11 +472,6 @@ func Read(
 				multiErr = multiErr.Add(err)
 				mu.Unlock()
 				return
-			}
-
-			// Detect clients closing connections.
-			if cancelWatcher != nil {
-				cancelWatcher.WatchForCancel(ctx, cancel)
 			}
 
 			result, err := engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
@@ -561,7 +566,7 @@ func datapointsConvert(dps ts.Datapoints) comparator.Datapoints {
 	for _, dp := range dps.Datapoints() {
 		val := comparator.Datapoint{
 			Value:     comparator.Value(dp.Value),
-			Timestamp: dp.Timestamp,
+			Timestamp: dp.Timestamp.ToTime(),
 		}
 		datapoints = append(datapoints, val)
 	}

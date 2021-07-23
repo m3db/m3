@@ -37,7 +37,7 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -45,15 +45,15 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 		Add(time.Minute)
 
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	h3 := NewMockOnIndexSeries(ctrl)
-	h3.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h3.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h3.EXPECT().OnIndexFinalize(blockStart)
+	h3.EXPECT().OnIndexSuccess(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,

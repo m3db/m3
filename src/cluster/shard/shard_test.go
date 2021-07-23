@@ -22,7 +22,7 @@ package shard
 
 import (
 	"math"
-	"sort"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,16 +30,24 @@ import (
 )
 
 func TestShard(t *testing.T) {
-	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
+	s := NewShard(1).
+		SetState(Initializing).
+		SetSourceID("id").
+		SetCutoffNanos(1000).
+		SetCutoverNanos(100).
+		SetRedirectToShardID(uint32Ptr(5))
+
 	assert.Equal(t, uint32(1), s.ID())
 	assert.Equal(t, Initializing, s.State())
 	assert.Equal(t, "id", s.SourceID())
 	assert.Equal(t, int64(1000), s.CutoffNanos())
 	assert.Equal(t, int64(100), s.CutoverNanos())
+	assert.Equal(t, uint32(5), *s.RedirectToShardID())
 }
 
-func TestShardEqualts(t *testing.T) {
+func TestShardEquals(t *testing.T) {
 	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
+	assert.True(t, s.Equals(s))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000)))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoverNanos(100)))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetCutoffNanos(1000).SetCutoverNanos(100)))
@@ -48,11 +56,23 @@ func TestShardEqualts(t *testing.T) {
 	assert.False(t, s.Equals(NewShard(2).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)))
 }
 
+func TestShardEqualsWithRedirectShardID(t *testing.T) {
+	s := NewShard(1).SetRedirectToShardID(uint32Ptr(1))
+	assert.True(t, s.Equals(s))
+	assert.False(t, s.Equals(NewShard(1).SetRedirectToShardID(nil)))
+	assert.False(t, NewShard(1).SetRedirectToShardID(nil).Equals(s))
+	assert.False(t, s.Equals(NewShard(1).SetRedirectToShardID(uint32Ptr(0))))
+	assert.True(t, s.Equals(NewShard(1).SetRedirectToShardID(uint32Ptr(1))))
+}
+
 func TestShards(t *testing.T) {
+	redirectToShardID := new(uint32)
+	*redirectToShardID = 9
+
 	shards := NewShards(nil)
 	assert.Equal(t, 0, shards.NumShards())
 
-	s1 := NewShard(1).SetState(Initializing).SetSourceID("id")
+	s1 := NewShard(1).SetState(Initializing).SetSourceID("id").SetRedirectToShardID(redirectToShardID)
 	shards.Add(s1)
 	assert.Equal(t, 1, shards.NumShards())
 	assert.Equal(t, 1, shards.NumShardsForState(Initializing))
@@ -86,7 +106,12 @@ func TestShards(t *testing.T) {
 	assert.Equal(t, 2, shards.NumShards())
 
 	shards.Add(NewShard(3).SetState(Leaving))
-	assert.Equal(t, "[Initializing=[1], Available=[2], Leaving=[3]]", shards.String())
+	assert.Equal(t, "[Initializing=[1 -> 9], Available=[2], Leaving=[3]]", shards.String())
+
+	shards.Add(NewShard(4))
+	shards.Add(NewShard(4))
+	shards.Add(NewShard(4))
+	assert.Equal(t, 4, shards.NumShards())
 }
 
 func TestShardsEquals(t *testing.T) {
@@ -110,11 +135,9 @@ func TestSort(t *testing.T) {
 	shards = append(shards, NewShard(1))
 	shards = append(shards, NewShard(2))
 	shards = append(shards, NewShard(0))
-	sortable := SortableShardsByIDAsc(shards)
-	sort.Sort(sortable)
-	for i := range shards {
-		assert.Equal(t, uint32(i), shards[i].ID())
-	}
+	shards = append(shards, NewShard(3))
+
+	shardsAreSorted(t, NewShards(shards))
 }
 
 func TestShardCutoverTimes(t *testing.T) {
@@ -208,4 +231,92 @@ func TestClone(t *testing.T) {
 
 	ss1.Add(NewShard(2).SetState(Leaving))
 	require.False(t, ss1.Equals(ss2))
+}
+
+func TestCloneCopiesToShardMap(t *testing.T) {
+	s := NewShard(1).SetState(Available)
+
+	ss := NewShards([]Shard{s})
+	clonedSS := ss.Clone()
+	require.True(t, ss.Equals(clonedSS))
+
+	s.SetState(Leaving)
+
+	clonedS, ok := clonedSS.Shard(1)
+	require.True(t, ok)
+	assert.Equal(t, Available, clonedS.State())
+}
+
+func TestShardAdd(t *testing.T) {
+	for i := 1; i < 500; i++ {
+		rndShards := makeTestShards(i)
+		shards := NewShards(nil)
+		for j := 0; j < len(rndShards); j++ {
+			id := rndShards[j].ID()
+			require.False(t, shards.Contains(id))
+
+			shards.Add(rndShards[j])
+			require.True(t, shards.Contains(id))
+
+			shrd, ok := shards.Shard(id)
+			require.True(t, ok)
+			require.Equal(t, id, shrd.ID())
+		}
+		shardsAreSorted(t, shards)
+	}
+}
+
+func TestShardRemove(t *testing.T) {
+	for i := 1; i < 500; i++ {
+		rndShards := makeTestShards(i)
+		shards := NewShards(rndShards)
+		for j := 0; j < len(rndShards); j++ {
+			id := rndShards[j].ID()
+			require.True(t, shards.Contains(id))
+			shards.Remove(id)
+			require.Equal(t, len(rndShards)-j-1, shards.NumShards())
+			require.False(t, shards.Contains(id))
+		}
+		shardsAreSorted(t, shards)
+	}
+}
+
+func randomIDs(seed int64, num int) []uint32 {
+	rnd := rand.New(rand.NewSource(seed)) // #nosec
+	ids := make([]uint32, num)
+
+	for i := uint32(0); i < uint32(num); i++ {
+		ids[i] = i
+	}
+
+	rnd.Shuffle(len(ids), func(i, j int) {
+		ids[i], ids[j] = ids[j], ids[i]
+	})
+	return ids
+}
+
+func makeTestShards(num int) []Shard {
+	shardIDs := randomIDs(0, num)
+	s := make([]Shard, num)
+	for i, shardID := range shardIDs {
+		s[i] = NewShard(shardID)
+	}
+	return s
+}
+
+func shardsAreSorted(t *testing.T, shards Shards) {
+	prev := -1
+	for _, shard := range shards.All() {
+		id := int(shard.ID())
+		if id <= prev {
+			t.Fatalf("expected id to be greater than %d, got %d", prev, id)
+		}
+		prev = id
+	}
+}
+
+func uint32Ptr(value uint32) *uint32 {
+	ptr := new(uint32)
+	*ptr = value
+	return ptr
 }

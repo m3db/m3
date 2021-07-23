@@ -33,19 +33,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -258,15 +257,16 @@ func TestDatabaseReadEncodedNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
+	now := xtime.Now()
 	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"),
-		ident.StringID("foo"), time.Now(), time.Now())
+		ident.StringID("foo"), now, now)
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
@@ -274,7 +274,7 @@ func TestDatabaseReadEncoded(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -284,7 +284,7 @@ func TestDatabaseReadEncoded(t *testing.T) {
 
 	ns := ident.StringID("testns1")
 	id := ident.StringID("bar")
-	end := time.Now()
+	end := xtime.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
@@ -299,7 +299,7 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -307,65 +307,15 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 		close(mapCh)
 	}()
 	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
-		index.Query{}, time.Now(), nil, index.IterationOptions{})
+		index.Query{}, xtime.Now(), nil, index.IterationOptions{})
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
-}
-
-func TestDatabaseIndexChecksum(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
-	defer func() {
-		close(mapCh)
-	}()
-
-	nsID := ident.StringID("testns1")
-	seriesID := ident.StringID("bar")
-	end := time.Now()
-	start := end.Add(-time.Hour)
-
-	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
-	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
-		Return(
-			xio.IndexChecksum{
-				ID:               ident.StringID("foo"),
-				MetadataChecksum: 5,
-			}, nil)
-	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
-		Return(indexChecksumWithID, nil)
-
-	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
-	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
-		Return(xio.IndexChecksum{MetadataChecksum: 7}, nil)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
-		Return(indexChecksumWithoutID, nil)
-	d.namespaces.Set(nsID, mockNamespace)
-
-	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
-	require.NoError(t, err)
-	checksum, err := res.RetrieveIndexChecksum()
-	require.NoError(t, err)
-	assert.Equal(t, "foo", checksum.ID.String())
-	assert.Equal(t, 5, int(checksum.MetadataChecksum))
-
-	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
-	checksum, err = res.RetrieveIndexChecksum()
-	require.NoError(t, err)
-	require.NoError(t, err)
-	assert.Nil(t, checksum.ID)
-	assert.Equal(t, 7, int(checksum.MetadataChecksum))
 }
 
 func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -373,8 +323,8 @@ func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
 		close(mapCh)
 	}()
 
-	now := time.Now()
-	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	now := xtime.Now()
+	starts := []xtime.UnixNano{now, now.Add(time.Second), now.Add(-time.Second)}
 	res, err := d.FetchBlocks(ctx, ident.StringID("non-existent-ns"), 0, ident.StringID("foo"), starts)
 	require.Nil(t, res)
 	require.True(t, xerrors.IsInvalidParams(err))
@@ -384,7 +334,7 @@ func TestDatabaseFetchBlocks(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -395,8 +345,8 @@ func TestDatabaseFetchBlocks(t *testing.T) {
 	ns := ident.StringID("testns1")
 	id := ident.StringID("bar")
 	shardID := uint32(0)
-	now := time.Now()
-	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	now := xtime.Now()
+	starts := []xtime.UnixNano{now, now.Add(time.Second), now.Add(-time.Second)}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(starts[0], nil, nil)}
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchBlocks(ctx, shardID, id, starts).Return(expected, nil)
@@ -488,6 +438,11 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	// Set a mock mediator to be certain that bootstrap is not called when
 	// no new shards are assigned.
 	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true)
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
+		fn()
+		return nil
+	})
 	d.mediator = mediator
 
 	var ns []*MockdatabaseNamespace
@@ -522,7 +477,14 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil)
+	mediator.EXPECT().IsOpen().Return(true)
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
+		fn()
+		return nil
+	})
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		return BootstrapResult{}, nil
+	})
 	d.mediator = mediator
 
 	assert.NoError(t, d.Bootstrap())
@@ -536,13 +498,41 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil).Do(func() {
+	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
+		asyncResult := newBootstrapAsyncResult()
+		asyncResult.bootstrapStarted = &wg
 		wg.Done()
+		return asyncResult
 	})
 
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
+}
+
+func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true)
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).Return(errors.New("unknown error"))
+	d.mediator = mediator
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		d.AssignShardSet(shardSet)
+	})
 }
 
 func TestDatabaseRemoveNamespace(t *testing.T) {
@@ -861,8 +851,9 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	require.NoError(t, d.Open())
 
 	var (
+		now         = xtime.Now()
 		namespace   = ident.StringID("testns")
-		ctx         = context.NewContext()
+		ctx         = context.NewBackground()
 		id          = ident.StringID("foo")
 		tagsIter    = ident.EmptyTagIterator
 		seriesWrite = SeriesWrite{
@@ -880,15 +871,15 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(seriesWrite, nil)
+		now, 1.0, xtime.Second, nil).Return(seriesWrite, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
-		id, tagsIter, time.Time{},
+		id, convert.NewTagsIterMetadataResolver(tagsIter), now,
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(SeriesWrite{}, fmt.Errorf("random err"))
+		now, 1.0, xtime.Second, nil).Return(SeriesWrite{}, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
-		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		ident.StringID("foo"), convert.EmptyTagMetadataResolver, now,
 		1.0, xtime.Second, nil))
 
 	var (
@@ -945,17 +936,17 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 type wideQueryTestFn func(
 	ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 	ns *MockdatabaseNamespace, d *db, q index.Query,
-	now time.Time, shards []uint32, iterOpts index.IterationOptions,
+	now xtime.UnixNano, shards []uint32, iterOpts index.IterationOptions,
 )
 
 func TestWideQuery(t *testing.T) {
 	readMismatchTest := func(
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
-		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		ns.EXPECT().FetchIndexChecksum(gomock.Any(),
-			ident.StringID("foo"), gomock.Any()).
-			Return(block.EmptyStreamedChecksum, nil)
+		now xtime.UnixNano, shards []uint32, iterOpts index.IterationOptions) {
+		ns.EXPECT().FetchWideEntry(gomock.Any(),
+			ident.StringID("foo"), gomock.Any(), nil).
+			Return(block.EmptyStreamedWideEntry, nil)
 
 		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 		require.NoError(t, err)
@@ -965,36 +956,8 @@ func TestWideQuery(t *testing.T) {
 	}
 
 	exSpans := []string{
-		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
 		tracepoint.DBWideQuery,
-		"root",
-	}
-
-	testWideFunction(t, readMismatchTest, exSpans)
-}
-
-func TestReadMismatches(t *testing.T) {
-	readMismatchTest := func(
-		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
-		ns *MockdatabaseNamespace, d *db, q index.Query,
-		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
-		ns.EXPECT().FetchReadMismatch(gomock.Any(), checker,
-			ident.StringID("foo"), gomock.Any()).
-			Return(wide.EmptyStreamedMismatch, nil)
-
-		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, shards, iterOpts)
-		require.NoError(t, err)
-
-		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, nil, iterOpts)
-		require.Error(t, err)
-	}
-
-	exSpans := []string{
-		tracepoint.DBFetchMismatch,
-		tracepoint.DBReadMismatches,
-		tracepoint.DBReadMismatches,
 		"root",
 	}
 
@@ -1017,7 +980,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
@@ -1028,10 +991,11 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 			Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
 		}
 
-		now      = time.Now()
+		now      = xtime.Now()
+		start    = now.Truncate(2 * time.Hour)
 		iterOpts = index.IterationOptions{}
 		wideOpts = index.WideQueryOptions{
-			StartInclusive:   now.Truncate(2 * time.Hour),
+			StartInclusive:   start,
 			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
 			IterationOptions: iterOpts,
 			BatchSize:        1024,
@@ -1053,7 +1017,11 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
 			assert.Equal(t, opts.ShardsQueried, shards)
 			go func() {
-				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
+				batch := &ident.IDBatch{
+					ShardIDs: []ident.ShardID{
+						{ID: ident.StringID("foo")},
+					},
+				}
 				batch.ReadyForProcessing()
 				collector <- batch
 				close(collector)
@@ -1064,7 +1032,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
 		Return(fmt.Errorf("random err"))
 
-	testFn(ctx, t, ctrl, ns, d, q, now, shards, iterOpts)
+	testFn(ctx, t, ctrl, ns, d, q, start, shards, iterOpts)
 	ns.EXPECT().Close().Return(nil)
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
 	d.commitLog = commitLog
@@ -1097,7 +1065,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteBatch(context.NewContext(), notExistNamespace, nil, nil)
+	err = d.WriteBatch(context.NewBackground(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -1120,7 +1088,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteTaggedBatch(context.NewContext(), notExistNamespace, nil, nil)
+	err = d.WriteTaggedBatch(context.NewBackground(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -1192,7 +1160,7 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	var (
 		namespace = ident.StringID("testns")
-		ctx       = context.NewContext()
+		ctx       = context.NewBackground()
 		tags      = ident.NewTags(ident.Tag{
 			Name:  ident.StringID("foo"),
 			Value: ident.StringID("bar"),
@@ -1215,44 +1183,44 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	testWrites := []struct {
 		series string
-		t      time.Time
+		t      xtime.UnixNano
 		v      float64
 		skip   bool
 		err    error
 	}{
 		{
 			series: "won't appear - always skipped",
-			t:      time.Time{}.Add(0 * time.Second),
+			t:      xtime.UnixNano(0 * time.Second),
 			skip:   true,
 			v:      0.0,
 		},
 		{
 			series: "foo",
-			t:      time.Time{}.Add(10 * time.Second),
+			t:      xtime.UnixNano(10 * time.Second),
 			skip:   skipAll,
 			v:      1.0,
 		},
 		{
 			series: "bar",
-			t:      time.Time{}.Add(20 * time.Second),
+			t:      xtime.UnixNano(20 * time.Second),
 			skip:   skipAll,
 			v:      2.0,
 		},
 		{
 			series: "baz",
-			t:      time.Time{}.Add(20 * time.Second),
+			t:      xtime.UnixNano(20 * time.Second),
 			skip:   skipAll,
 			v:      3.0,
 		},
 		{
 			series: "qux",
-			t:      time.Time{}.Add(30 * time.Second),
+			t:      xtime.UnixNano(30 * time.Second),
 			skip:   skipAll,
 			v:      4.0,
 		},
 		{
 			series: "won't appear - always skipped",
-			t:      time.Time{}.Add(40 * time.Second),
+			t:      xtime.UnixNano(40 * time.Second),
 			skip:   true,
 			v:      5.0,
 		},
@@ -1272,7 +1240,7 @@ func testDatabaseWriteBatch(t *testing.T,
 		// in the WriteBatch slice.
 		if tagged {
 			batchWriter.AddTagged(i*2, ident.StringID(write.series),
-				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
+				encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().
 				WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
@@ -1363,7 +1331,7 @@ func TestDatabaseFlushState(t *testing.T) {
 
 	var (
 		shardID            = uint32(0)
-		blockStart         = time.Now().Truncate(2 * time.Hour)
+		blockStart         = xtime.Now().Truncate(2 * time.Hour)
 		expectedFlushState = fileOpState{
 			ColdVersionRetrievable: 2,
 		}
@@ -1422,7 +1390,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 
 	var (
 		namespace    = ident.StringID("testns")
-		ctx          = context.NewContext()
+		ctx          = context.NewBackground()
 		seriesWrite1 = SeriesWrite{Series: ts.Series{UniqueIndex: 0}, WasWritten: true}
 		seriesWrite2 = SeriesWrite{Series: ts.Series{UniqueIndex: 1}, WasWritten: true}
 		seriesWrite3 = SeriesWrite{Series: ts.Series{UniqueIndex: 2}, WasWritten: false}
@@ -1505,8 +1473,11 @@ func TestDatabaseIsOverloaded(t *testing.T) {
 }
 
 func TestDatabaseAggregateTiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
@@ -1516,8 +1487,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
-		start      = time.Now().Truncate(time.Hour)
+		start      = xtime.Now().Truncate(time.Hour)
 	)
 
 	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNsID, d.opts.InstrumentOptions())
@@ -1526,7 +1496,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(sourceNs, opts).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
 	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)
@@ -1534,7 +1504,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 }
 
 func TestNewAggregateTilesOptions(t *testing.T) {
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	targetNs := ident.StringID("target")
 	insOpts := instrument.NewOptions()
 

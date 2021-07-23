@@ -574,6 +574,18 @@ func TestLRU_GetWithTTL_AllowEntrySpecificTTLs(t *testing.T) {
 	assert.Equal(t, 2, loadAttempts)
 }
 
+func TestLRU_GetWithTTL_DoubleGetNoExistingEntryNoLoader(t *testing.T) {
+	lru := NewLRU(nil)
+
+	_, err := lru.GetWithTTL(context.Background(), "foo", nil)
+	require.Error(t, err)
+	assert.Equal(t, err, ErrEntryNotFound)
+
+	_, err = lru.GetWithTTL(context.Background(), "foo", nil)
+	require.Error(t, err)
+	assert.Equal(t, err, ErrEntryNotFound)
+}
+
 func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
 	lru := NewLRU(nil)
 
@@ -582,6 +594,46 @@ func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
 	value, err := lru.GetWithTTL(context.Background(), "foo", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "bar", value.(string))
+}
+
+func TestLRU_GetNonExisting_FromFullCache_AfterDoublePut(t *testing.T) {
+	lru := NewLRU(&LRUOptions{MaxEntries: 2})
+
+	// Insert same key twice:
+	lru.Put("foo", "1")
+	lru.Put("foo", "1")
+
+	// Insert another key to make cache full:
+	lru.Put("bar", "2")
+
+	// Try to get entry that does not exist - this was getting LRU.reserveCapacity into
+	// an infinite loop because the second Put above was inserting a copy of the original entry
+	// into double-linked lists and mutating its state (loadTimeElt and accessTimeElt fields),
+	// making it's removal impossible:
+	_, err := lru.Get(context.Background(), "new", nil)
+	require.Error(t, err, ErrEntryNotFound.Error())
+}
+
+// TestLRU_TryGetExpired is a regression test for a bug that would create a loadingCh for expired entries in the cache,
+// even if the loader was nil.
+func TestLRU_TryGetExpired(t *testing.T) {
+	now := time.Now()
+	lru := NewLRU(&LRUOptions{MaxEntries: 2, TTL: time.Second, Now: func() time.Time {
+		return now
+	}})
+
+	// create an entry in the cache and expire it.
+	lru.Put("foo", "1")
+	now = now.Add(time.Second * 2)
+
+	// first load is not found since it's expired.
+	_, ok := lru.TryGet("foo")
+	require.False(t, ok)
+
+	// second load is still not found since it's expired. previously the bug would attempt to wait on the loadingCh
+	// and fail with a panic because the ctx is nil.
+	_, ok = lru.TryGet("foo")
+	require.False(t, ok)
 }
 
 var defaultKeys = []string{

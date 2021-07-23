@@ -22,9 +22,12 @@ package native
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io/ioutil"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -88,8 +91,9 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 		Metadata: meta,
 	}
 
-	fb := handleroptions.NewFetchOptionsBuilder(
-		handleroptions.FetchOptionsBuilderOptions{})
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: 15 * time.Second})
+	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb)
@@ -169,8 +173,9 @@ func TestMultiCompleteTags(t *testing.T) {
 		Metadata: barMeta,
 	}
 
-	fb := handleroptions.NewFetchOptionsBuilder(
-		handleroptions.FetchOptionsBuilderOptions{})
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: 15 * time.Second})
+	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb)
@@ -198,4 +203,81 @@ func TestMultiCompleteTags(t *testing.T) {
 
 	actual := w.Header().Get(headers.LimitHeader)
 	assert.Equal(t, "max_fetch_series_limit_applied,abc_def", actual)
+}
+
+//nolint:dupl
+func TestCompleteTagsKillOnTimeout(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	req := httptest.NewRequest("GET", "/search?query=foo", nil)
+	w := httptest.NewRecorder()
+	h := NewCompleteTagsHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 500, w.Code, "Status code not 500")
+	assert.Contains(t, w.Body.String(), "context deadline exceeded")
+}
+
+//nolint:dupl
+func TestCompleteTagsUseRequestContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("GET", "/search?query=foo", nil).WithContext(cancelledCtx)
+	w := httptest.NewRecorder()
+	h := NewCompleteTagsHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 500, w.Code, "Status code not 500")
+	assert.Contains(t, w.Body.String(), "context canceled")
+}
+
+func storageSetup(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	timeout time.Duration,
+	fn completeTagsFn,
+) options.HandlerOptions {
+	// Setup storage
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(fn)
+
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: timeout})
+	require.NoError(t, err)
+	return options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb)
+}
+
+type completeTagsFn func(
+	context.Context,
+	*storage.CompleteTagsQuery,
+	*storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error)
+
+func expectCancellation(
+	ctx context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil, ctx.Err()
+	}
+	return nil, nil
+}
+
+func expectTimeout(
+	ctx context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	<-ctx.Done()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, ctx.Err()
+	}
+	return nil, nil
 }

@@ -32,10 +32,10 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 
@@ -158,7 +158,7 @@ func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"namespace is not found\"}\n", string(body))
+	assert.JSONEq(t, `{"status":"error","error":"namespace is not found"}`, string(body))
 }
 
 func TestSchemaDeploy(t *testing.T) {
@@ -250,7 +250,7 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"namespace is not found\"}\n", string(body))
+	assert.JSONEq(t, `{"status":"error","error":"namespace is not found"}`, string(body))
 }
 
 func TestSchemaReset(t *testing.T) {

@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -41,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -81,27 +79,33 @@ type Query struct {
 // preferences on query execution.
 type QueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive	is the exclusive end for the query.
-	EndExclusive time.Time
+	EndExclusive xtime.UnixNano
 	// SeriesLimit is an optional limit for number of series matched.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is an optional limit for number of documents matched.
 	DocsLimit int
 	// RequireExhaustive requires queries to be under given limit sizes.
 	RequireExhaustive bool
+	// RequireNoWait requires queries to abort if execution must wait for permits.
+	RequireNoWait bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
+	// Source is an optional query source.
+	Source []byte
 }
 
 // WideQueryOptions enables users to specify constraints and
 // preferences on wide query execution.
 type WideQueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive is the exclusive end for the query.
-	EndExclusive time.Time
-	// BatchSize controls IndexChecksumQuery batch size.
+	EndExclusive xtime.UnixNano
+	// BatchSize controls wide query batch size.
 	BatchSize int
 	// ShardsQueried are the shards to query. These must be in ascending order.
 	// If empty, all shards are queried.
@@ -131,6 +135,8 @@ type QueryResult struct {
 	Results QueryResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // AggregateQueryResult is the collection of results for an aggregate query.
@@ -139,6 +145,8 @@ type AggregateQueryResult struct {
 	Results AggregateResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // BaseResults is a collection of basic results for a generic query, it is
@@ -157,22 +165,53 @@ type BaseResults interface {
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
+	// Finalize releases any resources held by the Results object,
+	// including returning it to a backing pool.
+	Finalize()
+}
+
+// DocumentResults is a collection of query results that allow accumulation of
+// document values, it is synchronized when access to the results set is used
+// as documented by the methods.
+type DocumentResults interface {
+	BaseResults
+
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
+}
 
-	// Finalize releases any resources held by the Results object,
-	// including returning it to a backing pool.
-	Finalize()
+// ResultDurations holds various timing information for a query result.
+type ResultDurations struct {
+	// Processing is the total time to a process.
+	Processing time.Duration
+	// Search is the time spent searching the index.
+	Search time.Duration
+}
+
+// AddProcessing adds the provided duration to the Processing duration.
+func (r ResultDurations) AddProcessing(duration time.Duration) ResultDurations {
+	return ResultDurations{
+		Processing: r.Processing + duration,
+		Search:     r.Search,
+	}
+}
+
+// AddSearch adds the provided duration to the Search duration.
+func (r ResultDurations) AddSearch(duration time.Duration) ResultDurations {
+	return ResultDurations{
+		Processing: r.Processing,
+		Search:     r.Search + duration,
+	}
 }
 
 // QueryResults is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
 type QueryResults interface {
-	BaseResults
+	DocumentResults
 
 	// Reset resets the Results object to initial state.
 	Reset(nsID ident.ID, opts QueryResultsOptions)
@@ -257,6 +296,9 @@ type AggregateResultsOptions struct {
 	// overflown will return early successfully.
 	SizeLimit int
 
+	// DocsLimit limits the amount of documents
+	DocsLimit int
+
 	// Type determines what result is required.
 	Type AggregationType
 
@@ -266,6 +308,24 @@ type AggregateResultsOptions struct {
 	// RestrictByQuery is a query to restrict the set of documents that must
 	// be present for an aggregated term to be returned.
 	RestrictByQuery *Query
+
+	// AggregateUsageMetrics are aggregate usage metrics that track field
+	// and term counts for aggregate queries.
+	AggregateUsageMetrics AggregateUsageMetrics
+}
+
+// AggregateUsageMetrics are metrics for aggregate query usage.
+type AggregateUsageMetrics interface {
+	// IncTotal increments the total metric count.
+	IncTotal(val int64)
+	// IncTotalTerms increments the totalTerms metric count.
+	IncTotalTerms(val int64)
+	// IncDedupedTerms increments the dedupedTerms metric count.
+	IncDedupedTerms(val int64)
+	// IncTotalFields increments the totalFields metric count.
+	IncTotalFields(val int64)
+	// IncDedupedFields increments the dedupedFields metric count.
+	IncDedupedFields(val int64)
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
@@ -341,34 +401,39 @@ type OnIndexSeries interface {
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
 	// StartTime returns the start time of the period this Block indexes.
-	StartTime() time.Time
+	StartTime() xtime.UnixNano
 
 	// EndTime returns the end time of the period this Block indexes.
-	EndTime() time.Time
+	EndTime() xtime.UnixNano
 
 	// WriteBatch writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
-	// Query resolves the given query into known IDs.
-	Query(
+	// QueryWithIter processes n docs from the iterator into known IDs.
+	QueryWithIter(
 		ctx context.Context,
-		cancellable *resource.CancellableLifetime,
-		query Query,
 		opts QueryOptions,
-		results BaseResults,
+		iter QueryIterator,
+		results DocumentResults,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
-	) (bool, error)
+	) error
 
-	// Aggregate aggregates known tag names/values.
-	// NB(prateek): different from aggregating by means of Query, as we can
-	// avoid going to documents, relying purely on the indexed FSTs.
-	Aggregate(
+	// QueryIter returns a new QueryIterator for the query.
+	QueryIter(ctx context.Context, query Query) (QueryIterator, error)
+
+	// AggregateWithIter aggregates N known tag names/values from the iterator.
+	AggregateWithIter(
 		ctx context.Context,
-		cancellable *resource.CancellableLifetime,
+		iter AggregateIterator,
 		opts QueryOptions,
 		results AggregateResults,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
-	) (bool, error)
+	) error
+
+	// AggregateIter returns a new AggregatorIterator.
+	AggregateIter(ctx context.Context, aggOpts AggregateResultsOptions) (AggregateIterator, error)
 
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
@@ -510,7 +575,7 @@ type WriteBatch struct {
 	sortBy writeBatchSortBy
 
 	entries []WriteBatchEntry
-	docs    []doc.Document
+	docs    []doc.Metadata
 }
 
 type writeBatchSortBy uint
@@ -531,14 +596,14 @@ func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
 	return &WriteBatch{
 		opts:    opts,
 		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
-		docs:    make([]doc.Document, 0, opts.InitialCapacity),
+		docs:    make([]doc.Metadata, 0, opts.InitialCapacity),
 	}
 }
 
 // Append appends an entry with accompanying document.
 func (b *WriteBatch) Append(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 ) {
 	// Append just using the result from the current entry
 	b.appendWithResult(entry, doc, &entry.resultVal)
@@ -560,7 +625,7 @@ func (b *WriteBatch) AppendAll(from *WriteBatch) {
 
 func (b *WriteBatch) appendWithResult(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result *WriteBatchEntryResult,
 ) {
 	// Set private WriteBatchEntry fields
@@ -577,7 +642,7 @@ func (b *WriteBatch) appendWithResult(
 type ForEachWriteBatchEntryFn func(
 	idx int,
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result WriteBatchEntryResult,
 )
 
@@ -592,7 +657,7 @@ func (b *WriteBatch) ForEach(fn ForEachWriteBatchEntryFn) {
 // reference to a restricted set of the write batch for each unique block
 // start.
 type ForEachWriteBatchByBlockStartFn func(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	batch *WriteBatch,
 )
 
@@ -631,14 +696,14 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
 			if len(b.entries) != 0 {
-				fn(lastBlockStart.ToTime(), b)
+				fn(lastBlockStart, b)
 			}
 			return
 		}
 
 		blockStart := allEntries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
-			prevLastBlockStart := lastBlockStart.ToTime()
+			prevLastBlockStart := lastBlockStart
 			lastBlockStart = blockStart
 			// We only want to call the the ForEachUnmarkedBatchByBlockStart once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given blockStart, but the first element
@@ -659,7 +724,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	if startIdx < len(allEntries) {
 		b.entries = allEntries[startIdx:]
 		b.docs = allDocs[startIdx:]
-		fn(lastBlockStart.ToTime(), b)
+		fn(lastBlockStart, b)
 	}
 }
 
@@ -675,7 +740,7 @@ func (b *WriteBatch) numPending() int {
 }
 
 // PendingDocs returns all the docs in this batch that are unmarked.
-func (b *WriteBatch) PendingDocs() []doc.Document {
+func (b *WriteBatch) PendingDocs() []doc.Metadata {
 	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
 	return b.docs[:b.numPending()]
 }
@@ -705,7 +770,7 @@ func (b *WriteBatch) Reset() {
 		b.entries[i] = entryZeroed
 	}
 	b.entries = b.entries[:0]
-	var docZeroed doc.Document
+	var docZeroed doc.Metadata
 	for i := range b.docs {
 		b.docs[i] = docZeroed
 	}
@@ -802,7 +867,7 @@ func (b *WriteBatch) Less(i, j int) bool {
 // being inserted.
 type WriteBatchEntry struct {
 	// Timestamp is the timestamp that this entry should be indexed for
-	Timestamp time.Time
+	Timestamp xtime.UnixNano
 	// OnIndexSeries is a listener/callback for when this entry is marked done
 	// it is set to nil when the entry is marked done
 	OnIndexSeries OnIndexSeries
@@ -831,12 +896,54 @@ type WriteBatchEntryResult struct {
 func (e WriteBatchEntry) indexBlockStart(
 	indexBlockSize time.Duration,
 ) xtime.UnixNano {
-	return xtime.ToUnixNano(e.Timestamp.Truncate(indexBlockSize))
+	return e.Timestamp.Truncate(indexBlockSize)
 }
 
 // Result returns the result for this entry.
 func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return *e.result
+}
+
+// QueryIterator iterates through the documents for a block.
+type QueryIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() doc.Document
+}
+
+// AggregateIterator iterates through the (field,term)s for a block.
+type AggregateIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() (field, term []byte)
+
+	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+}
+
+// ResultIterator is a common interface for query and aggregate result iterators.
+type ResultIterator interface {
+	// Done returns true if there are no more elements in the iterator. Allows checking if the query should acquire
+	// a permit, which might block, before calling Next().
+	Done() bool
+
+	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
+	// Callers need to check Err after this returns false to check if an error occurred while iterating.
+	Next(ctx context.Context) bool
+
+	// Err returns an non-nil error if an error occurred calling Next.
+	Err() error
+
+	// Close the iterator.
+	Close() error
+
+	AddSeries(count int)
+
+	AddDocs(count int)
+
+	// Counts returns the number of series and documents processed by the iterator.
+	Counts() (series, docs int)
 }
 
 // fieldsAndTermsIterator iterates over all known fields and terms for a segment.
@@ -853,9 +960,6 @@ type fieldsAndTermsIterator interface {
 
 	// Close releases any resources held by the iterator.
 	Close() error
-
-	// Reset resets the iterator to the start iterating the given segment.
-	Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
 }
 
 // Options control the Indexing knobs.
@@ -934,6 +1038,12 @@ type Options interface {
 
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
+
+	// SetMetadataArrayPool sets the document container array pool.
+	SetMetadataArrayPool(value doc.MetadataArrayPool) Options
+
+	// MetadataArrayPool returns the document container array pool.
+	MetadataArrayPool() doc.MetadataArrayPool
 
 	// SetAggregateResultsEntryArrayPool sets the aggregate results entry array pool.
 	SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options

@@ -2,14 +2,14 @@
 
 set -xe
 
-TEST_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests
+TEST_PATH="$M3_PATH"/scripts/docker-integration-tests
 FANOUT_PATH=$TEST_PATH/query_fanout
 source $TEST_PATH/common.sh
 source $FANOUT_PATH/warning.sh
 source $FANOUT_PATH/restrict.sh
 
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
+COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/query_fanout/docker-compose.yml
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
@@ -28,13 +28,13 @@ function defer {
 }
 trap defer EXIT
 
-DBNODE_HOST=dbnode-cluster-a DBDNODE_PORT=9000 DBNODE_HEALTH_PORT=9002 COORDINATOR_PORT=7201 \
+AGG_RESOLUTION=5s DBNODE_HOST=dbnode-cluster-a DBDNODE_PORT=9000 DBNODE_HEALTH_PORT=9002 COORDINATOR_PORT=7201 \
  setup_single_m3db_node
 
-DBNODE_HOST=dbnode-cluster-b DBDNODE_PORT=19000 DBNODE_HEALTH_PORT=19002 COORDINATOR_PORT=17201 \
+AGG_RESOLUTION=5s DBNODE_HOST=dbnode-cluster-b DBDNODE_PORT=19000 DBNODE_HEALTH_PORT=19002 COORDINATOR_PORT=17201 \
  setup_single_m3db_node
 
-DBNODE_HOST=dbnode-cluster-c DBDNODE_PORT=29000 DBNODE_HEALTH_PORT=29002 COORDINATOR_PORT=27201 \
+AGG_RESOLUTION=5s DBNODE_HOST=dbnode-cluster-c DBDNODE_PORT=29000 DBNODE_HEALTH_PORT=29002 COORDINATOR_PORT=27201 \
  setup_single_m3db_node
 
 echo "Write data to cluster a"

@@ -36,7 +36,7 @@ var (
 
 // Batch represents a batch of documents that should be inserted into the index.
 type Batch struct {
-	Docs []doc.Document
+	Docs []doc.Metadata
 
 	// If AllowPartialUpdates is true the index will continue to index documents in the batch
 	// even if it encounters an error attempting to index a previous document in the batch.
@@ -67,7 +67,7 @@ func AllowPartialUpdates() BatchOption {
 }
 
 // NewBatch returns a Batch of documents.
-func NewBatch(docs []doc.Document, opts ...BatchOption) Batch {
+func NewBatch(docs []doc.Metadata, opts ...BatchOption) Batch {
 	b := Batch{Docs: docs}
 
 	for _, opt := range opts {

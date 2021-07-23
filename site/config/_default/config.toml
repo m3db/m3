@@ -1,0 +1,218 @@
+# Change the default theme to be use when building the site with Hugo
+[module]
+
+  [[module.imports]]
+    path = "github.com/chronosphereio/victor"
+    
+  [[module.mounts]]
+    source = "content"
+    target = "content/docs"
+
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+
+  [[module.mounts]]
+    source = "data"
+    target = "data"
+
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+
+  [[module.mounts]]
+    source = "i18n"
+    target = "i18n"
+
+  [[module.mounts]]
+    source = "archetypes"
+    target = "archetypes"
+
+ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
+metaDataFormat = "yaml"
+# theme = "docs-theme"
+# baseURL = "/"
+languageCode = "en-US"
+defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = true
+# staticDir = ["static"]
+# defaultContentLanguageInSubdir= true
+
+[languages]
+[languages.en]
+title = "M3 Documentation"
+description = "M3 is a Prometheus compatible, easy to adopt metrics engine that provides visibility for some of the world’s largest brands."
+languageName ="English"
+# Weight used for sorting.
+weight = 1
+languagedirection = "ltr"
+
+# Highlighting config.
+pygmentsCodeFences = true
+pygmentsUseClasses = false
+# Use the new Chroma Go highlighter in Hugo.
+pygmentsUseClassic = false
+#pygmentsOptions = "linenos=table"
+# See https://help.farbox.com/pygments.html
+# pygmentsStyle = "vs"
+# enableGitInfo = true
+
+[permalinks]
+  "/" = "/docs/:section/:filename/"
+  "faqs" = "/docs/:section/:filename/"
+  "glossaries" = "/docs/:section/:filename/"
+  "how_tos" = "/docs/:section/:filename/"
+  "integrations" = "/docs/:section/:filename/"
+  "m3coordinators" = "/docs/:section/:filename/"
+  "m3dbs" = "/docs/:section/:filename/"
+  "m3querys" = "/docs/:section/:filename/"
+  "operational_guides" = "/docs/:section/:filename/"
+  "overviews" = "/docs/:section/:filename/"
+  "quickstarts" = "/docs/:section/:filename/"
+  "troubleshootings" = "/docs/:section/:filename/"
+
+[frontmatter]
+# date = ["date", ":filename", "publishDate", "lastmod"]
+
+# Image processing configuration.
+[imaging]
+resampleFilter = "CatmullRom"
+quality = 75
+anchor = "smart"
+
+[services]
+[services.googleAnalytics]
+# Comment out the next line to disable GA tracking. Also disables the feature described in [params.ui.feedback].
+# id = "UA-00000000-0"
+
+#fullversion = "v1.18.0"
+#version = "v1.18"
+githubbranch = "master"
+docsbranch = "master"
+deprecated = false
+#currentUrl = "https://kubernetes.io/home/"
+#nextUrl = "https://kubernetes-io-vnext-staging.netlify.com/"
+githubWebsiteRepo = "https://github.com/m3db/m3"
+githubWebsiteRaw = "raw.githubusercontent.com/m3db/m3"
+
+# Enable Algolia DocSearch
+# algolia_docsearch = false
+
+# Enable Lunr.js offline search
+offlineSearch = false
+
+[params]
+  title = "M3 Documentation"
+  # Prefix URL to edit current page. Will display an "Edit this page" button on top right hand corner of every page. 
+  # Useful to give opportunity to people to create merge request for your doc.
+  # See the config.toml file from this documentation site to have an example.
+
+  helpBlock = true
+  editURL = "https://github.com/m3db/m3/blob/master/site/content/"
+
+  # Author of the site, will be used in meta information
+  author = "The M3 team and community"
+  # Description of the site, will be used in meta information
+  description = "M3 is a Prometheus compatible, easy to adopt metrics engine that provides visibility for some of the world’s largest brands."
+  # Shows a checkmark for visited pages on the menu
+  showVisitedLinks = false
+  # Disable search function. It will hide search bar
+  disableSearch = false
+  # Javascript and CSS cache are automatically busted when new version of site is generated. 
+  # Set this to true to disable this behavior (some proxies don't handle well this optimization)
+  disableAssetsBusting = false
+  # Set this to true to disable copy-to-clipboard button for inline code.
+  disableInlineCopyToClipBoard = true
+  # A title for shortcuts in menu is set by default. Set this to true to disable it. 
+  disableShortcutsTitle = false
+  # When using mulitlingual website, disable the switch language button.
+  disableLanguageSwitchingButton = false
+  # Hide breadcrumbs in the header and only show the current page title
+  disableBreadcrumb = true
+  # Hide Next and Previous page buttons normally displayed full height beside content
+  disableNextPrev = true
+  # Order sections in menu by "weight" or "title". Default to "weight"
+  ordersectionsby = "weight"
+  # Change default color scheme with a variant one. Can be "red", "blue", "green".
+  # TODO: Bring back?
+  # themeVariant = "blue"
+  twitter = "m3db_io"
+  disableHomeIcon = true
+  gettingStartedLink = "/docs/quickstart/docker"
+  version_menu = "Versions"
+
+  [params.api]
+    localCordinator = "http://localhost:7201/"
+    apiEndpoint = "api/v1/"
+# TODO: Can all the below be consolidated?
+  [[params.versions]]
+    version = "1.1"
+    url = "/docs"
+  [[params.versions]]
+    version = "1.0"
+    url = "/v1.0/docs"
+  [params.releases]
+    docker = "v1.1.0"
+
+# TODO: Do not like doing this really
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+    [markup.goldmark.parser]
+      attribute = true
+      autoHeadingID = true
+      autoHeadingIDType = "github"
+    [markup.tableOfContents]
+      endLevel = 3
+      ordered = false
+      startLevel = 2
+    [markup.goldmark.extensions]
+      definitionList = true
+      footnote = true
+      linkify = true
+      strikethrough = true
+      table = true
+      taskList = true
+      typographer = true
+
+[[menu.socials]]
+name = "/images/slack_logo-light.svg"
+identifier = "ms"
+url = "https://bit.ly/m3slack"
+weight = 10
+
+[[menu.socials]]
+name = "/images/github_logo-light.svg"
+url = "https://github.com/m3db/m3"
+weight = 11
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-code'></i> <label>API spec</label>"
+url = "/openapi"
+weight = 9
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-github'></i> <label>Github repo</label>"
+url = "https://github.com/m3db/m3"
+weight = 10
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-slack'></i> <label>Slack</label>"
+url = "https://bit.ly/m3slack"
+weight = 11
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-inbox'></i> <label>Mailing list</label>"
+url = "https://groups.google.com/forum/#!forum/m3db"
+weight = 12
+
+[outputs]
+home = [ "HTML", "RSS", "JSON"]
+page = [ "HTML"]
+section = [ "HTML"]
+chapter = [ "HTML"]

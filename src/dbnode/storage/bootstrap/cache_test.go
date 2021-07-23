@@ -34,13 +34,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	testBlockSize             = 2 * time.Hour
-	testStart                 = time.Now().Truncate(testBlockSize)
+	testStart                 = xtime.Now().Truncate(testBlockSize)
 	testNamespaceIndexOptions = namespace.NewIndexOptions()
 	testNamespaceOptions      = namespace.NewOptions()
 	testRetentionOptions      = retention.NewOptions()
@@ -156,7 +157,7 @@ type testSeries struct {
 
 func writeFilesets(t *testing.T, namespace ident.ID, shard uint32, fsOpts fs.Options) {
 	inputs := []struct {
-		start time.Time
+		start xtime.UnixNano
 		id    string
 		tags  map[string]string
 		data  []byte
@@ -176,7 +177,7 @@ func writeTSDBFiles(
 	t require.TestingT,
 	namespace ident.ID,
 	shard uint32,
-	start time.Time,
+	start xtime.UnixNano,
 	series []testSeries,
 	opts fs.Options,
 ) {

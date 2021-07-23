@@ -117,11 +117,6 @@ data:
   m3dbnode.yml: |+
     coordinator:
       listenAddress: 0.0.0.0:7201
-      local:
-        namespaces:
-            - namespace: default
-              type: unaggregated
-              retention: 48h
       logging:
         level: info
       metrics:
@@ -175,18 +170,19 @@ data:
       filesystem:
         filePathPrefix: /var/lib/m3db
 
-      config:
-        service:
-            env: default_env
-            zone: embedded
-            service: m3db
-            cacheDir: /var/lib/m3kv
-            etcdClusters:
-            - zone: embedded
-              endpoints:
-              - http://etcd-0.etcd:2379
-              - http://etcd-1.etcd:2379
-              - http://etcd-2.etcd:2379
+      discovery:
+        config:
+          service:
+              env: default_env
+              zone: embedded
+              service: m3db
+              cacheDir: /var/lib/m3kv
+              etcdClusters:
+              - zone: embedded
+                endpoints:
+                - http://etcd-0.etcd:2379
+                - http://etcd-1.etcd:2379
+                - http://etcd-2.etcd:2379
 ---
 # Headless service for the statefulset
 apiVersion: v1

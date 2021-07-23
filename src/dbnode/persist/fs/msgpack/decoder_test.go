@@ -269,7 +269,7 @@ func TestDecodeBytesAllocNew(t *testing.T) {
 	require.Equal(t, []byte("testIndexEntry"), res.ID)
 }
 
-func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
+func TestDecodeIndexEntryInvalidWideEntry(t *testing.T) {
 	var (
 		enc = NewEncoder()
 		dec = NewDecoder(nil)
@@ -299,9 +299,9 @@ func TestDecodeIndexEntryIncompleteFile(t *testing.T) {
 	require.EqualError(t, err, "decode index entry encountered error: EOF")
 }
 
-var decodeIndexChecksumTests = []struct {
+var decodeWideEntryTests = []struct {
 	id         string
-	exStatus   IndexChecksumLookupStatus
+	exStatus   WideEntryLookupStatus
 	exChecksum int64
 }{
 	{id: "aaa", exStatus: NotFoundLookupStatus},
@@ -309,19 +309,19 @@ var decodeIndexChecksumTests = []struct {
 	{id: "zzz", exStatus: MismatchLookupStatus},
 }
 
-func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
+func TestDecodeToWideEntry(t *testing.T) {
 	var (
 		enc = NewEncoder()
 		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
-	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry))
+	require.NoError(t, enc.EncodeIndexEntry(testWideEntry.IndexEntry))
 	data := enc.Bytes()
 
-	for _, tt := range decodeIndexChecksumTests {
+	for _, tt := range decodeWideEntryTests {
 		t.Run(tt.id, func(t *testing.T) {
 			dec.Reset(NewByteDecoderStream(data))
-			res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte(tt.id), nil)
+			res, status, err := dec.DecodeToWideEntry([]byte(tt.id), nil)
 			require.NoError(t, err)
 			require.Equal(t, tt.exStatus, status)
 			if tt.exStatus == MatchedLookupStatus {
@@ -331,7 +331,7 @@ func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
 	}
 }
 
-func TestDecodeIndexEntryToIndexChecksumPooled(t *testing.T) {
+func TestDecodeToWideEntryPooled(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -340,19 +340,19 @@ func TestDecodeIndexEntryToIndexChecksumPooled(t *testing.T) {
 		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
-	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry))
+	require.NoError(t, enc.EncodeIndexEntry(testWideEntry.IndexEntry))
 	data := enc.Bytes()
 
-	for _, tt := range decodeIndexChecksumTests {
+	for _, tt := range decodeWideEntryTests {
 		t.Run(tt.id+"_pooled", func(t *testing.T) {
 			dec.Reset(NewByteDecoderStream(data))
 
 			bytePool := pool.NewMockBytesPool(ctrl)
-			idLength := len(testIndexCheksumEntry.ID)
+			idLength := len(testWideEntry.ID)
 			idBytes := make([]byte, idLength)
 			bytePool.EXPECT().Get(idLength).Return(idBytes)
 
-			tagLength := len(testIndexCheksumEntry.EncodedTags)
+			tagLength := len(testWideEntry.EncodedTags)
 			tagBytes := make([]byte, tagLength)
 			bytePool.EXPECT().Get(tagLength).Return(tagBytes)
 
@@ -361,7 +361,7 @@ func TestDecodeIndexEntryToIndexChecksumPooled(t *testing.T) {
 				bytePool.EXPECT().Put(tagBytes)
 			}
 
-			res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte(tt.id), bytePool)
+			res, status, err := dec.DecodeToWideEntry([]byte(tt.id), bytePool)
 			require.NoError(t, err)
 			require.Equal(t, tt.exStatus, status)
 			if tt.exStatus == MatchedLookupStatus {

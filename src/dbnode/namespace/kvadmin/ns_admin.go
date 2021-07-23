@@ -24,17 +24,18 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/satori/go.uuid"
 )
 
 var (
-	ErrNotImplemented    = errors.New("api not implemented")
+	// ErrNamespaceNotFound is returned when namespace is not found in registry.
 	ErrNamespaceNotFound = errors.New("namespace is not found")
+	// ErrNamespaceAlreadyExist is returned for addition of a namespace which already exists.
 	ErrNamespaceAlreadyExist = errors.New("namespace already exists")
 )
 
@@ -52,7 +53,7 @@ const (
 func NewAdminService(store kv.Store, key string, idGen func() string) NamespaceMetadataAdminService {
 	if idGen == nil {
 		idGen = func() string {
-			return uuid.NewV4().String()
+			return uuid.New()
 		}
 	}
 	if len(key) == 0 {
@@ -154,8 +155,58 @@ func (as *adminService) Set(name string, options *nsproto.NamespaceOptions) erro
 }
 
 func (as *adminService) Delete(name string) error {
-	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
-	return ErrNotImplemented
+	currentRegistry, currentVersion, err := as.currentRegistry()
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to load current namespace metadatas for %s", as.key)
+	}
+
+	nsMap, err := namespace.FromProto(*currentRegistry)
+	if err != nil {
+		return xerrors.Wrap(err, "failed to unmarshal namespace registry")
+	}
+
+	metadatas := nsMap.Metadatas()
+	mdIdx := -1
+	for idx, md := range nsMap.Metadatas() {
+		if md.ID().String() == name {
+			mdIdx = idx
+
+			break
+		}
+	}
+
+	if mdIdx == -1 {
+		return ErrNamespaceNotFound
+	}
+
+	if len(metadatas) == 1 {
+		if _, err := as.store.Delete(as.key); err != nil {
+			return xerrors.Wrap(err, "failed to delete kv key")
+		}
+
+		return nil
+	}
+
+	// Replace the index where we found the metadata with the last element, then truncate
+	metadatas[mdIdx] = metadatas[len(metadatas)-1]
+	metadatas = metadatas[:len(metadatas)-1]
+
+	newMap, err := namespace.NewMap(metadatas)
+	if err != nil {
+		return xerrors.Wrap(err, "namespace map construction failed")
+	}
+
+	protoMap, err := namespace.ToProto(newMap)
+	if err != nil {
+		return xerrors.Wrap(err, "namespace registry proto conversion failed")
+	}
+
+	_, err = as.store.CheckAndSet(as.key, currentVersion, protoMap)
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to delete namespace %v", name)
+	}
+
+	return nil
 }
 
 func (as *adminService) ResetSchema(name string) error {
@@ -238,7 +289,6 @@ func (as *adminService) currentRegistry() (*nsproto.Registry, int, error) {
 
 	return &protoRegistry, value.Version(), nil
 }
-
 
 func LoadSchemaRegistryFromKVStore(schemaReg namespace.SchemaRegistry, kvStore kv.Store) error {
 	if kvStore == nil {

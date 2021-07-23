@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -49,10 +50,8 @@ const (
 	CheckpointFileSizeBytes = 4
 )
 
-var (
-	errWriterEncodeTagsDataNotAccessible = errors.New(
-		"failed to encode tags: cannot get data")
-)
+var errWriterEncodeTagsDataNotAccessible = errors.New(
+	"failed to encode tags: cannot get data")
 
 type writer struct {
 	blockSize        time.Duration
@@ -74,9 +73,9 @@ type writer struct {
 	checkpointFilePath         string
 	indexEntries               indexEntries
 
-	start        time.Time
+	start        xtime.UnixNano
 	volumeIndex  int
-	snapshotTime time.Time
+	snapshotTime xtime.UnixNano
 	snapshotID   uuid.UUID
 
 	currIdx            int64
@@ -477,10 +476,10 @@ func (w *writer) writeIndexFileContents(
 	sort.Sort(w.indexEntries)
 
 	var (
-		offset        int64
-		prevID        []byte
-		tagsReuseable = w.tagsIterator
-		tagsEncoder   = w.tagEncoderPool.Get()
+		offset       int64
+		prevID       []byte
+		tagsReusable = w.tagsIterator
+		tagsEncoder  = w.tagEncoderPool.Get()
 	)
 	defer tagsEncoder.Finalize()
 	for i, entry := range w.indexEntries {
@@ -492,7 +491,7 @@ func (w *writer) writeIndexFileContents(
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
 
-		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReuseable)
+		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReusable)
 		if err != nil {
 			return err
 		}
@@ -629,9 +628,9 @@ func (w *writer) writeInfoFileContents(
 	}
 
 	info := schema.IndexInfo{
-		BlockStart:   xtime.ToNanoseconds(w.start),
+		BlockStart:   int64(w.start),
 		VolumeIndex:  w.volumeIndex,
-		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
+		SnapshotTime: int64(w.snapshotTime),
 		SnapshotID:   snapshotBytes,
 		BlockSize:    int64(w.blockSize),
 		Entries:      entriesCount,

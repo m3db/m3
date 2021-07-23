@@ -32,35 +32,35 @@ func NewCheckedBytesPool() pool.CheckedBytesPool {
 		SetRefillHighWatermark(0.07)
 
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
-		pool.Bucket{
+		{
 			Capacity: 16,
 			Count:    262144,
 		},
-		pool.Bucket{
+		{
 			Capacity: 32,
 			Count:    262144,
 		},
-		pool.Bucket{
+		{
 			Capacity: 64,
 			Count:    262144,
 		},
-		pool.Bucket{
+		{
 			Capacity: 128,
 			Count:    262144,
 		},
-		pool.Bucket{
+		{
 			Capacity: 256,
 			Count:    262144,
 		},
-		pool.Bucket{
+		{
 			Capacity: 1440,
 			Count:    262144,
 		},
-		pool.Bucket{
+		{
 			Capacity: 4096,
 			Count:    262144,
 		},
-		pool.Bucket{
+		{
 			Capacity: 8192,
 			Count:    65536,
 		},

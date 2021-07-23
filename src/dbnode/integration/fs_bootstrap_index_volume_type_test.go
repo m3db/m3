@@ -73,11 +73,11 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 		ID:   ident.StringID("foo"),
 		Tags: ident.NewTags(ident.StringTag("city", "new_york"), ident.StringTag("foo", "foo")),
 	}
-	fooDoc := doc.Document{
+	fooDoc := doc.Metadata{
 		ID: fooSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("new_york")},
-			doc.Field{Name: []byte("foo"), Value: []byte("foo")},
+			{Name: []byte("city"), Value: []byte("new_york")},
+			{Name: []byte("foo"), Value: []byte("foo")},
 		},
 	}
 
@@ -85,10 +85,10 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 		ID:   ident.StringID("bar"),
 		Tags: ident.NewTags(ident.StringTag("city", "new_jersey")),
 	}
-	barDoc := doc.Document{
+	barDoc := doc.Metadata{
 		ID: barSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("new_jersey")},
+			{Name: []byte("city"), Value: []byte("new_jersey")},
 		},
 	}
 
@@ -96,10 +96,10 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 		ID:   ident.StringID("baz"),
 		Tags: ident.NewTags(ident.StringTag("city", "seattle")),
 	}
-	bazDoc := doc.Document{
+	bazDoc := doc.Metadata{
 		ID: bazSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("seattle")},
+			{Name: []byte("city"), Value: []byte("seattle")},
 		},
 	}
 
@@ -107,10 +107,10 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 		ID:   ident.StringID("qux"),
 		Tags: ident.NewTags(ident.StringTag("city", "new_harmony")),
 	}
-	quxDoc := doc.Document{
+	quxDoc := doc.Metadata{
 		ID: quxSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("new_harmony")},
+			{Name: []byte("city"), Value: []byte("new_harmony")},
 		},
 	}
 
@@ -118,10 +118,10 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 		ID:   ident.StringID("dux"),
 		Tags: ident.NewTags(ident.StringTag("city", "los_angeles")),
 	}
-	duxDoc := doc.Document{
+	duxDoc := doc.Metadata{
 		ID: duxSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("los_angeles")},
+			{Name: []byte("city"), Value: []byte("los_angeles")},
 		},
 	}
 
@@ -163,12 +163,12 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 			Start:     now,
 		},
 	})
-	defaultIndexDocs := []doc.Document{
+	defaultIndexDocs := []doc.Metadata{
 		fooDoc,
 		barDoc,
 		bazDoc,
 	}
-	extraIndexDocs := []doc.Document{
+	extraIndexDocs := []doc.Metadata{
 		quxDoc,
 		duxDoc,
 	}
@@ -219,8 +219,8 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err := session.FetchTaggedIDs(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
@@ -233,8 +233,8 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.FetchTaggedIDs(ContextWithDefaultTimeout(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 

@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -50,17 +51,17 @@ func TestToVersion1_1Run(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	var shard uint32 = 1
-	nsId := ident.StringID("foo")
+	nsID := ident.StringID("foo")
 
 	// Write unmigrated fileset to disk
-	fsOpts := writeUnmigratedData(t, filePathPrefix, nsId, shard)
+	fsOpts := writeUnmigratedData(t, filePathPrefix, nsID, shard)
 
 	// Read info file of just written fileset
-	results := fs.ReadInfoFiles(filePathPrefix, nsId, shard,
+	results := fs.ReadInfoFiles(filePathPrefix, nsID, shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 	require.Equal(t, 1, len(results))
 	infoFileResult := results[0]
-	indexFd := openFile(t, fsOpts, nsId, shard, infoFileResult, "index")
+	indexFd := openFile(t, fsOpts, nsID, shard, infoFileResult, "index")
 	oldBytes, err := ioutil.ReadAll(indexFd)
 	require.NoError(t, err)
 
@@ -68,21 +69,25 @@ func TestToVersion1_1Run(t *testing.T) {
 	pm, err := fs.NewPersistManager(
 		fsOpts.SetEncodingOptions(msgpack.DefaultLegacyEncodingOptions)) // Set encoder to most up-to-date version
 	require.NoError(t, err)
-
-	md, err := namespace.NewMetadata(nsId, namespace.NewOptions())
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
 	require.NoError(t, err)
 
-	plCache, closer, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
+	md, err := namespace.NewMetadata(nsID, namespace.NewOptions())
+	require.NoError(t, err)
+
+	plCache, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})
-	defer closer()
+	require.NoError(t, err)
+	defer plCache.Start()()
 
 	opts := NewTaskOptions().
 		SetNewMergerFn(fs.NewMerger).
 		SetPersistManager(pm).
 		SetNamespaceMetadata(md).
-		SetStorageOptions(storage.NewOptions().
+		SetStorageOptions(storage.DefaultTestOptions().
 			SetPersistManager(pm).
+			SetIndexClaimsManager(icm).
 			SetNamespaceInitializer(namespace.NewStaticInitializer([]namespace.Metadata{md})).
 			SetRepairEnabled(false).
 			SetIndexOptions(index.NewOptions().
@@ -99,7 +104,7 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read new info file and make sure it matches results returned by task
-	newInfoFd := openFile(t, fsOpts, nsId, shard, updatedInfoFile, "info")
+	newInfoFd := openFile(t, fsOpts, nsID, shard, updatedInfoFile, "info")
 
 	newInfoBytes, err := ioutil.ReadAll(newInfoFd)
 	require.NoError(t, err)
@@ -111,7 +116,7 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.Equal(t, updatedInfoFile.Info, info)
 
 	// Read the index entries of new volume set
-	indexFd = openFile(t, fsOpts, nsId, shard, updatedInfoFile, "index")
+	indexFd = openFile(t, fsOpts, nsID, shard, updatedInfoFile, "index")
 	newBytes, err := ioutil.ReadAll(indexFd)
 	require.NoError(t, err)
 
@@ -129,18 +134,23 @@ func TestToVersion1_1Run(t *testing.T) {
 func openFile(
 	t *testing.T,
 	fsOpts fs.Options,
-	nsId ident.ID,
+	nsID ident.ID,
 	shard uint32,
 	infoFileResult fs.ReadInfoFileResult,
 	fileType string,
 ) *os.File {
 	indexFd, err := os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-%d-%s.db",
-		nsId.String(), shard, infoFileResult.Info.BlockStart, infoFileResult.Info.VolumeIndex, fileType)))
+		nsID.String(), shard, infoFileResult.Info.BlockStart, infoFileResult.Info.VolumeIndex, fileType)))
 	require.NoError(t, err)
 	return indexFd
 }
 
-func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, shard uint32) fs.Options {
+func writeUnmigratedData(
+	t *testing.T,
+	filePathPrefix string,
+	nsID ident.ID,
+	shard uint32,
+) fs.Options {
 	// Use encoding options that will not generate entry level checksums
 	eOpts := msgpack.LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: msgpack.LegacyEncodingIndexEntryVersionV2}
 
@@ -151,10 +161,10 @@ func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, sha
 	w, err := fs.NewWriter(fsOpts)
 	require.NoError(t, err)
 
-	blockStart := time.Now().Truncate(time.Hour)
+	blockStart := xtime.Now().Truncate(time.Hour)
 	writerOpts := fs.DataWriterOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   nsId,
+			Namespace:   nsID,
 			Shard:       shard,
 			BlockStart:  blockStart,
 			VolumeIndex: 0,

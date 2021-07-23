@@ -27,12 +27,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/x/context"
 )
 
 // Executor is responsible for executing queries over a snapshot.
 type Executor interface {
 	// Execute executes a query over the Executor's snapshot.
-	Execute(q Query) (doc.Iterator, error)
+	Execute(ctx context.Context, q Query) (doc.QueryDocIterator, error)
 
 	// Close closes the iterator.
 	Close() error

@@ -45,26 +45,33 @@ func TestAggregateResultsAccumulatorIdsMerge(t *testing.T) {
 	})
 
 	th := newTestFetchTaggedHelper(t)
-	ts1 := newTestSeries(1)
-	ts2 := newTestSeries(2)
+	s := testSerieses{
+		newTestSeriesWithInstance("sphere/m3-cluster-short-rep0-2"),
+		newTestSeriesWithInstance("sphere/m3-cluster-short-rep0-3"),
+		newTestSeriesWithInstance("sphere/m3-cluster-short-rep1-9"),
+		newTestSeriesWithInstance("sphere/m3-cluster-short-rep0-11"),
+		newTestSeriesWithInstance("sphere/m3-cluster-short-rep1-2"),
+		newTestSeriesWithInstance("sphere/m3-cluster-short-rep2-15"),
+	}
 	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelAll,
 		startTime: testStartTime,
 		endTime:   testEndTime,
+
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
-				aggregateResult: testSerieses{ts1}.toRPCAggResult(th, testStartTime, true),
+				aggregateResult: testSerieses{s[0], s[2], s[4]}.toRPCAggResult(true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
-				aggregateResult: testSerieses{ts1, ts2}.toRPCAggResult(th, testStartTime, true),
+				aggregateResult: testSerieses{s[1], s[3]}.toRPCAggResult(true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost2",
-				aggregateResult: testSerieses{}.toRPCAggResult(th, testStartTime, true),
+				aggregateResult: testSerieses{s[5]}.toRPCAggResult(true),
 				expectedDone:    true,
 			},
 		},
@@ -73,22 +80,10 @@ func TestAggregateResultsAccumulatorIdsMerge(t *testing.T) {
 	accum := workflow.run()
 
 	// not really restricting, ensuring we don't have extra results
-	resultsIter, resultsMetadata, err := accum.AsAggregatedTagsIterator(10, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsAggregatedTagsIterator(1000, th.pools)
 	require.NoError(t, err)
 	require.True(t, resultsMetadata.Exhaustive)
-	testSerieses{ts1, ts2}.assertMatchesAggregatedTagsIter(t, resultsIter)
-
-	// restrict to 2 elements, i.e. same as above; doing this to check off by ones
-	resultsIter, resultsMetadata, err = accum.AsAggregatedTagsIterator(2, th.pools)
-	require.NoError(t, err)
-	require.True(t, resultsMetadata.Exhaustive)
-	testSerieses{ts1, ts2}.assertMatchesAggregatedTagsIter(t, resultsIter)
-
-	// restrict to 1 elements, ensuring we actually limit the responses
-	resultsIter, resultsMetadata, err = accum.AsAggregatedTagsIterator(1, th.pools)
-	require.NoError(t, err)
-	require.False(t, resultsMetadata.Exhaustive)
-	testSerieses{ts1, ts2}.assertMatchesLimitedAggregatedTagsIter(t, 1, resultsIter)
+	s.assertMatchesAggregatedTagsIter(t, resultsIter)
 }
 
 func TestAggregateResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
@@ -107,13 +102,13 @@ func TestAggregateResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
-				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, true),
+				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
-				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
+				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(true),
 				expectedDone:    true,
 			},
 		},
@@ -142,13 +137,13 @@ func TestAggregateResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *testin
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost0",
-				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(th, testStartTime, false),
+				aggregateResult: newTestSerieses(1, 10).toRPCAggResult(false),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:        "testhost1",
-				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(th, testStartTime, true),
+				aggregateResult: newTestSerieses(5, 15).toRPCAggResult(true),
 				expectedDone:    true,
 			},
 		},

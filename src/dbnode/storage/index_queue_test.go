@@ -29,8 +29,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -141,11 +143,10 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	q.EXPECT().Stop().Return(nil)
 	assert.NoError(t, idx.Close())
 
-	now := time.Now()
+	now := xtime.Now()
 
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(now.Truncate(idx.blockSize)))
+	lifecycle.EXPECT().OnIndexFinalize(now.Truncate(idx.blockSize))
 	entry, document := testWriteBatchEntry(id, tags, now, lifecycle)
 	assert.Error(t, idx.WriteBatch(testWriteBatch(entry, document,
 		testWriteBatchBlockSizeOption(idx.blockSize))))
@@ -164,10 +165,9 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 		ident.StringTag("name", "value"),
 	)
 
-	n := time.Now()
+	n := xtime.Now()
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(n.Truncate(idx.blockSize)))
+	lifecycle.EXPECT().OnIndexFinalize(n.Truncate(idx.blockSize))
 	q.EXPECT().
 		InsertBatch(gomock.Any()).
 		Return(nil, fmt.Errorf("random err"))
@@ -182,12 +182,12 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 
 	var (
 		nowLock sync.Mutex
-		now     = time.Now()
+		now     = xtime.Now()
 		nowFn   = func() time.Time {
 			nowLock.Lock()
 			n := now
 			nowLock.Unlock()
-			return n
+			return n.ToTime()
 		}
 	)
 
@@ -213,8 +213,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	)
 
 	tooOld := now.Add(-1 * idx.bufferPast).Add(-1 * time.Second)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(tooOld.Truncate(idx.blockSize)))
+	lifecycle.EXPECT().OnIndexFinalize(tooOld.Truncate(idx.blockSize))
 	entry, document := testWriteBatchEntry(id, tags, tooOld, lifecycle)
 	batch := testWriteBatch(entry, document, testWriteBatchBlockSizeOption(idx.blockSize))
 
@@ -224,7 +223,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry index.WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result index.WriteBatchEntryResult,
 	) {
 		verified++
@@ -234,8 +233,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	require.Equal(t, 1, verified)
 
 	tooNew := now.Add(1 * idx.bufferFuture).Add(1 * time.Second)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(tooNew.Truncate(idx.blockSize)))
+	lifecycle.EXPECT().OnIndexFinalize(tooNew.Truncate(idx.blockSize))
 	entry, document = testWriteBatchEntry(id, tags, tooNew, lifecycle)
 	batch = testWriteBatch(entry, document, testWriteBatchBlockSizeOption(idx.blockSize))
 	assert.Error(t, idx.WriteBatch(batch))
@@ -244,7 +242,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry index.WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result index.WriteBatchEntryResult,
 	) {
 		verified++
@@ -271,7 +269,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 		)
 	)
 
-	now := time.Now()
+	now := xtime.Now()
 
 	var wg sync.WaitGroup
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
@@ -282,7 +280,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 
 func setupIndex(t *testing.T,
 	ctrl *gomock.Controller,
-	now time.Time,
+	now xtime.UnixNano,
 ) NamespaceIndex {
 	newFn := func(
 		fn nsIndexInsertBatchFn,
@@ -313,8 +311,8 @@ func setupIndex(t *testing.T,
 		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
 	)
 
-	lifecycleFns.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts))
-	lifecycleFns.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts))
+	lifecycleFns.EXPECT().OnIndexFinalize(ts)
+	lifecycleFns.EXPECT().OnIndexSuccess(ts)
 
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycleFns)
 	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
@@ -328,10 +326,10 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
+	now := xtime.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()
 
@@ -347,7 +345,12 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	results := res.Results
 	assert.Equal(t, "testns1", results.Namespace().String())
 
-	tags, ok := results.Map().Get(ident.StringID("foo"))
+	reader := docs.NewEncodedDocumentReader()
+	d, ok := results.Map().Get(ident.BytesID("foo"))
+	md, err := docs.MetadataFromDocument(d, reader)
+	require.NoError(t, err)
+	tags := idxconvert.ToSeriesTags(md, idxconvert.Opts{NoClone: true})
+
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
@@ -359,10 +362,10 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
+	now := xtime.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()
 
@@ -395,12 +398,12 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
+	now := xtime.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()
 
@@ -408,17 +411,18 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	assert.NoError(t, err)
 	doneCh := make(chan struct{})
 	collector := make(chan *ident.IDBatch)
-	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5,
-		time.Hour*2, nil, index.IterationOptions{})
+	blockSize := 2 * time.Hour
+	queryOpts, err := index.NewWideQueryOptions(xtime.Now().Truncate(blockSize),
+		5, blockSize, nil, index.IterationOptions{})
 	require.NoError(t, err)
 
 	expectedBatchIDs := [][]string{{"foo"}}
 	go func() {
 		i := 0
 		for b := range collector {
-			batchStr := make([]string, 0, len(b.IDs))
-			for _, id := range b.IDs {
-				batchStr = append(batchStr, id.String())
+			batchStr := make([]string, 0, len(b.ShardIDs))
+			for _, shardIDs := range b.ShardIDs {
+				batchStr = append(batchStr, shardIDs.ID.String())
 			}
 
 			withinIndex := i < len(expectedBatchIDs)
@@ -441,12 +445,12 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
+	now := xtime.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()
 
@@ -456,15 +460,16 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	collector := make(chan *ident.IDBatch)
 	shard := testShardSet.Lookup(ident.StringID("foo"))
 	offShard := shard + 1
-	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5, time.Hour*2,
-		[]uint32{offShard}, index.IterationOptions{})
+	blockSize := 2 * time.Hour
+	queryOpts, err := index.NewWideQueryOptions(xtime.Now().Truncate(blockSize),
+		5, blockSize, []uint32{offShard}, index.IterationOptions{})
 	require.NoError(t, err)
 
 	go func() {
 		i := 0
 		for b := range collector {
+			assert.Equal(t, 0, len(b.ShardIDs))
 			b.Processed()
-			fmt.Println(b.IDs)
 			i++
 		}
 		assert.Equal(t, 0, i)

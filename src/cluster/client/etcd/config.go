@@ -24,9 +24,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 // ClusterConfig is the config for a zoned etcd cluster.
@@ -98,6 +101,15 @@ type Configuration struct {
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
 	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
+
+	Retry                  retry.Configuration `yaml:"retry"`
+	RequestTimeout         time.Duration       `yaml:"requestTimeout"`
+	WatchChanInitTimeout   time.Duration       `yaml:"watchChanInitTimeout"`
+	WatchChanCheckInterval time.Duration       `yaml:"watchChanCheckInterval"`
+	WatchChanResetInterval time.Duration       `yaml:"watchChanResetInterval"`
+	// EnableFastGets trades consistency for latency and throughput using clientv3.WithSerializable()
+	// on etcd ops.
+	EnableFastGets bool `yaml:"enableFastGets"`
 }
 
 // NewClient creates a new config service client.
@@ -114,7 +126,25 @@ func (cfg Configuration) NewOptions() Options {
 		SetCacheDir(cfg.CacheDir).
 		SetClusters(cfg.etcdClusters()).
 		SetServicesOptions(cfg.SDConfig.NewOptions()).
-		SetWatchWithRevision(cfg.WatchWithRevision)
+		SetWatchWithRevision(cfg.WatchWithRevision).
+		SetEnableFastGets(cfg.EnableFastGets).
+		SetRetryOptions(cfg.Retry.NewOptions(tally.NoopScope))
+
+	if cfg.RequestTimeout > 0 {
+		opts = opts.SetRequestTimeout(cfg.RequestTimeout)
+	}
+
+	if cfg.WatchChanInitTimeout > 0 {
+		opts = opts.SetWatchChanInitTimeout(cfg.WatchChanInitTimeout)
+	}
+
+	if cfg.WatchChanCheckInterval > 0 {
+		opts = opts.SetWatchChanCheckInterval(cfg.WatchChanCheckInterval)
+	}
+
+	if cfg.WatchChanResetInterval > 0 {
+		opts = opts.SetWatchChanResetInterval(cfg.WatchChanResetInterval)
+	}
 
 	if v := cfg.NewDirectoryMode; v != nil {
 		opts = opts.SetNewDirectoryMode(*v)

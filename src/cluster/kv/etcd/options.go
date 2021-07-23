@@ -79,6 +79,11 @@ type Options interface {
 	// WatchWithRevision is the revision that watch requests will start from.
 	WatchWithRevision() int64
 
+	// EnableFastGets returns whether to use clientv3.WithSerializable() option to speed up gets.
+	EnableFastGets() bool
+	// SetEnableFastGets sets clientv3.WithSerializable() to speed up gets, but can fetch stale data.
+	SetEnableFastGets(enabled bool) Options
+
 	// SetWatchWithRevision sets the revision that watch requests will start
 	// from.
 	SetWatchWithRevision(rev int64) Options
@@ -111,6 +116,7 @@ type options struct {
 	watchChanResetInterval time.Duration
 	watchChanInitTimeout   time.Duration
 	watchWithRevision      int64
+	enableFastGets         bool
 	cacheFileFn            CacheFileFn
 	newDirectoryMode       os.FileMode
 }
@@ -139,6 +145,18 @@ func (o options) Validate() error {
 
 	if o.watchChanCheckInterval <= 0 {
 		return errors.New("invalid watch channel check interval")
+	}
+
+	if o.watchChanResetInterval <= 0 {
+		return errors.New("invalid watch reset interval")
+	}
+
+	if o.watchChanInitTimeout <= 0 {
+		return errors.New("invalid watch init interval")
+	}
+
+	if o.requestTimeout <= 0 {
+		return errors.New("invalid request timeout")
 	}
 
 	return nil
@@ -204,6 +222,17 @@ func (o options) WatchWithRevision() int64 {
 
 func (o options) SetWatchWithRevision(rev int64) Options {
 	o.watchWithRevision = rev
+	return o
+}
+
+//nolint:gocritic
+func (o options) EnableFastGets() bool {
+	return o.enableFastGets
+}
+
+//nolint:gocritic
+func (o options) SetEnableFastGets(enabled bool) Options {
+	o.enableFastGets = enabled
 	return o
 }
 

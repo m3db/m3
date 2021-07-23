@@ -154,7 +154,7 @@ func (c *client) PlacementService(sid ServiceID, opts placement.Options) (placem
 
 	return ps.NewPlacementService(
 		storage.NewPlacementStorage(store, c.placementKeyFn(sid), opts),
-		opts,
+		ps.WithPlacementOptions(opts),
 	), nil
 }
 

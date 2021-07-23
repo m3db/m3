@@ -1224,14 +1224,94 @@ func TestGoodCaseWithSimpleShardStateType(t *testing.T) {
 	p, err = a.AddReplica(p)
 	require.NoError(t, err)
 	verifyAllShardsInAvailableState(t, p)
+
+	p, err = a.BalanceShards(p)
+	require.NoError(t, err)
+	verifyAllShardsInAvailableState(t, p)
+}
+
+func TestBalanceShardsForShardedWhenBalanced(t *testing.T) {
+	i1 := newTestInstance("i1").
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+		}))
+	i2 := newTestInstance("i2").
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+		}))
+	i3 := newTestInstance("i3").
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	i4 := newTestInstance("i4").
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	initialPlacement := placement.NewPlacement().
+		SetReplicaFactor(2).
+		SetShards([]uint32{0, 1}).
+		SetInstances([]placement.Instance{i1, i2, i3, i4}).
+		SetIsSharded(true)
+
+	expectedPlacement := initialPlacement.Clone()
+
+	a := NewAlgorithm(placement.NewOptions())
+
+	balancedPlacement, err := a.BalanceShards(initialPlacement)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedPlacement, balancedPlacement)
+}
+
+func TestBalanceShardsForShardedWhenImbalanced(t *testing.T) {
+	i1 := newTestInstance("i1").
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	i2 := newTestInstance("i2").
+		SetWeight(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(2).SetState(shard.Available),
+		}))
+	p := placement.NewPlacement().
+		SetReplicaFactor(1).
+		SetShards([]uint32{0, 1, 2}).
+		SetInstances([]placement.Instance{i1, i2}).
+		SetIsSharded(true)
+
+	a := NewAlgorithm(placement.NewOptions())
+
+	balancedPlacement, err := a.BalanceShards(p)
+	assert.NoError(t, err)
+
+	bi1 := newTestInstance("i1").
+		SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Leaving),
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	bi2 := newTestInstance("i2").
+		SetWeight(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i1"),
+			shard.NewShard(2).SetState(shard.Available),
+		}))
+	expectedInstances := []placement.Instance{bi1, bi2}
+
+	assert.Equal(t, expectedInstances, balancedPlacement.Instances())
 }
 
 func verifyAllShardsInAvailableState(t *testing.T, p placement.Placement) {
 	for _, instance := range p.Instances() {
 		s := instance.Shards()
 		require.Equal(t, len(s.All()), len(s.ShardsForState(shard.Available)))
-		require.Nil(t, s.ShardsForState(shard.Initializing))
-		require.Nil(t, s.ShardsForState(shard.Leaving))
+		require.Empty(t, s.ShardsForState(shard.Initializing))
+		require.Empty(t, s.ShardsForState(shard.Leaving))
 	}
 }
 

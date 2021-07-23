@@ -1,0 +1,20 @@
+# HELP third_avenue The total number of revenue from a POS
+# TYPE third_avenue histogram
+third_avenue_sum 3347.26
+third_avenue_sum 3447.66
+third_avenue_sum 3367.34
+third_avenue_sum 4366.29
+third_avenue_sum 4566.01
+third_avenue_sum 4892.03
+third_avenue_sum 5013.18
+third_avenue_sum 5030.72
+third_avenue_sum 5057.10
+third_avenue_sum 5079.99
+third_avenue_sum 5093.93
+third_avenue_sum 5102.63
+third_avenue_sum 5130.19
+third_avenue_sum 5190.49
+third_avenue_sum 5235.01
+third_avenue_sum 5289.39
+third_avenue_sum 5390.93
+third_avenue_sum 5501.45

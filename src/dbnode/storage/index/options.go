@@ -40,18 +40,26 @@ const (
 	// defaultIndexInsertMode sets the default indexing mode to synchronous.
 	defaultIndexInsertMode = InsertSync
 
-	// documentArrayPool size in general: 256*256*sizeof(doc.Document)
-	// = 256 * 256 * 16
-	// = 1mb (but with Go's heap probably 2mb)
+	// metadataArrayPool size in general: 256*256*sizeof(doc.Metadata)
+	// = 256 * 256 * 48
+	// =~ 3mb
 	// TODO(r): Make this configurable in a followup change.
+	metadataArrayPoolSize = 256
+	// MetadataArrayPoolCapacity is the capacity of the metadata array pool.
+	MetadataArrayPoolCapacity    = 256
+	metadataArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
+
+	// documentArrayPool size in general: 256*256*sizeof(doc.Document)
+	// = 256 * 256 * 80
+	// =~ 5mb
 	documentArrayPoolSize = 256
-	// DocumentArrayPoolCapacity is the capacity of the document array pool.
+	// DocumentArrayPoolCapacity is the capacity of the encoded document array pool.
 	DocumentArrayPoolCapacity    = 256
 	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 
 	// aggregateResultsEntryArrayPool size in general: 256*256*sizeof(doc.Field)
-	// = 256 * 256 * 16
-	// = 1mb (but with Go's heap probably 2mb)
+	// = 256 * 256 * 48
+	// =~ 3mb
 	// TODO(prateek): Make this configurable in a followup change.
 	aggregateResultsEntryArrayPoolSize        = 256
 	aggregateResultsEntryArrayPoolCapacity    = 256
@@ -65,6 +73,7 @@ var (
 	errOptionsAggResultsPoolUnspecified      = errors.New("aggregate results pool is unset")
 	errOptionsAggValuesPoolUnspecified       = errors.New("aggregate values pool is unset")
 	errOptionsDocPoolUnspecified             = errors.New("docs array pool is unset")
+	errOptionsDocContainerPoolUnspecified    = errors.New("doc container array pool is unset")
 	errOptionsAggResultsEntryPoolUnspecified = errors.New("aggregate results entry array pool is unset")
 	errIDGenerationDisabled                  = errors.New("id generation is disabled")
 	errPostingsListCacheUnspecified          = errors.New("postings list cache is unset")
@@ -118,6 +127,7 @@ type opts struct {
 	aggResultsPool                  AggregateResultsPool
 	aggValuesPool                   AggregateValuesPool
 	docArrayPool                    doc.DocumentArrayPool
+	metadataArrayPool               doc.MetadataArrayPool
 	aggResultsEntryArrayPool        AggregateResultsEntryArrayPool
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
@@ -150,6 +160,14 @@ func NewOptions() Options {
 	})
 	docArrayPool.Init()
 
+	metadataArrayPool := doc.NewMetadataArrayPool(doc.MetadataArrayPoolOpts{
+		Options: pool.NewObjectPoolOptions().
+			SetSize(metadataArrayPoolSize),
+		Capacity:    MetadataArrayPoolCapacity,
+		MaxCapacity: metadataArrayPoolMaxCapacity,
+	})
+	metadataArrayPool.Init()
+
 	aggResultsEntryArrayPool := NewAggregateResultsEntryArrayPool(AggregateResultsEntryArrayPoolOpts{
 		Options: pool.NewObjectPoolOptions().
 			SetSize(aggregateResultsEntryArrayPoolSize),
@@ -172,6 +190,7 @@ func NewOptions() Options {
 		aggResultsPool:                  aggResultsPool,
 		aggValuesPool:                   aggValuesPool,
 		docArrayPool:                    docArrayPool,
+		metadataArrayPool:               metadataArrayPool,
 		aggResultsEntryArrayPool:        aggResultsEntryArrayPool,
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
@@ -205,6 +224,9 @@ func (o *opts) Validate() error {
 	}
 	if o.docArrayPool == nil {
 		return errOptionsDocPoolUnspecified
+	}
+	if o.metadataArrayPool == nil {
+		return errOptionsDocContainerPoolUnspecified
 	}
 	if o.aggResultsEntryArrayPool == nil {
 		return errOptionsAggResultsEntryPoolUnspecified
@@ -337,6 +359,16 @@ func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
 
 func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
+}
+
+func (o *opts) SetMetadataArrayPool(value doc.MetadataArrayPool) Options {
+	opts := *o // nolint:govet
+	opts.metadataArrayPool = value
+	return &opts
+}
+
+func (o *opts) MetadataArrayPool() doc.MetadataArrayPool {
+	return o.metadataArrayPool
 }
 
 func (o *opts) SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options {

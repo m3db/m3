@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var flagParser = flag.NewFlagSet("Verify Index files", flag.ExitOnError)
@@ -64,10 +65,26 @@ type series struct {
 }
 
 var (
-	pathPrefixArg       = flagParser.String("path-prefix", "/var/lib/m3db", "Path prefix - must contain a folder called 'commitlogs'")
-	namespaceArg        = flagParser.String("namespace", "metrics", "Namespace")
-	shardsArg           = flagParser.String("shards", "", "Shards - set comma separated list of shards")
-	blocksArgs          = flagParser.String("blocks", "", "Start unix timestamp (Seconds) - set comma separated list of unix timestamps")
+	pathPrefixArg = flagParser.String(
+		"path-prefix",
+		"/var/lib/m3db",
+		"Path prefix - must contain a folder called 'commitlogs'",
+	)
+	namespaceArg = flagParser.String(
+		"namespace",
+		"metrics",
+		"Namespace",
+	)
+	shardsArg = flagParser.String(
+		"shards",
+		"",
+		"Shards - set comma separated list of shards",
+	)
+	blocksArgs = flagParser.String(
+		"blocks",
+		"",
+		"Start unix timestamp (Seconds) - set comma separated list of unix timestamps",
+	)
 	compareChecksumsArg = flagParser.Bool("compare-checksums", true, "Compare checksums")
 )
 
@@ -101,7 +118,8 @@ func main() {
 			allHostSeriesChecksumsForShard := []seriesChecksums{}
 			// Accumulate all the series checksums for each host for this shard
 			for _, host := range hosts {
-				hostShardReader, err := newReader(namespaceStr, pathPrefix, host.Name(), shard, time.Unix(block, 0))
+				start := (xtime.UnixNano(block)).FromNormalizedTime(time.Second)
+				hostShardReader, err := newReader(namespaceStr, pathPrefix, host.Name(), shard, start)
 				if err != nil {
 					// Ignore folders for hosts that don't have this data
 					if err == fs.ErrCheckpointFileNotFound {
@@ -125,7 +143,9 @@ func main() {
 	}
 }
 
-func seriesChecksumsFromReader(reader fs.DataFileSetReader, host string, shard uint32, block int64) seriesChecksums {
+func seriesChecksumsFromReader(
+	reader fs.DataFileSetReader, host string, shard uint32, block int64,
+) seriesChecksums {
 	seriesMap := seriesMap{}
 	seriesChecksums := seriesChecksums{
 		host:   host,
@@ -199,7 +219,9 @@ func mergeMaps(seriesMaps ...seriesMap) seriesMap {
 	return merged
 }
 
-func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.Time) (fs.DataFileSetReader, error) {
+func newReader(
+	namespace, pathPrefix, hostName string, shard uint32, start xtime.UnixNano,
+) (fs.DataFileSetReader, error) {
 	fsOpts := fs.NewOptions().SetFilePathPrefix(path.Join(pathPrefix, hostName))
 	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {
@@ -224,7 +246,7 @@ func parseShards(shards string) []uint32 {
 		return []uint32{}
 	}
 
-	// Handle commda-delimited shard list 1,3,5, etc
+	// Handle comma-delimited shard list 1,3,5, etc
 	for _, shard := range strings.Split(shards, ",") {
 		shard = strings.TrimSpace(shard)
 		if shard == "" {

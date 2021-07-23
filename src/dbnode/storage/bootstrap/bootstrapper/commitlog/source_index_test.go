@@ -84,7 +84,7 @@ func TestBootstrapIndex(t *testing.T) {
 	md3, err := namespace.NewMetadata(testNamespaceNoData, namespaceOptions)
 	require.NoError(t, err)
 
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(indexBlockSize)
 
 	testTagEncodingPool := serialize.

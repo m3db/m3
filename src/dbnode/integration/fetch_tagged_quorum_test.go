@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
@@ -295,7 +296,8 @@ func makeTestFetchTagged(
 		require.NoError(t, err)
 
 		startTime := nodes[0].NowFn()()
-		series, metadata, err := s.FetchTagged(testNamespaces[0],
+		series, metadata, err := s.FetchTagged(ContextWithDefaultTimeout(),
+			testNamespaces[0],
 			index.Query{Query: q},
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
@@ -312,11 +314,11 @@ func writeTagged(
 	t *testing.T,
 	nodes ...TestSetup,
 ) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 	for _, n := range nodes {
 		require.NoError(t, n.DB().WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
-			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
+			convert.NewTagsMetadataResolver(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
 			n.NowFn()(), 42, xtime.Second, nil))
 	}
 }

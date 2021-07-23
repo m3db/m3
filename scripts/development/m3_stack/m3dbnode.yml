@@ -12,20 +12,25 @@ db:
     resolver: environment
     envVarName: M3DB_HOST_ID
 
-  config:
+  # Note: cannot use type: "m3db_single_node" since sometimes
+  # multiple DB nodes spawned using the m3_stack start script
+  # and as such the non-seed nodes need to point etcd not to 
+  # localhost but to m3db_seed:2379 specifically.
+  discovery:
+    config:
       service:
-          env: default_env
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - m3db_seed:2379
+        env: default_env
+        zone: embedded
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+          - zone: embedded
+            endpoints:
+              - m3db_seed:2379
       seedNodes:
-          initialCluster:
-              - hostID: m3db_seed
-                endpoint: http://m3db_seed:2380
+        initialCluster:
+          - hostID: m3db_seed
+            endpoint: http://m3db_seed:2380
 
   # proto:
   #   schemaFilePath: /etc/m3dbnode/schema.proto

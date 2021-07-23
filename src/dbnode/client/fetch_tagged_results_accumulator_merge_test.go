@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -65,15 +66,15 @@ func TestFetchTaggedResultsAccumulatorIdsMerge(t *testing.T) {
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: testSerieses{ts1}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: testSerieses{ts1, ts2}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost2",
 				fetchTaggedResult: testSerieses{}.toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -121,11 +122,11 @@ func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -157,11 +158,11 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 		startTime: testStartTime,
 		endTime:   testEndTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, false),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
 				expectedDone:      true,
@@ -197,8 +198,9 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	)
 
 	var (
-		startTime = time.Now().Add(-time.Hour).Truncate(time.Hour)
-		endTime   = time.Now().Truncate(time.Hour)
+		now       = xtime.Now()
+		startTime = now.Add(-time.Hour).Truncate(time.Hour)
+		endTime   = now.Truncate(time.Hour)
 		numPoints = 100
 	)
 	sg0.addDatapoints(numPoints, startTime, endTime)
@@ -212,11 +214,11 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 		startTime: startTime,
 		endTime:   endTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: sg0.toRPCResult(th, startTime, false),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: sg1.toRPCResult(th, endTime, true),
 				expectedDone:      true,
@@ -248,8 +250,9 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 
 	var (
 		sg0       = newTestSerieses(1, 10)
-		startTime = time.Now().Add(-time.Hour).Truncate(time.Hour)
-		endTime   = time.Now().Truncate(time.Hour)
+		now       = xtime.Now()
+		startTime = now.Add(-time.Hour).Truncate(time.Hour)
+		endTime   = now.Truncate(time.Hour)
 		numPoints = 100
 	)
 	sg0.addDatapoints(numPoints, startTime, endTime)
@@ -263,15 +266,15 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 		startTime: startTime,
 		endTime:   endTime,
 		steps: []testFetchStateWorklowStep{
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost0",
 				fetchTaggedResult: groups[0].toRPCResult(th, startTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost1",
 				fetchTaggedResult: groups[1].toRPCResult(th, endTime, true),
 			},
-			testFetchStateWorklowStep{
+			{
 				hostname:          "testhost2",
 				fetchTaggedResult: groups[2].toRPCResult(th, endTime, true),
 				expectedDone:      true,
@@ -299,8 +302,8 @@ type testFetchStateWorkflow struct {
 	t         *testing.T
 	topoMap   topology.Map
 	level     topology.ReadConsistencyLevel
-	startTime time.Time
-	endTime   time.Time
+	startTime xtime.UnixNano
+	endTime   xtime.UnixNano
 	steps     []testFetchStateWorklowStep
 }
 
@@ -343,6 +346,10 @@ func (tm testFetchStateWorkflow) run() fetchTaggedResultAccumulator {
 		}
 		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("i=%d, step=%+v", i, s))
 		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("i=%d, step=%+v, err=%v", i, s, err))
+		if err != nil {
+			assert.True(tm.t, IsConsistencyResultError(err),
+				fmt.Sprintf("i=%d, step=%+v, expected consistency result error", i, s))
+		}
 	}
 	return accum
 }
@@ -367,7 +374,8 @@ func (ts testSerieses) nsplit(n int) []testSerieses {
 	return groups
 }
 
-func (ts testSerieses) addDatapoints(numPerSeries int, start, end time.Time) {
+//nolint: unparam
+func (ts testSerieses) addDatapoints(numPerSeries int, start, end xtime.UnixNano) {
 	dps := newTestDatapoints(numPerSeries, start, end)
 	for i := range ts {
 		ts[i].datapoints = dps
@@ -384,6 +392,7 @@ func (ts testSerieses) assertMatchesEncodingIters(t *testing.T, iters encoding.S
 func (ts testSerieses) assertMatchesAggregatedTagsIter(t *testing.T, iters AggregatedTagsIterator) {
 	aggMap := ts.toRPCAggResultMap()
 	require.Equal(t, len(aggMap), iters.Remaining())
+	tagStrs := make([]string, 0)
 	for iters.Next() {
 		name, values := iters.Current()
 		valuesMap, ok := aggMap[name.String()]
@@ -391,12 +400,14 @@ func (ts testSerieses) assertMatchesAggregatedTagsIter(t *testing.T, iters Aggre
 		require.Equal(t, len(valuesMap), values.Remaining())
 		for values.Next() {
 			v := values.Current()
+			tagStrs = append(tagStrs, v.String())
 			_, ok := valuesMap[v.String()]
 			require.True(t, ok)
 		}
 		require.NoError(t, values.Err())
 	}
 	require.NoError(t, iters.Err())
+	require.True(t, sort.StringsAreSorted(tagStrs))
 }
 
 func (ts testSerieses) assertMatchesLimitedAggregatedTagsIter(t *testing.T, limit int, iters AggregatedTagsIterator) {
@@ -428,7 +439,11 @@ func (ts testSerieses) indexMatcher() TaggedIDsIteratorMatcher {
 	return MustNewTaggedIDsIteratorMatcher(opts...)
 }
 
-func (ts testSerieses) toRPCResult(th testFetchTaggedHelper, start time.Time, exhaustive bool) *rpc.FetchTaggedResult_ {
+func (ts testSerieses) toRPCResult(
+	th testFetchTaggedHelper,
+	start xtime.UnixNano,
+	exhaustive bool,
+) *rpc.FetchTaggedResult_ {
 	res := &rpc.FetchTaggedResult_{}
 	res.Exhaustive = exhaustive
 	res.Elements = make([]*rpc.FetchTaggedIDResult_, 0, len(ts))
@@ -455,7 +470,7 @@ func (ts testSerieses) toRPCAggResultMap() map[string]map[string]struct{} {
 	return aggedMap
 }
 
-func (ts testSerieses) toRPCAggResult(th testFetchTaggedHelper, start time.Time, exhaustive bool) *rpc.AggregateQueryRawResult_ {
+func (ts testSerieses) toRPCAggResult(exhaustive bool) *rpc.AggregateQueryRawResult_ {
 	aggedMap := ts.toRPCAggResultMap()
 	res := &rpc.AggregateQueryRawResult_{
 		Exhaustive: exhaustive,
@@ -490,6 +505,14 @@ func newTestSeries(i int) testSeries {
 		ns:   ident.StringID("testNs"),
 		id:   ident.StringID(fmt.Sprintf("id%03d", i)),
 		tags: newTestTags(i),
+	}
+}
+
+func newTestSeriesWithInstance(inst string) testSeries {
+	return testSeries{
+		ns:   ident.StringID("testNs"),
+		id:   ident.StringID(inst),
+		tags: ident.NewTags(ident.StringTag("instance", inst)),
 	}
 }
 
@@ -546,7 +569,10 @@ func (ts testSeries) matcherOption() TaggedIDsIteratorMatcherOption {
 	}
 }
 
-func (ts testSeries) toRPCResult(th testFetchTaggedHelper, startTime time.Time) *rpc.FetchTaggedIDResult_ {
+func (ts testSeries) toRPCResult(
+	th testFetchTaggedHelper,
+	startTime xtime.UnixNano,
+) *rpc.FetchTaggedIDResult_ {
 	return &rpc.FetchTaggedIDResult_{
 		NameSpace:   ts.ns.Bytes(),
 		ID:          ts.id.Bytes(),
@@ -557,13 +583,13 @@ func (ts testSeries) toRPCResult(th testFetchTaggedHelper, startTime time.Time) 
 
 type testDatapoints []ts.Datapoint
 
-func newTestDatapoints(num int, start, end time.Time) testDatapoints {
+func newTestDatapoints(num int, start, end xtime.UnixNano) testDatapoints {
 	dps := make(testDatapoints, 0, num)
 	step := end.Sub(start) / time.Duration(num)
 	for i := 0; i < num; i++ {
 		dps = append(dps, ts.Datapoint{
-			Timestamp: start.Add(step * time.Duration(i)),
-			Value:     float64(i),
+			TimestampNanos: start.Add(step * time.Duration(i)),
+			Value:          float64(i),
 		})
 	}
 	return dps
@@ -576,24 +602,28 @@ func (td testDatapoints) assertMatchesEncodingIter(t *testing.T, iter encoding.S
 		obs, _, _ := iter.Current()
 		exp := td[i]
 		require.Equal(t, exp.Value, obs.Value)
-		require.Equal(t, exp.Timestamp.UnixNano(), obs.Timestamp.UnixNano())
+		require.Equal(t, exp.TimestampNanos, obs.TimestampNanos)
 		i++
 	}
 	require.Equal(t, len(td), i)
 }
 
-func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time) []*rpc.Segments {
+func (td testDatapoints) toRPCSegments(
+	th testFetchTaggedHelper,
+	start xtime.UnixNano,
+) []*rpc.Segments {
 	enc := th.encPool.Get()
 	enc.Reset(start, len(td), nil)
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}
-	reader, ok := enc.Stream(context.NewContext())
+	ctx := context.NewBackground()
+	reader, ok := enc.Stream(ctx)
 	if !ok {
 		return nil
 	}
-	res, err := convert.ToSegments([]xio.BlockReader{
-		xio.BlockReader{
+	res, err := convert.ToSegments(ctx, []xio.BlockReader{
+		{
 			SegmentReader: reader,
 		},
 	})

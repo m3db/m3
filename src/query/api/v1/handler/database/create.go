@@ -33,13 +33,14 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	clusterplacement "github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -52,10 +53,10 @@ import (
 
 const (
 	// CreateURL is the URL for the database create handler.
-	CreateURL = handler.RoutePrefixV1 + "/database/create"
+	CreateURL = route.Prefix + "/database/create"
 
 	// CreateNamespaceURL is the URL for the database namespace create handler.
-	CreateNamespaceURL = handler.RoutePrefixV1 + "/database/namespace/create"
+	CreateNamespaceURL = route.Prefix + "/database/namespace/create"
 
 	// CreateHTTPMethod is the HTTP method used with the create database resource.
 	CreateHTTPMethod = http.MethodPost
@@ -131,12 +132,12 @@ var (
 type dbType string
 
 type createHandler struct {
-	placementInitHandler   *placement.InitHandler
-	placementGetHandler    *placement.GetHandler
+	placementInitHandler   *placementhandler.InitHandler
+	placementGetHandler    *placementhandler.GetHandler
 	namespaceAddHandler    *namespace.AddHandler
 	namespaceGetHandler    *namespace.GetHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
-	embeddedDbCfg          *dbconfig.DBConfiguration
+	embeddedDBCfg          *dbconfig.DBConfiguration
 	defaults               []handleroptions.ServiceOptionsDefault
 	instrumentOpts         instrument.Options
 }
@@ -145,22 +146,23 @@ type createHandler struct {
 func NewCreateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
+	namespaceValidator options.NamespaceValidator,
 ) (http.Handler, error) {
-	placementHandlerOptions, err := placement.NewHandlerOptions(client,
-		cfg, nil, instrumentOpts)
+	placementHandlerOptions, err := placementhandler.NewHandlerOptions(client,
+		cfg.ClusterManagement.Placement, nil, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
 	return &createHandler{
-		placementInitHandler:   placement.NewInitHandler(placementHandlerOptions),
-		placementGetHandler:    placement.NewGetHandler(placementHandlerOptions),
-		namespaceAddHandler:    namespace.NewAddHandler(client, instrumentOpts),
+		placementInitHandler:   placementhandler.NewInitHandler(placementHandlerOptions),
+		placementGetHandler:    placementhandler.NewGetHandler(placementHandlerOptions),
+		namespaceAddHandler:    namespace.NewAddHandler(client, instrumentOpts, namespaceValidator),
 		namespaceGetHandler:    namespace.NewGetHandler(client, instrumentOpts),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client, instrumentOpts),
-		embeddedDbCfg:          embeddedDbCfg,
+		embeddedDBCfg:          embeddedDBCfg,
 		defaults:               defaults,
 		instrumentOpts:         instrumentOpts,
 	}, nil
@@ -316,7 +318,7 @@ func (h *createHandler) parseAndValidateRequest(
 ) (*admin.DatabaseCreateRequest, []*admin.NamespaceAddRequest, *admin.PlacementInitRequest, error) {
 	requirePlacement := existingPlacement == nil
 
-	defer r.Body.Close()
+	defer r.Body.Close() //nolint:errcheck
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
 		wrapped := fmt.Errorf("error converting duration to nano bytes: %s", err.Error())
@@ -348,7 +350,7 @@ func (h *createHandler) parseAndValidateRequest(
 	var placementInitRequest *admin.PlacementInitRequest
 	if (requestedDBType == dbTypeCluster && len(dbCreateReq.Hosts) > 0) ||
 		requestedDBType == dbTypeLocal {
-		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
+		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDBCfg)
 		if err != nil {
 			return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 		}
@@ -560,7 +562,7 @@ func getRecommendedBlockSize(retentionPeriod time.Duration) time.Duration {
 
 func defaultedPlacementInitRequest(
 	r *admin.DatabaseCreateRequest,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 ) (*admin.PlacementInitRequest, error) {
 	var (
 		numShards         int32
@@ -569,11 +571,11 @@ func defaultedPlacementInitRequest(
 	)
 	switch dbType(r.Type) {
 	case dbTypeLocal:
-		if embeddedDbCfg == nil {
+		if embeddedDBCfg == nil {
 			return nil, errMissingEmbeddedDBConfig
 		}
 
-		addr := embeddedDbCfg.ListenAddressOrDefault()
+		addr := embeddedDBCfg.ListenAddressOrDefault()
 		port, err := portFromEmbeddedDBConfigListenAddress(addr)
 		if err != nil {
 			return nil, err
@@ -582,7 +584,7 @@ func defaultedPlacementInitRequest(
 		numShards = shardMultiplier
 		replicationFactor = 1
 		instances = []*placementpb.Instance{
-			&placementpb.Instance{
+			{
 				Id:             DefaultLocalHostID,
 				IsolationGroup: DefaultLocalIsolationGroup,
 				Zone:           DefaultLocalZone,

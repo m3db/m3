@@ -28,9 +28,6 @@ import (
 	"net/http"
 	"time"
 
-	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -40,6 +37,8 @@ import (
 const (
 	// DebugURL is the url for the debug dump endpoint.
 	DebugURL = "/debug/dump"
+	// DebugMethod is the HTTP method.
+	DebugMethod = http.MethodGet
 )
 
 // Source is the interface that must be implemented to provide a new debug
@@ -75,49 +74,6 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 		sources: make(map[string]Source),
 		logger:  iopts.Logger(),
 	}
-}
-
-// NewPlacementAndNamespaceZipWriterWithDefaultSources returns a zipWriter with the following
-// debug sources already registered: CPU, heap, host, goroutines, namespace and placement info.
-func NewPlacementAndNamespaceZipWriterWithDefaultSources(
-	cpuProfileDuration time.Duration,
-	clusterClient clusterclient.Client,
-	placementsOpts placement.HandlerOptions,
-	services []handleroptions.ServiceNameAndDefaults,
-	instrumentOpts instrument.Options,
-) (ZipWriter, error) {
-	zw, err := NewZipWriterWithDefaultSources(cpuProfileDuration,
-		instrumentOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	if clusterClient != nil {
-		nsSource, err := NewNamespaceInfoSource(clusterClient, services, instrumentOpts)
-		if err != nil {
-			return nil, fmt.Errorf("could not create namespace info source: %w", err)
-		}
-
-		err = zw.RegisterSource("namespace.json", nsSource)
-		if err != nil {
-			return nil, fmt.Errorf("unable to register namespaceSource: %s", err)
-		}
-
-		for _, service := range services {
-			placementInfoSource, err := NewPlacementInfoSource(service,
-				placementsOpts, instrumentOpts)
-			if err != nil {
-				return nil, fmt.Errorf("unable to create placementInfoSource: %v", err)
-			}
-			fileName := fmt.Sprintf("placement-%s.json", service.ServiceName)
-			err = zw.RegisterSource(fileName, placementInfoSource)
-			if err != nil {
-				return nil, fmt.Errorf("unable to register placementSource: %s", err)
-			}
-		}
-	}
-
-	return zw, nil
 }
 
 // NewZipWriterWithDefaultSources returns a zipWriter with the following

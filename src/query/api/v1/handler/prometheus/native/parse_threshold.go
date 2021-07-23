@@ -23,8 +23,8 @@ package native
 import (
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/x/instrument"
@@ -36,7 +36,7 @@ import (
 const (
 	// PromThresholdURL is the url for native prom threshold handler, this  parses
 	// out the  query and returns a JSON representation of the execution DAG.
-	PromThresholdURL = handler.RoutePrefixV1 + "/threshold"
+	PromThresholdURL = route.Prefix + "/threshold"
 
 	// PromThresholdHTTPMethod is the HTTP method used with this resource.
 	PromThresholdHTTPMethod = http.MethodGet

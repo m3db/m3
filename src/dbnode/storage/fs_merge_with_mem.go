@@ -42,7 +42,7 @@ type fsMergeWithMem struct {
 	retriever          series.QueryableBlockRetriever
 	dirtySeries        *dirtySeriesMap
 	dirtySeriesToWrite map[xtime.UnixNano]*idList
-	reuseableID        *ident.ReuseableBytesID
+	reusableID         *ident.ReusableBytesID
 }
 
 func newFSMergeWithMem(
@@ -56,7 +56,7 @@ func newFSMergeWithMem(
 		retriever:          retriever,
 		dirtySeries:        dirtySeries,
 		dirtySeriesToWrite: dirtySeriesToWrite,
-		reuseableID:        ident.NewReuseableBytesID(),
+		reusableID:         ident.NewReusableBytesID(),
 	}
 }
 
@@ -94,14 +94,13 @@ func (m *fsMergeWithMem) fetchBlocks(
 	blockStart xtime.UnixNano,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, bool, error) {
-	startTime := blockStart.ToTime()
-	currVersion, err := m.retriever.RetrievableBlockColdVersion(startTime)
+	currVersion, err := m.retriever.RetrievableBlockColdVersion(blockStart)
 	if err != nil {
 		return block.FetchBlockResult{}, false, err
 	}
 	nextVersion := currVersion + 1
 
-	result, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
+	result, err := m.shard.FetchBlocksForColdFlush(ctx, id, blockStart, nextVersion, nsCtx)
 	if err != nil {
 		return block.FetchBlockResult{}, false, err
 	}
@@ -123,13 +122,13 @@ func (m *fsMergeWithMem) ForEachRemaining(
 	fn fs.ForEachRemainingFn,
 	nsCtx namespace.Context,
 ) error {
-	reuseableID := m.reuseableID
+	reusableID := m.reusableID
 	seriesList := m.dirtySeriesToWrite[blockStart]
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
 		seriesMetadata := seriesElement.Value
-		reuseableID.Reset(seriesMetadata.ID)
-		mergeWithData, hasData, err := m.fetchBlocks(ctx, reuseableID, blockStart, nsCtx)
+		reusableID.Reset(seriesMetadata.ID)
+		mergeWithData, hasData, err := m.fetchBlocks(ctx, reusableID, blockStart, nsCtx)
 		if err != nil {
 			return err
 		}

@@ -22,11 +22,12 @@ package downsample
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -35,6 +36,10 @@ import (
 // Downsampler is a downsampler.
 type Downsampler interface {
 	NewMetricsAppender() (MetricsAppender, error)
+	// Enabled indicates whether the downsampler is enabled or not. A
+	// downsampler is enabled if there are aggregated ClusterNamespaces
+	// that exist as downsampling only applies to aggregations.
+	Enabled() bool
 }
 
 // MetricsAppender is a metrics appender that can build a samples
@@ -55,14 +60,15 @@ type MetricsAppender interface {
 type SamplesAppenderResult struct {
 	SamplesAppender     SamplesAppender
 	IsDropPolicyApplied bool
+	ShouldDropTimestamp bool
 }
 
 // SampleAppenderOptions defines the options being used when constructing
 // the samples appender for a metric.
 type SampleAppenderOptions struct {
-	Override      bool
-	OverrideRules SamplesAppenderOverrideRules
-	MetricType    ts.M3MetricType
+	Override         bool
+	OverrideRules    SamplesAppenderOverrideRules
+	SeriesAttributes ts.SeriesAttributes
 }
 
 // SamplesAppenderOverrideRules provides override rules to
@@ -75,11 +81,12 @@ type SamplesAppenderOverrideRules struct {
 // SamplesAppender is a downsampling samples appender,
 // that can only be called by a single caller at a time.
 type SamplesAppender interface {
-	AppendCounterSample(value int64) error
-	AppendGaugeSample(value float64) error
-	AppendCounterTimedSample(t time.Time, value int64) error
-	AppendGaugeTimedSample(t time.Time, value float64) error
-	AppendTimerTimedSample(t time.Time, value float64) error
+	AppendUntimedCounterSample(value int64, annotation []byte) error
+	AppendUntimedGaugeSample(value float64, annotation []byte) error
+	AppendUntimedTimerSample(value float64, annotation []byte) error
+	AppendCounterSample(t xtime.UnixNano, value int64, annotation []byte) error
+	AppendGaugeSample(t xtime.UnixNano, value float64, annotation []byte) error
+	AppendTimerSample(t xtime.UnixNano, value float64, annotation []byte) error
 }
 
 type downsampler struct {
@@ -88,6 +95,7 @@ type downsampler struct {
 
 	sync.RWMutex
 	metricsAppenderOpts metricsAppenderOptions
+	enabled             bool
 }
 
 type downsamplerOptions struct {
@@ -119,6 +127,12 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 	if logger.Check(zapcore.DebugLevel, "debug") != nil {
 		debugLogging = true
 	}
+	scope := opts.InstrumentOptions.MetricsScope().SubScope("metrics_appender")
+	metrics := metricsAppenderMetrics{
+		processedCountNonRollup: scope.Tagged(map[string]string{"agg_type": "non_rollup"}).Counter("processed"),
+		processedCountRollup:    scope.Tagged(map[string]string{"agg_type": "rollup"}).Counter("processed"),
+		operationsCount:         scope.Counter("operations_processed"),
+	}
 
 	return metricsAppenderOptions{
 		agg:                    agg.aggregator,
@@ -129,7 +143,8 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
 		debugLogging:           debugLogging,
 		logger:                 logger,
-		augmentM3Tags:          agg.m3PrefixFilter,
+		untimedRollups:         agg.untimedRollups,
+		metrics:                metrics,
 	}
 }
 
@@ -145,12 +160,28 @@ func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return metricsAppender, nil
 }
 
+func (d *downsampler) Enabled() bool {
+	d.RLock()
+	defer d.RUnlock()
+
+	return d.enabled
+}
+
 func (d *downsampler) OnUpdate(namespaces m3.ClusterNamespaces) {
 	logger := d.opts.InstrumentOptions.Logger()
 
 	if len(namespaces) == 0 {
 		logger.Debug("received empty list of namespaces. not updating staged metadata")
 		return
+	}
+
+	var hasAggregatedNamespaces bool
+	for _, namespace := range namespaces {
+		attrs := namespace.Options().Attributes()
+		if attrs.MetricsType == storagemetadata.AggregatedMetricsType {
+			hasAggregatedNamespaces = true
+			break
+		}
 	}
 
 	autoMappingRules, err := NewAutoMappingRules(namespaces)
@@ -180,5 +211,7 @@ func (d *downsampler) OnUpdate(namespaces m3.ClusterNamespaces) {
 
 	d.Lock()
 	d.metricsAppenderOpts.defaultStagedMetadatasProtos = defaultStagedMetadatasProtos
+	// Can only downsample when aggregated namespaces are available.
+	d.enabled = hasAggregatedNamespaces
 	d.Unlock()
 }

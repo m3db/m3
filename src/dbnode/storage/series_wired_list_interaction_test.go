@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -51,7 +53,7 @@ import (
 // required for the OnEvictedFromWiredList method that the wired list worker routine
 // was calling.
 func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -80,7 +82,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		)
 	)
 	blPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blOpts, namespace.Context{})
+		return block.NewDatabaseBlock(0, 0, ts.Segment{}, blOpts, namespace.Context{})
 	})
 
 	blockRetriever := series.NewMockQueryableBlockRetriever(ctrl)
@@ -91,7 +93,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 
 	var (
 		blockSize = time.Hour * 2
-		start     = time.Now().Truncate(blockSize)
+		start     = xtime.Now().Truncate(blockSize)
 		opts      = DefaultTestOptions().SetDatabaseBlockOptions(
 			blOpts.
 				SetWiredList(wl).
@@ -138,7 +140,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 
 	var (
 		startLock      = sync.Mutex{}
-		getAndIncStart = func() time.Time {
+		getAndIncStart = func() xtime.UnixNano {
 			startLock.Lock()
 			t := start
 			start = start.Add(blockSize)
@@ -153,7 +155,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 			blTime := getAndIncStart()
 			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{}, namespace.Context{})
 			// Simulate concurrent reads
-			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize), namespace.Context{})
+			_, err := shard.ReadEncoded(context.NewBackground(), id, blTime, blTime.Add(blockSize), namespace.Context{})
 			require.NoError(t, err)
 			wg.Done()
 		}()

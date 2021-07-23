@@ -26,13 +26,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/mmap"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
@@ -48,7 +48,7 @@ type indexReader struct {
 	logger         *zap.Logger
 
 	namespaceDir string
-	start        time.Time
+	start        xtime.UnixNano
 	fileSetType  persist.FileSetType
 	volumeIndex  int
 
@@ -235,7 +235,7 @@ func (r *indexReader) ReadSegmentFileSet() (
 			desc mmap.Descriptor
 		)
 		mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-			filePath: mmap.FileDesc{
+			filePath: {
 				File:       &fd,
 				Descriptor: &desc,
 				Options: mmap.Options{

@@ -24,19 +24,18 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
@@ -46,7 +45,7 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	opts := newSeriesTestOptions()
 	ropts := opts.RetentionOptions()
 
-	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	end := xtime.ToUnixNano(opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize()))
 	start := end.Add(-2 * ropts.BlockSize())
 
 	onRetrieveBlock := block.NewMockOnRetrieveBlock(ctrl)
@@ -56,11 +55,14 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true, nil)
 
 	var blockReaders []xio.BlockReader
+	curStart := start
 	for i := 0; i < 2; i++ {
 		reader := xio.NewMockSegmentReader(ctrl)
 		blockReaders = append(blockReaders, xio.BlockReader{
 			SegmentReader: reader,
+			Start:         curStart,
 		})
+		curStart = curStart.Add(ropts.BlockSize())
 	}
 
 	ctx := opts.ContextPool().Get()
@@ -79,16 +81,20 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 		ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
 
 	// Check reads as expected
-	r, err := reader.ReadEncoded(ctx, start, end, namespace.Context{})
+	iter, err := reader.ReadEncoded(ctx, start, end, namespace.Context{})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(r))
-	for i, readers := range r {
-		require.Equal(t, 1, len(readers))
-		assert.Equal(t, blockReaders[i], readers[0])
+
+	count := 0
+	for iter.Next(ctx) {
+		require.Equal(t, 1, len(iter.Current()))
+		assert.Equal(t, blockReaders[count], iter.Current()[0])
+		count++
 	}
+	require.NoError(t, iter.Err())
+	require.Equal(t, 2, count)
 }
 
-func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
+func TestReaderUsingRetrieverWideEntrysBlockInvalid(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -102,68 +108,67 @@ func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
 
 	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).
 		Return(false, errors.New("err"))
-	_, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
+	_, err := reader.FetchWideEntry(ctx, xtime.Now(), nil, namespace.Context{})
 	assert.EqualError(t, err, "err")
 
 	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil)
-	c, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
+	e, err := reader.FetchWideEntry(ctx, xtime.Now(), nil, namespace.Context{})
 	assert.NoError(t, err)
 
-	checksum, err := c.RetrieveIndexChecksum()
+	entry, err := e.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), checksum.MetadataChecksum)
-	assert.Nil(t, checksum.ID)
+	assert.Equal(t, int64(0), entry.MetadataChecksum)
+	assert.Nil(t, entry.ID)
 }
 
-func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
+func TestReaderUsingRetrieverWideEntrys(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
 	ropts := opts.RetentionOptions()
 
-	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	end := xtime.ToUnixNano(opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize()))
 	alignedStart := end.Add(-2 * ropts.BlockSize())
 
 	retriever := NewMockQueryableBlockRetriever(ctrl)
 	retriever.EXPECT().IsBlockRetrievable(alignedStart).Return(true, nil).Times(2)
 
-	checksum := xio.IndexChecksum{
-		MetadataChecksum: 5,
-		ID:               ident.StringID("foo"),
-	}
-
-	indexChecksum := block.NewMockStreamedChecksum(ctrl)
-
+	streamedEntry := block.NewMockStreamedWideEntry(ctrl)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	retriever.EXPECT().
-		StreamIndexChecksum(ctx, ident.NewIDMatcher("foo"),
-			alignedStart, gomock.Any()).
-		Return(indexChecksum, nil).Times(2)
+		StreamWideEntry(ctx, ident.NewIDMatcher("foo"),
+			alignedStart, nil, gomock.Any()).
+		Return(streamedEntry, nil).Times(2)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(xio.IndexChecksum{}, errors.New("err"))
-	streamed, err := reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
+	streamedEntry.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
+	streamed, err := reader.FetchWideEntry(ctx, alignedStart, nil, namespace.Context{})
 	require.NoError(t, err)
-	_, err = streamed.RetrieveIndexChecksum()
+	_, err = streamed.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
 	// Check reads as expected
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
-	streamed, err = reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
+	entry := xio.WideEntry{
+		MetadataChecksum: 5,
+		ID:               ident.StringID("foo"),
+	}
+
+	streamedEntry.EXPECT().RetrieveWideEntry().Return(entry, nil)
+	streamed, err = reader.FetchWideEntry(ctx, alignedStart, nil, namespace.Context{})
 	require.NoError(t, err)
-	actual, err := streamed.RetrieveIndexChecksum()
+	actual, err := streamed.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, checksum, actual)
+	assert.Equal(t, entry, actual)
 }
 
 type readTestCase struct {
 	title           string
-	times           []time.Time
+	times           []xtime.UnixNano
 	cachedBlocks    map[xtime.UnixNano]streamResponse
 	diskBlocks      map[xtime.UnixNano]streamResponse
 	bufferBlocks    map[xtime.UnixNano]block.FetchBlockResult
@@ -181,21 +186,22 @@ var (
 	blockSize = ropts.BlockSize()
 	// Subtract a few blocksizes to make sure the test cases don't try and query into
 	// the future.
-	start = opts.ClockOptions().NowFn()().Truncate(blockSize).Add(-5 * blockSize)
+	start = xtime.ToUnixNano(opts.ClockOptions().NowFn()()).
+		Truncate(blockSize).Add(-5 * blockSize)
 )
 
 var robustReaderTestCases = []readTestCase{
 	{
 		// Should return an empty slice if there is no data.
 		title: "Handle no data",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 	},
 	{
 		// Read one block from disk which should return an error.
 		title: "Handles disk read errors",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				err: errors.New("some-error"),
 			},
 		},
@@ -209,9 +215,9 @@ var robustReaderTestCases = []readTestCase{
 	{
 		// Read one block from the disk cache which should return an error.
 		title: "Handles disk cache read errors",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				err: errors.New("some-error"),
 			},
 		},
@@ -225,9 +231,9 @@ var robustReaderTestCases = []readTestCase{
 	{
 		// Read one block from the buffer which should return an error.
 		title: "Handles buffer read errors",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-			xtime.ToUnixNano(start): {
+			start: {
 				Start: start,
 				Err:   errors.New("some-error"),
 			},
@@ -242,9 +248,9 @@ var robustReaderTestCases = []readTestCase{
 	{
 		// Read one block from the disk cache.
 		title: "Handles disk cache reads (should not query disk)",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -255,23 +261,23 @@ var robustReaderTestCases = []readTestCase{
 		expectedResults: []block.FetchBlockResult{
 			{
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 	},
 	{
 		// Read two blocks, each of which should be returned from disk.
 		title: "Handles multiple disk reads",
-		times: []time.Time{start, start.Add(blockSize)},
+		times: []xtime.UnixNano{start, start.Add(blockSize)},
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
 					BlockSize:     blockSize,
 				},
 			},
-			xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
+			start.Add(blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(blockSize),
@@ -282,36 +288,36 @@ var robustReaderTestCases = []readTestCase{
 		expectedResults: []block.FetchBlockResult{
 			{
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 			{
 				Start:  start.Add(blockSize),
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start.Add(blockSize), BlockSize: blockSize}},
 			},
 		},
 	},
 	{
 		// Read one block from the buffer.
 		title: "Handles buffer reads",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-			xtime.ToUnixNano(start): {
+			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
 			{
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 	},
 	{
 		title: "Combines data from disk cache and buffer for same blockstart",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -320,9 +326,9 @@ var robustReaderTestCases = []readTestCase{
 			},
 		},
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-			xtime.ToUnixNano(start): {
+			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
@@ -330,18 +336,18 @@ var robustReaderTestCases = []readTestCase{
 				Start: start,
 				Blocks: []xio.BlockReader{
 					// One from disk cache.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 				},
 			},
 		},
 	},
 	{
 		title: "Combines data from disk and buffer for same blockstart",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -350,9 +356,9 @@ var robustReaderTestCases = []readTestCase{
 			},
 		},
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-			xtime.ToUnixNano(start): {
+			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
@@ -360,9 +366,9 @@ var robustReaderTestCases = []readTestCase{
 				Start: start,
 				Blocks: []xio.BlockReader{
 					// One from disk.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 				},
 			},
 		},
@@ -372,9 +378,9 @@ var robustReaderTestCases = []readTestCase{
 	// valid data from the disk cache).
 	{
 		title: "Handles buffer and disk cache merge with buffer error for same blockstart",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -383,7 +389,7 @@ var robustReaderTestCases = []readTestCase{
 			},
 		},
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-			xtime.ToUnixNano(start): {
+			start: {
 				Start: start,
 				Err:   errors.New("some-error"),
 			},
@@ -400,9 +406,9 @@ var robustReaderTestCases = []readTestCase{
 	// valid data from the disk cache).
 	{
 		title: "Handles buffer and disk merge with buffer error for same blockstart",
-		times: []time.Time{start},
+		times: []xtime.UnixNano{start},
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
@@ -411,7 +417,7 @@ var robustReaderTestCases = []readTestCase{
 			},
 		},
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-			xtime.ToUnixNano(start): {
+			start: {
 				Start: start,
 				Err:   errors.New("some-error"),
 			},
@@ -425,17 +431,17 @@ var robustReaderTestCases = []readTestCase{
 	},
 	{
 		title: "Combines data from all sources for different block starts and same block starts",
-		times: []time.Time{start, start.Add(blockSize), start.Add(2 * blockSize), start.Add(3 * blockSize)},
+		times: []xtime.UnixNano{start, start.Add(blockSize), start.Add(2 * blockSize), start.Add(3 * blockSize)},
 		// Block 1 and 3 from disk cache.
 		cachedBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start): streamResponse{
+			start: {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start,
 					BlockSize:     blockSize,
 				},
 			},
-			xtime.ToUnixNano(start.Add(2 * blockSize)): streamResponse{
+			start.Add(2 * blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(2 * blockSize),
@@ -445,14 +451,14 @@ var robustReaderTestCases = []readTestCase{
 		},
 		// blocks 2 and 4 from disk.
 		diskBlocks: map[xtime.UnixNano]streamResponse{
-			xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
+			start.Add(blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(blockSize),
 					BlockSize:     blockSize,
 				},
 			},
-			xtime.ToUnixNano(start.Add(3 * blockSize)): streamResponse{
+			start.Add(3 * blockSize): {
 				blockReader: xio.BlockReader{
 					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 					Start:         start.Add(3 * blockSize),
@@ -462,17 +468,17 @@ var robustReaderTestCases = []readTestCase{
 		},
 		// Blocks 1, 2, and 3 from buffer.
 		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-			xtime.ToUnixNano(start): {
+			start: {
 				Start:  start,
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start, BlockSize: blockSize}},
 			},
-			xtime.ToUnixNano(start.Add(blockSize)): {
+			start.Add(blockSize): {
 				Start:  start.Add(blockSize),
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start.Add(blockSize), BlockSize: blockSize}},
 			},
-			xtime.ToUnixNano(start.Add(2 * blockSize)): {
+			start.Add(2 * blockSize): {
 				Start:  start.Add(2 * blockSize),
-				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
+				Blocks: []xio.BlockReader{{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
 			},
 		},
 		expectedResults: []block.FetchBlockResult{
@@ -480,34 +486,34 @@ var robustReaderTestCases = []readTestCase{
 				Start: start,
 				Blocks: []xio.BlockReader{
 					// One from disk cache.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start, BlockSize: blockSize},
+					{Start: start, BlockSize: blockSize},
 				},
 			},
 			{
 				Start: start.Add(blockSize),
 				Blocks: []xio.BlockReader{
 					// One from disk.
-					xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+					{Start: start.Add(blockSize), BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+					{Start: start.Add(blockSize), BlockSize: blockSize},
 				},
 			},
 			{
 				Start: start.Add(2 * blockSize),
 				Blocks: []xio.BlockReader{
 					// One from disk cache.
-					xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+					{Start: start.Add(2 * blockSize), BlockSize: blockSize},
 					// One from buffer.
-					xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+					{Start: start.Add(2 * blockSize), BlockSize: blockSize},
 				},
 			},
 			{
 				Start: start.Add(3 * blockSize),
 				Blocks: []xio.BlockReader{
 					// One from disk.
-					xio.BlockReader{Start: start.Add(3 * blockSize), BlockSize: blockSize},
+					{Start: start.Add(3 * blockSize), BlockSize: blockSize},
 				},
 			},
 		},
@@ -516,6 +522,7 @@ var robustReaderTestCases = []readTestCase{
 
 func TestReaderFetchBlocksRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
@@ -533,7 +540,7 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 
 			// Setup mocks.
 			for _, currTime := range tc.times {
-				cachedBlocks, wasInDiskCache := tc.cachedBlocks[xtime.ToUnixNano(currTime)]
+				cachedBlocks, wasInDiskCache := tc.cachedBlocks[currTime]
 				if wasInDiskCache {
 					// If the data was in the disk cache then expect a read from it but don't expect
 					// disk reads.
@@ -548,7 +555,7 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 					// If the data was not in the disk cache then expect that and setup a query
 					// for disk.
 					diskCache.EXPECT().BlockAt(currTime).Return(nil, false)
-					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
+					diskBlocks, ok := tc.diskBlocks[currTime]
 					if !ok {
 						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false, nil)
 					} else {
@@ -566,7 +573,7 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 				}
 
 				// Prepare buffer response one block at a time.
-				bufferBlocks, wasInBuffer := tc.bufferBlocks[xtime.ToUnixNano(currTime)]
+				bufferBlocks, wasInBuffer := tc.bufferBlocks[currTime]
 				if wasInBuffer {
 					bufferReturn = append(bufferReturn, bufferBlocks)
 				}
@@ -606,8 +613,10 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 	}
 }
 
+//nolint:scopelint
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
+		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
@@ -624,7 +633,7 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 
 			// Setup mocks.
 			for _, currTime := range tc.times {
-				cachedBlocks, wasInDiskCache := tc.cachedBlocks[xtime.ToUnixNano(currTime)]
+				cachedBlocks, wasInDiskCache := tc.cachedBlocks[currTime]
 				if wasInDiskCache {
 					// If the data was in the disk cache then expect a read from it but don't expect
 					// disk reads.
@@ -641,34 +650,18 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 						break
 					}
 				} else {
-					// If the data was not in the disk cache then expect that and setup a query
-					// for disk.
 					diskCache.EXPECT().BlockAt(currTime).Return(nil, false)
-					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
-					if !ok {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false, nil)
-					} else {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true, nil)
-						if diskBlocks.err != nil {
-							retriever.EXPECT().
-								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
-								Return(xio.BlockReader{}, diskBlocks.err)
-							break
-						} else {
-							retriever.EXPECT().
-								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
-								Return(diskBlocks.blockReader, nil)
-						}
-					}
 				}
 
 				// Setup buffer mocks.
-				bufferBlocks, wasInBuffer := tc.bufferBlocks[xtime.ToUnixNano(currTime)]
+				bufferBlocks, wasInBuffer := tc.bufferBlocks[currTime]
 				if wasInBuffer {
 					if bufferBlocks.Err != nil {
 						buffer.EXPECT().
 							ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
 							Return(nil, bufferBlocks.Err)
+						// Stop setting up mocks since the function will early return.
+						break
 					} else {
 						buffer.EXPECT().
 							ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
@@ -679,6 +672,25 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 						ReadEncoded(ctx, currTime, currTime.Add(blockSize), namespace.Context{}).
 						Return(nil, nil)
 				}
+
+				if !wasInDiskCache {
+					// If the data was not in the disk cache then setup a query for disk.
+					diskBlocks, ok := tc.diskBlocks[currTime]
+					if !ok {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false, nil)
+					} else {
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true, nil)
+						if diskBlocks.err != nil {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
+								Return(xio.BlockReader{}, diskBlocks.err)
+						} else {
+							retriever.EXPECT().
+								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
+								Return(diskBlocks.blockReader, nil)
+						}
+					}
+				}
 			}
 
 			var (
@@ -688,33 +700,37 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 				// End is not inclusive so add blocksize to the last time.
 				end = tc.times[len(tc.times)-1].Add(blockSize)
 			)
-			r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, diskCache, buffer, namespace.Context{})
+			iter, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, diskCache, buffer, namespace.Context{})
 
-			anyContainErr := false
+			anyInMemErr := false
 			for _, sr := range tc.cachedBlocks {
 				if sr.err != nil {
-					anyContainErr = true
-					break
-				}
-			}
-			for _, sr := range tc.diskBlocks {
-				if sr.err != nil {
-					anyContainErr = true
-					break
-				}
-			}
-			for _, br := range tc.bufferBlocks {
-				if br.Err != nil {
-					anyContainErr = true
+					anyInMemErr = true
 					break
 				}
 			}
 
-			if anyContainErr {
+			for _, br := range tc.bufferBlocks {
+				if br.Err != nil {
+					anyInMemErr = true
+					break
+				}
+			}
+
+			if anyInMemErr {
 				require.Error(t, err)
 				return
 			}
 
+			r, err := iter.ToSlices(ctx)
+
+			for _, sr := range tc.diskBlocks {
+				if sr.err != nil {
+					require.Error(t, err)
+					return
+				}
+			}
+			require.NoError(t, err)
 			require.Equal(t, len(tc.expectedResults), len(r))
 
 			for i, result := range r {

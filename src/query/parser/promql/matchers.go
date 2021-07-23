@@ -330,7 +330,7 @@ func getBinaryOpType(opType promql.ItemType) string {
 	case promql.MOD:
 		return binary.ModType
 
-	case promql.EQL:
+	case promql.EQL, promql.EQLC:
 		return binary.EqType
 	case promql.NEQ:
 		return binary.NotEqType
@@ -419,7 +419,6 @@ func LabelMatchersToModelMatcher(
 ) (models.Matchers, error) {
 	matchers := make(models.Matchers, 0, len(lMatchers))
 	for _, m := range lMatchers {
-		// here.
 		matchType, err := promTypeToM3(m.Type)
 		if err != nil {
 			return nil, err

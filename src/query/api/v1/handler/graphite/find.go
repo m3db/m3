@@ -21,16 +21,15 @@
 package graphite
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"sync"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/graphite/graphite"
-	"github.com/m3db/m3/src/query/storage"
+	graphitestorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -42,25 +41,25 @@ import (
 
 const (
 	// FindURL is the url for finding graphite metrics.
-	FindURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
+	FindURL = route.Prefix + "/graphite/metrics/find"
 )
 
-var (
-	// FindHTTPMethods are the HTTP methods for this handler.
-	FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// FindHTTPMethods are the HTTP methods for this handler.
+var FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 type grahiteFindHandler struct {
-	storage             storage.Storage
+	storage             graphitestorage.Storage
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
 
 // NewFindHandler returns a new instance of handler.
 func NewFindHandler(opts options.HandlerOptions) http.Handler {
+	wrappedStore := graphitestorage.NewM3WrappedStorage(opts.Storage(),
+		opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &grahiteFindHandler{
-		storage:             opts.Storage(),
-		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		storage:             wrappedStore,
+		fetchOptionsBuilder: opts.GraphiteFindFetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
@@ -74,31 +73,45 @@ func mergeTags(
 	terminatedResult *consolidators.CompleteTagsResult,
 	childResult *consolidators.CompleteTagsResult,
 ) (map[string]nodeDescriptor, error) {
-	// sanity check the case.
-	if terminatedResult.CompleteNameOnly {
-		return nil, errors.New("terminated result is completing name only")
-	}
+	var (
+		terminatedResultTags = 0
+		childResultTags      = 0
+	)
 
-	if childResult.CompleteNameOnly {
-		return nil, errors.New("child result is completing name only")
-	}
-
-	mapLength := len(terminatedResult.CompletedTags) + len(childResult.CompletedTags)
-	tagMap := make(map[string]nodeDescriptor, mapLength)
-
-	for _, tag := range terminatedResult.CompletedTags {
-		for _, value := range tag.Values {
-			descriptor := tagMap[string(value)]
-			descriptor.isLeaf = true
-			tagMap[string(value)] = descriptor
+	// Sanity check the queries aren't complete name only queries.
+	if terminatedResult != nil {
+		terminatedResultTags = len(terminatedResult.CompletedTags)
+		if terminatedResult.CompleteNameOnly {
+			return nil, errors.New("terminated result is completing name only")
 		}
 	}
 
-	for _, tag := range childResult.CompletedTags {
-		for _, value := range tag.Values {
-			descriptor := tagMap[string(value)]
-			descriptor.hasChildren = true
-			tagMap[string(value)] = descriptor
+	if childResult != nil {
+		childResultTags = len(childResult.CompletedTags)
+		if childResult.CompleteNameOnly {
+			return nil, errors.New("child result is completing name only")
+		}
+	}
+
+	size := terminatedResultTags + childResultTags
+	tagMap := make(map[string]nodeDescriptor, size)
+	if terminatedResult != nil {
+		for _, tag := range terminatedResult.CompletedTags {
+			for _, value := range tag.Values {
+				descriptor := tagMap[string(value)]
+				descriptor.isLeaf = true
+				tagMap[string(value)] = descriptor
+			}
+		}
+	}
+
+	if childResult != nil {
+		for _, tag := range childResult.CompletedTags {
+			for _, value := range tag.Values {
+				descriptor := tagMap[string(value)]
+				descriptor.hasChildren = true
+				tagMap[string(value)] = descriptor
+			}
 		}
 	}
 
@@ -109,21 +122,20 @@ func (h *grahiteFindHandler) ServeHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
+	ctx, opts, err := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	if err != nil {
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	// NB: need to run two separate queries, one of which will match only the
 	// provided matchers, and one which will match the provided matchers with at
 	// least one more child node. For further information, refer to the comment
-	// for parseFindParamsToQueries
+	// for parseFindParamsToQueries.
 	terminatedQuery, childQuery, raw, err := parseFindParamsToQueries(r)
-	if err != nil {
-		xhttp.WriteError(w, err)
-		return
-	}
-
-	opts, err := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
@@ -136,11 +148,17 @@ func (h *grahiteFindHandler) ServeHTTP(
 		cErr             error
 		wg               sync.WaitGroup
 	)
-	wg.Add(2)
-	go func() {
-		terminatedResult, tErr = h.storage.CompleteTags(ctx, terminatedQuery, opts)
-		wg.Done()
-	}()
+	if terminatedQuery != nil {
+		// Sometimes we only perform the child query, so only perform
+		// terminated query if not nil.
+		wg.Add(1)
+		go func() {
+			terminatedResult, tErr = h.storage.CompleteTags(ctx, terminatedQuery, opts)
+			wg.Done()
+		}()
+	}
+	// Always perform child query.
+	wg.Add(1)
 	go func() {
 		childResult, cErr = h.storage.CompleteTags(ctx, childQuery, opts)
 		wg.Done()
@@ -149,16 +167,20 @@ func (h *grahiteFindHandler) ServeHTTP(
 	wg.Wait()
 
 	if err := xerrors.FirstError(tErr, cErr); err != nil {
-		logger.Error("unable to complete tags", zap.Error(err))
+		logger.Error("unable to find search", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
 
-	meta := terminatedResult.Metadata.CombineMetadata(childResult.Metadata)
+	meta := childResult.Metadata
+	if terminatedResult != nil {
+		meta = terminatedResult.Metadata.CombineMetadata(childResult.Metadata)
+	}
+
 	// NB: merge results from both queries to specify which series have children
 	seenMap, err := mergeTags(terminatedResult, childResult)
 	if err != nil {
-		logger.Error("unable to complete tags", zap.Error(err))
+		logger.Error("unable to find merge", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -168,10 +190,16 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
-	handleroptions.AddWarningHeaders(w, meta)
-	// TODO: Support multiple result types
-	if err = findResultsJSON(w, prefix, seenMap); err != nil {
-		logger.Error("unable to print find results", zap.Error(err))
+	err = handleroptions.AddDBResultResponseHeaders(w, meta, opts)
+	if err != nil {
+		logger.Error("unable to render find header", zap.Error(err))
 		xhttp.WriteError(w, err)
+		return
+	}
+
+	// TODO: Support multiple result types
+	err = findResultsJSON(w, prefix, seenMap)
+	if err != nil {
+		logger.Error("unable to render find results", zap.Error(err))
 	}
 }

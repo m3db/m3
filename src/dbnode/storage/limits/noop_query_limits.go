@@ -36,7 +36,7 @@ func NoOpQueryLimits() QueryLimits {
 	return &noOpQueryLimits{}
 }
 
-func (q *noOpQueryLimits) DocsLimit() LookbackLimit {
+func (q *noOpQueryLimits) FetchDocsLimit() LookbackLimit {
 	return &noOpLookbackLimit{}
 }
 
@@ -44,7 +44,11 @@ func (q *noOpQueryLimits) BytesReadLimit() LookbackLimit {
 	return &noOpLookbackLimit{}
 }
 
-func (q *noOpQueryLimits) AnyExceeded() error {
+func (q *noOpQueryLimits) AggregateDocsLimit() LookbackLimit {
+	return &noOpLookbackLimit{}
+}
+
+func (q *noOpQueryLimits) AnyFetchExceeded() error {
 	return nil
 }
 
@@ -54,6 +58,20 @@ func (q *noOpQueryLimits) Stop() {
 func (q *noOpQueryLimits) Start() {
 }
 
-func (q *noOpLookbackLimit) Inc(int) error {
+func (q *noOpLookbackLimit) Options() LookbackLimitOptions {
+	return LookbackLimitOptions{}
+}
+
+func (q *noOpLookbackLimit) Update(LookbackLimitOptions) error {
 	return nil
+}
+
+func (q *noOpLookbackLimit) Inc(int, []byte) error {
+	return nil
+}
+
+func (q *noOpLookbackLimit) Start() {
+}
+
+func (q *noOpLookbackLimit) Stop() {
 }

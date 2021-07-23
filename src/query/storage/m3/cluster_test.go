@@ -74,7 +74,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 		ClusterStaticConfiguration{
 			NewClientFromConfig: newClient1,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
-				ClusterStaticNamespaceConfiguration{
+				{
 					Namespace: "unaggregated",
 					Type:      storagemetadata.UnaggregatedMetricsType,
 					Retention: 7 * 24 * time.Hour,
@@ -84,13 +84,13 @@ func TestNewClustersFromConfig(t *testing.T) {
 		ClusterStaticConfiguration{
 			NewClientFromConfig: newClient2,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
-				ClusterStaticNamespaceConfiguration{
+				{
 					Namespace:  "aggregated0",
 					Type:       storagemetadata.AggregatedMetricsType,
 					Retention:  30 * 24 * time.Hour,
 					Resolution: time.Minute,
 				},
-				ClusterStaticNamespaceConfiguration{
+				{
 					Namespace:  "aggregated1",
 					Type:       storagemetadata.AggregatedMetricsType,
 					Retention:  365 * 24 * time.Hour,
@@ -107,7 +107,8 @@ func TestNewClustersFromConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes
-	unaggregatedNs := clusters.UnaggregatedClusterNamespace()
+	unaggregatedNs, initialized := clusters.UnaggregatedClusterNamespace()
+	assert.True(t, initialized)
 	assert.Equal(t, "unaggregated", unaggregatedNs.NamespaceID().String())
 	assert.Equal(t, storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
@@ -209,11 +210,15 @@ func (n *noopCluster) NonReadyClusterNamespaces() ClusterNamespaces {
 	panic("implement me")
 }
 
-func (n *noopCluster) UnaggregatedClusterNamespace() ClusterNamespace {
+func (n *noopCluster) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
 	panic("implement me")
 }
 
-func (n *noopCluster) AggregatedClusterNamespace(attrs RetentionResolution) (ClusterNamespace, bool) {
+func (n *noopCluster) AggregatedClusterNamespace(RetentionResolution) (ClusterNamespace, bool) {
+	panic("implement me")
+}
+
+func (n *noopCluster) ConfigType() ClusterConfigType {
 	panic("implement me")
 }
 

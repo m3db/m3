@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/server"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -49,6 +51,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -58,10 +61,11 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -80,16 +84,12 @@ var (
 
 	testSchemaHistory = prototest.NewSchemaHistory()
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
-	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
-	testProtoEqual    = func(expect, actual []byte) bool {
-		return prototest.ProtoEqual(testSchema, expect, actual)
-	}
-	testProtoIter = prototest.NewProtoMessageIterator(testProtoMessages)
+	testProtoIter     = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // nowSetterFn is the function that sets the current time
-type nowSetterFn func(t time.Time)
+type nowSetterFn func(t xtime.UnixNano)
 
 type assertTestDataEqual func(t *testing.T, expected, actual []generate.TestValue) bool
 
@@ -105,13 +105,15 @@ type testSetup struct {
 
 	db                cluster.Database
 	storageOpts       storage.Options
+	serverStorageOpts server.StorageOptions
 	fsOpts            fs.Options
 	blockLeaseManager block.LeaseManager
 	hostID            string
 	origin            topology.Host
 	topoInit          topology.Initializer
 	shardSet          sharding.ShardSet
-	getNowFn          clock.NowFn
+	getNowFn          xNowFn
+	clockNowFn        clock.NowFn
 	setNowFn          nowSetterFn
 	tchannelClient    *TestTChannelClient
 	m3dbClient        client.Client
@@ -137,6 +139,8 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
+type xNowFn func() xtime.UnixNano
+
 // TestSetup is a test setup.
 type TestSetup interface {
 	topology.MapProvider
@@ -149,6 +153,7 @@ type TestSetup interface {
 	Scope() tally.TestScope
 	M3DBClient() client.Client
 	M3DBVerificationAdminClient() client.AdminClient
+	TChannelClient() *TestTChannelClient
 	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
 	SetTopologyInitializer(topology.Initializer)
@@ -156,13 +161,16 @@ type TestSetup interface {
 	FilePathPrefix() string
 	StorageOpts() storage.Options
 	SetStorageOpts(storage.Options)
+	SetServerStorageOpts(server.StorageOptions)
 	Origin() topology.Host
 	ServerIsBootstrapped() bool
 	StopServer() error
+	StopServerAndVerifyOpenFilesAreClosed() error
 	StartServer() error
 	StartServerDontWaitBootstrap() error
-	NowFn() clock.NowFn
-	SetNowFn(time.Time)
+	NowFn() xNowFn
+	ClockNowFn() clock.NowFn
+	SetNowFn(xtime.UnixNano)
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
@@ -184,14 +192,15 @@ type TestSetup interface {
 	InitializeBootstrappers(opts InitializeBootstrappersOptions) error
 }
 
-type storageOption func(storage.Options) storage.Options
+// StorageOption is a reference to storage options function.
+type StorageOption func(storage.Options) storage.Options
 
 // NewTestSetup returns a new test setup for non-dockerized integration tests.
 func NewTestSetup(
 	t *testing.T,
 	opts TestOptions,
 	fsOpts fs.Options,
-	storageOptFns ...storageOption,
+	storageOptFns ...StorageOption,
 ) (TestSetup, error) {
 	if opts == nil {
 		opts = NewTestOptions(t)
@@ -274,7 +283,7 @@ func NewTestSetup(
 		indexMode = index.InsertAsync
 	}
 
-	plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+	plCache, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
 		InstrumentOptions: iOpts,
 	})
 	if err != nil {
@@ -282,7 +291,7 @@ func NewTestSetup(
 	}
 	// Ok to run immediately since it just closes the background reporting loop. Only ok because
 	// this is a test setup, in production we would want the metrics.
-	stopReporting()
+	plCache.Start()()
 
 	indexOpts := storageOpts.IndexOptions().
 		SetInsertMode(indexMode).
@@ -292,14 +301,15 @@ func NewTestSetup(
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
 	runtimeOpts := runtimeOptsMgr.Get().
 		SetTickMinimumInterval(opts.TickMinimumInterval()).
+		SetTickCancellationCheckInterval(opts.TickCancellationCheckInterval()).
 		SetMaxWiredBlocks(opts.MaxWiredBlocks()).
 		SetWriteNewSeriesAsync(opts.WriteNewSeriesAsync())
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
 		return nil, err
 	}
 
-	// Set up shard set
-	shardSet, err := newTestShardSet(opts.NumShards())
+	// Set up shard set.
+	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -347,14 +357,17 @@ func NewTestSetup(
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(truncateSize)
-	getNowFn := func() time.Time {
+	now := xtime.Now().Truncate(truncateSize)
+	getNowFn := func() xtime.UnixNano {
 		lock.RLock()
 		t := now
 		lock.RUnlock()
 		return t
 	}
-	setNowFn := func(t time.Time) {
+	clockNowFn := func() time.Time {
+		return getNowFn().ToTime()
+	}
+	setNowFn := func(t xtime.UnixNano) {
 		lock.Lock()
 		now = t
 		lock.Unlock()
@@ -365,7 +378,7 @@ func NewTestSetup(
 			storageOpts.ClockOptions().SetNowFn(overrideTimeNow))
 	} else {
 		storageOpts = storageOpts.SetClockOptions(
-			storageOpts.ClockOptions().SetNowFn(getNowFn))
+			storageOpts.ClockOptions().SetNowFn(clockNowFn))
 	}
 
 	// Set up file path prefix
@@ -380,7 +393,8 @@ func NewTestSetup(
 
 	if fsOpts == nil {
 		fsOpts = fs.NewOptions().
-			SetFilePathPrefix(filePathPrefix)
+			SetFilePathPrefix(filePathPrefix).
+			SetClockOptions(storageOpts.ClockOptions())
 	}
 
 	storageOpts = storageOpts.SetCommitLogOptions(
@@ -393,6 +407,13 @@ func NewTestSetup(
 		return nil, err
 	}
 	storageOpts = storageOpts.SetPersistManager(pm)
+
+	// Set up index claims manager
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	storageOpts = storageOpts.SetIndexClaimsManager(icm)
 
 	// Set up repair options
 	storageOpts = storageOpts.
@@ -440,7 +461,7 @@ func NewTestSetup(
 		// Have to manually set the blockpool because the default one uses a constructor
 		// function that doesn't have the updated blockOpts.
 		blockPool.Init(func() block.DatabaseBlock {
-			return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+			return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 		})
 		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
@@ -455,7 +476,12 @@ func NewTestSetup(
 	}
 
 	for _, fn := range storageOptFns {
-		storageOpts = fn(storageOpts)
+		if fn != nil {
+			storageOpts = fn(storageOpts)
+		}
+	}
+	if storageOpts != nil && storageOpts.AdminClient() == nil {
+		storageOpts = storageOpts.SetAdminClient(adminClient)
 	}
 
 	return &testSetup{
@@ -472,6 +498,7 @@ func NewTestSetup(
 		topoInit:                    topoInit,
 		shardSet:                    shardSet,
 		getNowFn:                    getNowFn,
+		clockNowFn:                  clockNowFn,
 		setNowFn:                    setNowFn,
 		tchannelClient:              tchanClient,
 		m3dbClient:                  adminClient.(client.Client),
@@ -531,6 +558,7 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	// otherwise, we are guessing
 	return guess, true
 }
+
 func (ts *testSetup) ShouldBeEqual() bool {
 	return ts.assertEqual == nil
 }
@@ -559,11 +587,15 @@ func (ts *testSetup) Namespaces() []namespace.Metadata {
 	return ts.namespaces
 }
 
-func (ts *testSetup) NowFn() clock.NowFn {
+func (ts *testSetup) NowFn() xNowFn {
 	return ts.getNowFn
 }
 
-func (ts *testSetup) SetNowFn(t time.Time) {
+func (ts *testSetup) ClockNowFn() clock.NowFn {
+	return ts.clockNowFn
+}
+
+func (ts *testSetup) SetNowFn(t xtime.UnixNano) {
 	ts.setNowFn(t)
 }
 
@@ -593,6 +625,10 @@ func (ts *testSetup) StorageOpts() storage.Options {
 
 func (ts *testSetup) SetStorageOpts(opts storage.Options) {
 	ts.storageOpts = opts
+}
+
+func (ts *testSetup) SetServerStorageOpts(opts server.StorageOptions) {
+	ts.serverStorageOpts = opts
 }
 
 func (ts *testSetup) TopologyInitializer() topology.Initializer {
@@ -630,7 +666,7 @@ func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options 
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
 		opts        = generate.NewOptions()
-		co          = opts.ClockOptions().SetNowFn(ts.getNowFn)
+		co          = opts.ClockOptions().SetNowFn(ts.clockNowFn)
 	)
 
 	return opts.
@@ -722,7 +758,7 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 		if err := openAndServe(
 			ts.httpClusterAddr(), ts.tchannelClusterAddr(),
 			ts.httpNodeAddr(), ts.tchannelNodeAddr(), ts.httpDebugAddr(),
-			ts.db, ts.m3dbClient, ts.storageOpts, ts.doneCh,
+			ts.db, ts.m3dbClient, ts.storageOpts, ts.serverStorageOpts, ts.doneCh,
 		); err != nil {
 			select {
 			case resultCh <- err:
@@ -756,6 +792,10 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 func (ts *testSetup) StopServer() error {
 	ts.doneCh <- struct{}{}
 
+	// NB(bodu): Need to reset the global counter of index claims managers after
+	// we've stopped the test server. This covers the restart server case.
+	fs.ResetIndexClaimsManagersUnsafe()
+
 	if ts.m3dbClient.DefaultSessionActive() {
 		session, err := ts.m3dbClient.DefaultSession()
 		if err != nil {
@@ -774,6 +814,33 @@ func (ts *testSetup) StopServer() error {
 	// Wait for graceful server close
 	<-ts.closedCh
 	return nil
+}
+
+func (ts *testSetup) StopServerAndVerifyOpenFilesAreClosed() error {
+	if err := ts.DB().Close(); err != nil {
+		return err
+	}
+
+	openDataFiles := openFiles(ts.filePathPrefix + "/data/")
+	require.Empty(ts.t, openDataFiles)
+
+	return ts.StopServer()
+}
+
+// counts open/locked files inside parent dir.
+func openFiles(parentDir string) []string {
+	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
+
+	out, _ := cmd.Output()
+	if len(out) == 0 {
+		return nil
+	}
+
+	return strings.Split(string(out), "\n")
+}
+
+func (ts *testSetup) TChannelClient() *TestTChannelClient {
+	return ts.tchannelClient
 }
 
 func (ts *testSetup) WriteBatch(namespace ident.ID, seriesList generate.SeriesBlock) error {
@@ -814,6 +881,10 @@ func (ts *testSetup) Close() {
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
 	}
+
+	// This could get called more than once in the multi node integration test case
+	// but this is fine since the reset always sets the counter to 0.
+	fs.ResetIndexClaimsManagersUnsafe()
 }
 
 func (ts *testSetup) MustSetTickMinimumInterval(tickMinInterval time.Duration) {
@@ -941,6 +1012,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
+			SetIndexClaimsManager(storageOpts.IndexClaimsManager()).
 			SetCompactor(compactor)
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {
@@ -981,27 +1053,29 @@ func newClients(
 	tchannelNodeAddr string,
 ) (client.AdminClient, client.AdminClient, error) {
 	var (
-		clientOpts = defaultClientOptions(topoInit).
-				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-				SetFetchRequestTimeout(opts.FetchRequestTimeout()).
-				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-				SetTopologyInitializer(topoInit).
-				SetUseV2BatchAPIs(true)
+		clientOpts = defaultClientOptions(topoInit).SetClusterConnectTimeout(
+			opts.ClusterConnectionTimeout()).
+			SetFetchRequestTimeout(opts.FetchRequestTimeout()).
+			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+			SetTopologyInitializer(topoInit).
+			SetUseV2BatchAPIs(true)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
-		adminOpts = clientOpts.(client.AdminOptions).
-				SetOrigin(origin).
-				SetSchemaRegistry(schemaReg)
-		verificationAdminOpts = adminOpts.
-					SetOrigin(verificationOrigin).
-					SetSchemaRegistry(schemaReg)
+		adminOpts = clientOpts.(client.AdminOptions).SetOrigin(origin).SetSchemaRegistry(schemaReg)
+
+		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin).SetSchemaRegistry(schemaReg)
 	)
 
 	if opts.ProtoEncoding() {
 		adminOpts = adminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
 		verificationAdminOpts = verificationAdminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
+	}
+
+	for _, opt := range opts.CustomClientAdminOptions() {
+		adminOpts = opt(adminOpts)
+		verificationAdminOpts = opt(verificationAdminOpts)
 	}
 
 	// Set up m3db client
@@ -1073,18 +1147,18 @@ func newNodes(
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
-	nodeOpt := bootstrappableTestSetupOptions{
-		disablePeersBootstrapper: true,
-		finalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
-		topologyInitializer:      topoInit,
+	nodeOpt := BootstrappableTestSetupOptions{
+		DisablePeersBootstrapper: true,
+		FinalBootstrapper:        uninitialized.UninitializedTopologyBootstrapperName,
+		TopologyInitializer:      topoInit,
 	}
 
-	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
+	nodeOpts := make([]BootstrappableTestSetupOptions, len(instances))
 	for i := range instances {
 		nodeOpts[i] = nodeOpt
 	}
 
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, nodeOpts)
+	nodes, closeFn := NewDefaultBootstrappableTestSetups(t, opts, nodeOpts)
 
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")

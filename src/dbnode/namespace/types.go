@@ -23,13 +23,13 @@ package namespace
 import (
 	"time"
 
+	protobuftypes "github.com/gogo/protobuf/types"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/gogo/protobuf/proto"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // Options controls namespace behavior.
@@ -205,7 +205,7 @@ type SchemaRegistry interface {
 
 	// RegisterListener registers a schema listener for the namespace.
 	// If proto is not enabled, nil, nil is returned
-	RegisterListener(id ident.ID, listener SchemaListener) (xclose.SimpleCloser, error)
+	RegisterListener(id ident.ID, listener SchemaListener) (xresource.SimpleCloser, error)
 
 	// Close closes all the listeners.
 	Close()
@@ -323,7 +323,7 @@ type NamespaceUpdater func(Map) error
 // ExtendedOptions is the type for dynamically typed options.
 type ExtendedOptions interface {
 	// ToProto converts ExtendedOptions to the corresponding protobuf message.
-	ToProto() (msg proto.Message, typeURLPrefix string)
+	ToProto() (string, *protobuftypes.Struct)
 
 	// Validate validates the ExtendedOptions.
 	Validate() error

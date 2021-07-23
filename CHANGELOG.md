@@ -1,11 +1,70 @@
 # Changelog
 
-# 1.0.0 (PROVISIONAL - STILL WORK IN PROGRESS)
+# 1.1.0
+
+## Features
+
+- **M3Coordinator**: Add /ready endpoint for readiness probe which checks current write/read consistency level achievability ([#2976](https://github.com/m3db/m3/pull/2976))
+- **M3Coordinator**: Add per endpoint status code response codes and latency metrics ([#2880](https://github.com/m3db/m3/pull/2880))
+- **M3Coordinator**: Add Graphite carbon ingest latency metrics ([#3045](https://github.com/m3db/m3/pull/3045))
+- **M3Coordinator**: Add Graphite carbon ingest rule matcher contains to compliment regexp for faster matching ([#3046](https://github.com/m3db/m3/pull/3046))
+- **M3Coordinator**: Return 504 errors on timeout to downstream M3DB nodes or other cross-region coordinators ([#2886](https://github.com/m3db/m3/pull/2886))
+- **M3Coordinator**: Validate placements when using the raw placement upsert endpoint unless force set is specified ([#2922](https://github.com/m3db/m3/pull/2922))
+- **M3Query**: Add Graphite powSeries function ([#3038](https://github.com/m3db/m3/pull/3038))
+- **M3Query**: Add Graphite support for ** with metric path selectors ([#3020](https://github.com/m3db/m3/pull/3020))
+- **M3DB**: Add ability to configure regexp DFA and FSA limits ([#2926](https://github.com/m3db/m3/pull/2926))
+- **M3DB**: Add Alibaba Cloud storage class Kubernetes manifest for disk provisioning in Aliyun ([#2908](https://github.com/m3db/m3/pull/2908))
+
+## Bug Fixes
+
+- **M3Coordinator**: Always set content type JSON for error responses ([#2917](https://github.com/m3db/m3/pull/2917))
+- **M3Query**: Fix invalid query resulting in 500 instead of 400 ([#2910](https://github.com/m3db/m3/pull/2910))
+- **M3Query**: Allow Graphite variadic functions to omit variadic args ([#2882](https://github.com/m3db/m3/pull/2882))
+
+## Performance
+
+- **M3DB**: Skip out of retention index segments during bootstrap ([#2992](https://github.com/m3db/m3/pull/2992))
+
+## Documentation
+
+- **All**: Add clustering getting started guides for both Kubernetes operator and binaries deployment ([#2795](https://github.com/m3db/m3/pull/2795))
+
+# 1.0.0
+
+## Overview
+
+This release makes breaking changes to the APIs and configuration to provide a simpler experience both for setup and operating M3.
+
+- New [M3 website](https://m3db.io/).
+- New [M3 documentation](https://m3db.io/docs).
+- Simple [M3DB configuration](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml) and [guides](https://m3db.io/docs/quickstart/docker/).
+- M3DB [hard limits](https://m3db.io/docs/operational_guide/resource_limits/) limits for high resiliency under load.
+- Bootstrap rearchitecture, now able to boostrap hundreds of millions of recently written datapoints in minutes for reads on restart.
+- Continued focus on baseline performance release-over-release.
+
+## Features
+- **M3DB**: Namespace resolution and retention now configured dynamically via API and stored in etcd instead of being defined statically in M3Coordinator configuration.
+```
+message DatabaseCreateRequest {
+  // ...
+
+  // Optional aggregated namespace to create in 
+  // addition to unaggregated namespace
+  AggregatedNamespace aggregated_namespace = 8;
+}
+```
+- **M3DB**: Minimal configuration file with default settings looks like:
+```
+coordinator: {}
+db: {}
+```
+and includes common settings such as global query limits.
 
 ## Backwards Incompatible Changes
 
 ### Configuration
 - **M3DB**: `db.bootstrap.bootstrappers` removed
+- **M3DB**: `db.config` nested under `db.discovery.config` (`discovery` can optionally accept different `type`s of defaults instead of a custom `config`)
 - **M3Coordinator**: `cluster.namespaces.storageMetricsType` removed
 - **M3Coordinator**: `tagOptions.tagOptions` no longer supports `legacy` type
 - **M3Query**: `limits.perQuery.maxComputedDatapoints` removed
@@ -31,8 +90,15 @@ listenAddress: "..."
 - **M3Coordinator**: Removed deprecated URL `/api/v1/placement` in favor of stable preferred URL `/api/v1/services/m3db/placement`
 - **M3Coordinator**: Removed deprecated URL `/api/v1/placement/init` in favor of stable preferred URL `/api/v1/services/m3db/placement/init`
 
+### Package
+- `github.com/m3db/m3/src/x/close` removed in favor of `github.com/m3db/m3/src/x/resource`
+- `github.com/m3db/m3/src/dbnode/clock` removed in favor of `github.com/m3db/m3/src/x/clock`
+- `github.com/m3db/m3/src/x/dice/dice.go` moved to `github.com/m3db/m3/src/dbnode/storage/dice.go`
+- `github.com/m3db/m3/src/x/lockfile/lockfile.go` moved to `github.com/m3db/m3/src/dbnode/server/lockfile.go`
+
 ### Misc
 - **M3Query**: Concept of data point limit enforcers removed in favor of the other remaining query limits (e.g. max series). This also removed metrics `cost_reporter_datapoints`, `cost_reporter_datapoints_counter`, and `cost_reporter_over_datapoints_limit`.
+- Linter enabled
 
 # 0.15.17
 

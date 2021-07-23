@@ -44,6 +44,17 @@ var (
 	}
 )
 
+// ClusterConfigType is an enum representing the configuration used
+// to create a Clusters interface
+type ClusterConfigType int
+
+const (
+	// ClusterConfigTypeStatic is for static configuration.
+	ClusterConfigTypeStatic = iota
+	// ClusterConfigTypeDynamic is for dynamic configuration.
+	ClusterConfigTypeDynamic
+)
+
 // Clusters is a flattened collection of local storage clusters and namespaces.
 type Clusters interface {
 	io.Closer
@@ -55,12 +66,16 @@ type Clusters interface {
 	NonReadyClusterNamespaces() ClusterNamespaces
 
 	// UnaggregatedClusterNamespace returns the valid unaggregated
-	// cluster namespace.
-	UnaggregatedClusterNamespace() ClusterNamespace
+	// cluster namespace. If the namespace is not yet initialized, returns false.
+	UnaggregatedClusterNamespace() (ClusterNamespace, bool)
 
 	// AggregatedClusterNamespace returns an aggregated cluster namespace
 	// at a specific retention and resolution.
 	AggregatedClusterNamespace(attrs RetentionResolution) (ClusterNamespace, bool)
+
+	// ConfigType returns the type of configuration used to create this Clusters
+	// object.
+	ConfigType() ClusterConfigType
 }
 
 // RetentionResolution is a tuple of retention and resolution that describes
@@ -83,6 +98,17 @@ type ClusterNamespaceOptions struct {
 	// and/or error if call to access a field is not relevant/correct.
 	attributes storagemetadata.Attributes
 	downsample *ClusterNamespaceDownsampleOptions
+}
+
+// NewClusterNamespaceOptions creates new cluster namespace options.
+func NewClusterNamespaceOptions(
+	attributes storagemetadata.Attributes,
+	downsample *ClusterNamespaceDownsampleOptions,
+) ClusterNamespaceOptions {
+	return ClusterNamespaceOptions{
+		attributes: attributes,
+		downsample: downsample,
+	}
 }
 
 // Attributes returns the storage attributes of the cluster namespace.
@@ -258,8 +284,8 @@ func (c *clusters) NonReadyClusterNamespaces() ClusterNamespaces {
 	return nil
 }
 
-func (c *clusters) UnaggregatedClusterNamespace() ClusterNamespace {
-	return c.unaggregatedNamespace
+func (c *clusters) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
+	return c.unaggregatedNamespace, true
 }
 
 func (c *clusters) AggregatedClusterNamespace(
@@ -267,6 +293,10 @@ func (c *clusters) AggregatedClusterNamespace(
 ) (ClusterNamespace, bool) {
 	namespace, ok := c.aggregatedNamespaces[attrs]
 	return namespace, ok
+}
+
+func (c *clusters) ConfigType() ClusterConfigType {
+	return ClusterConfigTypeStatic
 }
 
 func (c *clusters) Close() error {

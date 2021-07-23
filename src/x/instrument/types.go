@@ -38,12 +38,24 @@ type Reporter interface {
 	Stop() error
 }
 
+// Profiler represents profiler for profiling long-running tasks.
+type Profiler interface {
+	// StartCPUProfile starts the named cpu profile.
+	StartCPUProfile(name string) error
+
+	// StopCPUProfile stops started cpu profile.
+	StopCPUProfile() error
+
+	// WriteHeapProfile writes heap profile.
+	WriteHeapProfile(name string) error
+}
+
 // Options represents the options for instrumentation.
 type Options interface {
 	// SetLogger sets the zap logger
 	SetLogger(value *zap.Logger) Options
 
-	// ZapLogger returns the zap logger
+	// Logger returns the zap logger
 	Logger() *zap.Logger
 
 	// SetMetricsScope sets the metrics scope.
@@ -78,4 +90,10 @@ type Options interface {
 
 	// CustomBuildTags returns the custom build tags.
 	CustomBuildTags() map[string]string
+
+	// SetProfiler sets the profiler.
+	SetProfiler(value Profiler) Options
+
+	// Profiler returns the Profiler.
+	Profiler() Profiler
 }

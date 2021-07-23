@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/x/context"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -49,16 +51,17 @@ func TestSegmentDistributionDoesNotAffectQuery(t *testing.T) {
 	simpleSeg := newTestMemSegment(t, lotsTestDocuments)
 	properties.Property("Any distribution of test documents in segments does not affect query results", prop.ForAll(
 		func(i propTestInput, q search.Query) (bool, error) {
+			ctx := context.NewBackground()
 			r, err := simpleSeg.Reader()
 			require.NoError(t, err)
 			eOrg := executor.NewExecutor([]index.Reader{r})
-			dOrg, err := eOrg.Execute(q)
+			dOrg, err := eOrg.Execute(ctx, q)
 			if err != nil {
 				return false, err
 			}
 			matchedDocs, err := collectDocs(dOrg)
 			require.NoError(t, err)
-			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
+			docMatcher, err := newDocumentIteratorMatcher(t, matchedDocs...)
 			require.NoError(t, err)
 
 			segments := i.generate(t, lotsTestDocuments)
@@ -72,7 +75,7 @@ func TestSegmentDistributionDoesNotAffectQuery(t *testing.T) {
 			}
 
 			e := executor.NewExecutor(readers)
-			d, err := e.Execute(q)
+			d, err := e.Execute(ctx, q)
 			if err != nil {
 				return false, err
 			}
@@ -106,22 +109,23 @@ func TestFSTSimpleSegmentsQueryTheSame(t *testing.T) {
 
 	properties.Property("Simple & FST Segments Query the same results", prop.ForAll(
 		func(q search.Query) (bool, error) {
+			ctx := context.NewBackground()
 			r, err := simpleSeg.Reader()
 			require.NoError(t, err)
 			eOrg := executor.NewExecutor([]index.Reader{r})
-			dOrg, err := eOrg.Execute(q)
+			dOrg, err := eOrg.Execute(ctx, q)
 			if err != nil {
 				return false, err
 			}
 			matchedDocs, err := collectDocs(dOrg)
 			require.NoError(t, err)
-			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
+			docMatcher, err := newDocumentIteratorMatcher(t, matchedDocs...)
 			require.NoError(t, err)
 
 			rFst, err := fstSeg.Reader()
 			require.NoError(t, err)
 			e := executor.NewExecutor([]index.Reader{rFst})
-			d, err := e.Execute(q)
+			d, err := e.Execute(ctx, q)
 			if err != nil {
 				return false, err
 			}

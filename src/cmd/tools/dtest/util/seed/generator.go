@@ -23,13 +23,13 @@ package seed
 import (
 	"fmt"
 	"math/rand"
-	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
@@ -79,7 +79,7 @@ func (g *generator) Generate(nsCtx ns.Context, shard uint32) error {
 		shardSet     = &fakeShardSet{shard}
 		gOpts        = g.opts.GenerateOptions()
 		blockSize    = gOpts.BlockSize()
-		now          = gOpts.ClockOptions().NowFn()().Truncate(blockSize)
+		now          = xtime.ToUnixNano(gOpts.ClockOptions().NowFn()().Truncate(blockSize))
 		start        = now.Add(-blockSize)
 		earliest     = now.Add(-1 * gOpts.RetentionPeriod())
 		blockConfigs []generate.BlockConfig
@@ -102,7 +102,7 @@ func (g *generator) Generate(nsCtx ns.Context, shard uint32) error {
 	return nil
 }
 
-func (g *generator) generateConf(start time.Time) generate.BlockConfig {
+func (g *generator) generateConf(start xtime.UnixNano) generate.BlockConfig {
 	numPoints := g.numPoints.sample(g.r)
 	return generate.BlockConfig{
 		Start:     start,

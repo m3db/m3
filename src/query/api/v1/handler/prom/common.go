@@ -36,14 +36,6 @@ import (
 // formats with prometheus.
 // https://github.com/prometheus/prometheus/blob/43acd0e2e93f9f70c49b2267efa0124f1e759e86/web/api/v1/api.go#L1097
 
-const (
-	queryParam   = "query"
-	startParam   = "start"
-	endParam     = "end"
-	stepParam    = "step"
-	timeoutParam = "timeout"
-)
-
 var (
 	minTime = time.Unix(math.MinInt64/1000+62135596801, 0).UTC()
 	maxTime = time.Unix(math.MaxInt64/1000-62135596801, 999999999).UTC()
@@ -61,18 +53,8 @@ const (
 
 type errorType string
 
-const (
-	errorNone        errorType = ""
-	errorTimeout     errorType = "timeout"
-	errorCanceled    errorType = "canceled"
-	errorExec        errorType = "execution"
-	errorBadData     errorType = "bad_data"
-	errorInternal    errorType = "internal"
-	errorUnavailable errorType = "unavailable"
-	errorNotFound    errorType = "not_found"
-)
-
-type queryData struct {
+// QueryData struct to be used when responding from HTTP handler.
+type QueryData struct {
 	ResultType promql.ValueType `json:"resultType"`
 	Result     promql.Value     `json:"result"`
 }
@@ -85,39 +67,18 @@ type response struct {
 	Warnings  []string    `json:"warnings,omitempty"`
 }
 
-func respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) {
+// Respond responds with HTTP OK status code and writes response JSON to response body.
+func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) error {
 	statusMessage := statusSuccess
 	var warningStrings []string
 	for _, warning := range warnings {
 		warningStrings = append(warningStrings, warning.Error())
 	}
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	b, err := json.Marshal(&response{
+	return json.NewEncoder(w).Encode(&response{
 		Status:   statusMessage,
 		Data:     data,
 		Warnings: warningStrings,
 	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	w.WriteHeader(http.StatusOK)
-	w.Write(b)
-}
-
-func respondError(w http.ResponseWriter, err error) {
-	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	b, marshalErr := json.Marshal(&response{
-		Status: statusError,
-		Error:  err.Error(),
-	})
-	if marshalErr != nil {
-		xhttp.WriteError(w, marshalErr)
-		return
-	}
-
-	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	xhttp.WriteError(w, err, xhttp.WithErrorResponse(b))
 }

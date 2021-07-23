@@ -79,7 +79,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	writes, ok := writesInterface.([]generatedWrite)
 	require.True(t, ok)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	for _, w := range writes {
 		require.NoError(t, cl.Write(ctx, w.series, w.datapoint, w.unit, w.annotation))
 	}
@@ -125,7 +125,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
 		require.Equal(t, write.series.Shard, series.Shard)
 		require.Equal(t, write.datapoint.Value, datapoint.Value)
-		require.True(t, write.datapoint.Timestamp.Equal(datapoint.Timestamp))
+		require.Equal(t, write.datapoint.TimestampNanos, datapoint.TimestampNanos)
 
 		seriesWrites.readPosition++
 		writesBySeries[series.ID.String()] = seriesWrites
@@ -305,7 +305,7 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 			},
 			RunFunc: func(q commands.SystemUnderTest) commands.Result {
 				s := q.(*clState)
-				ctx := context.NewContext()
+				ctx := context.NewBackground()
 				defer ctx.Close()
 
 				for _, w := range writes {
@@ -519,7 +519,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 			seriesMap = make(map[xtime.UnixNano]generatedWrite)
 			writesOnDisk[idString] = seriesMap
 		}
-		seriesMap[xtime.ToUnixNano(datapoint.Timestamp)] = generatedWrite{
+		seriesMap[datapoint.TimestampNanos] = generatedWrite{
 			series:     series,
 			datapoint:  datapoint,
 			unit:       unit,
@@ -543,7 +543,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		if !ok {
 			return missingErr
 		}
-		gw, ok := seriesMap[xtime.ToUnixNano(w.datapoint.Timestamp)]
+		gw, ok := seriesMap[w.datapoint.TimestampNanos]
 		if !ok {
 			return missingErr
 		}
@@ -630,8 +630,8 @@ func genWrite() gopter.Gen {
 				UniqueIndex: uniqueID(ns, id),
 			},
 			datapoint: ts.Datapoint{
-				Timestamp: t,
-				Value:     v,
+				TimestampNanos: xtime.ToUnixNano(t),
+				Value:          v,
 			},
 			unit: xtime.Nanosecond,
 		}

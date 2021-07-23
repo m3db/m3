@@ -32,7 +32,7 @@ import (
 )
 
 type builderFromSegments struct {
-	docs           []doc.Document
+	docs           []doc.Metadata
 	idSet          *IDsMap
 	segments       []segmentMetadata
 	termsIter      *termsIterFromSegments
@@ -61,7 +61,7 @@ func NewBuilderFromSegments(opts Options) segment.SegmentsBuilder {
 
 func (b *builderFromSegments) Reset() {
 	// Reset the documents slice
-	var emptyDoc doc.Document
+	var emptyDoc doc.Metadata
 	for i := range b.docs {
 		b.docs[i] = emptyDoc
 	}
@@ -82,6 +82,17 @@ func (b *builderFromSegments) Reset() {
 }
 
 func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
+	// Order by largest -> smallest so that the first segment
+	// is the largest when iterating over term postings lists
+	// (which means it can be directly copied into the merged postings
+	// list via a union rather than needing to shift posting list
+	// IDs to take into account for duplicates).
+	// Note: This must be done first so that offset is correctly zero
+	// for the largest segment.
+	sort.Slice(segments, func(i, j int) bool {
+		return segments[i].Size() > segments[j].Size()
+	})
+
 	// numMaxDocs can sometimes be larger than the actual number of documents
 	// since some are duplicates
 	numMaxDocs := 0
@@ -92,7 +103,7 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 	// Ensure we don't have to constantly reallocate docs slice
 	totalMaxSize := len(b.docs) + numMaxDocs
 	if cap(b.docs) < totalMaxSize {
-		b.docs = make([]doc.Document, 0, totalMaxSize)
+		b.docs = make([]doc.Metadata, 0, totalMaxSize)
 	}
 
 	// First build metadata and docs slice
@@ -144,7 +155,7 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 	return nil
 }
 
-func (b *builderFromSegments) Docs() []doc.Document {
+func (b *builderFromSegments) Docs() []doc.Metadata {
 	return b.docs
 }
 
@@ -153,10 +164,10 @@ func (b *builderFromSegments) AllDocs() (index.IDDocIterator, error) {
 	return index.NewIDDocIterator(b, rangeIter), nil
 }
 
-func (b *builderFromSegments) Doc(id postings.ID) (doc.Document, error) {
+func (b *builderFromSegments) Metadata(id postings.ID) (doc.Metadata, error) {
 	idx := int(id)
 	if idx < 0 || idx >= len(b.docs) {
-		return doc.Document{}, errDocNotFound
+		return doc.Metadata{}, errDocNotFound
 	}
 
 	return b.docs[idx], nil

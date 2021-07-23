@@ -33,6 +33,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -49,6 +50,7 @@ type writeForwardedMetricFn func(
 	key aggregationKey,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 )
 
 type onForwardedAggregationDoneFn func(key aggregationKey) error
@@ -141,7 +143,7 @@ type forwardedWriter struct {
 	shard  uint32
 	client client.AdminClient
 
-	closed             bool
+	closed             atomic.Bool
 	aggregations       map[idKey]*forwardedAggregation // Aggregations for each forward metric id
 	metrics            forwardedWriterMetrics
 	aggregationMetrics *forwardedAggregationMetrics
@@ -168,7 +170,7 @@ func (w *forwardedWriter) Register(
 	metricID id.RawID,
 	aggKey aggregationKey,
 ) (writeForwardedMetricFn, onForwardedAggregationDoneFn, error) {
-	if w.closed {
+	if w.closed.Load() {
 		w.metrics.registerWriterClosed.Inc(1)
 		return nil, nil, errForwardedWriterClosed
 	}
@@ -188,7 +190,7 @@ func (w *forwardedWriter) Unregister(
 	metricID id.RawID,
 	aggKey aggregationKey,
 ) error {
-	if w.closed {
+	if w.closed.Load() {
 		w.metrics.unregisterWriterClosed.Inc(1)
 		return errForwardedWriterClosed
 	}
@@ -219,6 +221,10 @@ func (w *forwardedWriter) Prepare() {
 }
 
 func (w *forwardedWriter) Flush() error {
+	if w.closed.Load() {
+		return errForwardedWriterClosed
+	}
+
 	if err := w.client.Flush(); err != nil {
 		w.metrics.flushErrorsClient.Inc(1)
 		return err
@@ -230,12 +236,9 @@ func (w *forwardedWriter) Flush() error {
 // NB: Do not close the client here as it is shared by all the forward
 // writers. The aggregator is responsible for closing the client.
 func (w *forwardedWriter) Close() error {
-	if w.closed {
+	if w.closed.Swap(true) {
 		return errForwardedWriterClosed
 	}
-	w.closed = true
-	w.client = nil
-	w.aggregations = nil
 	return nil
 }
 
@@ -256,8 +259,9 @@ func newIDKey(
 }
 
 type forwardedAggregationBucket struct {
-	timeNanos int64
-	values    []float64
+	timeNanos  int64
+	values     []float64
+	annotation []byte
 }
 
 type forwardedAggregationBuckets []forwardedAggregationBucket
@@ -290,10 +294,13 @@ func (agg *forwardedAggregationWithKey) reset() {
 	agg.buckets = agg.buckets[:0]
 }
 
-func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64) {
+func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, annotation []byte) {
 	for i := 0; i < len(agg.buckets); i++ {
 		if agg.buckets[i].timeNanos == timeNanos {
 			agg.buckets[i].values = append(agg.buckets[i].values, value)
+			if annotation != nil {
+				agg.buckets[i].annotation = annotation
+			}
 			return
 		}
 	}
@@ -307,8 +314,9 @@ func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64) {
 	}
 	values = append(values, value)
 	bucket := forwardedAggregationBucket{
-		timeNanos: timeNanos,
-		values:    values,
+		timeNanos:  timeNanos,
+		values:     values,
+		annotation: annotation,
 	}
 	agg.buckets = append(agg.buckets, bucket)
 }
@@ -423,9 +431,10 @@ func (agg *forwardedAggregation) write(
 	key aggregationKey,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 ) {
 	idx := agg.index(key)
-	agg.byKey[idx].add(timeNanos, value)
+	agg.byKey[idx].add(timeNanos, value, annotation)
 	agg.metrics.write.Inc(1)
 }
 
@@ -452,10 +461,11 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				continue
 			}
 			metric := aggregated.ForwardedMetric{
-				Type:      agg.metricType,
-				ID:        agg.metricID,
-				TimeNanos: b.timeNanos,
-				Values:    b.values,
+				Type:       agg.metricType,
+				ID:         agg.metricID,
+				TimeNanos:  b.timeNanos,
+				Values:     b.values,
+				Annotation: b.annotation,
 			}
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
@@ -472,8 +482,8 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 }
 
 func (agg *forwardedAggregation) index(key aggregationKey) int {
-	for i, k := range agg.byKey {
-		if k.key.Equal(key) {
+	for i := range agg.byKey {
+		if agg.byKey[i].key.Equal(key) {
 			return i
 		}
 	}

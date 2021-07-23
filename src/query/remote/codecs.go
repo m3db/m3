@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"google.golang.org/grpc/metadata"
 )
@@ -44,7 +45,7 @@ import (
 const reqIDKey = "reqid"
 
 func fromTime(t time.Time) int64 {
-	return storage.TimeToPromTimestamp(t)
+	return storage.TimeToPromTimestamp(xtime.ToUnixNano(t))
 }
 
 func toTime(t int64) time.Time {
@@ -72,7 +73,7 @@ func encodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 		for j := 0; j < vLen; j++ {
 			dp := result.Values().DatapointAt(j)
 			datapoints[j] = &rpc.Datapoint{
-				Timestamp: fromTime(dp.Timestamp),
+				Timestamp: int64(dp.Timestamp),
 				Value:     dp.Value,
 			}
 		}
@@ -165,7 +166,8 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 
 	fanoutOpts := options.FanoutOptions
 	result := &rpc.FetchOptions{
-		Limit: int64(options.SeriesLimit),
+		Limit:  int64(options.SeriesLimit),
+		Source: options.Source,
 	}
 
 	unagg, err := encodeFanoutOption(fanoutOpts.FanoutUnaggregated)
@@ -299,7 +301,7 @@ func encodeMetadata(ctx context.Context, requestID string) context.Context {
 		return ctx
 	}
 
-	headerValues := ctx.Value(handler.HeaderKey)
+	headerValues := ctx.Value(handleroptions.RequestHeaderKey)
 	headers, ok := headerValues.(http.Header)
 	if !ok {
 		return metadata.NewOutgoingContext(ctx, metadata.MD{reqIDKey: []string{requestID}})
@@ -498,6 +500,7 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 		result.LookbackDuration = &duration
 	}
 
+	result.Source = rpcFetchOptions.Source
 	return result, nil
 }
 

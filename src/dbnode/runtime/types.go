@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // Options is a set of runtime options.
@@ -175,13 +175,13 @@ type Options interface {
 	// used when fetching data from peers for coordinated writes
 	ClientWriteConsistencyLevel() topology.ConsistencyLevel
 
-	// SetIndexDefaultQueryTimeout is the hard timeout value to use if none is
-	// specified for a specific query, zero specifies to use no timeout at all.
-	SetIndexDefaultQueryTimeout(value time.Duration) Options
+	// SetTickCancellationCheckInterval sets the interval to check whether the tick
+	// has been canceled. This duration also affects the minimum tick duration.
+	SetTickCancellationCheckInterval(value time.Duration) Options
 
-	// IndexDefaultQueryTimeout is the hard timeout value to use if none is
-	// specified for a specific query, zero specifies to use no timeout at all.
-	IndexDefaultQueryTimeout() time.Duration
+	// TickCancellationCheckInterval is the interval to check whether the tick
+	// has been canceled. This duration also affects the minimum tick duration.
+	TickCancellationCheckInterval() time.Duration
 }
 
 // OptionsManager updates and supplies runtime options.
@@ -195,7 +195,7 @@ type OptionsManager interface {
 	// RegisterListener registers a listener for updates to runtime options,
 	// it will synchronously call back the listener when this method is called
 	// to deliver the current set of runtime options.
-	RegisterListener(l OptionsListener) xclose.SimpleCloser
+	RegisterListener(l OptionsListener) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches.
 	Close()

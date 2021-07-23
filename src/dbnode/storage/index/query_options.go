@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // SeriesLimitExceeded returns whether a given size exceeds the
@@ -43,7 +45,8 @@ func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
 	return o.SeriesLimitExceeded(seriesCount) || o.DocsLimitExceeded(docsCount)
 }
 
-func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
+// Exhaustive returns true if the provided counts did not exceeded the query limits.
+func (o QueryOptions) Exhaustive(seriesCount, docsCount int) bool {
 	return !o.SeriesLimitExceeded(seriesCount) && !o.DocsLimitExceeded(docsCount)
 }
 
@@ -54,7 +57,7 @@ var (
 
 // NewWideQueryOptions creates a new wide query options, snapped to block start.
 func NewWideQueryOptions(
-	queryStart time.Time,
+	blockStart xtime.UnixNano,
 	batchSize int,
 	blockSize time.Duration,
 	shards []uint32,
@@ -68,8 +71,11 @@ func NewWideQueryOptions(
 		return WideQueryOptions{}, fmt.Errorf(errInvalidBlockSize, blockSize)
 	}
 
-	start := queryStart.Truncate(blockSize)
-	end := start.Add(blockSize)
+	if !blockStart.Equal(blockStart.Truncate(blockSize)) {
+		return WideQueryOptions{},
+			fmt.Errorf("block start not divisible by block size: start=%v, size=%s",
+				blockStart.String(), blockSize.String())
+	}
 
 	// NB: shards queried must be sorted.
 	sort.Slice(shards, func(i, j int) bool {
@@ -77,8 +83,8 @@ func NewWideQueryOptions(
 	})
 
 	return WideQueryOptions{
-		StartInclusive:   start,
-		EndExclusive:     end,
+		StartInclusive:   blockStart,
+		EndExclusive:     blockStart.Add(blockSize),
 		BatchSize:        batchSize,
 		IterationOptions: iterOpts,
 		ShardsQueried:    shards,

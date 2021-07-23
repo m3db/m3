@@ -74,9 +74,31 @@ function setup_single_m3db_node_long_namespaces {
     ]
   }'
 
+  echo "Updating aggregation options for agg namespace"
+  curl -vvvsSf -X PUT 0.0.0.0:${coordinator_port}/api/v1/services/m3db/namespace -d '{
+    "name": "agg",
+    "options": {
+      "aggregationOptions": {
+        "aggregations": [
+           {
+            "aggregated": true,
+            "attributes": {
+              "resolutionDuration": "30s",
+              "downsampleOptions": { "all": false }
+            }
+          }
+        ]
+      }
+    }
+  }'
+
   echo "Wait until placement is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/placement | jq .placement.instances.'${dbnode_id}'.id)" == \"'${dbnode_id}'\" ]'
+
+  echo "Wait until agg namespace is ready"
+  ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"agg\"}" | grep -c true)" -eq 1 ]'
 
   wait_for_namespaces
 
@@ -86,10 +108,31 @@ function setup_single_m3db_node_long_namespaces {
     "retentionTime": "48h"
   }'
 
+  echo "Updating aggregation options for agg namespace"
+  curl -vvvsSf -X PUT 0.0.0.0:${coordinator_port}/api/v1/services/m3db/namespace -d '{
+    "name": "agg2d",
+    "options": {
+      "aggregationOptions": {
+        "aggregations": [
+          {
+            "aggregated": true,
+            "attributes": {
+              "resolutionDuration": "1m",
+              "downsampleOptions": { "all": false }
+            }
+          }
+        ]
+      }
+    }
+  }'
+
   echo "Wait until agg2d namespace is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace | jq .registry.namespaces.agg2d.indexOptions.enabled)" == true ]'
 
+  echo "Wait until agg2d namespace is ready"
+  ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"agg2d\"}" | grep -c true)" -eq 1 ]'
 
   echo "Wait until bootstrapped"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
@@ -103,6 +146,8 @@ function setup_single_m3db_node {
   local dbnode_id=${DBNODE_ID:-m3db_local}
   local coordinator_port=${COORDINATOR_PORT:-7201}
   local zone=${ZONE:-embedded}
+  local agg_resolution=${AGG_RESOLUTION:-15s}
+  local agg_retention=${AGG_RETENTION:-10h}
 
   echo "Wait for API to be available"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
@@ -112,7 +157,7 @@ function setup_single_m3db_node {
   curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/create -d '{
     "type": "cluster",
     "namespaceName": "agg",
-    "retentionTime": "6h",
+    "retentionTime": "'${agg_retention}'",
     "num_shards": 4,
     "replicationFactor": 1,
     "hosts": [
@@ -127,9 +172,30 @@ function setup_single_m3db_node {
     ]
   }'
 
+  echo "Updating aggregation options for agg namespace"
+  curl -vvvsSf -X PUT 0.0.0.0:${coordinator_port}/api/v1/services/m3db/namespace -d '{
+    "name": "agg",
+    "options": {
+      "aggregationOptions": {
+        "aggregations": [
+          {
+            "aggregated": true,
+            "attributes": {
+              "resolutionDuration": "'${agg_resolution}'"
+            }
+          }
+        ]
+      }
+    }
+  }'
+
   echo "Wait until placement is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/placement | jq .placement.instances.'${dbnode_id}'.id)" == \"'${dbnode_id}'\" ]'
+
+  echo "Wait until agg namespace is ready"
+  ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"agg\"}" | grep -c true)" -eq 1 ]'
 
   wait_for_namespaces
 
@@ -147,6 +213,8 @@ function setup_two_m3db_nodes {
   local dbnode_host_1_health_port=${DBNODE_HEALTH_PORT_01:-9012}
   local dbnode_host_2_health_port=${DBNODE_HEALTH_PORT_02:-9022}
   local coordinator_port=${COORDINATOR_PORT:-7201}
+  local agg_resolution=${AGG_RESOLUTION:-15s}
+  local agg_retention=${AGG_RETENTION:-10h}
 
   echo "Wait for API to be available"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
@@ -156,7 +224,7 @@ function setup_two_m3db_nodes {
   curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/create -d '{
     "type": "cluster",
     "namespaceName": "agg",
-    "retentionTime": "6h",
+    "retentionTime": "'${agg_retention}'",
     "num_shards": 2,
     "replicationFactor": 2,
     "hosts": [
@@ -179,9 +247,30 @@ function setup_two_m3db_nodes {
     ]
   }'
 
+  echo "Updating aggregation options for agg namespace"
+  curl -vvvsSf -X PUT 0.0.0.0:${coordinator_port}/api/v1/services/m3db/namespace -d '{
+    "name": "agg",
+    "options": {
+      "aggregationOptions": {
+        "aggregations": [
+          {
+            "aggregated": true,
+            "attributes": {
+              "resolutionDuration": "'${agg_resolution}'"
+            }
+          }
+        ]
+      }
+    }
+  }'
+
   echo "Wait until placement is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/placement | jq .placement.instances.'"${dbnode_id_1}"'.id)" == \"'"${dbnode_id_1}"'\" ]'
+
+  echo "Wait until agg namespace is ready"
+  ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"agg\"}" | grep -c true)" -eq 1 ]'
 
   wait_for_namespaces
 
@@ -194,6 +283,7 @@ function setup_two_m3db_nodes {
 
 function wait_for_namespaces {
   local coordinator_port=${COORDINATOR_PORT:-7201}
+  local unagg_retention=${UNAGG_RETENTION:-10h}
 
   echo "Wait until agg namespace is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
@@ -202,12 +292,16 @@ function wait_for_namespaces {
   echo "Adding unagg namespace"
   curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/namespace/create -d '{
     "namespaceName": "unagg",
-    "retentionTime": "6h"
+    "retentionTime": "'${unagg_retention}'"
   }'
 
   echo "Wait until unagg namespace is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
+
+  echo "Wait until unagg namespace is ready"
+  ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"unagg\"}" | grep -c true)" -eq 1 ]'
 
   echo "Adding coldWritesRepairAndNoIndex namespace"
   curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/services/m3db/namespace -d '{
@@ -227,6 +321,11 @@ function wait_for_namespaces {
         "bufferPastDuration": "10m",
         "blockDataExpiry": true,
         "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+      },
+      "aggregationOptions": {
+        "aggregations": [
+          { "aggregated": false }
+        ]
       }
     }
   }'
