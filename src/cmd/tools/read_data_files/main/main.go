@@ -113,9 +113,6 @@ func main() {
 
 	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
 	var bytesPool pool.CheckedBytesPool
-	//bytesPool := tools.NewCheckedBytesPool()
-	//bytesPool.Init()
-
 	encodingOpts := encoding.NewOptions().SetBytesPool(bytesPool)
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
