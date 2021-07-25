@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/getopt"
@@ -77,11 +76,7 @@ func main() {
 	dstFsOpts := fs.NewOptions().SetFilePathPrefix(dropDataSuffix(*optDstPathPrefix))
 
 	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
-	var bytesPool pool.CheckedBytesPool
-	//bytesPool := tools.NewCheckedBytesPool()
-	//bytesPool.Init()
-
-	reader, err := fs.NewReader(bytesPool, srcFsOpts)
+	reader, err := fs.NewReader(nil, srcFsOpts)
 	if err != nil {
 		logger.Fatalf("could not create new reader: %v", err)
 	}
