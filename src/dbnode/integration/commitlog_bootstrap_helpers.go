@@ -156,7 +156,7 @@ func writeCommitLogDataBase(
 		shardSet       = s.ShardSet()
 		tagEncoderPool = opts.FilesystemOptions().TagEncoderPool()
 		tagSliceIter   = ident.NewTagsIterator(ident.Tags{})
-		writes int
+		writes         int
 	)
 
 	// Write out commit log data.
@@ -166,7 +166,7 @@ func writeCommitLogDataBase(
 		} else {
 			s.SetNowFn(currTs.ToTime())
 		}
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		defer ctx.Close()
 
 		m := map[xtime.UnixNano]generate.SeriesBlock{
