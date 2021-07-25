@@ -34,6 +34,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -41,7 +42,6 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestIndexActiveBlockRotate(t *testing.T) {
@@ -160,7 +160,7 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 
 	prevLog := log
 	for i := 0; i < 4; i++ {
-		log := prevLog.With(zap.Int("checkIteration", i))
+		log = prevLog.With(zap.Int("checkIteration", i))
 
 		// Progress to next time just before a flush and freeze (using setTime).
 		prevTime := nowFn()
@@ -251,7 +251,7 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 		require.True(t, warmFlushed,
 			fmt.Sprintf("warm flush stats: current=%d, previous=%d", counter, prevWarmFlushes))
 		log.Info("verified data has been warm flushed", zap.Duration("took", time.Since(start)))
-		prevWarmFlushes = int(counter)
+		prevWarmFlushes = counter
 
 		start = time.Now()
 		log.Info("waiting for GC of series")
@@ -267,7 +267,7 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 				numGCSeries, expectedNumGCSeries))
 		require.True(t, numGCSeries >= expectedNumGCSeries)
 		log.Info("verified series have been GC'd", zap.Duration("took", time.Since(start)))
-		prevNumGCSeries = int(numGCSeries)
+		prevNumGCSeries = numGCSeries
 
 		require.Equal(t, 0, logs.Len(), "errors found in logs during flush/indexing")
 
