@@ -171,7 +171,7 @@ type NumIndexedOptions struct {
 	Logger *zap.Logger
 }
 
-// NumIndexed gets number of indexed series.
+// NumIndexedWithOptions gets number of indexed series with a set of options.
 func (w TestIndexWrites) NumIndexedWithOptions(
 	t *testing.T,
 	ns ident.ID,
