@@ -28,7 +28,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -121,9 +120,8 @@ func main() {
 			return nil
 		}
 
-		seriesCount, err := splitFileSet(
+		_, err = splitFileSet(
 			reader, writers, hashFn, *optShards, *optFactor, logger, namespace, uint32(shard), xtime.UnixNano(blockStart), volume)
-		fmt.Println(seriesCount)
 		return err
 	}); err != nil {
 		logger.Fatalf("unable to walk the source dir: %v", err)
@@ -131,13 +129,6 @@ func main() {
 
 	runTime := time.Since(start)
 	fmt.Printf("Running time: %s\n", runTime) // nolint: forbidigo
-	//fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
-}
-
-func printMem(s string, start time.Time) {
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-	fmt.Printf("HeapAlloc: %d, HeapInuse: %d, HeapSys: %d - %s - %s\n", ms.HeapAlloc, ms.HeapInuse, ms.HeapSys, time.Since(start), s)
 }
 
 func splitFileSet(
@@ -152,7 +143,6 @@ func splitFileSet(
 	blockStart xtime.UnixNano,
 	volume int,
 ) (int, error) {
-	start := time.Now()
 	if shard >= srcNumShards {
 		return 0, fmt.Errorf("unexpected source shard ID %d (must be under %d)", shard, srcNumShards)
 	}
@@ -172,7 +162,7 @@ func splitFileSet(
 	if err != nil {
 		logger.Fatalf("unable to open reader: %v", err)
 	}
-	printMem("reader.Open", start)
+
 	plannedRecordsCount := uint(reader.Entries() / factor)
 	if plannedRecordsCount == 0 {
 		plannedRecordsCount = 1
@@ -192,7 +182,6 @@ func splitFileSet(
 		}
 	}
 
-	printMem("writers[].Open", start)
 	seriesCount := 0
 	dataHolder := make([][]byte, 1)
 	for {
@@ -217,19 +206,16 @@ func splitFileSet(
 
 		seriesCount++
 	}
-	printMem("split done", start)
 
 	for i := range writers {
 		if err := writers[i].Close(); err != nil {
 			return 0, err
 		}
 	}
-	printMem("writers[].Close", start)
 
 	if err := reader.Close(); err != nil {
 		return 0, err
 	}
-	printMem("reader.Close", start)
 
 	return seriesCount, nil
 }
