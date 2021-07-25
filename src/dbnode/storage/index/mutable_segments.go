@@ -580,7 +580,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 	plan *compaction.Plan,
 	compactors chan *compaction.Compactor,
 	gcRequired bool,
-	sealedBlocks map[xtime.UnixNano]struct{},
+	flushedBlocks map[xtime.UnixNano]struct{},
 ) {
 	sw := m.metrics.backgroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
@@ -617,7 +617,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 				wg.Done()
 			}()
 			err := m.backgroundCompactWithTask(task, compactor, gcRequired,
-				sealedBlocks, log, logger.With(zap.Int("task", i)))
+				flushedBlocks, log, logger.With(zap.Int("task", i)))
 			if err != nil {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 					l.Error("error compacting segments", zap.Error(err))
@@ -638,7 +638,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	task compaction.Task,
 	compactor *compaction.Compactor,
 	gcRequired bool,
-	sealedBlocks map[xtime.UnixNano]struct{},
+	flushedBlocks map[xtime.UnixNano]struct{},
 	log bool,
 	logger *zap.Logger,
 ) error {
@@ -683,7 +683,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				return true
 			}
 
-			result := latestEntry.RemoveIndexedForBlockStarts(sealedBlocks)
+			result := latestEntry.RemoveIndexedForBlockStarts(flushedBlocks)
 			latestEntry.DecrementReaderWriterCount()
 
 			// Keep the series if and only if there are remaining

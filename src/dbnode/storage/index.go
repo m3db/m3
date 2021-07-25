@@ -929,6 +929,9 @@ func (i *nsIndex) Tick(
 	// such as notify of sealed blocks.
 	tickingBlocks, multiErr := i.tickingBlocks(startTime)
 
+	// Track blocks that are flushed (and have their bootstrapped results).
+	flushedBlocks := make([]xtime.UnixNano, 0, len(tickingBlocks.tickingBlocks))
+
 	result.NumBlocks = int64(tickingBlocks.totalBlocks)
 	for _, block := range tickingBlocks.tickingBlocks {
 		if c.IsCancelled() {
@@ -943,6 +946,10 @@ func (i *nsIndex) Tick(
 		result.NumSegmentsMutable += blockTickResult.NumSegmentsMutable
 		result.NumTotalDocs += blockTickResult.NumDocs
 		result.FreeMmap += blockTickResult.FreeMmap
+
+		if tickErr == nil && result.NumSegmentsBootstrapped != 0 {
+			flushedBlocks = append(flushedBlocks, block.StartTime())
+		}
 	}
 
 	blockTickResult, tickErr := tickingBlocks.activeBlock.Tick(c)
@@ -958,8 +965,13 @@ func (i *nsIndex) Tick(
 	// this can take a considerable amount of time
 	// and is an expensive task that doesn't require
 	// holding the index lock.
-	_ = tickingBlocks.activeBlock.ActiveBlockNotifyFlushedBlocks(tickingBlocks.flushedBlocks)
-	i.metrics.blocksNotifyFlushed.Inc(int64(len(tickingBlocks.flushedBlocks)))
+	notifyErr := tickingBlocks.activeBlock.ActiveBlockNotifyFlushedBlocks(flushedBlocks)
+	if notifyErr != nil {
+		multiErr = multiErr.Add(notifyErr)
+	} else {
+		i.metrics.blocksNotifyFlushed.Inc(int64(len(flushedBlocks)))
+	}
+
 	i.metrics.tick.Inc(1)
 
 	return result, multiErr.FinalError()
@@ -969,7 +981,6 @@ type tickingBlocksResult struct {
 	totalBlocks   int
 	activeBlock   index.Block
 	tickingBlocks []index.Block
-	flushedBlocks []xtime.UnixNano
 }
 
 func (i *nsIndex) tickingBlocks(
@@ -982,7 +993,6 @@ func (i *nsIndex) tickingBlocks(
 	i.state.Lock()
 	activeBlock := i.activeBlock
 	tickingBlocks := make([]index.Block, 0, len(i.state.blocksByTime))
-	flushedBlocks := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
 	defer func() {
 		i.updateBlockStartsWithLock()
 		i.state.Unlock()
@@ -1004,19 +1014,12 @@ func (i *nsIndex) tickingBlocks(
 		if !blockStart.After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
 			multiErr = multiErr.Add(block.Seal())
 		}
-
-		if block.IsSealed() && !block.NeedsMutableSegmentsEvicted() {
-			// If sealed and does not need any in memory data evicted then
-			// we can call this block flushed.
-			flushedBlocks = append(flushedBlocks, blockStart)
-		}
 	}
 
 	return tickingBlocksResult{
 		totalBlocks:   len(i.state.blocksByTime),
 		activeBlock:   activeBlock,
 		tickingBlocks: tickingBlocks,
-		flushedBlocks: flushedBlocks,
 	}, multiErr
 }
 
@@ -1122,6 +1125,20 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 	}, nil
 }
 
+func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano]fs.ReadIndexInfoFileResult {
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
+	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   fsOpts.FilePathPrefix(),
+		Namespace:        i.nsMetadata.ID(),
+		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+	})
+	result := make(map[xtime.UnixNano]fs.ReadIndexInfoFileResult)
+	for _, infoFile := range infoFiles {
+		result[xtime.UnixNano(infoFile.Info.BlockStart)] = infoFile
+	}
+	return result
+}
+
 func (i *nsIndex) flushableBlocks(
 	shards []databaseShard,
 	flushType series.WriteType,
@@ -1133,12 +1150,7 @@ func (i *nsIndex) flushableBlocks(
 	}
 	// NB(bodu): We read index info files once here to avoid re-reading all of them
 	// for each block.
-	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
-	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
-		FilePathPrefix:   fsOpts.FilePathPrefix(),
-		Namespace:        i.nsMetadata.ID(),
-		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
-	})
+	infoFiles := i.readInfoFilesAsMap()
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 
 	now := xtime.ToUnixNano(i.nowFn())
@@ -1166,7 +1178,7 @@ func (i *nsIndex) flushableBlocks(
 }
 
 func (i *nsIndex) canFlushBlockWithRLock(
-	infoFiles []fs.ReadIndexInfoFileResult,
+	infoFiles map[xtime.UnixNano]fs.ReadIndexInfoFileResult,
 	blockStart xtime.UnixNano,
 	block index.Block,
 	shards []databaseShard,
@@ -1214,23 +1226,23 @@ func (i *nsIndex) canFlushBlockWithRLock(
 }
 
 func (i *nsIndex) hasIndexWarmFlushedToDisk(
-	infoFiles []fs.ReadIndexInfoFileResult,
+	infoFiles map[xtime.UnixNano]fs.ReadIndexInfoFileResult,
 	blockStart xtime.UnixNano,
 ) bool {
-	var hasIndexWarmFlushedToDisk bool
 	// NB(bodu): We consider the block to have been warm flushed if there are any
 	// filesets on disk. This is consistent with the "has warm flushed" check in the db shard.
 	// Shard block starts are marked as having warm flushed if an info file is successfully read from disk.
-	for _, f := range infoFiles {
-		indexVolumeType := idxpersist.DefaultIndexVolumeType
-		if f.Info.IndexVolumeType != nil {
-			indexVolumeType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
-		}
-		if f.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType {
-			hasIndexWarmFlushedToDisk = true
-		}
+	f, ok := infoFiles[blockStart]
+	if !ok {
+		return false
 	}
-	return hasIndexWarmFlushedToDisk
+
+	indexVolumeType := idxpersist.DefaultIndexVolumeType
+	if f.Info.IndexVolumeType != nil {
+		indexVolumeType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
+	}
+	match := f.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType
+	return match
 }
 
 func (i *nsIndex) flushBlock(
