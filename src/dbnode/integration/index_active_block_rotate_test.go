@@ -174,8 +174,7 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 
 		start := time.Now()
 		log.Info("writing test data")
-		// t0 := newTime.Add(-indexBlockSize / 2)
-		// t1 := newTime
+
 		t0 := xtime.ToUnixNano(newTime.Add(-1 * (bufferPast / 2)))
 		t1 := xtime.ToUnixNano(newTime)
 		writesPeriodIter := GenerateTestIndexWrite(i, numWrites, numTags, t0, t1)
@@ -283,12 +282,6 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 	}
 
 	log.Info("checks passed")
-}
-
-func logCounterValues(s tally.TestScope, log *zap.Logger) {
-	for k, v := range s.Snapshot().Counters() {
-		log.Info("counter", zap.String("key", k), zap.Int64("value", v.Value()))
-	}
 }
 
 func counterValue(t *testing.T, r tally.TestScope, key string) int {
