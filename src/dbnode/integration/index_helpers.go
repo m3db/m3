@@ -29,14 +29,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestIndexWrites holds index writes for testing.
@@ -161,6 +163,21 @@ func (w TestIndexWrites) Write(t *testing.T, ns ident.ID, s client.Session) {
 
 // NumIndexed gets number of indexed series.
 func (w TestIndexWrites) NumIndexed(t *testing.T, ns ident.ID, s client.Session) int {
+	return w.NumIndexedWithOptions(t, ns, s, NumIndexedOptions{})
+}
+
+// NumIndexedOptions is options when performing num indexed check.
+type NumIndexedOptions struct {
+	Logger *zap.Logger
+}
+
+// NumIndexedWithOptions gets number of indexed series with a set of options.
+func (w TestIndexWrites) NumIndexedWithOptions(
+	t *testing.T,
+	ns ident.ID,
+	s client.Session,
+	opts NumIndexedOptions,
+) int {
 	numFound := 0
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
@@ -173,19 +190,42 @@ func (w TestIndexWrites) NumIndexed(t *testing.T, ns ident.ID, s client.Session)
 				SeriesLimit:    10,
 			})
 		if err != nil {
+			if l := opts.Logger; l != nil {
+				l.Error("fetch tagged IDs error", zap.Error(err))
+			}
 			continue
 		}
 		if !iter.Next() {
+			if l := opts.Logger; l != nil {
+				l.Warn("missing result",
+					zap.String("queryID", wi.ID.String()),
+					zap.ByteString("queryTags", consolidators.MustIdentTagIteratorToTags(wi.Tags, nil).ID()))
+			}
 			continue
 		}
 		cuNs, cuID, cuTag := iter.Current()
 		if ns.String() != cuNs.String() {
+			if l := opts.Logger; l != nil {
+				l.Warn("namespace mismatch",
+					zap.String("queryNamespace", ns.String()),
+					zap.String("resultNamespace", cuNs.String()))
+			}
 			continue
 		}
 		if wi.ID.String() != cuID.String() {
+			if l := opts.Logger; l != nil {
+				l.Warn("id mismatch",
+					zap.String("queryID", wi.ID.String()),
+					zap.String("resultID", cuID.String()))
+			}
 			continue
 		}
 		if !ident.NewTagIterMatcher(wi.Tags).Matches(cuTag) {
+			if l := opts.Logger; l != nil {
+				l.Warn("tag mismatch",
+					zap.ByteString("queryTags", consolidators.MustIdentTagIteratorToTags(wi.Tags, nil).ID()),
+					zap.ByteString("resultTags", consolidators.MustIdentTagIteratorToTags(cuTag, nil).ID()))
+			}
 			continue
 		}
 		numFound++
