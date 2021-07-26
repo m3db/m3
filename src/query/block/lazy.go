@@ -20,6 +20,8 @@
 
 package block
 
+import xtime "github.com/m3db/m3/src/x/time"
+
 type lazyBlock struct {
 	block Block
 	opts  LazyOptions
@@ -58,14 +60,40 @@ func (b *lazyBlock) StepIter() (StepIter, error) {
 }
 
 type lazyStepIter struct {
-	it   StepIter
-	opts LazyOptions
+	it       StepIter
+	currVals []float64
+	currTime xtime.UnixNano
+	opts     LazyOptions
 }
 
 func (it *lazyStepIter) Close()         { it.it.Close() }
 func (it *lazyStepIter) Err() error     { return it.it.Err() }
 func (it *lazyStepIter) StepCount() int { return it.it.StepCount() }
-func (it *lazyStepIter) Next() bool     { return it.it.Next() }
+func (it *lazyStepIter) Next() bool {
+	next := it.it.Next()
+	if !next {
+		return false
+	}
+
+	var (
+		c        = it.it.Current()
+		tt, vt   = it.opts.TimeTransform(), it.opts.ValueTransform()
+		stepVals = c.Values()
+	)
+
+	it.currTime = tt(c.Time())
+	if it.currVals == nil {
+		it.currVals = make([]float64, 0, len(stepVals))
+	} else {
+		it.currVals = it.currVals[:0]
+	}
+
+	for _, val := range stepVals {
+		it.currVals = append(it.currVals, vt(val))
+	}
+
+	return true
+}
 
 func (it *lazyStepIter) SeriesMeta() []SeriesMeta {
 	mt := it.opts.SeriesMetaTransform()
@@ -73,20 +101,9 @@ func (it *lazyStepIter) SeriesMeta() []SeriesMeta {
 }
 
 func (it *lazyStepIter) Current() Step {
-	var (
-		c        = it.it.Current()
-		tt, vt   = it.opts.TimeTransform(), it.opts.ValueTransform()
-		stepVals = c.Values()
-	)
-
-	vals := make([]float64, 0, len(stepVals))
-	for _, val := range stepVals {
-		vals = append(vals, vt(val))
-	}
-
 	return ColStep{
-		time:   tt(c.Time()),
-		values: vals,
+		time:   it.currTime,
+		values: it.currVals,
 	}
 }
 

@@ -27,6 +27,7 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -66,14 +67,104 @@ func (c *columnBlock) StepIter() (StepIter, error) {
 	}, nil
 }
 
-// SeriesIter is invalid for a columnar block.
-func (c *columnBlock) SeriesIter() (SeriesIter, error) {
-	return nil, errors.New("series iterator undefined for a scalar block")
+type seriesBlockIter struct {
+	idx         int
+	end         int
+	curr        ts.Datapoints
+	seriesMetas []SeriesMeta
+	columns     []column
 }
 
-// MultiSeriesIter is invalid for a columnar block.
-func (c *columnBlock) MultiSeriesIter(_ int) ([]SeriesIterBatch, error) {
-	return nil, errors.New("multi series iterator undefined for a scalar block")
+func newSeriesBlockIter(
+	cols []column,
+	start, end int,
+	meta Metadata,
+	metas []SeriesMeta,
+) (SeriesIter, error) {
+	var (
+		dps      = make(ts.Datapoints, 0, len(cols))
+		currTime = meta.Bounds.Start
+		step     = meta.Bounds.StepSize
+	)
+
+	for i := 0; i < len(cols); i++ {
+		dps = append(dps, ts.Datapoint{Timestamp: currTime})
+		currTime = currTime.Add(step)
+	}
+
+	return &seriesBlockIter{
+		idx:         start,
+		end:         end,
+		curr:        dps,
+		seriesMetas: metas,
+		columns:     cols,
+	}, nil
+}
+
+func (c *seriesBlockIter) SeriesMeta() []SeriesMeta {
+	return c.seriesMetas
+}
+
+func (c *seriesBlockIter) SeriesCount() int {
+	return len(c.seriesMetas)
+}
+
+func (c *seriesBlockIter) Next() bool {
+	c.idx++
+	if c.idx > c.end {
+		return false
+	}
+
+	for colIdx, val := range c.columns {
+		c.curr[colIdx].Value = val.Values[c.idx]
+	}
+
+	return true
+}
+
+func (c *seriesBlockIter) Current() UnconsolidatedSeries {
+	return UnconsolidatedSeries{
+		datapoints: c.curr,
+		Meta:       c.seriesMetas[c.idx],
+	}
+}
+
+func (c *seriesBlockIter) Err() error { return nil }
+func (c *seriesBlockIter) Close()     { /*no-op*/ }
+
+func (c *columnBlock) SeriesIter() (SeriesIter, error) {
+	return newSeriesBlockIter(c.columns, -1, len(c.seriesMeta)-1, c.meta, c.seriesMeta)
+}
+
+func (c *columnBlock) MultiSeriesIter(count int) ([]SeriesIterBatch, error) {
+	if len(c.seriesMeta) < count {
+		count = len(c.seriesMeta)
+	}
+
+	batches := make([]SeriesIterBatch, 0, count)
+	batchSize := len(c.seriesMeta) / count
+	start := -1
+	for i := 0; i < count; i++ {
+		end := start + batchSize
+		if i == count-1 {
+			// NB: collect all remaining elements into the last batch.
+			end = len(c.seriesMeta) - 1
+		}
+
+		iter, err := newSeriesBlockIter(c.columns, start, end, c.meta, c.seriesMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		batches = append(batches, SeriesIterBatch{
+			Size: end - start,
+			Iter: iter,
+		})
+
+		start = end
+	}
+
+	return batches, nil
 }
 
 func (c *columnBlock) SeriesMeta() []SeriesMeta {

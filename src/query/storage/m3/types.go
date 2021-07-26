@@ -155,7 +155,7 @@ type Options interface {
 	SetConsolidationFunc(consolidators.ConsolidationFunc) Options
 	// LookbackDuration returns the consolidation function.
 	ConsolidationFunc() consolidators.ConsolidationFunc
-	// SetLookbackDuration sets the tag options for the converter.
+	// SetTagOptions sets the tag options for the converter.
 	SetTagOptions(models.TagOptions) Options
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
@@ -195,6 +195,10 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
+	// SetStorageUpdateFn sets the storage update function.
+	SetStorageUpdateFn(StorageUpdateFn) Options
+	// SetStorageUpdateFn returns the storage update function.
+	StorageUpdateFn() StorageUpdateFn
 	// SetBlockSeriesProcessor set the block series processor.
 	SetBlockSeriesProcessor(value BlockSeriesProcessor) Options
 	// BlockSeriesProcessor returns the block series processor.
@@ -235,6 +239,9 @@ type IteratorBatchingFn func(
 type GraphiteBlockIteratorsFn func(
 	block.Block,
 ) ([]block.SeriesIterBatch, error)
+
+// StorageUpdateFn updates a given storage.
+type StorageUpdateFn func(storage.Storage) (storage.Storage, error)
 
 type peekValue struct {
 	started  bool

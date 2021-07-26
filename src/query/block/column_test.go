@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,20 +51,20 @@ func TestColumnBuilderInfoTypes(t *testing.T) {
 	assert.Equal(t, BlockScalar, block.Info().blockType)
 }
 
-func TestSetRow(t *testing.T) {
-	buildMeta := func(i int) SeriesMeta {
-		name := fmt.Sprint(i)
+func namedMeta(i int) SeriesMeta {
+	name := fmt.Sprint(i)
 
-		return SeriesMeta{
-			Name: []byte(name),
-			Tags: models.MustMakeTags("name", name),
-		}
+	return SeriesMeta{
+		Name: []byte(name),
+		Tags: models.MustMakeTags("name", name),
 	}
+}
 
+func TestSetRow(t *testing.T) {
 	size := 10
 	metas := make([]SeriesMeta, size)
 	for i := range metas {
-		metas[i] = buildMeta(i)
+		metas[i] = namedMeta(i)
 	}
 
 	ctx := makeTestQueryContext()
@@ -104,4 +106,116 @@ func TestSetRow(t *testing.T) {
 	assert.Equal(t, exVals, vals)
 	assert.False(t, it.Next())
 	assert.NoError(t, it.Err())
+}
+
+type exStep struct {
+	t xtime.UnixNano
+	v []float64
+}
+
+type exSeries struct {
+	dps  ts.Datapoints
+	meta SeriesMeta
+}
+
+func TestIters(t *testing.T) {
+	var (
+		size  = 5
+		start = xtime.Now().Truncate(time.Hour)
+		steps = 3
+		step  = time.Minute
+		metas = make([]SeriesMeta, size)
+
+		expectedSteps = []exStep{
+			{t: start, v: []float64{0, 1, 2, 3, 4}},
+			{t: start.Add(step), v: []float64{0, 10, 20, 30, 40}},
+			{t: start.Add(step * 2), v: []float64{0, 100, 200, 300, 400}},
+		}
+
+		makeDps = func(v ...float64) ts.Datapoints {
+			dps := make(ts.Datapoints, 0, len(v))
+			for idx, val := range v {
+				dps = append(dps, ts.Datapoint{
+					Timestamp: start.Add(step * time.Duration(idx)),
+					Value:     val,
+				})
+			}
+			return dps
+		}
+
+		expectedSeries = []exSeries{
+			{dps: makeDps(0, 0, 0), meta: namedMeta(0)},
+			{dps: makeDps(1, 10, 100), meta: namedMeta(1)},
+			{dps: makeDps(2, 20, 200), meta: namedMeta(2)},
+			{dps: makeDps(3, 30, 300), meta: namedMeta(3)},
+			{dps: makeDps(4, 40, 400), meta: namedMeta(4)},
+		}
+	)
+
+	for i := range metas {
+		metas[i] = namedMeta(i)
+	}
+
+	ctx := makeTestQueryContext()
+	builder := NewColumnBlockBuilder(ctx, Metadata{
+		Bounds: models.Bounds{
+			Start:    start,
+			StepSize: step,
+			Duration: time.Duration(steps) * step,
+		},
+	}, nil)
+
+	require.NoError(t, builder.AddCols(steps))
+	builder.PopulateColumns(size)
+	for i := 0; i < size; i++ {
+		row := []float64{float64(i), float64(i * 10), float64(i * 100)}
+		require.NoError(t, builder.SetRow(i, row, metas[i]))
+	}
+
+	bl := builder.Build()
+
+	t.Run("series", func(t *testing.T) {
+		iter, err := bl.SeriesIter()
+		require.NoError(t, err)
+		for i := 0; iter.Next(); i++ {
+			c := iter.Current()
+			require.Equal(t, expectedSeries[i].meta, c.Meta)
+			require.Equal(t, expectedSeries[i].dps, c.datapoints)
+		}
+
+		require.NoError(t, iter.Err())
+	})
+
+	t.Run("multi series", func(t *testing.T) {
+		iters, err := bl.MultiSeriesIter(2)
+		require.NoError(t, err)
+
+		exMulti := [][]exSeries{
+			expectedSeries[:1],
+			expectedSeries[1:],
+		}
+
+		for multiIdx, multi := range iters {
+			iter := multi.Iter
+			for i := 0; iter.Next(); i++ {
+				c := iter.Current()
+				require.Equal(t, exMulti[multiIdx][i].meta, c.Meta)
+				require.Equal(t, exMulti[multiIdx][i].dps, c.datapoints)
+			}
+
+			require.Equal(t, len(exMulti[multiIdx]), multi.Size)
+		}
+	})
+
+	t.Run("step", func(t *testing.T) {
+		iter, err := bl.StepIter()
+		require.NoError(t, err)
+		for i := 0; iter.Next(); i++ {
+			c := iter.Current()
+			require.Equal(t, expectedSteps[i].t, c.Time())
+			require.Equal(t, expectedSteps[i].v, c.Values())
+		}
+
+		require.NoError(t, iter.Err())
+	})
 }

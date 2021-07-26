@@ -1059,6 +1059,13 @@ func newStorages(
 
 	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter,
 		completeTagsFilter, opts.TagOptions(), opts, instrumentOpts)
+
+	fanoutStorage, err = opts.StorageUpdateFn()(fanoutStorage)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+
 	return fanoutStorage, cleanup, nil
 }
 

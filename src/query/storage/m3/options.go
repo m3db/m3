@@ -1,4 +1,4 @@
-// Copyright (c) 2020  Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -49,6 +49,9 @@ var (
 	defaultTagsTransform        = func(ctx context.Context, ns ClusterNamespace, tags []models.Tag) (
 		[]models.Tag, error) {
 		return tags, nil
+	}
+	defaultStorageUpdateFn = func(s storage.Storage) (storage.Storage, error) {
+		return s, nil
 	}
 )
 
@@ -141,6 +144,7 @@ type encodedBlockOptions struct {
 	queryConsolidatorMatchOptions consolidators.MatchOptions
 	seriesIteratorProcessor       SeriesIteratorProcessor
 	batchingFn                    IteratorBatchingFn
+	storageFn                     StorageUpdateFn
 	blockSeriesProcessor          BlockSeriesProcessor
 	adminOptions                  []client.CustomAdminOption
 	instrumented                  bool
@@ -158,6 +162,7 @@ func newOptions(
 		pools:                iteratorPools,
 		checkedPools:         bytesPool,
 		batchingFn:           defaultIteratorBatchingFn,
+		storageFn:            defaultStorageFn,
 		blockSeriesProcessor: defaultBlockSeriesProcessor,
 		instrumented:         defaultInstrumented,
 		queryConsolidatorMatchOptions: consolidators.MatchOptions{
@@ -296,6 +301,16 @@ func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Optio
 
 func (o *encodedBlockOptions) IteratorBatchingFn() IteratorBatchingFn {
 	return o.batchingFn
+}
+
+func (o *encodedBlockOptions) SetStorageUpdateFn(fn StorageUpdateFn) Options {
+	opts := *o
+	opts.storageFn = fn
+	return &opts
+}
+
+func (o *encodedBlockOptions) StorageUpdateFn() StorageUpdateFn {
+	return o.storageFn
 }
 
 func (o *encodedBlockOptions) SetBlockSeriesProcessor(fn BlockSeriesProcessor) Options {

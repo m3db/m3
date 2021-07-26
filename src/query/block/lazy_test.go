@@ -53,13 +53,10 @@ func buildMetaExhaustive(start xtime.UnixNano, exhaustive bool) Metadata {
 func buildTestSeriesMeta(name string) []SeriesMeta {
 	tags := models.NewTags(1, models.NewTagOptions()).
 		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
-	return []SeriesMeta{
-		SeriesMeta{
-			Name: []byte(name),
-			Tags: tags,
-		},
-	}
-
+	return []SeriesMeta{{
+		Name: []byte(name),
+		Tags: tags,
+	}}
 }
 
 func testLazyOpts(timeOffset time.Duration, valOffset float64) LazyOptions {
@@ -172,15 +169,14 @@ func TestStepIter(t *testing.T) {
 	iter.EXPECT().StepCount().Return(12)
 	assert.Equal(t, 12, it.StepCount())
 
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []float64{1, 2, 3}
 	step := NewMockStep(ctrl)
+	vals := []float64{1, 2, 3}
 	step.EXPECT().Values().Return(vals)
 	step.EXPECT().Time().Return(now)
-
+	iter.EXPECT().Next().Return(true)
 	iter.EXPECT().Current().Return(step)
+
+	assert.True(t, it.Next())
 	actual := it.Current()
 	assert.Equal(t, vals, actual.Values())
 	assert.Equal(t, now.Add(offset), actual.Time())
@@ -275,16 +271,15 @@ func TestStepIterWithNegativeValueOffset(t *testing.T) {
 	iter.EXPECT().SeriesMeta().Return(seriesMetas)
 	assert.Equal(t, seriesMetas, it.SeriesMeta())
 
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
 	vals := []float64{1, 2, 3}
 	step := NewMockStep(ctrl)
 	step.EXPECT().Values().Return(vals)
 	step.EXPECT().Time().Return(now)
-
 	expectedVals := []float64{-1, -2, -3}
 	iter.EXPECT().Current().Return(step)
+	iter.EXPECT().Next().Return(true)
+
+	assert.True(t, it.Next())
 	actual := it.Current()
 	assert.Equal(t, expectedVals, actual.Values())
 	assert.Equal(t, now, actual.Time())
@@ -306,12 +301,7 @@ func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 	require.NoError(t, err)
 
 	concurrency := 5
-	batched := []SeriesIterBatch{
-		SeriesIterBatch{},
-		SeriesIterBatch{},
-		SeriesIterBatch{},
-	}
-
+	batched := []SeriesIterBatch{{}, {}, {}}
 	b.EXPECT().MultiSeriesIter(concurrency).Return(batched, nil)
 	bs, err := offblock.MultiSeriesIter(concurrency)
 	require.NoError(t, err)
