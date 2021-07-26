@@ -13,7 +13,7 @@ func WithOptions(iOpts Options, opts ...Option) Options {
 	return *ptr
 }
 
-// Option configures the instrument options.
+// Option applys optional settings to the instrument options.
 type Option func(*Options)
 
 // WithScopeAndLoggerTagged tags both the metric scope and logger in the
