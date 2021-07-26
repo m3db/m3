@@ -246,7 +246,7 @@ func parseShards(shards string) []uint32 {
 		return []uint32{}
 	}
 
-	// Handle commda-delimited shard list 1,3,5, etc
+	// Handle comma-delimited shard list 1,3,5, etc
 	for _, shard := range strings.Split(shards, ",") {
 		shard = strings.TrimSpace(shard)
 		if shard == "" {
