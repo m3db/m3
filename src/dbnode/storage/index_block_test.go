@@ -562,7 +562,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
-	b0.EXPECT().IsSealed().Return(false).Times(2)
+	b0.EXPECT().IsSealed().Return(false).Times(1)
 	b0.EXPECT().Seal().Return(nil).AnyTimes()
 	result, err = idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
@@ -577,8 +577,6 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
-	b0.EXPECT().IsSealed().Return(true).Times(2)
-	b0.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
 	result, err = idx.Tick(c, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
