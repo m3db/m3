@@ -95,7 +95,7 @@ require (
 	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
 	go.opentelemetry.io/collector v0.29.0
-	go.opentelemetry.io/otel v0.20.0
+	go.opentelemetry.io/otel v0.20.1-0.20210429164211-e399d355cb37
 	go.opentelemetry.io/otel/bridge/opentracing v0.20.0
 	go.opentelemetry.io/otel/exporters/otlp v0.20.0
 	go.opentelemetry.io/otel/sdk v0.20.0
