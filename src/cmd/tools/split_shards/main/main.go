@@ -300,10 +300,6 @@ func verifySplitShards(
 			return fmt.Errorf("data checksum mismatch: %d != %d, id=%s",
 				srcEntry.DataChecksum, dstEntry.DataChecksum, srcEntry.ID)
 		}
-		if srcEntry.IndexChecksum != dstEntry.IndexChecksum {
-			return fmt.Errorf("index checksum mismatch: %d != %d, id=%s",
-				srcEntry.IndexChecksum, dstEntry.IndexChecksum, srcEntry.ID)
-		}
 	}
 
 	for i := range dstReaders {
