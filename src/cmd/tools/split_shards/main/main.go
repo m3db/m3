@@ -300,13 +300,15 @@ func verifySplitShards(
 			return fmt.Errorf("data checksum mismatch: %d != %d, id=%s",
 				srcEntry.DataChecksum, dstEntry.DataChecksum, srcEntry.ID)
 		}
-		//TODO: check IndexChecksum
+		if srcEntry.IndexChecksum != dstEntry.IndexChecksum {
+			return fmt.Errorf("index checksum mismatch: %d != %d, id=%s",
+				srcEntry.IndexChecksum, dstEntry.IndexChecksum, srcEntry.ID)
+		}
 	}
 
 	for i := range dstReaders {
 		dstReader := dstReaders[i]
-		_, err := dstReader.StreamingReadMetadata()
-		if err != io.EOF {
+		if _, err := dstReader.StreamingReadMetadata(); err != io.EOF {
 			return fmt.Errorf("expected EOF on split shard %d, but got %v",
 				dstReader.Status().Shard, err)
 		}
