@@ -473,7 +473,7 @@ func (r *reader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
 		EncodedTags:   r.streamingTags,
 		Length:        int(entry.Size),
 		DataChecksum:  uint32(entry.DataChecksum),
-		IndexChecksum: entry.IndexChecksum,
+		IndexChecksum: uint32(entry.IndexChecksum),
 	}, nil
 }
 

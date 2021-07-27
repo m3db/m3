@@ -704,7 +704,7 @@ type StreamedMetadataEntry struct {
 	EncodedTags   ts.EncodedTags
 	Length        int
 	DataChecksum  uint32
-	IndexChecksum int64
+	IndexChecksum uint32
 }
 
 // NewReaderFn creates a new DataFileSetReader.
