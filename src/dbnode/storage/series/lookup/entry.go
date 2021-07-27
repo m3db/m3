@@ -240,18 +240,28 @@ func (entry *Entry) RemoveIndexedForBlockStarts(
 	for k, state := range entry.reverseIndex.states {
 		_, ok := blockStarts[k]
 
-		// Remove the indexed blockStart if that blockStart has indeed been indexed
-		// and also does not have any cold writes which have yet to be flushed. The latter
-		// condition is needed to avoid removing from the index series which have not yet
-		// been flushed to disk, which would result in a period of time where the series
-		// are missing from the index until that flush eventually occurs.
-		if ok && state.success && entry.Series.ColdWritesAtBlockStartExist(k) {
-			delete(entry.reverseIndex.states, k)
-			result.IndexedBlockStartsRemoved++
+		// Only remove the blockStart if that blockStart has indeed been indexed.
+		if !ok || !state.success {
+			result.IndexedBlockStartsRemaining++
 			continue
 		}
 
-		result.IndexedBlockStartsRemaining++
+		// Also only remove if there are no associated unflushed cold writes.
+		hasColdWrites := false
+		for blockStart := k; blockStart < k.Add(time.Hour*4); blockStart = blockStart.Add(time.Hour * 2) {
+			if entry.Series.ColdWritesAtBlockStartExist(blockStart) {
+				hasColdWrites = true
+				break
+			}
+		}
+		if hasColdWrites {
+			result.IndexedBlockStartsRemaining++
+			continue
+		}
+
+		delete(entry.reverseIndex.states, k)
+		result.IndexedBlockStartsRemoved++
+		continue
 	}
 	entry.reverseIndex.Unlock()
 	return result
