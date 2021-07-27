@@ -33,7 +33,6 @@ import (
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 
-	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 )
 
@@ -54,9 +53,6 @@ func main() {
 		getopt.Usage()
 		os.Exit(1)
 	}
-
-	bytesPool := tools.NewCheckedBytesPool()
-	bytesPool.Init()
 
 	opts := commitlog.NewReaderOptions(commitlog.NewOptions(), false)
 	reader := commitlog.NewReader(opts)

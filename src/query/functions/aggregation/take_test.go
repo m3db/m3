@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
@@ -105,20 +106,20 @@ func TestTakeFn(t *testing.T) {
 	minHeap := utils.NewFloatHeap(false, size)
 
 	actual := takeFn(minHeap, valuesMin, buckets)
-	test.EqualsWithNans(t, expectedMin, actual)
-	test.EqualsWithNans(t, expectedMin, valuesMin)
+	compare.EqualsWithNans(t, expectedMin, actual)
+	compare.EqualsWithNans(t, expectedMin, valuesMin)
 
 	valuesMax := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
 	expectedMax := []float64{math.NaN(), 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
 
 	maxHeap := utils.NewFloatHeap(true, size)
 	actual = takeFn(maxHeap, valuesMax, buckets)
-	test.EqualsWithNans(t, expectedMax, actual)
-	test.EqualsWithNans(t, expectedMax, valuesMax)
+	compare.EqualsWithNans(t, expectedMax, actual)
+	compare.EqualsWithNans(t, expectedMax, valuesMax)
 
 	valuesQuantile := []float64{1.1, 2.1, 3.1, 4.1, 5.1}
 	actualQ := bucketedQuantileFn(0, valuesQuantile, []int{0, 1, 2, 3})
-	test.EqualsWithNans(t, 1.1, actualQ)
+	compare.EqualsWithNans(t, 1.1, actualQ)
 }
 
 func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
@@ -150,7 +151,7 @@ func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 
 	// Should have the same metas as when started
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 }
 
@@ -175,7 +176,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 
 	// Should have the same metas as when started
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 }
 
@@ -199,7 +200,7 @@ func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
 
 	// Should have the same metas as when started
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 }
 

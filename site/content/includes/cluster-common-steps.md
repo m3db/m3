@@ -1,6 +1,6 @@
 ### Ready a Namespace
-<!-- TODO: Why?> -->
-Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}namespace/ready_.
+
+Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}services/m3db/namespace/ready_.
 
 {{< tabs name="ready_namespaces" >}}
 {{% tab name="Command" %}}
@@ -13,6 +13,60 @@ Once a namespace has finished bootstrapping, you must mark it as ready before re
 ```json
 {
   "ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
+### View Details of a Namespace
+
+You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}services/m3db/namespace_ endpoint
+
+{{< tabs name="check_namespaces" >}}
+{{% tab name="Command" %}}
+
+```shell
+curl {{% apiendpoint %}}services/m3db/namespace | jq .
+```
+
+{{% notice tip %}}
+Add `?debug=1` to the request to convert nano units in the output into standard units.
+{{% /notice %}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "registry": {
+    "namespaces": {
+      "default": {
+        "bootstrapEnabled": true,
+        "flushEnabled": true,
+        "writesToCommitLog": true,
+        "cleanupEnabled": true,
+        "repairEnabled": false,
+        "retentionOptions": {
+          "retentionPeriodNanos": "43200000000000",
+          "blockSizeNanos": "1800000000000",
+          "bufferFutureNanos": "120000000000",
+          "bufferPastNanos": "600000000000",
+          "blockDataExpiry": true,
+          "blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+          "futureRetentionPeriodNanos": "0"
+        },
+        "snapshotEnabled": true,
+        "indexOptions": {
+          "enabled": true,
+          "blockSizeNanos": "1800000000000"
+        },
+        "schemaOptions": null,
+        "coldWritesEnabled": false,
+        "runtimeOptions": null
+      }
+    }
+  }
 }
 ```
 

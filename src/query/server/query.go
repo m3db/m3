@@ -56,11 +56,9 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
-	queryconsolidators "github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
-	tsdb "github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
@@ -169,12 +167,12 @@ type InstrumentOptionsReady struct {
 }
 
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
-type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
+type CustomTSDBOptionsFn func(m3.Options) m3.Options
 
 // BackendStorageTransform is a transformation function for backend storage.
 type BackendStorageTransform func(
 	storage.Storage,
-	tsdb.Options,
+	m3.Options,
 	instrument.Options,
 ) storage.Storage
 
@@ -334,7 +332,7 @@ func Run(runOpts RunOptions) RunResult {
 			RequireExhaustive:              fetchOptsBuilderLimitsOpts.RequireExhaustive,
 		}
 
-		matchOptions = queryconsolidators.MatchOptions{
+		matchOptions = consolidators.MatchOptions{
 			MatchType: cfg.Query.ConsolidationConfiguration.MatchType,
 		}
 	)
@@ -364,7 +362,7 @@ func Run(runOpts RunOptions) RunResult {
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
 
-	tsdbOpts := tsdb.NewOptions().
+	tsdbOpts := m3.NewOptions().
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast).
@@ -667,7 +665,7 @@ func newM3DBStorage(
 	poolWrapper *pools.PoolWrapper,
 	runOpts RunOptions,
 	queryContextOptions models.QueryContextOptions,
-	tsdbOpts tsdb.Options,
+	tsdbOpts m3.Options,
 	downsamplerReadyCh chan<- struct{},
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	rwOpts xio.Options,
@@ -973,7 +971,7 @@ func newStorages(
 	cfg config.Configuration,
 	poolWrapper *pools.PoolWrapper,
 	queryContextOptions models.QueryContextOptions,
-	opts tsdb.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
 	var (
@@ -1067,7 +1065,7 @@ func newStorages(
 func remoteZoneStorage(
 	zone config.Remote,
 	poolWrapper *pools.PoolWrapper,
-	opts tsdb.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) (storage.Storage, error) {
 	if len(zone.Addresses) == 0 {
@@ -1093,7 +1091,7 @@ func remoteZoneStorage(
 func remoteClient(
 	poolWrapper *pools.PoolWrapper,
 	remoteOpts config.RemoteOptions,
-	opts tsdb.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) ([]storage.Storage, bool, error) {
 	logger := instrumentOpts.Logger()

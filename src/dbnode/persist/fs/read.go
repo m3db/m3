@@ -469,10 +469,11 @@ func (r *reader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
 	r.metadataRead++
 
 	return StreamedMetadataEntry{
-		ID:           r.streamingID,
-		EncodedTags:  r.streamingTags,
-		Length:       int(entry.Size),
-		DataChecksum: uint32(entry.DataChecksum),
+		ID:            r.streamingID,
+		EncodedTags:   r.streamingTags,
+		Length:        int(entry.Size),
+		DataChecksum:  uint32(entry.DataChecksum),
+		IndexChecksum: uint32(entry.IndexChecksum),
 	}, nil
 }
 
@@ -536,7 +537,7 @@ func (r *reader) entryClonedEncodedTagsIter(encodedTags []byte) ident.TagIterato
 	return decoder
 }
 
-// NB(xichen): Validate should be called after all data is read because
+// Validate should be called after all data is read because
 // the digest is calculated for the entire data file.
 func (r *reader) Validate() error {
 	var multiErr xerrors.MultiError
@@ -545,7 +546,7 @@ func (r *reader) Validate() error {
 	return multiErr.FinalError()
 }
 
-// NB(r): ValidateMetadata can be called immediately after Open(...) since
+// ValidateMetadata can be called immediately after Open(...) since
 // the metadata is read upfront.
 func (r *reader) ValidateMetadata() error {
 	err := r.indexDecoderStream.reader().Validate(r.expectedIndexDigest)
@@ -555,7 +556,7 @@ func (r *reader) ValidateMetadata() error {
 	return nil
 }
 
-// NB(xichen): ValidateData should be called after all data is read because
+// ValidateData should be called after all data is read because
 // the digest is calculated for the entire data file.
 func (r *reader) ValidateData() error {
 	err := r.dataReader.Validate(r.expectedDataDigest)

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package m3
 
 import (
 	"fmt"
@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -145,7 +145,7 @@ var consolidatedStepIteratorTests = []struct {
 
 func testConsolidatedStepIteratorMinuteLookback(t *testing.T, withPools bool) {
 	for _, tt := range consolidatedStepIteratorTests {
-		opts := newTestOptions().
+		opts := newTestOpts().
 			SetLookbackDuration(1 * time.Minute).
 			SetSplitSeriesByBlock(false)
 		require.NoError(t, opts.Validate())
@@ -165,7 +165,7 @@ func testConsolidatedStepIteratorMinuteLookback(t *testing.T, withPools bool) {
 			for iters.Next() {
 				step := iters.Current()
 				vals := step.Values()
-				test.EqualsWithNans(t, tt.expected[j], vals)
+				compare.EqualsWithNans(t, tt.expected[j], vals)
 				j++
 			}
 
@@ -294,7 +294,7 @@ var consolidatedStepIteratorTestsSplitByBlock = []struct {
 
 func testConsolidatedStepIteratorSplitByBlock(t *testing.T, withPools bool) {
 	for _, tt := range consolidatedStepIteratorTestsSplitByBlock {
-		opts := newTestOptions().
+		opts := newTestOpts().
 			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
 		require.NoError(t, opts.Validate())
@@ -313,7 +313,7 @@ func testConsolidatedStepIteratorSplitByBlock(t *testing.T, withPools bool) {
 			for iters.Next() {
 				step := iters.Current()
 				vals := step.Values()
-				test.EqualsWithNans(t, tt.expected[idx][j], vals)
+				compare.EqualsWithNans(t, tt.expected[idx][j], vals)
 				j++
 			}
 
@@ -331,7 +331,7 @@ func TestConsolidatedStepIteratorSplitByBlockSequential(t *testing.T) {
 }
 
 func benchmarkSingleBlock(b *testing.B, withPools bool) {
-	opts := newTestOptions().
+	opts := newTestOpts().
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
 	require.NoError(b, opts.Validate())
@@ -402,7 +402,7 @@ type stop func()
 
 // newTestOptions provides options with very small/non-existent pools
 // so that memory profiles don't get cluttered with pooled allocated objects.
-func newTestOptions() Options {
+func newTestOpts() Options {
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
 	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts,
 		func(s []pool.Bucket) pool.BytesPool {
@@ -521,7 +521,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 
 	usePools := t == stepParallel
 
-	opts := newTestOptions()
+	opts := newTestOpts()
 	if usePools {
 		poolOpts := xsync.NewPooledWorkerPoolOptions()
 		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, poolOpts)

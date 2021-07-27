@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
@@ -87,7 +88,7 @@ func TestAbsWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Abs)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestLn(t *testing.T) {
@@ -129,7 +130,7 @@ func TestLog10WithNoValues(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log10)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestLog2WithSomeValues(t *testing.T) {
@@ -152,7 +153,7 @@ func TestLog2WithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log2)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestFloorWithSomeValues(t *testing.T) {
@@ -175,7 +176,7 @@ func TestFloorWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Floor)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestCeilWithSomeValues(t *testing.T) {
@@ -198,7 +199,7 @@ func TestCeilWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Ceil)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 func TestExpWithSomeValues(t *testing.T) {
 	v := [][]float64{
@@ -220,7 +221,7 @@ func TestExpWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Exp)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestSqrtWithSomeValues(t *testing.T) {
@@ -243,7 +244,7 @@ func TestSqrtWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Sqrt)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestNonExistentFunc(t *testing.T) {

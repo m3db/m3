@@ -168,7 +168,8 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.StopServer())
+		require.NoError(t, setup.StopServerAndVerifyOpenFilesAreClosed())
+		setup.Close()
 		log.Debug("server is now down")
 	}()
 

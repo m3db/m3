@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
@@ -679,4 +680,56 @@ func TestSeekerManagerCacheShardIndicesSkipNotFound(t *testing.T) {
 	require.NoError(t, m.CacheShardIndices(shards))
 
 	require.NoError(t, m.Close())
+}
+
+func TestSeekerManagerDoNotOpenSeekersForOutOfRetentionBlocks(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+	var (
+		ctrl        = xtest.NewController(t)
+		shards      = []uint32{0}
+		metadata    = testNs1Metadata(t)
+		rOpts       = metadata.Options().RetentionOptions()
+		blockSize   = rOpts.BlockSize()
+		signal      = make(chan struct{})
+		openSeekers = make(map[xtime.UnixNano]struct{})
+		now         = time.Now()
+		opts        = NewOptions()
+	)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
+	m := NewSeekerManager(nil, opts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	m.sleepFn = func(_ time.Duration) {
+		signal <- struct{}{} // signal once to indicate that openCloseLoop completed.
+		m.sleepFn = time.Sleep
+	}
+	require.NoError(t, m.Open(metadata, shardSet))
+	defer func() {
+		require.NoError(t, m.Close())
+	}()
+
+	m.newOpenSeekerFn = func(shard uint32, blockStart xtime.UnixNano, volume int) (DataFileSetSeeker, error) {
+		openSeekers[blockStart] = struct{}{}
+		mockSeeker := NewMockDataFileSetSeeker(ctrl)
+		mockConcurrentDataFileSetSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
+		mockConcurrentDataFileSetSeeker.EXPECT().Close().Return(nil)
+		mockSeeker.EXPECT().ConcurrentClone().Return(mockConcurrentDataFileSetSeeker, nil)
+		mockSeeker.EXPECT().ConcurrentIDBloomFilter().Return(nil)
+		mockSeeker.EXPECT().Close().Return(nil)
+		return mockSeeker, nil
+	}
+
+	earliestBlockStart := retention.FlushTimeStart(rOpts, xtime.ToUnixNano(now))
+	require.NoError(t, m.CacheShardIndices(shards))
+
+	<-signal
+	require.Contains(t, openSeekers, earliestBlockStart)
+	require.Contains(t, openSeekers, earliestBlockStart.Add(blockSize))
+	require.NotContains(t, openSeekers, earliestBlockStart.Add(-blockSize))
+	require.NotContains(t, openSeekers, earliestBlockStart.Add(-2*blockSize))
 }

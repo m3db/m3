@@ -22,12 +22,12 @@ require (
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
 	github.com/ghodss/yaml v1.0.0
 	github.com/gnewton/jargo v0.0.0-20150417131352-41f5f186a805 // indirect
-	github.com/go-kit/kit v0.10.0
+	github.com/go-kit/kit v0.11.0
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.2
-	github.com/golang/snappy v0.0.3
+	github.com/golang/snappy v0.0.4
 	github.com/golangci/golangci-lint v1.37.0
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-jsonnet v0.16.0
@@ -40,6 +40,7 @@ require (
 	github.com/json-iterator/go v1.1.11
 	github.com/klauspost/compress v1.13.1
 	github.com/leanovate/gopter v0.2.8
+	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
@@ -75,7 +76,7 @@ require (
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
 	github.com/sergi/go-diff v1.1.0
-	github.com/spf13/cobra v1.1.3
+	github.com/spf13/cobra v1.2.1
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.7.0
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
@@ -94,24 +95,25 @@ require (
 	// Version string was obtained by the method described in
 	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
-	go.opentelemetry.io/collector v0.29.0
-	go.opentelemetry.io/otel v0.20.0
-	go.opentelemetry.io/otel/bridge/opentracing v0.20.0
-	go.opentelemetry.io/otel/exporters/otlp v0.20.0
-	go.opentelemetry.io/otel/sdk v0.20.0
+	go.opentelemetry.io/collector v0.30.1
+	go.opentelemetry.io/otel v1.0.0-RC2
+	go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
+	go.opentelemetry.io/otel/internal/metric v0.22.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.uber.org/atomic v1.8.0
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
-	go.uber.org/zap v1.17.0
-	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b
+	go.uber.org/zap v1.18.1
+	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273
+	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1
 	golang.org/x/tools v0.1.3
-	google.golang.org/grpc v1.38.0
-	google.golang.org/protobuf v1.26.0
+	google.golang.org/grpc v1.39.0
+	google.golang.org/protobuf v1.27.1
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
-	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
-	gopkg.in/go-playground/validator.v9 v9.7.0
+	gopkg.in/go-playground/validator.v9 v9.29.1
 	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
