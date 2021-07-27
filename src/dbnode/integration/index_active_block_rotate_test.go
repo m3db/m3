@@ -36,6 +36,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -46,14 +47,15 @@ import (
 
 func TestIndexActiveBlockRotate(t *testing.T) {
 	var (
-		testNsID       = ident.StringID("testns")
-		numWrites      = 50
-		numTags        = 10
-		blockSize      = 2 * time.Hour
-		indexBlockSize = blockSize
-		bufferPast     = 10 * time.Minute
-		rOpts          = retention.NewOptions().
-				SetRetentionPeriod(blockSize).
+		testNsID        = ident.StringID("testns")
+		numWrites       = 50
+		numTags         = 10
+		blockSize       = 2 * time.Hour
+		indexBlockSize  = blockSize
+		retentionPeriod = 12 * blockSize
+		bufferPast      = 10 * time.Minute
+		rOpts           = retention.NewOptions().
+				SetRetentionPeriod(retentionPeriod).
 				SetBlockSize(blockSize).
 				SetBufferPast(bufferPast)
 
@@ -108,6 +110,36 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
+
+	// Write test data to disk so that there's some blocks on disk to simulate
+	// some index blocks already having on disk segments already in them.
+	require.NoError(t, testSetup.InitializeBootstrappers(InitializeBootstrappersOptions{
+		WithFileSystem: true,
+	}))
+	now := testSetup.NowFn()()
+	fooSeries := generate.Series{
+		ID:   ident.StringID("foo"),
+		Tags: ident.NewTags(ident.StringTag("city", "new_york")),
+	}
+	barSeries := generate.Series{
+		ID:   ident.StringID("bar"),
+		Tags: ident.NewTags(ident.StringTag("city", "new_jersey")),
+	}
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{
+			IDs:       []string{fooSeries.ID.String()},
+			Tags:      fooSeries.Tags,
+			NumPoints: 100,
+			Start:     now.Add(-3 * blockSize),
+		},
+		{
+			IDs:       []string{barSeries.ID.String()},
+			Tags:      barSeries.Tags,
+			NumPoints: 100,
+			Start:     now.Add(-3 * blockSize),
+		},
+	})
+	require.NoError(t, writeTestDataToDisk(ns, testSetup, seriesMaps, 0))
 
 	// Set foreground compaction planner options to force index compaction.
 	minCompactSize := 10
