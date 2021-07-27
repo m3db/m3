@@ -141,6 +141,8 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 
 replace go.opentelemetry.io/proto/otlp => github.com/m3dbx/opentelemetry-proto-go/otlp v0.7.1-0.20210715190017-fe8722e59006
 
+replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
+
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
 
