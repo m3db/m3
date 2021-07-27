@@ -1018,7 +1018,8 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
 			SetIndexClaimsManager(storageOpts.IndexClaimsManager()).
-			SetCompactor(compactor)
+			SetCompactor(compactor).
+			SetInstrumentOptions(storageOpts.InstrumentOptions())
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {
 			return err
