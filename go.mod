@@ -40,6 +40,7 @@ require (
 	github.com/json-iterator/go v1.1.11
 	github.com/klauspost/compress v1.13.1
 	github.com/leanovate/gopter v0.2.8
+	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
@@ -96,8 +97,10 @@ require (
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
 	go.opentelemetry.io/collector v0.30.1
 	go.opentelemetry.io/otel v1.0.0-RC2
-	go.opentelemetry.io/otel/bridge/opentracing v0.21.0
-	go.opentelemetry.io/otel/exporters/otlp v0.20.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v0.0.0-00010101000000-000000000000
+	go.opentelemetry.io/otel/internal/metric v0.22.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.uber.org/atomic v1.8.0
 	go.uber.org/config v1.4.0
@@ -135,6 +138,16 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.2016
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
+
+replace go.opentelemetry.io/otel v1.0.0-RC2 => go.opentelemetry.io/otel v1.0.0-RC2
+
+replace go.opentelemetry.io/otel/exporters/otlp/otlptrace => go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
+
+replace go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc => go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
+
+replace go.opentelemetry.io/otel/bridge/opentracing => go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+
+// replace go.opentelemetry.io/proto/otlp => go.opentelemetry.io/proto/otlp v0.9.0
 
 replace go.opentelemetry.io/proto/otlp => github.com/m3dbx/opentelemetry-proto-go/otlp v0.7.1-0.20210715190017-fe8722e59006
 

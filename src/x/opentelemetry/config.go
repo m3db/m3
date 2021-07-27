@@ -28,8 +28,8 @@ import (
 	"github.com/uber-go/tally"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -70,15 +70,15 @@ func (c Configuration) NewTracerProvider(
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	driverOpts := []otlpgrpc.Option{
-		otlpgrpc.WithEndpoint(c.Endpoint),
-		otlpgrpc.WithDialOption(grpc.WithBlock()),
+	driverOpts := []otlptracegrpc.Option{
+		otlptracegrpc.WithEndpoint(c.Endpoint),
+		otlptracegrpc.WithDialOption(grpc.WithBlock()),
 	}
 	if c.Insecure {
-		driverOpts = append(driverOpts, otlpgrpc.WithInsecure())
+		driverOpts = append(driverOpts, otlptracegrpc.WithInsecure())
 	}
-	driver := otlpgrpc.NewDriver(driverOpts...)
-	traceExporter, err := otlp.NewExporter(ctx, driver)
+	driver := otlptracegrpc.NewClient(driverOpts...)
+	traceExporter, err := otlptrace.New(ctx, driver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to trace exporter: %w", err)
 	}
