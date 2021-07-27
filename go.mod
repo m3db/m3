@@ -139,15 +139,7 @@ replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 
-replace go.opentelemetry.io/otel v1.0.0-RC2 => go.opentelemetry.io/otel v1.0.0-RC2
-
-replace go.opentelemetry.io/otel/exporters/otlp/otlptrace => go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
-
 replace go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc => go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
-
-replace go.opentelemetry.io/otel/bridge/opentracing => go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
-
-// replace go.opentelemetry.io/proto/otlp => go.opentelemetry.io/proto/otlp v0.9.0
 
 replace go.opentelemetry.io/proto/otlp => github.com/m3dbx/opentelemetry-proto-go/otlp v0.7.1-0.20210715190017-fe8722e59006
 
