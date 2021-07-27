@@ -838,45 +838,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
-	// Split the batch into warm and cold so that warm can go to the active block
-	// while cold can go to the associated cold time block. This is important to prevent
-	// a case where cold index data has not been flushed to disk yet, but gets cleaned up from
-	// the active block. We ensure that can't happen by always writing the cold index in-mem data
-	// directly.
-	warmBatch := index.NewWriteBatch(batch.Options())
-	coldBatch := index.NewWriteBatch(batch.Options())
-	batch.ForEach(func(
-		_ int,
-		entry index.WriteBatchEntry,
-		doc doc.Metadata,
-		_ index.WriteBatchEntryResult,
-	) {
-		if entry.OnIndexSeries.ColdWritesAtBlockStartExist(blockStart) {
-			coldBatch.Append(entry, doc)
-		} else {
-			warmBatch.Append(entry, doc)
-		}
-	})
-
-	var (
-		result   index.WriteBatchResult
-		writeErr = xerrors.NewMultiError()
-	)
-	if coldBatch.Len() > 0 {
-		// i.e. we have the block and the inserts, perform the writes.
-		blockResult, err := i.ensureBlockPresent(blockStart)
-		if err == nil {
-			result, err = blockResult.block.WriteColdBatch(coldBatch)
-		}
-		writeErr = writeErr.Add(err)
-	}
-	if warmBatch.Len() > 0 {
-		// i.e. we have the block and the inserts, perform the writes.
-		warmResult, err := i.activeBlock.WriteBatch(warmBatch)
-		result.Combine(warmResult)
-		writeErr = writeErr.Add(err)
-	}
-	err := writeErr.FinalError()
+	result, err := i.activeBlock.WriteBatch(batch)
 
 	// Record the end to end indexing latency.
 	now := i.nowFn()

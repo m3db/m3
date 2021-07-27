@@ -133,12 +133,6 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	return isIndexed
 }
 
-// ColdWritesAtBlockStartExist returns a bool to indicate
-// if the Entry was written as a cold write or not.
-func (entry *Entry) ColdWritesAtBlockStartExist(blockStart xtime.UnixNano) bool {
-	return entry.Series.ColdWritesAtBlockStartExist(blockStart)
-}
-
 // IndexedOrAttemptedAny returns true if the entry has, or has been attempted to be, indexed.
 func (entry *Entry) IndexedOrAttemptedAny() bool {
 	entry.reverseIndex.RLock()
@@ -245,11 +239,18 @@ func (entry *Entry) RemoveIndexedForBlockStarts(
 	entry.reverseIndex.Lock()
 	for k, state := range entry.reverseIndex.states {
 		_, ok := blockStarts[k]
-		if ok && state.success {
+
+		// Remove the indexed blockStart if that blockStart has indeed been indexed
+		// and also does not have any cold writes which have yet to be flushed. The latter
+		// condition is needed to avoid removing from the index series which have not yet
+		// been flushed to disk, which would result in a period of time where the series
+		// are missing from the index until that flush eventually occurs.
+		if ok && state.success && entry.Series.ColdWritesAtBlockStartExist(k) {
 			delete(entry.reverseIndex.states, k)
 			result.IndexedBlockStartsRemoved++
 			continue
 		}
+
 		result.IndexedBlockStartsRemaining++
 	}
 	entry.reverseIndex.Unlock()

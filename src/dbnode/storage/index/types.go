@@ -409,8 +409,6 @@ type OnIndexSeries interface {
 	DecrementReaderWriterCount()
 
 	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
-
-	ColdWritesAtBlockStartExist(blockStart xtime.UnixNano) bool
 }
 
 // RemoveIndexedForBlockStartsResult is the result from calling
@@ -431,9 +429,6 @@ type Block interface {
 
 	// WriteBatch warm writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
-
-	// WriteColdBatch cold writes a batch of provided entries.
-	WriteColdBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
 	// QueryWithIter processes n docs from the iterator into known IDs.
 	QueryWithIter(
@@ -939,31 +934,6 @@ func (b *WriteBatch) Less(i, j int) bool {
 	blockStartI := b.entries[i].indexBlockStart(b.opts.IndexBlockSize)
 	blockStartJ := b.entries[j].indexBlockStart(b.opts.IndexBlockSize)
 	return blockStartI.Before(blockStartJ)
-}
-
-// Combine combines the current and other result into one.
-func (r WriteBatchResult) Combine(other WriteBatchResult) WriteBatchResult {
-	return WriteBatchResult{
-		NumSuccess:           r.NumSuccess + other.NumSuccess,
-		NumError:             r.NumError + other.NumError,
-		MutableSegmentsStats: r.MutableSegmentsStats.Combine(other.MutableSegmentsStats),
-	}
-}
-
-// Combine combines the current and other stats into one.
-func (s MutableSegmentsStats) Combine(other MutableSegmentsStats) MutableSegmentsStats {
-	return MutableSegmentsStats{
-		Foreground: s.Foreground.Combine(other.Foreground),
-		Background: s.Background.Combine(other.Background),
-	}
-}
-
-// Combine combines the current and other stats into one.
-func (s MutableSegmentsSegmentStats) Combine(other MutableSegmentsSegmentStats) MutableSegmentsSegmentStats {
-	return MutableSegmentsSegmentStats{
-		NumSegments: s.NumSegments + other.NumSegments,
-		NumDocs:     s.NumDocs + other.NumDocs,
-	}
 }
 
 // WriteBatchEntry represents the metadata accompanying the document that is
