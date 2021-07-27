@@ -21,6 +21,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	iofs "io/fs"
@@ -296,6 +297,12 @@ func verifySplitShards(
 			return fmt.Errorf("dst read error: %v", err)
 		}
 
+		if !bytes.Equal(srcEntry.ID, dstEntry.ID) {
+			return fmt.Errorf("ID mismatch: %s != %s", srcEntry.ID, dstEntry.ID)
+		}
+		if !bytes.Equal(srcEntry.EncodedTags, dstEntry.EncodedTags) {
+			return fmt.Errorf("EncodedTags mismatch: %s != %s", srcEntry.EncodedTags, dstEntry.EncodedTags)
+		}
 		if srcEntry.DataChecksum != dstEntry.DataChecksum {
 			return fmt.Errorf("data checksum mismatch: %d != %d, id=%s",
 				srcEntry.DataChecksum, dstEntry.DataChecksum, srcEntry.ID)
