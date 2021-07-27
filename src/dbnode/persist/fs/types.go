@@ -700,11 +700,10 @@ type StreamedDataEntry struct {
 // StreamedMetadataEntry contains the metadata of single entry returned by streaming method.
 // The underlying data slices are reused and invalidated on every read.
 type StreamedMetadataEntry struct {
-	ID            ident.BytesID
-	EncodedTags   ts.EncodedTags
-	Length        int
-	DataChecksum  uint32
-	IndexChecksum uint32
+	ID           ident.BytesID
+	EncodedTags  ts.EncodedTags
+	Length       int
+	DataChecksum uint32
 }
 
 // NewReaderFn creates a new DataFileSetReader.
