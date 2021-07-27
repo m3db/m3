@@ -955,7 +955,7 @@ func (i *nsIndex) Tick(
 		result.NumTotalDocs += blockTickResult.NumDocs
 		result.FreeMmap += blockTickResult.FreeMmap
 
-		if tickErr == nil && result.NumSegmentsBootstrapped != 0 {
+		if tickErr == nil && blockTickResult.NumSegmentsBootstrapped != 0 {
 			flushedBlocks = append(flushedBlocks, xtime.ToUnixNano(block.StartTime()))
 		}
 	}
