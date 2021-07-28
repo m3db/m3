@@ -164,18 +164,18 @@ func splitFileSet(
 	srcNumShards uint32,
 	factor int,
 	namespace string,
-	shard uint32,
+	srcShard uint32,
 	blockStart xtime.UnixNano,
 	volume int,
 ) error {
-	if shard >= srcNumShards {
-		return fmt.Errorf("unexpected source shard ID %d (must be under %d)", shard, srcNumShards)
+	if srcShard >= srcNumShards {
+		return fmt.Errorf("unexpected source shard ID %d (must be under %d)", srcShard, srcNumShards)
 	}
 
 	readOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   ident.StringID(namespace),
-			Shard:       shard,
+			Shard:       srcShard,
 			BlockStart:  blockStart,
 			VolumeIndex: volume,
 		},
@@ -196,7 +196,7 @@ func splitFileSet(
 	for i := range dstWriters {
 		writeOpts := fs.StreamingWriterOpenOptions{
 			NamespaceID:         ident.StringID(namespace),
-			ShardID:             srcNumShards*uint32(i) + shard,
+			ShardID:             mapToDstShard(srcNumShards, i, srcShard),
 			BlockStart:          blockStart,
 			BlockSize:           srcReader.Status().BlockSize,
 			VolumeIndex:         volume,
@@ -218,8 +218,8 @@ func splitFileSet(
 		}
 
 		newShardID := hashFn(entry.ID)
-		if newShardID%srcNumShards != shard {
-			return fmt.Errorf("mismatched shards, %d to %d", shard, newShardID)
+		if newShardID%srcNumShards != srcShard {
+			return fmt.Errorf("mismatched shards, %d to %d", srcShard, newShardID)
 		}
 		writer := dstWriters[newShardID/srcNumShards]
 
@@ -248,18 +248,18 @@ func verifySplitShards(
 	hashFn sharding.HashFn,
 	srcNumShards uint32,
 	namespace string,
-	shard uint32,
+	srcShard uint32,
 	blockStart xtime.UnixNano,
 	volume int,
 ) error {
-	if shard >= srcNumShards {
-		return fmt.Errorf("unexpected source shard ID %d (must be under %d)", shard, srcNumShards)
+	if srcShard >= srcNumShards {
+		return fmt.Errorf("unexpected source shard ID %d (must be under %d)", srcShard, srcNumShards)
 	}
 
 	srcReadOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   ident.StringID(namespace),
-			Shard:       shard,
+			Shard:       srcShard,
 			BlockStart:  blockStart,
 			VolumeIndex: volume,
 		},
@@ -276,7 +276,7 @@ func verifySplitShards(
 		dstReadOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
 				Namespace:   ident.StringID(namespace),
-				Shard:       srcNumShards*uint32(i) + shard,
+				Shard:       mapToDstShard(srcNumShards, i, srcShard),
 				BlockStart:  blockStart,
 				VolumeIndex: volume,
 			},
@@ -298,8 +298,8 @@ func verifySplitShards(
 		}
 
 		newShardID := hashFn(srcEntry.ID)
-		if newShardID%srcNumShards != shard {
-			return fmt.Errorf("mismatched shards, %d to %d", shard, newShardID)
+		if newShardID%srcNumShards != srcShard {
+			return fmt.Errorf("mismatched shards, %d to %d", srcShard, newShardID)
 		}
 		dstReader := dstReaders[newShardID/srcNumShards]
 		dstEntry, err := dstReader.StreamingReadMetadata()
@@ -337,6 +337,10 @@ func verifySplitShards(
 	return nil
 }
 
+func mapToDstShard(srcNumShards uint32, i int, srcShard uint32) uint32 {
+	return srcNumShards*uint32(i) + srcShard
+}
+
 func isAlreadySplit(
 	dstFilesetLocation string,
 	factor int,
@@ -347,9 +351,9 @@ func isAlreadySplit(
 	volume int,
 ) (bool, error) {
 	for i := 0; i < factor; i++ {
-		newShard := srcNumShards*uint32(i) + srcShard
+		dstShard := mapToDstShard(srcNumShards, i, srcShard)
 		dstCheckpointFileName := fmt.Sprintf(
-			checkpointFmt, dstFilesetLocation, namespace, newShard, blockStart, volume)
+			checkpointFmt, dstFilesetLocation, namespace, dstShard, blockStart, volume)
 		exists, err := fileExists(dstCheckpointFileName)
 		if err != nil {
 			return false, err
