@@ -1246,16 +1246,6 @@ func (n *dbNamespace) WarmFlush(
 	return flushedShards, res
 }
 
-func (n *dbNamespace) MarkWarmFlushStateSuccessOrError(
-	blockStart xtime.UnixNano,
-	shards []databaseShard,
-	err error,
-) {
-	for _, shard := range shards {
-		shard.MarkWarmFlushStateSuccessOrError(blockStart, err)
-	}
-}
-
 // idAndBlockStart is the composite key for the genny map used to keep track of
 // dirty series that need to be ColdFlushed.
 type idAndBlockStart struct {
