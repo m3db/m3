@@ -246,18 +246,23 @@ func (entry *Entry) RemoveIndexedForBlockStarts(
 			continue
 		}
 
+		// TO REMOVE: experimenting with checking if there are cold writes for a given blockStart
+		// as a marker for if it is safe to remove that blockStart from the index. This currently
+		// is not exactly correct because it is checking "data" and not "index" which are flushed
+		// at different times, and so we could have a race where cold writes appear to not be present
+		// in the "data" but are still present in the "index".
 		// Also only remove if there are no associated unflushed cold writes.
-		hasColdWrites := false
-		for blockStart := k; blockStart < k.Add(time.Hour*4); blockStart = blockStart.Add(time.Hour * 2) {
-			if entry.Series.ColdWritesAtBlockStartExist(blockStart) {
-				hasColdWrites = true
-				break
-			}
-		}
-		if hasColdWrites {
-			result.IndexedBlockStartsRemaining++
-			continue
-		}
+		// hasColdWrites := false
+		// for blockStart := k; blockStart < k.Add(time.Hour*4); blockStart = blockStart.Add(time.Hour * 2) {
+		// 	if entry.Series.ColdWritesAtBlockStartExist(blockStart) {
+		// 		hasColdWrites = true
+		// 		break
+		// 	}
+		// }
+		// if hasColdWrites {
+		// 	result.IndexedBlockStartsRemaining++
+		// 	continue
+		// }
 
 		delete(entry.reverseIndex.states, k)
 		result.IndexedBlockStartsRemoved++
