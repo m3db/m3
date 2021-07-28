@@ -314,7 +314,7 @@ func verifySplitShards(
 
 	for i := range dstReaders {
 		dstReader := dstReaders[i]
-		if _, err := dstReader.StreamingReadMetadata(); err != io.EOF {
+		if _, err := dstReader.StreamingReadMetadata(); !errors.Is(err, io.EOF) {
 			return fmt.Errorf("expected EOF on split shard %d, but got %w",
 				dstReader.Status().Shard, err)
 		}
