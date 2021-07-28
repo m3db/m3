@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	iofs "io/fs"
@@ -33,14 +34,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
 )
 
 var checkpointPattern = regexp.MustCompile(`/data/(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db$`)
@@ -67,7 +68,7 @@ func main() {
 		*optDstPathPrefix == "" ||
 		*optSrcPath == *optDstPathPrefix ||
 		*optBlockUntil <= 0 ||
-		*optShards <= 0 ||
+		*optShards == 0 ||
 		*optFactor <= 0 {
 		getopt.Usage()
 		os.Exit(1)
@@ -84,7 +85,7 @@ func main() {
 	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
 	srcReader, err := fs.NewReader(nil, srcFsOpts)
 	if err != nil {
-		logger.Fatalf("could not create srcReader: %v", err)
+		logger.Fatalf("could not create srcReader: %+v", err)
 	}
 
 	dstReaders := make([]fs.DataFileSetReader, *optFactor)
@@ -92,11 +93,11 @@ func main() {
 	for i := range dstWriters {
 		dstReaders[i], err = fs.NewReader(nil, dstFsOpts)
 		if err != nil {
-			logger.Fatalf("could not create dstReader, %v", err)
+			logger.Fatalf("could not create dstReader, %+v", err)
 		}
 		dstWriters[i], err = fs.NewStreamingWriter(dstFsOpts)
 		if err != nil {
-			logger.Fatalf("could not create writer, %v", err)
+			logger.Fatalf("could not create writer, %+v", err)
 		}
 	}
 
@@ -108,7 +109,7 @@ func main() {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), "-checkpoint.db") {
 			return err
 		}
-		fmt.Printf("%s - %s\n", time.Now().Local(), path)
+		fmt.Printf("%s - %s\n", time.Now().Local(), path) // nolint: forbidigo
 		pathParts := checkpointPattern.FindStringSubmatch(path)
 		if len(pathParts) != 5 {
 			return fmt.Errorf("failed to parse path %s", path)
@@ -122,7 +123,7 @@ func main() {
 		)
 
 		if blockStart >= int(*optBlockUntil) {
-			fmt.Println(" - skip (too recent)")
+			fmt.Println(" - skip (too recent)") // nolint: forbidigo
 			return nil
 		}
 
@@ -132,7 +133,7 @@ func main() {
 			return err
 		}
 		if alreadySplit {
-			fmt.Println(" - skip (already split)")
+			fmt.Println(" - skip (already split)") // nolint: forbidigo
 			return nil
 		}
 
@@ -142,15 +143,11 @@ func main() {
 			return err
 		}
 
-		if err = verifySplitShards(
+		return verifySplitShards(
 			srcReader, dstReaders, hashFn, *optShards, namespace, uint32(shard),
-			xtime.UnixNano(blockStart), volume); err != nil {
-			return err
-		}
-
-		return nil
+			xtime.UnixNano(blockStart), volume)
 	}); err != nil {
-		logger.Fatalf("unable to walk the source dir: %v", err)
+		logger.Fatalf("unable to walk the source dir: %+v", err)
 	}
 
 	runTime := time.Since(start)
@@ -185,7 +182,7 @@ func splitFileSet(
 
 	err := srcReader.Open(readOpts)
 	if err != nil {
-		return fmt.Errorf("unable to open srcReader: %v", err)
+		return fmt.Errorf("unable to open srcReader: %w", err)
 	}
 
 	plannedRecordsCount := uint(srcReader.Entries() / factor)
@@ -203,18 +200,18 @@ func splitFileSet(
 			PlannedRecordsCount: plannedRecordsCount,
 		}
 		if err := dstWriters[i].Open(writeOpts); err != nil {
-			return fmt.Errorf("unable to open dstWriters[%d]: %v", i, err)
+			return fmt.Errorf("unable to open dstWriters[%d]: %w", i, err)
 		}
 	}
 
 	dataHolder := make([][]byte, 1)
 	for {
 		entry, err := srcReader.StreamingRead()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("read error: %v", err)
+			return fmt.Errorf("read error: %w", err)
 		}
 
 		newShardID := hashFn(entry.ID)
@@ -235,11 +232,7 @@ func splitFileSet(
 		}
 	}
 
-	if err := srcReader.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return srcReader.Close()
 }
 
 func verifySplitShards(
@@ -269,7 +262,7 @@ func verifySplitShards(
 
 	err := srcReader.Open(srcReadOpts)
 	if err != nil {
-		return fmt.Errorf("unable to open srcReader: %v", err)
+		return fmt.Errorf("unable to open srcReader: %w", err)
 	}
 
 	for i := range dstReaders {
@@ -284,17 +277,17 @@ func verifySplitShards(
 			StreamingEnabled: true,
 		}
 		if err := dstReaders[i].Open(dstReadOpts); err != nil {
-			return fmt.Errorf("unable to open dstReaders[%d]: %v", i, err)
+			return fmt.Errorf("unable to open dstReaders[%d]: %w", i, err)
 		}
 	}
 
 	for {
 		srcEntry, err := srcReader.StreamingReadMetadata()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("src read error: %v", err)
+			return fmt.Errorf("src read error: %w", err)
 		}
 
 		newShardID := hashFn(srcEntry.ID)
@@ -304,7 +297,7 @@ func verifySplitShards(
 		dstReader := dstReaders[newShardID/srcNumShards]
 		dstEntry, err := dstReader.StreamingReadMetadata()
 		if err != nil {
-			return fmt.Errorf("dst read error: %v", err)
+			return fmt.Errorf("dst read error: %w", err)
 		}
 
 		if !bytes.Equal(srcEntry.ID, dstEntry.ID) {
@@ -322,7 +315,7 @@ func verifySplitShards(
 	for i := range dstReaders {
 		dstReader := dstReaders[i]
 		if _, err := dstReader.StreamingReadMetadata(); err != io.EOF {
-			return fmt.Errorf("expected EOF on split shard %d, but got %v",
+			return fmt.Errorf("expected EOF on split shard %d, but got %w",
 				dstReader.Status().Shard, err)
 		}
 		if err := dstReader.Close(); err != nil {
@@ -330,11 +323,7 @@ func verifySplitShards(
 		}
 	}
 
-	if err := srcReader.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return srcReader.Close()
 }
 
 func mapToDstShard(srcNumShards uint32, i int, srcShard uint32) uint32 {
