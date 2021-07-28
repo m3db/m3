@@ -54,6 +54,12 @@ const (
 	flushManagerIndexFlushInProgress
 )
 
+type namespaceFlush struct {
+	ns    databaseNamespace
+	t     xtime.UnixNano
+	shard databaseShard
+}
+
 type flushManagerMetrics struct {
 	isFlushing      tally.Gauge
 	isSnapshotting  tally.Gauge
@@ -144,7 +150,8 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
 	// the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
+	flushes, err := m.dataWarmFlush(namespaces, startTime)
+	if err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -163,22 +170,31 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 		multiErr = multiErr.Add(err)
 	}
 
-	return multiErr.FinalError()
+	err = multiErr.FinalError()
+
+	// Mark all flush states at the very end to ensure this
+	// happens after both data and index flushing.
+	for _, f := range flushes {
+		f.shard.MarkWarmFlushStateSuccessOrError(f.t, err)
+	}
+
+	return err
 }
 
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
 	startTime xtime.UnixNano,
-) error {
+) ([]namespaceFlush, error) {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	m.setState(flushManagerFlushInProgress)
 	var (
-		start    = m.nowFn()
-		multiErr = xerrors.NewMultiError()
+		start      = m.nowFn()
+		multiErr   = xerrors.NewMultiError()
+		allFlushes = make([]namespaceFlush, 0)
 	)
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes.
@@ -187,9 +203,12 @@ func (m *flushManager) dataWarmFlush(
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		err = m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
+		flushes, err := m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
 		if err != nil {
 			multiErr = multiErr.Add(err)
+		}
+		for _, f := range flushes {
+			allFlushes = append(allFlushes, f)
 		}
 	}
 
@@ -199,7 +218,7 @@ func (m *flushManager) dataWarmFlush(
 	}
 
 	m.metrics.dataWarmFlushDuration.Record(m.nowFn().Sub(start))
-	return multiErr.FinalError()
+	return allFlushes, multiErr.FinalError()
 }
 
 func (m *flushManager) dataSnapshot(
@@ -361,18 +380,28 @@ func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,
 	times []xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
-) error {
+) ([]namespaceFlush, error) {
+	flushes := make([]namespaceFlush, 0)
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := ns.WarmFlush(t, flushPreparer); err != nil {
+		shards, err := ns.WarmFlush(t, flushPreparer)
+		if err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
+		} else {
+			for _, s := range shards {
+				flushes = append(flushes, namespaceFlush{
+					ns:    ns,
+					t:     t,
+					shard: s,
+				})
+			}
 		}
 	}
-	return multiErr.FinalError()
+	return flushes, multiErr.FinalError()
 }
 
 func (m *flushManager) LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool) {

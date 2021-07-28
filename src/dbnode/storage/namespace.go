@@ -1181,7 +1181,7 @@ func (n *dbNamespace) Bootstrap(
 func (n *dbNamespace) WarmFlush(
 	blockStart xtime.UnixNano,
 	flushPersist persist.FlushPreparer,
-) error {
+) ([]databaseShard, error) {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -1190,24 +1190,25 @@ func (n *dbNamespace) WarmFlush(
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.flushWarmData.ReportError(n.nowFn().Sub(callStart))
-		return errNamespaceNotBootstrapped
+		return nil, errNamespaceNotBootstrapped
 	}
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
 	if n.ReadOnly() || !n.nopts.FlushEnabled() {
 		n.metrics.flushWarmData.ReportSuccess(n.nowFn().Sub(callStart))
-		return nil
+		return nil, nil
 	}
 
 	// check if blockStart is aligned with the namespace's retention options
 	bs := n.nopts.RetentionOptions().BlockSize()
 	if t := blockStart.Truncate(bs); !blockStart.Equal(t) {
-		return fmt.Errorf("failed to flush at time %v, not aligned to blockSize", blockStart.String())
+		return nil, fmt.Errorf("failed to flush at time %v, not aligned to blockSize", blockStart.String())
 	}
 
 	multiErr := xerrors.NewMultiError()
 	shards := n.OwnedShards()
+	flushedShards := make([]databaseShard, 0)
 	for _, shard := range shards {
 		if !shard.IsBootstrapped() {
 			n.log.
@@ -1218,7 +1219,7 @@ func (n *dbNamespace) WarmFlush(
 
 		flushState, err := shard.FlushState(blockStart)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// skip flushing if the shard has already flushed data for the `blockStart`
 		if flushState.WarmStatus == fileOpSuccess {
@@ -1231,12 +1232,28 @@ func (n *dbNamespace) WarmFlush(
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
+
+			// Errors so mark as failed here.
+			// We mark as success later in time to ensure that happens after index flushing as well.
+			shard.MarkWarmFlushStateSuccessOrError(blockStart, err)
+		} else {
+			flushedShards = append(flushedShards, shard)
 		}
 	}
 
 	res := multiErr.FinalError()
 	n.metrics.flushWarmData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
-	return res
+	return flushedShards, res
+}
+
+func (n *dbNamespace) MarkWarmFlushStateSuccessOrError(
+	blockStart xtime.UnixNano,
+	shards []databaseShard,
+	err error,
+) {
+	for _, shard := range shards {
+		shard.MarkWarmFlushStateSuccessOrError(blockStart, err)
+	}
 }
 
 // idAndBlockStart is the composite key for the genny map used to keep track of

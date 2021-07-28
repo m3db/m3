@@ -425,7 +425,7 @@ type databaseNamespace interface {
 	Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
-	WarmFlush(blockStart xtime.UnixNano, flush persist.FlushPreparer) error
+	WarmFlush(blockStart xtime.UnixNano, flush persist.FlushPreparer) ([]databaseShard, error)
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
@@ -610,6 +610,9 @@ type databaseShard interface {
 		flush persist.FlushPreparer,
 		nsCtx namespace.Context,
 	) error
+
+	// MarkWarmFlushStateSuccessOrError marks the flush state as success or error.
+	MarkWarmFlushStateSuccessOrError(blockStart xtime.UnixNano, err error)
 
 	// ColdFlush flushes the unflushed ColdWrites in this shard.
 	ColdFlush(

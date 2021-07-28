@@ -2202,7 +2202,7 @@ func (s *dbShard) WarmFlush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return s.markWarmFlushStateSuccessOrError(blockStart, err)
+		return err
 	}
 
 	var multiErr xerrors.MultiError
@@ -2236,7 +2236,7 @@ func (s *dbShard) WarmFlush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markWarmFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) ColdFlush(
@@ -2498,14 +2498,13 @@ func (s *dbShard) flushStateWithRLock(blockStart xtime.UnixNano) fileOpState {
 	return state
 }
 
-func (s *dbShard) markWarmFlushStateSuccessOrError(blockStart xtime.UnixNano, err error) error {
+func (s *dbShard) MarkWarmFlushStateSuccessOrError(blockStart xtime.UnixNano, err error) {
 	// Track flush state for block state
 	if err == nil {
 		s.markWarmFlushStateSuccess(blockStart)
 	} else {
 		s.markWarmFlushStateFail(blockStart)
 	}
-	return err
 }
 
 func (s *dbShard) markWarmFlushStateSuccess(blockStart xtime.UnixNano) {
