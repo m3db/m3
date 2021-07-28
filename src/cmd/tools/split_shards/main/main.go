@@ -43,9 +43,9 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	checkpointPattern = regexp.MustCompile(`/data/(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db$`)
-)
+var checkpointPattern = regexp.MustCompile(`/data/(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db$`)
+
+const checkpointFmt = "%s/data/%s/%d/fileset-%d-%d-checkpoint.db"
 
 func main() {
 	var (
@@ -73,8 +73,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	srcFsOpts := fs.NewOptions().SetFilePathPrefix(dropDataSuffix(*optSrcPath))
-	dstFsOpts := fs.NewOptions().SetFilePathPrefix(dropDataSuffix(*optDstPathPrefix))
+	var (
+		srcFilesetLocation = dropDataSuffix(*optSrcPath)
+		dstFilesetLocation = dropDataSuffix(*optDstPathPrefix)
+
+		srcFsOpts = fs.NewOptions().SetFilePathPrefix(srcFilesetLocation)
+		dstFsOpts = fs.NewOptions().SetFilePathPrefix(dstFilesetLocation)
+	)
 
 	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
 	srcReader, err := fs.NewReader(nil, srcFsOpts)
@@ -117,18 +122,28 @@ func main() {
 		)
 
 		if blockStart >= int(*optBlockUntil) {
-			fmt.Println("too recent - skipping")
+			fmt.Println(" - skip (too recent)")
 			return nil
 		}
 
-		if _, err = splitFileSet(
-			srcReader, dstWriters, hashFn, *optShards, *optFactor, logger, namespace, uint32(shard),
+		alreadySplit, err := isAlreadySplit(
+			dstFilesetLocation, *optFactor, *optShards, namespace, uint32(shard), blockStart, volume)
+		if err != nil {
+			return err
+		}
+		if alreadySplit {
+			fmt.Println(" - skip (already split)")
+			return nil
+		}
+
+		if err = splitFileSet(
+			srcReader, dstWriters, hashFn, *optShards, *optFactor, namespace, uint32(shard),
 			xtime.UnixNano(blockStart), volume); err != nil {
 			return err
 		}
 
 		if err = verifySplitShards(
-			srcReader, dstReaders, hashFn, *optShards, logger, namespace, uint32(shard),
+			srcReader, dstReaders, hashFn, *optShards, namespace, uint32(shard),
 			xtime.UnixNano(blockStart), volume); err != nil {
 			return err
 		}
@@ -148,14 +163,13 @@ func splitFileSet(
 	hashFn sharding.HashFn,
 	srcNumShards uint32,
 	factor int,
-	logger *zap.SugaredLogger,
 	namespace string,
 	shard uint32,
 	blockStart xtime.UnixNano,
 	volume int,
-) (int, error) {
+) error {
 	if shard >= srcNumShards {
-		return 0, fmt.Errorf("unexpected source shard ID %d (must be under %d)", shard, srcNumShards)
+		return fmt.Errorf("unexpected source shard ID %d (must be under %d)", shard, srcNumShards)
 	}
 
 	readOpts := fs.DataReaderOpenOptions{
@@ -171,7 +185,7 @@ func splitFileSet(
 
 	err := srcReader.Open(readOpts)
 	if err != nil {
-		logger.Fatalf("unable to open srcReader: %v", err)
+		return fmt.Errorf("unable to open srcReader: %v", err)
 	}
 
 	plannedRecordsCount := uint(srcReader.Entries() / factor)
@@ -189,11 +203,10 @@ func splitFileSet(
 			PlannedRecordsCount: plannedRecordsCount,
 		}
 		if err := dstWriters[i].Open(writeOpts); err != nil {
-			return 0, err
+			return fmt.Errorf("unable to open dstWriters[%d]: %v", i, err)
 		}
 	}
 
-	seriesCount := 0
 	dataHolder := make([][]byte, 1)
 	for {
 		entry, err := srcReader.StreamingRead()
@@ -201,34 +214,32 @@ func splitFileSet(
 			break
 		}
 		if err != nil {
-			return 0, fmt.Errorf("read error: %v", err)
+			return fmt.Errorf("read error: %v", err)
 		}
 
 		newShardID := hashFn(entry.ID)
 		if newShardID%srcNumShards != shard {
-			return 0, fmt.Errorf("mismatched shards, %d to %d", shard, newShardID)
+			return fmt.Errorf("mismatched shards, %d to %d", shard, newShardID)
 		}
 		writer := dstWriters[newShardID/srcNumShards]
 
 		dataHolder[0] = entry.Data
 		if err := writer.WriteAll(entry.ID, entry.EncodedTags, dataHolder, entry.DataChecksum); err != nil {
-			return 0, err
+			return err
 		}
-
-		seriesCount++
 	}
 
 	for i := range dstWriters {
 		if err := dstWriters[i].Close(); err != nil {
-			return 0, err
+			return err
 		}
 	}
 
 	if err := srcReader.Close(); err != nil {
-		return 0, err
+		return err
 	}
 
-	return seriesCount, nil
+	return nil
 }
 
 func verifySplitShards(
@@ -236,7 +247,6 @@ func verifySplitShards(
 	dstReaders []fs.DataFileSetReader,
 	hashFn sharding.HashFn,
 	srcNumShards uint32,
-	logger *zap.SugaredLogger,
 	namespace string,
 	shard uint32,
 	blockStart xtime.UnixNano,
@@ -259,7 +269,7 @@ func verifySplitShards(
 
 	err := srcReader.Open(srcReadOpts)
 	if err != nil {
-		logger.Fatalf("unable to open reader: %v", err)
+		return fmt.Errorf("unable to open srcReader: %v", err)
 	}
 
 	for i := range dstReaders {
@@ -274,7 +284,7 @@ func verifySplitShards(
 			StreamingEnabled: true,
 		}
 		if err := dstReaders[i].Open(dstReadOpts); err != nil {
-			return err
+			return fmt.Errorf("unable to open dstReaders[%d]: %v", i, err)
 		}
 	}
 
@@ -327,10 +337,43 @@ func verifySplitShards(
 	return nil
 }
 
+func isAlreadySplit(
+	dstFilesetLocation string,
+	factor int,
+	srcNumShards uint32,
+	namespace string,
+	srcShard uint32,
+	blockStart int,
+	volume int,
+) (bool, error) {
+	for i := 0; i < factor; i++ {
+		newShard := srcNumShards*uint32(i) + srcShard
+		dstCheckpointFileName := fmt.Sprintf(
+			checkpointFmt, dstFilesetLocation, namespace, newShard, blockStart, volume)
+		exists, err := fileExists(dstCheckpointFileName)
+		if err != nil {
+			return false, err
+		}
+		if !exists {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
 func dropDataSuffix(path string) string {
 	dataIdx := strings.LastIndex(path, "/data")
 	if dataIdx < 0 {
 		return path
 	}
 	return path[:dataIdx]
+}
+
+func fileExists(name string) (bool, error) {
+	_, err := os.Stat(name)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
 }
