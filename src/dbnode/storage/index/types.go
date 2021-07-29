@@ -400,11 +400,7 @@ type OnIndexSeries interface {
 		blockStart xtime.UnixNano,
 	) bool
 
-	RemoveIndexedForBlockStarts(
-		blockStarts map[xtime.UnixNano]struct{},
-	) RemoveIndexedForBlockStartsResult
-
-	RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool)
+	IsEmpty() bool
 
 	DecrementReaderWriterCount()
 
@@ -458,10 +454,6 @@ type Block interface {
 
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
-
-	// ActiveBlockNotifyFlushedBlocks notifies an active in-memory block of
-	// sealed blocks.
-	ActiveBlockNotifyFlushedBlocks(sealed []xtime.UnixNano) error
 
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)

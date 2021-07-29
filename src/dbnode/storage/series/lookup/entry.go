@@ -79,11 +79,10 @@ var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
-	RelookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
-	Series                                series.DatabaseSeries
-	Index                                 uint64
-	IndexWriter                           IndexWriter
-	NowFn                                 clock.NowFn
+	Series      series.DatabaseSeries
+	Index       uint64
+	IndexWriter IndexWriter
+	NowFn       clock.NowFn
 }
 
 // NewEntry returns a new Entry.
@@ -93,20 +92,14 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn = opts.NowFn
 	}
 	entry := &Entry{
-		relookupAndIncrementReaderWriterCount: opts.RelookupAndIncrementReaderWriterCount,
-		Series:                                opts.Series,
-		Index:                                 opts.Index,
-		indexWriter:                           opts.IndexWriter,
-		nowFn:                                 nowFn,
-		pendingIndexBatchSizeOne:              make([]writes.PendingIndexInsert, 1),
-		reverseIndex:                          newEntryIndexState(),
+		Series:                   opts.Series,
+		Index:                    opts.Index,
+		indexWriter:              opts.IndexWriter,
+		nowFn:                    nowFn,
+		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
+		reverseIndex:             newEntryIndexState(),
 	}
 	return entry
-}
-
-// RelookupAndIncrementReaderWriterCount will relookup the entry.
-func (entry *Entry) RelookupAndIncrementReaderWriterCount() (index.OnIndexSeries, bool) {
-	return entry.relookupAndIncrementReaderWriterCount()
 }
 
 // ReaderWriterCount returns the current ref count on the Entry.
@@ -231,34 +224,9 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	return successAlready
 }
 
-// RemoveIndexedForBlockStarts removes the entry for the index for all blockStarts.
-func (entry *Entry) RemoveIndexedForBlockStarts(
-	blockStarts map[xtime.UnixNano]struct{},
-) index.RemoveIndexedForBlockStartsResult {
-	// Cannot remove from index if the series is not yet empty. This presumes that
-	// TSDB series data is never marked as flushed to disk prior to index series data
-	// which is why warm and cold flushing ensures marking data as flushed entails
-	// both data + index, and not just data.
-	if !entry.Series.IsEmpty() {
-		return index.RemoveIndexedForBlockStartsResult{
-			IndexedBlockStartsRemoved:   0,
-			IndexedBlockStartsRemaining: len(blockStarts),
-		}
-	}
-
-	var result index.RemoveIndexedForBlockStartsResult
-	entry.reverseIndex.Lock()
-	for k, state := range entry.reverseIndex.states {
-		_, ok := blockStarts[k]
-		if ok && state.success {
-			delete(entry.reverseIndex.states, k)
-			result.IndexedBlockStartsRemoved++
-			continue
-		}
-		result.IndexedBlockStartsRemaining++
-	}
-	entry.reverseIndex.Unlock()
-	return result
+// IsEmpty returns true if the entry has no in-memory series data.
+func (entry *Entry) IsEmpty() bool {
+	return entry.Series.IsEmpty()
 }
 
 // Write writes a new value.

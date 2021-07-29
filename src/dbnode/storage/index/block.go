@@ -280,15 +280,6 @@ func NewBlock(
 	return b, nil
 }
 
-func (b *block) ActiveBlockNotifyFlushedBlocks(
-	flushed []xtime.UnixNano,
-) error {
-	if !b.blockOpts.ActiveBlock {
-		return fmt.Errorf("block not in-memory block: start=%v", b.StartTime())
-	}
-	return b.mutableSegments.NotifyFlushedBlocks(flushed)
-}
-
 func (b *block) StartTime() xtime.UnixNano {
 	return b.blockStart
 }
