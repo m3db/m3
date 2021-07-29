@@ -853,6 +853,20 @@ func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(indexBlockStart in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), indexBlockStart)
 }
 
+// IsEmpty mocks base method.
+func (m *MockOnIndexSeries) IsEmpty() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsEmpty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsEmpty indicates an expected call of IsEmpty.
+func (mr *MockOnIndexSeriesMockRecorder) IsEmpty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockOnIndexSeries)(nil).IsEmpty))
+}
+
 // NeedsIndexUpdate mocks base method.
 func (m *MockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite time0.UnixNano) bool {
 	m.ctrl.T.Helper()
@@ -903,35 +917,6 @@ func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
 }
 
-// RelookupAndIncrementReaderWriterCount mocks base method.
-func (m *MockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RelookupAndIncrementReaderWriterCount")
-	ret0, _ := ret[0].(OnIndexSeries)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// RelookupAndIncrementReaderWriterCount indicates an expected call of RelookupAndIncrementReaderWriterCount.
-func (mr *MockOnIndexSeriesMockRecorder) RelookupAndIncrementReaderWriterCount() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelookupAndIncrementReaderWriterCount", reflect.TypeOf((*MockOnIndexSeries)(nil).RelookupAndIncrementReaderWriterCount))
-}
-
-// RemoveIndexedForBlockStarts mocks base method.
-func (m *MockOnIndexSeries) RemoveIndexedForBlockStarts(blockStarts map[time0.UnixNano]struct{}) RemoveIndexedForBlockStartsResult {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveIndexedForBlockStarts", blockStarts)
-	ret0, _ := ret[0].(RemoveIndexedForBlockStartsResult)
-	return ret0
-}
-
-// RemoveIndexedForBlockStarts indicates an expected call of RemoveIndexedForBlockStarts.
-func (mr *MockOnIndexSeriesMockRecorder) RemoveIndexedForBlockStarts(blockStarts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveIndexedForBlockStarts", reflect.TypeOf((*MockOnIndexSeries)(nil).RemoveIndexedForBlockStarts), blockStarts)
-}
-
 // MockBlock is a mock of Block interface.
 type MockBlock struct {
 	ctrl     *gomock.Controller
@@ -953,20 +938,6 @@ func NewMockBlock(ctrl *gomock.Controller) *MockBlock {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 	return m.recorder
-}
-
-// ActiveBlockNotifyFlushedBlocks mocks base method.
-func (m *MockBlock) ActiveBlockNotifyFlushedBlocks(sealed []time0.UnixNano) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ActiveBlockNotifyFlushedBlocks", sealed)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ActiveBlockNotifyFlushedBlocks indicates an expected call of ActiveBlockNotifyFlushedBlocks.
-func (mr *MockBlockMockRecorder) ActiveBlockNotifyFlushedBlocks(sealed interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveBlockNotifyFlushedBlocks", reflect.TypeOf((*MockBlock)(nil).ActiveBlockNotifyFlushedBlocks), sealed)
 }
 
 // AddResults mocks base method.

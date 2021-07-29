@@ -1784,11 +1784,12 @@ func (mr *MockdatabaseNamespaceMockRecorder) Truncate() *gomock.Call {
 }
 
 // WarmFlush mocks base method.
-func (m *MockdatabaseNamespace) WarmFlush(blockStart time0.UnixNano, flush persist.FlushPreparer) error {
+func (m *MockdatabaseNamespace) WarmFlush(blockStart time0.UnixNano, flush persist.FlushPreparer) ([]databaseShard, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]databaseShard)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WarmFlush indicates an expected call of WarmFlush.
@@ -2219,6 +2220,18 @@ func (m *MockdatabaseShard) LoadBlocks(series *result.Map) error {
 func (mr *MockdatabaseShardMockRecorder) LoadBlocks(series interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).LoadBlocks), series)
+}
+
+// MarkWarmFlushStateSuccessOrError mocks base method.
+func (m *MockdatabaseShard) MarkWarmFlushStateSuccessOrError(blockStart time0.UnixNano, err error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MarkWarmFlushStateSuccessOrError", blockStart, err)
+}
+
+// MarkWarmFlushStateSuccessOrError indicates an expected call of MarkWarmFlushStateSuccessOrError.
+func (mr *MockdatabaseShardMockRecorder) MarkWarmFlushStateSuccessOrError(blockStart, err interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkWarmFlushStateSuccessOrError", reflect.TypeOf((*MockdatabaseShard)(nil).MarkWarmFlushStateSuccessOrError), blockStart, err)
 }
 
 // NumSeries mocks base method.
