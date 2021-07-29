@@ -55,8 +55,12 @@ const (
 )
 
 type namespaceFlush struct {
-	ns    databaseNamespace
-	t     xtime.UnixNano
+	namespace    databaseNamespace
+	shardFlushes []shardFlush
+}
+
+type shardFlush struct {
+	time  xtime.UnixNano
 	shard databaseShard
 }
 
@@ -175,7 +179,9 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// Mark all flush states at the very end to ensure this
 	// happens after both data and index flushing.
 	for _, f := range flushes {
-		f.shard.MarkWarmFlushStateSuccessOrError(f.t, err)
+		for _, s := range f.shardFlushes {
+			s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
+		}
 	}
 
 	return err
@@ -203,13 +209,11 @@ func (m *flushManager) dataWarmFlush(
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		flushes, err := m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
+		flush, err := m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		for _, f := range flushes {
-			allFlushes = append(allFlushes, f)
-		}
+		allFlushes = append(allFlushes, flush)
 	}
 
 	err = flushPersist.DoneFlush()
@@ -380,8 +384,8 @@ func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,
 	times []xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
-) ([]namespaceFlush, error) {
-	flushes := make([]namespaceFlush, 0)
+) (namespaceFlush, error) {
+	flushes := make([]shardFlush, 0)
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
@@ -393,15 +397,17 @@ func (m *flushManager) flushNamespaceWithTimes(
 			multiErr = multiErr.Add(detailedErr)
 		} else {
 			for _, s := range shards {
-				flushes = append(flushes, namespaceFlush{
-					ns:    ns,
-					t:     t,
+				flushes = append(flushes, shardFlush{
+					time:  t,
 					shard: s,
 				})
 			}
 		}
 	}
-	return flushes, multiErr.FinalError()
+	return namespaceFlush{
+		namespace:    ns,
+		shardFlushes: flushes,
+	}, multiErr.FinalError()
 }
 
 func (m *flushManager) LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool) {
