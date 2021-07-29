@@ -607,7 +607,9 @@ func testNamespaceBootstrapUnfulfilledShards(
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	require.Equal(t, errNamespaceNotBootstrapped, ns.WarmFlush(xtime.Now(), nil))
+	flushed, err := ns.WarmFlush(xtime.Now(), nil)
+	require.Equal(t, errNamespaceNotBootstrapped, err)
+	require.Equal(t, 0, len(flushed))
 	require.Equal(t, errNamespaceNotBootstrapped, ns.ColdFlush(nil))
 }
 
@@ -617,7 +619,9 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	defer close()
 
 	ns.bootstrapState = Bootstrapped
-	require.NoError(t, ns.WarmFlush(xtime.Now(), nil))
+	flushed, err := ns.WarmFlush(xtime.Now(), nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(flushed))
 	require.NoError(t, ns.ColdFlush(nil))
 }
 
@@ -627,7 +631,9 @@ func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
 
 	ns.bootstrapState = Bootstrapped
 	ns.SetReadOnly(true)
-	require.NoError(t, ns.WarmFlush(xtime.Now(), nil))
+	flushed, err := ns.WarmFlush(xtime.Now(), nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(flushed))
 	require.NoError(t, ns.ColdFlush(nil))
 }
 
@@ -658,7 +664,9 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.NoError(t, ns.WarmFlush(blockStart, nil))
+	flushed, err := ns.WarmFlush(blockStart, nil)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(flushed))
 }
 
 func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
@@ -679,7 +687,9 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	shard.EXPECT().IsBootstrapped().Return(false)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	require.NoError(t, ns.WarmFlush(blockStart, nil))
+	flushed, err := ns.WarmFlush(blockStart, nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(flushed))
 	require.NoError(t, ns.ColdFlush(nil))
 }
 

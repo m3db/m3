@@ -460,7 +460,6 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 	c := context.NewCancellable()
 
 	bActive.EXPECT().Tick(c).Return(index.BlockTickResult{}, nil)
-	bActive.EXPECT().ActiveBlockNotifyFlushedBlocks(gomock.Any()).Return(nil)
 
 	b0.EXPECT().Close().Return(nil)
 
@@ -531,9 +530,6 @@ func TestNamespaceIndexTick(t *testing.T) {
 		}, nil).
 		AnyTimes()
 	bActive.EXPECT().IsSealed().Return(false).AnyTimes()
-	bActive.EXPECT().ActiveBlockNotifyFlushedBlocks(gomock.Any()).
-		Return(nil).
-		AnyTimes()
 
 	b0.EXPECT().Tick(c).
 		Return(index.BlockTickResult{

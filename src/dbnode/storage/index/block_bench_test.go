@@ -134,6 +134,4 @@ func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
 	return RemoveIndexedForBlockStartsResult{}
 }
 func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool { return false }
-func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
-	return m, false
-}
+func (m mockOnIndexSeries) IsEmpty() bool               { return false }

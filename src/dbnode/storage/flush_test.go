@@ -315,12 +315,16 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(false))
+	s1 := NewMockdatabaseShard(ctrl)
+	s2 := NewMockdatabaseShard(ctrl)
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return([]databaseShard{s1, s2}, nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
+	s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
 
 	var (
 		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)
@@ -358,13 +362,17 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
+	s1 := NewMockdatabaseShard(ctrl)
+	s2 := NewMockdatabaseShard(ctrl)
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return([]databaseShard{s1, s2}, nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().FlushIndex(gomock.Any()).Return(nil)
+	s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
+	s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
 
 	var (
 		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)

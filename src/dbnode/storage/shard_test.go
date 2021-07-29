@@ -431,8 +431,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	s.Bootstrap(ctx, nsCtx)
 
 	s.flushState.statesByTime[blockStart] = fileOpState{
-		WarmStatus:  fileOpFailed,
-		NumFailures: 1,
+		WarmStatus:  fileOpNotStarted,
+		NumFailures: 0,
 	}
 
 	var closed bool
@@ -469,7 +469,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		}))
 	}
 
-	err := s.WarmFlush(blockStart, flush, namespace.Context{})
+	flushErr := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -478,14 +478,24 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	}
 
 	require.True(t, closed)
-	require.NotNil(t, err)
-	require.Equal(t, "error bar", err.Error())
+	require.NotNil(t, flushErr)
+	require.Equal(t, "error bar", flushErr.Error())
 
 	flushState, err := s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:  fileOpFailed,
-		NumFailures: 2,
+		WarmStatus:  fileOpNotStarted,
+		NumFailures: 0,
+	}, flushState)
+
+	s.MarkWarmFlushStateSuccessOrError(blockStart, flushErr)
+
+	flushState, err = s.FlushState(blockStart)
+	require.NoError(t, err)
+	require.Equal(t, fileOpState{
+		WarmStatus:             fileOpFailed,
+		ColdVersionRetrievable: 0,
+		NumFailures:            1,
 	}, flushState)
 }
 
@@ -511,8 +521,8 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	s.Bootstrap(ctx, nsCtx)
 
 	s.flushState.statesByTime[blockStart] = fileOpState{
-		WarmStatus:  fileOpFailed,
-		NumFailures: 1,
+		WarmStatus:  fileOpNotStarted,
+		NumFailures: 0,
 	}
 
 	var closed bool
@@ -557,7 +567,18 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	require.True(t, closed)
 	require.Nil(t, err)
 
+	// State not yet updated since an explicit call to MarkWarmFlushStateSuccessOrError is required.
 	flushState, err := s.FlushState(blockStart)
+	require.NoError(t, err)
+	require.Equal(t, fileOpState{
+		WarmStatus:             fileOpNotStarted,
+		ColdVersionRetrievable: 0,
+		NumFailures:            0,
+	}, flushState)
+
+	s.MarkWarmFlushStateSuccessOrError(blockStart, nil)
+
+	flushState, err = s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
 		WarmStatus:             fileOpSuccess,
