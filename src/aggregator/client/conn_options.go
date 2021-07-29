@@ -21,7 +21,6 @@
 package client
 
 import (
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/x/clock"
@@ -31,13 +30,13 @@ import (
 )
 
 const (
-	defaultConnectionTimeout            = 2 * time.Second
+	defaultConnectionTimeout            = 1 * time.Second
 	defaultConnectionKeepAlive          = true
-	defaultWriteTimeout                 = time.Duration(0)
-	defaultInitReconnectThreshold       = 2
-	defaultMaxReconnectThreshold        = 5000
+	defaultWriteTimeout                 = 15 * time.Second
+	defaultInitReconnectThreshold       = 1
+	defaultMaxReconnectThreshold        = 4
 	defaultReconnectThresholdMultiplier = 2
-	defaultMaxReconnectDuration         = math.MaxInt64
+	defaultMaxReconnectDuration         = 20 * time.Second
 	defaultWriteRetryInitialBackoff     = 0
 	defaultWriteRetryBackoffFactor      = 2
 	defaultWriteRetryMaxBackoff         = time.Second
