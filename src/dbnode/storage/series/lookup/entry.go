@@ -235,6 +235,17 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 func (entry *Entry) RemoveIndexedForBlockStarts(
 	blockStarts map[xtime.UnixNano]struct{},
 ) index.RemoveIndexedForBlockStartsResult {
+	// Cannot remove from index if the series is not yet empty. This presumes that
+	// TSDB series data is never marked as flushed to disk prior to index series data
+	// which is why warm and cold flushing ensures marking data as flushed entails
+	// both data + index, and not just data.
+	if !entry.Series.IsEmpty() {
+		return index.RemoveIndexedForBlockStartsResult{
+			IndexedBlockStartsRemoved:   0,
+			IndexedBlockStartsRemaining: len(blockStarts),
+		}
+	}
+
 	var result index.RemoveIndexedForBlockStartsResult
 	entry.reverseIndex.Lock()
 	for k, state := range entry.reverseIndex.states {
