@@ -263,6 +263,18 @@ type WriteQuery struct {
 	opts WriteQueryOptions
 }
 
+func (q WriteQuery) Clone() *WriteQuery {
+	opts := q.opts
+	clonedOpts := WriteQueryOptions{
+		Tags:       opts.Tags.Clone(),
+		Datapoints: append(make([]ts.Datapoint, 0, len(opts.Datapoints)), opts.Datapoints...),
+		Unit:       opts.Unit,
+		Annotation: append(make([]byte, 0, len(opts.Annotation)), opts.Annotation...),
+		Attributes: opts.Attributes,
+	}
+	return &WriteQuery{clonedOpts}
+}
+
 // WriteQueryOptions is a set of options to use to construct a write query.
 // These are passed by options so that they can be validated when creating
 // a write query, which helps knowing a constructed write query is valid.

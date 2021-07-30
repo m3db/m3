@@ -624,7 +624,7 @@ type writeRequest struct {
 func newWriteRequest(store storage.Storage, query *storage.WriteQuery) execution.Request {
 	return &writeRequest{
 		store: store,
-		query: query,
+		query: query.Clone(),
 	}
 }
 
