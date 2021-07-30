@@ -22,12 +22,11 @@ package test
 
 import (
 	"encoding/json"
-	"testing"
-
-	xjson "github.com/m3db/m3/src/x/json"
 
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/stretchr/testify/require"
+
+	xjson "github.com/m3db/m3/src/x/json"
 )
 
 // Diff is a helper method to print a terminal pretty diff of two strings
@@ -39,21 +38,28 @@ func Diff(expected, actual string) string {
 }
 
 // MustPrettyJSONMap returns an indented JSON string of the object.
-func MustPrettyJSONMap(t *testing.T, value xjson.Map) string {
+func MustPrettyJSONMap(t require.TestingT, value xjson.Map) string {
 	pretty, err := json.MarshalIndent(value, "", "  ")
 	require.NoError(t, err)
 	return string(pretty)
 }
 
 // MustPrettyJSONArray returns an indented JSON string of the object.
-func MustPrettyJSONArray(t *testing.T, value xjson.Array) string {
+func MustPrettyJSONArray(t require.TestingT, value xjson.Array) string {
+	pretty, err := json.MarshalIndent(value, "", "  ")
+	require.NoError(t, err)
+	return string(pretty)
+}
+
+// MustPrettyJSONObject returns an indented JSON string of the object.
+func MustPrettyJSONObject(t require.TestingT, value interface{}) string {
 	pretty, err := json.MarshalIndent(value, "", "  ")
 	require.NoError(t, err)
 	return string(pretty)
 }
 
 // MustPrettyJSONString returns an indented version of the JSON.
-func MustPrettyJSONString(t *testing.T, str string) string {
+func MustPrettyJSONString(t require.TestingT, str string) string {
 	var unmarshalled map[string]interface{}
 	err := json.Unmarshal([]byte(str), &unmarshalled)
 	require.NoError(t, err)
