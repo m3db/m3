@@ -716,7 +716,7 @@ func (s *m3storage) Write(
 	if query == nil {
 		return errors.ErrNilWriteQuery
 	}
-
+	query = query.Clone()
 	var (
 		// TODO: Pool this once an ident pool is setup. We will have
 		// to stop calling NoFinalize() below if we do that.
@@ -756,7 +756,7 @@ func (s *m3storage) Write(
 	}
 
 	// Set id to NoFinalize to avoid cloning it in write operations
-	//id.NoFinalize()
+	id.NoFinalize()
 	tags.Tags, err = s.opts.TagsTransform()(ctx, namespace, tags.Tags)
 	if err != nil {
 		return err
