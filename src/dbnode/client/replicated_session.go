@@ -163,15 +163,15 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 	if err != nil {
 		return err
 	}
-	tagEncoder := iterPools.TagEncoder().Get()
-	defer tagEncoder.Finalize()
-
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
+
+		tagEncoder := iterPools.TagEncoder().Get()
 		if err := tagEncoder.Encode(params.tags); err != nil {
 			return err
 		}
 		encodedTags, _ := tagEncoder.Data()
+
 		tagDecoder := iterPools.TagDecoder().Get()
 		tagDecoder.Reset(encodedTags)
 
@@ -190,7 +190,6 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 						params.value, params.unit, params.annotation,
 					)
 				}
-				tagDecoder.Close()
 				if err != nil {
 					s.metrics.replicateError.Inc(1)
 					s.log.Error("could not replicate write", zap.Error(err))
@@ -200,11 +199,16 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 				if s.outCh != nil {
 					s.outCh <- err
 				}
+				tagDecoder.Close()
+				tagEncoder.Finalize()
+
 				<-s.replicationSemaphore
 			})
 			s.metrics.replicateExecuted.Inc(1)
 		default:
 			s.metrics.replicateNotExecuted.Inc(1)
+			tagDecoder.Close()
+			tagEncoder.Finalize()
 		}
 	}
 
