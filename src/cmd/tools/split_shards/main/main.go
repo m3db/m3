@@ -47,6 +47,7 @@ import (
 var checkpointPattern = regexp.MustCompile(`/data/(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db$`)
 
 const checkpointFmt = "%s/data/%s/%d/fileset-%d-%d-checkpoint.db"
+const dataFileFmt = "%s/data/%s/%d/fileset-%d-%d-data.db"
 
 func main() {
 	var (
@@ -127,15 +128,15 @@ func main() {
 			return nil
 		}
 
-		alreadySplit, err := isAlreadySplit(
-			dstFilesetLocation, *optFactor, *optShards, namespace, uint32(shard), blockStart, volume)
-		if err != nil {
-			return err
-		}
-		if alreadySplit {
-			fmt.Println(" - skip (already split)") // nolint: forbidigo
-			return nil
-		}
+		//alreadySplit, err := isAlreadySplit(
+		//	dstFilesetLocation, *optFactor, *optShards, namespace, uint32(shard), blockStart, volume)
+		//if err != nil {
+		//	return err
+		//}
+		//if alreadySplit {
+		//	fmt.Println(" - skip (already split)") // nolint: forbidigo
+		//	return nil
+		//}
 
 		if err = splitFileSet(
 			srcReader, dstWriters, hashFn, *optShards, *optFactor, namespace, uint32(shard),
@@ -350,6 +351,13 @@ func isAlreadySplit(
 		if !exists {
 			return false, nil
 		}
+
+		dstDataFileName := fmt.Sprintf(
+			dataFileFmt, dstFilesetLocation, namespace, dstShard, blockStart, volume)
+		size, err := fileSize(dstDataFileName)
+		if size == 0 {
+			return false, nil
+		}
 	}
 
 	return true, nil
@@ -369,4 +377,12 @@ func fileExists(name string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func fileSize(name string) (int64, error) {
+	stat, err := os.Stat(name)
+	if err != nil {
+		return 0, err
+	}
+	return stat.Size(), nil
 }
