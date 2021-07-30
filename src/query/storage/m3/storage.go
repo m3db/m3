@@ -756,7 +756,7 @@ func (s *m3storage) Write(
 	}
 
 	// Set id to NoFinalize to avoid cloning it in write operations
-	id.NoFinalize()
+	//id.NoFinalize()
 	tags.Tags, err = s.opts.TagsTransform()(ctx, namespace, tags.Tags)
 	if err != nil {
 		return err
