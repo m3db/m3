@@ -78,17 +78,21 @@ metrics:
 
 local:
   namespaces:
-    - namespace: testns
+    - namespace: default
       type: unaggregated
       retention: 12h
+    - namespace: testns
+      type: aggregated
+      retention: 12h
+      resolution: 1m
 `
 
 	var (
 		blockSize       = 2 * time.Hour
 		retentionPeriod = 6 * blockSize
 		rOpts           = retention.NewOptions().
-				SetRetentionPeriod(retentionPeriod).
-				SetBlockSize(blockSize)
+			SetRetentionPeriod(retentionPeriod).
+			SetBlockSize(blockSize)
 		idxOpts = namespace.NewIndexOptions().
 			SetEnabled(true).
 			SetBlockSize(2 * blockSize)
