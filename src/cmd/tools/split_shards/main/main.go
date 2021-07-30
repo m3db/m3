@@ -46,9 +46,6 @@ import (
 
 var checkpointPattern = regexp.MustCompile(`/data/(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db$`)
 
-const checkpointFmt = "%s/data/%s/%d/fileset-%d-%d-checkpoint.db"
-const dataFileFmt = "%s/data/%s/%d/fileset-%d-%d-data.db"
-
 func main() {
 	var (
 		optSrcPath       = getopt.StringLong("src-path", 's', "", "Source path [e.g. /temp/lib/m3db/data]")
@@ -127,16 +124,6 @@ func main() {
 			fmt.Println(" - skip (too recent)") // nolint: forbidigo
 			return nil
 		}
-
-		//alreadySplit, err := isAlreadySplit(
-		//	dstFilesetLocation, *optFactor, *optShards, namespace, uint32(shard), blockStart, volume)
-		//if err != nil {
-		//	return err
-		//}
-		//if alreadySplit {
-		//	fmt.Println(" - skip (already split)") // nolint: forbidigo
-		//	return nil
-		//}
 
 		if err = splitFileSet(
 			srcReader, dstWriters, hashFn, *optShards, *optFactor, namespace, uint32(shard),
@@ -331,58 +318,10 @@ func mapToDstShard(srcNumShards uint32, i int, srcShard uint32) uint32 {
 	return srcNumShards*uint32(i) + srcShard
 }
 
-func isAlreadySplit(
-	dstFilesetLocation string,
-	factor int,
-	srcNumShards uint32,
-	namespace string,
-	srcShard uint32,
-	blockStart int,
-	volume int,
-) (bool, error) {
-	for i := 0; i < factor; i++ {
-		dstShard := mapToDstShard(srcNumShards, i, srcShard)
-		dstCheckpointFileName := fmt.Sprintf(
-			checkpointFmt, dstFilesetLocation, namespace, dstShard, blockStart, volume)
-		exists, err := fileExists(dstCheckpointFileName)
-		if err != nil {
-			return false, err
-		}
-		if !exists {
-			return false, nil
-		}
-
-		dstDataFileName := fmt.Sprintf(
-			dataFileFmt, dstFilesetLocation, namespace, dstShard, blockStart, volume)
-		size, err := fileSize(dstDataFileName)
-		if size == 0 {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
 func dropDataSuffix(path string) string {
 	dataIdx := strings.LastIndex(path, "/data")
 	if dataIdx < 0 {
 		return path
 	}
 	return path[:dataIdx]
-}
-
-func fileExists(name string) (bool, error) {
-	_, err := os.Stat(name)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return err == nil, err
-}
-
-func fileSize(name string) (int64, error) {
-	stat, err := os.Stat(name)
-	if err != nil {
-		return 0, err
-	}
-	return stat.Size(), nil
 }
