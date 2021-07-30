@@ -127,6 +127,10 @@ type RunOptions struct {
 	// ready signal once it is open.
 	DownsamplerReadyCh chan<- struct{}
 
+	// LocalSessionReadyCh is a programmatic channel to receive the
+	// local DB session ready signal once it is open.
+	LocalSessionReadyCh chan struct{}
+
 	// InstrumentOptionsReadyCh is a programmatic channel to receive a set of
 	// instrument options and metric reporters that is delivered when
 	// constructed.
@@ -405,7 +409,8 @@ func Run(runOpts RunOptions) {
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
 		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBConfig, runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
+			runOpts.DBConfig, runOpts.DBClient, runOpts.LocalSessionReadyCh,
+			instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -823,6 +828,7 @@ func initClusters(
 	cfg config.Configuration,
 	dbCfg *dbconfig.DBConfiguration,
 	dbClientCh <-chan client.Client,
+	localSessionReadyCh chan struct{},
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
 ) (m3.Clusters, m3.ClusterNamespacesWatcher, *pools.PoolWrapper, error) {
@@ -873,10 +879,12 @@ func initClusters(
 			return nil, nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 
-		sessionInitChan := make(chan struct{})
+		if localSessionReadyCh == nil {
+			localSessionReadyCh = make(chan struct{})
+		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
-		}, sessionInitChan)
+		}, localSessionReadyCh)
 
 		clusterStaticConfig := m3.ClusterStaticConfiguration{
 			Namespaces: localCfg.Namespaces,
@@ -919,7 +927,7 @@ func initClusters(
 
 		poolWrapper = pools.NewAsyncPoolsWrapper()
 		go func() {
-			<-sessionInitChan
+			<-localSessionReadyCh
 			poolWrapper.Init(session.IteratorPools())
 		}()
 	}

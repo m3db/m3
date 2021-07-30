@@ -180,6 +180,7 @@ func (b bitmapReadOnlyContainer) containsAnyRange(start, end int32) bool {
 		if popcount(b.values[i]>>off) > 0 {
 			return true
 		}
+		i++
 	}
 
 	// Count uint64 in between.
