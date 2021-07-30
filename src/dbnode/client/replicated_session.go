@@ -159,21 +159,13 @@ type replicatedParams struct {
 // NB(srobb): it would be a nicer to accept a lambda which is the fn to
 // be performed on all sessions, however this causes an extra allocation.
 func (s replicatedSession) replicate(params replicatedParams) error {
-	iterPools, err := s.IteratorPools()
-	if err != nil {
-		return err
-	}
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
 
-		tagEncoder := iterPools.TagEncoder().Get()
-		if err := tagEncoder.Encode(params.tags); err != nil {
-			return err
+		var tags ident.TagIterator
+		if params.useTags {
+			tags = params.tags.Duplicate()
 		}
-		encodedTags, _ := tagEncoder.Data()
-
-		tagDecoder := iterPools.TagDecoder().Get()
-		tagDecoder.Reset(encodedTags)
 
 		select {
 		case s.replicationSemaphore <- struct{}{}:
@@ -181,7 +173,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 				var err error
 				if params.useTags {
 					err = asyncSession.WriteTagged(
-						params.namespace, params.id, tagDecoder, params.t,
+						params.namespace, params.id, tags, params.t,
 						params.value, params.unit, params.annotation,
 					)
 				} else {
@@ -199,16 +191,12 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 				if s.outCh != nil {
 					s.outCh <- err
 				}
-				tagDecoder.Close()
-				tagEncoder.Finalize()
 
 				<-s.replicationSemaphore
 			})
 			s.metrics.replicateExecuted.Inc(1)
 		default:
 			s.metrics.replicateNotExecuted.Inc(1)
-			tagDecoder.Close()
-			tagEncoder.Finalize()
 		}
 	}
 
