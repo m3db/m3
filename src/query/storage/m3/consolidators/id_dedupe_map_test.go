@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/models"
@@ -34,6 +32,7 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +41,6 @@ func verifyIDDedupeMap(
 	t *testing.T,
 	dedupeMap fetchDedupeMap,
 	numSeries int,
-	expected ...ts.Datapoint,
 ) {
 	series := dedupeMap.list()
 	require.Equal(t, numSeries, len(series))
@@ -97,32 +95,36 @@ func TestIDDedupeMap(t *testing.T) {
 		Resolution:  time.Hour,
 	}
 
-	dedupeMap.add(idit(ctrl, dp{t: start, val: 14},
+	err := dedupeMap.add(idit(ctrl, dp{t: start, val: 14},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	verifyIDDedupeMap(t, dedupeMap, 1, ts.Datapoint{TimestampNanos: start, Value: 14})
+	require.NoError(t, err)
+	verifyIDDedupeMap(t, dedupeMap, 1)
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Minute
-	dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute), val: 10},
+	err = dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute), val: 10},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
+	require.NoError(t, err)
+	err = dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
 		"id2", "foo", "bar", "qux", "quail"), attrs)
+	require.NoError(t, err)
 
-	verifyIDDedupeMap(t, dedupeMap,
-		2,
-		ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10},
-		ts.Datapoint{TimestampNanos: start.Add(time.Minute * 2), Value: 12})
+	verifyIDDedupeMap(t, dedupeMap, 2)
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Second
-	dedupeMap.add(idit(ctrl, dp{t: start, val: 100},
+	err = dedupeMap.add(idit(ctrl, dp{t: start, val: 100},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	verifyIDDedupeMap(t, dedupeMap, 2, ts.Datapoint{TimestampNanos: start, Value: 100})
+	require.NoError(t, err)
 
-	dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
+	verifyIDDedupeMap(t, dedupeMap, 2)
+
+	err = dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
 		"id4", "foo", "bar", "qux", "quail"), attrs)
-	dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
+	require.NoError(t, err)
+	err = dedupeMap.add(idit(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
 		"id3", "foo", "bar", "qux", "quail"), attrs)
+	require.NoError(t, err)
 
 	for _, it := range dedupeMap.list() {
 		iter := it.iter
@@ -131,12 +133,12 @@ func TestIDDedupeMap(t *testing.T) {
 	}
 
 	// Get list multiple times and ensure they are always in same order.
-	var expectedIDs []string
+	expectedIDs := make([]string, 0)
 	for _, it := range dedupeMap.list() {
 		expectedIDs = append(expectedIDs, it.tags.String())
 	}
 	for i := 0; i < 10; i++ {
-		var ids []string
+		ids := make([]string, 0)
 		for _, it := range dedupeMap.list() {
 			ids = append(ids, it.tags.String())
 		}
