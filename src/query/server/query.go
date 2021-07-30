@@ -136,6 +136,10 @@ type RunOptions struct {
 	// ready signal once it is open.
 	DownsamplerReadyCh chan<- struct{}
 
+	// LocalSessionReadyCh is a programmatic channel to receive the
+	// local DB session ready signal once it is open.
+	LocalSessionReadyCh chan struct{}
+
 	// InstrumentOptionsReadyCh is a programmatic channel to receive a set of
 	// instrument options and metric reporters that is delivered when
 	// constructed.
@@ -470,8 +474,8 @@ func Run(runOpts RunOptions) RunResult {
 	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
-			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
+		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
+			runOpts.DBConfig, runOpts.DBClient, encodingOpts, runOpts.LocalSessionReadyCh,
 			instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
@@ -968,6 +972,7 @@ func initClusters(
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	dbClientCh <-chan client.Client,
 	encodingOpts encoding.Options,
+	localSessionReadyCh chan struct{},
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
@@ -1018,10 +1023,12 @@ func initClusters(
 			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 
-		sessionInitChan := make(chan struct{})
+		if localSessionReadyCh == nil {
+			localSessionReadyCh = make(chan struct{})
+		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
-		}, sessionInitChan)
+		}, localSessionReadyCh)
 
 		clusterStaticConfig := m3.ClusterStaticConfiguration{
 			Namespaces: localCfg.Namespaces,
@@ -1065,7 +1072,7 @@ func initClusters(
 
 		poolWrapper = pools.NewAsyncPoolsWrapper()
 		go func() {
-			<-sessionInitChan
+			<-localSessionReadyCh
 			poolWrapper.Init(session.IteratorPools())
 		}()
 	}

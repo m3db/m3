@@ -25,6 +25,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -32,8 +33,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
@@ -58,7 +68,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	queryserver "github.com/m3db/m3/src/query/server"
 	"github.com/m3db/m3/src/x/clock"
+	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -127,6 +139,7 @@ type testSetup struct {
 	m3dbAdminClient             client.AdminClient
 	m3dbVerificationAdminClient client.AdminClient
 	workerPool                  xsync.WorkerPool
+	queryAddress                string
 
 	// compare expected with actual data function
 	assertEqual assertTestDataEqual
@@ -137,8 +150,10 @@ type testSetup struct {
 	namespaces     []namespace.Metadata
 
 	// signals
-	doneCh   chan struct{}
-	closedCh chan struct{}
+	doneCh           chan struct{}
+	closedCh         chan struct{}
+	queryInterruptCh chan error
+	queryDoneCh      chan struct{}
 }
 
 type xNowFn func() xtime.UnixNano
@@ -170,6 +185,9 @@ type TestSetup interface {
 	StopServerAndVerifyOpenFilesAreClosed() error
 	StartServer() error
 	StartServerDontWaitBootstrap() error
+	StopQuery() error
+	StartQuery(configYAML string) error
+	QueryAddress() string
 	NowFn() xNowFn
 	ClockNowFn() clock.NowFn
 	SetNowFn(xtime.UnixNano)
@@ -843,6 +861,66 @@ func openFiles(parentDir string) []string {
 	return strings.Split(string(out), "\n")
 }
 
+func (ts *testSetup) StartQuery(configYAML string) error {
+	m3dbClient := ts.m3dbClient
+	if m3dbClient == nil {
+		return fmt.Errorf("dbnode admin client not set")
+	}
+
+	configFile, close := newTestFile(ts.t, "config.yaml", configYAML)
+	defer close()
+
+	var cfg queryconfig.Configuration
+	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	if err != nil {
+		return err
+	}
+
+	dbClientCh := make(chan client.Client, 1)
+	dbClientCh <- m3dbClient
+	clusterClientCh := make(chan clusterclient.Client, 1)
+	listenerCh := make(chan net.Listener, 1)
+	localSessionReadyCh := make(chan struct{}, 1)
+
+	ts.queryInterruptCh = make(chan error, 1)
+	ts.queryDoneCh = make(chan struct{}, 1)
+
+	go func() {
+		queryserver.Run(queryserver.RunOptions{
+			Config:              cfg,
+			InterruptCh:         ts.queryInterruptCh,
+			ListenerCh:          listenerCh,
+			LocalSessionReadyCh: localSessionReadyCh,
+			DBClient:            dbClientCh,
+			ClusterClient:       clusterClientCh,
+		})
+		ts.queryDoneCh <- struct{}{}
+	}()
+
+	// Wait for local session to connect.
+	<-localSessionReadyCh
+
+	// Wait for listener.
+	listener := <-listenerCh
+	ts.queryAddress = listener.Addr().String()
+
+	return nil
+}
+
+func (ts *testSetup) StopQuery() error {
+	// Send interrupt.
+	ts.queryInterruptCh <- fmt.Errorf("interrupt")
+
+	// Wait for done.
+	<-ts.queryDoneCh
+
+	return nil
+}
+
+func (ts *testSetup) QueryAddress() string {
+	return ts.queryAddress
+}
+
 func (ts *testSetup) TChannelClient() *TestTChannelClient {
 	return ts.tchannelClient
 }
@@ -1188,4 +1266,22 @@ func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
 	}
 
 	return inspection
+}
+
+func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
+	tmpFile, err := ioutil.TempFile("", fileName)
+	require.NoError(t, err)
+
+	_, err = tmpFile.Write([]byte(contents))
+	require.NoError(t, err)
+
+	return tmpFile, func() {
+		assert.NoError(t, tmpFile.Close())
+		assert.NoError(t, os.Remove(tmpFile.Name()))
+	}
+}
+
+// DebugTest allows testing to see if a standard debug test env var is set.
+func DebugTest() bool {
+	return os.Getenv("DEBUG_TEST") == "true"
 }
