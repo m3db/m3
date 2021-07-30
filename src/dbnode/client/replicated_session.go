@@ -159,15 +159,30 @@ type replicatedParams struct {
 // NB(srobb): it would be a nicer to accept a lambda which is the fn to
 // be performed on all sessions, however this causes an extra allocation.
 func (s replicatedSession) replicate(params replicatedParams) error {
+	s.IteratorPools()
+	iterPools, err := s.IteratorPools()
+	if err != nil {
+		return err
+	}
+	tagEncoder := iterPools.TagEncoder().Get()
+	defer tagEncoder.Finalize()
+
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
+		if err := tagEncoder.Encode(params.tags); err != nil {
+			return err
+		}
+		encodedTags, _ := tagEncoder.Data()
+		tagDecoder := iterPools.TagDecoder().Get()
+		tagDecoder.Reset(encodedTags)
+		
 		select {
 		case s.replicationSemaphore <- struct{}{}:
 			s.workerPool.Go(func() {
 				var err error
 				if params.useTags {
 					err = asyncSession.WriteTagged(
-						params.namespace, params.id, params.tags, params.t,
+						params.namespace, params.id, tagDecoder, params.t,
 						params.value, params.unit, params.annotation,
 					)
 				} else {
@@ -176,6 +191,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 						params.value, params.unit, params.annotation,
 					)
 				}
+				tagDecoder.Close()
 				if err != nil {
 					s.metrics.replicateError.Inc(1)
 					s.log.Error("could not replicate write", zap.Error(err))
