@@ -21,5 +21,3 @@ Usage: split_shards [-b value] [-d value] [-f value] [-h value] [-s value] [para
  -s, --src-path=value
        Source path [e.g. /temp/lib/m3db/data]
 ```
-
-Note: it will skip already split shardsets.
