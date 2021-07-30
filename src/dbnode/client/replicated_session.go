@@ -162,13 +162,14 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
 
-		var tags ident.TagIterator
-		if params.useTags {
-			tags = params.tags.Duplicate()
-		}
-
 		select {
 		case s.replicationSemaphore <- struct{}{}:
+
+			var tags ident.TagIterator
+			if params.useTags {
+				tags = params.tags.Duplicate()
+			}
+
 			s.workerPool.Go(func() {
 				var err error
 				if params.useTags {
@@ -191,7 +192,6 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 				if s.outCh != nil {
 					s.outCh <- err
 				}
-
 				<-s.replicationSemaphore
 			})
 			s.metrics.replicateExecuted.Inc(1)
