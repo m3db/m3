@@ -128,6 +128,10 @@ func main() {
 		if err = splitFileSet(
 			srcReader, dstWriters, hashFn, *optShards, *optFactor, namespace, uint32(shard),
 			xtime.UnixNano(blockStart), volume); err != nil {
+			if strings.Contains(err.Error(), "no such file or directory") {
+				fmt.Println(" - skip (incomplete fileset)") // nolint: forbidigo
+				return nil
+			}
 			return err
 		}
 
