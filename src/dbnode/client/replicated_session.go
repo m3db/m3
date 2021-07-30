@@ -159,7 +159,6 @@ type replicatedParams struct {
 // NB(srobb): it would be a nicer to accept a lambda which is the fn to
 // be performed on all sessions, however this causes an extra allocation.
 func (s replicatedSession) replicate(params replicatedParams) error {
-	s.IteratorPools()
 	iterPools, err := s.IteratorPools()
 	if err != nil {
 		return err
@@ -175,7 +174,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 		encodedTags, _ := tagEncoder.Data()
 		tagDecoder := iterPools.TagDecoder().Get()
 		tagDecoder.Reset(encodedTags)
-		
+
 		select {
 		case s.replicationSemaphore <- struct{}{}:
 			s.workerPool.Go(func() {
