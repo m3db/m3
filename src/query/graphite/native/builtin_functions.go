@@ -273,6 +273,13 @@ func averageAbove(ctx *common.Context, series singlePathSpec, n float64) (ts.Ser
 	return aboveByFunction(ctx, series, sr, n)
 }
 
+// averageBelow takes one metric or a wildcard seriesList followed by an floating point number n,
+// returns only the metrics with an average value below n.
+func averageBelow(ctx *common.Context, series singlePathSpec, n float64) (ts.SeriesList, error) {
+	sr := ts.SeriesReducerAvg.Reducer()
+	return belowByFunction(ctx, series, sr, n)
+}
+
 // currentAbove takes one metric or a wildcard seriesList followed by an floating point number n,
 // returns only the metrics with the last value above n.
 func currentAbove(ctx *common.Context, series singlePathSpec, n float64) (ts.SeriesList, error) {
@@ -2790,6 +2797,7 @@ func init() {
 		2: nil, // total
 	})
 	MustRegisterFunction(averageAbove)
+	MustRegisterFunction(averageBelow)
 	MustRegisterFunction(averageSeries)
 	MustRegisterFunction(averageSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // positions
