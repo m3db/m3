@@ -375,7 +375,7 @@ func timeShift(
 		output := make([]*ts.Series, input.Len())
 		for i, in := range input.Values {
 			// NB(jayp): opposite direction
-			output[i] = in.Shift(-1 * shift).RenamedTo(fmt.Sprintf("timeShift(%s, %q)", in.Name(), timeShiftS))
+			output[i] = in.Shift(-1 * shift).RenamedTo(fmt.Sprintf("timeShift(%s,%q)", in.Name(), timeShiftS))
 		}
 		input.Values = output
 		return input, nil
