@@ -904,12 +904,12 @@ func TestCombineBootstrapWithOriginal(t *testing.T) {
 			Engine: NewEngine(&common.MovingFunctionStorage{}, CompileOptions{}),
 		})
 
-		originalStart            = time.Date(2020, time.October, 5, 1, 16, 00, 0, time.UTC)
+		originalStart            = time.Date(2020, time.October, 5, 1, 16, 0o0, 0, time.UTC)
 		originalValues           = []float64{14, 15, 16, 17, 18}
 		originalSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", originalStart, common.NewTestSeriesValues(ctx, 30000, originalValues))}
 		originalSeriesList       = singlePathSpec{Values: originalSeriesListValues}
 
-		bootstrappedStart            = time.Date(2020, time.October, 5, 1, 15, 00, 0, time.UTC)
+		bootstrappedStart            = time.Date(2020, time.October, 5, 1, 15, 0o0, 0, time.UTC)
 		bootstrappedValues           = []float64{12, 13, 14, 15, 16, 17, 18}
 		bootstrappedSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", bootstrappedStart, common.NewTestSeriesValues(ctx, 30000, bootstrappedValues))}
 		bootstrappedSeriesList       = ts.NewSeriesList()
@@ -3228,7 +3228,6 @@ func TestLimitSortStable(t *testing.T) {
 
 		require.Equal(t, expectedOrder, order)
 	}
-
 }
 
 func TestHitcount(t *testing.T) {
@@ -3388,6 +3387,7 @@ func (*mockStorage) FetchByQuery(
 ) (*storage.FetchResult, error) {
 	return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
 }
+
 func (*mockStorage) CompleteTags(
 	ctx context.Context,
 	query *querystorage.CompleteTagsQuery,
@@ -4164,41 +4164,88 @@ func TestPow(t *testing.T) {
 	var (
 		ctx           = common.NewTestContext()
 		millisPerStep = 10000
-		output        = []float64{1.0, 4.0, 9.0, 16.0, 25.0}
-		output2       = []float64{0.0, 4.0, 16.0, 36.0, 64.0}
 	)
 
 	defer func() { _ = ctx.Close() }()
 
-	series := ts.NewSeries(
-		ctx,
-		"foo",
-		ctx.StartTime,
-		common.NewTestSeriesValues(ctx, millisPerStep, []float64{1.0, 2.0, 3.0, 4.0, 5.0}),
-	)
-	results, err := pow(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, 2)
-	require.Nil(t, err)
-	expected := common.TestSeries{Name: `pow(foo, 2.000000)`, Data: output}
-	require.Nil(t, err)
-	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
-		[]common.TestSeries{expected}, results.Values)
+	inputs := []struct {
+		name     string
+		values   []float64
+		pow      float64
+		expected []float64
+	}{
+		{
+			"foo",
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0},
+			2,
+			[]float64{1.0, 4.0, 9.0, 16.0, 25.0},
+		},
+		{
+			"bar",
+			[]float64{0.0, 2.0, 4.0, 6.0, 8.0},
+			2,
+			[]float64{0.0, 4.0, 16.0, 36.0, 64.0},
+		},
+	}
 
-	series2 := ts.NewSeries(
-		ctx,
-		"foo",
-		ctx.StartTime,
-		common.NewTestSeriesValues(ctx, millisPerStep, []float64{0.0, 2.0, 4.0, 6.0, 8.0}),
+	for _, input := range inputs {
+		series := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, millisPerStep, input.values),
+		)
+		results, err := pow(ctx, singlePathSpec{
+			Values: []*ts.Series{series},
+		}, input.pow)
+		require.NoError(t, err)
+		expected := common.TestSeries{
+			Name: fmt.Sprintf("pow(%s, %f)", input.name, input.pow),
+			Data: input.expected,
+		}
+		common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
+			[]common.TestSeries{expected}, results.Values)
+	}
+}
+
+func TestInvert(t *testing.T) {
+	var (
+		ctx           = common.NewTestContext()
+		millisPerStep = 10000
 	)
-	results2, err := pow(ctx, singlePathSpec{
-		Values: []*ts.Series{series, series2},
-	}, 2)
-	require.Nil(t, err)
-	expected2 := common.TestSeries{Name: `pow(foo, 2.000000)`, Data: output2}
-	require.Nil(t, err)
-	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
-		[]common.TestSeries{expected, expected2}, results2.Values)
+
+	defer func() { _ = ctx.Close() }()
+
+	inputs := []struct {
+		name     string
+		values   []float64
+		expected []float64
+	}{
+		{
+			"foo",
+			[]float64{1.0, 2.0, 4.0},
+			[]float64{1.0, 1 / 2.0, 1 / 4.0},
+		},
+	}
+
+	for _, input := range inputs {
+		series := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, millisPerStep, input.values),
+		)
+		results, err := invert(ctx, singlePathSpec{
+			Values: []*ts.Series{series},
+		})
+		require.NoError(t, err)
+		expected := common.TestSeries{
+			Name: fmt.Sprintf("invert(%s)", input.name),
+			Data: input.expected,
+		}
+		common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
+			[]common.TestSeries{expected}, results.Values)
+	}
 }
 
 func TestCumulative(t *testing.T) {
