@@ -2008,6 +2008,12 @@ func TestAverageAbove(t *testing.T) {
 	testComparatorFunc(t, averageAbove, 12000, nil)
 }
 
+func TestAverageBelow(t *testing.T) {
+	testComparatorFunc(t, averageBelow, 0, nil)
+	testComparatorFunc(t, averageBelow, 600, []int{0, 2, 3})
+	testComparatorFunc(t, averageBelow, 12000, []int{0, 2, 3, 4})
+}
+
 func TestCurrentAbove(t *testing.T) {
 	testComparatorFunc(t, currentAbove, -10, []int{0, 2, 3, 4})
 	testComparatorFunc(t, currentAbove, -5, []int{0, 3, 4})
