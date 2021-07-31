@@ -2478,7 +2478,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 		},
 	}
 
-	var inputSeries []*ts.Series
+	inputSeries := make([]*ts.Series, 0, len(inputs))
 	for _, input := range inputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2489,7 +2489,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 		inputSeries = append(inputSeries, timeSeries)
 	}
 
-	var expected []*ts.Series
+	expected := make([]*ts.Series, 0, len(outputs))
 	for _, output := range outputs {
 		timeSeries := ts.NewSeries(
 			ctx,
