@@ -135,9 +135,13 @@ func main() {
 			return err
 		}
 
-		return verifySplitShards(
+		err = verifySplitShards(
 			srcReader, dstReaders, hashFn, *optShards, namespace, uint32(shard),
 			xtime.UnixNano(blockStart), volume)
+		if err != nil && strings.Contains(err.Error(), "no such file or directory") {
+			return nil
+		}
+		return err
 	}); err != nil {
 		logger.Fatalf("unable to walk the source dir: %+v", err)
 	}
