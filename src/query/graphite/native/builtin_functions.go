@@ -1265,8 +1265,23 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 // and raises the datapoint by the power of the constant provided at each point
 // nolint: gocritic
 func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesList, error) {
+	r := powHelper(ctx, input, factor, false)
+	return r, nil
+}
+
+// invert takes one metric or a wildcard seriesList, and inverts each datapoint (i.e. 1/x).
+func invert(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
+	r := powHelper(ctx, input, -1, true)
+	return r, nil
+}
+
+func powHelper(ctx *common.Context, input singlePathSpec, factor float64, isInvert bool) ts.SeriesList {
 	results := make([]*ts.Series, 0, len(input.Values))
 
+	renamePrefix := "pow"
+	if isInvert {
+		renamePrefix = "invert"
+	}
 	for _, series := range input.Values {
 		numSteps := series.Len()
 		millisPerStep := series.MillisPerStep()
@@ -1274,13 +1289,16 @@ func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesLi
 		for i := 0; i < numSteps; i++ {
 			vals.SetValueAt(i, math.Pow(series.ValueAt(i), factor))
 		}
-		newName := fmt.Sprintf("pow(%s, %f)", series.Name(), factor)
+		newName := fmt.Sprintf("%s(%s, %f)", renamePrefix, series.Name(), factor)
+		if isInvert {
+			newName = fmt.Sprintf("%s(%s)", renamePrefix, series.Name())
+		}
 		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
 	}
 
 	r := ts.SeriesList(input)
 	r.Values = results
-	return r, nil
+	return r
 }
 
 // logarithm takes one metric or a wildcard seriesList, and draws the y-axis in
@@ -2846,6 +2864,7 @@ func init() {
 	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
 	})
+	MustRegisterFunction(invert)
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
