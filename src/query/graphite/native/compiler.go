@@ -284,11 +284,20 @@ func (c *compiler) compileArg(
 	}
 
 	if !arg.CompatibleWith(reflectType) {
-		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received '%s'",
-			fname, index, reflectType.Name(), arg)
+		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received a %s '%s'",
+			fname, index, reflectTypeName(reflectType), reflectTypeName(arg.Type()), arg)
 	}
 
 	return arg, false, nil
+}
+
+// reflectTypeName will dereference any pointer types to their base name
+// so that function call or fetch expression can be referenced by their name.
+func reflectTypeName(reflectType reflect.Type) string {
+	for reflectType.Kind() == reflect.Ptr {
+		reflectType = reflectType.Elem()
+	}
+	return reflectType.Name()
 }
 
 // convertTokenToArg converts the given token into the corresponding argument

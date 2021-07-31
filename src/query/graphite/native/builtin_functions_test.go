@@ -3937,7 +3937,7 @@ func TestMovingAverage(t *testing.T) {
 	defer func() { _ = ctx.Close() }()
 
 	stepSize := 60000
-	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min', 0.7)`
+	target := `movingAverage(timeShift(foo.bar.g.zed,'-1d'), '1min', 0.7)`
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).AnyTimes()
 	expr, err := engine.Compile(target)
@@ -3945,7 +3945,7 @@ func TestMovingAverage(t *testing.T) {
 	res, err := expr.Execute(ctx)
 	require.NoError(t, err)
 	expected := common.TestSeries{
-		Name: `movingAverage(timeShift(foo.bar.g.zed, -1d),"1min")`,
+		Name: `movingAverage(timeShift(foo.bar.g.zed,"-1d"),"1min")`,
 		Data: []float64{1, 1},
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
@@ -3966,7 +3966,7 @@ func TestMovingWindow(t *testing.T) {
 	defer func() { _ = ctx.Close() }()
 
 	stepSize := 60000
-	target := `movingWindow(timeShift(foo.bar.g.zed, '-1d'), '1min', 'avg', 0.7)`
+	target := `movingWindow(timeShift(foo.bar.g.zed,'-1d'), '1min', 'avg', 0.7)`
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).AnyTimes()
 	expr, err := engine.Compile(target)
@@ -3974,7 +3974,7 @@ func TestMovingWindow(t *testing.T) {
 	res, err := expr.Execute(ctx)
 	require.NoError(t, err)
 	expected := common.TestSeries{
-		Name: `movingAverage(timeShift(foo.bar.g.zed, -1d),"1min")`,
+		Name: `movingAverage(timeShift(foo.bar.g.zed,"-1d"),"1min")`,
 		Data: []float64{1, 1},
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
@@ -4334,7 +4334,7 @@ func TestTimeShift(t *testing.T) {
 	res, err := expr.Execute(ctx)
 	require.NoError(t, err)
 	expected := common.TestSeries{
-		Name: "timeShift(foo.bar.q.zed, -1min)",
+		Name: `timeShift(foo.bar.q.zed,"-1min")`,
 		Data: []float64{0.0, 0.0},
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
