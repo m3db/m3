@@ -462,7 +462,7 @@ func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end 
 		}
 
 		slicedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), truncatedValues)
-		renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s, %s, %s)", slicedSeries.Name(), start, end))
+		renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s, %q, %q)", slicedSeries.Name(), start, end))
 		output = append(output, renamedSlicedSeries)
 	}
 	input.Values = output

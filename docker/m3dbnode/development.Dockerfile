@@ -3,7 +3,10 @@ LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 ENV GODEBUG madvdontneed=1
 
-RUN apk add --no-cache curl jq
+# Provide timezone data to allow TZ environment variable to be set
+# for parsing relative times such as "9am" correctly and respect
+# the TZ environment variable.
+RUN apk add --no-cache tzdata curl jq
 
 # Add m3dbnode binary
 ADD ./m3dbnode /bin/m3dbnode

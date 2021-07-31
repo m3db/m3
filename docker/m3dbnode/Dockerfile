@@ -22,7 +22,10 @@ ENV GODEBUG madvdontneed=1
 
 EXPOSE 2379/tcp 2380/tcp 7201/tcp 7203/tcp 9000-9004/tcp
 
-RUN apk add --no-cache curl jq
+# Provide timezone data to allow TZ environment variable to be set
+# for parsing relative times such as "9am" correctly and respect
+# the TZ environment variable.
+RUN apk add --no-cache tzdata curl jq
 
 COPY --from=builder /go/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml /etc/m3dbnode/m3dbnode.yml
 COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode \
