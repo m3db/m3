@@ -609,9 +609,8 @@ func getAggregationKey(series *ts.Series, nodes []int) (string, error) {
 	metricsPath, err := getFirstPathExpression(seriesName)
 	if err != nil {
 		return "", err
-	} else {
-		seriesName = metricsPath
 	}
+	seriesName = metricsPath
 
 	parts := strings.Split(seriesName, ".")
 
