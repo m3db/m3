@@ -1033,7 +1033,10 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 	}
 
 	if len(nodes) > 0 {
-		metaSeries := getMetaSeriesGrouping(input, nodes)
+		metaSeries, err := getMetaSeriesGrouping(input, nodes)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
 		totalSeries := make(map[string]*ts.Series)
 
 		switch totalArg := total.(type) {
@@ -1057,7 +1060,10 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			case singlePathSpec:
 				total = ts.SeriesList(v)
 			}
-			totalGroups := getMetaSeriesGrouping(singlePathSpec(total), nodes)
+			totalGroups, err := getMetaSeriesGrouping(singlePathSpec(total), nodes)
+			if err != nil {
+				return ts.NewSeriesList(), err
+			}
 			for k, series := range totalGroups {
 				if len(series) == 1 {
 					totalSeries[k] = series[0]
