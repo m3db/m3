@@ -273,6 +273,13 @@ func averageAbove(ctx *common.Context, series singlePathSpec, n float64) (ts.Ser
 	return aboveByFunction(ctx, series, sr, n)
 }
 
+// averageBelow takes one metric or a wildcard seriesList followed by an floating point number n,
+// returns only the metrics with an average value below n.
+func averageBelow(ctx *common.Context, series singlePathSpec, n float64) (ts.SeriesList, error) {
+	sr := ts.SeriesReducerAvg.Reducer()
+	return belowByFunction(ctx, series, sr, n)
+}
+
 // currentAbove takes one metric or a wildcard seriesList followed by an floating point number n,
 // returns only the metrics with the last value above n.
 func currentAbove(ctx *common.Context, series singlePathSpec, n float64) (ts.SeriesList, error) {
@@ -1033,7 +1040,10 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 	}
 
 	if len(nodes) > 0 {
-		metaSeries := getMetaSeriesGrouping(input, nodes)
+		metaSeries, err := getMetaSeriesGrouping(input, nodes)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
 		totalSeries := make(map[string]*ts.Series)
 
 		switch totalArg := total.(type) {
@@ -1057,7 +1067,10 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			case singlePathSpec:
 				total = ts.SeriesList(v)
 			}
-			totalGroups := getMetaSeriesGrouping(singlePathSpec(total), nodes)
+			totalGroups, err := getMetaSeriesGrouping(singlePathSpec(total), nodes)
+			if err != nil {
+				return ts.NewSeriesList(), err
+			}
 			for k, series := range totalGroups {
 				if len(series) == 1 {
 					totalSeries[k] = series[0]
@@ -2784,6 +2797,7 @@ func init() {
 		2: nil, // total
 	})
 	MustRegisterFunction(averageAbove)
+	MustRegisterFunction(averageBelow)
 	MustRegisterFunction(averageSeries)
 	MustRegisterFunction(averageSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // positions

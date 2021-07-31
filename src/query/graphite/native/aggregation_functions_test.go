@@ -776,7 +776,7 @@ func TestGroupByNodes(t *testing.T) {
 		inputs   = []*ts.Series{
 			ts.NewSeries(ctx, "transformNull(servers.foo-1.pod1.status.500)", start,
 				ts.NewConstantValues(ctx, 2, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
+			ts.NewSeries(ctx, "scaleToSeconds(servers.foo-2.pod1.status.500,1)", start,
 				ts.NewConstantValues(ctx, 4, 12, 10000)),
 			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
 				ts.NewConstantValues(ctx, 6, 12, 10000)),
@@ -836,7 +836,14 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 8 * 12},
 		}},
 		{"sum", []int{}, []result{ // test empty slice handing.
-			{"sumSeries(transformNull(servers.foo-1.pod1.status.500),servers.foo-2.pod1.status.500,servers.foo-3.pod1.status.500,servers.foo-1.pod2.status.500,servers.foo-2.pod2.status.500,servers.foo-1.pod1.status.400,servers.foo-2.pod1.status.400,servers.foo-3.pod2.status.400)", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
+			{
+				"sumSeries(transformNull(servers.foo-1.pod1.status.500)," +
+					"scaleToSeconds(servers.foo-2.pod1.status.500,1)," +
+					"servers.foo-3.pod1.status.500,servers.foo-1.pod2.status.500," +
+					"servers.foo-2.pod2.status.500,servers.foo-1.pod1.status.400," +
+					"servers.foo-2.pod1.status.400,servers.foo-3.pod2.status.400)",
+				(2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12,
+			},
 		}},
 		{"sum", []int{100}, []result{ // test all nodes out of bounds
 			{"", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
