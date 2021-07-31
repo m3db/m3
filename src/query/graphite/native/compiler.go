@@ -284,8 +284,8 @@ func (c *compiler) compileArg(
 	}
 
 	if !arg.CompatibleWith(reflectType) {
-		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received '%s'",
-			fname, index, reflectType.Name(), arg)
+		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received a %s for value '%s'",
+			fname, index, reflectType.Name(), arg.Type().Name(), arg)
 	}
 
 	return arg, false, nil
