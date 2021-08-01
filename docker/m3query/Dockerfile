@@ -20,6 +20,11 @@ LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 EXPOSE 7201/tcp 7203/tcp
 
+# Provide timezone data to allow TZ environment variable to be set
+# for parsing relative times such as "9am" correctly and respect
+# the TZ environment variable.
+RUN apk add --no-cache tzdata
+
 COPY --from=builder /go/src/github.com/m3db/m3/bin/m3query /bin/
 COPY --from=builder /go/src/github.com/m3db/m3/src/query/config/m3query-local-etcd.yml /etc/m3query/m3query.yml
 

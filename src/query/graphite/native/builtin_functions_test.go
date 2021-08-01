@@ -4445,7 +4445,10 @@ func TestTimeSlice(t *testing.T) {
 	values := []float64{math.NaN(), 1.0, 2.0, 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, 8.0, 9.0}
 	expected := []float64{math.NaN(), math.NaN(), math.NaN(), 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, math.NaN(), math.NaN()}
 
-	testGeneralFunction(t, "timeSlice(foo.bar.baz, '-9min','-3min')", "timeSlice(foo.bar.baz, -9min, -3min)", values, expected)
+	testGeneralFunction(t,
+		"timeSlice(foo.bar.baz, '-9min','-3min')",
+		`timeSlice(foo.bar.baz, "-9min", "-3min")`,
+		values, expected)
 }
 
 func TestDashed(t *testing.T) {

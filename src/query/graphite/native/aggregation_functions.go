@@ -573,6 +573,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		}
 
 		for _, prefix := range prefixChunk {
+			prefix := prefix // Capture for lambda.
 			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 			wg.Add(1)
 			go func() {
