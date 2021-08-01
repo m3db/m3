@@ -443,6 +443,56 @@ func TestDivideSeriesLists(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestDivideSeriesListsWithUnsortedSeriesInput ensures that if input into
+// the function wasn't sorted as input that it becomes sorted before dividing
+// two series lists (to ensure deterministic results).
+func TestDivideSeriesListsWithUnsortedSeriesInput(t *testing.T) {
+	start := time.Now().Truncate(time.Minute).Add(-10 * time.Minute)
+	end := start.Add(5 * time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: start, End: end})
+
+	dividend := []*ts.Series{
+		ts.NewSeries(ctx, "a", start,
+			ts.NewConstantValues(ctx, 1, 5, 60000)),
+		ts.NewSeries(ctx, "c", start,
+			ts.NewConstantValues(ctx, 3, 5, 60000)),
+		ts.NewSeries(ctx, "b", start,
+			ts.NewConstantValues(ctx, 2, 5, 60000)),
+	}
+
+	divisor := []*ts.Series{
+		ts.NewSeries(ctx, "b", start,
+			ts.NewConstantValues(ctx, 2, 5, 60000)),
+		ts.NewSeries(ctx, "a", start,
+			ts.NewConstantValues(ctx, 1, 5, 60000)),
+		ts.NewSeries(ctx, "d", start,
+			ts.NewConstantValues(ctx, 3, 5, 60000)),
+	}
+
+	actual, err := divideSeriesLists(ctx, singlePathSpec{
+		Values: dividend,
+	}, singlePathSpec{
+		Values: divisor,
+	})
+	require.Nil(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "divideSeries(a,a)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+		{
+			Name: "divideSeries(b,b)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+		{
+			Name: "divideSeries(c,d)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, 60000, start, expected, actual.Values)
+}
+
 //nolint:govet
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
