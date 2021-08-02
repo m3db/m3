@@ -1007,15 +1007,15 @@ func (i *nsIndex) tickingBlocks(
 func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
-) error {
+) ([]shardFlush, error) {
 	if len(shards) == 0 {
 		// No-op if no shards currently owned.
-		return nil
+		return []shardFlush{}, nil
 	}
 
 	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Determine the current flush indexing concurrency.
@@ -1029,7 +1029,7 @@ func (i *nsIndex) WarmFlush(
 
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer builder.Close()
 
@@ -1039,10 +1039,11 @@ func (i *nsIndex) WarmFlush(
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var evicted int
+	flushed := make([]shardFlush, 0)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
@@ -1059,7 +1060,7 @@ func (i *nsIndex) WarmFlush(
 		results := result.NewIndexBlockByVolumeType(block.StartTime())
 		results.SetBlock(idxpersist.DefaultIndexVolumeType, blockResult)
 		if err := block.AddResults(results); err != nil {
-			return err
+			return nil, err
 		}
 
 		evicted++
@@ -1074,9 +1075,16 @@ func (i *nsIndex) WarmFlush(
 				zap.Time("blockStart", block.StartTime().ToTime()),
 			)
 		}
+
+		for _, s := range shards {
+			flushed = append(flushed, shardFlush{
+				time:  block.StartTime(),
+				shard: s,
+			})
+		}
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
-	return nil
+	return flushed, nil
 }
 
 func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
@@ -1197,7 +1205,10 @@ func (i *nsIndex) canFlushBlockWithRLock(
 			if err != nil {
 				return false, err
 			}
-			if flushState.WarmStatus != fileOpSuccess {
+
+			// Skip if the data flushing failed. We mark as "success" only once both
+			// data and index are flushed.
+			if flushState.WarmStatus == fileOpFailed {
 				return false, nil
 			}
 		}

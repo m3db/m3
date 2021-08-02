@@ -170,7 +170,8 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces); err != nil {
+	indexFlushes, err := m.indexFlush(namespaces)
+	if err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -180,7 +181,14 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// happens after both data and index flushing.
 	for _, f := range flushes {
 		for _, s := range f.shardFlushes {
-			s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
+			for _, ff := range indexFlushes {
+				for _, ss := range ff.shardFlushes {
+					if ff.namespace.ID().Equal(f.namespace.ID()) && ss.time.Equal(s.time) && ss.shard.ID() == s.shard.ID() {
+						s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
+					}
+				}
+			}
+
 		}
 	}
 
@@ -276,16 +284,17 @@ func (m *flushManager) dataSnapshot(
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
-) error {
+) ([]namespaceFlush, error) {
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	m.setState(flushManagerIndexFlushInProgress)
 	var (
 		start    = m.nowFn()
 		multiErr = xerrors.NewMultiError()
+		flushed  = make([]namespaceFlush, 0)
 	)
 	for _, ns := range namespaces {
 		var (
@@ -295,12 +304,19 @@ func (m *flushManager) indexFlush(
 		if !indexEnabled {
 			continue
 		}
-		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
+		flushedShards, err := ns.FlushIndex(indexFlush)
+		if err == nil {
+			flushed = append(flushed, namespaceFlush{
+				namespace:    ns,
+				shardFlushes: flushedShards,
+			})
+		}
+		multiErr = multiErr.Add(err)
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 
 	m.metrics.indexFlushDuration.Record(m.nowFn().Sub(start))
-	return multiErr.FinalError()
+	return flushed, multiErr.FinalError()
 }
 
 func (m *flushManager) Report() {
@@ -387,6 +403,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 ) (namespaceFlush, error) {
 	flushes := make([]shardFlush, 0)
 	multiErr := xerrors.NewMultiError()
+	fmt.Println("TIMES", times)
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
