@@ -58,14 +58,13 @@ type IndexWriter interface {
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
-	relookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
-	Series                                series.DatabaseSeries
-	Index                                 uint64
-	indexWriter                           IndexWriter
-	curReadWriters                        int32
-	reverseIndex                          entryIndexState
-	nowFn                                 clock.NowFn
-	pendingIndexBatchSizeOne              []writes.PendingIndexInsert
+	Series                   series.DatabaseSeries
+	Index                    uint64
+	indexWriter              IndexWriter
+	curReadWriters           int32
+	reverseIndex             entryIndexState
+	nowFn                    clock.NowFn
+	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
 // ensure Entry satisfies the `index.OnIndexSeries` interface.
