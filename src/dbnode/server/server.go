@@ -466,12 +466,20 @@ func Run(runOpts RunOptions) {
 	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
 	if cfg.Index.MaxQueryIDsConcurrency > 0 {
 		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
+		logger.Info("max index query IDs concurrency set",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
 	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
+		logger.Info("max index query IDs concurrency was not set, falling back to default value",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
 	}
 	maxWorkerTime := time.Second
 	if cfg.Index.MaxWorkerTime > 0 {
 		maxWorkerTime = cfg.Index.MaxWorkerTime
+		logger.Info("max index worker time set",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
+	} else {
+		logger.Info("max index worker time was not set, falling back to default value",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
 	}
 	opts = opts.SetPermitsOptions(permitOptions.SetIndexQueryPermitsManager(
 		permits.NewFixedPermitsManager(maxIdxConcurrency, int64(maxWorkerTime), iOpts)))
