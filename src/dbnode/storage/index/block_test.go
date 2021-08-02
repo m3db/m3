@@ -1750,6 +1750,9 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	// Testing compaction only, so mark GC as already running so the test is limited only to compaction.
+	b.mutableSegments.compact.compactingBackgroundGarbageCollect = true
+
 	// First write
 	h1 := NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
