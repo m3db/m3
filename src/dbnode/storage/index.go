@@ -1007,15 +1007,15 @@ func (i *nsIndex) tickingBlocks(
 func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
-) ([]shardFlush, error) {
+) error {
 	if len(shards) == 0 {
 		// No-op if no shards currently owned.
-		return []shardFlush{}, nil
+		return nil
 	}
 
 	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Determine the current flush indexing concurrency.
@@ -1029,7 +1029,7 @@ func (i *nsIndex) WarmFlush(
 
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer builder.Close()
 
@@ -1039,11 +1039,10 @@ func (i *nsIndex) WarmFlush(
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var evicted int
-	flushed := make([]shardFlush, 0)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
@@ -1060,7 +1059,7 @@ func (i *nsIndex) WarmFlush(
 		results := result.NewIndexBlockByVolumeType(block.StartTime())
 		results.SetBlock(idxpersist.DefaultIndexVolumeType, blockResult)
 		if err := block.AddResults(results); err != nil {
-			return nil, err
+			return err
 		}
 
 		evicted++
@@ -1075,16 +1074,9 @@ func (i *nsIndex) WarmFlush(
 				zap.Time("blockStart", block.StartTime().ToTime()),
 			)
 		}
-
-		for _, s := range shards {
-			flushed = append(flushed, shardFlush{
-				time:  block.StartTime(),
-				shard: s,
-			})
-		}
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
-	return flushed, nil
+	return nil
 }
 
 func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {

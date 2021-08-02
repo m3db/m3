@@ -1394,25 +1394,25 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	return res
 }
 
-func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) ([]shardFlush, error) {
+func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	callStart := n.nowFn()
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.flushIndex.ReportError(n.nowFn().Sub(callStart))
-		return nil, errNamespaceNotBootstrapped
+		return errNamespaceNotBootstrapped
 	}
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
 		n.metrics.flushIndex.ReportSuccess(n.nowFn().Sub(callStart))
-		return nil, nil
+		return nil
 	}
 
 	shards := n.OwnedShards()
-	flushedBlocks, err := n.reverseIndex.WarmFlush(flush, shards)
+	err := n.reverseIndex.WarmFlush(flush, shards)
 	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return flushedBlocks, err
+	return err
 }
 
 func (n *dbNamespace) Snapshot(
