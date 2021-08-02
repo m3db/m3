@@ -261,6 +261,19 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 			"divideSeriesLists both SeriesLists must have exactly the same length"))
 		return ts.NewSeriesList(), err
 	}
+
+	// If either list is not sorted yet then apply a default sort for deterministic results.
+	if !dividendSeriesList.SortApplied {
+		// Use sort.Stable for deterministic output.
+		sort.Stable(ts.SeriesByName(dividendSeriesList.Values))
+		dividendSeriesList.SortApplied = true
+	}
+	if !divisorSeriesList.SortApplied {
+		// Use sort.Stable for deterministic output.
+		sort.Stable(ts.SeriesByName(divisorSeriesList.Values))
+		divisorSeriesList.SortApplied = true
+	}
+
 	results := make([]*ts.Series, len(dividendSeriesList.Values))
 	for idx, dividendSeries := range dividendSeriesList.Values {
 		divisorSeries := divisorSeriesList.Values[idx]
@@ -273,6 +286,8 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 	}
 
 	r := ts.SeriesList(dividendSeriesList)
+	// Set sorted as we sorted any input that wasn't already sorted.
+	r.SortApplied = true
 	r.Values = results
 	return r, nil
 }
@@ -558,6 +573,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		}
 
 		for _, prefix := range prefixChunk {
+			prefix := prefix // Capture for lambda.
 			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 			wg.Add(1)
 			go func() {
