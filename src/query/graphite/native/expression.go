@@ -156,6 +156,10 @@ func (f *fetchExpression) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	return reflect.ValueOf(timeseries), nil
 }
 
+func (f *fetchExpression) Type() reflect.Type {
+	return reflect.ValueOf(f).Type()
+}
+
 // CompatibleWith returns true if the reflected type is a time series or a generic interface.
 func (f *fetchExpression) CompatibleWith(reflectType reflect.Type) bool {
 	return reflectType == singlePathSpecType || reflectType == multiplePathSpecsType || reflectType == interfaceType

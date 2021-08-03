@@ -904,12 +904,12 @@ func TestCombineBootstrapWithOriginal(t *testing.T) {
 			Engine: NewEngine(&common.MovingFunctionStorage{}, CompileOptions{}),
 		})
 
-		originalStart            = time.Date(2020, time.October, 5, 1, 16, 00, 0, time.UTC)
+		originalStart            = time.Date(2020, time.October, 5, 1, 16, 0o0, 0, time.UTC)
 		originalValues           = []float64{14, 15, 16, 17, 18}
 		originalSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", originalStart, common.NewTestSeriesValues(ctx, 30000, originalValues))}
 		originalSeriesList       = singlePathSpec{Values: originalSeriesListValues}
 
-		bootstrappedStart            = time.Date(2020, time.October, 5, 1, 15, 00, 0, time.UTC)
+		bootstrappedStart            = time.Date(2020, time.October, 5, 1, 15, 0o0, 0, time.UTC)
 		bootstrappedValues           = []float64{12, 13, 14, 15, 16, 17, 18}
 		bootstrappedSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", bootstrappedStart, common.NewTestSeriesValues(ctx, 30000, bootstrappedValues))}
 		bootstrappedSeriesList       = ts.NewSeriesList()
@@ -2008,6 +2008,12 @@ func TestAverageAbove(t *testing.T) {
 	testComparatorFunc(t, averageAbove, 12000, nil)
 }
 
+func TestAverageBelow(t *testing.T) {
+	testComparatorFunc(t, averageBelow, 0, nil)
+	testComparatorFunc(t, averageBelow, 600, []int{0, 2, 3})
+	testComparatorFunc(t, averageBelow, 12000, []int{0, 2, 3, 4})
+}
+
 func TestCurrentAbove(t *testing.T) {
 	testComparatorFunc(t, currentAbove, -10, []int{0, 2, 3, 4})
 	testComparatorFunc(t, currentAbove, -5, []int{0, 3, 4})
@@ -2472,7 +2478,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 		},
 	}
 
-	var inputSeries []*ts.Series
+	inputSeries := make([]*ts.Series, 0, len(inputs))
 	for _, input := range inputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2483,7 +2489,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 		inputSeries = append(inputSeries, timeSeries)
 	}
 
-	var expected []*ts.Series
+	expected := make([]*ts.Series, 0, len(outputs))
 	for _, output := range outputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -3228,7 +3234,6 @@ func TestLimitSortStable(t *testing.T) {
 
 		require.Equal(t, expectedOrder, order)
 	}
-
 }
 
 func TestHitcount(t *testing.T) {
@@ -3388,6 +3393,7 @@ func (*mockStorage) FetchByQuery(
 ) (*storage.FetchResult, error) {
 	return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
 }
+
 func (*mockStorage) CompleteTags(
 	ctx context.Context,
 	query *querystorage.CompleteTagsQuery,
@@ -3931,7 +3937,7 @@ func TestMovingAverage(t *testing.T) {
 	defer func() { _ = ctx.Close() }()
 
 	stepSize := 60000
-	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min', 0.7)`
+	target := `movingAverage(timeShift(foo.bar.g.zed,'-1d'), '1min', 0.7)`
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).AnyTimes()
 	expr, err := engine.Compile(target)
@@ -3939,7 +3945,7 @@ func TestMovingAverage(t *testing.T) {
 	res, err := expr.Execute(ctx)
 	require.NoError(t, err)
 	expected := common.TestSeries{
-		Name: `movingAverage(timeShift(foo.bar.g.zed, -1d),"1min")`,
+		Name: `movingAverage(timeShift(foo.bar.g.zed,"-1d"),"1min")`,
 		Data: []float64{1, 1},
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
@@ -3960,7 +3966,7 @@ func TestMovingWindow(t *testing.T) {
 	defer func() { _ = ctx.Close() }()
 
 	stepSize := 60000
-	target := `movingWindow(timeShift(foo.bar.g.zed, '-1d'), '1min', 'avg', 0.7)`
+	target := `movingWindow(timeShift(foo.bar.g.zed,'-1d'), '1min', 'avg', 0.7)`
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).AnyTimes()
 	expr, err := engine.Compile(target)
@@ -3968,7 +3974,7 @@ func TestMovingWindow(t *testing.T) {
 	res, err := expr.Execute(ctx)
 	require.NoError(t, err)
 	expected := common.TestSeries{
-		Name: `movingAverage(timeShift(foo.bar.g.zed, -1d),"1min")`,
+		Name: `movingAverage(timeShift(foo.bar.g.zed,"-1d"),"1min")`,
 		Data: []float64{1, 1},
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
@@ -4164,41 +4170,88 @@ func TestPow(t *testing.T) {
 	var (
 		ctx           = common.NewTestContext()
 		millisPerStep = 10000
-		output        = []float64{1.0, 4.0, 9.0, 16.0, 25.0}
-		output2       = []float64{0.0, 4.0, 16.0, 36.0, 64.0}
 	)
 
 	defer func() { _ = ctx.Close() }()
 
-	series := ts.NewSeries(
-		ctx,
-		"foo",
-		ctx.StartTime,
-		common.NewTestSeriesValues(ctx, millisPerStep, []float64{1.0, 2.0, 3.0, 4.0, 5.0}),
-	)
-	results, err := pow(ctx, singlePathSpec{
-		Values: []*ts.Series{series},
-	}, 2)
-	require.Nil(t, err)
-	expected := common.TestSeries{Name: `pow(foo, 2.000000)`, Data: output}
-	require.Nil(t, err)
-	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
-		[]common.TestSeries{expected}, results.Values)
+	inputs := []struct {
+		name     string
+		values   []float64
+		pow      float64
+		expected []float64
+	}{
+		{
+			"foo",
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0},
+			2,
+			[]float64{1.0, 4.0, 9.0, 16.0, 25.0},
+		},
+		{
+			"bar",
+			[]float64{0.0, 2.0, 4.0, 6.0, 8.0},
+			2,
+			[]float64{0.0, 4.0, 16.0, 36.0, 64.0},
+		},
+	}
 
-	series2 := ts.NewSeries(
-		ctx,
-		"foo",
-		ctx.StartTime,
-		common.NewTestSeriesValues(ctx, millisPerStep, []float64{0.0, 2.0, 4.0, 6.0, 8.0}),
+	for _, input := range inputs {
+		series := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, millisPerStep, input.values),
+		)
+		results, err := pow(ctx, singlePathSpec{
+			Values: []*ts.Series{series},
+		}, input.pow)
+		require.NoError(t, err)
+		expected := common.TestSeries{
+			Name: fmt.Sprintf("pow(%s, %f)", input.name, input.pow),
+			Data: input.expected,
+		}
+		common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
+			[]common.TestSeries{expected}, results.Values)
+	}
+}
+
+func TestInvert(t *testing.T) {
+	var (
+		ctx           = common.NewTestContext()
+		millisPerStep = 10000
 	)
-	results2, err := pow(ctx, singlePathSpec{
-		Values: []*ts.Series{series, series2},
-	}, 2)
-	require.Nil(t, err)
-	expected2 := common.TestSeries{Name: `pow(foo, 2.000000)`, Data: output2}
-	require.Nil(t, err)
-	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
-		[]common.TestSeries{expected, expected2}, results2.Values)
+
+	defer func() { _ = ctx.Close() }()
+
+	inputs := []struct {
+		name     string
+		values   []float64
+		expected []float64
+	}{
+		{
+			"foo",
+			[]float64{1.0, 2.0, 4.0},
+			[]float64{1.0, 1 / 2.0, 1 / 4.0},
+		},
+	}
+
+	for _, input := range inputs {
+		series := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, millisPerStep, input.values),
+		)
+		results, err := invert(ctx, singlePathSpec{
+			Values: []*ts.Series{series},
+		})
+		require.NoError(t, err)
+		expected := common.TestSeries{
+			Name: fmt.Sprintf("invert(%s)", input.name),
+			Data: input.expected,
+		}
+		common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
+			[]common.TestSeries{expected}, results.Values)
+	}
 }
 
 func TestCumulative(t *testing.T) {
@@ -4328,7 +4381,7 @@ func TestTimeShift(t *testing.T) {
 	res, err := expr.Execute(ctx)
 	require.NoError(t, err)
 	expected := common.TestSeries{
-		Name: "timeShift(foo.bar.q.zed, -1min)",
+		Name: `timeShift(foo.bar.q.zed,"-1min")`,
 		Data: []float64{0.0, 0.0},
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
@@ -4392,7 +4445,10 @@ func TestTimeSlice(t *testing.T) {
 	values := []float64{math.NaN(), 1.0, 2.0, 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, 8.0, 9.0}
 	expected := []float64{math.NaN(), math.NaN(), math.NaN(), 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, math.NaN(), math.NaN()}
 
-	testGeneralFunction(t, "timeSlice(foo.bar.baz, '-9min','-3min')", "timeSlice(foo.bar.baz, -9min, -3min)", values, expected)
+	testGeneralFunction(t,
+		"timeSlice(foo.bar.baz, '-9min','-3min')",
+		`timeSlice(foo.bar.baz, "-9min", "-3min")`,
+		values, expected)
 }
 
 func TestDashed(t *testing.T) {

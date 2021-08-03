@@ -29,13 +29,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/getopt"
@@ -111,9 +111,8 @@ func main() {
 		log.Fatalf("unknown benchmark type: %s", *benchmark)
 	}
 
-	bytesPool := tools.NewCheckedBytesPool()
-	bytesPool.Init()
-
+	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
+	var bytesPool pool.CheckedBytesPool
 	encodingOpts := encoding.NewOptions().SetBytesPool(bytesPool)
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)

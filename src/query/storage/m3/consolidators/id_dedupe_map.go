@@ -22,6 +22,7 @@ package consolidators
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
@@ -45,9 +46,16 @@ func newIDDedupeMap(opts tagMapOpts) fetchDedupeMap {
 func (m *idDedupeMap) close() {}
 
 func (m *idDedupeMap) list() []multiResultSeries {
+	// Return list by sorted id's so this method is actually deterministic and
+	// multiple calls to this remain consistent.
+	ids := make([]string, 0, len(m.series))
+	for id := range m.series {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
 	result := make([]multiResultSeries, 0, len(m.series))
-	for _, s := range m.series {
-		result = append(result, s)
+	for _, id := range ids {
+		result = append(result, m.series[id])
 	}
 	return result
 }

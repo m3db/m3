@@ -507,6 +507,7 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 type funcArg interface {
 	ASTNode
 	Evaluate(ctx *common.Context) (reflect.Value, error)
+	Type() reflect.Type
 	CompatibleWith(reflectType reflect.Type) bool
 }
 
@@ -522,6 +523,7 @@ func newFloat64Const(n float64) funcArg { return constFuncArg{value: reflect.Val
 func newIntConst(n int) funcArg         { return constFuncArg{value: reflect.ValueOf(n)} }
 
 func (c constFuncArg) Evaluate(ctx *common.Context) (reflect.Value, error) { return c.value, nil }
+func (c constFuncArg) Type() reflect.Type                                  { return c.value.Type() }
 func (c constFuncArg) CompatibleWith(reflectType reflect.Type) bool {
 	return c.value.Type() == reflectType || reflectType == interfaceType
 }
@@ -648,6 +650,10 @@ MaybeAdjustShiftLoop:
 		err = ret[1].Interface().(error)
 	}
 	return ret[0], err
+}
+
+func (call *functionCall) Type() reflect.Type {
+	return reflect.ValueOf(call).Type()
 }
 
 // CompatibleWith checks whether the function call's return is compatible with the given reflection type
