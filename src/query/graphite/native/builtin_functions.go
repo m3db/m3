@@ -1771,12 +1771,16 @@ func substr(_ *common.Context, seriesList singlePathSpec, start, stop int) (ts.S
 		numParts := len(nameParts)
 		currStart, currStop := start, stop
 		// Graphite supports negative indexing, so we need to also.
-		if currStart < 0 {
-			currStart += numParts
+		if numParts > 0 {
+			for currStart < 0 {
+				currStart += numParts
+			}
+
+			for currStop < 0 {
+				currStop += numParts
+			}
 		}
-		if currStop < 0 {
-			currStop += numParts
-		}
+
 		// If stop == 0, it's as if stop was unspecified
 		if currStart < 0 || currStart >= numParts || (currStop != 0 && currStop < currStart) {
 			err := xerrors.NewInvalidParamsError(fmt.Errorf(
