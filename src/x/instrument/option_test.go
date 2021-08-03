@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,55 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tools
+package instrument
 
 import (
-	"github.com/m3db/m3/src/x/pool"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
-// NewCheckedBytesPool returns a configured (and initialized)
-// CheckedBytesPool with default pool values
-func NewCheckedBytesPool() pool.CheckedBytesPool {
-	bytesPoolOpts := pool.NewObjectPoolOptions().
-		SetRefillLowWatermark(0.05).
-		SetRefillHighWatermark(0.07)
+func TestScopeAndLoggerTagged(t *testing.T) {
+	core, recorded := observer.New(zapcore.InfoLevel)
+	iOpts := NewOptions().
+		SetMetricsScope(tally.NewTestScope("", map[string]string{})).
+		SetLogger(zap.New(core))
+	iOpts = WithOptions(iOpts, WithScopeAndLoggerTagged("k", "v"))
 
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
-		{
-			Capacity: 16,
-			Count:    262144,
-		},
-		{
-			Capacity: 32,
-			Count:    262144,
-		},
-		{
-			Capacity: 64,
-			Count:    262144,
-		},
-		{
-			Capacity: 128,
-			Count:    262144,
-		},
-		{
-			Capacity: 256,
-			Count:    262144,
-		},
-		{
-			Capacity: 1440,
-			Count:    262144,
-		},
-		{
-			Capacity: 4096,
-			Count:    262144,
-		},
-		{
-			Capacity: 8192,
-			Count:    65536,
-		},
-	}, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, bytesPoolOpts)
-	})
-	bytesPool.Init()
-	return bytesPool
+	// Make sure the metric has tag k:v.
+	iOpts.MetricsScope().Counter("a").Inc(1)
+
+	ss := iOpts.MetricsScope().(tally.TestScope).Snapshot()
+	counters, ok := ss.Counters()["a+k=v"]
+	require.True(t, ok)
+	require.Equal(t, map[string]string{"k": "v"}, counters.Tags())
+
+	// Make sure the log has tag k:v.
+	iOpts.Logger().Info("b")
+
+	require.Len(t, recorded.All(), 1)
+	require.Len(t, recorded.FilterField(
+		zap.String("k", "v"),
+	).All(), 1)
 }

@@ -18,6 +18,11 @@ RUN cd /go/src/github.com/m3db/m3/ && \
 FROM alpine:3.11
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
+# Provide timezone data to allow TZ environment variable to be set
+# for parsing relative times such as "9am" correctly and respect
+# the TZ environment variable.
+RUN apk add --no-cache tzdata
+
 EXPOSE 7201/tcp 7203/tcp
 
 COPY --from=builder /go/src/github.com/m3db/m3/bin/m3coordinator /bin/

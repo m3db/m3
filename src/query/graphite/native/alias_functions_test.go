@@ -24,11 +24,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/ts"
-
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/storage"
+	"github.com/m3db/m3/src/query/graphite/ts"
+	xgomock "github.com/m3db/m3/src/x/test"
 )
 
 func TestAlias(t *testing.T) {
@@ -249,4 +252,30 @@ func TestAliasByNodeWitCallSubExpressions(t *testing.T) {
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "foo01", results.Values[0].Name())
 	assert.Equal(t, "foo02", results.Values[1].Name())
+}
+
+// TestExecuteAliasByNodeAndTimeShift tests that the output of timeshift properly
+// quotes the time shift arg so that it appears as a string and can be used to find
+// the inner path expression without failing compilation when aliasByNode finds the
+// first path element.
+func TestExecuteAliasByNodeAndTimeShift(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed", "foo.bar.g.zed",
+			"foo.bar.x.zed"))
+
+	expr, err := engine.Compile("aliasByNode(timeShift(foo.bar.*.zed,'-7d'), 0)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
 }

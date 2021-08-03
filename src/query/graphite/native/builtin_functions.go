@@ -273,6 +273,13 @@ func averageAbove(ctx *common.Context, series singlePathSpec, n float64) (ts.Ser
 	return aboveByFunction(ctx, series, sr, n)
 }
 
+// averageBelow takes one metric or a wildcard seriesList followed by an floating point number n,
+// returns only the metrics with an average value below n.
+func averageBelow(ctx *common.Context, series singlePathSpec, n float64) (ts.SeriesList, error) {
+	sr := ts.SeriesReducerAvg.Reducer()
+	return belowByFunction(ctx, series, sr, n)
+}
+
 // currentAbove takes one metric or a wildcard seriesList followed by an floating point number n,
 // returns only the metrics with the last value above n.
 func currentAbove(ctx *common.Context, series singlePathSpec, n float64) (ts.SeriesList, error) {
@@ -375,7 +382,7 @@ func timeShift(
 		output := make([]*ts.Series, input.Len())
 		for i, in := range input.Values {
 			// NB(jayp): opposite direction
-			output[i] = in.Shift(-1 * shift).RenamedTo(fmt.Sprintf("timeShift(%s, %s)", in.Name(), timeShiftS))
+			output[i] = in.Shift(-1 * shift).RenamedTo(fmt.Sprintf("timeShift(%s,%q)", in.Name(), timeShiftS))
 		}
 		input.Values = output
 		return input, nil
@@ -455,7 +462,7 @@ func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end 
 		}
 
 		slicedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), truncatedValues)
-		renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s, %s, %s)", slicedSeries.Name(), start, end))
+		renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s, %q, %q)", slicedSeries.Name(), start, end))
 		output = append(output, renamedSlicedSeries)
 	}
 	input.Values = output
@@ -1033,7 +1040,10 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 	}
 
 	if len(nodes) > 0 {
-		metaSeries := getMetaSeriesGrouping(input, nodes)
+		metaSeries, err := getMetaSeriesGrouping(input, nodes)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
 		totalSeries := make(map[string]*ts.Series)
 
 		switch totalArg := total.(type) {
@@ -1057,7 +1067,10 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			case singlePathSpec:
 				total = ts.SeriesList(v)
 			}
-			totalGroups := getMetaSeriesGrouping(singlePathSpec(total), nodes)
+			totalGroups, err := getMetaSeriesGrouping(singlePathSpec(total), nodes)
+			if err != nil {
+				return ts.NewSeriesList(), err
+			}
 			for k, series := range totalGroups {
 				if len(series) == 1 {
 					totalSeries[k] = series[0]
@@ -1252,8 +1265,23 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 // and raises the datapoint by the power of the constant provided at each point
 // nolint: gocritic
 func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesList, error) {
+	r := powHelper(ctx, input, factor, false)
+	return r, nil
+}
+
+// invert takes one metric or a wildcard seriesList, and inverts each datapoint (i.e. 1/x).
+func invert(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
+	r := powHelper(ctx, input, -1, true)
+	return r, nil
+}
+
+func powHelper(ctx *common.Context, input singlePathSpec, factor float64, isInvert bool) ts.SeriesList {
 	results := make([]*ts.Series, 0, len(input.Values))
 
+	renamePrefix := "pow"
+	if isInvert {
+		renamePrefix = "invert"
+	}
 	for _, series := range input.Values {
 		numSteps := series.Len()
 		millisPerStep := series.MillisPerStep()
@@ -1261,13 +1289,16 @@ func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesLi
 		for i := 0; i < numSteps; i++ {
 			vals.SetValueAt(i, math.Pow(series.ValueAt(i), factor))
 		}
-		newName := fmt.Sprintf("pow(%s, %f)", series.Name(), factor)
+		newName := fmt.Sprintf("%s(%s, %f)", renamePrefix, series.Name(), factor)
+		if isInvert {
+			newName = fmt.Sprintf("%s(%s)", renamePrefix, series.Name())
+		}
 		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
 	}
 
 	r := ts.SeriesList(input)
 	r.Values = results
-	return r, nil
+	return r
 }
 
 // logarithm takes one metric or a wildcard seriesList, and draws the y-axis in
@@ -2784,6 +2815,7 @@ func init() {
 		2: nil, // total
 	})
 	MustRegisterFunction(averageAbove)
+	MustRegisterFunction(averageBelow)
 	MustRegisterFunction(averageSeries)
 	MustRegisterFunction(averageSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // positions
@@ -2832,6 +2864,7 @@ func init() {
 	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
 	})
+	MustRegisterFunction(invert)
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
