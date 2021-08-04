@@ -27,9 +27,9 @@ import (
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -42,7 +42,7 @@ import (
 
 var (
 	// M3DBSchemaURL is the url for the M3DB schema handler.
-	M3DBSchemaURL = path.Join(handler.RoutePrefixV1, M3DBServiceSchemaPathName)
+	M3DBSchemaURL = path.Join(route.Prefix, M3DBServiceSchemaPathName)
 
 	// SchemaDeployHTTPMethod is the HTTP method used to append to this resource.
 	SchemaDeployHTTPMethod = http.MethodPost

@@ -29,13 +29,13 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )
 
 const (
-	tokenCheckInterval        = time.Second
-	cancellationCheckInterval = time.Second
+	tokenCheckInterval = time.Second
 )
 
 var (
@@ -95,7 +95,8 @@ func (o *tickManagerRuntimeOptions) values() tickManagerRuntimeOptionsValues {
 }
 
 type tickManagerRuntimeOptionsValues struct {
-	tickMinInterval time.Duration
+	tickMinInterval               time.Duration
+	tickCancellationCheckInterval time.Duration
 }
 
 func newTickManager(database database, opts Options) databaseTickManager {
@@ -120,11 +121,12 @@ func newTickManager(database database, opts Options) databaseTickManager {
 
 func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
 	mgr.runtimeOpts.set(tickManagerRuntimeOptionsValues{
-		tickMinInterval: opts.TickMinimumInterval(),
+		tickMinInterval:               opts.TickMinimumInterval(),
+		tickCancellationCheckInterval: opts.TickCancellationCheckInterval(),
 	})
 }
 
-func (mgr *tickManager) Tick(forceType forceType, startTime time.Time) error {
+func (mgr *tickManager) Tick(forceType forceType, startTime xtime.UnixNano) error {
 	if forceType == force {
 		acquired := false
 		waiter := time.NewTicker(tokenCheckInterval)
@@ -182,11 +184,12 @@ func (mgr *tickManager) Tick(forceType forceType, startTime time.Time) error {
 	took := mgr.nowFn().Sub(start)
 	mgr.metrics.tickWorkDuration.Record(took)
 
-	min := mgr.runtimeOpts.values().tickMinInterval
+	vals := mgr.runtimeOpts.values()
+	min := vals.tickMinInterval
 
 	// Sleep in a loop so that cancellations propagate if need to
 	// wait to fulfill the tick min interval
-	interval := cancellationCheckInterval
+	interval := vals.tickCancellationCheckInterval
 	for d := time.Duration(0); d < min-took; d += interval {
 		if mgr.c.IsCancelled() {
 			break
@@ -194,7 +197,7 @@ func (mgr *tickManager) Tick(forceType forceType, startTime time.Time) error {
 		mgr.sleepFn(interval)
 		// Check again at the end of each sleep to see if it
 		// has changed. Particularly useful for integration tests.
-		min = mgr.runtimeOpts.values().tickMinInterval
+		min = vals.tickMinInterval
 	}
 
 	end := mgr.nowFn()

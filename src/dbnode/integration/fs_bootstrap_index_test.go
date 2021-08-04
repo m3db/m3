@@ -26,6 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -33,9 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
@@ -58,7 +59,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabledAndCheckTickFreeMmap(t *test
 					idx, err := ns.Index()
 					require.NoError(t, err)
 
-					result, err := idx.Tick(cancellable, time.Now())
+					result, err := idx.Tick(cancellable, xtime.Now())
 					require.NoError(t, err)
 
 					numSegmentsBootstrapped += result.NumSegmentsBootstrapped
@@ -167,7 +168,8 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.StopServer())
+		require.NoError(t, setup.StopServerAndVerifyOpenFilesAreClosed())
+		setup.Close()
 		log.Debug("server is now down")
 	}()
 

@@ -22,42 +22,47 @@ package graphite
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"sort"
 	"sync"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
+	queryerrors "github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/native"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 const (
 	// ReadURL is the url for the graphite query handler.
-	ReadURL = handler.RoutePrefixV1 + "/graphite/render"
+	ReadURL = route.Prefix + "/graphite/render"
 )
 
-var (
-	// ReadHTTPMethods are the HTTP methods used with this resource.
-	ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// ReadHTTPMethods are the HTTP methods used with this resource.
+var ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 // A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
 type renderHandler struct {
-	opts             options.HandlerOptions
-	engine           *native.Engine
-	queryContextOpts models.QueryContextOptions
-	graphiteOpts     graphite.M3WrappedStorageOptions
+	opts                options.HandlerOptions
+	engine              *native.Engine
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	queryContextOpts    models.QueryContextOptions
+	graphiteOpts        graphite.M3WrappedStorageOptions
+	instrumentOpts      instrument.Options
 }
 
 type respError struct {
@@ -74,8 +79,10 @@ func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 		engine: native.NewEngine(wrappedStore, native.CompileOptions{
 			EscapeAllNotOnlyQuotes: opts.GraphiteStorageOptions().CompileEscapeAllNotOnlyQuotes,
 		}),
-		queryContextOpts: opts.QueryContextOptions(),
-		graphiteOpts:     opts.GraphiteStorageOptions(),
+		fetchOptionsBuilder: opts.GraphiteRenderFetchOptionsBuilder(),
+		queryContextOpts:    opts.QueryContextOptions(),
+		graphiteOpts:        opts.GraphiteStorageOptions(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -89,6 +96,9 @@ func sendError(errorCh chan error, err error) {
 // ServeHTTP processes the render requests.
 func (h *renderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.serveHTTP(w, r); err != nil {
+		if queryerrors.IsTimeout(err) {
+			err = queryerrors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 	}
 }
@@ -97,7 +107,7 @@ func (h *renderHandler) serveHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
-	reqCtx, p, fetchOpts, err := ParseRenderRequest(r.Context(), r, h.opts)
+	reqCtx, p, fetchOpts, err := ParseRenderRequest(r.Context(), r, h.fetchOptionsBuilder)
 	if err != nil {
 		return xhttp.NewError(err, http.StatusBadRequest)
 	}
@@ -115,11 +125,12 @@ func (h *renderHandler) serveHTTP(
 	)
 
 	ctx := common.NewContext(common.ContextOptions{
-		Engine:  h.engine,
-		Start:   p.From,
-		End:     p.Until,
-		Timeout: p.Timeout,
-		Limit:   limit,
+		Engine:        h.engine,
+		Start:         p.From,
+		End:           p.Until,
+		Timeout:       p.Timeout,
+		Limit:         limit,
+		MaxDataPoints: p.MaxDataPoints,
 	})
 
 	// Set the request context.
@@ -132,15 +143,19 @@ func (h *renderHandler) serveHTTP(
 	for i, target := range p.Targets {
 		i, target := i, target
 		go func() {
-			// Log the query that causes us to panic.
-			defer func() {
-				if err := recover(); err != nil {
-					panic(fmt.Errorf("panic executing query '%s': %v", target, err))
-				}
-			}()
-
 			childCtx := ctx.NewChildContext(common.NewChildContextOptions())
 			defer func() {
+				if err := recover(); err != nil {
+					// Allow recover from panic.
+					sendError(errorCh, fmt.Errorf("error target '%s' caused panic: %v", target, err))
+
+					// Log panic.
+					logger := logging.WithContext(r.Context(), h.instrumentOpts).
+						WithOptions(zap.AddStacktrace(zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+							return lvl >= zapcore.ErrorLevel
+						})))
+					logger.Error("panic captured", zap.Any("stack", err))
+				}
 				_ = childCtx.Close()
 				wg.Done()
 			}()
@@ -159,20 +174,19 @@ func (h *renderHandler) serveHTTP(
 			targetSeries, err := exp.Execute(childCtx)
 			if err != nil {
 				sendError(errorCh, errors.NewRenamedError(err,
-					fmt.Errorf("error: target %s returned %s", target, err)))
+					fmt.Errorf("error target '%s' returned: %w", target, err)))
 				return
 			}
 
+			// Apply LTTB downsampling to any series that hasn't been resized
+			// to fit max datapoints explicitly using "consolidateBy" function.
 			for i, s := range targetSeries.Values {
-				if s.Len() <= int(p.MaxDataPoints) {
+				resizeMillisPerStep, needResize := s.ResizeToMaxDataPointsMillisPerStep(p.MaxDataPoints)
+				if !needResize {
 					continue
 				}
 
-				var (
-					samplingMultiplier = math.Ceil(float64(s.Len()) / float64(p.MaxDataPoints))
-					newMillisPerStep   = int(samplingMultiplier * float64(s.MillisPerStep()))
-				)
-				targetSeries.Values[i] = ts.LTTB(s, s.StartTime(), s.EndTime(), newMillisPerStep)
+				targetSeries.Values[i] = ts.LTTB(s, s.StartTime(), s.EndTime(), resizeMillisPerStep)
 			}
 
 			mu.Lock()
@@ -214,7 +228,9 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	handleroptions.AddResponseHeaders(w, meta, fetchOpts)
+	if err := handleroptions.AddDBResultResponseHeaders(w, meta, fetchOpts); err != nil {
+		return err
+	}
 
 	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,

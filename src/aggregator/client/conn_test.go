@@ -60,7 +60,10 @@ func TestConnectionDontReconnectProperties(t *testing.T) {
 	  - increment the number of failures`,
 		prop.ForAll(
 			func(numFailures int32) (bool, error) {
-				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn := newConnection(testFakeServerAddr,
+					testConnectionOptions().
+						SetMaxReconnectDuration(time.Duration(math.MaxInt64)),
+				)
 				conn.connectWithLockFn = func() error { return errTestConnect }
 				conn.numFailures = int(numFailures)
 				conn.threshold = testReconnectThreshold
@@ -87,6 +90,30 @@ func TestConnectionDontReconnectProperties(t *testing.T) {
 func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 	props := testConnectionProperties()
 	props.Property(
+		"When number of failures is greater than the threshold, it is multiplied",
+		prop.ForAll(
+			func(threshold int32) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				conn.threshold = int(threshold)
+				conn.multiplier = 2
+				conn.numFailures = conn.threshold + 1
+				conn.maxThreshold = testMaxReconnectThreshold
+
+				expectedNewThreshold := conn.threshold * conn.multiplier
+				if expectedNewThreshold > conn.maxThreshold {
+					expectedNewThreshold = conn.maxThreshold
+				}
+				if err := conn.Write(nil); !errors.Is(err, errTestConnect) {
+					return false, fmt.Errorf("unexpected error: %w", err)
+				}
+
+				require.Equal(t, expectedNewThreshold, conn.threshold)
+				return true, nil
+			},
+			gen.Int32Range(1, testMaxReconnectThreshold),
+		))
+	props.Property(
 		"When the number of failures is greater than the threshold writes should attempt to reconnect",
 		prop.ForAll(
 			func(threshold int32) (bool, error) {
@@ -94,13 +121,58 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 				conn.connectWithLockFn = func() error { return errTestConnect }
 				conn.threshold = int(threshold)
 				conn.numFailures = conn.threshold + 1
+				conn.maxThreshold = 2 * conn.numFailures
 
-				if err := conn.Write(nil); err != errTestConnect {
-					return false, fmt.Errorf("unexpected error: %v", err)
+				if err := conn.Write(nil); !errors.Is(err, errTestConnect) {
+					return false, fmt.Errorf("unexpected error: %w", err)
 				}
 				return true, nil
 			},
 			gen.Int32Range(1, testMaxReconnectThreshold),
+		))
+	props.Property(
+		"When the number of failures is greater than the max threshold writes must not attempt to reconnect",
+		prop.ForAll(
+			func(threshold int32) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				// Exhausted max threshold
+				conn.threshold = int(threshold)
+				conn.maxThreshold = conn.threshold
+				conn.maxDuration = math.MaxInt64
+				conn.numFailures = conn.maxThreshold + 1
+
+				if err := conn.Write(nil); !errors.Is(err, errNoActiveConnection) {
+					return false, fmt.Errorf("unexpected error: %w", err)
+				}
+				return true, nil
+			},
+			gen.Int32Range(1, testMaxReconnectThreshold),
+		))
+	props.Property(
+		`When the number of failures is greater than the max threshold
+		 but time since last connection attempt is greater than the maximum duration
+		 then writes should attempt to reconnect`,
+		prop.ForAll(
+			func(delay int64) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				// Exhausted max threshold
+				conn.threshold = 1
+				conn.maxThreshold = conn.threshold
+				conn.numFailures = conn.maxThreshold + 1
+
+				now := time.Now()
+				conn.nowFn = func() time.Time { return now }
+				conn.lastConnectAttemptNanos = now.UnixNano() - delay
+				conn.maxDuration = time.Duration(delay)
+
+				if err := conn.Write(nil); !errors.Is(err, errTestConnect) {
+					return false, fmt.Errorf("unexpected error: %w", err)
+				}
+				return true, nil
+			},
+			gen.Int64Range(1, math.MaxInt64),
 		))
 
 	props.TestingRun(t)
@@ -116,7 +188,7 @@ func TestConnectionMaxDurationReconnectProperty(t *testing.T) {
 				conn.connectWithLockFn = func() error { return errTestConnect }
 				now := time.Now()
 				conn.nowFn = func() time.Time { return now }
-				conn.lastConnectAttemptNanos = now.UnixNano() - int64(delay)
+				conn.lastConnectAttemptNanos = now.UnixNano() - delay
 				conn.maxDuration = time.Duration(delay)
 
 				if err := conn.Write(nil); err != errTestConnect {

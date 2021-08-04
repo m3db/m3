@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -48,7 +48,7 @@ import (
 
 const (
 	// KeyValueStoreURL is the url to edit key/value configuration values.
-	KeyValueStoreURL = handler.RoutePrefixV1 + "/kvstore"
+	KeyValueStoreURL = route.Prefix + "/kvstore"
 	// KeyValueStoreHTTPMethod is the HTTP method used with this resource.
 	KeyValueStoreHTTPMethod = http.MethodPost
 )
@@ -199,7 +199,7 @@ func (h *KeyValueStoreHandler) update(
 func (h *KeyValueStoreHandler) newKVProtoMessage(key string) (protoiface.MessageV1, error) {
 	if h.kvStoreProtoParser != nil {
 		v, err := h.kvStoreProtoParser(key)
-		if err != nil {
+		if err == nil {
 			return v, nil
 		}
 	}

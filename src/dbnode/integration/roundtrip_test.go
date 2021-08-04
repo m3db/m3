@@ -67,7 +67,7 @@ func assertProtoDataEqual(t *testing.T, expected, actual []generate.TestValue) b
 		return false
 	}
 	for i := 0; i < len(expected); i++ {
-		if !assert.Equal(t, expected[i].Timestamp, actual[i].Timestamp) {
+		if !assert.Equal(t, expected[i].TimestampNanos, actual[i].TimestampNanos) {
 			return false
 		}
 		if !assert.Equal(t, expected[i].Value, actual[i].Value) {
@@ -124,7 +124,7 @@ func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig g
 	for _, input := range inputData {
 		testSetup.SetNowFn(input.Start)
 		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
+		seriesMaps[input.Start] = testData
 		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")

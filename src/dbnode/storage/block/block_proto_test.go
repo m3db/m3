@@ -53,15 +53,15 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	piter := prototest.NewProtoMessageIterator(testProtoMessages)
 
 	// Test data
-	curr := time.Now()
+	curr := xtime.Now()
 	data := []ts.Datapoint{
 		{
-			Timestamp: curr,
-			Value:     0,
+			TimestampNanos: curr,
+			Value:          0,
 		},
 		{
-			Timestamp: curr.Add(time.Second),
-			Value:     0,
+			TimestampNanos: curr.Add(time.Second),
+			Value:          0,
 		},
 	}
 	durations := []time.Duration{
@@ -83,15 +83,15 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	// Create the two blocks we plan to merge
 	encoder := blockOpts.EncoderPool().Get()
 
-	encoder.Reset(data[0].Timestamp, 10, testSchemaDesc)
+	encoder.Reset(data[0].TimestampNanos, 10, testSchemaDesc)
 	encoder.Encode(data[0], xtime.Second, piter.Next())
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, testNamespaceCtx).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].TimestampNanos, durations[0], seg, blockOpts, testNamespaceCtx).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10, testSchemaDesc)
+	encoder.Reset(data[1].TimestampNanos, 10, testSchemaDesc)
 	encoder.Encode(data[1], xtime.Second, piter.Next())
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, testNamespaceCtx).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].TimestampNanos, durations[1], seg, blockOpts, testNamespaceCtx).(*dbBlock)
 
 	// Lazily merge the two blocks
 	block1.Merge(block2)

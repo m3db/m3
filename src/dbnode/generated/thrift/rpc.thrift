@@ -34,7 +34,8 @@ enum ErrorType {
 
 enum ErrorFlags {
     NONE               = 0x00,
-    RESOURCE_EXHAUSTED = 0x01
+    RESOURCE_EXHAUSTED = 0x01,
+    SERVER_TIMEOUT     = 0x02
 }
 
 exception Error {
@@ -183,11 +184,14 @@ struct FetchTaggedRequest {
 	8: optional bool requireExhaustive = true
 	9: optional i64 docsLimit
 	10: optional binary source
+	11: optional bool requireNoWait = false
 }
 
 struct FetchTaggedResult {
 	1: required list<FetchTaggedIDResult> elements
 	2: required bool exhaustive
+	3: optional i64 waitedIndex
+	4: optional i64 waitedSeriesRead
 }
 
 struct FetchTaggedIDResult {
@@ -405,11 +409,13 @@ struct AggregateQueryRawRequest {
 	9: optional binary source
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
+	12: optional bool requireNoWait
 }
 
 struct AggregateQueryRawResult {
 	1: required list<AggregateQueryRawResultTagNameElement> results
 	2: required bool exhaustive
+	3: optional i64 waitedIndex
 }
 
 struct AggregateQueryRawResultTagNameElement {
@@ -434,6 +440,7 @@ struct AggregateQueryRequest {
 	9: optional binary source
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
+	12: optional bool requireNoWait
 }
 
 struct AggregateQueryResult {

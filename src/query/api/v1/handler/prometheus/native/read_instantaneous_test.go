@@ -112,7 +112,7 @@ func testPromReadInstantHandler(
 	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
-	params.Set(queryParam, "dummy0{}")
+	params.Set(QueryParam, "dummy0{}")
 
 	req.URL.RawQuery = params.Encode()
 
@@ -181,7 +181,7 @@ func TestPromReadInstantHandlerStorageError(t *testing.T) {
 	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
-	params.Set(queryParam, "dummy0{}")
+	params.Set(QueryParam, "dummy0{}")
 
 	req.URL.RawQuery = params.Encode()
 

@@ -22,14 +22,15 @@ package storage
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type coldFlushManager struct {
@@ -92,7 +93,7 @@ func (m *coldFlushManager) Status() fileOpStatus {
 	return status
 }
 
-func (m *coldFlushManager) Run(t time.Time) bool {
+func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 	m.Lock()
 	if !m.shouldRunWithLock() {
 		m.Unlock()
@@ -101,26 +102,41 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	m.status = fileOpInProgress
 	m.Unlock()
 
+	defer func() {
+		m.Lock()
+		m.status = fileOpNotStarted
+		m.Unlock()
+	}()
+
+	debugLog := m.log.Check(zapcore.DebugLevel, "cold flush run")
+	if debugLog != nil {
+		debugLog.Write(zap.String("status", "starting cold flush"), zap.Time("time", t.ToTime()))
+	}
+
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	// NB(r): Use invariant here since flush errors were introduced
 	// and not caught in CI or integration tests.
 	// When an invariant occurs in CI tests it panics so as to fail
 	// the build.
-	if err := m.ColdFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
+	if err := m.ColdFlushCleanup(t); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when cleaning up cold flush data",
+					zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
 	if err := m.trackedColdFlush(); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when cold flushing data",
+					zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
-	m.Lock()
-	m.status = fileOpNotStarted
-	m.Unlock()
+
+	if debugLog != nil {
+		debugLog.Write(zap.String("status", "completed cold flush"), zap.Time("time", t.ToTime()))
+	}
+
 	return true
 }
 
@@ -196,4 +212,17 @@ func (m *coldFlushManager) Report() {
 
 func (m *coldFlushManager) shouldRunWithLock() bool {
 	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
+}
+
+type coldFlushNsOpts struct {
+	reuseResources bool
+}
+
+// NewColdFlushNsOpts returns a new ColdFlushNsOpts.
+func NewColdFlushNsOpts(reuseResources bool) ColdFlushNsOpts {
+	return &coldFlushNsOpts{reuseResources: reuseResources}
+}
+
+func (o *coldFlushNsOpts) ReuseResources() bool {
+	return o.reuseResources
 }

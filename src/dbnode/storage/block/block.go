@@ -38,7 +38,7 @@ var (
 	errReadFromClosedBlock       = errors.New("attempt to read from a closed block")
 	errTriedToMergeBlockFromDisk = errors.New("[invariant violated] tried to merge a block that was retrieved from disk")
 
-	timeZero = time.Time{}
+	timeZero = xtime.UnixNano(0)
 )
 
 type dbBlock struct {
@@ -46,7 +46,7 @@ type dbBlock struct {
 
 	nsCtx          namespace.Context
 	opts           Options
-	startUnixNanos int64
+	startUnixNanos xtime.UnixNano
 	segment        ts.Segment
 	length         int
 
@@ -80,7 +80,7 @@ type listState struct {
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(
-	start time.Time,
+	start xtime.UnixNano,
 	blockSize time.Duration,
 	segment ts.Segment,
 	opts Options,
@@ -89,7 +89,7 @@ func NewDatabaseBlock(
 	b := &dbBlock{
 		nsCtx:          nsCtx,
 		opts:           opts,
-		startUnixNanos: start.UnixNano(),
+		startUnixNanos: start,
 		blockSize:      blockSize,
 		closed:         false,
 	}
@@ -99,7 +99,7 @@ func NewDatabaseBlock(
 	return b
 }
 
-func (b *dbBlock) StartTime() time.Time {
+func (b *dbBlock) StartTime() xtime.UnixNano {
 	b.RLock()
 	start := b.startWithRLock()
 	b.RUnlock()
@@ -113,19 +113,19 @@ func (b *dbBlock) BlockSize() time.Duration {
 	return size
 }
 
-func (b *dbBlock) startWithRLock() time.Time {
-	return time.Unix(0, b.startUnixNanos)
+func (b *dbBlock) startWithRLock() xtime.UnixNano {
+	return b.startUnixNanos
 }
 
-func (b *dbBlock) SetLastReadTime(value time.Time) {
+func (b *dbBlock) SetLastReadTime(value xtime.UnixNano) {
 	// Use an int64 to avoid needing a write lock for
 	// this high frequency called method (i.e. each individual
 	// read needing a write lock would be excessive)
-	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
+	atomic.StoreInt64(&b.lastReadUnixNanos, int64(value))
 }
 
-func (b *dbBlock) LastReadTime() time.Time {
-	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
+func (b *dbBlock) LastReadTime() xtime.UnixNano {
+	return xtime.UnixNano(atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
 func (b *dbBlock) Len() int {
@@ -254,7 +254,12 @@ func (b *dbBlock) Merge(other DatabaseBlock) error {
 	return nil
 }
 
-func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context) {
+func (b *dbBlock) Reset(
+	start xtime.UnixNano,
+	blockSize time.Duration,
+	segment ts.Segment,
+	nsCtx namespace.Context,
+) {
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start, blockSize)
@@ -262,7 +267,13 @@ func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Seg
 	b.nsCtx = nsCtx
 }
 
-func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID, nsCtx namespace.Context) {
+func (b *dbBlock) ResetFromDisk(
+	start xtime.UnixNano,
+	blockSize time.Duration,
+	segment ts.Segment,
+	id ident.ID,
+	nsCtx namespace.Context,
+) {
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start, blockSize)
@@ -320,8 +331,8 @@ func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentRead
 	return nil
 }
 
-func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Duration) {
-	b.startUnixNanos = start.UnixNano()
+func (b *dbBlock) resetNewBlockStartWithLock(start xtime.UnixNano, blockSize time.Duration) {
+	b.startUnixNanos = start
 	b.blockSize = blockSize
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
 	b.closed = false
@@ -424,7 +435,7 @@ func (b *dbBlock) setEnteredListAtUnixNano(value int64) {
 // uses to determine if a block is eligible for inclusion in the WiredList.
 type wiredListEntry struct {
 	seriesID             ident.ID
-	startTime            time.Time
+	startTime            xtime.UnixNano
 	closed               bool
 	wasRetrievedFromDisk bool
 }
@@ -458,8 +469,8 @@ func (b *dbBlock) OnEvictedFromWiredList() OnEvictedFromWiredList {
 
 type databaseSeriesBlocks struct {
 	elems map[xtime.UnixNano]DatabaseBlock
-	min   time.Time
-	max   time.Time
+	min   xtime.UnixNano
+	max   xtime.UnixNano
 }
 
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
@@ -481,7 +492,7 @@ func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
 		dbb.max = start
 	}
-	dbb.elems[xtime.ToUnixNano(start)] = block
+	dbb.elems[start] = block
 }
 
 func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
@@ -495,17 +506,17 @@ func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
 }
 
 // MinTime returns the min time of the blocks contained.
-func (dbb *databaseSeriesBlocks) MinTime() time.Time {
+func (dbb *databaseSeriesBlocks) MinTime() xtime.UnixNano {
 	return dbb.min
 }
 
 // MaxTime returns the max time of the blocks contained.
-func (dbb *databaseSeriesBlocks) MaxTime() time.Time {
+func (dbb *databaseSeriesBlocks) MaxTime() xtime.UnixNano {
 	return dbb.max
 }
 
-func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
-	b, ok := dbb.elems[xtime.ToUnixNano(t)]
+func (dbb *databaseSeriesBlocks) BlockAt(t xtime.UnixNano) (DatabaseBlock, bool) {
+	b, ok := dbb.elems[t]
 	return b, ok
 }
 
@@ -513,13 +524,12 @@ func (dbb *databaseSeriesBlocks) AllBlocks() map[xtime.UnixNano]DatabaseBlock {
 	return dbb.elems
 }
 
-func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
-	tNano := xtime.ToUnixNano(t)
-	if _, exists := dbb.elems[tNano]; !exists {
+func (dbb *databaseSeriesBlocks) RemoveBlockAt(t xtime.UnixNano) {
+	if _, exists := dbb.elems[t]; !exists {
 		return
 	}
-	delete(dbb.elems, tNano)
-	if !dbb.min.Equal(t) && !dbb.max.Equal(t) {
+	delete(dbb.elems, t)
+	if dbb.min != t && dbb.max != t {
 		return
 	}
 	dbb.min, dbb.max = timeZero, timeZero
@@ -527,12 +537,11 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 		return
 	}
 	for key := range dbb.elems {
-		keyTime := key.ToTime()
-		if dbb.min == timeZero || dbb.min.After(keyTime) {
-			dbb.min = keyTime
+		if dbb.min == timeZero || dbb.min > key {
+			dbb.min = key
 		}
-		if dbb.max == timeZero || dbb.max.Before(keyTime) {
-			dbb.max = keyTime
+		if dbb.max == timeZero || dbb.max < key {
+			dbb.max = key
 		}
 	}
 }
@@ -548,8 +557,8 @@ func (dbb *databaseSeriesBlocks) Reset() {
 	// Ensure the old, possibly large map is GC'd
 	dbb.elems = nil
 	dbb.elems = make(map[xtime.UnixNano]DatabaseBlock)
-	dbb.min = time.Time{}
-	dbb.max = time.Time{}
+	dbb.min = 0
+	dbb.max = 0
 }
 
 func (dbb *databaseSeriesBlocks) Close() {

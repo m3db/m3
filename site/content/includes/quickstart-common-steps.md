@@ -1,6 +1,6 @@
 ## Organizing Data with Placements and Namespaces
 
-A time series database (TSDBs) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
+A time series database (TSDB) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
 
 As a distributed TSDB, M3 helps solve this problem by spreading metrics data, and demand for that data, across multiple nodes in a cluster. M3 does this by splitting data into segments that match certain criteria (such as above a certain value) across nodes into shards.
 
@@ -189,7 +189,7 @@ curl {{% apiendpoint %}}services/m3db/placement | jq .
 {{% /notice %}}
 
 ### Ready a Namespace
-<!-- TODO: Why?> -->
+
 Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}services/m3db/namespace/ready_.
 
 {{< tabs name="ready_namespaces" >}}
@@ -273,7 +273,7 @@ This quickstart focuses on Prometheus metrics which consist of a value, a timest
 
 You can write metrics using one of two endpoints:
 
--   _[{{% apiendpoint %}}prom/remote/write](/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
+-   _[{{% apiendpoint %}}prom/remote/write](/docs/reference/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
 -   _{{% apiendpoint %}}json/write_ - Write a JSON payload of metrics data. This endpoint is quick for testing purposes but is not as performant for production usage.
 
 {{< tabs name="prom_http_write" >}}
@@ -513,9 +513,3 @@ curl -X "POST" -G "{{% apiendpoint %}}query_range" \
 
 {{% /tab %}}
 {{< /tabs >}}
-<!-- ## Next Steps
-
-This quickstart covered getting a single-node M3DB cluster running, and writing and querying metrics to the cluster. Some next steps are:
-
--   one
--   two -->

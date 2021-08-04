@@ -54,16 +54,14 @@ func Block(conf BlockConfig) SeriesBlock {
 			if conf.AnnGen == nil {
 				datapoints = append(datapoints, TestValue{
 					Datapoint: ts.Datapoint{
-						Timestamp:      timestamp,
-						TimestampNanos: xtime.ToUnixNano(timestamp),
+						TimestampNanos: timestamp,
 						Value:          testgen.GenerateFloatVal(r, 3, 1),
 					},
 				})
 			} else {
 				datapoints = append(datapoints, TestValue{
 					Datapoint: ts.Datapoint{
-						Timestamp:      timestamp,
-						TimestampNanos: xtime.ToUnixNano(timestamp),
+						TimestampNanos: timestamp,
 						Value:          0,
 					},
 					Annotation: conf.AnnGen.Next(),
@@ -84,7 +82,7 @@ func Block(conf BlockConfig) SeriesBlock {
 func BlocksByStart(confs []BlockConfig) SeriesBlocksByStart {
 	seriesMaps := make(map[xtime.UnixNano]SeriesBlock)
 	for _, conf := range confs {
-		key := xtime.ToUnixNano(conf.Start)
+		key := conf.Start
 		seriesMaps[key] = append(seriesMaps[key], Block(conf)...)
 	}
 	return seriesMaps
@@ -132,8 +130,8 @@ func (l SeriesDataPointsByTime) Dearrange(percent float64) SeriesDataPointsByTim
 func (l SeriesDataPointsByTime) Len() int      { return len(l) }
 func (l SeriesDataPointsByTime) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l SeriesDataPointsByTime) Less(i, j int) bool {
-	if !l[i].Value.Timestamp.Equal(l[j].Value.Timestamp) {
-		return l[i].Value.Timestamp.Before(l[j].Value.Timestamp)
+	if l[i].Value.TimestampNanos != l[j].Value.TimestampNanos {
+		return l[i].Value.TimestampNanos.Before(l[j].Value.TimestampNanos)
 	}
 	return bytes.Compare(l[i].ID.Bytes(), l[j].ID.Bytes()) < 0
 }

@@ -22,7 +22,6 @@ package index
 
 import (
 	"errors"
-	"time"
 
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 
@@ -66,10 +65,9 @@ type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
-	err            error
-	fieldIter      segment.FieldsPostingsListIterator
-	termIter       segment.TermsIterator
-	searchDuration time.Duration
+	err       error
+	fieldIter segment.FieldsPostingsListIterator
+	termIter  segment.TermsIterator
 
 	current struct {
 		field    []byte
@@ -94,65 +92,43 @@ func newFieldsAndTermsIterator(
 	reader segment.Reader,
 	opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error) {
-	iter := &fieldsAndTermsIter{}
-	err := iter.Reset(ctx, reader, opts)
+	iter := &fieldsAndTermsIter{
+		reader: reader,
+		opts:   opts,
+	}
+
+	fiter, err := iter.opts.newFieldIter(reader)
 	if err != nil {
 		return nil, err
 	}
-	return iter, nil
-}
-
-func (fti *fieldsAndTermsIter) SearchDuration() time.Duration {
-	return fti.searchDuration
-}
-
-func (fti *fieldsAndTermsIter) Reset(
-	ctx context.Context,
-	reader segment.Reader,
-	opts fieldsAndTermsIteratorOpts,
-) error {
-	*fti = fieldsAndTermsIterZeroed
-	fti.reader = reader
-	fti.opts = opts
-	if reader == nil {
-		return nil
-	}
-
-	fiter, err := fti.opts.newFieldIter(reader)
-	if err != nil {
-		return err
-	}
-	fti.fieldIter = fiter
+	iter.fieldIter = fiter
 
 	if opts.restrictByQuery == nil {
 		// No need to restrict results by query.
-		return nil
+		return iter, nil
 	}
 
 	// If need to restrict by query, run the query on the segment first.
 	searcher, err := opts.restrictByQuery.SearchQuery().Searcher()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	_, sp := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
-	start := time.Now()
-	pl, err := searcher.Search(fti.reader)
+	pl, err := searcher.Search(iter.reader)
 	sp.Finish()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	fti.searchDuration = time.Since(start)
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	bitmap, ok := roaring.BitmapFromPostingsList(pl)
 	if !ok {
-		return errUnpackBitmapFromPostingsList
+		return nil, errUnpackBitmapFromPostingsList
 	}
 
-	fti.restrictByPostings = bitmap
-
-	return nil
+	iter.restrictByPostings = bitmap
+	return iter, nil
 }
 
 func (fti *fieldsAndTermsIter) setNextField() bool {
@@ -294,7 +270,7 @@ func (fti *fieldsAndTermsIter) Err() error {
 	return fti.err
 }
 
-func (fti *fieldsAndTermsIter) Close(ctx context.Context) error {
+func (fti *fieldsAndTermsIter) Close() error {
 	var multiErr xerrors.MultiError
 	if fti.fieldIter != nil {
 		multiErr = multiErr.Add(fti.fieldIter.Close())
@@ -302,6 +278,5 @@ func (fti *fieldsAndTermsIter) Close(ctx context.Context) error {
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
 	}
-	multiErr = multiErr.Add(fti.Reset(ctx, nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }

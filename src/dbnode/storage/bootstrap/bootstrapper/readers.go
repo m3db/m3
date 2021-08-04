@@ -184,7 +184,7 @@ func newShardReaders(
 		}
 
 		info := result.Info
-		blockStart := xtime.FromNanoseconds(info.BlockStart)
+		blockStart := xtime.UnixNano(info.BlockStart)
 		if !tr.Overlaps(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(ns.Options().RetentionOptions().BlockSize()),
@@ -209,7 +209,7 @@ func newShardReaders(
 		if err := r.Open(openOpts); err != nil {
 			logger.Error("unable to open fileset files",
 				zap.Uint32("shard", shard),
-				zap.Time("blockStart", blockStart),
+				zap.Time("blockStart", blockStart.ToTime()),
 				zap.Error(err),
 			)
 			readerPool.Put(r)

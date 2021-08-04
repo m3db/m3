@@ -38,8 +38,8 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.13
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
+# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.16
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.173.2 
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 
@@ -82,6 +82,7 @@ TOOLS :=               \
 	read_data_files      \
 	read_index_files     \
 	read_index_segments  \
+	read_commitlog       \
 	query_index_segments \
 	clone_fileset        \
 	dtest                \
@@ -210,7 +211,7 @@ release-snapshot: check-for-goreleaser-github-token
 
 .PHONY: docs-build
 docs-build:
-	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
+	@HUGO_DOCKER=true ./scripts/site-build.sh
 
 .PHONY: docs-test
 docs-test: setup install-tools docs-build
@@ -346,22 +347,28 @@ test-single-integration-$(SUBDIR):
 test-ci-unit-$(SUBDIR):
 	@echo "--- test-ci-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-base
-	@echo "--- uploading coverage report"
-	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+		@echo "--- uploading coverage report"; \
+		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
+	fi
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
 	@echo "--- test-ci-big-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
-	@echo "--- uploading coverage report"
-	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+		@echo "--- uploading coverage report"; \
+		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
+	fi
 
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
-	@echo "--- uploading coverage report"
-	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+		@echo "--- uploading coverage report"; \
+		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
+	fi
 
 .PHONY: lint-$(SUBDIR)
 lint-$(SUBDIR): export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)

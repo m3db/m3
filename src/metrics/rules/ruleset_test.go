@@ -275,6 +275,42 @@ func TestRuleSetLatest(t *testing.T) {
 	latest, err := rs.Latest()
 	require.NoError(t, err)
 
+	r1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	r3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName3",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	r4, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName4",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	r5, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName5",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	r6, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName6",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	expected := view.RuleSet{
 		Namespace:     "testNamespace",
 		Version:       123,
@@ -333,15 +369,13 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule1.snapshot3",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName: b("rName1"),
-									Tags:    bs("rtagName1", "rtagName2"),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: r1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -355,15 +389,13 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule3.snapshot2",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName: b("rName3"),
-									Tags:    bs("rtagName1", "rtagName2"),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: r3,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -378,15 +410,13 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule4.snapshot1",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName: b("rName4"),
-									Tags:    bs("rtagName1", "rtagName2"),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: r4,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -400,15 +430,13 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule5.snapshot1",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName: b("rName5"),
-									Tags:    bs("rtagName1"),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: r5,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -422,15 +450,13 @@ func TestRuleSetLatest(t *testing.T) {
 				Name:       "rollupRule6.snapshot1",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Tags:       []models.Tag{},
 				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName: b("rName6"),
-									Tags:    bs("rtagName1", "rtagName2"),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: r6,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -733,6 +759,13 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 
 	_, err = rs.getRollupRuleByName("foo")
 	require.Equal(t, errRuleNotFound, err)
+	r1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"blah",
+		[]string{"a"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 
 	view := view.RollupRule{
 		Name:         "foo",
@@ -742,12 +775,8 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       b("blah"),
-							Tags:          bs("a"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: r1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -778,12 +807,8 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       b("blah"),
-							Tags:          bs("a"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: r1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -814,7 +839,13 @@ func TestRuleSetAddRollupRuleDuplicateRule(t *testing.T) {
 	r, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
 	require.NotNil(t, r)
-
+	r1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"blah",
+		[]string{"a"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
 	view := view.RollupRule{
 		Name:   "rollupRule5.snapshot1",
 		Filter: "test:bar",
@@ -822,12 +853,8 @@ func TestRuleSetAddRollupRuleDuplicateRule(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       b("blah"),
-							Tags:          bs("a"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: r1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -868,12 +895,8 @@ func TestRuleSetAddRollupRuleReviveRule(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       b("blah"),
-							Tags:          bs("a"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -904,12 +927,8 @@ func TestRuleSetAddRollupRuleReviveRule(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       b("blah"),
-							Tags:          bs("a"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -940,6 +959,14 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
 
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"blah",
+		[]string{"a"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	view := view.RollupRule{
 		ID:           "rollupRule5",
 		Name:         "rollupRule5.snapshot2",
@@ -949,12 +976,8 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       b("blah"),
-							Tags:          bs("a"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -985,12 +1008,8 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
-						Type: pipeline.RollupOpType,
-						Rollup: pipeline.RollupOp{
-							NewName:       b("blah"),
-							Tags:          bs("a"),
-							AggregationID: aggregation.DefaultID,
-						},
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
 					},
 				}),
 				StoragePolicies: policy.StoragePolicies{
@@ -1731,6 +1750,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot2",
@@ -1781,6 +1801,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot3",
@@ -1813,6 +1834,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -1850,6 +1872,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule2.snapshot2",
@@ -1891,6 +1914,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule2.snapshot3",
@@ -1923,6 +1947,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2002,6 +2027,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule3.snapshot2",
@@ -2043,6 +2069,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2080,6 +2107,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2117,6 +2145,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -2154,6 +2183,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},

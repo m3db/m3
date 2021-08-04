@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
@@ -223,7 +224,6 @@ func makeTestWrite(
 	numShards int,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testWriteFn) {
-
 	nsOpts := namespace.NewOptions()
 	md, err := namespace.NewMetadata(testNamespaces[0],
 		nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)))
@@ -235,6 +235,10 @@ func makeTestWrite(
 
 	for _, node := range nodes {
 		node.SetOpts(node.Opts().SetNumShards(numShards))
+		for _, ns := range node.Namespaces() {
+			// write empty data files to disk so nodes could bootstrap
+			require.NoError(t, writeTestDataToDisk(ns, node, generate.SeriesBlocksByStart{}, 0))
+		}
 	}
 
 	clientopts := client.NewOptions().

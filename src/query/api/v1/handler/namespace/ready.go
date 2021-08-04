@@ -28,14 +28,16 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/dbnode/client"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -43,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-	"go.uber.org/zap"
 )
 
 const (
@@ -52,7 +53,7 @@ const (
 
 var (
 	// M3DBReadyURL is the url for the M3DB namespace mark_ready handler.
-	M3DBReadyURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName, "ready")
+	M3DBReadyURL = path.Join(route.Prefix, M3DBServiceNamespacePathName, "ready")
 
 	// ReadyHTTPMethod is the HTTP method used with this resource.
 	ReadyHTTPMethod = http.MethodPost
@@ -126,6 +127,16 @@ func (h *ReadyHandler) ready(
 	req *admin.NamespaceReadyRequest,
 	opts handleroptions.ServiceOptions,
 ) (bool, error) {
+	// NB(nate): Readying a namespace only applies to namespaces created dynamically. As such,
+	// ensure that any calls to the ready endpoint simply return true when using static configuration
+	// as namespaces are ready by default in this case.
+	if h.clusters != nil && h.clusters.ConfigType() == m3.ClusterConfigTypeStatic {
+		h.instrumentOpts.Logger().Debug(
+			"/namespace/ready endpoint not supported for statically configured namespaces.",
+		)
+		return true, nil
+	}
+
 	// Fetch existing namespace metadata.
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {

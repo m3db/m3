@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -117,7 +116,7 @@ func (s *AsyncSession) WriteClusterAvailability() (bool, error) {
 }
 
 // Write writes a value to the database for an ID.
-func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
+func (s *AsyncSession) Write(namespace, id ident.ID, t xtime.UnixNano, value float64,
 	unit xtime.Unit, annotation []byte) error {
 	s.RLock()
 	defer s.RUnlock()
@@ -130,7 +129,7 @@ func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
 
 // WriteTagged writes a value to the database for an ID and given tags.
 func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator,
-	t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	t xtime.UnixNano, value float64, unit xtime.Unit, annotation []byte) error {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -142,7 +141,7 @@ func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterato
 
 // Fetch fetches values from the database for an ID.
 func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive,
-	endExclusive time.Time) (encoding.SeriesIterator, error) {
+	endExclusive xtime.UnixNano) (encoding.SeriesIterator, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -154,7 +153,7 @@ func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive,
 
 // FetchIDs fetches values from the database for a set of IDs.
 func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator,
-	startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+	startInclusive, endExclusive xtime.UnixNano) (encoding.SeriesIterators, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {

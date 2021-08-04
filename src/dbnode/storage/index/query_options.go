@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // SeriesLimitExceeded returns whether a given size exceeds the
@@ -43,7 +45,8 @@ func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
 	return o.SeriesLimitExceeded(seriesCount) || o.DocsLimitExceeded(docsCount)
 }
 
-func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
+// Exhaustive returns true if the provided counts did not exceeded the query limits.
+func (o QueryOptions) Exhaustive(seriesCount, docsCount int) bool {
 	return !o.SeriesLimitExceeded(seriesCount) && !o.DocsLimitExceeded(docsCount)
 }
 
@@ -54,7 +57,7 @@ var (
 
 // NewWideQueryOptions creates a new wide query options, snapped to block start.
 func NewWideQueryOptions(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	batchSize int,
 	blockSize time.Duration,
 	shards []uint32,

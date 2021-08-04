@@ -23,7 +23,6 @@ package encoding
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -35,8 +34,8 @@ var _ SeriesIteratorAccumulator = (*seriesIteratorAccumulator)(nil)
 type seriesIteratorAccumulator struct {
 	id              ident.ID
 	nsID            ident.ID
-	start           time.Time
-	end             time.Time
+	start           xtime.UnixNano
+	end             xtime.UnixNano
 	iters           iterators
 	tagIterator     ident.TagIterator
 	seriesIterators []SeriesIterator
@@ -57,11 +56,15 @@ func NewSeriesIteratorAccumulator(
 	iter SeriesIterator,
 	opts SeriesAccumulatorOptions,
 ) (SeriesIteratorAccumulator, error) {
+	nsID := ""
+	if iter.Namespace() != nil {
+		nsID = iter.Namespace().String()
+	}
 	it := &seriesIteratorAccumulator{
 		// NB: clone id and nsID so that they will be accessbile after underlying
 		// iterators are closed.
 		id:              ident.StringID(iter.ID().String()),
-		nsID:            ident.StringID(iter.Namespace().String()),
+		nsID:            ident.StringID(nsID),
 		seriesIterators: make([]SeriesIterator, 0, 2),
 	}
 
@@ -80,11 +83,6 @@ func NewSeriesIteratorAccumulator(
 func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
 	if it.err != nil {
 		return it.err
-	}
-
-	if newNs := iter.Namespace(); !newNs.Equal(it.nsID) {
-		return fmt.Errorf("cannot add iterator with namespace %s to accumulator %s",
-			newNs.String(), it.nsID.String())
 	}
 
 	if !iter.Next() || !it.iters.push(iter) {
@@ -126,11 +124,11 @@ func (it *seriesIteratorAccumulator) Tags() ident.TagIterator {
 	return it.seriesIterators[0].Tags()
 }
 
-func (it *seriesIteratorAccumulator) Start() time.Time {
+func (it *seriesIteratorAccumulator) Start() xtime.UnixNano {
 	return it.start
 }
 
-func (it *seriesIteratorAccumulator) End() time.Time {
+func (it *seriesIteratorAccumulator) End() xtime.UnixNano {
 	return it.end
 }
 

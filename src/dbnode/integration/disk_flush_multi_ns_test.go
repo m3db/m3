@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -97,9 +97,9 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 		// write the data for ns1, always
 		testSetup.SetNowFn(ns1Input.Start)
 		testData := generate.Block(ns1Input)
-		ns1SeriesMaps[xtime.ToUnixNano(ns1Input.Start)] = testData
+		ns1SeriesMaps[ns1Input.Start] = testData
 		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
-		log.Info("wrote ns1 for time", zap.Time("start", ns1Input.Start))
+		log.Info("wrote ns1 for time", zap.Time("start", ns1Input.Start.ToTime()))
 
 		// when applicable, write the data for ns2, too
 		for _, ns2Input := range ns2InputData {
@@ -107,8 +107,8 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 				continue
 			}
 			testData = generate.Block(ns2Input)
-			ns2SeriesMaps[xtime.ToUnixNano(ns2Input.Start)] = testData
-			log.Info("wrote ns2 for time", zap.Time("start", ns2Input.Start))
+			ns2SeriesMaps[ns2Input.Start] = testData
+			log.Info("wrote ns2 for time", zap.Time("start", ns2Input.Start.ToTime()))
 			require.NoError(t, testSetup.WriteBatch(testNamespaces[1], testData))
 		}
 	}

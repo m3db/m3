@@ -32,10 +32,10 @@ import (
 	"time"
 
 	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
@@ -58,13 +59,11 @@ import (
 
 const (
 	// PromReadURL is the url for remote prom read handler
-	PromReadURL = handler.RoutePrefixV1 + "/prom/remote/read"
+	PromReadURL = route.Prefix + "/prom/remote/read"
 )
 
-var (
-	// PromReadHTTPMethods are the HTTP methods used with this resource.
-	PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
-)
+// PromReadHTTPMethods are the HTTP methods used with this resource.
+var PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
 
 // promReadHandler is a handler for the prometheus remote read endpoint.
 type promReadHandler struct {
@@ -125,8 +124,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
-	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
+	readResult, err := Read(ctx, req, fetchOpts, h.opts)
 	if err != nil {
 		h.promReadMetrics.incError(err)
 		logger.Error("remote read query error",
@@ -138,7 +136,16 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write headers before response.
-	handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
+	err = handleroptions.AddDBResultResponseHeaders(w, readResult.Meta, fetchOpts)
+	if err != nil {
+		h.promReadMetrics.incError(err)
+		logger.Error("remote read query write response header error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Any("fetchOpts", fetchOpts))
+		xhttp.WriteError(w, err)
+		return
+	}
 
 	// NB: if this errors, all relevant headers and information should already
 	// be sent to the writer; so it is not necessary to do anything here other
@@ -313,8 +320,8 @@ func parseExpr(
 	var vectorsInspected []*promql.VectorSelector
 	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
 		var (
-			start         = queryStart
-			end           = queryEnd
+			start         = xtime.ToUnixNano(queryStart)
+			end           = xtime.ToUnixNano(queryEnd)
 			offset        time.Duration
 			labelMatchers []*labels.Matcher
 		)
@@ -336,7 +343,7 @@ func parseExpr(
 
 			vectorsInspected = append(vectorsInspected, vectorSelector)
 
-			offset = vectorSelector.Offset
+			offset = vectorSelector.OriginalOffset
 			labelMatchers = vectorSelector.LabelMatchers
 		} else if n, ok := node.(*promql.VectorSelector); ok {
 			// Check already inspected (matrix can be walked further into
@@ -349,7 +356,7 @@ func parseExpr(
 
 			vectorsInspected = append(vectorsInspected, n)
 
-			offset = n.Offset
+			offset = n.OriginalOffset
 			labelMatchers = n.LabelMatchers
 		} else {
 			return nil
@@ -422,7 +429,6 @@ func parseRequest(
 // Read performs a remote read on the given engine.
 func Read(
 	ctx context.Context,
-	cancelWatcher handler.CancelWatcher,
 	r *prompb.ReadRequest,
 	fetchOpts *storage.FetchOptions,
 	opts options.HandlerOptions,
@@ -434,9 +440,13 @@ func Read(
 		meta         = block.NewResultMetadata()
 		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
-				LimitMaxTimeseries: fetchOpts.SeriesLimit,
-				LimitMaxDocs:       fetchOpts.DocsLimit,
-			}}
+				LimitMaxTimeseries:             fetchOpts.SeriesLimit,
+				LimitMaxDocs:                   fetchOpts.DocsLimit,
+				LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
+				LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
+				LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
+			},
+		}
 
 		engine = opts.Engine()
 
@@ -462,11 +472,6 @@ func Read(
 				multiErr = multiErr.Add(err)
 				mu.Unlock()
 				return
-			}
-
-			// Detect clients closing connections.
-			if cancelWatcher != nil {
-				cancelWatcher.WatchForCancel(ctx, cancel)
 			}
 
 			result, err := engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
@@ -561,7 +566,7 @@ func datapointsConvert(dps ts.Datapoints) comparator.Datapoints {
 	for _, dp := range dps.Datapoints() {
 		val := comparator.Datapoint{
 			Value:     comparator.Value(dp.Value),
-			Timestamp: dp.Timestamp,
+			Timestamp: dp.Timestamp.ToTime(),
 		}
 		datapoints = append(datapoints, val)
 	}

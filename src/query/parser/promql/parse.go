@@ -24,14 +24,15 @@ import (
 	"fmt"
 	"time"
 
+	pql "github.com/prometheus/prometheus/promql/parser"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-
-	pql "github.com/prometheus/prometheus/promql/parser"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type promParser struct {
@@ -91,7 +92,7 @@ type parseState struct {
 
 func (p *parseState) lastTransformID() parser.NodeID {
 	if len(p.transforms) == 0 {
-		return parser.NodeID(-1)
+		return parser.NodeID(rune(-1))
 	}
 
 	return p.transforms[len(p.transforms)-1].ID
@@ -134,7 +135,7 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	}
 
 	var (
-		tt = func(t time.Time) time.Time { return t.Add(offset) }
+		tt = func(t xtime.UnixNano) xtime.UnixNano { return t.Add(offset) }
 		mt = func(meta block.Metadata) block.Metadata {
 			meta.Bounds.Start = meta.Bounds.Start.Add(offset)
 			return meta
@@ -201,7 +202,7 @@ func (p *parseState) walk(node pql.Node) error {
 	case *pql.MatrixSelector:
 		// Align offset to stepSize.
 		vectorSelector := n.VectorSelector.(*pql.VectorSelector)
-		vectorSelector.Offset = adjustOffset(vectorSelector.Offset, p.stepSize)
+		vectorSelector.Offset = adjustOffset(vectorSelector.OriginalOffset, p.stepSize)
 		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -211,11 +212,11 @@ func (p *parseState) walk(node pql.Node) error {
 			p.transforms,
 			parser.NewTransformFromOperation(operation, p.transformLen()),
 		)
-		return p.addLazyOffsetTransform(vectorSelector.Offset)
+		return p.addLazyOffsetTransform(vectorSelector.OriginalOffset)
 
 	case *pql.VectorSelector:
 		// Align offset to stepSize.
-		n.Offset = adjustOffset(n.Offset, p.stepSize)
+		n.Offset = adjustOffset(n.OriginalOffset, p.stepSize)
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -226,7 +227,7 @@ func (p *parseState) walk(node pql.Node) error {
 			parser.NewTransformFromOperation(operation, p.transformLen()),
 		)
 
-		return p.addLazyOffsetTransform(n.Offset)
+		return p.addLazyOffsetTransform(n.OriginalOffset)
 
 	case *pql.Call:
 		if n.Func.Name == scalar.VectorType {

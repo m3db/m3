@@ -23,7 +23,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -41,11 +41,6 @@ import (
 
 const (
 	asyncWriteWorkerPoolDefaultSize = 128
-)
-
-var (
-	errConfigurationMustSupplyConfig = errors.New(
-		"must supply config when no topology initializer parameter supplied")
 )
 
 // Configuration is a configuration that can be used to construct a client.
@@ -230,6 +225,10 @@ type ConfigurationParameters struct {
 	// constructing a client from configuration.
 	InstrumentOptions instrument.Options
 
+	// ClockOptions is an optional argument when
+	// constructing a client from configuration.
+	ClockOptions clock.Options
+
 	// TopologyInitializer is an optional argument when
 	// constructing a client from configuration.
 	TopologyInitializer topology.Initializer
@@ -330,6 +329,10 @@ func (c Configuration) NewAdminClient(
 		SetInstrumentOptions(iopts).
 		SetLogErrorSampleRate(c.LogErrorSampleRate)
 
+	if params.ClockOptions != nil {
+		v = v.SetClockOptions(params.ClockOptions)
+	}
+
 	if c.UseV2BatchAPIs != nil {
 		v = v.SetUseV2BatchAPIs(*c.UseV2BatchAPIs)
 	}
@@ -412,10 +415,7 @@ func (c Configuration) NewAdminClient(
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
-	})
+	v = v.SetReaderIteratorAllocate(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)

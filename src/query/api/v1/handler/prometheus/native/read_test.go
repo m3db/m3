@@ -23,13 +23,10 @@ package native
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -39,10 +36,10 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,10 +70,9 @@ func TestParseRequest(t *testing.T) {
 }
 
 func TestPromReadHandlerRead(t *testing.T) {
-	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
-	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
-	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
-		headers.LimitHeaderSeriesLimitApplied)
+	testPromReadHandlerRead(t, block.NewResultMetadata())
+	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"))
+	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false})
 }
 
 func TestPromReadHandlerWithTimeout(t *testing.T) {
@@ -105,18 +101,18 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 	ctx := req.Context()
+	var cancel context.CancelFunc
+	// Clients calling into read have the timeout set from the defined fetch params
+	ctx, cancel = context.WithTimeout(ctx, 1*time.Nanosecond)
+	defer cancel()
 
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	r.Timeout = 10 * time.Millisecond
 	parsed := ParsedOptions{
 		QueryOpts: setup.QueryOpts,
 		FetchOpts: setup.FetchOpts,
 		Params:    r,
-		CancelWatcher: &cancelWatcher{
-			delay: r.Timeout * 10,
-		},
 	}
 
 	_, err := read(ctx, parsed, promRead.opts)
@@ -126,11 +122,9 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 		err.Error())
 }
 
-func testPromReadHandlerRead(
-	t *testing.T,
-	resultMeta block.ResultMetadata,
-	ex string,
-) {
+func testPromReadHandlerRead(t *testing.T, resultMeta block.ResultMetadata) {
+	t.Helper()
+
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup(t, nil)
@@ -170,13 +164,6 @@ func testPromReadHandlerRead(
 	for i := 0; i < s.Values().Len(); i++ {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
-}
-
-func newReadRequest(t *testing.T, params url.Values) *http.Request {
-	req, err := http.NewRequest("GET", PromReadURL, nil)
-	require.NoError(t, err)
-	req.URL.RawQuery = params.Encode()
-	return req
 }
 
 type testSetup struct {
@@ -221,6 +208,7 @@ func newTestSetup(
 		SetFetchOptionsBuilder(fetchOptsBuilder).
 		SetTagOptions(tagOpts).
 		SetInstrumentOpts(instrumentOpts).
+		SetStorage(mockStorage).
 		SetConfig(config.Configuration{
 			Limits: limitsConfig,
 			ResultOptions: config.ResultOptions{
@@ -241,15 +229,4 @@ func newTestSetup(
 		FetchOpts: storage.NewFetchOptions(),
 		options:   opts,
 	}
-}
-
-type cancelWatcher struct {
-	delay time.Duration
-}
-
-var _ handler.CancelWatcher = (*cancelWatcher)(nil)
-
-func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
-	// Simulate longer request to test timeout.
-	time.Sleep(c.delay)
 }

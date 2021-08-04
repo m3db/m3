@@ -24,6 +24,9 @@ import (
 	gocontext "context"
 	"time"
 
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -43,8 +46,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber/tchannel-go"
 )
 
 // Client can create sessions to write and read to a cluster.
@@ -74,7 +75,7 @@ type Session interface {
 	Write(
 		namespace,
 		id ident.ID,
-		t time.Time,
+		t xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -85,7 +86,7 @@ type Session interface {
 		namespace,
 		id ident.ID,
 		tags ident.TagIterator,
-		t time.Time,
+		t xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -96,7 +97,7 @@ type Session interface {
 		namespace,
 		id ident.ID,
 		startInclusive,
-		endExclusive time.Time,
+		endExclusive xtime.UnixNano,
 	) (encoding.SeriesIterator, error)
 
 	// FetchIDs values from the database for a set of IDs.
@@ -104,7 +105,7 @@ type Session interface {
 		namespace ident.ID,
 		ids ident.Iterator,
 		startInclusive,
-		endExclusive time.Time,
+		endExclusive xtime.UnixNano,
 	) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
@@ -152,6 +153,10 @@ type FetchResponseMetadata struct {
 	Responses int
 	// EstimateTotalBytes is an approximation of the total byte size of the response.
 	EstimateTotalBytes int
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int
 }
 
 // AggregatedTagsIterator iterates over a collection of tag names with optionally
@@ -225,7 +230,7 @@ type PeerBlocksIter interface {
 
 	// Current returns the metadata, and block data for a single block replica.
 	// These remain valid until Next() is called again.
-	Current() (topology.Host, ident.ID, block.DatabaseBlock)
+	Current() (topology.Host, ident.ID, ident.Tags, block.DatabaseBlock)
 
 	// Err returns any error encountered.
 	Err() error
@@ -255,7 +260,7 @@ type AdminSession interface {
 	FetchBootstrapBlocksFromPeers(
 		namespace namespace.Metadata,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		opts result.Options,
 	) (result.ShardResult, error)
 
@@ -264,7 +269,7 @@ type AdminSession interface {
 	FetchBootstrapBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		result result.Options,
 	) (PeerBlockMetadataIter, error)
 
@@ -273,7 +278,7 @@ type AdminSession interface {
 	FetchBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		consistencyLevel topology.ReadConsistencyLevel,
 		result result.Options,
 	) (PeerBlockMetadataIter, error)
@@ -294,6 +299,14 @@ type AdminSession interface {
 		fn WithBorrowConnectionFn,
 		opts BorrowConnectionOptions,
 	) (BorrowConnectionsResult, error)
+
+	// DedicatedConnection will open and health check a new connection to one of the
+	// hosts belonging to a shard. The connection should be used for long running requests.
+	// For normal requests consider using BorrowConnections.
+	DedicatedConnection(
+		shardID uint32,
+		opts DedicatedConnectionOptions,
+	) (rpc.TChanNode, Channel, error)
 }
 
 // BorrowConnectionOptions are options to use when borrowing a connection
@@ -316,13 +329,18 @@ type WithBorrowConnectionFn func(
 	shard shard.Shard,
 	host topology.Host,
 	client rpc.TChanNode,
-	channel PooledChannel,
+	channel Channel,
 ) (WithBorrowConnectionResult, error)
 
 // WithBorrowConnectionResult is returned from a borrow connection function.
 type WithBorrowConnectionResult struct {
 	// Break will break the iteration.
 	Break bool
+}
+
+// DedicatedConnectionOptions are options used for getting a dedicated connection.
+type DedicatedConnectionOptions struct {
+	ShardStateFilter shard.State
 }
 
 // Options is a set of client options.
@@ -595,6 +613,12 @@ type Options interface {
 	// ContextPool returns the contextPool.
 	ContextPool() context.Pool
 
+	// SetCheckedBytesPool sets the checked bytes pool.
+	SetCheckedBytesPool(value pool.CheckedBytesPool) Options
+
+	// CheckedBytesPool returns the checked bytes pool.
+	CheckedBytesPool() pool.CheckedBytesPool
+
 	// SetIdentifierPool sets the identifier pool.
 	SetIdentifierPool(value ident.Pool) Options
 
@@ -691,7 +715,16 @@ type Options interface {
 
 	// NamespaceInitializer returns the NamespaceInitializer.
 	NamespaceInitializer() namespace.Initializer
+
+	// SetThriftContextFn sets the retrier for streaming blocks.
+	SetThriftContextFn(value ThriftContextFn) Options
+
+	// ThriftContextFn returns the retrier for streaming blocks.
+	ThriftContextFn() ThriftContextFn
 }
+
+// ThriftContextFn turns a context into a thrift context for a thrift call.
+type ThriftContextFn func(gocontext.Context) thrift.Context
 
 // AdminOptions is a set of administration client options.
 type AdminOptions interface {
@@ -785,7 +818,13 @@ type hostQueue interface {
 }
 
 // WithConnectionFn is a callback for a connection to a host.
-type WithConnectionFn func(client rpc.TChanNode, ch PooledChannel)
+type WithConnectionFn func(client rpc.TChanNode, ch Channel)
+
+// Channel is an interface for tchannel.Channel struct.
+type Channel interface {
+	GetSubChannel(serviceName string, opts ...tchannel.SubChannelOption) *tchannel.SubChannel
+	Close()
+}
 
 type connectionPool interface {
 	// Open starts the connection pool connecting and health checking.
@@ -795,7 +834,7 @@ type connectionPool interface {
 	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool.
-	NextClient() (rpc.TChanNode, PooledChannel, error)
+	NextClient() (rpc.TChanNode, Channel, error)
 
 	// Close the connection pool.
 	Close()

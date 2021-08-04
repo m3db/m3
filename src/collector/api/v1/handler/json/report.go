@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/metrics/metric/id"
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -40,7 +40,7 @@ import (
 
 const (
 	// ReportURL is the url for the report json handler
-	ReportURL = handler.RoutePrefixV1 + "/json/report"
+	ReportURL = route.Prefix + "/json/report"
 
 	// ReportHTTPMethod is the HTTP method used with this resource.
 	ReportHTTPMethod = http.MethodPost

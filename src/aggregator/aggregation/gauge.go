@@ -31,13 +31,14 @@ import (
 type Gauge struct {
 	Options
 
-	lastAt time.Time
-	last   float64
-	sum    float64
-	sumSq  float64
-	count  int64
-	max    float64
-	min    float64
+	lastAt     time.Time
+	last       float64
+	sum        float64
+	sumSq      float64
+	count      int64
+	max        float64
+	min        float64
+	annotation []byte
 }
 
 // NewGauge creates a new gauge.
@@ -50,7 +51,7 @@ func NewGauge(opts Options) Gauge {
 }
 
 // Update updates the gauge value.
-func (g *Gauge) Update(timestamp time.Time, value float64) {
+func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 	if g.lastAt.IsZero() || timestamp.After(g.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -62,6 +63,8 @@ func (g *Gauge) Update(timestamp time.Time, value float64) {
 	}
 
 	g.count++
+
+	g.annotation = maybeReplaceAnnotation(g.annotation, annotation)
 
 	if math.IsNaN(value) {
 		return
@@ -140,6 +143,11 @@ func (g *Gauge) ValueOf(aggType aggregation.Type) float64 {
 	default:
 		return 0
 	}
+}
+
+// Annotation returns the annotation associated with the gauge.
+func (g *Gauge) Annotation() []byte {
+	return g.annotation
 }
 
 // Close closes the gauge.

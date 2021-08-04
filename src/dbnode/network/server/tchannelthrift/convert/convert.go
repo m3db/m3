@@ -21,6 +21,7 @@
 package convert
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"time"
@@ -52,29 +53,30 @@ const (
 	fetchTaggedTimeType = rpc.TimeType_UNIX_NANOSECONDS
 )
 
-// ToTime converts a value to a time
-func ToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
-	unit, err := ToDuration(timeType)
-	if err != nil {
-		return timeZero, err
-	}
-	// NB(r): Doesn't matter what unit is if we have zero of them.
-	if value == 0 {
-		return timeZero, nil
-	}
-	return xtime.FromNormalizedTime(value, unit), nil
-}
-
-// ToValue converts a time to a value
-func ToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
+// ToTime converts a value to a time.
+func ToTime(value int64, timeType rpc.TimeType) (xtime.UnixNano, error) {
 	unit, err := ToDuration(timeType)
 	if err != nil {
 		return 0, err
 	}
-	return xtime.ToNormalizedTime(t, unit), nil
+	// NB(r): Doesn't matter what unit is if we have zero of them.
+	if value == 0 {
+		return 0, nil
+	}
+	return xtime.FromNormalizedTime(value, unit), nil
 }
 
-// ToDuration converts a time type to a duration
+// ToValue converts a time to a value.
+func ToValue(t xtime.UnixNano, timeType rpc.TimeType) (int64, error) {
+	unit, err := ToDuration(timeType)
+	if err != nil {
+		return 0, err
+	}
+
+	return t.ToNormalizedTime(unit), nil
+}
+
+// ToDuration converts a time type to a duration.
 func ToDuration(timeType rpc.TimeType) (time.Duration, error) {
 	unit, err := ToUnit(timeType)
 	if err != nil {
@@ -83,7 +85,7 @@ func ToDuration(timeType rpc.TimeType) (time.Duration, error) {
 	return unit.Value()
 }
 
-// ToUnit converts a time type to a unit
+// ToUnit converts a time type to a unit.
 func ToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
 	switch timeType {
 	case rpc.TimeType_UNIX_SECONDS:
@@ -144,7 +146,7 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 		if seg.Len() == 0 {
 			return ToSegmentsResult{}, nil
 		}
-		startTime := xtime.ToNormalizedTime(blocks[0].Start, time.Nanosecond)
+		startTime := int64(blocks[0].Start)
 		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
 		checksum := int64(seg.CalculateChecksum())
 		s.Merged = &rpc.Segment{
@@ -173,7 +175,7 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 		if seg.Len() == 0 {
 			continue
 		}
-		startTime := xtime.ToNormalizedTime(block.Start, time.Nanosecond)
+		startTime := int64(block.Start)
 		blockSize := xtime.ToNormalizedDuration(block.BlockSize, time.Nanosecond)
 		checksum := int64(seg.CalculateChecksum())
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
@@ -203,12 +205,23 @@ func ToRPCError(err error) *rpc.Error {
 	if err == nil {
 		return nil
 	}
+
+	// If already an RPC error then just return it.
+	var rpcErr *rpc.Error
+	if errors.As(err, &rpcErr) {
+		return rpcErr
+	}
+
 	if limits.IsQueryLimitExceededError(err) {
 		return tterrors.NewResourceExhaustedError(err)
 	}
 	if xerrors.IsInvalidParams(err) {
 		return tterrors.NewBadRequestError(err)
 	}
+	if xerrors.Is(err, stdctx.Canceled) || xerrors.Is(err, stdctx.DeadlineExceeded) {
+		return tterrors.NewTimeoutError(err)
+	}
+
 	return tterrors.NewInternalError(err)
 }
 
@@ -239,6 +252,7 @@ func FromRPCFetchTaggedRequest(
 		StartInclusive:    start,
 		EndExclusive:      end,
 		RequireExhaustive: req.RequireExhaustive,
+		RequireNoWait:     req.RequireNoWait,
 	}
 	if l := req.SeriesLimit; l != nil {
 		opts.SeriesLimit = int(*l)
@@ -265,7 +279,8 @@ func FromRPCFetchTaggedRequest(
 	return ns, index.Query{Query: q}, opts, req.FetchData, nil
 }
 
-// ToRPCFetchTaggedRequest converts the Go `client/` types into rpc request type for FetchTaggedRequest.
+// ToRPCFetchTaggedRequest converts the Go `client/` types into rpc request type
+// for FetchTaggedRequest.
 func ToRPCFetchTaggedRequest(
 	ns ident.ID,
 	q index.Query,
@@ -294,6 +309,7 @@ func ToRPCFetchTaggedRequest(
 		FetchData:         fetchData,
 		Query:             query,
 		RequireExhaustive: opts.RequireExhaustive,
+		RequireNoWait:     opts.RequireNoWait,
 	}
 
 	if opts.SeriesLimit > 0 {
@@ -341,6 +357,9 @@ func FromRPCAggregateQueryRequest(
 	}
 	if r := req.RequireExhaustive; r != nil {
 		opts.RequireExhaustive = *r
+	}
+	if r := req.RequireNoWait; r != nil {
+		opts.RequireNoWait = *r
 	}
 
 	if len(req.Source) > 0 {
@@ -397,6 +416,9 @@ func FromRPCAggregateQueryRawRequest(
 	if r := req.RequireExhaustive; r != nil {
 		opts.RequireExhaustive = *r
 	}
+	if r := req.RequireNoWait; r != nil {
+		opts.RequireNoWait = *r
+	}
 
 	if len(req.Source) > 0 {
 		opts.Source = req.Source
@@ -424,7 +446,8 @@ func FromRPCAggregateQueryRawRequest(
 	return ns, index.Query{Query: query}, opts, nil
 }
 
-// ToRPCAggregateQueryRawRequest converts the Go `client/` types into rpc request type for AggregateQueryRawRequest.
+// ToRPCAggregateQueryRawRequest converts the Go `client/` types into rpc
+// request type for AggregateQueryRawRequest.
 func ToRPCAggregateQueryRawRequest(
 	ns ident.ID,
 	q index.Query,
@@ -457,6 +480,10 @@ func ToRPCAggregateQueryRawRequest(
 	if opts.RequireExhaustive {
 		r := opts.RequireExhaustive
 		request.RequireExhaustive = &r
+	}
+	if opts.RequireNoWait {
+		r := opts.RequireNoWait
+		request.RequireNoWait = &r
 	}
 
 	if len(opts.Source) > 0 {

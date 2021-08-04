@@ -125,9 +125,40 @@ func GetInnerInvalidParamsError(err error) error {
 		if _, ok := err.(invalidParamsError); ok {
 			return InnerError(err)
 		}
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if inner := GetInnerInvalidParamsError(e); err != nil {
+					return inner
+				}
+			}
+		}
 		err = InnerError(err)
 	}
 	return nil
+}
+
+// Is checks if the error is or contains the corresponding target error.
+// It's intended to mimic the errors.Is functionality, but also consider xerrors' MultiError / InnerError
+// wrapping functionality.
+func Is(err, target error) bool {
+	for err != nil {
+		if errors.Is(err, target) {
+			return true
+		}
+
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if Is(e, target) {
+					return true
+				}
+			}
+		}
+
+		err = InnerError(err)
+	}
+	return false
 }
 
 type retryableError struct {
@@ -158,6 +189,14 @@ func GetInnerRetryableError(err error) error {
 	for err != nil {
 		if _, ok := err.(retryableError); ok {
 			return InnerError(err)
+		}
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if inner := GetInnerRetryableError(e); err != nil {
+					return inner
+				}
+			}
 		}
 		err = InnerError(err)
 	}
@@ -192,6 +231,14 @@ func GetInnerNonRetryableError(err error) error {
 	for err != nil {
 		if _, ok := err.(nonRetryableError); ok {
 			return InnerError(err)
+		}
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if inner := GetInnerNonRetryableError(e); err != nil {
+					return inner
+				}
+			}
 		}
 		err = InnerError(err)
 	}
@@ -296,17 +343,6 @@ func (e MultiError) Add(err error) MultiError {
 func (e MultiError) FinalError() error {
 	if e.err == nil {
 		return nil
-	}
-	allInvalidParamsErr := IsInvalidParams(e.err)
-	for _, containedErr := range e.errors {
-		if !IsInvalidParams(containedErr) {
-			allInvalidParamsErr = false
-			break
-		}
-	}
-	if allInvalidParamsErr {
-		// Make sure to correctly wrap this error as an invalid params error.
-		return NewInvalidParamsError(e)
 	}
 	return e
 }

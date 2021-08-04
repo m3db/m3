@@ -94,14 +94,13 @@ func (m *fsMergeWithMem) fetchBlocks(
 	blockStart xtime.UnixNano,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, bool, error) {
-	startTime := blockStart.ToTime()
-	currVersion, err := m.retriever.RetrievableBlockColdVersion(startTime)
+	currVersion, err := m.retriever.RetrievableBlockColdVersion(blockStart)
 	if err != nil {
 		return block.FetchBlockResult{}, false, err
 	}
 	nextVersion := currVersion + 1
 
-	result, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
+	result, err := m.shard.FetchBlocksForColdFlush(ctx, id, blockStart, nextVersion, nsCtx)
 	if err != nil {
 		return block.FetchBlockResult{}, false, err
 	}

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "a**.caw",
+    "text": "caw",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "a**.daz",
+    "text": "daz",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "a**.bag",
+    "text": "bag",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "a**.bar",
+    "text": "bar",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "a**.biz",
+    "text": "biz",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  },
+  {
+    "id": "a**.cake",
+    "text": "cake",
+    "leaf": 0,
+    "expandable": 1,
+    "allowChildren": 1
+  }
+]

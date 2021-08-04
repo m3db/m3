@@ -292,7 +292,7 @@ func (s *fileSystemSource) shardAvailabilityWithInfoFiles(
 			continue
 		}
 		info := result.Info
-		t := xtime.FromNanoseconds(info.BlockStart)
+		t := xtime.UnixNano(info.BlockStart)
 		w := time.Duration(info.BlockSize)
 		currRange := xtime.Range{Start: t, End: t.Add(w)}
 		if targetRangesForShard.Overlaps(currRange) {
@@ -436,7 +436,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					batch, err = s.readNextEntryAndMaybeIndex(r, batch, builder)
 					if err != nil {
 						s.log.Error("readNextEntryAndMaybeIndex failed", zap.Error(err),
-							zap.Time("timeRangeStart", timeRange.Start))
+							zap.Time("timeRangeStart", timeRange.Start.ToTime()))
 					}
 					totalEntries++
 				default:
@@ -449,7 +449,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				batch, err = builder.FlushBatch(batch)
 				if err != nil {
 					s.log.Error("builder FlushBatch failed", zap.Error(err),
-						zap.Time("timeRangeStart", timeRange.Start))
+						zap.Time("timeRangeStart", timeRange.Start.ToTime()))
 				}
 			}
 
@@ -484,7 +484,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				runResult.Unlock()
 				if err != nil {
 					s.log.Error("indexResults MarkFulfilled failed", zap.Error(err),
-						zap.Time("timeRangeStart", timeRange.Start))
+						zap.Time("timeRangeStart", timeRange.Start.ToTime()))
 				}
 			}
 
@@ -494,8 +494,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				remainingRanges.Subtract(fulfilled)
 			} else {
 				s.log.Error("unknown error", zap.Error(err),
-					zap.Time("timeRangeStart", timeRange.Start))
-				timesWithErrors = append(timesWithErrors, timeRange.Start)
+					zap.Time("timeRangeStart", timeRange.Start.ToTime()))
+				timesWithErrors = append(timesWithErrors, timeRange.Start.ToTime())
 			}
 		}
 	}
@@ -512,7 +512,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
 			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
 			beginningOfIndexRetention = retention.FlushTimeStartForRetentionPeriod(
-				retentionPeriod, indexBlockSize, s.nowFn())
+				retentionPeriod, indexBlockSize, xtime.ToUnixNano(s.nowFn()))
 			initialIndexRange = xtime.Range{
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
@@ -534,13 +534,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		remainingMin, remainingMax := remainingRanges.MinMax()
 		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
 
-		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
+		// NB(bodu): Assume if we're bootstrapping data from disk that it is the
+		// "default" index volume type.
 		runResult.Lock()
-		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
+		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(
+			runResult.index.IndexResults(), blockStart)
 		runResult.Unlock()
 		if !ok {
 			err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
-				blockStart.String(), blockStart.UnixNano())
+				blockStart.String(), blockStart)
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("index bootstrap failed",
 					zap.Error(err),
@@ -643,7 +645,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 		// Replace index block for default index volume type.
 		runResult.Lock()
-		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
+		runResult.index.IndexResults()[blockStart].
+			SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 		runResult.Unlock()
 	}
 
@@ -657,7 +660,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	shardID uint32,
 	r fs.DataFileSetReader,
 	runResult *runResult,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	blockSize time.Duration,
 	blockPool block.DatabaseBlockPool,
 	seriesCachePolicy series.CachePolicy,
@@ -701,7 +704,12 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 	seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 	seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
-	if err := ref.Series.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
+
+	seriesRef, err := ref.Resolver.SeriesRef()
+	if err != nil {
+		return fmt.Errorf("unable to resolve seriesRef: %w", err)
+	}
+	if err := seriesRef.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)
 	}
 
@@ -931,8 +939,11 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	}
 
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
-	infoFiles := fs.ReadIndexInfoFiles(s.fsopts.FilePathPrefix(), ns.ID(),
-		s.fsopts.InfoReaderBufferSize())
+	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   s.fsopts.FilePathPrefix(),
+		Namespace:        ns.ID(),
+		ReaderBufferSize: s.fsopts.InfoReaderBufferSize(),
+	})
 
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
@@ -946,7 +957,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 
 		info := infoFile.Info
-		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
+		indexBlockStart := xtime.UnixNano(info.BlockStart)
 		indexBlockRange := xtime.Range{
 			Start: indexBlockStart,
 			End:   indexBlockStart.Add(indexBlockSize),
@@ -999,7 +1010,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			s.log.Error("unable to read segments from index fileset",
 				zap.Stringer("namespace", ns.ID()),
 				zap.Error(err),
-				zap.Time("blockStart", indexBlockStart),
+				zap.Time("blockStart", indexBlockStart.ToTime()),
 				zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
 			)
 			continue
@@ -1048,7 +1059,7 @@ func newRunResult() *runResult {
 }
 
 func (r *runResult) addIndexBlockIfNotExists(
-	start time.Time,
+	start xtime.UnixNano,
 	ns namespace.Metadata,
 ) {
 	// Only called once per shard so ok to acquire write lock immediately.

@@ -61,11 +61,6 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 
 	// Prepare fetches
 	fetch := testFetchTaggedOp("testNs", callback)
-	wg.Add(1)
-	assert.NoError(t, queue.Enqueue(fetch))
-	assert.Equal(t, 1, queue.Len())
-	// Sleep some so that we can ensure flushing is not happening until queue is full
-	time.Sleep(20 * time.Millisecond)
 
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	fetchTagged := func(ctx thrift.Context, req *rpc.FetchTaggedRequest) {
@@ -74,6 +69,10 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 	mockClient.EXPECT().FetchTagged(gomock.Any(), gomock.Any()).Do(fetchTagged).Return(nil, nil)
 	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
+
+	// Execute fetch
+	wg.Add(1)
+	assert.NoError(t, queue.Enqueue(fetch))
 
 	// Close the queue should cause all writes to be flushed
 	queue.Close()

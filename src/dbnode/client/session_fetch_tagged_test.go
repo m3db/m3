@@ -34,8 +34,10 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +46,7 @@ import (
 
 var (
 	testSessionFetchTaggedQuery     = index.Query{idx.NewTermQuery([]byte("a"), []byte("b"))}
-	testSessionFetchTaggedQueryOpts = func(t0, t1 time.Time) index.QueryOptions {
+	testSessionFetchTaggedQueryOpts = func(t0, t1 xtime.UnixNano) index.QueryOptions {
 		return index.QueryOptions{StartInclusive: t0, EndExclusive: t1}
 	}
 )
@@ -91,7 +93,7 @@ func TestSessionFetchTaggedNotOpenError(t *testing.T) {
 	opts := newSessionTestOptions()
 	s, err := newSession(opts)
 	assert.NoError(t, err)
-	t0 := time.Now()
+	t0 := xtime.Now()
 
 	_, _, err = s.FetchTagged(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
@@ -113,7 +115,7 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidCall(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
@@ -142,7 +144,7 @@ func TestSessionFetchTaggedIDsGuardAgainstNilHost(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
@@ -171,7 +173,7 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidHost(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	host := topology.NewHost("some-random-host", "some-random-host:12345")
@@ -201,7 +203,7 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	topoInit := opts.TopologyInitializer()
@@ -256,7 +258,7 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	require.Equal(t, 3, sessionTestReplicas) // the code below assumes this
@@ -288,10 +290,11 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
-		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
-	assert.Error(t, err)
-	assert.NoError(t, session.Close())
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _, _ = session.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
+			testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	})
 }
 
 func TestSessionFetchTaggedMergeTest(t *testing.T) {
@@ -304,7 +307,7 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	var (
@@ -413,7 +416,7 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	var (
@@ -588,6 +591,15 @@ func mockExtendedHostQueues(
 		require.Fail(t, "unable to find host idx: %v", host.ID())
 		return -1
 	}
+	expectClose := true
+	for _, hq := range opsByHost {
+		for _, e := range hq.enqueues {
+			if e.enqueueErr != nil {
+				expectClose = false
+				break
+			}
+		}
+	}
 	s.newHostQueueFn = func(
 		host topology.Host,
 		opts hostQueueOpts,
@@ -600,6 +612,7 @@ func mockExtendedHostQueues(
 		hostQueue.EXPECT().Open()
 		hostQueue.EXPECT().Host().Return(host).AnyTimes()
 		hostQueue.EXPECT().ConnectionCount().Return(opts.opts.MinConnectionCount()).AnyTimes()
+
 		var expectNextEnqueueFn func(fns []testEnqueue)
 		expectNextEnqueueFn = func(fns []testEnqueue) {
 			fn := fns[0]
@@ -619,7 +632,9 @@ func mockExtendedHostQueues(
 		if len(hostEnqueues.enqueues) > 0 {
 			expectNextEnqueueFn(hostEnqueues.enqueues)
 		}
-		hostQueue.EXPECT().Close()
+		if expectClose {
+			hostQueue.EXPECT().Close()
+		}
 		return hostQueue, nil
 	}
 }

@@ -70,6 +70,13 @@ type ResultMetadata struct {
 	Resolutions []time.Duration
 	// KeepNaNs indicates if NaNs should be kept when returning results.
 	KeepNaNs bool
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int
+	// FetchedSeriesCount is the total number of series that were fetched to compute
+	// this result.
+	FetchedSeriesCount int
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -143,19 +150,28 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 		}
 	}
 
-	return true
+	if m.WaitedIndex != n.WaitedIndex {
+		return false
+	}
+
+	if m.WaitedSeriesRead != n.WaitedSeriesRead {
+		return false
+	}
+
+	return m.FetchedSeriesCount == n.FetchedSeriesCount
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
-	meta := ResultMetadata{
-		LocalOnly:   m.LocalOnly && other.LocalOnly,
-		Exhaustive:  m.Exhaustive && other.Exhaustive,
-		Warnings:    combineWarnings(m.Warnings, other.Warnings),
-		Resolutions: combineResolutions(m.Resolutions, other.Resolutions),
+	return ResultMetadata{
+		LocalOnly:          m.LocalOnly && other.LocalOnly,
+		Exhaustive:         m.Exhaustive && other.Exhaustive,
+		Warnings:           combineWarnings(m.Warnings, other.Warnings),
+		Resolutions:        combineResolutions(m.Resolutions, other.Resolutions),
+		WaitedIndex:        m.WaitedIndex + other.WaitedIndex,
+		WaitedSeriesRead:   m.WaitedSeriesRead + other.WaitedSeriesRead,
+		FetchedSeriesCount: m.FetchedSeriesCount + other.FetchedSeriesCount,
 	}
-
-	return meta
 }
 
 // IsDefault returns true if this result metadata matches the unchanged default.
@@ -196,6 +212,11 @@ func (m *ResultMetadata) AddWarning(name string, message string) {
 		Name:    name,
 		Message: message,
 	})
+}
+
+// AddWarnings adds several warnings to the result metadata.
+func (m *ResultMetadata) AddWarnings(warnings ...Warning) {
+	m.Warnings = m.Warnings.addWarnings(warnings...)
 }
 
 // NB: this is not a very efficient merge but this is extremely unlikely to be

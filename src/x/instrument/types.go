@@ -55,7 +55,7 @@ type Options interface {
 	// SetLogger sets the zap logger
 	SetLogger(value *zap.Logger) Options
 
-	// ZapLogger returns the zap logger
+	// Logger returns the zap logger
 	Logger() *zap.Logger
 
 	// SetMetricsScope sets the metrics scope.

@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -77,10 +78,10 @@ func verifyExpandPromSeries(
 	fetchResult.Metadata = block.ResultMetadata{
 		Exhaustive: ex,
 		LocalOnly:  true,
-		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 	}
 
-	results, err := SeriesIteratorsToPromResult(fetchResult, pools, nil)
+	results, err := SeriesIteratorsToPromResult(context.Background(), fetchResult, pools, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -91,7 +92,7 @@ func verifyExpandPromSeries(
 	require.Equal(t, "foo_bar", results.Metadata.Warnings[0].Header())
 	require.Equal(t, len(ts), num)
 	expectedTags := []prompb.Label{
-		prompb.Label{
+		{
 			Name:  []byte("foo"),
 			Value: []byte("bar"),
 		},
@@ -110,6 +111,24 @@ func testExpandPromSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
 	for i := 0; i < 10; i++ {
 		verifyExpandPromSeries(t, ctrl, i, ex, pools)
 	}
+}
+
+func TestContextCanceled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+
+	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, 1, 2)
+	fetchResult := fr(t, iters, makeTag("foo", "bar", 1)...)
+	_, err = SeriesIteratorsToPromResult(ctx, fetchResult, pool, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "context canceled")
 }
 
 func TestExpandPromSeriesNilPools(t *testing.T) {
@@ -137,7 +156,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := TimeToPromTimestamp(now)
 
 	vals := ts.NewMockValues(ctrl)
@@ -165,7 +184,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 	result := FetchResultToPromResult(r, false)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -178,11 +197,11 @@ func TestIteratorsToPromResult(t *testing.T) {
 	result = FetchResultToPromResult(r, true)
 	expected = &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
 				Samples: []prompb.Sample{},
 			},
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -196,7 +215,7 @@ func TestIteratorsToPromResult(t *testing.T) {
 type overwrite func()
 
 func setupTags(name, value string) (ident.Tags, overwrite) {
-	var buckets = []pool.Bucket{{Capacity: 100, Count: 2}}
+	buckets := []pool.Bucket{{Capacity: 100, Count: 2}}
 	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
 		func(sizes []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(sizes, nil)
@@ -231,13 +250,13 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	defer ctrl.Finish()
 
 	name := "name"
-	now := time.Now()
+	now := xtime.Now()
 	buildIter := func(val string, hasVal bool) *encoding.MockSeriesIterator {
 		iter := encoding.NewMockSeriesIterator(ctrl)
 
 		if hasVal {
 			iter.EXPECT().Next().Return(true)
-			dp := dts.Datapoint{Timestamp: now, Value: 1}
+			dp := dts.Datapoint{TimestampNanos: now, Value: 1}
 			iter.EXPECT().Current().Return(dp, xtime.Second, nil)
 		}
 
@@ -282,7 +301,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 			require.Equal(t, 1, len(samples))
 			s := samples[0]
 			assert.Equal(t, float64(1), s.GetValue())
-			assert.Equal(t, now.UnixNano()/int64(time.Millisecond), s.GetTimestamp())
+			assert.Equal(t, int64(now)/int64(time.Millisecond), s.GetTimestamp())
 		}
 	}
 
@@ -302,7 +321,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	}
 
 	opts := models.NewTagOptions()
-	res, err := SeriesIteratorsToPromResult(buildIters(), nil, opts)
+	res, err := SeriesIteratorsToPromResult(context.Background(), buildIters(), nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -310,7 +329,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 
-	res, err = SeriesIteratorsToPromResult(buildIters(), pool, opts)
+	res, err = SeriesIteratorsToPromResult(context.Background(), buildIters(), pool, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 }

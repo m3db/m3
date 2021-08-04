@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 )
 
 var collectTest = []struct {
@@ -293,7 +293,7 @@ func testCollect(t *testing.T, without bool) {
 				}
 			}
 
-			test.CompareListsInOrder(t, collected, expectedMetas, buckets, expectedIndicies)
+			compare.CompareListsInOrder(t, collected, expectedMetas, buckets, expectedIndicies)
 		})
 	}
 }

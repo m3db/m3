@@ -23,7 +23,6 @@ package block
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
@@ -210,7 +209,7 @@ func (it *containerStepIter) Next() bool {
 func (it *containerStepIter) Current() Step {
 	if len(it.its) == 0 {
 		return ColStep{
-			time:   time.Time{},
+			time:   0,
 			values: []float64{},
 		}
 	}

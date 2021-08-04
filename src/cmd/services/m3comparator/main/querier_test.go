@@ -21,6 +21,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -97,7 +98,7 @@ func TestFetchCompressed(t *testing.T) {
 			query := matcherQuery(t, tt.queryTagName, tt.queryTagValue)
 			querier := setupQuerier(ctrl, query)
 
-			result, cleanup, err := querier.FetchCompressed(nil, query, nil)
+			result, cleanup, err := querier.FetchCompressedResult(context.TODO(), query, nil)
 			assert.NoError(t, err)
 			defer cleanup()
 
@@ -293,7 +294,7 @@ func TestGenerateRandomSeries(t *testing.T) {
 			querier, err := setupRandomGenQuerier(ctrl)
 			assert.NoError(t, err)
 
-			result, cleanup, err := querier.FetchCompressed(nil, tt.givenQuery, nil)
+			result, cleanup, err := querier.FetchCompressedResult(context.TODO(), tt.givenQuery, nil)
 			assert.NoError(t, err)
 			defer cleanup()
 
@@ -316,7 +317,7 @@ func TestHistogramBucketsAddUp(t *testing.T) {
 	assert.NoError(t, err)
 
 	histogramQuery := matcherQuery(t, metricNameTag, "histogram_1_bucket")
-	result, cleanup, err := querier.FetchCompressed(nil, histogramQuery, nil)
+	result, cleanup, err := querier.FetchCompressedResult(context.TODO(), histogramQuery, nil)
 	assert.NoError(t, err)
 	defer cleanup()
 
@@ -332,7 +333,7 @@ func TestHistogramBucketsAddUp(t *testing.T) {
 			require.True(t, iter.Next(), "all buckets must have the same length")
 			vi, ti, _ := iter.Current()
 			assert.True(t, vi.Value >= v0.Value, "bucket values must be non decreasing")
-			assert.Equal(t, v0.Timestamp, vi.Timestamp, "bucket values timestamps must match")
+			assert.Equal(t, v0.TimestampNanos, vi.TimestampNanos, "bucket values timestamps must match")
 			assert.Equal(t, t1, ti)
 		}
 	}

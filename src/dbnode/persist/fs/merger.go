@@ -109,7 +109,7 @@ func (m *merger) Merge(
 		startTime  = fileID.BlockStart
 		volume     = fileID.VolumeIndex
 		blockSize  = nsOpts.RetentionOptions().BlockSize()
-		blockStart = xtime.ToUnixNano(startTime)
+		blockStart = startTime
 		openOpts   = DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
 				Namespace:   nsID,
@@ -126,13 +126,7 @@ func (m *merger) Merge(
 	if err := reader.Open(openOpts); err != nil {
 		return closer, err
 	}
-	defer func() {
-		// Only set the error here if not set by the end of the function, since
-		// all other errors take precedence.
-		if err == nil {
-			err = reader.Close()
-		}
-	}()
+	defer reader.Close() // nolint
 
 	nsMd, err := namespace.NewMetadata(nsID, nsOpts)
 	if err != nil {
@@ -166,7 +160,7 @@ func (m *merger) Merge(
 		// Shared between iterations.
 		iterResources = newIterResources(
 			multiIter,
-			blockStart.ToTime(),
+			blockStart,
 			blockSize,
 			blockAllocSize,
 			nsCtx.Schema,
@@ -393,7 +387,7 @@ func persistSegmentWithChecksum(
 
 type iterResources struct {
 	multiIter      encoding.MultiReaderIterator
-	blockStart     time.Time
+	blockStart     xtime.UnixNano
 	blockSize      time.Duration
 	blockAllocSize int
 	schema         namespace.SchemaDescr
@@ -402,7 +396,7 @@ type iterResources struct {
 
 func newIterResources(
 	multiIter encoding.MultiReaderIterator,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	blockSize time.Duration,
 	blockAllocSize int,
 	schema namespace.SchemaDescr,

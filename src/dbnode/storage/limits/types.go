@@ -35,17 +35,18 @@ const SourceContextKey Key = "source"
 
 // QueryLimits provides an interface for managing query limits.
 type QueryLimits interface {
-	// DocsLimit limits queries by a global concurrent count of index docs matched.
-	DocsLimit() LookbackLimit
+	// FetchDocsLimit limits queries by a global concurrent count of index docs matched.
+	FetchDocsLimit() LookbackLimit
 	// BytesReadLimit limits queries by a global concurrent count of bytes read from disk.
 	BytesReadLimit() LookbackLimit
+	// AnyFetchExceeded returns an error if any of the query limits are exceeded on
+	// a fetch query.
+	AnyFetchExceeded() error
 
 	// AggregateDocsLimit limits aggregate queries by a global
 	// concurrent count of index docs matched.
 	AggregateDocsLimit() LookbackLimit
 
-	// AnyExceeded returns an error if any of the query limits are exceeded.
-	AnyExceeded() error
 	// Start begins background resetting of the query limits.
 	Start()
 	// Stop end background resetting of the query limits.
@@ -76,6 +77,8 @@ type LookbackLimitOptions struct {
 	Lookback time.Duration
 	// ForceExceeded, if true, makes all calls to the limit behave as though the limit is exceeded.
 	ForceExceeded bool
+	// ForceWaited, if true, makes all calls to the limit behave as though the caller waited for permits.
+	ForceWaited bool
 }
 
 // SourceLoggerBuilder builds a SourceLogger given instrument options.
@@ -112,6 +115,12 @@ type Options interface {
 
 	// BytesReadLimitOpts returns the byte read limit options.
 	BytesReadLimitOpts() LookbackLimitOptions
+
+	// SetAggregateDocsLimitOpts sets the aggregate doc limit options.
+	SetAggregateDocsLimitOpts(LookbackLimitOptions) Options
+
+	// AggregateDocsLimitOpts returns the aggregate doc limit options.
+	AggregateDocsLimitOpts() LookbackLimitOptions
 
 	// SetDiskSeriesReadLimitOpts sets the disk series read limit options.
 	SetDiskSeriesReadLimitOpts(value LookbackLimitOptions) Options

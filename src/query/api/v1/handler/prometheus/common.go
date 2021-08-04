@@ -21,13 +21,14 @@
 package prometheus
 
 import (
-	"bytes"
 	goerrors "errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/golang/snappy"
 
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
@@ -38,19 +39,20 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/golang/snappy"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
-	queryParam          = "query"
+	queryParam   = "query"
+	endParam     = "end"
+	startParam   = "start"
+	nowTimeValue = "now"
+	timeParam    = "time"
+	formatErrStr = "error parsing param: %s, error: %v"
+
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
 	tolerance           = 0.0000001
-)
-
-var (
-	roleName = []byte("role")
 )
 
 // ParsePromCompressedRequestResult is the result of a
@@ -143,8 +145,8 @@ func ParseTagCompletionParamsToQueries(
 	tagQueries := make([]*storage.CompleteTagsQuery, 0, len(queries))
 	for _, query := range queries {
 		tagQuery := &storage.CompleteTagsQuery{
-			Start:            start,
-			End:              end,
+			Start:            xtime.ToUnixNano(start),
+			End:              xtime.ToUnixNano(end),
 			CompleteNameOnly: nameOnly,
 		}
 
@@ -312,23 +314,46 @@ func parseMatch(
 func renderNameOnlyTagCompletionResultsJSON(
 	w io.Writer,
 	results []consolidators.CompletedTag,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
+	var (
+		total    = len(results)
+		rendered = 0
+		limited  bool
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 
 	for _, tag := range results {
-		jw.WriteString(string(tag.Name))
+		if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
+			limited = true
+			break
+		}
+		rendered++
+		jw.WriteBytesString(tag.Name)
 	}
 
 	jw.EndArray()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 func renderDefaultTagCompletionResultsJSON(
 	w io.Writer,
 	results []consolidators.CompletedTag,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
+	var (
+		total    = 0
+		rendered = 0
+		limited  bool
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
@@ -339,15 +364,27 @@ func renderDefaultTagCompletionResultsJSON(
 	jw.BeginArray()
 
 	for _, tag := range results {
+		total += len(tag.Values)
+		if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
+			limited = true
+			continue
+		}
+
 		jw.BeginObject()
 
 		jw.BeginObjectField("key")
-		jw.WriteString(string(tag.Name))
+		jw.WriteBytesString(tag.Name)
 
 		jw.BeginObjectField("values")
 		jw.BeginArray()
 		for _, value := range tag.Values {
-			jw.WriteString(string(value))
+			if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
+				limited = true
+				break
+			}
+			rendered++
+
+			jw.WriteBytesString(value)
 		}
 		jw.EndArray()
 
@@ -357,17 +394,46 @@ func renderDefaultTagCompletionResultsJSON(
 
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
+}
+
+// RenderSeriesMetadataOptions is a set of options for rendering
+// series metadata.
+type RenderSeriesMetadataOptions struct {
+	ReturnedSeriesMetadataLimit int
+}
+
+// RenderSeriesMetadataResult returns results about a series metadata rendering.
+type RenderSeriesMetadataResult struct {
+	// Results is how many results were rendered.
+	Results int
+	// TotalResults is how many results in total there were regardless
+	// of rendering.
+	TotalResults int
+	// LimitedMaxReturnedData indicates if results rendering
+	// was truncated by a limit.
+	LimitedMaxReturnedData bool
 }
 
 // RenderListTagResultsJSON renders list tag results to json format.
 func RenderListTagResultsJSON(
 	w io.Writer,
 	result *consolidators.CompleteTagsResult,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
 	if !result.CompleteNameOnly {
-		return errors.ErrWithNames
+		return RenderSeriesMetadataResult{}, errors.ErrWithNames
 	}
+
+	var (
+		total    = len(result.CompletedTags)
+		rendered = 0
+		limited  bool
+	)
 
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -379,41 +445,58 @@ func RenderListTagResultsJSON(
 	jw.BeginArray()
 
 	for _, t := range result.CompletedTags {
-		jw.WriteString(string(t.Name))
+		if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
+			limited = true
+			break
+		}
+		rendered++
+		jw.WriteBytesString(t.Name)
 	}
 
 	jw.EndArray()
-
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 // RenderTagCompletionResultsJSON renders tag completion results to json format.
 func RenderTagCompletionResultsJSON(
-	w io.Writer, result consolidators.CompleteTagsResult) error {
+	w io.Writer,
+	result consolidators.CompleteTagsResult,
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
 	results := result.CompletedTags
 	if result.CompleteNameOnly {
-		return renderNameOnlyTagCompletionResultsJSON(w, results)
+		return renderNameOnlyTagCompletionResultsJSON(w, results, opts)
 	}
 
-	return renderDefaultTagCompletionResultsJSON(w, results)
+	return renderDefaultTagCompletionResultsJSON(w, results, opts)
 }
 
 // RenderTagValuesResultsJSON renders tag values results to json format.
 func RenderTagValuesResultsJSON(
 	w io.Writer,
 	result *consolidators.CompleteTagsResult,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
 	if result.CompleteNameOnly {
-		return errors.ErrNamesOnly
+		return RenderSeriesMetadataResult{}, errors.ErrNamesOnly
 	}
 
 	tagCount := len(result.CompletedTags)
-
 	if tagCount > 1 {
-		return errors.ErrMultipleResults
+		return RenderSeriesMetadataResult{}, errors.ErrMultipleResults
 	}
+
+	var (
+		total    = 0
+		rendered = 0
+		limited  bool
+	)
 
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -424,33 +507,43 @@ func RenderTagValuesResultsJSON(
 	jw.BeginObjectField("data")
 	jw.BeginArray()
 
-	// if no tags found, return empty array
-	if tagCount == 0 {
-		jw.EndArray()
-
-		jw.EndObject()
-
-		return jw.Close()
-	}
-
-	values := result.CompletedTags[0].Values
-	for _, value := range values {
-		jw.WriteString(string(value))
+	if tagCount > 0 {
+		// We have our single expected result.
+		values := result.CompletedTags[0].Values
+		total += len(values)
+		for _, value := range values {
+			if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
+				limited = true
+				break
+			}
+			rendered++
+			jw.WriteBytesString(value)
+		}
 	}
 
 	jw.EndArray()
 
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 // RenderSeriesMatchResultsJSON renders series match results to json format.
 func RenderSeriesMatchResultsJSON(
 	w io.Writer,
 	results []models.Metrics,
-	dropRole bool,
-) error {
+	opts RenderSeriesMetadataOptions,
+) (RenderSeriesMetadataResult, error) {
+	var (
+		total    = 0
+		rendered = 0
+		limited  bool
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
@@ -462,16 +555,22 @@ func RenderSeriesMatchResultsJSON(
 
 	for _, result := range results {
 		for _, tags := range result {
+			total += len(tags.Tags.Tags)
+			if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
+				limited = true
+				continue
+			}
+
 			jw.BeginObject()
 			for _, tag := range tags.Tags.Tags {
-				if bytes.Equal(tag.Name, roleName) && dropRole {
-					// NB: When data is written from Prometheus remote write, additional
-					// `"role":"remote"` tag is added, which should not be included in the
-					// results.
-					continue
+				if opts.ReturnedSeriesMetadataLimit > 0 && rendered >= opts.ReturnedSeriesMetadataLimit {
+					limited = true
+					break
 				}
-				jw.BeginObjectField(string(tag.Name))
-				jw.WriteString(string(tag.Value))
+				rendered++
+
+				jw.BeginObjectBytesField(tag.Name)
+				jw.WriteBytesString(tag.Value)
 			}
 
 			jw.EndObject()
@@ -481,7 +580,11 @@ func RenderSeriesMatchResultsJSON(
 	jw.EndArray()
 	jw.EndObject()
 
-	return jw.Close()
+	return RenderSeriesMetadataResult{
+		Results:                rendered,
+		TotalResults:           total,
+		LimitedMaxReturnedData: limited,
+	}, jw.Close()
 }
 
 // FilterSeriesByOptions removes series tags based on options.
@@ -501,4 +604,66 @@ func FilterSeriesByOptions(
 	}
 
 	return series
+}
+
+// ParseTime parses a time out of a request key, with a default value.
+func ParseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
+	if t := r.FormValue(key); t != "" {
+		if t == nowTimeValue {
+			return now, nil
+		}
+		return util.ParseTimeString(t)
+	}
+	return time.Time{}, errors.ErrNotFound
+}
+
+// TimeParams represents the time parameters within a request.
+type TimeParams struct {
+	Now   time.Time
+	Start time.Time
+	End   time.Time
+}
+
+// ParseTimeParams parses the time params (now, start, end) from a request.
+func ParseTimeParams(r *http.Request) (TimeParams, error) {
+	var (
+		params TimeParams
+		err    error
+	)
+
+	params.Now = time.Now()
+	if v := r.FormValue(timeParam); v != "" {
+		var err error
+		params.Now, err = ParseTime(r, timeParam, params.Now)
+		if err != nil {
+			err = fmt.Errorf(formatErrStr, timeParam, err)
+			return params, xerrors.NewInvalidParamsError(err)
+		}
+	}
+
+	params.Start, err = ParseTime(r, startParam, params.Now)
+	if err != nil {
+		err = fmt.Errorf(formatErrStr, startParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
+	}
+
+	params.End, err = ParseTime(r, endParam, params.Now)
+	if err != nil {
+		err = fmt.Errorf(formatErrStr, endParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
+	}
+	if params.Start.After(params.End) {
+		err = fmt.Errorf("start (%s) must be before end (%s)", params.Start, params.End)
+		return params, xerrors.NewInvalidParamsError(err)
+	}
+
+	return params, nil
+}
+
+// SetDefaultStartEndParamsForInstant sets the start and end values for instant queries. Instant queries
+// don't specify start and end, but these params are required to be set to be successfully processed
+// by storage.
+func SetDefaultStartEndParamsForInstant(r *http.Request) {
+	r.Form.Set(startParam, nowTimeValue)
+	r.Form.Set(endParam, nowTimeValue)
 }

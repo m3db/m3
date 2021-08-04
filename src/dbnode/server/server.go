@@ -41,8 +41,10 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -78,11 +80,11 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -90,13 +92,12 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/m3dbx/vellum/levenshtein"
 	"github.com/m3dbx/vellum/levenshtein2"
 	"github.com/m3dbx/vellum/regexp"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
@@ -149,8 +150,8 @@ type RunOptions struct {
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
 
-	// Transforms are transforms to apply to the database storage options.
-	Transforms []storage.OptionTransform
+	// Transform is a function to transform the Options.
+	Transform storage.OptionTransform
 
 	// StorageOptions are additional storage options.
 	StorageOptions StorageOptions
@@ -235,7 +236,7 @@ func Run(runOpts RunOptions) {
 	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
 	fslock, err := createAndAcquireLockfile(lockPath, newDirectoryMode)
 	if err != nil {
-		logger.Fatal("could not acqurie lock", zap.String("path", lockPath), zap.Error(err))
+		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
 	// nolint: errcheck
 	defer fslock.releaseLockfile()
@@ -371,14 +372,6 @@ func Run(runOpts RunOptions) {
 
 	opentracing.SetGlobalTracer(tracer)
 
-	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
-		queryIDsWorkerPool.Init()
-		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
-	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
-	}
-
 	// Set global index options.
 	if n := cfg.Index.RegexpDFALimitOrDefault(); n > 0 {
 		regexp.SetStateLimit(n)
@@ -428,9 +421,13 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Setup query stats tracking.
-	docsLimit := limits.DefaultLookbackLimitOptions()
-	bytesReadLimit := limits.DefaultLookbackLimitOptions()
-	diskSeriesReadLimit := limits.DefaultLookbackLimitOptions()
+	var (
+		docsLimit           = limits.DefaultLookbackLimitOptions()
+		bytesReadLimit      = limits.DefaultLookbackLimitOptions()
+		diskSeriesReadLimit = limits.DefaultLookbackLimitOptions()
+		aggDocsLimit        = limits.DefaultLookbackLimitOptions()
+	)
+
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
 		docsLimit.Limit = limitConfig.Value
 		docsLimit.Lookback = limitConfig.Lookback
@@ -443,32 +440,49 @@ func Run(runOpts RunOptions) {
 		diskSeriesReadLimit.Limit = limitConfig.Value
 		diskSeriesReadLimit.Lookback = limitConfig.Lookback
 	}
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedMetadata; limitConfig != nil {
+		aggDocsLimit.Limit = limitConfig.Value
+		aggDocsLimit.Lookback = limitConfig.Lookback
+	}
 	limitOpts := limits.NewOptions().
 		SetDocsLimitOpts(docsLimit).
 		SetBytesReadLimitOpts(bytesReadLimit).
 		SetDiskSeriesReadLimitOpts(diskSeriesReadLimit).
+		SetAggregateDocsLimitOpts(aggDocsLimit).
 		SetInstrumentOptions(iOpts)
 	if builder := opts.SourceLoggerBuilder(); builder != nil {
 		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
 	}
-	queryLimits, err := limits.NewQueryLimits(limitOpts)
-	if err != nil {
-		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
-	}
-	queryLimits.Start()
-	defer queryLimits.Stop()
-	seriesReadPermits := permits.NewLookbackLimitPermitsManager(iOpts,
-		diskSeriesReadLimit,
-		"disk-series-read",
-		limitOpts.SourceLoggerBuilder(),
-		// TODO: Add appropriate tags here.
-		map[string]string{},
-	)
-	seriesReadPermits.Start()
-	defer seriesReadPermits.Stop()
+	opts = opts.SetLimitsOptions(limitOpts)
 
-	opts = opts.SetPermitsOptions(opts.PermitsOptions().
-		SetSeriesReadPermitsManager(seriesReadPermits))
+	seriesReadPermits := permits.NewLookbackLimitPermitsManager(
+		"disk-series-read",
+		diskSeriesReadLimit,
+		iOpts,
+		limitOpts.SourceLoggerBuilder(),
+	)
+
+	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
+	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
+	if cfg.Index.MaxQueryIDsConcurrency > 0 {
+		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
+		logger.Info("max index query IDs concurrency set",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
+	} else {
+		logger.Info("max index query IDs concurrency was not set, falling back to default value",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
+	}
+	maxWorkerTime := time.Second
+	if cfg.Index.MaxWorkerTime > 0 {
+		maxWorkerTime = cfg.Index.MaxWorkerTime
+		logger.Info("max index worker time set",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
+	} else {
+		logger.Info("max index worker time was not set, falling back to default value",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
+	}
+	opts = opts.SetPermitsOptions(permitOptions.SetIndexQueryPermitsManager(
+		permits.NewFixedPermitsManager(maxIdxConcurrency, int64(maxWorkerTime), iOpts)))
 
 	// Setup postings list cache.
 	var (
@@ -479,11 +493,10 @@ func Run(runOpts RunOptions) {
 				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
 	)
-	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
 		logger.Fatal("could not construct postings list cache", zap.Error(err))
 	}
-	defer stopReporting()
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
@@ -491,9 +504,20 @@ func Run(runOpts RunOptions) {
 		Scope: iOpts.MetricsScope(),
 	})
 
-	for _, transform := range runOpts.Transforms {
-		opts = transform(opts)
+	if runOpts.Transform != nil {
+		opts = runOpts.Transform(opts)
 	}
+
+	queryLimits, err := limits.NewQueryLimits(opts.LimitsOptions())
+	if err != nil {
+		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
+	}
+
+	queryLimits.Start()
+	defer queryLimits.Stop()
+	seriesReadPermits.Start()
+	defer seriesReadPermits.Stop()
+	defer postingsListCache.Start()()
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -510,6 +534,7 @@ func Run(runOpts RunOptions) {
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
+
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -726,7 +751,6 @@ func Run(runOpts RunOptions) {
 		SetTopologyInitializer(syncCfg.TopologyInitializer).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
-		SetTagDecoderPool(tagDecoderPool).
 		SetCheckedBytesWrapperPool(opts.CheckedBytesWrapperPool()).
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
@@ -778,8 +802,8 @@ func Run(runOpts RunOptions) {
 	debugListenAddress := cfg.DebugListenAddressOrDefault()
 	if debugListenAddress != "" {
 		var debugWriter xdebug.ZipWriter
-		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
-			queryconfig.Configuration{}, nil, iOpts)
+		handlerOpts, err := placementhandler.NewHandlerOptions(syncCfg.ClusterClient,
+			placement.Configuration{}, nil, iOpts)
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
@@ -789,7 +813,7 @@ func Run(runOpts RunOptions) {
 					zap.Error(err),
 					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
 			} else {
-				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+				debugWriter, err = extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 					cpuProfileDuration,
 					syncCfg.ClusterClient,
 					handlerOpts,
@@ -853,9 +877,10 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iOpts, tchannelOpts, syncCfg.TopologyInitializer,
+		cfg.Client, opts.ClockOptions(), iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-		syncCfg.KVStore, logger, runOpts.CustomOptions)
+		syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(), opts.IdentifierPool(),
+		logger, runOpts.CustomOptions)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -867,6 +892,7 @@ func Run(runOpts RunOptions) {
 	documentsBuilderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
@@ -889,9 +915,10 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iOpts, tchannelOpts, topologyInitializer,
+				clientCfg, opts.ClockOptions(), iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-				syncCfg.KVStore, logger, runOpts.CustomOptions)
+				syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(),
+				opts.IdentifierPool(), logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -905,8 +932,11 @@ func Run(runOpts RunOptions) {
 		repairOpts := opts.RepairOptions().
 			SetAdminClients(repairClients)
 
-		if cfg.Repair != nil {
+		if repairCfg := cfg.Repair; repairCfg != nil {
 			repairOpts = repairOpts.
+				SetType(repairCfg.Type).
+				SetStrategy(repairCfg.Strategy).
+				SetForce(repairCfg.Force).
 				SetResultOptions(rsOpts).
 				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
 			if cfg.Repair.Throttle > 0 {
@@ -914,6 +944,9 @@ func Run(runOpts RunOptions) {
 			}
 			if cfg.Repair.CheckInterval > 0 {
 				repairOpts = repairOpts.SetRepairCheckInterval(cfg.Repair.CheckInterval)
+			}
+			if cfg.Repair.Concurrency > 0 {
+				repairOpts = repairOpts.SetRepairShardConcurrency(cfg.Repair.Concurrency)
 			}
 
 			if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
@@ -1016,13 +1049,15 @@ func Run(runOpts RunOptions) {
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 		kvWatchQueryLimit(syncCfg.KVStore, logger,
-			queryLimits.DocsLimit(),
+			queryLimits.FetchDocsLimit(),
 			queryLimits.BytesReadLimit(),
 			// For backwards compatibility as M3 moves toward permits instead of time-based limits,
 			// the series-read path uses permits which are implemented with limits, and so we support
 			// dynamic updates to this limit-based permit still be passing downstream the limit itself.
 			seriesReadPermits.Limit,
-			limitOpts)
+			queryLimits.AggregateDocsLimit(),
+			limitOpts,
+		)
 	}()
 
 	// Wait for process interrupt.
@@ -1201,6 +1236,7 @@ func kvWatchQueryLimit(
 	docsLimit limits.LookbackLimit,
 	bytesReadLimit limits.LookbackLimit,
 	diskSeriesReadLimit limits.LookbackLimit,
+	aggregateDocsLimit limits.LookbackLimit,
 	defaultOpts limits.Options,
 ) {
 	value, err := store.Get(kvconfig.QueryLimits)
@@ -1208,7 +1244,9 @@ func kvWatchQueryLimit(
 		dynamicLimits := &kvpb.QueryLimits{}
 		err = value.Unmarshal(dynamicLimits)
 		if err == nil {
-			updateQueryLimits(logger, docsLimit, bytesReadLimit, diskSeriesReadLimit, dynamicLimits, defaultOpts)
+			updateQueryLimits(
+				logger, docsLimit, bytesReadLimit, diskSeriesReadLimit,
+				aggregateDocsLimit, dynamicLimits, defaultOpts)
 		}
 	} else if !errors.Is(err, kv.ErrNotFound) {
 		logger.Warn("error resolving query limit", zap.Error(err))
@@ -1228,18 +1266,20 @@ func kvWatchQueryLimit(
 					logger.Warn("unable to parse new query limits", zap.Error(err))
 					continue
 				}
-				updateQueryLimits(logger,
-					docsLimit, bytesReadLimit, diskSeriesReadLimit,
-					dynamicLimits, defaultOpts)
+				updateQueryLimits(
+					logger, docsLimit, bytesReadLimit, diskSeriesReadLimit,
+					aggregateDocsLimit, dynamicLimits, defaultOpts)
 			}
 		}
 	}()
 }
 
-func updateQueryLimits(logger *zap.Logger,
+func updateQueryLimits(
+	logger *zap.Logger,
 	docsLimit limits.LookbackLimit,
 	bytesReadLimit limits.LookbackLimit,
 	diskSeriesReadLimit limits.LookbackLimit,
+	aggregateDocsLimit limits.LookbackLimit,
 	dynamicOpts *kvpb.QueryLimits,
 	configOpts limits.Options,
 ) {
@@ -1249,6 +1289,7 @@ func updateQueryLimits(logger *zap.Logger,
 		docsLimitOpts           = configOpts.DocsLimitOpts()
 		bytesReadLimitOpts      = configOpts.BytesReadLimitOpts()
 		diskSeriesReadLimitOpts = configOpts.DiskSeriesReadLimitOpts()
+		aggDocsLimitOpts        = configOpts.AggregateDocsLimitOpts()
 	)
 	if dynamicOpts != nil {
 		if dynamicOpts.MaxRecentlyQueriedSeriesBlocks != nil {
@@ -1259,6 +1300,9 @@ func updateQueryLimits(logger *zap.Logger,
 		}
 		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
 			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskRead)
+		}
+		if dynamicOpts.MaxRecentlyQueriedMetadataRead != nil {
+			aggDocsLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedMetadataRead)
 		}
 	}
 
@@ -1272,6 +1316,10 @@ func updateQueryLimits(logger *zap.Logger,
 
 	if err := updateQueryLimit(diskSeriesReadLimit, diskSeriesReadLimitOpts); err != nil {
 		logger.Error("error updating series read limit", zap.Error(err))
+	}
+
+	if err := updateQueryLimit(aggregateDocsLimit, aggDocsLimitOpts); err != nil {
+		logger.Error("error updating metadata read limit", zap.Error(err))
 	}
 }
 
@@ -1292,6 +1340,7 @@ func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimit
 		Limit:         dynamicLimit.Limit,
 		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
 		ForceExceeded: dynamicLimit.ForceExceeded,
+		ForceWaited:   dynamicLimit.ForceWaited,
 	}
 }
 
@@ -1478,11 +1527,11 @@ func withEncodingAndPoolingOptions(
 	iOpts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
-	// Set the max bytes pool byte slice alloc size for the thrift pooling.
-	thriftBytesAllocSize := policy.ThriftBytesPoolAllocSizeOrDefault()
-	logger.Info("set thrift bytes pool alloc size",
-		zap.Int("size", thriftBytesAllocSize))
-	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
+	// Set the byte slice capacities for the thrift pooling.
+	thriftBytesAllocSizes := policy.ThriftBytesPoolAllocSizesOrDefault()
+	logger.Info("set thrift bytes pool slice sizes",
+		zap.Ints("sizes", thriftBytesAllocSizes))
+	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSizes...)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("bytes-pool")))
@@ -1501,7 +1550,7 @@ func withEncodingAndPoolingOptions(
 
 		logger.Info("bytes pool configured",
 			zap.Int("capacity", bucket.CapacityOrDefault()),
-			zap.Int("size", bucket.SizeOrDefault()),
+			zap.Int("size", int(bucket.SizeOrDefault())),
 			zap.Float64("refillLowWaterMark", bucket.RefillLowWaterMarkOrDefault()),
 			zap.Float64("refillHighWaterMark", bucket.RefillHighWaterMarkOrDefault()))
 	}
@@ -1564,14 +1613,10 @@ func withEncodingAndPoolingOptions(
 			policy.IteratorPool,
 			scope.SubScope("multi-iterator-pool")))
 
-	var writeBatchPoolInitialBatchSize *int
+	writeBatchPoolInitialBatchSize := 0
 	if policy.WriteBatchPool.InitialBatchSize != nil {
 		// Use config value if available.
-		writeBatchPoolInitialBatchSize = policy.WriteBatchPool.InitialBatchSize
-	} else {
-		// Otherwise use the default batch size that the client will use.
-		clientDefaultSize := client.DefaultWriteBatchSize
-		writeBatchPoolInitialBatchSize = &clientDefaultSize
+		writeBatchPoolInitialBatchSize = *policy.WriteBatchPool.InitialBatchSize
 	}
 
 	var writeBatchPoolMaxBatchSize *int
@@ -1589,7 +1634,10 @@ func withEncodingAndPoolingOptions(
 		// writes without allocating because these objects are very expensive to
 		// allocate.
 		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
-		expectedBatchSize := *writeBatchPoolInitialBatchSize
+		expectedBatchSize := writeBatchPoolInitialBatchSize
+		if expectedBatchSize == 0 {
+			expectedBatchSize = client.DefaultWriteBatchSize
+		}
 		writeBatchPoolSize = commitlogQueueSize / expectedBatchSize
 	}
 
@@ -1648,25 +1696,26 @@ func withEncodingAndPoolingOptions(
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).
 		SetSegmentReaderPool(segmentReaderPool).
-		SetCheckedBytesWrapperPool(bytesWrapperPool)
+		SetCheckedBytesWrapperPool(bytesWrapperPool).
+		SetMetrics(encoding.NewMetrics(scope))
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
-			enc := proto.NewEncoder(time.Time{}, encodingOpts)
+			enc := proto.NewEncoder(0, encodingOpts)
 			return enc
 		}
 
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	iteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	iteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
 			return proto.NewIterator(r, descr, encodingOpts)
 		}
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
-	multiIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	multiIteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := iteratorPool.Get()
 		iter.Reset(r, descr)
 		return iter
@@ -1729,7 +1778,7 @@ func withEncodingAndPoolingOptions(
 			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+		return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)
@@ -1814,6 +1863,7 @@ func withEncodingAndPoolingOptions(
 
 func newAdminClient(
 	config client.Configuration,
+	clockOpts clock.Options,
 	iOpts instrument.Options,
 	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
@@ -1822,6 +1872,9 @@ func newAdminClient(
 	protoEnabled bool,
 	schemaRegistry namespace.SchemaRegistry,
 	kvStore kv.Store,
+	contextPool xcontext.Pool,
+	checkedBytesPool pool.CheckedBytesPool,
+	identifierPool ident.Pool,
 	logger *zap.Logger,
 	custom []client.CustomAdminOption,
 ) (client.AdminClient, error) {
@@ -1840,7 +1893,13 @@ func newAdminClient(
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
+			return opts.SetContextPool(contextPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetCheckedBytesPool(checkedBytesPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetIdentifierPool(identifierPool).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetOrigin(origin).(client.AdminOptions)
@@ -1859,6 +1918,7 @@ func newAdminClient(
 	options = append(options, custom...)
 	m3dbClient, err := config.NewAdminClient(
 		client.ConfigurationParameters{
+			ClockOptions: clockOpts,
 			InstrumentOptions: iOpts.
 				SetMetricsScope(iOpts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topologyInitializer,
@@ -1888,7 +1948,7 @@ func poolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1897,6 +1957,8 @@ func poolOptions(
 				SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1916,7 +1978,7 @@ func capacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1924,6 +1986,8 @@ func capacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))
@@ -1943,7 +2007,7 @@ func maxCapacityPoolOptions(
 	)
 
 	if size > 0 {
-		opts = opts.SetSize(size)
+		opts = opts.SetSize(int(size))
 		if refillLowWaterMark > 0 &&
 			refillHighWaterMark > 0 &&
 			refillHighWaterMark > refillLowWaterMark {
@@ -1951,6 +2015,8 @@ func maxCapacityPoolOptions(
 			opts = opts.SetRefillHighWatermark(refillHighWaterMark)
 		}
 	}
+	opts = opts.SetDynamic(size.IsDynamic())
+
 	if scope != nil {
 		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope))

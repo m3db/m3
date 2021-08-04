@@ -31,6 +31,7 @@ import (
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -149,7 +150,7 @@ func Run(opts RunOptions) {
 	// Create the aggregator.
 	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(
 		serverOptions.RawTCPAddr(),
-		client, serverOptions, runtimeOptsManager,
+		client, serverOptions, runtimeOptsManager, clock.NewOptions(),
 		instrumentOpts.SetMetricsScope(scope.SubScope("aggregator")))
 	if err != nil {
 		logger.Fatal("error creating aggregator options", zap.Error(err))

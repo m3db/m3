@@ -32,9 +32,21 @@ func TestReset(t *testing.T) {
 	require.NoError(t, err)
 	now := time.Now()
 	dp := Datapoint{Value: 1000, TimeNanos: now.UnixNano()}
-	this, other := reset.Evaluate(dp)
+	resolution := 30 * time.Second
+	this, other := reset.Evaluate(dp, resolution)
 	require.Equal(t, dp, this)
-	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(time.Second).UnixNano()}, other)
+	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(15 * time.Second).UnixNano()}, other)
+}
+
+func TestResetAtLeast1Nanosecond(t *testing.T) {
+	reset, err := Reset.UnaryMultiOutputTransform()
+	require.NoError(t, err)
+	now := time.Now()
+	dp := Datapoint{Value: 1000, TimeNanos: now.UnixNano()}
+	resolution := 1 * time.Nanosecond
+	this, other := reset.Evaluate(dp, resolution)
+	require.Equal(t, dp, this)
+	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(1 * time.Nanosecond).UnixNano()}, other)
 }
 
 func TestUnaryMultiParse(t *testing.T) {

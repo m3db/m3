@@ -13,7 +13,11 @@ run:
   tests: true
 
   # list of build tags, all linters use it. Default is empty list.
-  build-tags: []
+  build-tags:
+    - big
+    - compatibility
+    - dtest
+    - integration
 
   # which dirs to skip: they won't be analyzed;
   # can use regexp here: generated.*, regexp is applied on full path;
@@ -231,6 +235,8 @@ linters:
     - dogsled
     # There are functions with complexity required.
     - gocyclo
+    # Doesn't buy us much being super opinionated on how to name test functions.
+    - thelper
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
@@ -303,4 +309,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: origin/master
+  new-from-rev: 30e1c10d456af9d3778288cfb7c247ecd06a4339

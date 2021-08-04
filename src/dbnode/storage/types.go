@@ -38,11 +38,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -54,7 +54,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -106,7 +105,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -117,8 +116,8 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		tags ident.TagIterator,
-		timestamp time.Time,
+		tagResolver convert.TagMetadataResolver,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -174,7 +173,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 	) (series.BlockReaderIter, error)
 
 	// WideQuery performs a wide blockwise query that provides batched results
@@ -183,7 +182,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		query index.Query,
-		start time.Time,
+		start xtime.UnixNano,
 		shards []uint32,
 		iterOpts index.IterationOptions,
 	) ([]xio.WideEntry, error) // FIXME: change when exact type known.
@@ -206,7 +205,7 @@ type Database interface {
 		namespace ident.ID,
 		shard uint32,
 		id ident.ID,
-		starts []time.Time,
+		starts []xtime.UnixNano,
 	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves blocks metadata for a given shard, returns the
@@ -216,7 +215,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		shard uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		limit int64,
 		pageToken PageToken,
 		opts block.FetchBlocksMetadataOptions,
@@ -247,7 +246,7 @@ type Database interface {
 	BootstrapState() DatabaseBootstrapState
 
 	// FlushState returns the flush state for the specified shard and block start.
-	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
+	FlushState(namespace ident.ID, shardID uint32, blockStart xtime.UnixNano) (fileOpState, error)
 
 	// AggregateTiles does large tile aggregation from source namespace to target namespace.
 	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error)
@@ -319,7 +318,7 @@ type Namespace interface {
 	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		filter schema.WideEntryFilter,
 	) (block.StreamedWideEntry, error)
 }
@@ -354,13 +353,13 @@ type databaseNamespace interface {
 	OwnedShards() []databaseShard
 
 	// Tick performs any regular maintenance operations.
-	Tick(c context.Cancellable, startTime time.Time) error
+	Tick(c context.Cancellable, startTime xtime.UnixNano) error
 
 	// Write writes a data point.
 	Write(
 		ctx context.Context,
 		id ident.ID,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -370,8 +369,8 @@ type databaseNamespace interface {
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
-		tags ident.TagIterator,
-		timestamp time.Time,
+		tagResolver convert.TagMetadataResolver,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -395,7 +394,7 @@ type databaseNamespace interface {
 	ReadEncoded(
 		ctx context.Context,
 		id ident.ID,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 	) (series.BlockReaderIter, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -404,14 +403,14 @@ type databaseNamespace interface {
 		ctx context.Context,
 		shardID uint32,
 		id ident.ID,
-		starts []time.Time,
+		starts []xtime.UnixNano,
 	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves blocks metadata.
 	FetchBlocksMetadataV2(
 		ctx context.Context,
 		shardID uint32,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		limit int64,
 		pageToken PageToken,
 		opts block.FetchBlocksMetadataOptions,
@@ -426,7 +425,7 @@ type databaseNamespace interface {
 	Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
-	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
+	WarmFlush(blockStart xtime.UnixNano, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
@@ -439,18 +438,18 @@ type databaseNamespace interface {
 	) error
 
 	// Snapshot snapshots unflushed in-memory WarmWrites.
-	Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error
+	Snapshot(blockStart, snapshotTime xtime.UnixNano, flush persist.SnapshotPreparer) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
-	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) (bool, error)
+	NeedsFlush(alignedInclusiveStart xtime.UnixNano, alignedInclusiveEnd xtime.UnixNano) (bool, error)
 
 	// Truncate truncates the in-memory data for this namespace.
 	Truncate() (int64, error)
 
-	// Repair repairs the namespace data for a given time range
-	Repair(repairer databaseShardRepairer, tr xtime.Range) error
+	// Repair repairs the namespace data for a given time range.
+	Repair(repairer databaseShardRepairer, tr xtime.Range, opts NamespaceRepairOptions) error
 
 	// BootstrapState returns namespaces' bootstrap state.
 	BootstrapState() BootstrapState
@@ -459,16 +458,16 @@ type databaseNamespace interface {
 	ShardBootstrapState() ShardBootstrapStates
 
 	// FlushState returns the flush state for the specified shard and block start.
-	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
+	FlushState(shardID uint32, blockStart xtime.UnixNano) (fileOpState, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (result SeriesReadWriteRef, owned bool, err error)
+	) (result bootstrap.SeriesRefResolver, owned bool, err error)
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
@@ -481,19 +480,9 @@ type databaseNamespace interface {
 	) (int64, error)
 }
 
-// SeriesReadWriteRef is a read/write reference for a series,
-// must make sure to release
-type SeriesReadWriteRef struct {
-	// Series reference for read/writing.
-	Series bootstrap.SeriesRef
-	// UniqueIndex is the unique index of the series (as applicable).
-	UniqueIndex uint64
-	// Shard is the shard of the series.
-	Shard uint32
-	// ReleaseReadWriteRef must be called after using the series ref
-	// to release the reference count to the series so it can
-	// be expired by the owning shard eventually.
-	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
+// NamespaceRepairOptions is a set of repair options for repairing a namespace.
+type NamespaceRepairOptions struct {
+	Force bool
 }
 
 // Shard is a time series database shard.
@@ -512,7 +501,7 @@ type Shard interface {
 
 	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
 	// on the latest volume of the given block.
-	OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error)
+	OpenStreamingReader(blockStart xtime.UnixNano) (fs.DataFileSetReader, error)
 }
 
 type databaseShard interface {
@@ -521,19 +510,19 @@ type databaseShard interface {
 	// OnEvictedFromWiredList is the same as block.Owner. Had to duplicate
 	// it here because mockgen chokes on embedded interfaces sometimes:
 	// https://github.com/golang/mock/issues/10
-	OnEvictedFromWiredList(id ident.ID, blockStart time.Time)
+	OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano)
 
 	// Close will release the shard resources and close the shard.
 	Close() error
 
 	// Tick performs all async updates
-	Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error)
+	Tick(c context.Cancellable, startTime xtime.UnixNano, nsCtx namespace.Context) (tickResult, error)
 
 	// Write writes a value to the shard for an ID.
 	Write(
 		ctx context.Context,
 		id ident.ID,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -544,8 +533,8 @@ type databaseShard interface {
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
-		tags ident.TagIterator,
-		timestamp time.Time,
+		tagResolver convert.TagMetadataResolver,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -555,7 +544,7 @@ type databaseShard interface {
 	ReadEncoded(
 		ctx context.Context,
 		id ident.ID,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		nsCtx namespace.Context,
 	) (series.BlockReaderIter, error)
 
@@ -564,7 +553,7 @@ type databaseShard interface {
 	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
 	) (block.StreamedWideEntry, error)
@@ -574,7 +563,7 @@ type databaseShard interface {
 	FetchBlocks(
 		ctx context.Context,
 		id ident.ID,
-		starts []time.Time,
+		starts []xtime.UnixNano,
 		nsCtx namespace.Context,
 	) ([]block.FetchBlockResult, error)
 
@@ -584,7 +573,7 @@ type databaseShard interface {
 	FetchBlocksForColdFlush(
 		ctx context.Context,
 		seriesID ident.ID,
-		start time.Time,
+		start xtime.UnixNano,
 		version int,
 		nsCtx namespace.Context,
 	) (block.FetchBlockResult, error)
@@ -592,7 +581,7 @@ type databaseShard interface {
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
 	FetchBlocksMetadataV2(
 		ctx context.Context,
-		start, end time.Time,
+		start, end xtime.UnixNano,
 		limit int64,
 		pageToken PageToken,
 		opts block.FetchBlocksMetadataOptions,
@@ -617,7 +606,7 @@ type databaseShard interface {
 
 	// WarmFlush flushes the WarmWrites in this shard.
 	WarmFlush(
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		flush persist.FlushPreparer,
 		nsCtx namespace.Context,
 	) error
@@ -632,17 +621,17 @@ type databaseShard interface {
 
 	// Snapshot snapshot's the unflushed WarmWrites in this shard.
 	Snapshot(
-		blockStart time.Time,
-		snapshotStart time.Time,
+		blockStart xtime.UnixNano,
+		snapshotStart xtime.UnixNano,
 		flush persist.SnapshotPreparer,
 		nsCtx namespace.Context,
 	) (ShardSnapshotResult, error)
 
 	// FlushState returns the flush state for this shard at block start.
-	FlushState(blockStart time.Time) (fileOpState, error)
+	FlushState(blockStart xtime.UnixNano) (fileOpState, error)
 
 	// CleanupExpiredFileSets removes expired fileset files.
-	CleanupExpiredFileSets(earliestToRetain time.Time) error
+	CleanupExpiredFileSets(earliestToRetain xtime.UnixNano) error
 
 	// CleanupCompactedFileSets removes fileset files that have been compacted,
 	// meaning that there exists a more recent, superset, fully persisted
@@ -658,13 +647,13 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// SeriesRefResolver returns a series ref resolver, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(
+	SeriesRefResolver(
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (bootstrap.SeriesRefResolver, error)
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Metadata, bool, error)
@@ -680,7 +669,7 @@ type databaseShard interface {
 	) (int64, error)
 
 	// LatestVolume returns the latest volume for the combination of shard+blockStart.
-	LatestVolume(blockStart time.Time) (int, error)
+	LatestVolume(blockStart xtime.UnixNano) (int, error)
 }
 
 // ShardSnapshotResult is a result from a shard snapshot.
@@ -702,12 +691,12 @@ type NamespaceIndex interface {
 	// BlockStartForWriteTime returns the index block start
 	// time for the given writeTime.
 	BlockStartForWriteTime(
-		writeTime time.Time,
+		writeTime xtime.UnixNano,
 	) xtime.UnixNano
 
 	// BlockForBlockStart returns an index block for a block start.
 	BlockForBlockStart(
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 	) (index.Block, error)
 
 	// WriteBatch indexes the provided entries.
@@ -752,14 +741,17 @@ type NamespaceIndex interface {
 
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated
 	// using the provided `t` as the frame of reference.
-	CleanupExpiredFileSets(t time.Time) error
+	CleanupExpiredFileSets(t xtime.UnixNano) error
+
+	// CleanupCorruptedFileSets removes corrupted fileset files.
+	CleanupCorruptedFileSets() error
 
 	// CleanupDuplicateFileSets removes duplicate fileset files.
-	CleanupDuplicateFileSets() error
+	CleanupDuplicateFileSets(activeShards []uint32) error
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
-	Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error)
+	Tick(c context.Cancellable, startTime xtime.UnixNano) (namespaceIndexTickResult, error)
 
 	// WarmFlush performs any warm flushes that the index has outstanding using
 	// the owned shards of the database.
@@ -839,6 +831,9 @@ type databaseBootstrapManager interface {
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() (BootstrapResult, error)
 
+	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
+	BootstrapEnqueue() *BootstrapAsyncResult
+
 	// Report reports runtime information.
 	Report()
 }
@@ -849,10 +844,41 @@ type BootstrapResult struct {
 	AlreadyBootstrapping bool
 }
 
+// BootstrapAsyncResult is a bootstrap async result.
+type BootstrapAsyncResult struct {
+	bootstrapStarted   *sync.WaitGroup
+	bootstrapCompleted *sync.WaitGroup
+	bootstrapResult    BootstrapResult
+}
+
+func newBootstrapAsyncResult() *BootstrapAsyncResult {
+	var (
+		wgStarted   sync.WaitGroup
+		wgCompleted sync.WaitGroup
+	)
+	wgStarted.Add(1)
+	wgCompleted.Add(1)
+	return &BootstrapAsyncResult{
+		bootstrapStarted:   &wgStarted,
+		bootstrapCompleted: &wgCompleted,
+	}
+}
+
+// Result will wait for bootstrap to complete and return BootstrapResult.
+func (b *BootstrapAsyncResult) Result() BootstrapResult {
+	b.bootstrapCompleted.Wait()
+	return b.bootstrapResult
+}
+
+// WaitForStart waits until bootstrap has been started.
+func (b *BootstrapAsyncResult) WaitForStart() {
+	b.bootstrapStarted.Wait()
+}
+
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(startTime time.Time) error
+	Flush(startTime xtime.UnixNano) error
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
@@ -867,10 +893,10 @@ type databaseFlushManager interface {
 // and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
 	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
-	WarmFlushCleanup(t time.Time, isBootstrapped bool) error
+	WarmFlushCleanup(t xtime.UnixNano) error
 
 	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
-	ColdFlushCleanup(t time.Time, isBootstrapped bool) error
+	ColdFlushCleanup(t xtime.UnixNano) error
 
 	// Report reports runtime information.
 	Report()
@@ -879,7 +905,7 @@ type databaseCleanupManager interface {
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time) error
+	Flush(t xtime.UnixNano) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status.
@@ -893,11 +919,7 @@ type databaseFileSystemManager interface {
 
 	// Run attempts to perform all filesystem-related operations,
 	// returning true if those operations are performed, and false otherwise.
-	Run(
-		t time.Time,
-		runType runType,
-		forceType forceType,
-	) bool
+	Run(t xtime.UnixNano) bool
 
 	// Report reports runtime information.
 	Report()
@@ -923,7 +945,7 @@ type databaseColdFlushManager interface {
 
 	// Run attempts to perform all cold flush related operations,
 	// returning true if those operations are performed, and false otherwise.
-	Run(t time.Time) bool
+	Run(t xtime.UnixNano) bool
 }
 
 // databaseShardRepairer repairs in-memory data for a shard.
@@ -953,6 +975,21 @@ type BackgroundProcess interface {
 	Report()
 }
 
+// FileOpsProcess is a background process that is run by the database.
+type FileOpsProcess interface {
+	// Start launches the FileOpsProcess to run asynchronously.
+	Start()
+}
+
+// FileOpsProcessFn is a file ops process function.
+type FileOpsProcessFn func()
+
+// Start starts file ops process function.
+func (f FileOpsProcessFn) Start() {
+	// delegate to the anonymous function.
+	f()
+}
+
 // databaseRepairer repairs in-memory database data.
 type databaseRepairer interface {
 	BackgroundProcess
@@ -966,7 +1003,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(forceType forceType, startTime time.Time) error
+	Tick(forceType forceType, startTime xtime.UnixNano) error
 }
 
 // databaseMediator mediates actions among various database managers.
@@ -980,12 +1017,18 @@ type databaseMediator interface {
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
 
+	// IsOpen returns whether mediator is opened.
+	IsOpen() bool
+
 	// LastBootstrapCompletionTime returns the last bootstrap completion time,
 	// if any.
 	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
+
+	// BootstrapEnqueue bootstraps the database asynchronously with file operations performed at the end.
+	BootstrapEnqueue() *BootstrapAsyncResult
 
 	// DisableFileOpsAndWait disables file operations.
 	DisableFileOpsAndWait()
@@ -994,7 +1037,7 @@ type databaseMediator interface {
 	EnableFileOps()
 
 	// Tick performs a tick.
-	Tick(forceType forceType, startTime time.Time) error
+	Tick(forceType forceType, startTime xtime.UnixNano) error
 
 	// Close closes the mediator.
 	Close() error
@@ -1005,11 +1048,21 @@ type databaseMediator interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
+
+	// EnqueueMutuallyExclusiveFn enqueues function to be executed mutually exclusively,
+	// when file operations are idle.
+	EnqueueMutuallyExclusiveFn(fn func()) error
+}
+
+// ColdFlushNsOpts are options for OnColdFlush.ColdFlushNamespace.
+type ColdFlushNsOpts interface {
+	// ReuseResources enables reuse of per-namespace reusable resources.
+	ReuseResources() bool
 }
 
 // OnColdFlush can perform work each time a series is flushed.
 type OnColdFlush interface {
-	ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error)
+	ColdFlushNamespace(ns Namespace, opts ColdFlushNsOpts) (OnColdFlushNamespace, error)
 }
 
 // OnColdFlushNamespace performs work on a per namespace level.
@@ -1217,12 +1270,6 @@ type Options interface {
 	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool.
 	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
 
-	// SetQueryIDsWorkerPool sets the QueryIDs worker pool.
-	SetQueryIDsWorkerPool(value xsync.WorkerPool) Options
-
-	// QueryIDsWorkerPool returns the QueryIDs worker pool.
-	QueryIDsWorkerPool() xsync.WorkerPool
-
 	// SetWriteBatchPool sets the WriteBatch pool.
 	SetWriteBatchPool(value *writes.WriteBatchPool) Options
 
@@ -1356,6 +1403,12 @@ type Options interface {
 
 	// SetPermitsOptions sets the permits options.
 	SetPermitsOptions(value permits.Options) Options
+
+	// LimitsOptions returns the limit options.
+	LimitsOptions() limits.Options
+
+	// SetLimitsOptions sets the limits options.
+	SetLimitsOptions(value limits.Options) Options
 }
 
 // MemoryTracker tracks memory.
@@ -1421,7 +1474,7 @@ type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
-	Start, End time.Time
+	Start, End xtime.UnixNano
 	// Step is the downsampling step.
 	Step       time.Duration
 	InsOptions instrument.Options

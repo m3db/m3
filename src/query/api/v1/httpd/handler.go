@@ -27,6 +27,9 @@ import (
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
@@ -35,33 +38,26 @@ import (
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prom"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
-	"github.com/m3db/m3/src/x/headers"
+	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-	"github.com/m3db/m3/src/x/net/http/cors"
 
 	"github.com/gorilla/mux"
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/util/httputil"
+	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
 )
 
 const (
 	healthURL = "/health"
 	routesURL = "/routes"
-	// EngineHeaderName defines header name which is used to switch between
-	// prometheus and m3query engines.
-	EngineHeaderName = headers.M3HeaderPrefix + "Engine"
+
 	// EngineURLParam defines query url parameter which is used to switch between
 	// prometheus and m3query engines.
 	EngineURLParam = "engine"
@@ -77,11 +73,12 @@ var (
 
 // Handler represents the top-level HTTP handler.
 type Handler struct {
-	registry       *queryhttp.EndpointRegistry
-	handler        http.Handler
-	options        options.HandlerOptions
-	customHandlers []options.CustomHandler
-	logger         *zap.Logger
+	registry         *queryhttp.EndpointRegistry
+	handler          *mux.Router
+	options          options.HandlerOptions
+	customHandlers   []options.CustomHandler
+	logger           *zap.Logger
+	middlewareConfig config.MiddlewareConfiguration
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -92,43 +89,21 @@ func (h *Handler) Router() http.Handler {
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
 	handlerOptions options.HandlerOptions,
+	middlewareConfig config.MiddlewareConfiguration,
 	customHandlers ...options.CustomHandler,
 ) *Handler {
-	r := mux.NewRouter()
-	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
-	logger := handlerOptions.InstrumentOpts().Logger()
-
-	instrumentOpts := handlerOptions.InstrumentOpts().SetMetricsScope(
-		handlerOptions.InstrumentOpts().MetricsScope().SubScope("http_handler"))
+	var (
+		r        = mux.NewRouter()
+		logger   = handlerOptions.InstrumentOpts().Logger()
+		registry = queryhttp.NewEndpointRegistry(r)
+	)
 	return &Handler{
-		registry:       queryhttp.NewEndpointRegistry(r, instrumentOpts),
-		handler:        handlerWithMiddleware,
-		options:        handlerOptions,
-		customHandlers: customHandlers,
-		logger:         logger,
-	}
-}
-
-func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
-	withMiddleware := http.Handler(&cors.Handler{
-		Handler: base,
-		Info: &cors.Info{
-			"*": true,
-		},
-	})
-
-	// Apply OpenTracing compatible middleware, which will start a span
-	// for each incoming request.
-	withMiddleware = nethttp.Middleware(tracer, withMiddleware,
-		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
-		}))
-
-	// NB: wrap the handler with a `CompressionHandler`; this allows all
-	// routes to support `Accept-Encoding:gzip` and `Accept-Encoding:deflate`
-	// requests with the given compression types.
-	return httputil.CompressionHandler{
-		Handler: withMiddleware,
+		registry:         registry,
+		handler:          r,
+		options:          handlerOptions,
+		customHandlers:   customHandlers,
+		logger:           logger,
+		middlewareConfig: middlewareConfig,
 	}
 }
 
@@ -197,48 +172,54 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Query routable endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    native.PromReadURL,
-		Handler: h.options.QueryRouter(),
-		Methods: native.PromReadHTTPMethods,
+		Path:               native.PromReadURL,
+		Handler:            h.options.QueryRouter(),
+		Methods:            native.PromReadHTTPMethods,
+		MiddlewareOverride: native.WithRangeQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    native.PromReadInstantURL,
-		Handler: h.options.InstantQueryRouter(),
-		Methods: native.PromReadInstantHTTPMethods,
+		Path:               native.PromReadInstantURL,
+		Handler:            h.options.InstantQueryRouter(),
+		Methods:            native.PromReadInstantHTTPMethods,
+		MiddlewareOverride: native.WithInstantQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
 
 	// Prometheus endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    "/prometheus" + native.PromReadURL,
-		Handler: promqlQueryHandler,
-		Methods: native.PromReadHTTPMethods,
+		Path:               "/prometheus" + native.PromReadURL,
+		Handler:            promqlQueryHandler,
+		Methods:            native.PromReadHTTPMethods,
+		MiddlewareOverride: native.WithRangeQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    "/prometheus" + native.PromReadInstantURL,
-		Handler: promqlInstantQueryHandler,
-		Methods: native.PromReadInstantHTTPMethods,
+		Path:               "/prometheus" + native.PromReadInstantURL,
+		Handler:            promqlInstantQueryHandler,
+		Methods:            native.PromReadInstantHTTPMethods,
+		MiddlewareOverride: native.WithInstantQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
 
 	// M3Query endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    "/m3query" + native.PromReadURL,
-		Handler: nativePromReadHandler,
-		Methods: native.PromReadHTTPMethods,
+		Path:               "/m3query" + native.PromReadURL,
+		Handler:            nativePromReadHandler,
+		Methods:            native.PromReadHTTPMethods,
+		MiddlewareOverride: native.WithRangeQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    "/m3query" + native.PromReadInstantURL,
-		Handler: nativePromReadInstantHandler,
-		Methods: native.PromReadInstantHTTPMethods,
+		Path:               "/m3query" + native.PromReadInstantURL,
+		Handler:            nativePromReadInstantHandler,
+		Methods:            native.PromReadInstantHTTPMethods,
+		MiddlewareOverride: native.WithInstantQueryParamsAndRangeRewriting,
 	}); err != nil {
 		return err
 	}
@@ -256,7 +237,8 @@ func (h *Handler) RegisterRoutes() error {
 		Handler: promRemoteWriteHandler,
 		Methods: methods(remote.PromWriteHTTPMethod),
 		// Register with no response logging for write calls since so frequent.
-	}, logging.WithNoResponseLog()); err != nil {
+		MiddlewareOverride: middleware.WithNoResponseLogging,
+	}); err != nil {
 		return err
 	}
 
@@ -266,7 +248,8 @@ func (h *Handler) RegisterRoutes() error {
 		Handler: influxdb.NewInfluxWriterHandler(h.options),
 		Methods: methods(influxdb.InfluxWriteHTTPMethod),
 		// Register with no response logging for write calls since so frequent.
-	}, logging.WithNoResponseLog()); err != nil {
+		MiddlewareOverride: middleware.WithNoResponseLogging,
+	}); err != nil {
 		return err
 	}
 
@@ -297,25 +280,28 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Tag completion endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    native.CompleteTagsURL,
-		Handler: native.NewCompleteTagsHandler(h.options),
-		Methods: methods(native.CompleteTagsHTTPMethod),
+		Path:               native.CompleteTagsURL,
+		Handler:            native.NewCompleteTagsHandler(h.options),
+		Methods:            methods(native.CompleteTagsHTTPMethod),
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    remote.TagValuesURL,
-		Handler: remote.NewTagValuesHandler(h.options),
-		Methods: methods(remote.TagValuesHTTPMethod),
+		Path:               remote.TagValuesURL,
+		Handler:            remote.NewTagValuesHandler(h.options),
+		Methods:            methods(remote.TagValuesHTTPMethod),
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
 
 	// List tag endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    native.ListTagsURL,
-		Handler: native.NewListTagsHandler(h.options),
-		Methods: native.ListTagsHTTPMethods,
+		Path:               native.ListTagsURL,
+		Handler:            native.NewListTagsHandler(h.options),
+		Methods:            native.ListTagsHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
@@ -338,9 +324,10 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Series match endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:    remote.PromSeriesMatchURL,
-		Handler: remote.NewPromSeriesMatchHandler(h.options),
-		Methods: remote.PromSeriesMatchHTTPMethods,
+		Path:               remote.PromSeriesMatchURL,
+		Handler:            remote.NewPromSeriesMatchHandler(h.options),
+		Methods:            remote.PromSeriesMatchHTTPMethods,
+		MiddlewareOverride: native.WithQueryParams,
 	}); err != nil {
 		return err
 	}
@@ -382,7 +369,7 @@ func (h *Handler) RegisterRoutes() error {
 		placementServices = append(placementServices, service)
 	}
 
-	debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+	debugWriter, err := extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 		h.options.CPUProfileDuration(),
 		clusterClient,
 		placementOpts,
@@ -403,17 +390,22 @@ func (h *Handler) RegisterRoutes() error {
 
 	if clusterClient != nil {
 		err = database.RegisterRoutes(h.registry, clusterClient,
-			h.options.Config(), h.options.EmbeddedDbCfg(),
+			h.options.Config(), h.options.EmbeddedDBCfg(),
 			serviceOptionDefaults, instrumentOpts,
 			h.options.NamespaceValidator(), h.options.KVStoreProtoParser())
 		if err != nil {
 			return err
 		}
 
-		err = placement.RegisterRoutes(h.registry,
-			serviceOptionDefaults, placementOpts)
-		if err != nil {
-			return err
+		routes := placementhandler.MakeRoutes(serviceOptionDefaults, placementOpts)
+		for _, route := range routes {
+			err := h.registry.RegisterPaths(route.Paths, queryhttp.RegisterPathsOptions{
+				Handler: route.Handler,
+				Methods: route.Methods,
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		err = namespace.RegisterRoutes(h.registry, clusterClient,
@@ -457,14 +449,15 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
+	customMiddle := make(map[*mux.Route]middleware.OverrideOptions)
 	// Register custom endpoints last to have these conflict with
 	// any existing routes.
 	for _, custom := range h.customHandlers {
 		for _, method := range custom.Methods() {
 			var prevHandler http.Handler
-			route, prevRoute := h.registry.PathRoute(custom.Route(), method)
+			entry, prevRoute := h.registry.PathEntry(custom.Route(), method)
 			if prevRoute {
-				prevHandler = route.GetHandler()
+				prevHandler = entry.GetHandler()
 			}
 
 			handler, err := custom.Handler(nativeSourceOpts, prevHandler)
@@ -474,27 +467,74 @@ func (h *Handler) RegisterRoutes() error {
 
 			if !prevRoute {
 				if err := h.registry.Register(queryhttp.RegisterOptions{
-					Path:    custom.Route(),
-					Handler: handler,
-					Methods: methods(method),
+					Path:               custom.Route(),
+					Handler:            handler,
+					Methods:            methods(method),
+					MiddlewareOverride: custom.MiddlewareOverride(),
 				}); err != nil {
 					return err
 				}
 			} else {
-				// Do not re-instrument this route since the prev handler
-				// is already instrumented.
-				route.Handler(handler)
+				customMiddle[entry] = custom.MiddlewareOverride()
+				entry.Handler(handler)
 			}
 		}
+	}
+
+	// NB: the double http_handler was accidentally introduced and now we are
+	// stuck with it for backwards compatibility.
+	middleIOpts := instrumentOpts.SetMetricsScope(
+		h.options.InstrumentOpts().MetricsScope().SubScope("http_handler_http_handler"))
+
+	// Apply middleware after the custom handlers have overridden the previous handlers so the middleware functions
+	// are dispatched before the custom handler.
+	// req -> middleware fns -> custom handler -> previous handler.
+	err = h.registry.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		handler := route.GetHandler()
+		opts := middleware.Options{
+			InstrumentOpts: middleIOpts,
+			Route:          route,
+			Clock:          clockwork.NewRealClock(),
+			Logging:        middleware.NewLoggingOptions(h.middlewareConfig.Logging),
+			Metrics: middleware.MetricsOptions{
+				Config: h.middlewareConfig.Metrics,
+			},
+			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
+				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),
+				ResolutionMultiplier: h.middlewareConfig.Prometheus.ResolutionMultiplier,
+				Storage:              h.options.Storage(),
+			},
+		}
+		override := h.registry.MiddlewareOpts(route)
+		if override != nil {
+			opts = override(opts)
+		}
+		if customMiddle[route] != nil {
+			opts = customMiddle[route](opts)
+		}
+		middle := h.options.RegisterMiddleware()(opts)
+
+		// iterate through in reverse order so each Middleware fn gets the proper next handler to dispatch. this ensures the
+		// Middleware is dispatched in the expected order (first -> last).
+		for i := len(middle) - 1; i >= 0; i-- {
+			handler = middle[i].Middleware(handler)
+		}
+
+		route.Handler(handler)
+		return nil
+	})
+
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (h *Handler) placementOpts() (placement.HandlerOptions, error) {
-	return placement.NewHandlerOptions(
+func (h *Handler) placementOpts() (placementhandler.HandlerOptions, error) {
+	return placementhandler.NewHandlerOptions(
 		h.options.ClusterClient(),
-		h.options.Config(),
+		h.options.Config().ClusterManagement.Placement,
 		h.m3AggServiceOptions(),
 		h.options.InstrumentOpts(),
 	)
@@ -530,8 +570,10 @@ func (h *Handler) registerHealthEndpoints() error {
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(struct {
 				Uptime string `json:"uptime"`
+				Now    string `json:"now"`
 			}{
 				Uptime: time.Since(h.options.CreatedAt()).String(),
+				Now:    time.Now().String(),
 			})
 		}),
 		Methods: methods(http.MethodGet),

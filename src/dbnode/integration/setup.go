@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -50,6 +51,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -59,6 +61,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -86,7 +89,7 @@ var (
 )
 
 // nowSetterFn is the function that sets the current time
-type nowSetterFn func(t time.Time)
+type nowSetterFn func(t xtime.UnixNano)
 
 type assertTestDataEqual func(t *testing.T, expected, actual []generate.TestValue) bool
 
@@ -109,7 +112,8 @@ type testSetup struct {
 	origin            topology.Host
 	topoInit          topology.Initializer
 	shardSet          sharding.ShardSet
-	getNowFn          clock.NowFn
+	getNowFn          xNowFn
+	clockNowFn        clock.NowFn
 	setNowFn          nowSetterFn
 	tchannelClient    *TestTChannelClient
 	m3dbClient        client.Client
@@ -131,11 +135,11 @@ type testSetup struct {
 	namespaces     []namespace.Metadata
 
 	// signals
-	doneCh chan struct {
-	}
-	closedCh chan struct {
-	}
+	doneCh   chan struct{}
+	closedCh chan struct{}
 }
+
+type xNowFn func() xtime.UnixNano
 
 // TestSetup is a test setup.
 type TestSetup interface {
@@ -161,10 +165,12 @@ type TestSetup interface {
 	Origin() topology.Host
 	ServerIsBootstrapped() bool
 	StopServer() error
+	StopServerAndVerifyOpenFilesAreClosed() error
 	StartServer() error
 	StartServerDontWaitBootstrap() error
-	NowFn() clock.NowFn
-	SetNowFn(time.Time)
+	NowFn() xNowFn
+	ClockNowFn() clock.NowFn
+	SetNowFn(xtime.UnixNano)
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
@@ -277,7 +283,7 @@ func NewTestSetup(
 		indexMode = index.InsertAsync
 	}
 
-	plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+	plCache, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
 		InstrumentOptions: iOpts,
 	})
 	if err != nil {
@@ -285,7 +291,7 @@ func NewTestSetup(
 	}
 	// Ok to run immediately since it just closes the background reporting loop. Only ok because
 	// this is a test setup, in production we would want the metrics.
-	stopReporting()
+	plCache.Start()()
 
 	indexOpts := storageOpts.IndexOptions().
 		SetInsertMode(indexMode).
@@ -295,14 +301,15 @@ func NewTestSetup(
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
 	runtimeOpts := runtimeOptsMgr.Get().
 		SetTickMinimumInterval(opts.TickMinimumInterval()).
+		SetTickCancellationCheckInterval(opts.TickCancellationCheckInterval()).
 		SetMaxWiredBlocks(opts.MaxWiredBlocks()).
 		SetWriteNewSeriesAsync(opts.WriteNewSeriesAsync())
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
 		return nil, err
 	}
 
-	// Set up shard set
-	shardSet, err := newTestShardSet(opts.NumShards())
+	// Set up shard set.
+	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -350,14 +357,17 @@ func NewTestSetup(
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(truncateSize)
-	getNowFn := func() time.Time {
+	now := xtime.Now().Truncate(truncateSize)
+	getNowFn := func() xtime.UnixNano {
 		lock.RLock()
 		t := now
 		lock.RUnlock()
 		return t
 	}
-	setNowFn := func(t time.Time) {
+	clockNowFn := func() time.Time {
+		return getNowFn().ToTime()
+	}
+	setNowFn := func(t xtime.UnixNano) {
 		lock.Lock()
 		now = t
 		lock.Unlock()
@@ -368,7 +378,7 @@ func NewTestSetup(
 			storageOpts.ClockOptions().SetNowFn(overrideTimeNow))
 	} else {
 		storageOpts = storageOpts.SetClockOptions(
-			storageOpts.ClockOptions().SetNowFn(getNowFn))
+			storageOpts.ClockOptions().SetNowFn(clockNowFn))
 	}
 
 	// Set up file path prefix
@@ -451,7 +461,7 @@ func NewTestSetup(
 		// Have to manually set the blockpool because the default one uses a constructor
 		// function that doesn't have the updated blockOpts.
 		blockPool.Init(func() block.DatabaseBlock {
-			return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+			return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 		})
 		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
@@ -488,6 +498,7 @@ func NewTestSetup(
 		topoInit:                    topoInit,
 		shardSet:                    shardSet,
 		getNowFn:                    getNowFn,
+		clockNowFn:                  clockNowFn,
 		setNowFn:                    setNowFn,
 		tchannelClient:              tchanClient,
 		m3dbClient:                  adminClient.(client.Client),
@@ -576,11 +587,15 @@ func (ts *testSetup) Namespaces() []namespace.Metadata {
 	return ts.namespaces
 }
 
-func (ts *testSetup) NowFn() clock.NowFn {
+func (ts *testSetup) NowFn() xNowFn {
 	return ts.getNowFn
 }
 
-func (ts *testSetup) SetNowFn(t time.Time) {
+func (ts *testSetup) ClockNowFn() clock.NowFn {
+	return ts.clockNowFn
+}
+
+func (ts *testSetup) SetNowFn(t xtime.UnixNano) {
 	ts.setNowFn(t)
 }
 
@@ -651,7 +666,7 @@ func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options 
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
 		opts        = generate.NewOptions()
-		co          = opts.ClockOptions().SetNowFn(ts.getNowFn)
+		co          = opts.ClockOptions().SetNowFn(ts.clockNowFn)
 	)
 
 	return opts.
@@ -799,6 +814,29 @@ func (ts *testSetup) StopServer() error {
 	// Wait for graceful server close
 	<-ts.closedCh
 	return nil
+}
+
+func (ts *testSetup) StopServerAndVerifyOpenFilesAreClosed() error {
+	if err := ts.DB().Close(); err != nil {
+		return err
+	}
+
+	openDataFiles := openFiles(ts.filePathPrefix + "/data/")
+	require.Empty(ts.t, openDataFiles)
+
+	return ts.StopServer()
+}
+
+// counts open/locked files inside parent dir.
+func openFiles(parentDir string) []string {
+	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
+
+	out, _ := cmd.Output()
+	if len(out) == 0 {
+		return nil
+	}
+
+	return strings.Split(string(out), "\n")
 }
 
 func (ts *testSetup) TChannelClient() *TestTChannelClient {
@@ -1111,7 +1149,7 @@ func newNodes(
 
 	nodeOpt := BootstrappableTestSetupOptions{
 		DisablePeersBootstrapper: true,
-		FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		FinalBootstrapper:        uninitialized.UninitializedTopologyBootstrapperName,
 		TopologyInitializer:      topoInit,
 	}
 

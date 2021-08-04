@@ -32,6 +32,7 @@ import (
 	encoding "github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,7 +142,7 @@ func TestWideSeriesResults(t *testing.T) {
 	var (
 		max       = 31
 		blockSize = time.Hour * 2
-		now       = time.Now().Truncate(blockSize)
+		now       = xtime.Now().Truncate(blockSize)
 	)
 
 	// Test many different permutations of element count and batch sizes.
@@ -210,7 +211,7 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 		doneCh  = make(chan struct{})
 
 		blockSize = time.Hour * 2
-		now       = time.Now().Truncate(blockSize)
+		now       = xtime.Now().Truncate(blockSize)
 	)
 
 	docs := buildDocs(documentCount, docBatchSize)

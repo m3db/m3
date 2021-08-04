@@ -22,12 +22,14 @@ package native
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
+	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
@@ -35,19 +37,18 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
 
 const (
 	// ListTagsURL is the url for listing tags.
-	ListTagsURL = handler.RoutePrefixV1 + "/labels"
+	ListTagsURL = route.Prefix + "/labels"
 )
 
-var (
-	// ListTagsHTTPMethods are the HTTP methods for this handler.
-	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// ListTagsHTTPMethods are the HTTP methods for this handler.
+var ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 // ListTagsHandler represents a handler for list tags endpoint.
 type ListTagsHandler struct {
@@ -106,8 +107,8 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query := &storage.CompleteTagsQuery{
 		CompleteNameOnly: true,
 		TagMatchers:      tagMatchers,
-		Start:            start,
-		End:              end,
+		Start:            xtime.ToUnixNano(start),
+		End:              xtime.ToUnixNano(end),
 	}
 
 	logger := logging.WithContext(ctx, h.instrumentOpts)
@@ -115,14 +116,48 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
+		if errors.IsTimeout(err) {
+			err = errors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 		return
 	}
 
-	handleroptions.AddResponseHeaders(w, result.Metadata, opts)
-	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
-		logger.Error("unable to render results", zap.Error(err))
+	err = handleroptions.AddDBResultResponseHeaders(w, result.Metadata, opts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
+	}
+
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
+	var (
+		noopWriter = ioutil.Discard
+		renderOpts = prometheus.RenderSeriesMetadataOptions{
+			ReturnedSeriesMetadataLimit: opts.ReturnedSeriesMetadataLimit,
+		}
+	)
+	renderResult, err := prometheus.RenderListTagResultsJSON(noopWriter, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render list tags results", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	limited := &handleroptions.ReturnedMetadataLimited{
+		Results:      renderResult.Results,
+		TotalResults: renderResult.TotalResults,
+		Limited:      renderResult.LimitedMaxReturnedData,
+	}
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to write returned limit response headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	_, err = prometheus.RenderListTagResultsJSON(w, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render list tags results", zap.Error(err))
 	}
 }

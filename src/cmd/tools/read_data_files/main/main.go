@@ -21,7 +21,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -30,12 +29,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
@@ -69,7 +70,7 @@ func main() {
 		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 		idFilter       = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
 		benchmark      = getopt.StringLong(
-			"benchmark", 'B', "", "benchmark mode (optional), [series/datapoints]")
+			"benchmark", 'B', "", "benchmark mode (optional), [series|datapoints]")
 	)
 	getopt.Parse()
 
@@ -110,17 +111,17 @@ func main() {
 		log.Fatalf("unknown benchmark type: %s", *benchmark)
 	}
 
-	bytesPool := tools.NewCheckedBytesPool()
-	bytesPool.Init()
-
+	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
+	var bytesPool pool.CheckedBytesPool
 	encodingOpts := encoding.NewOptions().SetBytesPool(bytesPool)
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
 	var (
-		seriesCount    = 0
-		datapointCount = 0
-		start          = time.Now()
+		seriesCount         = 0
+		datapointCount      = 0
+		annotationSizeTotal uint64
+		start               = time.Now()
 	)
 
 	reader, err := fs.NewReader(bytesPool, fsOpts)
@@ -132,10 +133,11 @@ func main() {
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   ident.StringID(*optNamespace),
 			Shard:       *optShard,
-			BlockStart:  time.Unix(0, *optBlockstart),
+			BlockStart:  xtime.UnixNano(*optBlockstart),
 			VolumeIndex: int(*volume),
 		},
-		FileSetType: fileSetType,
+		FileSetType:      fileSetType,
+		StreamingEnabled: true,
 	}
 
 	err = reader.Open(openOpts)
@@ -144,7 +146,7 @@ func main() {
 	}
 
 	for {
-		id, _, data, _, err := reader.Read()
+		entry, err := reader.StreamingRead()
 		if err == io.EOF {
 			break
 		}
@@ -152,49 +154,59 @@ func main() {
 			log.Fatalf("err reading metadata: %v", err)
 		}
 
+		var (
+			id   = entry.ID
+			data = entry.Data
+		)
+
 		if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
 			continue
 		}
 
 		if benchMode != benchmarkSeries {
-			data.IncRef()
-
-			iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
+			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
 			for iter.Next() {
 				dp, _, annotation := iter.Current()
 				if benchMode == benchmarkNone {
 					// Use fmt package so it goes to stdout instead of stderr
-					fmt.Printf("{id: %s, dp: %+v", id.String(), dp)
+					fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
 					if len(annotation) > 0 {
-						fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(annotation))
+						fmt.Printf(", annotation: %s", // nolint: forbidigo
+							base64.StdEncoding.EncodeToString(annotation))
 					}
-					fmt.Println("}")
+					fmt.Println("}") // nolint: forbidigo
 				}
+				annotationSizeTotal += uint64(len(annotation))
 				datapointCount++
 			}
 			if err := iter.Err(); err != nil {
 				log.Fatalf("unable to iterate original data: %v", err)
 			}
 			iter.Close()
-
-			data.DecRef()
 		}
 
-		data.Finalize()
 		seriesCount++
 	}
 
 	if benchMode != benchmarkNone {
 		runTime := time.Since(start)
-		fmt.Printf("Running time: %s\n", runTime)
-		fmt.Printf("\n%d series read\n", seriesCount)
+		fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
+		fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
 		if runTime > 0 {
-			fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds())
+			fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
 		}
 
 		if benchMode == benchmarkDatapoints {
-			fmt.Printf("\n%d datapoints decoded\n", datapointCount)
-			fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds())
+			fmt.Printf("\n%d datapoints decoded\n", datapointCount) // nolint: forbidigo
+			if runTime > 0 {
+				fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds()) // nolint: forbidigo
+			}
+
+			fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
 		}
+	}
+
+	if err := reader.Close(); err != nil {
+		log.Fatalf("unable to close reader: %v", err)
 	}
 }

@@ -22,8 +22,6 @@ package encoding
 
 import (
 	"fmt"
-	"io"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -54,12 +52,12 @@ func (e *nullEncoder) LastEncoded() (ts.Datapoint, error) {
 func (e *nullEncoder) LastAnnotationChecksum() (uint64, error) {
 	return 0, fmt.Errorf("not implemented")
 }
-func (e *nullEncoder) Len() int                                                     { return 0 }
-func (e *nullEncoder) Seal()                                                        { e.sealed = true }
-func (e *nullEncoder) Reset(t time.Time, capacity int, descr namespace.SchemaDescr) {}
-func (e *nullEncoder) Close()                                                       {}
-func (e *nullEncoder) Discard() ts.Segment                                          { return ts.Segment{} }
-func (e *nullEncoder) DiscardReset(t time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
+func (e *nullEncoder) Len() int                                         { return 0 }
+func (e *nullEncoder) Seal()                                            { e.sealed = true }
+func (e *nullEncoder) Reset(xtime.UnixNano, int, namespace.SchemaDescr) {}
+func (e *nullEncoder) Close()                                           {}
+func (e *nullEncoder) Discard() ts.Segment                              { return ts.Segment{} }
+func (e *nullEncoder) DiscardReset(xtime.UnixNano, int, namespace.SchemaDescr) ts.Segment {
 	return ts.Segment{}
 }
 func (e *nullEncoder) SetSchema(_ namespace.SchemaDescr) {}
@@ -74,7 +72,8 @@ func NewNullReaderIterator() ReaderIterator {
 func (r *nullReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	return ts.Datapoint{}, xtime.Unit(0), nil
 }
-func (r *nullReaderIterator) Next() bool                                          { return false }
-func (r *nullReaderIterator) Err() error                                          { return fmt.Errorf("not implemented") }
-func (r *nullReaderIterator) Close()                                              {}
-func (r *nullReaderIterator) Reset(reader io.Reader, descr namespace.SchemaDescr) {}
+func (r *nullReaderIterator) Next() bool { return false }
+func (r *nullReaderIterator) Err() error { return fmt.Errorf("not implemented") }
+func (r *nullReaderIterator) Close()     {}
+func (r *nullReaderIterator) Reset(xio.Reader64, namespace.SchemaDescr) {
+}

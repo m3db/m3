@@ -61,6 +61,9 @@ const (
 	// defaultTickMinimumInterval is the default minimum tick interval.
 	defaultTickMinimumInterval = 1 * time.Second
 
+	// defaultTickCancellationCheckInterval is the default minimum tick cancellation check interval.
+	defaultTickCancellationCheckInterval = 1 * time.Second
+
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = false
 
@@ -118,6 +121,12 @@ type TestOptions interface {
 
 	// TickMinimumInterval returns the tick interval.
 	TickMinimumInterval() time.Duration
+
+	// SetTickCancellationCheckInterval sets the tick cancellation check interval.
+	SetTickCancellationCheckInterval(value time.Duration) TestOptions
+
+	// TickCancellationCheckInterval returns the tick cancellation check interval.
+	TickCancellationCheckInterval() time.Duration
 
 	// SetHTTPClusterAddr sets the http cluster address.
 	SetHTTPClusterAddr(value string) TestOptions
@@ -258,6 +267,12 @@ type TestOptions interface {
 	// SetNumShards sets the number of shards to use.
 	SetNumShards(value int) TestOptions
 
+	// ShardSetOptions returns the test shard set options.
+	ShardSetOptions() *TestShardSetOptions
+
+	// SetShardSetOptions returns the test shard set options.
+	SetShardSetOptions(value *TestShardSetOptions) TestOptions
+
 	// MaxWiredBlocks returns the maximum number of wired blocks to keep in memory using the LRU cache.
 	MaxWiredBlocks() uint
 
@@ -319,6 +334,7 @@ type options struct {
 	nsInitializer                      namespace.Initializer
 	id                                 string
 	tickMinimumInterval                time.Duration
+	tickCancellationCheckInterval      time.Duration
 	httpClusterAddr                    string
 	tchannelClusterAddr                string
 	httpNodeAddr                       string
@@ -337,6 +353,7 @@ type options struct {
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
+	shardSetOptions                    *TestShardSetOptions
 	maxWiredBlocks                     uint
 	customClientAdminOptions           []client.CustomAdminOption
 	useTChannelClientForReading        bool
@@ -368,6 +385,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 		namespaces:                     namespaces,
 		id:                             defaultID,
 		tickMinimumInterval:            defaultTickMinimumInterval,
+		tickCancellationCheckInterval:  defaultTickCancellationCheckInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
@@ -425,6 +443,16 @@ func (o *options) SetTickMinimumInterval(value time.Duration) TestOptions {
 
 func (o *options) TickMinimumInterval() time.Duration {
 	return o.tickMinimumInterval
+}
+
+func (o *options) SetTickCancellationCheckInterval(value time.Duration) TestOptions {
+	opts := *o
+	opts.tickCancellationCheckInterval = value
+	return &opts
+}
+
+func (o *options) TickCancellationCheckInterval() time.Duration {
+	return o.tickCancellationCheckInterval
 }
 
 func (o *options) SetHTTPClusterAddr(value string) TestOptions {
@@ -636,6 +664,16 @@ func (o *options) NumShards() int {
 func (o *options) SetNumShards(value int) TestOptions {
 	opts := *o
 	opts.numShards = value
+	return &opts
+}
+
+func (o *options) ShardSetOptions() *TestShardSetOptions {
+	return o.shardSetOptions
+}
+
+func (o *options) SetShardSetOptions(value *TestShardSetOptions) TestOptions {
+	opts := *o
+	opts.shardSetOptions = value
 	return &opts
 }
 

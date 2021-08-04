@@ -23,9 +23,9 @@ package database
 
 import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
@@ -44,13 +44,13 @@ func RegisterRoutes(
 	r *queryhttp.EndpointRegistry,
 	client clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 	namespaceValidator options.NamespaceValidator,
 	kvStoreProtoParser options.KVStoreProtoParser,
 ) error {
-	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
+	createHandler, err := NewCreateHandler(client, cfg, embeddedDBCfg,
 		defaults, instrumentOpts, namespaceValidator)
 	if err != nil {
 		return err

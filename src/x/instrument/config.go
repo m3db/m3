@@ -103,6 +103,8 @@ type NewRootScopeAndReportersOptions struct {
 	PrometheusHandlerListener    net.Listener
 	PrometheusExternalRegistries []PrometheusExternalRegistry
 	PrometheusOnError            func(e error)
+	// CommonLabels will be appended to every metric gathered.
+	CommonLabels map[string]string
 }
 
 // NewRootScopeAndReporters creates a new tally.Scope based on a tally.CachedStatsReporter
@@ -161,6 +163,7 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			ExternalRegistries: opts.PrometheusExternalRegistries,
 			HandlerListener:    opts.PrometheusHandlerListener,
 			OnError:            onError,
+			CommonLabels:       opts.CommonLabels,
 		}
 
 		// Use default instrument package default histogram buckets if not set.

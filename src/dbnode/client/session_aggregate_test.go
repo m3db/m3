@@ -32,8 +32,10 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +44,7 @@ import (
 
 var (
 	testSessionAggregateQuery     = index.Query{idx.NewTermQuery([]byte("a"), []byte("b"))}
-	testSessionAggregateQueryOpts = func(t0, t1 time.Time) index.AggregationOptions {
+	testSessionAggregateQueryOpts = func(t0, t1 xtime.UnixNano) index.AggregationOptions {
 		return index.AggregationOptions{
 			QueryOptions: index.QueryOptions{StartInclusive: t0, EndExclusive: t1},
 			Type:         index.AggregateTagNamesAndValues,
@@ -93,7 +95,7 @@ func TestSessionAggregateNotOpenError(t *testing.T) {
 	opts := newSessionTestOptions()
 	s, err := newSession(opts)
 	assert.NoError(t, err)
-	t0 := time.Now()
+	t0 := xtime.Now()
 
 	_, _, err = s.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(t0, t0))
@@ -110,7 +112,7 @@ func TestSessionAggregateGuardAgainstInvalidCall(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
@@ -138,7 +140,7 @@ func TestSessionAggregateGuardAgainstNilHost(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
@@ -166,7 +168,7 @@ func TestSessionAggregateGuardAgainstInvalidHost(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	host := topology.NewHost("some-random-host", "some-random-host:12345")
@@ -195,7 +197,7 @@ func TestSessionAggregateIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	topoInit := opts.TopologyInitializer()
@@ -250,7 +252,7 @@ func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	require.Equal(t, 3, sessionTestReplicas) // the code below assumes this
@@ -282,10 +284,11 @@ func TestSessionAggregateIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, _, err = session.Aggregate(testContext(), ident.StringID("namespace"),
-		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
-	assert.Error(t, err)
-	assert.NoError(t, session.Close())
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _, _ = session.Aggregate(testContext(), ident.StringID("namespace"),
+			testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
+	})
 }
 
 func TestSessionAggregateMergeTest(t *testing.T) {
@@ -298,7 +301,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	var (
@@ -306,7 +309,6 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 		sg0       = newTestSerieses(1, 10)
 		sg1       = newTestSerieses(6, 15)
 		sg2       = newTestSerieses(11, 15)
-		th        = newTestFetchTaggedHelper(t)
 	)
 	sg0.addDatapoints(numPoints, start, end)
 	sg1.addDatapoints(numPoints, start, end)
@@ -327,7 +329,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg0.toRPCAggResult(th, start, true),
+									response: sg0.toRPCAggResult(true),
 								}, nil)
 							}()
 						},
@@ -341,7 +343,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg1.toRPCAggResult(th, start, false),
+									response: sg1.toRPCAggResult(false),
 								}, nil)
 							}()
 						},
@@ -355,7 +357,7 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg2.toRPCAggResult(th, start, true),
+									response: sg2.toRPCAggResult(true),
 								}, nil)
 							}()
 						},
@@ -407,7 +409,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
 	var (
@@ -415,7 +417,6 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 		sg0       = newTestSerieses(1, 5)
 		sg1       = newTestSerieses(6, 10)
 		sg2       = newTestSerieses(11, 15)
-		th        = newTestFetchTaggedHelper(t)
 	)
 	sg0.addDatapoints(numPoints, start, end)
 	sg1.addDatapoints(numPoints, start, end)
@@ -445,7 +446,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg0.toRPCAggResult(th, start, true),
+									response: sg0.toRPCAggResult(true),
 								}, nil)
 							}()
 						},
@@ -468,7 +469,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg1.toRPCAggResult(th, start, false),
+									response: sg1.toRPCAggResult(false),
 								}, nil)
 							}()
 						},
@@ -491,7 +492,7 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 							go func() {
 								op.CompletionFn()(aggregateResultAccumulatorOpts{
 									host:     topoMap.Hosts()[idx],
-									response: sg2.toRPCAggResult(th, start, true),
+									response: sg2.toRPCAggResult(true),
 								}, nil)
 							}()
 						},

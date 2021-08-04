@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ func TestPadValuesWithNans(t *testing.T) {
 	// When padding necessary adds enough NaNs
 	vals := bucketColumn{1}
 	actual := padValuesWithNaNs(vals, 4)
-	test.EqualsWithNans(t,
+	compare.EqualsWithNans(t,
 		[]float64{1, math.NaN(), math.NaN(), math.NaN()},
 		[]float64(actual),
 	)
@@ -47,12 +48,12 @@ func TestPadValuesWithNans(t *testing.T) {
 	// When no padding necessary should do nothing
 	vals = bucketColumn{1, 2, 3, 4}
 	actual = padValuesWithNaNs(vals, 4)
-	test.EqualsWithNans(t, []float64{1, 2, 3, 4}, []float64(actual))
+	compare.EqualsWithNans(t, []float64{1, 2, 3, 4}, []float64(actual))
 
 	// When vals is longer than padding length, should do nothing
 	vals = bucketColumn{1, 2, 3, 4, 5}
 	actual = padValuesWithNaNs(vals, 4)
-	test.EqualsWithNans(t, []float64{1, 2, 3, 4, 5}, []float64(actual))
+	compare.EqualsWithNans(t, []float64{1, 2, 3, 4, 5}, []float64(actual))
 }
 
 func TestCountValuesFn(t *testing.T) {
@@ -81,9 +82,9 @@ func processCountValuesOp(
 	vals [][]float64,
 ) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, vals)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(countValuesOp).Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 	return sink
 }
@@ -119,7 +120,7 @@ func TestSimpleProcessCountValuesFunctionUnfiltered(t *testing.T) {
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	ex := test.TagSliceToTags([]models.Tag{{Name: []byte(tagName), Value: []byte("0")}})
 	assert.Equal(t, ex.Tags, sink.Meta.Tags.Tags)
-	test.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
@@ -143,7 +144,7 @@ func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	exTags := test.TagSliceToTags([]models.Tag{{Name: []byte(tagName), Value: []byte("0")}})
 	assert.Equal(t, exTags.Tags, sink.Meta.Tags.Tags)
-	test.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
@@ -195,7 +196,7 @@ func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, models.EmptyTags(), sink.Meta.Tags)
-	test.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
@@ -213,7 +214,7 @@ func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, test.TagSliceToTags([]models.Tag{{Name: []byte(tagName), Value: []byte("0")},
 		{Name: []byte("a"), Value: []byte("1")}}).Tags, sink.Meta.Tags.Tags)
-	test.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
@@ -299,7 +300,7 @@ func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	ex := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
 	assert.Equal(t, ex.Tags, sink.Meta.Tags.Tags)
-	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+	compare.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestShouldFailWhenInvalidLabelName(t *testing.T) {
@@ -308,9 +309,8 @@ func TestShouldFailWhenInvalidLabelName(t *testing.T) {
 		StringParameter: tagName,
 	})
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, simpleMetas, simpleVals)
-	c, _ := executor.NewControllerWithSink(parser.NodeID(1))
+	c, _ := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(countValuesOp).Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.Error(t, err)
 }
-

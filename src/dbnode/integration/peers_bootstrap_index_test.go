@@ -72,7 +72,10 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	setupOpts := []BootstrappableTestSetupOptions{
 		{DisablePeersBootstrapper: true},
-		{DisablePeersBootstrapper: false},
+		{
+			DisableCommitLogBootstrapper: true,
+			DisablePeersBootstrapper:     false,
+		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
@@ -197,7 +200,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		setups[1].FilesystemOpts(),
 	)
 	require.NoError(t, err)
-	numDocs, ok := numDocsPerBlockStart[xtime.ToUnixNano(now.Add(-2*blockSize).Truncate(blockSize))]
+	numDocs, ok := numDocsPerBlockStart[now.Add(-2*blockSize).Truncate(blockSize)]
 	require.True(t, ok)
 	require.Equal(t, numDocs, 1)
 }
@@ -212,11 +215,11 @@ func getNumDocsPerBlockStart(
 	fsOpts fs.Options,
 ) (map[xtime.UnixNano]int, error) {
 	numDocsPerBlockStart := make(map[xtime.UnixNano]int)
-	infoFiles := fs.ReadIndexInfoFiles(
-		fsOpts.FilePathPrefix(),
-		nsID,
-		fsOpts.InfoReaderBufferSize(),
-	)
+	infoFiles := fs.ReadIndexInfoFiles(fs.ReadIndexInfoFilesOptions{
+		FilePathPrefix:   fsOpts.FilePathPrefix(),
+		Namespace:        nsID,
+		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
+	})
 	// Grab the latest index info file for each blockstart.
 	latestIndexInfoPerBlockStart := make(map[xtime.UnixNano]indexInfo)
 	for _, f := range infoFiles {

@@ -25,13 +25,16 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/lexer"
-	xtest "github.com/m3db/m3/src/query/graphite/testing"
-	"github.com/m3db/m3/src/query/graphite/ts"
-
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/lexer"
+	"github.com/m3db/m3/src/query/graphite/storage"
+	graphitetest "github.com/m3db/m3/src/query/graphite/testing"
+	"github.com/m3db/m3/src/query/graphite/ts"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 type testCompile struct {
@@ -46,20 +49,27 @@ func defaultArgs(ctx *common.Context, b bool, f1, f2 float64, s string) (ts.Seri
 }
 
 func TestCompile1(t *testing.T) {
-	sortByName := findFunction("sortByName")
-	noArgs := findFunction("noArgs")
-	aliasByNode := findFunction("aliasByNode")
-	summarize := findFunction("summarize")
-	defaultArgs := findFunction("defaultArgs")
-	sumSeries := findFunction("sumSeries")
-	asPercent := findFunction("asPercent")
-	scale := findFunction("scale")
+	var (
+		sortByName        = findFunction("sortByName")
+		noArgs            = findFunction("noArgs")
+		aliasByNode       = findFunction("aliasByNode")
+		summarize         = findFunction("summarize")
+		defaultArgs       = findFunction("defaultArgs")
+		sumSeries         = findFunction("sumSeries")
+		asPercent         = findFunction("asPercent")
+		scale             = findFunction("scale")
+		logarithm         = findFunction("logarithm")
+		removeEmptySeries = findFunction("removeEmptySeries")
+		filterSeries      = findFunction("filterSeries")
+	)
 
 	tests := []testCompile{
 		{"", noopExpression{}},
 		{"foobar", newFetchExpression("foobar")},
-		{"foo.bar.{a,b,c}.baz-*.stat[0-9]",
-			newFetchExpression("foo.bar.{a,b,c}.baz-*.stat[0-9]")},
+		{
+			"foo.bar.{a,b,c}.baz-*.stat[0-9]",
+			newFetchExpression("foo.bar.{a,b,c}.baz-*.stat[0-9]"),
+		},
 		{"noArgs()", &funcExpression{&functionCall{f: noArgs}}},
 		{"sortByName(foo.bar.zed)", &funcExpression{
 			&functionCall{
@@ -273,14 +283,56 @@ func TestCompile1(t *testing.T) {
 				},
 			},
 		}},
+		{"logarithm(a.b.c)", &funcExpression{
+			&functionCall{
+				f: logarithm,
+				in: []funcArg{
+					newFetchExpression("a.b.c"),
+					newFloat64Const(10),
+				},
+			},
+		}},
+		{"removeEmptySeries(a.b.c)", &funcExpression{
+			&functionCall{
+				f: removeEmptySeries,
+				in: []funcArg{
+					newFetchExpression("a.b.c"),
+					newFloat64Const(0),
+				},
+			},
+		}},
+		{"filterSeries(a.b.c, 'max', '>', 1000)", &funcExpression{
+			&functionCall{
+				f: filterSeries,
+				in: []funcArg{
+					newFetchExpression("a.b.c"),
+					newStringConst("max"),
+					newStringConst(">"),
+					newFloat64Const(1000),
+				},
+			},
+		}},
 	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := common.NewTestContext()
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&storage.FetchResult{}, nil).AnyTimes()
+	ctx.Engine = NewEngine(store, CompileOptions{})
 
 	for _, test := range tests {
 		expr, err := Compile(test.input, CompileOptions{})
-		require.Nil(t, err, "error compiling: expression='%s', error='%v'", test.input, err)
+		require.NoError(t, err, "error compiling: expression='%s', error='%v'", test.input, err)
 		require.NotNil(t, expr)
 		assertExprTree(t, test.result, expr, fmt.Sprintf("invalid result for %s: %v vs %v",
 			test.input, test.result, expr))
+
+		// Ensure that the function can execute.
+		_, err = expr.Execute(ctx)
+		require.NoError(t, err)
 	}
 }
 
@@ -296,82 +348,119 @@ func TestCompileErrors(t *testing.T) {
 		{"foobar()", "invalid expression 'foobar()': could not find function named foobar"},
 		{"sortByName(foo.*.zed)junk", "invalid expression 'sortByName(foo.*.zed)junk': " +
 			"extra data junk"},
-		{"aliasByNode(",
-			"invalid expression 'aliasByNode(': unexpected eof while parsing aliasByNode"},
-		{"unknownFunc()",
-			"invalid expression 'unknownFunc()': could not find function named unknownFunc"},
-		{"aliasByNode(10)",
+		{
+			"aliasByNode(",
+			"invalid expression 'aliasByNode(': unexpected eof while parsing aliasByNode",
+		},
+		{
+			"unknownFunc()",
+			"invalid expression 'unknownFunc()': could not find function named unknownFunc",
+		},
+		{
+			"aliasByNode(10)",
 			"invalid expression 'aliasByNode(10)': invalid function call aliasByNode," +
-				" arg 0: expected a singlePathSpec, received '10'"},
-		{"sortByName(hello())",
+				" arg 0: expected a singlePathSpec, received a float64 '10'",
+		},
+		{
+			"sortByName(hello())",
 			"invalid expression 'sortByName(hello())': invalid function call " +
-				"sortByName, arg 0: expected a singlePathSpec, received 'hello()'"},
-		{"aliasByNode()",
+				"sortByName, arg 0: expected a singlePathSpec, received a functionCall 'hello()'",
+		},
+		{
+			"aliasByNode()",
 			"invalid expression 'aliasByNode()': invalid number of arguments for aliasByNode;" +
-				" expected at least 2, received 0"},
-		{"aliasByNode(foo.*.zed, 2, false)",
+				" expected at least 2, received 0",
+		},
+		{
+			"aliasByNode(foo.*.zed, 2, false)",
 			"invalid expression 'aliasByNode(foo.*.zed, 2, false)': invalid function call " +
-				"aliasByNode, arg 2: expected a int, received 'false'"},
-		{"aliasByNode(foo.*.bar,",
+				"aliasByNode, arg 2: expected a int, received a bool 'false'",
+		},
+		{
+			"aliasByNode(foo.*.bar,",
 			"invalid expression 'aliasByNode(foo.*.bar,': unexpected eof while" +
-				" parsing aliasByNode"},
-		{"aliasByNode(foo.*.bar,)",
+				" parsing aliasByNode",
+		},
+		{
+			"aliasByNode(foo.*.bar,)",
 			"invalid expression 'aliasByNode(foo.*.bar,)': invalid function call" +
-				" aliasByNode, arg 1: invalid expression 'aliasByNode(foo.*.bar,)': ) not valid"},
+				" aliasByNode, arg 1: invalid expression 'aliasByNode(foo.*.bar,)': ) not valid",
+		},
 		// TODO(jayp): Not providing all required parameters in a function with default parameters
 		// leads to an error message that states that a greater than required number of expected
 		// arguments. We could do better, but punting for now.
-		{"summarize(foo.bar.baz.quux)",
+		{
+			"summarize(foo.bar.baz.quux)",
 			"invalid expression 'summarize(foo.bar.baz.quux)':" +
-				" invalid number of arguments for summarize; expected 4, received 1"},
-		{"sumSeries(foo.bar.baz.quux,)",
+				" invalid number of arguments for summarize; expected 4, received 1",
+		},
+		{
+			"sumSeries(foo.bar.baz.quux,)",
 			"invalid expression 'sumSeries(foo.bar.baz.quux,)': invalid function call sumSeries, " +
-				"arg 1: invalid expression 'sumSeries(foo.bar.baz.quux,)': ) not valid"},
-		{"asPercent(foo.bar72.*.metrics.written, total",
+				"arg 1: invalid expression 'sumSeries(foo.bar.baz.quux,)': ) not valid",
+		},
+		{
+			"asPercent(foo.bar72.*.metrics.written, total",
 			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total': " +
 				"invalid function call asPercent, " +
 				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total': " +
-				"unexpected eof, total should be followed by = or ("},
-		{"asPercent(foo.bar72.*.metrics.written, total=",
+				"unexpected eof, total should be followed by = or (",
+		},
+		{
+			"asPercent(foo.bar72.*.metrics.written, total=",
 			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total=': " +
 				"invalid function call asPercent, " +
 				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total=': " +
-				"unexpected eof, named argument total should be followed by its value"},
-		{"asPercent(foo.bar72.*.metrics.written, total=randomStuff",
+				"unexpected eof, named argument total should be followed by its value",
+		},
+		{
+			"asPercent(foo.bar72.*.metrics.written, total=randomStuff",
 			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total=randomStuff': " +
 				"invalid function call asPercent, " +
 				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total=randomStuff': " +
-				"unexpected eof, randomStuff should be followed by = or ("},
-		{"asPercent(foo.bar72.*.metrics.written, total=sumSeries(",
+				"unexpected eof, randomStuff should be followed by = or (",
+		},
+		{
+			"asPercent(foo.bar72.*.metrics.written, total=sumSeries(",
 			"invalid expression 'asPercent(foo.bar72.*.metrics.written, total=sumSeries(': " +
 				"invalid function call asPercent, " +
 				"arg 1: invalid expression 'asPercent(foo.bar72.*.metrics.written, total=sumSeries(': " +
-				"unexpected eof while parsing sumSeries"},
-		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.e)",
+				"unexpected eof while parsing sumSeries",
+		},
+		{
+			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.e)",
 			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.e)': " +
 				"invalid function call scale, " +
 				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.e)': " +
-				"expected one of 0123456789, found ) not valid"},
-		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e)",
+				"expected one of 0123456789, found ) not valid",
+		},
+		{
+			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e)",
 			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e)': " +
 				"invalid function call scale, " +
 				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e)': " +
-				"expected one of 0123456789, found ) not valid"},
-		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .e)",
+				"expected one of 0123456789, found ) not valid",
+		},
+		{
+			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .e)",
 			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .e)': " +
 				"invalid function call scale, " +
 				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .e)': " +
-				"expected one of 0123456789, found e not valid"},
-		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)",
+				"expected one of 0123456789, found e not valid",
+		},
+		{
+			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)",
 			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)': " +
 				"invalid function call scale, " +
-				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)': " +
-				"could not find function named e"},
-		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)",
+				"arg 1: expected a float64, received a fetchExpression 'fetch(e)'",
+		},
+		{
+			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)",
 			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)': " +
 				"invalid function call scale, " +
 				"arg 1: invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)': " +
-				"expected one of 0123456789, found e not valid"},
+				"expected one of 0123456789, found e not valid",
+		},
 	}
 
 	for _, test := range tests {
@@ -406,7 +495,12 @@ func assertExprTree(t *testing.T, expected interface{}, actual interface{}, msg 
 	case constFuncArg:
 		a, ok := actual.(constFuncArg)
 		require.True(t, ok, msg)
-		xtest.Equalish(t, e.value.Interface(), a.value.Interface(), msg)
+		if !a.value.IsValid() {
+			// Explicit nil.
+			require.True(t, e.value.IsZero())
+		} else {
+			graphitetest.Equalish(t, e.value.Interface(), a.value.Interface(), msg)
+		}
 	default:
 		assert.Equal(t, expected, actual, msg)
 	}
@@ -475,7 +569,7 @@ func init() {
 	MustRegisterFunction(defaultArgs).WithDefaultParams(map[uint8]interface{}{
 		1: false,
 		2: math.NaN(),
-		3: 100,
+		3: 100.0,
 		4: "foobar",
 	})
 }
