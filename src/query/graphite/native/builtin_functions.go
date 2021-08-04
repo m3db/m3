@@ -1041,9 +1041,8 @@ func (impl *exponentialMovingAverageImpl) Evaluate(
 func roundTo(n float64, decimals int32) float64 {
 	if decimals < 0 {
 		return math.Round(n/math.Pow(10, math.Abs(float64(decimals)))) * math.Pow(10, math.Abs(float64(decimals)))
-	} else {
-		return math.Round(n*math.Pow(10, float64(decimals))) / math.Pow(10, float64(decimals))
 	}
+	return math.Round(n*math.Pow(10, float64(decimals))) / math.Pow(10, float64(decimals))
 }
 
 // totalFunc takes an index and returns a total value for that index
