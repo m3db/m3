@@ -813,6 +813,20 @@ func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
 	return m.recorder
 }
 
+// ColdWritesAtBlockStartExist mocks base method.
+func (m *MockOnIndexSeries) ColdWritesAtBlockStartExist(blockStart time0.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdWritesAtBlockStartExist", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ColdWritesAtBlockStartExist indicates an expected call of ColdWritesAtBlockStartExist.
+func (mr *MockOnIndexSeriesMockRecorder) ColdWritesAtBlockStartExist(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdWritesAtBlockStartExist", reflect.TypeOf((*MockOnIndexSeries)(nil).ColdWritesAtBlockStartExist), blockStart)
+}
+
 // DecrementReaderWriterCount mocks base method.
 func (m *MockOnIndexSeries) DecrementReaderWriterCount() {
 	m.ctrl.T.Helper()
@@ -1252,6 +1266,21 @@ func (m *MockBlock) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 func (mr *MockBlockMockRecorder) WriteBatch(inserts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockBlock)(nil).WriteBatch), inserts)
+}
+
+// WriteColdBatch mocks base method.
+func (m *MockBlock) WriteColdBatch(inserts *WriteBatch) (WriteBatchResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteColdBatch", inserts)
+	ret0, _ := ret[0].(WriteBatchResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WriteColdBatch indicates an expected call of WriteColdBatch.
+func (mr *MockBlockMockRecorder) WriteColdBatch(inserts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteColdBatch", reflect.TypeOf((*MockBlock)(nil).WriteColdBatch), inserts)
 }
 
 // MockBlockStatsReporter is a mock of BlockStatsReporter interface.

@@ -220,6 +220,9 @@ type Preparer interface {
 type FlushPreparer interface {
 	Preparer
 
+	// AppendDoneFlushFn appends a fn to be executed upon DoneFlush.
+	AppendDoneFlushFn(func())
+
 	// DoneFlush marks the data flush as complete.
 	DoneFlush() error
 }

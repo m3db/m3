@@ -427,7 +427,7 @@ type Block interface {
 	// EndTime returns the end time of the period this Block indexes.
 	EndTime() xtime.UnixNano
 
-	// WriteBatch writes a batch of provided entries.
+	// WriteBatch warm writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
 	// QueryWithIter processes n docs from the iterator into known IDs.

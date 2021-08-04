@@ -83,6 +83,7 @@ type persistManager struct {
 	indexPM indexPersistManager
 
 	status            persistManagerStatus
+	doneFns           []func()
 	currRateLimitOpts ratelimit.Options
 
 	start        time.Time
@@ -272,6 +273,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 			opts: opts,
 		},
 		status:  persistManagerIdle,
+		doneFns: make([]func(), 0, 0),
 		metrics: newPersistManagerMetrics(scope),
 	}
 	pm.indexPM.newReaderFn = NewIndexReader
@@ -573,10 +575,22 @@ func (pm *persistManager) deferCloseData() (persist.DataCloser, error) {
 	return pm.dataPM.writer.DeferClose()
 }
 
+func (pm *persistManager) AppendDoneFlushFn(fn func()) {
+	pm.Lock()
+	defer pm.Unlock()
+
+	pm.doneFns = append(pm.doneFns, fn)
+}
+
 // DoneFlush is called by the databaseFlushManager to finish the data persist process.
 func (pm *persistManager) DoneFlush() error {
 	pm.Lock()
 	defer pm.Unlock()
+
+	for _, fn := range pm.doneFns {
+		fn()
+	}
+	pm.doneFns = make([]func(), 0, 0)
 
 	if pm.status != persistManagerPersistingData {
 		return errPersistManagerNotPersisting

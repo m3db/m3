@@ -259,6 +259,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, mockBlock, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
+	lifecycle.EXPECT().ColdWritesAtBlockStartExist(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
 		IndexBlockSize: blockSize,
 	})
@@ -328,6 +329,9 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, bActive, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
+		Return(false).
+		AnyTimes()
+	lifecycle.EXPECT().ColdWritesAtBlockStartExist(gomock.Any()).
 		Return(false).
 		AnyTimes()
 	nowLock.Lock()

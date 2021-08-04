@@ -137,6 +137,8 @@ type databaseBuffer interface {
 
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
+	ColdWritesAtBlockStartExist(blockStart xtime.UnixNano) bool
+
 	Stats() bufferStats
 
 	Tick(versions ShardBlockStateSnapshot, nsCtx namespace.Context) bufferTickResult
@@ -450,6 +452,21 @@ func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockStat
 	}
 
 	return times
+}
+
+func (b *dbBuffer) ColdWritesAtBlockStartExist(blockStart xtime.UnixNano) bool {
+	bucketVersions, ok := b.bucketsMap[blockStart]
+	if !ok {
+		return false
+	}
+
+	for _, bucket := range bucketVersions.buckets {
+		if bucket.writeType == ColdWrite && bucket.streamsLen() > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (b *dbBuffer) Stats() bufferStats {

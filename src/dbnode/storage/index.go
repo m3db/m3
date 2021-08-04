@@ -838,7 +838,6 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
-	// i.e. we have the block and the inserts, perform the writes.
 	result, err := i.activeBlock.WriteBatch(batch)
 
 	// Record the end to end indexing latency.

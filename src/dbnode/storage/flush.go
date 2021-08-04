@@ -144,7 +144,8 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
 	// the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
+	flushPersist, err := m.dataWarmFlush(namespaces, startTime)
+	if err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -163,16 +164,24 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 		multiErr = multiErr.Add(err)
 	}
 
+	// Mark flush as done after both the data + index flushing. We do this following both operations
+	// so that there will never be a gap where index data is GCed prior to it being flushed to disk.
+	if flushPersist != nil {
+		if err := flushPersist.DoneFlush(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
 	return multiErr.FinalError()
 }
 
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
 	startTime xtime.UnixNano,
-) error {
+) (persist.FlushPreparer, error) {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	m.setState(flushManagerFlushInProgress)
@@ -193,13 +202,8 @@ func (m *flushManager) dataWarmFlush(
 		}
 	}
 
-	err = flushPersist.DoneFlush()
-	if err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
 	m.metrics.dataWarmFlushDuration.Record(m.nowFn().Sub(start))
-	return multiErr.FinalError()
+	return flushPersist, multiErr.FinalError()
 }
 
 func (m *flushManager) dataSnapshot(
